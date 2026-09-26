@@ -9,9 +9,11 @@
 // each once, under one stage whose title is `floor`: the stage the goal's own record keeps for it, or a
 // stage added for it. A walked goal keeps its checks for exactly this reason, and a goal switch copies
 // nothing. A check is carried once by id, and a second check whose spec is the same apart from its id and
-// stage is carried once too, since a goal names the conformance tree at every stage that leans on it and at
-// the floor those are one check. The fixtures a walked goal's checks run and its valgrind skips come with
-// them, because a floor whose fixtures are missing fails before anything is built.
+// stage is carried once too. A walked test check the permanent suite already runs graduates
+// (`graduatesTo`): the floor carries its crate's or its case tree's whole run once in its place, and
+// `bun nv chain --check` holds every test and case it named to still being there. The fixtures a walked
+// goal's checks run and its valgrind skips come with them, because a floor whose fixtures are missing
+// fails before anything is built.
 
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -103,6 +105,41 @@ export function walkedGoals(goals: ChainGoal[] = chainGoals(), live: ChainGoal |
   return new Map(goals.filter((g) => g.retired || (live !== null && g.num < live.num)).map((g) => [g.slug, g]));
 }
 
+/** The `.nvst` trees `nv verify` runs whole, through the debug binary. */
+export const CASE_TREES = ["conformance", "differential"];
+/** The fields a test check may have and still graduate: none that asks more than the permanent suite does. */
+const GRADUATING_FIELDS: Record<string, Set<string>> = {
+  "cargo-named": new Set(["id", "kind", "stage", "name", "args", "tests"]),
+  "nvs-suite": new Set(["id", "kind", "stage", "name", "args", "cases"]),
+};
+
+/**
+ * The permanent-suite check a walked goal's test check graduates to, or null when it stays on the floor
+ * as it is. A `cargo test -p <crate>` check, alone or narrowed by `--lib`, `--bin` or `--test`, graduates to
+ * its crate's whole debug run, and an `nvs test` over a case tree or a directory in it graduates to that
+ * whole tree: `nv verify` runs both, so the floor keeps one check per crate and per tree instead of one
+ * per goal that named them. A release build, a feature, a flag past the target, a `minPassing` count or any
+ * other field asks what the suite does not, and keeps the check.
+ */
+export function graduatesTo(c: GoalCheck): GoalCheck | null {
+  const allowed = GRADUATING_FIELDS[c.kind];
+  if (allowed === undefined || !Object.keys(c).every((k) => allowed.has(k))) return null;
+  const args = c.args ?? [];
+  if (args[0] !== "test") return null;
+  if (c.kind === "cargo-named") {
+    const pkg = args[1] === "-p" ? args[2] : undefined;
+    if (pkg === undefined) return null;
+    const rest = args.slice(3);
+    const narrowed = rest.length === 0 || (rest.length === 1 && rest[0] === "--lib") || (rest.length === 2 && (rest[0] === "--bin" || rest[0] === "--test"));
+    if (!narrowed) return null;
+    return { id: `permanent-suite-${pkg}`, kind: "cargo-named", stage: c.stage, name: `the permanent suite: cargo test -p ${pkg}`, args: ["test", "-p", pkg], tests: [] };
+  }
+  const path = (args[1] ?? "").replaceAll("\\", "/");
+  const tree = args.length === 2 ? CASE_TREES.find((t) => path === `tests/${t}` || path.startsWith(`tests/${t}/`)) : undefined;
+  if (tree === undefined) return null;
+  return { id: `permanent-suite-${tree}`, kind: "nvs-suite", stage: c.stage, name: `the permanent suite: nvs test tests/${tree}/`, args: ["test", `tests/${tree}/`] };
+}
+
 /** What a check asks, without its id and stage: two checks that ask the same are one check at the floor. */
 function specOf(c: GoalCheck): string {
   const { id: _id, stage: _stage, ...rest } = c;
@@ -110,10 +147,10 @@ function specOf(c: GoalCheck): string {
 }
 
 /**
- * `own` with every check of `walked` carried in as its floor, in chain order. The floor stage is the
- * one `own` titles `floor`, else `FLOOR_STAGE` when `own` has no stage by that number, else the stage
- * in front of its first. A carried check whose id `own` already uses for a different check is carried
- * as `<id>--<its goal>`.
+ * `own` with every check of `walked` carried in as its floor, in chain order, and then the permanent-suite
+ * checks the graduated ones stand for, one per crate and per case tree. The floor stage is the one `own`
+ * titles `floor`, else `FLOOR_STAGE` when `own` has no stage by that number, else the stage in front of its
+ * first. A carried check whose id `own` already uses for a different check is carried as `<id>--<its goal>`.
  */
 export function withFloor(own: Goal, walked: { slug: string; goal: Goal }[]): Goal {
   const kept = own.stages.find((s) => s.title.toLowerCase().includes(FLOOR_TITLE));
@@ -121,10 +158,16 @@ export function withFloor(own: Goal, walked: { slug: string; goal: Goal }[]): Go
   const ids = new Set(own.checks.map((c) => c.id));
   const specs = new Set(own.checks.filter((c) => c.stage === floor).map(specOf));
   const carried: GoalCheck[] = [];
+  const suite = new Map<string, GoalCheck>();
   const files = new Set(own.files);
   const skip = new Set(own.env.valgrind?.skip ?? []);
   for (const { slug, goal } of walked) {
     for (const c of goal.checks) {
+      const to = graduatesTo(c);
+      if (to !== null) {
+        if (!suite.has(to.id)) suite.set(to.id, to);
+        continue;
+      }
       const spec = specOf(c);
       if (specs.has(spec)) continue;
       specs.add(spec);
@@ -135,6 +178,13 @@ export function withFloor(own: Goal, walked: { slug: string; goal: Goal }[]): Go
     }
     for (const f of goal.files) files.add(f);
     for (const f of goal.env.valgrind?.skip ?? []) skip.add(f);
+  }
+  for (const c of suite.values()) {
+    const spec = specOf(c);
+    if (specs.has(spec) || ids.has(c.id)) continue;
+    specs.add(spec);
+    ids.add(c.id);
+    carried.push({ ...c, stage: floor });
   }
   const stages = kept ? own.stages : [{ number: floor, title: FLOOR_TITLE, summary: "Every check of every walked goal still passes." }, ...own.stages];
   const env = skip.size > 0 ? { ...own.env, valgrind: { skip: [...skip] } } : own.env;

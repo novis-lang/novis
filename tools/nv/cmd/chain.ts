@@ -19,6 +19,8 @@
 //   - a side goal with checks has no prose, no `# Side goal` H1 or no handoff record;
 //   - a side goal has no checks, which is one that has landed: its files are deleted, never kept;
 //   - prose names a goal by its number, which is a position and moves;
+//   - a walked goal's graduated test check names a test no Rust file spells or a case not on disk, since
+//     the floor runs only its whole crate or tree in its place (`graduatesTo`);
 //   - a goal's `context` names a shape or a playbook bullet that is not there (`nv orient`'s
 //     `manifestFindings`, over every goal not retired and every side goal with checks).
 // A note is something a reader misses: a goal not yet reached with no `## Why here` or no
@@ -31,7 +33,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ChainGoal, chainGoals, h1Of, liveGoal } from "../lib/chain.ts";
+import { type ChainGoal, chainGoals, graduatesTo, h1Of, liveGoal, walkedGoals } from "../lib/chain.ts";
 import { Index } from "../lib/index.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
@@ -64,6 +66,28 @@ async function shownFiles(): Promise<string[]> {
   const r = await proc(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: ROOT, timeoutMs: 60_000 });
   if (r.code !== 0) throw new Error(`git ls-files: exit ${r.code}\n${r.stderr.trim()}`);
   return [...new Set(r.stdout.split("\0").filter((p) => p.length > 0))];
+}
+
+/**
+ * Every test and case a walked goal's graduated check names that is gone: a test no tracked Rust file
+ * spells, or a case not on disk. The floor still runs the check's whole crate or tree, so this is what
+ * stops a deleted or renamed test from leaving the floor unnoticed.
+ */
+async function graduatedGone(records: Map<string, any>, walked: string[]): Promise<string[]> {
+  const rust = (await shownFiles()).filter((p) => p.endsWith(".rs")).map((p) => read(p) ?? "").join("\n");
+  const out: string[] = [];
+  for (const slug of walked) {
+    for (const c of records.get(slug)?.checks ?? []) {
+      if (graduatesTo(c) === null) continue;
+      for (const t of (c.tests ?? []) as string[]) {
+        if (!rust.includes(t.split("::").pop()!)) out.push(`data/goals/${slug}.json: check \`${c.id}\` names test \`${t}\`, which no Rust file spells`);
+      }
+      for (const k of (c.cases ?? []) as string[]) {
+        if (!existsSync(join(ROOT, k))) out.push(`data/goals/${slug}.json: check \`${c.id}\` names case ${k}, which is not on disk`);
+      }
+    }
+  }
+  return out;
 }
 
 /** Every `goal 29` in a text file, as `path:line  text`. The goals README lists the chain and is exempt. */
@@ -202,6 +226,13 @@ async function check(): Promise<number> {
       `side goal \`${slug}\`: no checks, so it has landed -- delete ${GOALS}/side/${slug}.md and data/goals/side/${slug}.json ` +
         "with its handoff, because a side goal is deleted when it is done, never retired",
     );
+  }
+
+  const gone = await graduatedGone(records, [...walkedGoals(goals, live).keys()]);
+  if (gone.length > 0) {
+    problems.push(`${gone.length} test(s) or case(s) a walked goal proved are gone. Write the check again over what replaced it, or delete it from its record:`);
+    for (const s of gone.slice(0, 15)) problems.push(`    ${s}`);
+    if (gone.length > 15) problems.push(`    ... and ${gone.length - 15} more`);
   }
 
   const stale = await numberCitations();

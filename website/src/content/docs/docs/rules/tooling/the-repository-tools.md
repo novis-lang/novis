@@ -18,7 +18,7 @@ next:
 
 <div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">4</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">4</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#the-repository-tools-are-one-bun-program">The repository's tools are one Bun + TypeScript program, <code>bun nv</code>, and <code>smol-toml</code> is its only runtime dependency</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-repository-fact-is-one-json-record">A fact a repository tool reads is one JSON record under <code>data/</code>, its type declared once and its text written by one writer</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-rendered-file-is-committed-and-never-edited">A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-chain-names-its-live-goal">The chain record names the live goal, and a goal's floor is every walked goal's checks, carried in as a view</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#the-repository-tools-are-one-bun-program">The repository's tools are one Bun + TypeScript program, <code>bun nv</code>, and <code>smol-toml</code> is its only runtime dependency</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-repository-fact-is-one-json-record">A fact a repository tool reads is one JSON record under <code>data/</code>, its type declared once and its text written by one writer</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-rendered-file-is-committed-and-never-edited">A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-chain-names-its-live-goal">The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="the-repository-tools-are-one-bun-program">
 
@@ -99,7 +99,7 @@ records, never merged by hand.
 
 <div class="nv-rule" id="the-chain-names-its-live-goal">
 
-## The chain record names the live goal, and a goal's floor is every walked goal's checks, carried in as a view
+## The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -115,9 +115,12 @@ goal-end gates are green, the next goal on the list becomes `live` in a commit o
 A goal's floor is a view, never a copy. The plan the driver runs for a goal is its record with every
 check of every goal in front of it on the list carried in under one stage titled `floor`, each check
 once. A goal that has walked keeps its checks for this reason, and a switch copies or retires nothing.
+A walked test check that the permanent suite already runs graduates: a plain `cargo test -p <crate>` or
+an `nvs test` over the conformance or differential tree is carried as its crate's or its tree's whole
+run, once, and `bun nv chain --check` fails when a test or case such a check names is gone.
 The runtime state under `.loop/` — the memo, the run's counts, the gate verdicts — stays git-ignored,
 because it is per machine and a fresh clone owes nothing it holds.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#a-repository-fact-is-one-json-record" title="A fact a repository tool reads is one JSON record under data/, its type declared once and its text written by one writer"><code>tooling/a-repository-fact-is-one-json-record</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0222.md">record 0222</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/lib/chain.ts"><code>tools/nv/lib/chain.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/chain.test.ts"><code>tools/nv/test/chain.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/loop.ts"><code>tools/nv/cmd/loop.ts</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#a-repository-fact-is-one-json-record" title="A fact a repository tool reads is one JSON record under data/, its type declared once and its text written by one writer"><code>tooling/a-repository-fact-is-one-json-record</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0222.md">record 0222</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0225.md">record 0225</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/lib/chain.ts"><code>tools/nv/lib/chain.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/chain.test.ts"><code>tools/nv/test/chain.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/loop.ts"><code>tools/nv/cmd/loop.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/chain.ts"><code>tools/nv/cmd/chain.ts</code></a></dd></div></dl>
 
 </div>

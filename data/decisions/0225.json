@@ -1,0 +1,9 @@
+{
+  "title": "a walked goal's test check the permanent suite already runs graduates to one check per crate and per case tree",
+  "status": "accepted",
+  "scope": "what the floor carries in from a walked goal's `cargo-named` and `nvs-suite` checks, and what `bun nv chain --check`\nholds them to. It changes no goal record and nothing a check runs.",
+  "dependsOn": [
+    "0222"
+  ],
+  "validatedBy": "`tools/nv/test/chain.test.ts`, and `bun nv chain --check` over the chain's walked goals."
+}

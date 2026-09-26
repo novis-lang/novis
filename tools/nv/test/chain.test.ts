@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { type Goal, goalPlan, liveGoal, setLive, withFloor } from "../lib/chain.ts";
+import { type Goal, goalPlan, graduatesTo, liveGoal, setLive, withFloor } from "../lib/chain.ts";
 import { load, write } from "../lib/store.ts";
 import { chain } from "../schema/chain.ts";
 import { goal } from "../schema/goal.ts";
@@ -65,6 +65,48 @@ describe("withFloor", () => {
       ["mine", 1],
       ["t", 0],
     ]);
+  });
+
+  test("a walked test check the permanent suite runs graduates to one check per crate and per case tree", () => {
+    const cargo = (id: string, args: string[], extra = {}) => ({ id, stage: 2, kind: "cargo-named" as const, args, tests: [`${id}_passes`], ...extra });
+    const suite = (id: string, path: string, extra = {}) => ({ id, stage: 2, kind: "nvs-suite" as const, args: ["test", path], cases: [`${path}/a.nvst`], ...extra });
+    const own = g([{ number: 2, title: "the work", summary: "s" }], [cmd("mine", 2, ["a"])]);
+    const walked = g(
+      [{ number: 2, title: "x", summary: "s" }],
+      [
+        cargo("whole", ["test", "-p", "nvs-types"]),
+        cargo("one-target", ["test", "-p", "nvs-types", "--test", "atoms"]),
+        cargo("lib", ["test", "-p", "nvs-ir", "--lib"]),
+        cargo("release", ["test", "--release", "-p", "nvs-ir"]),
+        cargo("filtered", ["test", "-p", "nvs-ir", "--", "--ignored"]),
+        suite("core", "tests/conformance/core"),
+        suite("diff", "tests/differential/"),
+        suite("counted", "tests/conformance/", { minPassing: 10 }),
+        suite("lsp", "tests/lsp"),
+      ],
+    );
+    const plan = withFloor(own, [{ slug: "old", goal: walked }]);
+    expect(plan.checks.map((c) => [c.id, c.stage, c.args])).toEqual([
+      ["mine", 2, undefined],
+      ["release", 1, ["test", "--release", "-p", "nvs-ir"]],
+      ["filtered", 1, ["test", "-p", "nvs-ir", "--", "--ignored"]],
+      ["counted", 1, ["test", "tests/conformance/"]],
+      ["lsp", 1, ["test", "tests/lsp"]],
+      ["permanent-suite-nvs-types", 1, ["test", "-p", "nvs-types"]],
+      ["permanent-suite-nvs-ir", 1, ["test", "-p", "nvs-ir"]],
+      ["permanent-suite-conformance", 1, ["test", "tests/conformance/"]],
+      ["permanent-suite-differential", 1, ["test", "tests/differential/"]],
+    ]);
+    expect(plan.checks.find((c) => c.id === "permanent-suite-nvs-types")?.tests).toEqual([]);
+  });
+
+  test("the goal's own test checks never graduate, and a walked check with a field the suite lacks stays", () => {
+    const named = { id: "own-test", stage: 2, kind: "cargo-named" as const, args: ["test", "-p", "nvs-types"], tests: ["t"] };
+    const own = g([{ number: 2, title: "the work", summary: "s" }], [named]);
+    const kept = { ...named, id: "in-a-dir", cwd: "crates" };
+    const plan = withFloor(own, [{ slug: "old", goal: g([{ number: 2, title: "x", summary: "s" }], [kept]) }]);
+    expect(graduatesTo(named)?.id).toBe("permanent-suite-nvs-types");
+    expect(plan.checks.map((c) => c.id)).toEqual(["own-test", "in-a-dir"]);
   });
 });
 

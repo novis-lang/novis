@@ -17108,7 +17108,7 @@
         "bun",
         "nv",
         "why",
-        "conformance (Core by name)"
+        "the permanent suite: nvs test tests/conformance/"
       ],
       "want": [
         "source: verify record"
