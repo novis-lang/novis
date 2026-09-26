@@ -5245,8 +5245,6 @@ mod tests {
         r"Core\Http\Target",
         r"Core\IO\Lines",
         r"Core\IO\Walk",
-        r"Core\Reflect",
-        r"Core\Reflect\AttributeInfo",
         r"Core\Reflect\ClassInfo",
         r"Core\Reflect\ConstantInfo",
         r"Core\Reflect\EnumInfo",

@@ -196,7 +196,8 @@
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
+    ParamDoc, Qual,
 };
 
 /// The class name, as a program writes it.
@@ -324,7 +325,7 @@ const ENUM_UNSIGNED_SLOT: usize = 3;
 /// `Core\Reflect` — the door onto a description, and nothing that acts.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "forClass",
@@ -366,6 +367,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Reflect`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Describes a value or a class while the program runs. `typeOf` returns what kind of \
+            value you have. `forClass` and `forObject` return a `Core\\Reflect\\ClassInfo` with \
+            the class's properties, methods, constants and attributes.",
 };
 
 /// `Core\Reflect::forClass`'s reference card — `rule:core-api/reference-card`.
@@ -1473,7 +1481,7 @@ const CONSTANT_HAS_VALUE_DOC: MethodDoc = MethodDoc {
 /// nothing to be judged by.
 pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
     name: ATTRIBUTE_INFO_NAME,
-    doc: None,
+    doc: Some(&ATTRIBUTE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1541,6 +1549,13 @@ const ATTRIBUTES_DOC: MethodDoc = MethodDoc {
           checked where it is written and costs nothing at run time; this is the reflective \
           question, for a class the caller does not name in source.",
     errors: &[],
+};
+
+/// `Core\Reflect\AttributeInfo`'s class card — `rule:core-api/reference-card`.
+const ATTRIBUTE_CARD: ClassDoc = ClassDoc {
+    short: "One `#[...]` attribute written on a class or on one of its members, as \
+            `Core\\Reflect\\ClassInfo::attributes` returns it. `target` and `parameter` say where \
+            it is written. `fields` lists its payload's field names, and `field` returns one value.",
 };
 
 /// `Core\Reflect\AttributeInfo::name`'s reference card — `rule:core-api/reference-card`.
@@ -3010,6 +3025,7 @@ mod tests {
     /// which is exactly the premise a reflective call site has. The public half
     /// is asserted in the same test so that "they agree" cannot be satisfied by
     /// a member that refuses everything.
+    // covers: Core\Reflect::forObject
     #[test]
     fn a_reflective_call_to_a_private_method_from_outside_fails_like_the_ordinary_call() {
         let (mut ctx, subject) = vault();
@@ -3315,12 +3331,47 @@ mod tests {
             .1
     }
 
+    /// The two doors onto a description **agree**: reaching `Vault` by its name
+    /// and reaching it through an instance answer the same class, so a
+    /// `forClass` that grew a lookup of its own would fail here while still
+    /// answering a plausible `ClassInfo`. The other half is the absence: a name
+    /// the unit declares no class for is `null`, not a throw.
+    // covers: Core\Reflect::forClass
+    #[test]
+    fn for_class_and_for_object_describe_the_same_class_and_an_unknown_name_is_null() {
+        let (mut ctx, subject) = vault();
+        let named = |ctx: &mut Ctx, info: Value| {
+            let name = call(super::nvs_core_reflect_class_info_name, ctx, &[info])
+                .expect("every description has a name");
+            name.as_text().expect("a class name is text").to_owned()
+        };
+
+        let by_value = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+            .expect("every object has a description");
+        let vault_name = Value::str(NvsStr::new(b"Vault"));
+        let by_name = call(super::nvs_core_reflect_for_class, &mut ctx, &[vault_name])
+            .expect("asking for a class by name never throws");
+        assert_eq!(
+            by_name.tag(),
+            Some(Tag::Object),
+            "`Vault` is declared, so it is described"
+        );
+        assert_eq!(named(&mut ctx, by_name), named(&mut ctx, by_value));
+        assert_eq!(named(&mut ctx, by_name), "Vault");
+
+        let unknown = Value::str(NvsStr::new(b"Vaults"));
+        let absent = call(super::nvs_core_reflect_for_class, &mut ctx, &[unknown])
+            .expect("a name no class has is an absence, not a failure");
+        assert_eq!(absent.tag(), Some(Tag::Null));
+    }
+
     /// The member is one call where PHP had fifteen, and that rests on two
     /// properties of the roster rather than on any one answer: every
     /// representation a value can be in has a case, and no two share one. The
     /// sweep is over the runtime's own tag roster rather than over a list
     /// written here, so a new tag fails this rather than silently
     /// answering `Object`.
+    // covers: Core\Reflect::typeOf
     #[test]
     fn type_of_is_the_single_replacement_for_the_is_predicates() {
         let mut answered = Vec::new();
