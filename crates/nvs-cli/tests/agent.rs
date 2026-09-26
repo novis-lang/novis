@@ -422,6 +422,23 @@ fn a_class_name_resolves_to_a_card_listing_its_members() {
     assert_eq!(card.trim_end(), r"Core\Html\Markup  class");
 }
 
+/// A class that carries a `ClassDoc` prints that prose between its line and its
+/// members, because the card is the class's help in the binary
+/// (`rule:testing/feature-proofs`) and a card nothing prints helps nobody.
+#[test]
+fn a_class_card_prints_its_prose_above_its_members() {
+    let (card, _, ok) = agent(&["show", r"Core\Process\Result"]);
+    assert!(ok, "a class name resolves");
+    let prose = card
+        .find("The result of a program that has ended.")
+        .expect("the class's own card is printed");
+    let members = card.find("\nmembers:\n").expect("the members are listed");
+    assert!(
+        prose < members,
+        "the prose comes before the members: {card}"
+    );
+}
+
 /// The markup literal has no member to be named for, so the word `html` has to
 /// reach it through a heading — and through the class whose value it makes —
 /// or an agent concludes from six member lines that no literal exists.

@@ -732,9 +732,10 @@ fn card(document: &Value, entry: &Entry) -> String {
     out
 }
 
-/// The card for a class: the index line of each of its members, so the class
-/// name alone is a way into its members without knowing one of them. A class
-/// with no members writes nothing under its line.
+/// The card for a class: its own prose when the registry row carries a
+/// `ClassDoc`, then the index line of each of its members, so the class name
+/// alone is a way into its members without knowing one of them. A class with
+/// no card and no members writes nothing under its line.
 fn push_class_card(out: &mut String, document: &Value, symbol: &str) {
     let Some(class) = array(document, "classes")
         .iter()
@@ -742,6 +743,7 @@ fn push_class_card(out: &mut String, document: &Value, symbol: &str) {
     else {
         return;
     };
+    push_prose(out, text(&class["doc"], "short"));
     let members = array(class, "members");
     if members.is_empty() {
         return;
