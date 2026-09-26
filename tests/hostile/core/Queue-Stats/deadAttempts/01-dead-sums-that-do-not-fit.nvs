@@ -1,0 +1,104 @@
+<?nvs
+// Attack: the attempts in the dead-letter table add up to more than a 64-bit number can hold,
+// are below zero, or are not whole numbers. `deadAttempts()` should return a number or throw
+// an error. The program must not crash.
+use Core\Queue;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (1, 'q', 'jobs/a.nvs', 7, 5, 1000, 0, 0, 0, '[]'),
+       (2, 'q', 'jobs/a.nvs', 7, 5, 1000, 0, 0, 0, '[]'),
+       (3, 'other', 'jobs/a.nvs', 7, 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+
+// 1. The queue name is SQL that tries to count the failed attempts of every queue.
+try {
+    echo '1: ', Queue::stats("q' or '1'='1")->deadAttempts(), "\n";
+} catch (Throwable $e) {
+    echo "1: error\n";
+}
+
+// 2. One row has the largest 64-bit number and the other has 0, so the sum just fits.
+$db->execute('update nvs_dead_jobs set attempts = 9223372036854775807 where id = 1', []);
+$db->execute('update nvs_dead_jobs set attempts = 0 where id = 2', []);
+try {
+    echo '2: ', Queue::stats('q')->deadAttempts(), "\n";
+} catch (Throwable $e) {
+    echo "2: error\n";
+}
+
+// 3. The other row has 1, so the sum is one more than the largest 64-bit number.
+$db->execute('update nvs_dead_jobs set attempts = 1 where id = 2', []);
+try {
+    echo '3: ', Queue::stats('q')->deadAttempts(), "\n";
+} catch (Throwable $e) {
+    echo "3: error\n";
+}
+
+// 4. The sum is below zero, and `deadAttempts()` returns a `uint`.
+$db->execute("update nvs_dead_jobs set attempts = -5 where queue = 'q'", []);
+try {
+    echo '4: ', Queue::stats('q')->deadAttempts(), "\n";
+} catch (Throwable $e) {
+    echo "4: error\n";
+}
+
+// 5. The attempts are numbers with a fraction.
+$db->execute("update nvs_dead_jobs set attempts = 1.5 where queue = 'q'", []);
+try {
+    echo '5: ', Queue::stats('q')->deadAttempts(), "\n";
+} catch (Throwable $e) {
+    echo "5: error\n";
+}
+
+// 6. The attempts are bytes.
+$db->execute("update nvs_dead_jobs set attempts = x'00ff00ff' where queue = 'q'", []);
+try {
+    echo '6: ', Queue::stats('q')->deadAttempts(), "\n";
+} catch (Throwable $e) {
+    echo "6: error\n";
+}
+
+// 7. The dead-letter table has 200000 jobs of the queue, and each job used 1000000 attempts.
+$db->execute('delete from nvs_dead_jobs', []);
+$db->execute(<<<'SQL'
+with recursive n(i) as (select 1 union all select i + 1 from n where i < 200000)
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms, run_at,
+    created_at, failed_at, errors)
+select i, 'q', 'jobs/a.nvs', 1000000, 5, 1000, 0, 0, 0, '[]' from n
+SQL, []);
+try {
+    echo '7: ', Queue::stats('q')->deadAttempts(), "\n";
+} catch (Throwable $e) {
+    echo "7: error\n";
+}
+
+// 8. `deadAttempts()` is called 1000000 times on one result.
+var $stats = Queue::stats('q');
+uint $total = 0;
+int $i = 0;
+while ($i < 1000000) {
+    $total = ($total + $stats->deadAttempts()) % 1000003;
+    $i = $i + 1;
+}
+echo '8: ', $total, "\n";

@@ -723,6 +723,71 @@ fn sqlite_attempts_sum_every_state_of_one_queue_and_nothing_of_another() {
     );
 }
 
+/// `claimed` is the rows of the queue whose `state` is `1`, and nothing about
+/// `claimed_at` enters it: a claim long past `[queue] visibility` is still a
+/// claim until the next worker's second arm takes it again, so it is counted
+/// here and not under `pending`. A claimed row on another queue and a
+/// dead-lettered one add nothing.
+// covers: Core\Queue\Stats::claimed
+#[test]
+fn sqlite_claimed_counts_state_one_of_one_queue_however_old_the_claim() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-stats-claimed");
+    push_on(&worker, "another-queue", NOW, 1, 1, Some(NOW));
+    assert_eq!(
+        counts(&reader)[1],
+        0,
+        "the other queue's claim is not this queue's"
+    );
+
+    for state in 0..5 {
+        let claimed_at = (state == 1).then_some(NOW);
+        push(&worker, NOW, state, 1, claimed_at);
+    }
+    let expired = push(&worker, NOW, 1, 1, Some(0));
+    assert_eq!(
+        counts(&reader)[..2],
+        [1, 2],
+        "one row waits, and both the live claim and the expired one are claimed"
+    );
+
+    dead_letter(&worker, expired, 0);
+    assert_eq!(
+        counts(&reader)[1],
+        1,
+        "a claim that is dead-lettered leaves the count with its row"
+    );
+}
+
+/// `deadAttempts` is summed over the queue's rows of `nvs_dead_jobs` alone: the
+/// subquery carries its own `where queue = ?`, so a buried job of another queue
+/// adds nothing, and a live row's attempts stay in `attempts` until the
+/// dead-letter move carries them across.
+// covers: Core\Queue\Stats::deadAttempts
+#[test]
+fn sqlite_dead_attempts_sum_the_buried_rows_of_one_queue_and_nothing_live() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-stats-dead-attempts");
+    let elsewhere = push_on(&worker, "another-queue", NOW, 1, 1000, Some(NOW));
+    dead_letter(&worker, elsewhere, NOW);
+    push(&worker, NOW, 0, 8, None);
+    assert_eq!(
+        counts(&reader)[4],
+        0,
+        "the other queue's buried attempts and this queue's live ones are not this counter's"
+    );
+
+    for attempts in [1, 2, 4] {
+        let id = push(&worker, NOW, 1, attempts, Some(NOW));
+        dead_letter(&worker, id, NOW);
+    }
+    let read = counts(&reader);
+    assert_eq!(
+        (read[2], read[3], read[4]),
+        (8, 3, 7),
+        "each buried job adds its own power of two here and nothing to `attempts`, so a row left \
+         out is named by the bit missing from the sum"
+    );
+}
+
 /// `DELETE_SQLITE`'s pair, taken whole: both arms inside one immediate
 /// transaction, and the member's `bool` is either of them having removed a row.
 ///

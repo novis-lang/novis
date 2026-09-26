@@ -1,0 +1,41 @@
+<?nvs
+// Shows how many attempts a job of a queue uses, on average, before it fails for good.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// Three jobs failed for good. They used 5, 5 and 2 attempts.
+// No worker runs here, so SQL adds the rows.
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (1, 'mail', 'jobs/send-mail.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (2, 'mail', 'jobs/send-mail.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (3, 'mail', 'jobs/send-mail.nvs', 2, 2, 1000, 0, 0, 0, '[]')
+SQL, []);
+
+// `deadAttempts()` is 12 and `deadLettered()` is 3.
+// This prints `4 attempts per failed job`.
+var $stats = Queue::stats("mail");
+if ($stats->deadLettered() > 0) {
+    echo $stats->deadAttempts() / $stats->deadLettered(), " attempts per failed job\n";
+}

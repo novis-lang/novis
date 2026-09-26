@@ -1,0 +1,47 @@
+<?nvs
+// Shows a report of the work that failed in each queue, as a daily report prints it.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// Two jobs of `mail` and one job of `exports` failed for good.
+// No worker runs here, so SQL adds the rows.
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (1, 'mail', 'jobs/send-mail.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (2, 'mail', 'jobs/send-mail.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (3, 'exports', 'jobs/export.nvs', 3, 3, 1000, 0, 0, 0, '[]')
+SQL, []);
+
+// This prints one line for each queue. The first line is `mail: 2 failed, 10 attempts used`.
+// `images` has no failed jobs.
+array<string> $queues = ["mail", "exports", "images"];
+foreach ($queues as string $queue) {
+    var $stats = Queue::stats($queue);
+    if ($stats->deadLettered() == 0) {
+        echo $queue, ": no failed jobs\n";
+    } else {
+        echo $queue, ": ", $stats->deadLettered(), " failed, ";
+        echo $stats->deadAttempts(), " attempts used\n";
+    }
+}

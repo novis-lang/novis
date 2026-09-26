@@ -1,0 +1,71 @@
+--TEST--
+`Core\Queue\Stats::deadAttempts` sums the `attempts` of every row of one queue in `nvs_dead_jobs`, counts no other queue and no row of `nvs_jobs`, and keeps the number it read when the rows change after — `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
+--FILE--
+<?nvs
+// covers: Core\Queue\Stats::deadAttempts
+use Core\Queue;
+
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+echo "empty: ", Queue::stats("q")->deadAttempts(), "\n";
+
+// A live row of the queue has attempts too, and they are `attempts`, not `deadAttempts`.
+Queue::push("jobs/a.nvs", {queue: "q"});
+$db->execute("update nvs_jobs set state = 0, attempts = 100", []);
+echo "live only: ", Queue::stats("q")->deadAttempts(), "\n";
+
+// Three dead rows of the queue, each a power of two, and one of another queue.
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (10, 'q', 'jobs/a.nvs', 1, 5, 1000, 0, 0, 0, '[]'),
+       (11, 'q', 'jobs/a.nvs', 2, 5, 1000, 0, 0, 0, '[]'),
+       (12, 'q', 'jobs/a.nvs', 4, 5, 1000, 0, 0, 0, '[]'),
+       (13, 'other', 'jobs/a.nvs', 1000, 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+
+var $stats = Queue::stats("q");
+echo "dead: ", $stats->deadAttempts(), "\n";
+echo "live: ", $stats->attempts(), "\n";
+echo "other: ", Queue::stats("other")->deadAttempts(), "\n";
+
+// The result is read once, so a later write does not change it.
+$db->execute("delete from nvs_dead_jobs where id = 12", []);
+echo "kept: ", $stats->deadAttempts(), "\n";
+echo "read again: ", Queue::stats("q")->deadAttempts(), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs"]
+
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+empty: 0
+live only: 0
+dead: 7
+live: 100
+other: 1000
+kept: 7
+read again: 3
