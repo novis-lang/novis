@@ -207,41 +207,41 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\ObjectSet::union`'s reference card — `rule:core-api/reference-card`.
 const UNION_DOC: MethodDoc = MethodDoc {
-    short: "Builds a new set holding every value this set or `$other` holds.",
+    short: "Builds a new set with every value that is in this set, in `$other`, or in both.",
     params: &[ParamDoc {
         name: "other",
         desc: "The set to combine with.",
         shape: &[],
     }],
-    ret: "A fresh `Core\\ObjectSet<T>` — this set's members first, in their order, then \
-          `$other`'s newcomers; neither operand is changed.",
+    ret: "A new `Core\\ObjectSet<T>`. The values of this set come first, in their order. Then \
+          the values of `$other` that are not in this set follow. Neither set is changed.",
     errors: &[],
 };
 
 /// `Core\ObjectSet::intersect`'s reference card — `rule:core-api/reference-card`.
 const INTERSECT_DOC: MethodDoc = MethodDoc {
-    short: "Builds a new set holding the values both this set and `$other` hold.",
+    short: "Builds a new set with only the values that are in this set and also in `$other`.",
     params: &[ParamDoc {
         name: "other",
         desc: "The set to intersect with.",
         shape: &[],
     }],
-    ret: "A fresh `Core\\ObjectSet<T>` in this set's order, empty when the two share nothing; \
-          neither operand is changed.",
+    ret: "A new `Core\\ObjectSet<T>`, in the order of this set. It is empty when the two sets \
+          have no value in common. Neither set is changed.",
     errors: &[],
 };
 
 /// `Core\ObjectSet::diff`'s reference card — `rule:core-api/reference-card`.
 const DIFF_DOC: MethodDoc = MethodDoc {
-    short: "Builds a new set holding the values this set holds and `$other` does not — spelled \
-            `diff` as `Core\\Arr::diff` is, because one operation gets one name.",
+    short: "Builds a new set with the values that are in this set and not in `$other`. The name \
+            is `diff`, the same as `Core\\Arr::diff`.",
     params: &[ParamDoc {
         name: "other",
-        desc: "The set whose members are left out.",
+        desc: "The set whose values are left out.",
         shape: &[],
     }],
-    ret: "A fresh `Core\\ObjectSet<T>` in this set's order, empty when `$other` holds everything \
-          this set does; neither operand is changed.",
+    ret: "A new `Core\\ObjectSet<T>`, in the order of this set. It is empty when `$other` has \
+          every value of this set. Neither set is changed.",
     errors: &[],
 };
 
@@ -623,5 +623,57 @@ mod tests {
         on(set, nvs_core_object_set_add, &[Value::int(1)]);
         assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(1));
         drop_set(set);
+    }
+
+    /// `union`, `intersect` and `diff` of `{1, 2, 3}` and `{2, 3, 4}` each
+    /// build a new set with the members the walk decides, a shared member is
+    /// counted once, and neither operand changes.
+    // covers: Core\ObjectSet::union, Core\ObjectSet::intersect, Core\ObjectSet::diff
+    #[test]
+    fn the_algebra_builds_new_sets_and_leaves_both_operands_alone() {
+        let left = empty();
+        let right = empty();
+        for n in [1, 2, 3] {
+            on(left, nvs_core_object_set_add, &[Value::int(n)]);
+        }
+        for n in [2, 3, 4] {
+            on(right, nvs_core_object_set_add, &[Value::int(n)]);
+        }
+
+        let members = |set: Value| -> Vec<bool> {
+            (1..=4)
+                .map(|n| {
+                    on(set, nvs_core_object_set_has, &[Value::int(n)])
+                        .as_bool()
+                        .expect("`has` answers a bool")
+                })
+                .collect()
+        };
+        for (member, count, held) in [
+            (
+                nvs_core_object_set_union as NvsFn,
+                4,
+                [true, true, true, true],
+            ),
+            (nvs_core_object_set_intersect, 2, [false, true, true, false]),
+            (nvs_core_object_set_diff, 1, [true, false, false, false]),
+        ] {
+            let result = on(left, member, &[right]);
+            assert_eq!(
+                on(result, nvs_core_object_set_count, &[]).as_uint(),
+                Some(count)
+            );
+            assert_eq!(members(result), held);
+            drop_set(result);
+        }
+
+        let back = on(right, nvs_core_object_set_diff, &[left]);
+        assert_eq!(members(back), [false, false, false, true]);
+        drop_set(back);
+
+        assert_eq!(members(left), [true, true, true, false]);
+        assert_eq!(members(right), [false, true, true, true]);
+        drop_set(left);
+        drop_set(right);
     }
 }

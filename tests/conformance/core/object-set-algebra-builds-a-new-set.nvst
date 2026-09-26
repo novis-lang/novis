@@ -2,6 +2,7 @@
 `Core\ObjectSet<T>`'s `remove`, `union`, `intersect` and `diff` each answer without changing either operand — docs/spec/01-core-library.md § 9
 --FILE--
 <?nvs
+// covers: Core\ObjectSet::union, Core\ObjectSet::intersect, Core\ObjectSet::diff, Core\ObjectSet::remove
 final class Tag {
     public string $name;
 

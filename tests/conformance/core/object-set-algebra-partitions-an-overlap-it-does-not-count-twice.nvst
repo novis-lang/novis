@@ -12,13 +12,10 @@
 // two sets share an element exactly when they were handed the same instance,
 // so every row below selects from one pool of eight `Tag`s by index.
 //
-// Every derived set is written as a *chain*. `union`, `intersect` and `diff`
-// return `CoreTy::Instance` with no type argument
-// (`crates/nvs-stdlib/src/objset.rs:89`), so the answer is a
-// `Core\ObjectSet` that no declared type accepts — binding it is `E0401`
-// against `Core\ObjectSet<Tag>` and the bare spelling is `E0442`. A `Core`
-// member's own parameter does take it, which is what makes the laws below
-// expressible at all.
+// Every derived set is written as a chain, so each law reads as one
+// expression; the result of each member is a `Core\ObjectSet<Tag>` and could
+// equally be bound to a variable of that type.
+// covers: Core\ObjectSet::union, Core\ObjectSet::intersect, Core\ObjectSet::diff
 
 final class Tag {
     public function constructor(public readonly string $name) {}
