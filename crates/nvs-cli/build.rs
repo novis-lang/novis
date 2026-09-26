@@ -214,13 +214,13 @@ fn commit(workspace: &Path) -> String {
         return supplied.trim().to_owned();
     }
 
-    let git = workspace.join(".git");
-    if !git.exists() {
+    let Some(git) = git_dir(workspace) else {
         return unknown();
-    }
-    // Re-run when the checked-out commit moves. `.git/index` covers a
-    // `git add`, which is what flips the dirty marker below; neither path
-    // existing is fine, Cargo simply ignores a missing dependency.
+    };
+    // Re-run when the checked-out commit moves. `index` covers a `git add`,
+    // which is what flips the dirty marker below. Both are named in the real
+    // git directory: a path that does not exist makes Cargo re-run this
+    // script, and relink `nvs`, on every build.
     println!("cargo:rerun-if-changed={}", git.join("HEAD").display());
     println!("cargo:rerun-if-changed={}", git.join("index").display());
 
@@ -242,6 +242,32 @@ fn commit(workspace: &Path) -> String {
     if dirty { format!("{hash}-dirty") } else { hash }
 }
 
+/// The directory that holds this checkout's `HEAD` and `index`, or `None`
+/// when the workspace is not a git checkout.
+///
+/// In a clone, `.git` is that directory. In a linked worktree, `.git` is a
+/// file whose one line is `gitdir: <path>`, and the path it names holds the
+/// worktree's own `HEAD` and `index`. A relative path is taken from the
+/// workspace, as git takes it.
+fn git_dir(workspace: &Path) -> Option<PathBuf> {
+    let dot = workspace.join(".git");
+    if dot.is_dir() {
+        return Some(dot);
+    }
+    let text = std::fs::read_to_string(&dot).ok()?;
+    let named = text
+        .lines()
+        .find_map(|line| line.strip_prefix("gitdir:"))?
+        .trim();
+    let path = Path::new(named);
+    let dir = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        workspace.join(path)
+    };
+    dir.is_dir().then_some(dir)
+}
+
 /// The commit's own committer date, as `YYYY-MM-DD`.
 ///
 /// The commit's date and never the build's, which is what lets the banner say
@@ -255,7 +281,7 @@ fn commit_date(workspace: &Path) -> String {
     {
         return supplied.trim().to_owned();
     }
-    if !workspace.join(".git").exists() {
+    if git_dir(workspace).is_none() {
         return unknown();
     }
     // `commit` above already registered the rerun triggers for a moved HEAD.
