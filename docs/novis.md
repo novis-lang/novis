@@ -12258,15 +12258,15 @@ Waits until the program writes to its standard error, and returns what it wrote.
 $handle->writeStdin(bytes $data): void
 ```
 
-Writes `$data` to the child's standard input, suspending this coroutine until the child has taken it. A `tainted` value is accepted here and nowhere else in this class: standard input is data the child reads, where a path and an argument are a command this process builds.
+Sends `$data` to the program's standard input. The call waits until the program has taken all of it. A `tainted` value is allowed here, because the program reads it as data and does not run it as a command.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes` (neutral) | The octets to write, whole. A `string` converts on the way in. |
+| `$data` | `bytes` (neutral) | The data to send, as `bytes`. All of it is sent. Use `as bytes` to convert a `string`. |
 
-**Returns** `void` — Nothing. The child's input stays open for the next write and is closed by `wait`, which is what lets a child reading to the end of its input ever see one.
+**Returns** `void` — Nothing. The input stays open, so you can call `writeStdin` again. `wait` closes the input, and then the program sees the end of it.
 
-**Throws** `IOError` — The operating system failed the write — most often a child that has already exited, which closes the pipe this end was writing into.
+**Throws** `IOError` — The operating system could not send the data. This happens most often when the program has already ended, or after `wait`.
 
 <a id="core-core-process-handle-wait"></a>
 #### `Core\Process\Handle->wait`
