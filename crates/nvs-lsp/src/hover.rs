@@ -241,7 +241,10 @@ fn opens_at(analysed: &Analysed, node: IndexNode, children: &[IndexNode]) -> Opt
 /// empty one, which is [`at`]'s answer to the same case.
 fn documentation(analysed: &Analysed, call: &ResolvedCall) -> Option<Documentation> {
     let value = registry_row(call)
-        .and_then(|member| member.doc.map(|doc| reference_card(member, doc)))
+        .and_then(|member| {
+            nvs_footprint::card(&call.class.to_string());
+            member.doc.map(|doc| reference_card(member, doc))
+        })
         .or_else(|| run(analysed, &Target::Method(call)))?;
     let value = value.trim().to_owned();
     if value.is_empty() {
@@ -471,6 +474,7 @@ fn core(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
         Target::Property { .. } | Target::TypeAlias { .. } => return None,
     };
     let member = registry_row(call)?;
+    nvs_footprint::card(&call.class.to_string());
     let mut value = format!(
         "```nvs\n{}\n```",
         signature(&call.class.to_string(), call, &analysed.interner).0

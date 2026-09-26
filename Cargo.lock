@@ -2371,6 +2371,9 @@ dependencies = [
 [[package]]
 name = "nvs-repo"
 version = "0.0.1"
+dependencies = [
+ "nvs-footprint",
+]
 
 [[package]]
 name = "nvs-runtime"
@@ -2409,6 +2412,7 @@ dependencies = [
  "jiff",
  "nvs-config",
  "nvs-diagnostics",
+ "nvs-footprint",
  "nvs-host",
  "nvs-render",
  "nvs-runtime",

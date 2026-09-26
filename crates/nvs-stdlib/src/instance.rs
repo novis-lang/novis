@@ -545,6 +545,8 @@ pub fn class_descriptors() -> Vec<(&'static str, *const ClassDesc)> {
 /// it has no instances, so nothing encodes one and nothing can ask for it back.
 #[must_use]
 pub fn core_class_desc(name: &str) -> Option<*const ClassDesc> {
+    // A lookup by name at run time, so it is the program's use of that class.
+    nvs_footprint::class(name);
     let table = descriptors();
     Some(table.desc(table.id_of(name)?))
 }

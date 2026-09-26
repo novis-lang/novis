@@ -17,6 +17,11 @@
 //! cannot be shown to stay inside its package, and `bun nv verify` then runs its binary on
 //! every change to the tree. `tools/data/impact-wide.txt` lists each such binary and the reason.
 //!
+//! Each path is also written to the footprint log `NVS_FOOTPRINT_LOG` names ([`nvs_footprint`]):
+//! a path as a `tree` line, which stands for everything beneath it, and `**/<name>` as a `named`
+//! line. A recorded test binary then has one log for the classes, files and paths its own code and
+//! the `nvs` processes it starts used.
+//!
 //! A log that is named and cannot be written panics: a read that went unrecorded is a test that
 //! is later skipped over a change it depends on, which is the one failure this crate exists to
 //! prevent.
@@ -42,6 +47,11 @@ fn repository() -> PathBuf {
 }
 
 fn record(rel: &str) {
+    match rel.strip_prefix("**/") {
+        Some(name) => nvs_footprint::named(name),
+        None if rel == WHOLE_TREE => nvs_footprint::tree(&repository()),
+        None => nvs_footprint::tree(&repository().join(rel)),
+    }
     let Some(log) = std::env::var_os(LOG_ENV) else {
         return;
     };
@@ -183,6 +193,19 @@ mod tests {
             found
                 .iter()
                 .all(|p| !p.components().any(|c| c.as_os_str() == "target"))
+        );
+    }
+
+    #[test]
+    fn each_path_asked_for_is_a_footprint_line() {
+        let ((), lines) = nvs_footprint::capture(|| {
+            let _ = path("crates/nvs-repo");
+            let _ = named("Cargo.toml");
+        });
+        let dir = nvs_footprint::shown(&repository().join("crates/nvs-repo"));
+        assert_eq!(
+            lines,
+            [format!("tree\t{dir}"), "named\tCargo.toml".to_string()]
         );
     }
 

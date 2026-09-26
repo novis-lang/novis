@@ -1,6 +1,6 @@
 //! `NVS_FOOTPRINT_LOG` and `NOVIS_NO_FILE_CACHE`, driven through the built binary: a run records
-//! the `Core` classes it looked up and the files, directories and paths it read, and a run with the
-//! switch set compiles without an artifact cache.
+//! the `Core` classes it looked up and the files, directories and paths it read, `nvs agent show`
+//! records the cards it printed, and a run with the switch set compiles without an artifact cache.
 //!
 //! The fixture under `tests/fixtures/footprint/` requires a second file, reads a data file, lists a
 //! directory, tests a path that is not there, and calls `Core\Math`, `Core\IO` and `Core\Arr`.
@@ -85,6 +85,10 @@ fn a_run_records_the_classes_it_looked_up_and_what_it_read() {
         !text.contains("Footprint\\Helper"),
         "a class of the program's own is not a registry class:\n{text}"
     );
+    assert!(
+        !lines.iter().any(|line| line.starts_with("card\t")),
+        "a program prints no card, so an edit to one never selects it:\n{text}"
+    );
     let mut distinct = lines.clone();
     distinct.sort_unstable();
     distinct.dedup();
@@ -94,6 +98,25 @@ fn a_run_records_the_classes_it_looked_up_and_what_it_read() {
         "each line is written once:\n{text}"
     );
 
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn printing_a_card_records_the_cards_it_read() {
+    let dir = scratch("card");
+    let log = dir.join("footprint.log");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["agent", "show", r"Core\Math"])
+        .env("NVS_FOOTPRINT_LOG", &log)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = std::fs::read_to_string(&log).expect("the run wrote its log");
+    assert!(text.lines().any(|line| line == "card\t*"), "{text}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

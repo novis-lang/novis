@@ -3012,6 +3012,66 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
     CLASSES.iter().find(|class| class.name == name)
 }
 
+/// Records, when `NVS_FOOTPRINT_LOG` names a log, that a program used the signatures of the class
+/// `name`: the class itself, and every `Core` class and enum a parameter or return type of one of
+/// its members names. A program that calls `Core\Process::run` is typed against
+/// `Core\Process\Result` without ever looking that class up, so an edit to its row has to reach
+/// the program too. The name is compared without regard to ASCII case, as the compiler compares
+/// one.
+pub fn record_signature(name: &str) {
+    if !nvs_footprint::enabled() {
+        return;
+    }
+    nvs_footprint::class(name);
+    for named in signature_classes(name) {
+        nvs_footprint::class(named);
+    }
+}
+
+/// Every `Core` class and enum a parameter or return type of a member of the class `name` names,
+/// sorted and without the class itself.
+#[must_use]
+pub fn signature_classes(name: &str) -> Vec<&'static str> {
+    fn walk(ty: &CoreTy, into: &mut Vec<&'static str>) {
+        match ty {
+            CoreTy::Instance(name) | CoreTy::Enum(name) | CoreTy::EnumCase(name, _) => {
+                into.push(name);
+            }
+            CoreTy::InstanceAt(name, args) => {
+                into.push(name);
+                args.iter().for_each(|arg| walk(arg, into));
+            }
+            CoreTy::Array(inner) | CoreTy::Nullable(inner) | CoreTy::Iterated(inner) => {
+                walk(inner, into);
+            }
+            CoreTy::Union(members) => members.iter().for_each(|member| walk(member, into)),
+            CoreTy::CallableSig(params, ret) => {
+                params.iter().for_each(|param| walk(param, into));
+                walk(ret, into);
+            }
+            _ => {}
+        }
+    }
+    let Some(class) = CLASSES
+        .iter()
+        .find(|class| class.name.eq_ignore_ascii_case(name))
+    else {
+        return Vec::new();
+    };
+    let mut named = Vec::new();
+    for member in class.members() {
+        member
+            .params
+            .iter()
+            .for_each(|param| walk(param, &mut named));
+        walk(&member.return_ty, &mut named);
+    }
+    named.sort_unstable();
+    named.dedup();
+    named.retain(|found| *found != class.name);
+    named
+}
+
 /// The `Core` interfaces `rule:core-classes/derive-attribute`'s attributes
 /// stand for. A class carrying `#[Json\Derive]` implements the first of them
 /// whether or not it writes the clause, and writing the clause is redundant
@@ -3694,6 +3754,25 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::*;
+
+    /// A class's signatures name the classes its members take and return, so a program typed
+    /// against `Core\Process` is recorded as using `Core\Process\Result` too.
+    #[test]
+    fn a_signature_use_records_the_classes_its_members_name() {
+        let named = signature_classes("core\\process");
+        assert!(named.contains(&"Core\\Process\\Result"), "{named:?}");
+        assert!(!named.contains(&"Core\\Process"), "{named:?}");
+        let ((), lines) = nvs_footprint::capture(|| record_signature("Core\\Process"));
+        assert_eq!(
+            lines.first().map(String::as_str),
+            Some("class\tCore\\Process")
+        );
+        assert!(
+            lines.contains(&"class\tCore\\Process\\Result".to_string()),
+            "{lines:?}"
+        );
+        assert!(signature_classes("App\\Helper").is_empty());
+    }
 
     /// `rule:expressions/try-parse`: a class with a `tryParse` declares no `isValid`,
     /// because `Core\Uri::isValid($s)` and `Core\Uri::tryParse($s) != null`

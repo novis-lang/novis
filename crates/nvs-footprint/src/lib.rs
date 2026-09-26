@@ -10,9 +10,16 @@
 //! |---|---|
 //! | `class\tCore\Math` | the compiler or the runtime looked `Core\Math` up in the registry, found or not |
 //! | `class\t*` | a reader listed every class, so any change to the registry changes what it printed |
+//! | `card\tCore\Math` | `Core\Math`'s reference card or intro was printed or served |
+//! | `card\t*` | every class's card was printed or served, as `nvs meta` does |
 //! | `file\t<path>` | a file was read whole |
 //! | `dir\t<path>` | a directory was listed |
 //! | `exists\t<path>` | a path was tested for existence, whether or not something was there |
+//! | `tree\t<path>` | a test asked for a file or a directory through `nvs_repo`: everything beneath it |
+//! | `named\t<name>` | a test read every file called `<name>` anywhere in the tree, through `nvs_repo` |
+//!
+//! A card is a line of its own because a card is documentation: an edit to one changes what the
+//! readers of cards print, and no program's behaviour.
 //!
 //! A path is absolute, `/`-separated on every platform and without Windows' `\\?\` prefix, and it
 //! is not canonicalized: a link reads as the path that was named. Each distinct line is written
@@ -22,8 +29,11 @@
 //! Without the variable nothing is written, and each call costs one atomic load. A log that is
 //! named and cannot be opened or written stops the process: a footprint with a line missing is one
 //! that a later change is not selected by, which is the one failure this crate exists to prevent.
+//!
+//! [`capture`] collects the lines one thread writes while a closure runs, with or without the
+//! variable, which is how a crate's own unit tests check the lines its readers write.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
@@ -39,12 +49,18 @@ pub const LOG_ENV: &str = "NVS_FOOTPRINT_LOG";
 pub enum Kind {
     /// A `Core` class looked up by name, or `*` for the whole roster.
     Class,
+    /// A `Core` class's card printed or served, or `*` for every card.
+    Card,
     /// A file read whole.
     File,
     /// A directory listed.
     Dir,
     /// A path tested for existence.
     Exists,
+    /// A file or a directory a test asked for, standing for everything beneath it.
+    Tree,
+    /// Every file with this name, anywhere in the tree.
+    Named,
 }
 
 impl Kind {
@@ -53,9 +69,12 @@ impl Kind {
     pub const fn word(self) -> &'static str {
         match self {
             Self::Class => "class",
+            Self::Card => "card",
             Self::File => "file",
             Self::Dir => "dir",
             Self::Exists => "exists",
+            Self::Tree => "tree",
+            Self::Named => "named",
         }
     }
 }
@@ -156,7 +175,41 @@ fn stop(why: &str) -> ! {
     std::process::abort();
 }
 
+thread_local! {
+    static CAPTURED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
+}
+
+/// Whether this thread is inside [`capture`].
+fn capturing() -> bool {
+    CAPTURED.with(|captured| captured.borrow().is_some())
+}
+
+/// Runs `body` and returns what it returned beside every line this thread wrote meanwhile, in
+/// order and without the newline. Nothing goes to the log while it runs, and a line is kept each
+/// time it is written. The lines are written whether or not `NVS_FOOTPRINT_LOG` is set, so a unit
+/// test sees exactly what a recorded run would.
+pub fn capture<R>(body: impl FnOnce() -> R) -> (R, Vec<String>) {
+    let outer = CAPTURED.with(|captured| captured.borrow_mut().replace(Vec::new()));
+    let result = body();
+    let lines = CAPTURED.with(|captured| {
+        let mut captured = captured.borrow_mut();
+        let lines = captured.take().unwrap_or_default();
+        *captured = outer;
+        lines
+    });
+    (result, lines)
+}
+
 fn write(kind: Kind, value: &str) {
+    let captured = CAPTURED.with(|captured| {
+        captured.borrow_mut().as_mut().is_some_and(|lines| {
+            lines.push(line(kind, value).trim_end_matches('\n').to_string());
+            true
+        })
+    });
+    if captured {
+        return;
+    }
     let Some(log) = log() else { return };
     let mut log = log.lock().unwrap_or_else(PoisonError::into_inner);
     if let Err(error) = log.record(kind, value) {
@@ -168,7 +221,7 @@ fn write(kind: Kind, value: &str) {
 /// Whether a log is being written, for a caller that would otherwise build a value for nothing.
 #[must_use]
 pub fn enabled() -> bool {
-    log().is_some()
+    capturing() || log().is_some()
 }
 
 /// Records that the class `name` was looked up in the registry. A name outside the `Core`
@@ -190,6 +243,36 @@ fn is_core(name: &str) -> bool {
 pub fn every_class() {
     if enabled() && !quiet() {
         write(Kind::Class, "*");
+    }
+}
+
+/// Records that the card of the class or enum `name` was printed or served: its reference card,
+/// a member's card or its intro. A name outside `Core` is not recorded, as for [`class`].
+pub fn card(name: &str) {
+    if enabled() && is_core(name) {
+        write(Kind::Card, name);
+    }
+}
+
+/// Records that every card was printed or served, as a document of the whole registry does.
+pub fn every_card() {
+    if enabled() {
+        write(Kind::Card, "*");
+    }
+}
+
+/// Records that a test asked for the file or directory at `path`, which stands for everything
+/// beneath it.
+pub fn tree(path: &Path) {
+    if enabled() {
+        write(Kind::Tree, &shown(path));
+    }
+}
+
+/// Records that a test read every file called `name`, wherever in the tree it is.
+pub fn named(name: &str) {
+    if enabled() {
+        write(Kind::Named, name);
     }
 }
 
@@ -278,6 +361,9 @@ mod tests {
         assert_eq!(line(Kind::File, "/srv/a\tb\nc"), "file\t/srv/a b c\n");
         assert_eq!(line(Kind::Dir, "/srv"), "dir\t/srv\n");
         assert_eq!(line(Kind::Exists, "/srv/x"), "exists\t/srv/x\n");
+        assert_eq!(line(Kind::Card, "*"), "card\t*\n");
+        assert_eq!(line(Kind::Tree, "/srv/tests"), "tree\t/srv/tests\n");
+        assert_eq!(line(Kind::Named, "nvs.toml"), "named\tnvs.toml\n");
     }
 
     #[test]
@@ -333,6 +419,41 @@ mod tests {
         let dot = shown(Path::new("."));
         let dot = dot.strip_suffix("/.").unwrap_or(&dot);
         dot.rsplit('/').next().unwrap_or_default().to_string()
+    }
+
+    #[test]
+    fn a_capture_keeps_this_threads_lines_in_order() {
+        let ((), lines) = capture(|| {
+            class(r"Core\Math");
+            card(r"Core\Math");
+            card(r"App\Helper");
+            every_card();
+            named("Cargo.toml");
+            let _quiet = Quiet::new();
+            class(r"Core\Str");
+        });
+        assert_eq!(
+            lines,
+            [
+                "class\tCore\\Math",
+                "card\tCore\\Math",
+                "card\t*",
+                "named\tCargo.toml"
+            ]
+        );
+        let ((), outside) = capture(|| ());
+        assert!(outside.is_empty(), "a capture starts empty: {outside:?}");
+    }
+
+    #[test]
+    fn a_nested_capture_gives_the_outer_one_back() {
+        let ((), outer) = capture(|| {
+            card(r"Core\Arr");
+            let ((), inner) = capture(|| card(r"Core\Str"));
+            assert_eq!(inner, ["card\tCore\\Str"]);
+            card(r"Core\Uri");
+        });
+        assert_eq!(outer, ["card\tCore\\Arr", "card\tCore\\Uri"]);
     }
 
     #[test]

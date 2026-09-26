@@ -107,6 +107,8 @@ impl Existing for OnDisk {
     /// Windows verbatim `\\?\` prefix on one side of a `starts_with` is a
     /// containment check that answers `false` for every path in the tree.
     fn file(&self, path: &Path) -> Option<PathBuf> {
+        // Recorded when `NVS_FOOTPRINT_LOG` names a log: whether a file is there decides the route.
+        nvs_footprint::exists(path);
         if !std::fs::metadata(path).is_ok_and(|meta| meta.is_file()) {
             return None;
         }
@@ -548,6 +550,22 @@ mod tests {
     /// A path written the way an ADR writes one, as the host spells it.
     fn p(path: &str) -> PathBuf {
         PathBuf::from(path.replace('/', std::path::MAIN_SEPARATOR_STR))
+    }
+
+    #[test]
+    fn the_disk_records_each_path_it_tests() {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let missing = Path::new(env!("CARGO_MANIFEST_DIR")).join("no-such-file");
+        let (found, lines) =
+            nvs_footprint::capture(|| (OnDisk.file(&manifest), OnDisk.file(&missing)));
+        assert!(found.0.is_some() && found.1.is_none());
+        assert_eq!(
+            lines,
+            [
+                format!("exists\t{}", nvs_footprint::shown(&manifest)),
+                format!("exists\t{}", nvs_footprint::shown(&missing))
+            ]
+        );
     }
 
     impl Fake {

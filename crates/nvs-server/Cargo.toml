@@ -29,6 +29,9 @@ nvs-host.workspace = true
 # one home and the boot refusal of an unbounded one lives beside the block it reads. Not a new
 # crate in the graph — `nvs-host` and `nvs-runtime` both already rest on it.
 nvs-config.workspace = true
+# `statics` and `mount` record each file they stat, read or test when
+# `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
 # A connection is a task, and a task carries a `Ctx` — `src/serve.rs` spawns one
 # child per connection through `nvs_host::spawn_child`, which is where ADR 0072
 # § 1's tree comes from. Not a second runtime dependency: `nvs-host` already

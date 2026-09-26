@@ -158,6 +158,7 @@ pub(crate) fn program_document(entry: &Path) -> Result<Value, ExitCode> {
 /// (`rule:tooling/one-json-several-renderers`).
 pub(crate) fn document() -> Value {
     nvs_footprint::every_class();
+    nvs_footprint::every_card();
     json!({
         "classes": CLASSES.iter().map(class_json).collect::<Vec<_>>(),
         "enums": ENUMS.iter().map(enum_json).collect::<Vec<_>>(),
@@ -1082,6 +1083,15 @@ mod tests {
         );
         assert!(signature(find(r"Core\Arr", "sort")).starts_with("sort(array<T> $a, {"));
         assert!(signature(find(r"Core\Json", "decodeAs")).starts_with("decodeAs<T>("));
+    }
+
+    /// The document prints every class and every card, so it is recorded as
+    /// reading both, whichever symbol a renderer goes on to show.
+    #[test]
+    fn the_document_records_every_class_and_every_card() {
+        let (_, lines) = nvs_footprint::capture(document);
+        assert!(lines.iter().any(|line| line == "class\t*"), "{lines:?}");
+        assert!(lines.iter().any(|line| line == "card\t*"), "{lines:?}");
     }
 
     /// Every member of every class carries its signature keys, and every

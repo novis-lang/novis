@@ -18,6 +18,10 @@
 //! case's one-line description from the same registry, and a user
 //! declaration's `///` run. One renderer for both requests, so what a list
 //! says about a name and what hovering it says never disagree.
+//!
+//! Each `Core` card read here is recorded as a `card` line when
+//! `NVS_FOOTPRINT_LOG` names a log, so an edit to a card selects the checks
+//! that print cards and no program.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -99,6 +103,7 @@ fn card_of(documents: &Documents, key: &Map<String, Value>) -> Option<String> {
 /// A `Core` class's, enum's or compiler attribute's own line, where its
 /// registry row carries one.
 fn core_type(name: &str) -> Option<String> {
+    nvs_footprint::card(name);
     if let Some(class) = registry::class(name) {
         return class.doc.map(|doc| doc.short.to_owned());
     }
@@ -117,6 +122,7 @@ fn core_type(name: &str) -> Option<String> {
 /// declaration in front of them: a hover is read in place of opening the
 /// declaration, so it starts with what the declaration would have said.
 pub(crate) fn core_type_hover(name: &str) -> Option<String> {
+    nvs_footprint::card(name);
     if let Some(class) = registry::class(name) {
         let mut out = format!("```nvs\nclass {name}\n```");
         if let Some(doc) = class.doc {
@@ -157,6 +163,7 @@ pub(crate) fn core_type_hover(name: &str) -> Option<String> {
 /// nobody described on its own, its enum's line. `None` for a member no `Core`
 /// class or enum declares.
 pub(crate) fn core_member_hover(owner: &str, member: &str) -> Option<String> {
+    nvs_footprint::card(owner);
     let line = format!("```nvs\n{owner}::{member}\n```");
     let desc = if let Some(class) = registry::class(owner) {
         class.constant(member)?.desc
@@ -190,6 +197,7 @@ pub(crate) fn namespace_card(namespace: &str) -> Option<String> {
     let mut members: BTreeMap<&str, &str> = BTreeMap::new();
     let mut nested: BTreeSet<&str> = BTreeSet::new();
     nvs_footprint::every_class();
+    nvs_footprint::every_card();
     let classes = registry::CLASSES
         .iter()
         .map(|class| (class.name, class.doc.map_or("", |doc| doc.short)));
@@ -236,6 +244,7 @@ pub(crate) fn namespace_card(namespace: &str) -> Option<String> {
 /// A `Core` member's reference card, a constant's sentence, or a case's line
 /// — and for a case nobody described on its own, its enum's line.
 fn core_member(owner: &str, member: &str) -> Option<String> {
+    nvs_footprint::card(owner);
     if let Some(class) = registry::class(owner) {
         if let Some(row) = class.members().find(|row| row.name == member) {
             return row.doc.map(|doc| reference_card(row, doc));
@@ -265,4 +274,35 @@ fn declared(
     let site = site_of(&analysed, &QName::parse(class), member)?;
     let doc = site.doc?;
     Some(markdown(analysed.map.file(site.span.file).text(), doc))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_core_card_read_here_is_recorded_under_its_class() {
+        let (hover, lines) = nvs_footprint::capture(|| core_type_hover(r"Core\Math"));
+        assert!(hover.is_some());
+        assert!(lines.contains(&"card\tCore\\Math".to_string()), "{lines:?}");
+        let (card, lines) = nvs_footprint::capture(|| core_member(r"Core\Math", "gcd"));
+        assert!(card.is_some());
+        assert!(lines.contains(&"card\tCore\\Math".to_string()), "{lines:?}");
+    }
+
+    #[test]
+    fn a_namespace_card_reads_every_card() {
+        let (card, lines) = nvs_footprint::capture(|| namespace_card("Core"));
+        assert!(card.is_some());
+        assert!(lines.contains(&"card\t*".to_string()), "{lines:?}");
+    }
+
+    #[test]
+    fn a_name_outside_core_is_no_card() {
+        let (_, lines) = nvs_footprint::capture(|| core_type(r"App\Helper"));
+        assert!(
+            !lines.iter().any(|line| line.starts_with("card\t")),
+            "{lines:?}"
+        );
+    }
 }

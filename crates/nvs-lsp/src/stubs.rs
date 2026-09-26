@@ -120,6 +120,7 @@ pub fn render() -> Tree {
         lines: HashMap::new(),
     };
     nvs_footprint::every_class();
+    nvs_footprint::every_card();
     for class in registry::CLASSES {
         let (text, lines) = class_stub(class);
         tree.add(class.name, text, lines);

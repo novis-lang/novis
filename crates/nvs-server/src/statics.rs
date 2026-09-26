@@ -105,8 +105,11 @@ pub trait Source {
     fn read(&self, path: &Path, at: u64, len: u64) -> Option<Vec<u8>>;
 }
 
+// Each stat and read is recorded when `NVS_FOOTPRINT_LOG` names a log, so a check that serves a
+// static file is selected again when that file changes.
 impl Source for OnDisk {
     fn stat(&self, path: &Path) -> Option<Stat> {
+        nvs_footprint::exists(path);
         let meta = std::fs::metadata(path).ok()?;
         if !meta.is_file() {
             return None;
@@ -118,6 +121,7 @@ impl Source for OnDisk {
     }
 
     fn read(&self, path: &Path, at: u64, len: u64) -> Option<Vec<u8>> {
+        nvs_footprint::file(path);
         let mut file = std::fs::File::open(path).ok()?;
         if at > 0 {
             file.seek(SeekFrom::Start(at)).ok()?;
@@ -369,6 +373,21 @@ mod tests {
     /// A path written the way an ADR writes one, as the host spells it.
     fn p(path: &str) -> PathBuf {
         PathBuf::from(path.replace('/', std::path::MAIN_SEPARATOR_STR))
+    }
+
+    #[test]
+    fn the_disk_records_each_stat_and_read() {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let (bytes, lines) = nvs_footprint::capture(|| {
+            let stat = OnDisk.stat(&manifest).expect("the manifest is a file");
+            OnDisk.read(&manifest, 0, stat.len.min(4))
+        });
+        assert!(bytes.is_some());
+        let shown = nvs_footprint::shown(&manifest);
+        assert_eq!(
+            lines,
+            [format!("exists\t{shown}"), format!("file\t{shown}")]
+        );
     }
 
     /// The files a case describes: contents and an `mtime`, which is the pair

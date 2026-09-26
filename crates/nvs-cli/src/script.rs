@@ -1567,6 +1567,9 @@ fn failed_program(content: Digest, files: &[Read]) -> Digest {
 /// The `mtime`/size pair of the file at `path`, or `None` where the file system
 /// answers with neither.
 fn stamp_of(path: &Path) -> Option<Stamp> {
+    // The watcher's own looks at the disk are recorded like the compile's, when
+    // `NVS_FOOTPRINT_LOG` names a log.
+    nvs_footprint::exists(path);
     let meta = std::fs::metadata(path).ok()?;
     Some(Stamp {
         modified: meta.modified().ok()?,
@@ -1605,12 +1608,14 @@ fn vouching(stamp: Option<Stamp>, started: SystemTime) -> Option<Stamp> {
 /// moment anything is there.
 fn unmoved(read: &Read, validate: Validate, checked: SystemTime) -> Option<Option<Stamp>> {
     let Some(digest) = read.digest else {
+        nvs_footprint::exists(&read.path);
         return (!read.path.exists()).then_some(None);
     };
     let stamp = stamp_of(&read.path);
     if validate == Validate::Mtime && stamp.is_some() && stamp == read.stamp {
         return Some(stamp);
     }
+    nvs_footprint::file(&read.path);
     let source = std::fs::read(&read.path).ok()?;
     (content_hash(&source) == digest).then(|| vouching(stamp, checked))
 }
@@ -1713,6 +1718,7 @@ fn observe(path: &Path, validate: Validate, known: Option<PathEntry>) -> std::io
             stamp: Some(stamp),
         });
     }
+    nvs_footprint::file(path);
     let source = std::fs::read(path)?;
     Ok(Observed {
         content_hash: content_hash(&source),
@@ -1850,6 +1856,19 @@ mod tests {
     use nvs_runtime::{Ctx, OutputSink, Value};
     use std::sync::Arc;
     use std::sync::atomic::Ordering;
+
+    #[test]
+    fn the_watchers_look_at_a_file_is_recorded() {
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let (seen, lines) =
+            nvs_footprint::capture(|| super::observe(&manifest, super::Validate::Hash, None));
+        assert!(seen.is_ok());
+        let shown = nvs_footprint::shown(&manifest);
+        assert_eq!(
+            lines,
+            [format!("exists\t{shown}"), format!("file\t{shown}")]
+        );
+    }
 
     /// A program under the repository root, which `cargo test` does not run in. Its whole
     /// directory is recorded as read, since a program may open the files beside it.
