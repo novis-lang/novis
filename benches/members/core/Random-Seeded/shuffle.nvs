@@ -1,0 +1,21 @@
+<?nvs
+// Measures putting five test steps in a new order with a seeded generator, as a test runner does.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+        array<int> $steps = [1, 2, 3, 4, 5];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds the step it put first, so no round can be left out.
+            array<int> $order = $generator->shuffle($steps);
+            $total = $total + $order[0];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

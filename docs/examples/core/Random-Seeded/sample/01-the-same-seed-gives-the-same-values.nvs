@@ -1,0 +1,13 @@
+<?nvs
+// Shows that two generators with the same seed choose the same three values.
+
+array<string> $names = ["Ana", "Ben", "Chen", "Dara", "Emil", "Fay"];
+Core\Random\Seeded $first = new Core\Random\Seeded(42);
+Core\Random\Seeded $second = new Core\Random\Seeded(42);
+
+// Both lines are the same, and no name is in a line twice.
+echo Core\Json::encode($first->sample($names, 3)), "\n";
+echo Core\Json::encode($second->sample($names, 3)), "\n";
+
+// The next call returns the next choice, so this line can be different.
+echo Core\Json::encode($first->sample($names, 3)), "\n";

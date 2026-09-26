@@ -1,0 +1,13 @@
+<?nvs
+// Shows that two generators with the same seed shuffle a deck into the same order.
+
+array<string> $deck = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+Core\Random\Seeded $first = new Core\Random\Seeded(42);
+Core\Random\Seeded $second = new Core\Random\Seeded(42);
+
+// Both lines are the same.
+echo Core\Json::encode($first->shuffle($deck)), "\n";
+echo Core\Json::encode($second->shuffle($deck)), "\n";
+
+// The first deck does not change. Its second card is still `2`.
+echo $deck[1], "\n";
