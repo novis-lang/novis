@@ -2,6 +2,7 @@
 Every `Core\Random\Seeded` draw holds the invariant its `Core\Random` twin is pinned by, swept over a run of draws — spec § 11, `rule:core-api/shape-rules` R5
 --FILE--
 <?nvs
+// covers: Core\Random\Seeded::int, Core\Random\Seeded::float, Core\Random\Seeded::bytes
 // The other half of what the type promises: a seeded generator is reproducible
 // *and* is still the member it mirrors. Each count below is the invariant its
 // twin is held to in `random-every-draw-is-swept-for-its-invariants`, asked of

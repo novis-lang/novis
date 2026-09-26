@@ -1,0 +1,25 @@
+<?nvs
+// Measures drawing 16 bytes from a seeded generator, as a test does to build its data.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+        bytes $previous = $generator->bytes(16);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round compares its bytes with the bytes of the round before it,
+            // so no round can be left out.
+            bytes $next = $generator->bytes(16);
+            $total = $total + (($next != $previous ? 1 : 0) as uint);
+            $previous = $next;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

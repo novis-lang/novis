@@ -1784,6 +1784,7 @@ mod tests {
 
     /// The class's whole promise: one seed is one sequence, and another seed is
     /// another one.
+    // covers: Core\Random\Seeded::int
     #[test]
     fn core_random_seeded_gives_the_same_sequence_for_the_same_seed() {
         let left = seeded(42);
@@ -1831,5 +1832,78 @@ mod tests {
         assert_eq!(sequence(bumped, 4), sequence(clean, 4));
         release(bumped);
         release(clean);
+    }
+
+    /// `count` floats drawn from `generator`, each checked against the
+    /// half-open unit interval its twin is held to.
+    fn floats(generator: Value, count: usize) -> Vec<f64> {
+        (0..count)
+            .map(|_| {
+                let drawn = run(super::nvs_core_random_seeded_float, &[generator])
+                    .expect("`float` never fails")
+                    .as_float()
+                    .expect("`float` answers with a `float`");
+                assert!((0.0..1.0).contains(&drawn), "{drawn} is outside [0, 1)");
+                drawn
+            })
+            .collect()
+    }
+
+    /// Two generators at one seed draw the same floats, bit for bit, and each
+    /// is in `[0, 1)`; a third seed draws others.
+    // covers: Core\Random\Seeded::float
+    #[test]
+    fn a_seeded_float_repeats_for_its_seed_and_stays_below_one() {
+        let left = seeded(i64::MIN);
+        let right = seeded(i64::MIN);
+        let apart = seeded(i64::MAX);
+
+        let replayed: Vec<u64> = floats(left, 64).into_iter().map(f64::to_bits).collect();
+        let again: Vec<u64> = floats(right, 64).into_iter().map(f64::to_bits).collect();
+        let other: Vec<u64> = floats(apart, 64).into_iter().map(f64::to_bits).collect();
+        assert_eq!(replayed, again);
+        assert_ne!(replayed, other);
+
+        release(left);
+        release(right);
+        release(apart);
+    }
+
+    /// Two generators at one seed draw the same octets at exactly the count
+    /// asked, and the empty draw and the unallocatable one throw.
+    // covers: Core\Random\Seeded::bytes
+    #[test]
+    fn a_seeded_byte_draw_repeats_for_its_seed_and_zero_or_too_many_throws() {
+        let left = seeded(0);
+        let right = seeded(0);
+
+        let first = octets(
+            run(
+                super::nvs_core_random_seeded_bytes,
+                &[left, Value::uint(33)],
+            )
+            .expect("33 bytes is drawable"),
+        );
+        let replayed = octets(
+            run(
+                super::nvs_core_random_seeded_bytes,
+                &[right, Value::uint(33)],
+            )
+            .expect("33 bytes is drawable"),
+        );
+        assert_eq!(first.len(), 33);
+        assert_eq!(first, replayed);
+
+        for refused in [0, u64::MAX] {
+            let status = run(
+                super::nvs_core_random_seeded_bytes,
+                &[left, Value::uint(refused)],
+            )
+            .expect_err("neither the empty buffer nor an unallocatable one is a draw");
+            assert_eq!(status, nvs_runtime::THROWN, "a draw of {refused} bytes");
+        }
+
+        release(left);
+        release(right);
     }
 }

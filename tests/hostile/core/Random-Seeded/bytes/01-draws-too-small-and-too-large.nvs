@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request asks a seeded generator for zero bytes, keeps drawing large
+// buffers, and then asks for more bytes than it may use. Each step should throw an
+// error or stop at the memory limit, and the program must not crash.
+// hostile: ends-early
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(-9223372036854775807 - 1);
+
+// 1. Zero bytes throws an error, and it is caught here.
+try {
+    $generator->bytes(0);
+    echo '1 zero bytes: served', "\n";
+} catch (Throwable $e) {
+    echo '1 zero bytes: error', "\n";
+}
+
+// 2. One hundred thousand small draws are kept. Each is compared with the one before.
+array<bytes> $kept = [];
+uint $repeats = 0;
+uint $drawn = 0;
+while ($drawn < 100000) {
+    bytes $next = $generator->bytes(16);
+    if ($drawn > 0 && $next == $kept[$drawn - 1]) {
+        $repeats = $repeats + 1;
+    }
+    $kept[] = $next;
+    $drawn = $drawn + 1;
+}
+echo '2 repeats: ', $repeats, "\n";
+$kept = [];
+
+// 3. Three hundred draws of one megabyte each. Together they are more than the memory
+// limit, so the program only survives if each buffer is freed after its round.
+uint $total = 0;
+uint $round = 0;
+while ($round < 300) {
+    $total = $total + Core\Bytes::length($generator->bytes(1048576));
+    $round = $round + 1;
+}
+echo '3 bytes drawn: ', $total, "\n";
+
+// 4. The largest count a `uint` can have. No computer has that much memory, so this
+// throws an error, and it is caught here.
+try {
+    $generator->bytes(18446744073709551615);
+    echo '4 the largest count: served', "\n";
+} catch (Throwable $e) {
+    echo '4 the largest count: error', "\n";
+}
+
+// 5. One gigabyte is more than this request may use. The program should stop at its
+// memory limit.
+$generator->bytes(1073741824);
+echo '5 one gigabyte was served', "\n";
