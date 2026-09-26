@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a program combines very large sets, combines a set with itself many times,
+// and keeps every result until memory runs out. The program should stop at its memory limit and must not crash.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+// 1. Two sets of 100000 objects each share half of their objects, and are combined.
+Core\ObjectSet<Node> $left = new Core\ObjectSet<Node>();
+Core\ObjectSet<Node> $right = new Core\ObjectSet<Node>();
+int $i = 0;
+while ($i < 150000) {
+    Node $node = new Node($i);
+    if ($i < 100000) {
+        $left->add($node);
+    }
+    if ($i >= 50000) {
+        $right->add($node);
+    }
+    $i = $i + 1;
+}
+echo '1: ', $left->union($right)->count(), ' ', $right->union($left)->count(), "\n";
+
+// 2. A set of 1000 objects is combined with itself 1000 times. Each old result is freed when it is replaced.
+Core\ObjectSet<Node> $same = new Core\ObjectSet<Node>();
+$i = 0;
+while ($i < 1000) {
+    $same->add(new Node($i));
+    $i = $i + 1;
+}
+$i = 0;
+while ($i < 1000) {
+    $same = $same->union($same);
+    $i = $i + 1;
+}
+echo '2: ', $same->count(), "\n";
+
+// 3. A set contains itself, and is combined with itself. The set then removes itself again.
+Core\ObjectSet<mixed> $self = new Core\ObjectSet<mixed>();
+$self->add($self);
+$self->add(Core\Str::repeat('v', 1000000));
+$self->add(null);
+$self->add(7);
+Core\ObjectSet<mixed> $copy = $self->union($self);
+$self->remove($self);
+echo '3: ', $copy->count(), ' ', $copy->has($self) ? 'y' : 'n', ' ', $self->count(), "\n";
+
+// 4. Two empty sets are combined 1 million times.
+Core\ObjectSet<Node> $none = new Core\ObjectSet<Node>();
+$i = 0;
+uint $total = 0;
+while ($i < 1000000) {
+    $total = $total + $none->union($none)->count();
+    $i = $i + 1;
+}
+echo '4: ', $total, "\n";
+
+// 5. Every result of a large union is kept, until the memory limit stops the program.
+array<Core\ObjectSet<Node>> $kept = [];
+while (true) {
+    $kept[] = $left->union($right);
+}

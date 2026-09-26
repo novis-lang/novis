@@ -1,0 +1,36 @@
+<?nvs
+// Combines two small sets of objects, as a program does when it merges two lists of people to notify.
+// bench: iterations 200000
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Key $shared = new Key(1);
+        Core\ObjectSet<Key> $left = new Core\ObjectSet<Key>();
+        $left->add($shared);
+        $left->add(new Key(2));
+        $left->add(new Key(3));
+        Core\ObjectSet<Key> $right = new Core\ObjectSet<Key>();
+        $right->add($shared);
+        $right->add(new Key(4));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks which set is the receiver
+            Core\ObjectSet<Key> $from = $total % 2 == 0 ? $left : $right;
+            Core\ObjectSet<Key> $with = $total % 2 == 0 ? $right : $left;
+            $total = $total + $from->union($with)->count() + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
