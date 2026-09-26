@@ -9,7 +9,7 @@
 // | `class:<core\name>` | a `Core` class looked up in the registry, lowercased; `class:*` is the whole roster |
 // | `card:<core\name>` | a `Core` class's card printed or served, lowercased; `card:*` is every card |
 // | `file:<path>` | a repo file read whole |
-// | `dir:<path>` | a directory listed: its names, not what they hold |
+// | `dir:<path>` | a directory listed: its names, not what they hold; `dir:*` is every name of the tree |
 // | `exists:<path>` | a path tested for existence |
 // | `tree:<path>` | a file or a directory a test asked `nvs_repo` for: everything beneath it; `tree:.` is the whole tree |
 // | `named:<name>` | every file called `<name>`, anywhere |
@@ -128,13 +128,39 @@ export function logKeys(text: string, root: string = ROOT): Set<string> {
   return keys;
 }
 
-/** What a `bun nv` process read (`lib/reads.ts`), as keys. A program it started is not a key: what that
- * program read is recorded by its own log. */
+/** Held by an atom that listed every file name of the tree; moved by any path that came or went. */
+export const ALL_NAMES = "dir:*";
+
+/** The subcommands of `git` that read nothing of the working tree: history, refs and configuration. */
+const GIT_HISTORY = new Set(["rev-parse", "log", "show", "cat-file", "merge-base", "config", "for-each-ref", "rev-list", "ls-tree", "describe", "symbolic-ref", "worktree", "branch", "tag", "hash-object", "var", "version"]);
+
+/** What a program a `bun nv` process started read of the tree, as keys. `bun` and `nvs` record their own
+ * reads in their own logs, and most tools read no file of the tree. `git` does, and keeps no log:
+ * `ls-files` lists every name (`dir:*`), and `grep`, `status`, `diff` or a subcommand not known here
+ * read what they like (`tree:.`). */
+export function spawnKeys(argv: string[]): string[] {
+  const exe = (argv[0] ?? "").replace(/\\/g, "/").split("/").pop()!.toLowerCase().replace(/\.exe$/, "");
+  if (exe !== "git") return [];
+  let i = 1;
+  while (i < argv.length && argv[i]!.startsWith("-")) {
+    // A git pointed at a directory outside the tree reads nothing of it.
+    if (argv[i] === "-C" && repoPath(argv[i + 1] ?? "") === null) return [];
+    i += argv[i] === "-C" || argv[i] === "-c" ? 2 : 1;
+  }
+  const sub = argv[i] ?? "";
+  if (GIT_HISTORY.has(sub)) return [];
+  if (sub === "ls-files") return [ALL_NAMES];
+  return [WHOLE_TREE];
+}
+
+/** What a `bun nv` process read (`lib/reads.ts`), as keys, with what the programs it started read
+ * (`spawnKeys`). */
 export function readsKeys(reads: Reads, modules: string[] = []): Set<string> {
   const keys = new Set<string>();
   for (const f of reads.files) keys.add(`file:${f}`);
   for (const f of reads.exists) keys.add(`exists:${f}`);
   for (const f of reads.dirs) keys.add(`dir:${f}`);
+  for (const argv of reads.spawns ?? []) for (const k of spawnKeys(argv)) keys.add(k);
   for (const m of modules) {
     const p = repoPath(m);
     if (p !== null) keys.add(`mod:${p}`);
@@ -150,7 +176,7 @@ export function pathKeys(path: string, cameOrWent: boolean): string[] {
   const parts = path.split("/");
   for (let i = 1; i <= parts.length; i++) keys.push(`tree:${parts.slice(0, i).join("/")}`);
   if (cameOrWent) {
-    keys.push(`exists:${path}`);
+    keys.push(`exists:${path}`, ALL_NAMES);
     const dir = parts.length > 1 ? parts.slice(0, -1).join("/") : ".";
     keys.push(`dir:${dir}`);
     // A path under a directory that was tested for existence may have made it come or go.

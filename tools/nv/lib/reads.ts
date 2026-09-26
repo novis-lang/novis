@@ -52,9 +52,13 @@ export function note(kind: Kind, p: unknown): void {
   if (r !== null) noted[kind].add(r);
 }
 
-/** Notes a program this process started. */
-export function noteSpawn(cmd: unknown): void {
+/** Notes a program this process started. One started in a directory that is no input (a test's scratch
+ * tree under `.cache`, say) reads nothing of the tree through its working directory, and is not noted. */
+export function noteSpawn(cmd: unknown, opts?: unknown): void {
   const argv = Array.isArray(cmd) ? cmd : cmd && typeof cmd === "object" && Array.isArray((cmd as { cmd?: unknown }).cmd) ? (cmd as { cmd: unknown[] }).cmd : null;
+  const options = (Array.isArray(cmd) ? opts : cmd) as { cwd?: unknown } | undefined;
+  const cwd = options && typeof options === "object" ? options.cwd : undefined;
+  if (typeof cwd === "string" && inTree(cwd) === null) return;
   if (argv) spawned.push(argv.map(String));
 }
 
@@ -72,14 +76,16 @@ const SPECIFIER = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(["'])(?:node:)?fs(\/
 /** Starts recording into `log`: every tools module loaded from here on is rewritten, and the process
  * appends its reads to `log` when it exits. */
 export function install(log: string): void {
-  const [fsShim, fspShim] = SHIMS.map((s) => JSON.stringify(s.replace(/\\/g, "/")));
+  // The shim's path goes in with the quote the specifier had, so a specifier spelled inside another
+  // string literal leaves that literal whole.
+  const [fsShim, fspShim] = SHIMS.map((s) => s.replace(/\\/g, "/"));
   Bun.plugin({
     name: "nv-reads",
     setup(build) {
       build.onLoad({ filter: /[\\/]tools[\\/]nv[\\/].+\.ts$/ }, (args) => {
         const text = readFileSync(args.path, "utf8");
         if (SHIMS.some((s) => resolve(s) === resolve(args.path))) return { contents: text, loader: "ts" };
-        return { contents: text.replace(SPECIFIER, (_m, head: string, _q: string, promises?: string) => `${head}${promises ? fspShim : fsShim}`), loader: "ts" };
+        return { contents: text.replace(SPECIFIER, (_m, head: string, q: string, promises?: string) => `${head}${q}${promises ? fspShim : fsShim}${q}`), loader: "ts" };
       });
     },
   });
@@ -91,22 +97,31 @@ export function install(log: string): void {
   for (const name of ["spawn", "spawnSync"] as const) {
     const f = Bun[name] as (...a: unknown[]) => unknown;
     (Bun as Record<string, unknown>)[name] = function (this: unknown, cmd: unknown, ...rest: unknown[]) {
-      noteSpawn(cmd);
+      noteSpawn(cmd, rest[0]);
       return f.call(Bun, cmd, ...rest);
     };
   }
-  process.on("exit", () => {
-    const modules = Object.keys(require.cache)
-      .map((m) => inTree(m))
-      .filter((m): m is string => m !== null && m.endsWith(".ts"))
-      .sort();
-    const line = { files: [...noted.files].sort(), exists: [...noted.exists].sort(), dirs: [...noted.dirs].sort(), spawns: spawned, modules };
-    try {
-      appendFileSync(log, `${JSON.stringify(line)}\n`);
-    } catch {
-      // A record that cannot be written leaves the check keyed on everything, which is never unsafe.
-    }
-  });
+  process.on("exit", () => flush(log));
+}
+
+let flushed = false;
+
+/** Appends this process's line to `log`, once: what it read, listed, tested and started, and every tools
+ * module Bun's registry holds by then. The exit handler calls it; `bun test` fires no exit handler, so
+ * `reads-preload.ts` calls it after the last test. */
+export function flush(log: string): void {
+  if (flushed) return;
+  flushed = true;
+  const modules = Object.keys(require.cache)
+    .map((m) => inTree(m))
+    .filter((m): m is string => m !== null && m.endsWith(".ts"))
+    .sort();
+  const line = { files: [...noted.files].sort(), exists: [...noted.exists].sort(), dirs: [...noted.dirs].sort(), spawns: spawned, modules };
+  try {
+    appendFileSync(log, `${JSON.stringify(line)}\n`);
+  } catch {
+    // A record that cannot be written leaves the check keyed on everything, which is never unsafe.
+  }
 }
 
 /** The TypeScript modules every process of the log at `path` had loaded when it exited, repo-relative

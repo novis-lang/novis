@@ -21,7 +21,17 @@ function store(): SelectStore {
 
 function change(moved: [string, string][], global: string | null = null): ChangeSet {
   const m: Moved = new Map(moved.map(([k, path]) => [k, { path, how: "changed" as const }]));
-  return { since: "base", changes: [...new Set(moved.map(([, p]) => p))].map((path) => ({ path, status: "modified" as const })), moved: m, global, rustFiles: 1, itemChanges: moved.length, wideFiles: [] };
+  return {
+    since: "base",
+    changes: [...new Set(moved.map(([, p]) => p))].map((path) => ({ path, status: "modified" as const })),
+    moved: m,
+    global,
+    rustFiles: 1,
+    itemChanges: moved.length,
+    wideFiles: [],
+    items: [],
+    view: new Map(),
+  };
 }
 
 describe("the reverse-index query", () => {
@@ -68,6 +78,16 @@ describe("the reverse-index query", () => {
     s.recordRun(`case:${path}`, { def: "whatever", verdict: "green", keys: new Map([["fn:x.rs#f", ""]]) });
     const replay = { ...change([["file:" + path, path]]), until: "later" };
     expect(query(s, replay).selected.get(`case:${path}`)?.why).toBe("def");
+  });
+
+  test("an owed atom stays selected with nothing moved, and a red one stays red when it is owed", () => {
+    const s = store();
+    expect(s.owe(["test:proc lib proc", "test:red lib red", "test:unknown lib x"])).toBe(1);
+    expect(s.atom("test:red lib red")!.verdict).toBe("red");
+    const sel = query(s, change([]));
+    expect(sel.selected.get("test:proc lib proc")?.why).toBe("owed");
+    s.recordRun("test:proc lib proc", { def: "", verdict: "green", keys: new Map() });
+    expect(query(s, change([])).selected.has("test:proc lib proc")).toBe(false);
   });
 
   test("an atom discovered on disk and unknown to the store is new", () => {

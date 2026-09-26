@@ -14,7 +14,12 @@ export const CACHE = join(ROOT, ".cache");
 
 /** Directories that are never an input to a key wherever they appear: build output, caches and
  * machine-local state, every one of them git-ignored. */
-export const NOT_INPUTS = new Set([".git", "target", ".loop", ".agent-tmp", "node_modules", "out", ".vscode-test", "__pycache__"]);
+export const NOT_INPUTS = new Set([".git", "target", ".loop", ".agent-tmp", ".cache", "node_modules", "out", ".vscode-test", "__pycache__"]);
+
+/** Where an instrumented binary's coverage counters go when nothing records its run: one merge pool of
+ * a few files that later runs add to, never `default_*.profraw` in a working directory. `main.ts` sets
+ * it as `LLVM_PROFILE_FILE` for every `bun nv` process that has none. */
+export const DISCARD_PROFILE = join(ROOT, ".agent-tmp", "select-rec", "discard", "nvs-%4m.profraw");
 
 /** A repo-relative, forward-slash path for `abs`. */
 export function rel(abs: string, root: string = ROOT): string {

@@ -13,9 +13,14 @@
 // | `verdicts` | a slot's digest and verdict, for the memos this store replaces |
 //
 // An atom is `<kind>:<name>`: `case:tests/conformance/a.nvst`, `proof:docs/examples/.../01-x.nvs`,
-// `test:nvs-cli test footprint`, `nv:<check id>`, `check:<check id>` for another plan check, and
-// `heavy:<check id>` for one of the heavy set. A footprint is per platform, because what an atom does
-// differs between Windows and the Linux leg.
+// `test:nvs-cli test footprint`, `nv:<check id>`, `step:<name>` for a step of `bun nv verify`,
+// `check:<check id>` for another plan check, and `heavy:<check id>` for one of the heavy set. A
+// footprint is per platform, because what an atom does differs between Windows and the Linux leg.
+//
+// The recorded tree is a commit and an overlay: `base:<platform>` names the commit, and
+// `overlay:<platform>` holds, for every path that differed from it when the tree was recorded, the
+// digest of its bytes then, or null for a path that was absent. So a run over uncommitted work records
+// that work, and reverting it is a change.
 //
 // An atom's own key list is kept as a blob of key numbers beside the reverse index, so a new run can
 // replace or widen one atom's footprint by point writes rather than a scan of the whole index.
@@ -31,10 +36,15 @@ export const SCHEMA = "1";
 /** The store's file. */
 export const STORE = join(CACHE, "select.sqlite");
 
-export type AtomKind = "case" | "proof" | "test" | "nv" | "check" | "heavy";
-export const ATOM_KINDS: AtomKind[] = ["case", "proof", "test", "nv", "check", "heavy"];
+export type AtomKind = "case" | "proof" | "test" | "nv" | "step" | "check" | "heavy";
+export const ATOM_KINDS: AtomKind[] = ["case", "proof", "test", "nv", "step", "check", "heavy"];
 
-export type Verdict = "green" | "red" | "";
+/**
+ * `owed` is an atom a change reached that the run which recorded the change did not run: the base
+ * moved past the change, so the atom stays selected by its verdict until a run of it is green. A red
+ * atom stays `red` when it is owed as well.
+ */
+export type Verdict = "green" | "red" | "owed" | "";
 
 export interface AtomRow {
   id: string;
@@ -80,6 +90,9 @@ const DDL = `
 /** A footprint as it is recorded: each key with the digest it had, `""` where a key has none. */
 export type Keyed = Map<string, string>;
 
+/** Each path that differed from the base commit when the tree was recorded: its digest, or null. */
+export type Overlay = Record<string, string | null>;
+
 export class SelectStore {
   readonly db: Database;
   readonly platform: string;
@@ -108,6 +121,11 @@ export class SelectStore {
     this.db.close();
   }
 
+  /** Writes a copy of the whole store to `path`, which must not exist. */
+  copyTo(path: string): void {
+    this.db.query("VACUUM INTO ?").run(path);
+  }
+
   private tryMeta(key: string): string | null {
     try {
       const row = this.db.query("SELECT value FROM meta WHERE key = ?").get(key) as { value: string } | null;
@@ -130,8 +148,24 @@ export class SelectStore {
     return this.meta(`base:${this.platform}`);
   }
 
-  setBase(commit: string): void {
-    this.setMeta(`base:${this.platform}`, commit);
+  /** Records the tree: the commit, and every path that differed from it with its digest then. */
+  setBase(commit: string, overlay: Overlay = {}): void {
+    this.transaction(() => {
+      this.setMeta(`base:${this.platform}`, commit);
+      this.setMeta(`overlay:${this.platform}`, JSON.stringify(overlay));
+    });
+  }
+
+  /** The recorded tree's overlay; empty for a store that recorded a commit alone. */
+  overlay(): Overlay {
+    const raw = this.meta(`overlay:${this.platform}`);
+    if (!raw) return {};
+    try {
+      const got = JSON.parse(raw) as unknown;
+      return got && typeof got === "object" && !Array.isArray(got) ? (got as Overlay) : {};
+    } catch {
+      return {};
+    }
   }
 
   transaction<T>(body: () => T): T {
@@ -215,6 +249,18 @@ export class SelectStore {
     return ids.map((n) => (q.get(n) as { key: string }).key).sort();
   }
 
+  /** For each atom on this platform, of `kind` when given, the keys of its footprint that start with
+   * `prefix`, sorted. An atom holding none is absent. Read from the reverse index, key by key. */
+  keysUnder(prefix: string, kind?: AtomKind): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    const rows = this.db
+      .query("SELECT k.key AS key, a.id AS id FROM keys k JOIN footprint f ON f.key = k.n JOIN atoms a ON a.n = f.atom WHERE k.key >= ? AND k.key < ? AND a.platform = ?" + (kind ? " AND a.kind = ?" : ""))
+      .all(...([prefix, `${prefix}\u{10FFFF}`, this.platform, ...(kind ? [kind] : [])] as string[])) as { key: string; id: string }[];
+    for (const r of rows) (out.get(r.id) ?? out.set(r.id, []).get(r.id)!).push(r.key);
+    for (const keys of out.values()) keys.sort();
+    return out;
+  }
+
   /**
    * Records one run of `id`. A run whose definition differs from the one recorded starts the footprint
    * afresh; any other run widens it by what this run used, since a footprint is the union of the runs
@@ -244,6 +290,17 @@ export class SelectStore {
   /** Sets an atom's verdict without touching its footprint. */
   setVerdict(id: string, verdict: Verdict): void {
     this.db.query("UPDATE atoms SET verdict = ?, last_run = ? WHERE id = ? AND platform = ?").run(verdict, Date.now(), id, this.platform);
+  }
+
+  /** Marks each known atom of `ids` owed, keeping a red one red; returns how many it marked. An atom
+   * the store does not know has no footprint, and is selected as new without a mark. */
+  owe(ids: Iterable<string>): number {
+    let n = 0;
+    const q = this.db.query("UPDATE atoms SET verdict = 'owed' WHERE id = ? AND platform = ? AND verdict != 'red'");
+    this.transaction(() => {
+      for (const id of ids) n += q.run(id, this.platform).changes;
+    });
+    return n;
   }
 
   /** Forgets an atom and its footprint. */
@@ -346,6 +403,12 @@ export class SelectStore {
     return (this.db.query("SELECT digest, verdict, at FROM verdicts WHERE slot = ?").get(slot) as any) ?? null;
   }
 
+  /** Every slot that starts with `prefix`, with what it holds. */
+  verdictsWithPrefix(prefix: string): Map<string, { digest: string; verdict: string }> {
+    const rows = this.db.query("SELECT slot, digest, verdict FROM verdicts WHERE slot >= ? AND slot < ?").all(prefix, `${prefix}\u{10FFFF}`) as { slot: string; digest: string; verdict: string }[];
+    return new Map(rows.map((r) => [r.slot, { digest: r.digest, verdict: r.verdict }]));
+  }
+
   putVerdict(slot: string, digest: string, verdict: string): void {
     this.db
       .query("INSERT INTO verdicts (slot, digest, verdict, at) VALUES (?, ?, ?, ?) ON CONFLICT (slot) DO UPDATE SET digest = excluded.digest, verdict = excluded.verdict, at = excluded.at")
@@ -354,7 +417,7 @@ export class SelectStore {
 
   // ---- counts --------------------------------------------------------------------------------------
 
-  stats(): { atoms: Record<string, number>; recorded: Record<string, number>; red: number; keys: number; entries: number; bytes: number } {
+  stats(): { atoms: Record<string, number>; recorded: Record<string, number>; red: number; owed: number; keys: number; entries: number; bytes: number } {
     const atoms: Record<string, number> = {};
     const recorded: Record<string, number> = {};
     for (const r of this.db.query("SELECT kind, COUNT(*) AS c, SUM(nkeys > 0) AS rec FROM atoms WHERE platform = ? GROUP BY kind").all(this.platform) as any[]) {
@@ -362,6 +425,7 @@ export class SelectStore {
       recorded[r.kind] = r.rec ?? 0;
     }
     const red = (this.db.query("SELECT COUNT(*) AS c FROM atoms WHERE platform = ? AND verdict = 'red'").get(this.platform) as { c: number }).c;
+    const owed = (this.db.query("SELECT COUNT(*) AS c FROM atoms WHERE platform = ? AND verdict = 'owed'").get(this.platform) as { c: number }).c;
     const keys = (this.db.query("SELECT COUNT(*) AS c FROM keys").get() as { c: number }).c;
     const entries = (this.db.query("SELECT COALESCE(SUM(nkeys), 0) AS c FROM atoms WHERE platform = ?").get(this.platform) as { c: number }).c;
     let bytes = 0;
@@ -374,9 +438,22 @@ export class SelectStore {
         }
       }
     }
-    return { atoms, recorded, red, keys, entries, bytes };
+    return { atoms, recorded, red, owed, keys, entries, bytes };
   }
 }
+
+/** The paths each recorded test binary asked `nvs_repo` for, by `<package> <kind> <target>`, from its
+ * footprint's `tree:` keys; a binary the store has not recorded is absent. */
+export function testReads(store: SelectStore): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const a of store.atoms("test")) if (a.keys > 0) out.set(a.id.slice(5), []);
+  for (const [id, keys] of store.keysUnder("tree:", "test")) out.set(id.slice(5), keys.map((k) => k.slice(5)));
+  return out;
+}
+
+/** The slot a proof group's own paths are kept in: its example and attack directories and its bench
+ * file, which a `proofs: <group>` unit keys on. */
+export const proofReadsSlot = (group: string) => `proof-reads:${group}`;
 
 /** Sorted key numbers as a blob: each gap from the one before as an unsigned LEB128 varint. */
 export function pack(sorted: number[]): Uint8Array {

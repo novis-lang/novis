@@ -3,9 +3,12 @@
 // runs with the console held in the modes `lib/tty.ts` names, whatever the programs it starts do to it.
 //
 // A command's module is loaded only when it runs, so what `bun nv <command>` loads is this file, its
-// two imports and that module's own imports: `tools/nv/keys/modules.ts` keys a check on exactly those.
+// three imports and that module's own imports: `tools/nv/keys/modules.ts` keys a check on exactly those.
 // When `NV_READS_LOG` names a file, `lib/reads.ts` records what the command reads before it is loaded.
+// Every command's children inherit `LLVM_PROFILE_FILE`, set to `DISCARD_PROFILE` when it is unset, so an
+// instrumented `nvs` that no run records writes its counters under `.agent-tmp/`.
 
+import { DISCARD_PROFILE } from "./lib/paths.ts";
 import { ENV as READS_ENV, install } from "./lib/reads.ts";
 import { holdConsole } from "./lib/tty.ts";
 
@@ -78,6 +81,7 @@ async function usage(): Promise<void> {
 
 const log = process.env[READS_ENV];
 if (log) install(log);
+process.env.LLVM_PROFILE_FILE ??= DISCARD_PROFILE;
 holdConsole();
 const [name, ...args] = process.argv.slice(2);
 if (name === undefined || name === "help" || name === "--help" || name === "-h") {

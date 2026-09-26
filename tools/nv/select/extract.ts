@@ -114,7 +114,8 @@ export function parseExport(json: string): Record<string, CovLoc> {
 }
 
 /** Name to location for the objects an atom ran, each object's map cached on disk by its path, size and
- * modification time, and the last few in memory. */
+ * modification time, and the last few in memory. A rebuilt object's new map replaces its old one, so
+ * the cache holds one map per object path. */
 export class CovMap {
   private maps = new Map<string, Map<string, CovLoc>>();
   private pending = new Map<string, Promise<Map<string, CovLoc>>>();
@@ -143,8 +144,29 @@ export class CovMap {
       else map = parseExport(r.stdout);
       mkdirSync(this.dir, { recursive: true });
       writeFileSync(cache, JSON.stringify(map));
+      this.replaced(object, cache);
     }
     return new Map(Object.entries(map));
+  }
+
+  /** Deletes the map this object had before `cache`, so a rebuild replaces a map rather than adding
+   * one: `index.json` names each object's current map. */
+  private replaced(object: string, cache: string): void {
+    const index = join(this.dir, "index.json");
+    let held: Record<string, string> = {};
+    try {
+      held = JSON.parse(readFileSync(index, "utf8"));
+    } catch {
+      // No index yet: nothing to replace.
+    }
+    const was = held[object];
+    if (was && was !== cache) rmSync(was, { force: true });
+    held[object] = cache;
+    try {
+      writeFileSync(index, JSON.stringify(held));
+    } catch {
+      // A lost index costs one stale map on disk, never a wrong one.
+    }
   }
 
   /** Makes `objects` the ones names are looked up in, in that order, exporting any not cached with

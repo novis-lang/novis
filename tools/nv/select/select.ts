@@ -1,10 +1,10 @@
 // The selection: from what changed since a recorded tree to the atoms that have to run, and why.
 //
-//     changed = diff(since, working tree incl. untracked)
+//     changed = diff(recorded tree, working tree incl. untracked)
 //            -> each .rs file: item diff -> reference-graph closure -> fn:, class:, card: keys
 //            -> each build script whose inputs moved: the items that include what it generated
 //            -> every path: file:, tree:, named:, and exists:/dir: for a path that came or went
-//     run = atoms never recorded on this platform, or last red
+//     run = atoms never recorded on this platform, last red, or owed from an earlier change
 //         + atoms whose definition changed
 //         + atoms indexed under any changed key
 //         + every atom, when a global file changed
@@ -20,10 +20,10 @@ import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, NOT_INPUTS, ROOT } from "../lib/paths.ts";
 import { caseDef, caseFiles, caseId, currentDef, stillThere } from "./atoms.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
-import { blobAt, type Change, changedBetween, changedPaths, commitOf, namedChanges } from "./change.ts";
+import { blobAt, type Change, changedBetween, changedPaths, commitOf, namedChanges, sinceOverlay, snapshot } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, testsKey, WILD } from "./keys.ts";
-import { type AtomKind, kindOfAtom, type SelectStore } from "./store.ts";
+import { type AtomKind, kindOfAtom, type Overlay, type SelectStore } from "./store.ts";
 
 /** Files whose change selects every atom: the toolchain, the lock file, a manifest, and the two tools
  * every footprint's meaning rests on. */
@@ -52,6 +52,17 @@ export interface ChangeSet {
   rustFiles: number;
   itemChanges: number;
   wideFiles: string[];
+  /** Each item that was added, removed or changed, and the ones a build script's output moved. */
+  items: ItemChange[];
+  /** Every Rust file's items as the changed side holds them: the stored scan with each changed file as
+   * it is now. What a recorded run's coverage is mapped against. */
+  view: Map<string, FileItems>;
+  /** The tree the change was read at, for the store to record once a run over it is green; absent for
+   * a change replayed from history. */
+  tree?: { commit: string; overlay: Overlay };
+  /** A change that stands for everything: the store had no tree to compare with, and `view` is a scan
+   * of every Rust file. */
+  full?: boolean;
 }
 
 /** The workspace graph as the closure's scope: a file's package is the one whose directory holds it. */
@@ -139,7 +150,11 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   if (!sinceRev) throw new Error("the store has no recorded tree: run `bun nv select --seed` first, or name one with --since");
   const since = await commitOf(sinceRev, root);
   const until = opts.until ? await commitOf(opts.until, root) : null;
-  const changes = until ? await changedBetween(since, until, root) : opts.paths ? await namedChanges(opts.paths, since, root) : await changedPaths(since, root);
+  // The tree is taken first, so a file written while the change is read is a change again next time.
+  const tree = until ? undefined : await snapshot(root);
+  const fromBase = opts.since === undefined && !until && !opts.paths;
+  let changes = until ? await changedBetween(since, until, root) : opts.paths ? await namedChanges(opts.paths, since, root) : await changedPaths(since, root);
+  if (fromBase) changes = sinceOverlay(changes, store.overlay(), root);
   const moved: Moved = new Map();
   const emit = (key: string, origin: Origin) => {
     if (!moved.has(key)) moved.set(key, origin);
@@ -153,8 +168,11 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const stored = store.allItems();
   const rust = changes.filter((c) => isRust(c.path)).map((c) => c.path);
   // The base side: the store's own scan when it was taken at `since`, else the files as they were then.
+  // The scan is of the recorded tree, overlay and all, so it stands for the commit alone only when the
+  // overlay is empty.
   let before: Map<string, FileItems>;
-  if (base !== null && since === (await commitOf(base, root)) && stored.size > 0) {
+  const scanIsSince = base !== null && (fromBase || (since === (await commitOf(base, root)) && Object.keys(store.overlay()).length === 0));
+  if (scanIsSince && stored.size > 0) {
     before = new Map(rust.flatMap((f) => (stored.has(f) ? [[f, stored.get(f)!] as const] : [])));
     const missing = rust.filter((f) => !stored.has(f) && changes.find((c) => c.path === f)?.status !== "added");
     if (missing.length > 0) for (const [f, items] of await scanAt(since, missing, root)) before.set(f, items);
@@ -226,7 +244,19 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     const pkg = c.how === "added" && c.item.test ? scope.pkgOf(c.file) : null;
     if (pkg) emit(testsKey(pkg), { path: c.file, item: c.id, how: c.how });
   }
-  return { since, ...(until ? { until } : {}), changes, moved, global, rustFiles: rust.length, itemChanges: itemChanges.length, wideFiles };
+  return {
+    since,
+    ...(until ? { until } : {}),
+    changes,
+    moved,
+    global,
+    rustFiles: rust.length,
+    itemChanges: itemChanges.length,
+    wideFiles,
+    items: itemChanges,
+    view,
+    ...(tree ? { tree } : {}),
+  };
 }
 
 /** Every Rust file of the tree, tracked or not. */
@@ -238,7 +268,7 @@ export async function rustFiles(root: string = ROOT): Promise<string[]> {
     .filter((p) => p && isRust(p) && existsSync(join(root, p)));
 }
 
-export type Why = "new" | "red" | "def" | "key" | "global";
+export type Why = "new" | "red" | "owed" | "def" | "key" | "global";
 
 export interface Selected {
   id: string;
@@ -294,6 +324,7 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     if (change.global) add(a.id, "global", { key: WILD, origin: change.moved.get(WILD)! });
     else if (a.keys === 0) add(a.id, "new");
     else if (a.verdict === "red") add(a.id, "red");
+    else if (a.verdict === "owed") add(a.id, "owed");
     else if (defTouched.has(a.id) || (a.kind === "proof" && tomlDirs.has(dirname(a.id.slice(6))))) {
       const def = change.until ? null : currentDef(a.id);
       if (change.until || (def !== null && def !== a.def)) add(a.id, "def");
@@ -395,6 +426,7 @@ export function explain(store: SelectStore, sel: Selection, id: string): string[
     const whys: Record<Why, string> = {
       new: "it has no footprint on this platform yet",
       red: "its last run was red",
+      owed: "an earlier change reached it and nothing has run it since",
       def: "its definition changed",
       key: "its footprint holds a key the change moved",
       global: "a file every atom depends on changed",
