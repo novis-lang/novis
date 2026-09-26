@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { summaries } from "../cmd/verify.ts";
+import { stepNames, summaries } from "../cmd/verify.ts";
 import { wayOut } from "../keys/escape.ts";
 
 describe("wayOut", () => {
@@ -77,5 +77,16 @@ describe("summaries", () => {
   test("the case trees print their counts, and skipped only when there are some", () => {
     expect(summaries.cases!("10 passed, 0 failed, 0 skipped")).toBe("10 passed, 0 failed");
     expect(summaries.cases!("10 passed, 1 failed, 2 skipped")).toBe("10 passed, 1 failed, 2 skipped");
+  });
+
+  test("a case tree run over batches is summed by its last line, and says how many of the tree were selected", () => {
+    const out = "12 of 400 case(s) of tests/conformance selected\n8 passed, 0 failed, 0 skipped\n4 passed, 0 failed, 0 skipped\n\n12 passed, 0 failed, 0 skipped\n";
+    expect(summaries.cases!(out)).toBe("12 passed, 0 failed  (12 of 400 selected)");
+  });
+});
+
+describe("the steps", () => {
+  test("an unnarrowed run walks every step in its order, and each is still one atom", () => {
+    expect(stepNames()).toEqual(["fmt", "lints", "directives", "template", "owners", "nv", "fuzz-lock", "build", "nvs-fmt", "test", "conformance", "differential", "reference", "clippy", "extension"]);
   });
 });

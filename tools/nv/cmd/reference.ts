@@ -49,7 +49,8 @@ const TMP = join(ROOT, ".agent-tmp", "reference-examples");
 const PRIMER = join(ROOT, ".agent-tmp", "primer", "primer.md");
 /** Where `--agent-walk` assembles the program it hands `nvs check`, for the same reason. */
 const WALK = join(ROOT, ".agent-tmp", "agent-walk");
-const BINARY = join(ROOT, "target", "debug", process.platform === "win32" ? "nvs.exe" : "nvs");
+/** `NVS_BIN` when it is set, which `nv verify` sets to the `covws` build's; otherwise the debug build. */
+const BINARY = process.env.NVS_BIN || join(ROOT, "target", "debug", process.platform === "win32" ? "nvs.exe" : "nvs");
 
 /** Seconds per example; a hung example is a bug in the example. */
 const TIMEOUT = 60;

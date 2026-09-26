@@ -2,55 +2,67 @@
 // step 3; anywhere else `bun nv affected --run` runs it first and then the acceptance checks a change
 // reaches.
 //
-//     bun nv verify                  every step
+//     bun nv verify                  every step the change reaches
 //     bun nv verify -p nvs-ir        the same build; only nvs-ir's test binaries run
 //     bun nv verify --fast           build and test only, for a mid-work check
 //     bun nv verify --doc            the rustdoc gate alone; the driver's goal-end call
 //     bun nv verify --start          run it detached through `nv bg` and return at once
 //     bun nv verify --wait           collect what --start left, with its exit status
 //     bun nv verify --full           do not truncate the failing step's output
-//     bun nv verify --no-cache       run every step, whatever the green cache holds
+//     bun nv verify --no-cache       run every step, every test binary and every case, whatever changed
 //     bun nv verify --list           the steps in order, running none of them
-//     bun nv verify --keys           each test binary's key over the tree now, as JSON
 //
 // The steps, in order, stopping at the first failure: `cargo fmt`, `bun nv lints --check`,
 // `bun nv directives --check` and `--check-template`, `bun nv owners --check`, `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
-// working tree added or changed, `cargo test`, the `.nvst` trees through the debug binary the build
-// produced, `bun nv reference`, `cargo clippy --all-targets -- -D warnings`, and the VS Code
-// extension's headless suites. Green prints one line per step; a failure prints that step's output and
-// nothing else. The full output of every step is written to `.agent-tmp/verify-<step>.log`. This
-// command judges nothing: a step's own exit status is the whole verdict.
+// working tree added or changed, `cargo test`, the `.nvst` trees, `bun nv reference`, `cargo clippy
+// --all-targets -- -D warnings`, and the VS Code extension's headless suites. Green prints one line per
+// step; a failure prints that step's output and nothing else. The full output of every step is written
+// to `.agent-tmp/verify-<step>.log`. This command judges nothing: a step's own exit status is the whole
+// verdict.
+//
+// Every build and every run is the `covws` build (`lib/covws.ts`): `target/covws`, the workspace's own
+// crates compiled with coverage counters. `cargo build`, `cargo test`, `cargo doc` and the doc-tests go
+// through the `covwrap` wrapper with `--target <host>`; `cargo clippy` shares the directory without it,
+// since clippy is a workspace wrapper itself. The test binaries, the case trees, `reference` and the
+// extension run that build's `nvs`.
+//
+// **What runs is what the change reaches** (`tools/nv/select/`). The change is every path that differs
+// from the tree the store last recorded, and each atom whose recorded footprint holds a key the change
+// moved is selected: a test binary, a case of the two trees, and each step as one atom. A step that
+// executes no code of ours is keyed on the files it reads: `fmt` on every Rust file; `build`, `clippy`,
+// `doc` and the doc-tests on every file the dep-info cargo wrote names, and each build script's inputs;
+// the `bun nv` steps on what they were seen to read (`lib/reads.ts`, and in `bun test` through
+// `--preload`); `fuzz-lock` on the fuzz workspace's manifest and lock; the extension on its own
+// directory. Whatever a step runs of `nvs` is recorded by coverage as well. `build` runs when it is
+// selected or when a later step that uses the binary runs. A step that is not selected is not started,
+// and prints `--` with the summary of its last green run. `--no-cache` selects everything.
+//
+// Every run records: each atom that ran records its footprint and verdict in the store, green or red.
+// A green run then moves the store's tree to the one it was selected against (`record.ts` `advance`):
+// every atom the change selected that this run did not run is marked owed first, so a proof program,
+// another case tree or a step `--fast` skipped stays selected for whoever runs it next. A red run moves
+// nothing, and its red atoms stay selected.
 //
 // `fmt` and `nvs-fmt` format rather than check, because a red `fmt` was only ever fixed by running the
 // formatter and verifying again. `fmt` runs first, so everything after it compiles the text the commit
 // carries, and its own failure is reported only when every other step passed: a parse error reads
 // better from `build`. `nvs-fmt` runs over only the new or modified `.nvs` files under `tests/` and
-// `examples/`, `tests/fmt/input/` excepted, so a layout rule that changes what the formatter prints is
-// still `crates/nvs-fmt/tests/identity.rs`'s to judge over the rest. A file the formatter cannot parse
-// is left as it was, and the step is never red. After either one rewrites a file, every later key is
-// taken again.
+// `examples/`, `tests/fmt/input/` excepted, that it has not formatted as they now stand, so a layout
+// rule that changes what the formatter prints is still `crates/nvs-fmt/tests/identity.rs`'s to judge
+// over the rest. A file the formatter cannot parse is left as it was, and the step is never red. After
+// either one rewrites a file the change is read again, and an atom that ran before the rewrite and is
+// selected again counts as not run.
 //
-// A step whose key has not moved since it was last green is answered from `.agent-tmp/verify-green.json`
-// rather than run. `tools/nv/keys/steps.ts` is what each step reads. Only a green step is recorded, the
-// moment it passes, and it holds for as long as its key does; a red step's entry is deleted. `build` is answered
-// from the cache only when every later step that uses what it leaves on disk is too, or, for `test`,
-// when the test binaries cargo last built are provably the ones this code compiles to: the build key
-// they were built under still holds, and every file cargo produced then is untouched. A `-p` run's
-// `test` verdict is keyed with its package, and an unscoped verdict satisfies any `-p`.
-//
-// `test` runs the binaries `cargo test --no-run` names side by side, as many at a time as there are
-// cores, the slowest of the last run first, each with libtest threads in proportion to its last time,
-// and `cargo test --doc` beside them. Every binary runs, and one that fails is run a second time, alone:
-// a binary that passes alone shares a port, a path or a container with another, and is reported red
-// with that diagnosis rather than retried into green. A binary whose key in `tools/nv/keys/checks.ts`
-// has not moved is answered from `.agent-tmp/verify-test-green.json`, with the `test result:` line and
-// the test lines it printed when green, which the loop driver reads too. `--keys` prints each binary the
-// last build recorded, with its key over the tree now and whether that key is wide, so the driver
-// compares a record with the same key this command would. Each binary run records the
-// paths it opened through `nvs_repo` in the file `NVS_READS_LOG` names, and those go into its key.
-// An unscoped run fails on a wide binary `tools/data/impact-wide.txt` does not list, and on a listed
-// one that is narrow now (`tools/nv/keys/escape.ts`).
+// `test` runs the selected binaries `cargo test --no-run` names side by side, as many at a time as there
+// are cores, the slowest of the last run first, each with libtest threads in proportion to its last
+// time, and the doc-tests beside them when they are selected. A binary that fails is run a second time,
+// alone: a binary that passes alone shares a port, a path or a container with another, and is reported
+// red with that diagnosis rather than retried into green. A binary not selected prints the `test
+// result:` line of its last green run. Each binary runs with a compile cache and a temporary directory
+// of its own, and every `nvs` it starts records into its footprint. An unscoped run fails on a wide
+// binary `tools/data/impact-wide.txt` does not list, and on a listed one that is narrow now
+// (`tools/nv/keys/escape.ts`), from the paths its footprint says it asked `nvs_repo` for.
 //
 // Two stretches run at the same time and are still judged in list order. The script steps read nothing
 // `build` writes, so they run beside it. Once every test binary has started and at most half the cores
@@ -58,11 +70,13 @@
 // has failed, and the lane stops before a failed binary is run again alone. A red `test` drops the
 // lane's verdicts.
 //
-// `cargo doc` with broken intra-doc links denied is `--doc`, run alone. It re-documents every crate
-// above an edit, so the loop driver runs it once, when a goal's acceptance list is green. The
-// documentation gates (`rules`, `records`, links, the plan, the playbook) are not steps: the green cache
-// deliberately does not key on prose, so a gate behind it would be skipped exactly when prose changed.
-// `nv session --wrap` refuses a wrap that breaks them.
+// `-p` narrows which test binaries run, off the one build, and the steps that run `nvs` over the trees
+// do not run; what it leaves out is owed. `cargo doc` with broken intra-doc links denied is `--doc`, run
+// alone. The documentation gates (`rules`, `records`, links, the plan, the playbook) are not steps: `nv
+// session --wrap` refuses a wrap that breaks them.
+//
+// Every process verify starts is killed with the processes it started when it runs out of time, and a
+// test binary or case batch that fails has what it left running killed (`lib/proc.ts`).
 //
 // `.agent-tmp/verify-progress.json` names the step in flight, for the loop driver's status line.
 //
@@ -73,36 +87,31 @@ import { cpus } from "node:os";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { subsetRun } from "../driver/accept.ts";
-import { ROOT } from "../lib/paths.ts";
+import { COVWS_TARGET, covwsCargo, covwsNvs, hostTriple } from "../lib/covws.ts";
+import { abs, ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { cargoStatus, progress as showProgress } from "../lib/progress.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
-import { type Unit, isWide, loadRecords, testTargets, units } from "../keys/checks.ts";
+import { testTargets } from "../keys/checks.ts";
 import { findings } from "../keys/escape.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
-import { keyOf } from "../keys/key.ts";
 import { digest } from "../keys/scan.ts";
-import { STEP_READS, stepKey } from "../keys/steps.ts";
-import { Tree } from "../keys/tree.ts";
+import { recordName } from "../proofs/run.ts";
+import { caseFiles, caseId } from "../select/atoms.ts";
+import { buildScripts } from "../select/build.ts";
+import { WILD, repoPath } from "../select/keys.ts";
+import { advance, depInfoPaths, fullChange, Recorder, recordCases } from "../select/record.ts";
+import { type ChangeSet, computeChange, discover, type Selection, query, rustFiles } from "../select/select.ts";
+import { nvKeys, testKeys } from "../select/seed.ts";
+import { type Keyed, SelectStore, testReads, type Verdict } from "../select/store.ts";
 import { alive, dirOf, exitOf, readJob, startJob } from "./bg.ts";
 
 export const summary = "the gate, one call: nv verify [-p <crate>] [--fast] [--doc] [--start | --wait] [--list] [--full] [--no-cache]";
 
 const TMP = join(ROOT, ".agent-tmp");
-const CACHE = join(TMP, "verify-green.json");
-/** The green cache's shape. A file in any other shape reads as empty. */
-const CACHE_SHAPE = 3;
 const PROGRESS = join(TMP, "verify-progress.json");
 /** Each test binary's seconds in the last run, so the next one starts the slowest first. */
 const TEST_TIMES = join(TMP, "verify-test-times.json");
-/** What the last `cargo test --no-run` built, and under which build key. */
-const TEST_BUILT = join(TMP, "verify-test-built.json");
-/** Each test binary's green verdict: `{name: {key, result, tests}}`. */
-const TEST_GREEN = join(TMP, "verify-test-green.json");
-/** Each test binary's recorded run-time reads, which `checks.ts` keys it on. */
-const READS = join(TMP, "impact-reads.json");
-const READS_DIR = join(TMP, "reads");
-const READS_ENV = "NVS_READS_LOG";
 /** The job id of the last `--start`. */
 const BACKGROUND = join(TMP, "verify-background.json");
 const BACKGROUND_TIMEOUT_S = 600;
@@ -113,7 +122,7 @@ const STEP_TIMEOUT_MS = 60 * 60 * 1000;
 
 /** The steps that use what `build` leaves on disk. */
 const NEEDS_BINARY = new Set(["nvs-fmt", "test", "conformance", "differential", "reference", "extension"]);
-/** The steps that rewrite source, after which every later key is taken again. */
+/** The steps that rewrite source, after which the change is read again. */
 const WRITES = new Set(["fmt", "nvs-fmt"]);
 /** The script steps, which run at the same time as `build`. */
 const BESIDE_BUILD = new Set(["lints", "directives", "template", "owners", "nv", "fuzz-lock"]);
@@ -121,15 +130,22 @@ const NVS_FMT_TREES = ["tests", "examples"];
 const NVS_FMT_SKIPS = "tests/fmt/input/";
 const EXTENSION = join(ROOT, "editors", "vscode");
 const FUZZ = join(ROOT, "fuzz");
-/** The `.nvst` trees, run through the debug binary, which is the one the loop's acceptance check runs. */
+/** The `.nvst` trees verify runs. */
 const CASE_TREES = ["conformance", "differential"];
-const NVS = join(ROOT, "target", "debug", process.platform === "win32" ? "nvs.exe" : "nvs");
+const EXE = process.platform === "win32" ? ".exe" : "";
+/** The doc-tests, one atom: rustdoc builds and runs each in a directory it deletes. */
+const DOC_TESTS = "step:doc-tests";
+/** Every step's atom, whether or not this run's options walk it. */
+const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", "nv", "fuzz-lock", "build", "reference", "clippy", "extension", "doc"].map((n) => `step:${n}`).concat(DOC_TESTS);
 
 const RESULT_RE = /test result: \w+\. (\d+) passed; (\d+) failed/g;
 /** One test's line in libtest's output, a `#[should_panic]` test's included. */
 const TEST_LINE_RE = /^test \S+ (?:- should panic )?\.\.\. \w+/;
-const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/;
+const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/g;
 const WARN_RE = /^(warning|error)(\[[^\]]+\])?: (.*)$/gm;
+
+/** The `covws` build's directory of binaries. */
+const covDir = () => abs(`${COVWS_TARGET}/${hostTriple()}/debug`);
 
 interface Opts {
   package?: string;
@@ -149,14 +165,6 @@ interface Job {
   cwd: string;
   env: Record<string, string>;
   rerun: string;
-  readsLog?: string;
-}
-
-/** One reading of the tree, and the graph its build keys are taken over. */
-interface Ctx {
-  tree: Tree;
-  graph: Graph | null;
-  keys: Map<string, string | null>;
 }
 
 interface Step {
@@ -168,6 +176,9 @@ interface Step {
   env?: Record<string, string>;
   /** Replaces the one command; `args` is then what a reader types to reproduce the step. */
   runner?: (s: Step) => Promise<[number, string]>;
+  /** The step's own atom, recorded after each run with the keys `footprint` gives. */
+  atom?: string;
+  footprint?: (s: Step) => Promise<Keyed>;
   seconds: number;
   code: number | null;
   out: string;
@@ -175,27 +186,8 @@ interface Step {
   todo?: string[];
   changed?: string[];
   formatted?: Record<string, string>;
-  // `test`'s state.
-  binaryKey?: string | null;
-  skipDoc?: boolean;
-  docGreen?: boolean;
-  noCache?: boolean;
-  ctx?: Ctx | null;
   onTail?: () => void;
   quiesce?: () => Promise<void>;
-}
-
-interface Entry {
-  key?: string;
-  when?: number;
-  summary?: string;
-  seconds?: number;
-}
-
-interface Cache {
-  shape: number;
-  steps: Record<string, Entry>;
-  formatted: Record<string, string>;
 }
 
 function step(name: string, args: string[], summarize: (out: string) => string, extra: Partial<Step> = {}): Step {
@@ -222,7 +214,7 @@ function sorted<T>(obj: Record<string, T>): Record<string, T> {
   return Object.fromEntries(Object.keys(obj).sort().map((k) => [k, obj[k]!]));
 }
 
-/** Best effort: a file under `.agent-tmp` that cannot be written costs the next run a cache miss. */
+/** Best effort: a file under `.agent-tmp` that cannot be written costs the next run its ordering. */
 function writeQuiet(path: string, text: string): void {
   try {
     mkdirSync(dirname(path), { recursive: true });
@@ -230,6 +222,63 @@ function writeQuiet(path: string, text: string): void {
   } catch {
     // See above.
   }
+}
+
+// ---- the selection ---------------------------------------------------------------------------------
+
+/** What this run was asked, the store, and the atoms the change selects. */
+interface Run {
+  opts: Opts;
+  store: SelectStore;
+  graph: Graph | null;
+  change: ChangeSet;
+  sel: Selection;
+  /** The test binaries the workspace graph names, by `<package> <kind> <target>`. */
+  testNames: Set<string>;
+  rec: Recorder;
+  /** Every atom this run ran and recorded. */
+  ran: Set<string>;
+}
+
+/** The change since the store's tree and what it selects. A store with no tree, or a tree git can no
+ * longer name, selects everything. */
+async function select(store: SelectStore, graph: Graph | null): Promise<{ change: ChangeSet; sel: Selection; testNames: Set<string> }> {
+  let change: ChangeSet;
+  if (store.base() === null) change = await fullChange();
+  else {
+    try {
+      change = await computeChange(store, { graph });
+    } catch (e) {
+      change = await fullChange(ROOT, `the recorded tree could not be read: ${(e as Error).message.split("\n")[0]}`);
+    }
+  }
+  const found = await discover(graph);
+  const testNames = new Set(found.filter((d) => d.id.startsWith("test:")).map((d) => d.id.slice(5)));
+  const sel = query(store, change, { discovered: [...found, ...STEP_ATOMS.map((id) => ({ id, def: "" }))] });
+  return { change, sel, testNames };
+}
+
+const picked = (r: Run, id: string) => r.opts.noCache || r.sel.selected.has(id);
+
+/** The test binaries this run runs, by name. */
+function testsToRun(r: Run): string[] {
+  const names = [...r.testNames].filter((n) => !r.opts.package || n.startsWith(`${r.opts.package} `));
+  return names.filter((n) => picked(r, `test:${n}`)).sort();
+}
+
+/** The cases of `tests/<tree>` this run runs. */
+function casesToRun(r: Run, tree: string): string[] {
+  const prefix = `tests/${tree}/`;
+  if (r.opts.noCache) return caseFiles().filter((p) => p.startsWith(prefix));
+  return [...r.sel.selected.keys()].filter((id) => id.startsWith(`case:${prefix}`)).map((id) => id.slice(5)).sort();
+}
+
+/** Whether step `s` has anything to run, and why, before `build`'s dependence on the steps after it. */
+function wanted(r: Run, s: Step): boolean {
+  if (s.name === "nvs-fmt") return (s.todo ?? []).length > 0;
+  if (s.name === "test") return testsToRun(r).length > 0 || (!r.opts.package && picked(r, DOC_TESTS));
+  if (CASE_TREES.includes(s.name)) return casesToRun(r, s.name).length > 0;
+  return s.atom !== undefined && picked(r, s.atom);
 }
 
 // ---- running ---------------------------------------------------------------------------------------
@@ -253,9 +302,9 @@ function cargoDetail(name: string): (line: string) => void {
   };
 }
 
-async function spawnOut(argv: string[], cwd: string, env?: Record<string, string>, onLine?: (line: string) => void): Promise<[number, string]> {
+async function spawnOut(argv: string[], cwd: string, env?: Record<string, string>, onLine?: (line: string) => void, reap = false): Promise<[number, string]> {
   try {
-    const p = await proc(argv, { cwd, timeoutMs: STEP_TIMEOUT_MS, ...(env ? { env } : {}), ...(onLine ? { onLine } : {}) });
+    const p = await proc(argv, { cwd, timeoutMs: STEP_TIMEOUT_MS, reap, ...(env ? { env } : {}), ...(onLine ? { onLine } : {}) });
     return [p.code, p.stdout + p.stderr + (p.timedOut ? `\nkilled after ${STEP_TIMEOUT_MS / 60000} minutes\n` : "")];
   } catch (e) {
     return [-1, `could not run \`${argv.join(" ")}\`: ${(e as Error).message}`];
@@ -268,7 +317,7 @@ async function runStep(s: Step): Promise<boolean> {
   stepDetail(s.name, "");
   const onLine = s.exe === "cargo" ? cargoDetail(s.name) : undefined;
   try {
-    [s.code, s.out] = s.runner ? await s.runner(s) : await spawnOut([s.exe, ...s.args], s.cwd, s.env, onLine);
+    [s.code, s.out] = s.runner ? await s.runner(s) : await spawnOut([s.exe, ...s.args], s.cwd, s.env, onLine, true);
   } finally {
     running.delete(s.name);
   }
@@ -277,44 +326,54 @@ async function runStep(s: Step): Promise<boolean> {
   return s.code === 0;
 }
 
-// ---- the test step ---------------------------------------------------------------------------------
+// ---- footprints of the steps that execute no code of ours ------------------------------------------
 
-/** The jobs the last build recorded, if they are still what this code compiles to: the same build key,
- * and every file cargo produced then untouched since. `null` sends `test` back to cargo. */
-function jobsOnDisk(binaryKey: string | null | undefined): Job[] | null {
-  if (!binaryKey) return null;
-  const built = readJson(TEST_BUILT) as { binary?: string; jobs?: Job[]; files?: Record<string, [string, number]> } | undefined;
-  if (!built || built.binary !== binaryKey || !built.jobs?.length || !built.files) return null;
-  try {
-    for (const [path, [mtime, size]] of Object.entries(built.files)) {
-      const st = statSync(path, { bigint: true });
-      if (st.mtimeNs.toString() !== mtime || Number(st.size) !== size) return null;
-    }
-  } catch {
-    return null;
-  }
-  return built.jobs;
+/** Every file the `covws` build's dep-info names, and each build script's inputs: what a compile of the
+ * workspace reads. */
+function buildKeys(graph: Graph | null): Keyed {
+  const keys: Keyed = new Map();
+  for (const p of depInfoPaths(join(covDir(), "deps"), (x) => repoPath(x))) keys.set(`file:${p}`, "");
+  const pkgDirs = new Map([...(graph?.values() ?? [])].map((p) => [p.name, p.dir]));
+  for (const script of buildScripts(join(covDir(), "build"), pkgDirs).values()) for (const input of script.inputs) keys.set(`tree:${input}`, "");
+  // A build with no dep-info to read is keyed on everything.
+  if (keys.size === 0) keys.set(WILD, "");
+  return keys;
 }
+
+/** A configuration file a tool reads when it is there. */
+const maybe = (keys: Keyed, path: string) => {
+  keys.set(`file:${path}`, "");
+  keys.set(`exists:${path}`, "");
+};
+
+async function fmtKeys(): Promise<Keyed> {
+  const keys: Keyed = new Map();
+  for (const f of await rustFiles()) keys.set(`file:${f}`, "");
+  maybe(keys, "rustfmt.toml");
+  maybe(keys, ".rustfmt.toml");
+  return keys;
+}
+
+// ---- the test step ---------------------------------------------------------------------------------
 
 const FLAGS: Record<string, string> = { lib: "--lib", bin: "--bin", test: "--test", example: "--example", bench: "--bench" };
 
-/** `cargo test --no-run`, as every workspace test binary's job, or `[null, output]` when it fails. A
- * `-p` never goes on the build: it narrows which binaries run, off the one build (AGENTS.md rule 5). */
-async function buildTestJobs(binaryKey: string | null | undefined): Promise<[Job[] | null, string]> {
+/** `cargo test --no-run` on `covws`, as every workspace test binary's job, or `[null, output]` when it
+ * fails. A `-p` never goes on the build: it narrows which binaries run, off the one build. */
+async function buildTestJobs(): Promise<[Job[] | null, string]> {
+  const { env, args } = covwsCargo();
   let p;
   try {
-    p = await proc(["cargo", "test", "--no-run", "--message-format=json-render-diagnostics"], { timeoutMs: STEP_TIMEOUT_MS, onLine: cargoDetail("test") });
+    p = await proc(["cargo", "test", "--no-run", ...args, "--message-format=json-render-diagnostics"], { env, timeoutMs: STEP_TIMEOUT_MS, onLine: cargoDetail("test") });
   } catch (e) {
     return [null, `could not run \`cargo test --no-run\`: ${(e as Error).message}`];
   }
   if (p.code !== 0) return [null, p.stderr + p.stdout];
   const jobs: Job[] = [];
-  const files: Record<string, [string, number]> = {};
   for (const line of p.stdout.split("\n")) {
     let m: {
       reason?: string;
       package_id?: string;
-      filenames?: string[];
       executable?: string | null;
       profile?: { test?: boolean };
       target: { name: string; kind?: string[] };
@@ -325,21 +384,8 @@ async function buildTestJobs(binaryKey: string | null | undefined): Promise<[Job
     } catch {
       continue;
     }
-    if (m.reason !== "compiler-artifact") continue;
+    if (m.reason !== "compiler-artifact" || !m.executable || !m.profile?.test) continue;
     const id = m.package_id ?? "";
-    if (id.startsWith("path+")) {
-      // Every file of a workspace package, not the test binaries alone: a test spawns
-      // `target/debug/nvs`, and that is the `bin` artifact beside it.
-      for (const name of m.filenames ?? []) {
-        try {
-          const st = statSync(name, { bigint: true });
-          files[name] = [st.mtimeNs.toString(), Number(st.size)];
-        } catch {
-          // A file that is gone is simply not recorded.
-        }
-      }
-    }
-    if (!m.executable || !m.profile?.test) continue;
     const hash = id.lastIndexOf("#");
     const source = hash < 0 ? "" : id.slice(0, hash);
     const tail = hash < 0 ? id : id.slice(hash + 1);
@@ -351,91 +397,33 @@ async function buildTestJobs(binaryKey: string | null | undefined): Promise<[Job
     const rerun = kind === "lib" ? `bun nv verify -p ${owner}` : `cargo test ${FLAGS[kind]} ${target}`;
     jobs.push({ name: `${owner} ${kind} ${target}`, owner, argv: [m.executable], cwd, env: { CARGO_MANIFEST_DIR: cwd }, rerun });
   }
-  if (binaryKey && jobs.length > 0) writeQuiet(TEST_BUILT, JSON.stringify({ binary: binaryKey, jobs, files }));
   return [jobs, ""];
-}
-
-/** What `cargo test` would run, as jobs, or `[null, output]` when the build fails. A scoped run skips
- * the doc-tests, which cargo can only narrow with a `-p`. */
-async function testJobs(pkg: string | undefined, binaryKey: string | null | undefined): Promise<[Job[] | null, string]> {
-  let jobs = jobsOnDisk(binaryKey);
-  let note = "test binaries as last built: this code and those files are unchanged\n";
-  if (jobs === null) {
-    [jobs, note] = await buildTestJobs(binaryKey);
-    if (jobs === null) return [null, note];
-  }
-  jobs = jobs.filter((j) => !pkg || j.owner === pkg);
-  if (!pkg) jobs.push({ name: "doc-tests", owner: "", argv: ["cargo", "test", "--doc"], cwd: ROOT, env: {}, rerun: "cargo test --doc" });
-  return [jobs, note];
 }
 
 async function runJob(job: Job): Promise<[number, number, string]> {
   const started = performance.now();
-  const [code, out] = await spawnOut(job.argv, job.cwd, job.env);
+  const [code, out] = await spawnOut(job.argv, job.cwd, job.env, undefined, true);
   return [(performance.now() - started) / 1000, code, out];
 }
 
+/** A binary's last green run: its `test result:` line and the test lines it printed. */
 interface Green {
-  key?: string;
   result?: string;
   tests?: string[];
 }
 
-/** Each test binary's key over what it reads, and the run-time reads a run records into it. */
-class Reach {
-  private readonly records;
-  private readonly units: Map<string, Unit>;
-  private readonly keys = new Map<string, string>();
-  private readonly recorded: Record<string, { reads: string[] }>;
+const greenSlot = (name: string) => `verify:test:${name}`;
 
-  constructor(
-    private readonly ctx: Ctx,
-    readonly graph: Graph,
-  ) {
-    this.records = loadRecords(graph, false);
-    this.units = new Map(units(this.records).filter((u) => u.role === "binary").map((u) => [u.name, u]));
-    this.recorded = readObject(READS);
-  }
-
-  /** A binary with no unit keys on everything `test` reads. */
-  key(job: Job): string {
-    let k = this.keys.get(job.name);
-    if (k === undefined) {
-      const u = this.units.get(job.name);
-      k = keyOf(job.name, u ? u.parts(this.ctx.tree) : STEP_READS.test!(this.ctx.tree, this.graph));
-      this.keys.set(job.name, k);
-    }
-    return k;
-  }
-
-  /** Is `job`'s key on everything? A binary with no unit is. */
-  wide(job: Job): boolean {
-    const u = this.units.get(job.name);
-    return !u || isWide(u.parts(this.ctx.tree));
-  }
-
-  reads(name: string): string[] | undefined {
-    return this.records.reads.get(name);
-  }
-
-  /** Files what a run of `job` appended to its reads log. */
-  record(job: Job): void {
-    let lines: string[] = [];
-    try {
-      lines = readFileSync(job.readsLog!, "utf8").split(/\r?\n/);
-    } catch {
-      // A binary that opened nothing through `nvs_repo` writes no log.
-    }
-    const reads = [...new Set(lines.map((l) => l.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")).filter((l) => l))].sort();
-    this.records.reads.set(job.name, reads);
-    this.recorded[job.name] = { reads };
-    this.keys.delete(job.name);
-  }
-
-  save(): void {
-    writeQuiet(READS, JSON.stringify(sorted(this.recorded), null, 1));
+function greenOf(store: SelectStore, name: string): Green | null {
+  const v = store.verdict(greenSlot(name));
+  if (!v || !v.verdict) return null;
+  try {
+    return JSON.parse(v.verdict) as Green;
+  } catch {
+    return null;
   }
 }
+
 
 const RERUN_ALONE_PASSED = (name: string) =>
   `error: \`${name}\` failed beside the other test binaries and passed alone. It shares something with a ` +
@@ -443,32 +431,32 @@ const RERUN_ALONE_PASSED = (name: string) =>
   `a container name -- or leans on a timeout that load breaks. Give the test its own (port 0, a directory no ` +
   `other test names, its own container) rather than running it apart: \`tools/nv/cmd/verify.ts\`'s module doc.`;
 
-/** The `test` step. `pkg` is `-p`: which binaries run, off the one build. */
-async function runTests(s: Step, pkg: string | undefined): Promise<[number, string]> {
-  const [all, note] = await testJobs(pkg, s.binaryKey);
+/** The `test` step: the selected binaries and, when selected, the doc-tests. */
+async function runTests(r: Run, s: Step): Promise<[number, string]> {
+  const pkg = r.opts.package;
+  const [all, note] = await buildTestJobs();
   if (all === null) return [1, note];
-  let jobs = s.skipDoc ? all.filter((j) => j.name !== "doc-tests") : all;
+  const nvs = covwsNvs();
+  const built = new Set(all.map((j) => j.name));
+  // A test atom whose binary the build no longer makes is gone.
+  if (!pkg) for (const a of r.store.atoms("test")) if (!built.has(a.id.slice(5))) r.store.removeAtom(a.id);
+  const scoped = all.filter((j) => !pkg || j.owner === pkg);
+  const chosen = new Set(testsToRun(r));
+  let jobs = scoped.filter((j) => r.opts.noCache || chosen.has(j.name) || !r.testNames.has(j.name));
+  const docs = !pkg && picked(r, DOC_TESTS);
+  const docDir = join(r.rec.dir, "doctests");
+  if (docs) {
+    const { env, args } = covwsCargo();
+    mkdirSync(docDir, { recursive: true });
+    // Each doc-test's process writes its counters here rather than beside the crate it tests.
+    jobs.push({ name: "doc-tests", owner: "", argv: ["cargo", "test", "--doc", ...args], cwd: ROOT, env: { ...env, LLVM_PROFILE_FILE: join(docDir, "d-%4m.profraw") }, rerun: "cargo test --doc" });
+  }
   const last = readObject<number>(TEST_TIMES);
 
-  // Which binaries this change reaches. With no tree or graph to key against, every binary runs and
-  // nothing is remembered.
-  const reach = s.ctx?.graph ? new Reach(s.ctx, s.ctx.graph) : null;
-  const green = reach && !s.noCache ? readObject<Green>(TEST_GREEN) : {};
-  const binaries = jobs.filter((j) => j.name !== "doc-tests");
-  const held: Record<string, Green> = {};
-  if (reach) for (const j of binaries) if (green[j.name]?.key === reach.key(j)) held[j.name] = green[j.name]!;
-  jobs = jobs.filter((j) => !(j.name in held));
   for (const j of jobs) {
-    if (!reach || j.name === "doc-tests") continue;
-    const log = join(READS_DIR, j.name.replace(/\W+/g, "-") + ".log");
-    try {
-      mkdirSync(READS_DIR, { recursive: true });
-      rmSync(log, { force: true });
-    } catch {
-      // A log that cannot be cleared only over-records.
-    }
-    j.env = { ...j.env, [READS_ENV]: log };
-    j.readsLog = log;
+    if (j.name === "doc-tests") continue;
+    const name = recordName(`test:${j.name}`);
+    j.env = { ...j.env, ...r.rec.env(name), ...(await r.rec.cacheDir(name)) };
   }
 
   // Unknown first: a binary with no recorded time is new, and new is as likely to be slow.
@@ -483,6 +471,28 @@ async function runTests(s: Step, pkg: string | undefined): Promise<[number, stri
     j.env = { ...j.env, RUST_TEST_THREADS: String(Math.max(1, Math.min(workers, Math.round(workers * share)))) };
   }
 
+  // Each binary's footprint is taken as soon as it ends, beside the binaries still running.
+  const recording: Promise<void>[] = [];
+  const recordJob = (j: Job, code: number, text: string) => {
+    if (j.name === "doc-tests") {
+      rmSync(docDir, { recursive: true, force: true });
+      r.store.recordRun(DOC_TESTS, { def: digest(j.argv.join(" ")), verdict: code === 0 ? "green" : "red", keys: buildKeys(r.graph) });
+      r.ran.add(DOC_TESTS);
+      return;
+    }
+    const id = `test:${j.name}`;
+    recording.push(
+      r.rec.keysOf(recordName(id), [j.argv[0]!, nvs]).then((ext) => {
+        const verdict: Verdict = code === 0 && ext ? "green" : "red";
+        r.store.recordRun(id, { def: "", verdict, keys: testKeys(j.owner, ext) });
+        r.ran.add(id);
+        const out = text.split(/\r?\n/);
+        const green: Green = { result: out.filter((l) => new RegExp(RESULT_RE.source).test(l)).join("\n"), tests: out.filter((l) => TEST_LINE_RE.test(l)).map((l) => l.trimEnd()) };
+        r.store.putVerdict(greenSlot(j.name), "", verdict === "green" ? JSON.stringify(green) : "");
+      }),
+    );
+  };
+
   // The tail: every job started and at most half the cores still running one.
   const results = new Map<string, [number, number, string]>();
   let left = jobs.length;
@@ -495,6 +505,7 @@ async function runTests(s: Step, pkg: string | undefined): Promise<[number, stri
       const j = jobs[next++]!;
       const got = await runJob(j);
       results.set(j.name, got);
+      recordJob(j, got[1], got[2]);
       left--;
       red ||= got[1] !== 0;
       count();
@@ -502,56 +513,59 @@ async function runTests(s: Step, pkg: string | undefined): Promise<[number, stri
     }
   };
   await Promise.all(Array.from({ length: Math.min(workers, jobs.length) }, worker));
+  if (s.onTail && jobs.length === 0) s.onTail();
 
   const failed = jobs.filter((j) => results.get(j.name)![1] !== 0);
-  s.docGreen = results.has("doc-tests") && results.get("doc-tests")![1] === 0;
   // Alone, one at a time, after the pool has drained and the lane has stopped.
   if (failed.length && s.quiesce) await s.quiesce();
+  await Promise.all(recording);
   const alone = new Map<string, boolean>();
-  for (const j of failed) alone.set(j.name, (await runJob(j))[1] === 0);
+  for (const j of failed) {
+    if (j.name !== "doc-tests") j.env = { ...j.env, ...r.rec.env(recordName(`test:${j.name}`)), ...(await r.rec.cacheDir(recordName(`test:${j.name}`))) };
+    else mkdirSync(docDir, { recursive: true });
+    const [, code] = await runJob(j);
+    alone.set(j.name, code === 0);
+    // What the second run left is read and dropped: the verdict is the first run's.
+    if (j.name !== "doc-tests") await r.rec.keysOf(recordName(`test:${j.name}`), [j.argv[0]!, nvs]);
+    else rmSync(docDir, { recursive: true, force: true });
+  }
 
   let wide: string[] = [];
-  if (reach) {
-    const stored = readObject<Green>(TEST_GREEN);
-    for (const j of jobs) {
-      if (j.name === "doc-tests") continue;
-      const [, code, text] = results.get(j.name)!;
-      if (code !== 0) {
-        delete stored[j.name];
-        continue;
-      }
-      // What it opened first, because the key that stands for this run holds those reads.
-      reach.record(j);
-      const out = text.split(/\r?\n/);
-      stored[j.name] = {
-        key: reach.key(j),
-        result: out.filter((l) => new RegExp(RESULT_RE.source).test(l)).join("\n"),
-        tests: out.filter((l) => TEST_LINE_RE.test(l)).map((l) => l.trimEnd()),
-      };
-    }
-    reach.save();
-    writeQuiet(TEST_GREEN, JSON.stringify(sorted(stored), null, 1));
-    // Unscoped runs only: the wide list is the workspace's, and `-p` sees one package's.
-    if (!pkg) {
-      wide = findings(binaries.map((j) => ({ name: j.name, owner: j.owner, exe: j.argv[0]!, reads: reach.reads(j.name), known: reach.graph.has(j.owner) })));
-    }
+  // Unscoped runs only: the wide list is the workspace's, and `-p` sees one package's.
+  if (!pkg && r.graph) {
+    const reads = testReads(r.store);
+    wide = findings(scoped.map((j) => ({ name: j.name, owner: j.owner, exe: j.argv[0]!, reads: reads.get(j.name), known: r.graph!.has(j.owner) })));
   }
 
   const times: Record<string, number> = { ...last };
-  for (const [n, r] of results) times[n] = Math.round(r[0] * 100) / 100;
+  for (const [n, res] of results) times[n] = Math.round(res[0] * 100) / 100;
   writeQuiet(TEST_TIMES, JSON.stringify(sorted(times), null, 1));
 
   // Passing binaries first, by name, so the tail a red step prints is the failures.
   const names = new Set(failed.map((j) => j.name));
   const out: string[] = note ? [note] : [];
-  const heldNames = Object.keys(held).sort();
-  if (heldNames.length) out.push(`${heldNames.length} of ${binaries.length} test binaries not re-run: nothing each one reads has changed since it was green`);
-  for (const n of heldNames) out.push(`     Unchanged ${n}\n${held[n]!.result ?? ""}`);
+  const held = scoped.filter((j) => !results.has(j.name)).map((j) => j.name).sort();
+  if (held.length) out.push(`${held.length} of ${scoped.length} test binaries not re-run: the change reaches nothing each one ran`);
+  for (const n of held) out.push(`     Unchanged ${n}\n${greenOf(r.store, n)?.result ?? ""}`);
   for (const n of [...results.keys()].sort()) if (!names.has(n)) out.push(`     Running ${n}\n${results.get(n)![2]}`);
   for (const j of failed) out.push(`     Running ${j.name}  -- FAILED, exit ${results.get(j.name)![1]}\n${results.get(j.name)![2]}`);
   for (const j of failed) out.push(alone.get(j.name) ? RERUN_ALONE_PASSED(j.name) : `error: \`${j.name}\` failed, alone as well; \`${j.rerun}\` runs it again.`);
   for (const line of wide) out.push(`error: ${line}`);
   return [failed.length || wide.length ? 1 : 0, out.join("\n")];
+}
+
+// ---- the case trees --------------------------------------------------------------------------------
+
+/** A case tree's step: the selected cases, recorded. */
+async function runCases(r: Run, s: Step): Promise<[number, string]> {
+  const cases = casesToRun(r, s.name);
+  const total = caseFiles().filter((p) => p.startsWith(`tests/${s.name}/`)).length;
+  const jobs = cpus().length || 4;
+  const got = await recordCases(r.rec, covwsNvs(), cases, { jobs, batch: 128, onBatch: (done, all) => stepDetail(s.name, `${done}/${all} cases`) });
+  for (const p of cases) r.ran.add(caseId(p));
+  const red = [...got.verdicts.values()].filter((v) => v === "red").length;
+  const head = `${cases.length} of ${total} case(s) of tests/${s.name} selected`;
+  return [red > 0 || got.failed > 0 ? 1 : 0, `${head}\n${got.out}\n${got.passed} passed, ${got.failed} failed, ${got.skipped} skipped\n`];
 }
 
 // ---- nvs-fmt ---------------------------------------------------------------------------------------
@@ -586,15 +600,27 @@ async function changedSources(): Promise<string[]> {
 }
 
 const digestOf = (rel: string) => digest(readFileSync(join(ROOT, rel)));
+const FORMATTED = "verify:nvs-fmt";
+
+/** Each changed `.nvs` file's digest as `nvs-fmt` last left it, from the store. */
+function formattedOf(store: SelectStore): Record<string, string> {
+  try {
+    const got = JSON.parse(store.verdict(FORMATTED)?.verdict ?? "{}");
+    return got && typeof got === "object" && !Array.isArray(got) ? got : {};
+  } catch {
+    return {};
+  }
+}
 
 /** `[todo, changed]`: the changed `.nvs` files the formatter has not been over as they now stand, and
- * all of the changed ones, which are the only paths the cache still has a reason to hold. */
-async function unformatted(cache: Cache): Promise<[string[], string[]]> {
+ * all of the changed ones, which are the only paths the record still has a reason to hold. */
+async function unformatted(store: SelectStore): Promise<[string[], string[]]> {
   const changed = await changedSources();
+  const formatted = formattedOf(store);
   const todo: string[] = [];
   for (const rel of changed) {
     try {
-      if (cache.formatted[rel] !== digestOf(rel)) todo.push(rel);
+      if (formatted[rel] !== digestOf(rel)) todo.push(rel);
     } catch {
       // A file gone since git listed it has nothing to format.
     }
@@ -690,9 +716,11 @@ export const summaries: Record<string, (out: string) => string> = {
     return named(files);
   },
   cases(out) {
-    const m = CASES_RE.exec(out);
+    const all = [...out.matchAll(CASES_RE)];
+    const m = all.at(-1);
     if (!m) return "ran, but printed no `N passed` line -- check the log";
-    return `${m[1]} passed, ${m[2]} failed` + (Number(m[3]) ? `, ${m[3]} skipped` : "");
+    const of = /^(\d+) of (\d+) case\(s\)/m.exec(out);
+    return `${m[1]} passed, ${m[2]} failed` + (Number(m[3]) ? `, ${m[3]} skipped` : "") + (of && of[1] !== of[2] ? `  (${of[1]} of ${of[2]} selected)` : "");
   },
   extension(out) {
     const m = /(\d+)\s+passing/.exec(out);
@@ -742,51 +770,121 @@ export const summaries: Record<string, (out: string) => string> = {
 
 // ---- the steps -------------------------------------------------------------------------------------
 
+/** A `bun nv` step: its reads are recorded through `NV_READS_LOG`, and whatever it runs of `nvs` by
+ * coverage. `extra` adds the files it is given beside what it was seen to read. */
+function bunStep(r: () => Run, name: string, args: string[], extra: (keys: Keyed) => void = () => {}, env: () => Record<string, string> = () => ({})): Step {
+  const rec = recordName(`step:${name}`);
+  const log = () => join(r().rec.dir, `${rec}.reads`);
+  return step(name, args, summaries[name]!, {
+    exe: "bun",
+    atom: `step:${name}`,
+    runner: async (s) => {
+      rmSync(log(), { force: true });
+      return spawnOut([s.exe, ...s.args], s.cwd, { ...r().rec.env(rec), NV_READS_LOG: log(), ...env() }, undefined, true);
+    },
+    footprint: async () => {
+      const keys = nvKeys(log());
+      rmSync(log(), { force: true });
+      for (const [k, d] of (await r().rec.keysOf(rec, [covwsNvs()]))?.keys ?? []) keys.set(k, d);
+      extra(keys);
+      return keys;
+    },
+  });
+}
+
 /** The rustdoc gate. `private_intra_doc_links` is allowed: a link to a crate-private item in a crate
  * nobody publishes is a correct reference rustdoc will not turn into an anchor. Always the whole
  * workspace, whatever `-p` says. */
-function docStep(): Step {
-  return step("doc", ["doc", "--no-deps", "--workspace"], summaries.doc!, { env: { RUSTDOCFLAGS: "-A rustdoc::private_intra_doc_links -D warnings" } });
+function docStep(r: () => Run): Step {
+  const { env, args } = covwsCargo();
+  return step("doc", ["doc", "--no-deps", "--workspace", ...args], summaries.doc!, {
+    env: { ...env, RUSTDOCFLAGS: "-A rustdoc::private_intra_doc_links -D warnings" },
+    atom: "step:doc",
+    footprint: async () => buildKeys(r().graph),
+  });
 }
 
-function stepsFor(opts: Opts): Step[] {
-  if (opts.doc) return [docStep()];
+function stepsFor(opts: Opts, r: () => Run): Step[] {
+  if (opts.doc) return [docStep(r)];
+  const { env: covEnv, args: target } = covwsCargo();
+  const nvs = covwsNvs();
   const steps: Step[] = [];
   if (!opts.fast) {
     // `-l` names each file rustfmt rewrote, which the summary quotes.
-    steps.push(step("fmt", ["fmt", "--all", "--", "-l"], summaries.fmt!));
+    steps.push(step("fmt", ["fmt", "--all", "--", "-l"], summaries.fmt!, { atom: "step:fmt", footprint: fmtKeys }));
     // The script steps decide what the tree means rather than whether it builds, and read manifests,
     // doc comments or the tools, so `-p` narrows none of them.
-    steps.push(step("lints", ["nv", "lints", "--check"], summaries.lints!, { exe: "bun" }));
-    steps.push(step("directives", ["nv", "directives", "--check"], summaries.directives!, { exe: "bun" }));
-    steps.push(step("template", ["nv", "directives", "--check-template"], summaries.template!, { exe: "bun" }));
-    steps.push(step("owners", ["nv", "owners", "--check"], summaries.owners!, { exe: "bun" }));
-    if (existsSync(join(ROOT, "package.json"))) steps.push(step("nv", ["nv", "selftest"], summaries.nv!, { exe: "bun" }));
+    steps.push(bunStep(r, "lints", ["nv", "lints", "--check"]));
+    steps.push(bunStep(r, "directives", ["nv", "directives", "--check"]));
+    steps.push(bunStep(r, "template", ["nv", "directives", "--check-template"]));
+    steps.push(bunStep(r, "owners", ["nv", "owners", "--check"]));
+    if (existsSync(join(ROOT, "package.json"))) {
+      // `tsc` checks every module under `tools/nv`, and `bun test` reads what its tests were seen to read.
+      steps.push(
+        bunStep(r, "nv", ["nv", "selftest"], (keys) => {
+          keys.set("tree:tools/nv", "");
+          for (const f of ["package.json", "bun.lock", "tsconfig.json", "bunfig.toml"]) keys.set(`file:${f}`, "");
+        }),
+      );
+    }
     if (existsSync(join(FUZZ, "Cargo.toml"))) {
       steps.push(
-        step("fuzz-lock", ["metadata", "--format-version", "1", "--offline", "--manifest-path", "fuzz/Cargo.toml"], summaries["fuzz-lock"]!, { runner: runFuzzLock }),
+        step("fuzz-lock", ["metadata", "--format-version", "1", "--offline", "--manifest-path", "fuzz/Cargo.toml"], summaries["fuzz-lock"]!, {
+          runner: runFuzzLock,
+          atom: "step:fuzz-lock",
+          footprint: async () => {
+            const keys: Keyed = new Map();
+            maybe(keys, "fuzz/Cargo.toml");
+            maybe(keys, "fuzz/Cargo.lock");
+            return keys;
+          },
+        }),
       );
     }
   }
   // Bare, whatever `-p` says: a `-p` build writes a second copy of every workspace crate.
-  steps.push(step("build", ["build"], summaries.build!));
+  steps.push(step("build", ["build", ...target], summaries.build!, { env: covEnv, atom: "step:build", footprint: async () => buildKeys(r().graph) }));
   // Whole-workspace runs only from here on for the steps that run `nvs`: a scoped build leaves no
   // binary the tree can trust.
   if (!opts.fast && !opts.package) {
-    steps.push(step("nvs-fmt", ["fmt", "<each new or modified .nvs under tests/, examples/>"], summaries["nvs-fmt"]!, { exe: NVS, runner: runNvsFmt }));
+    steps.push(step("nvs-fmt", ["fmt", "<each new or modified .nvs under tests/, examples/>"], summaries["nvs-fmt"]!, { exe: nvs, runner: runNvsFmt }));
   }
-  steps.push(step("test", ["test"], summaries.test!, { runner: (s) => runTests(s, opts.package) }));
+  steps.push(step("test", ["test", ...target], summaries.test!, { runner: (s) => runTests(r(), s) }));
   if (!opts.fast) {
     if (!opts.package) {
       for (const tree of CASE_TREES) {
-        if (existsSync(join(ROOT, "tests", tree))) steps.push(step(tree, ["test", `tests/${tree}`], summaries.cases!, { exe: NVS }));
+        if (existsSync(join(ROOT, "tests", tree))) steps.push(step(tree, ["test", "--cases", "<the selected cases>", `tests/${tree}`], summaries.cases!, { exe: nvs, runner: (s) => runCases(r(), s) }));
       }
-      steps.push(step("reference", ["nv", "reference"], summaries.reference!, { exe: "bun" }));
+      steps.push(bunStep(r, "reference", ["nv", "reference"], () => {}, () => ({ NVS_BIN: nvs })));
     }
-    steps.push(step("clippy", ["clippy", "--all-targets", "--", "-D", "warnings"], summaries.clippy!));
+    steps.push(
+      step("clippy", ["clippy", "--all-targets", ...target, "--", "-D", "warnings"], summaries.clippy!, {
+        env: { CARGO_TARGET_DIR: covEnv.CARGO_TARGET_DIR! },
+        atom: "step:clippy",
+        footprint: async () => {
+          const keys = buildKeys(r().graph);
+          maybe(keys, "clippy.toml");
+          maybe(keys, ".clippy.toml");
+          return keys;
+        },
+      }),
+    );
     // Last, because it is the one step that is not `cargo` or a script.
     if (!opts.package && existsSync(join(EXTENSION, "package.json"))) {
-      steps.push(step("extension", ["run", "--silent", "test:headless"], summaries.extension!, { exe: process.platform === "win32" ? "npm.cmd" : "npm", cwd: EXTENSION }));
+      const rec = recordName("step:extension");
+      steps.push(
+        step("extension", ["run", "--silent", "test:headless"], summaries.extension!, {
+          exe: process.platform === "win32" ? "npm.cmd" : "npm",
+          cwd: EXTENSION,
+          atom: "step:extension",
+          runner: (s) => spawnOut([s.exe, ...s.args], s.cwd, { ...r().rec.env(rec), NVS_BIN: nvs }, undefined, true),
+          footprint: async () => {
+            const keys: Keyed = new Map([["tree:editors/vscode", ""]]);
+            for (const [k, d] of (await r().rec.keysOf(rec, [nvs]))?.keys ?? []) keys.set(k, d);
+            return keys;
+          },
+        }),
+      );
     }
   }
   return steps;
@@ -795,84 +893,23 @@ function stepsFor(opts: Opts): Step[] {
 /** One step's command as a reader types it. */
 function shown(s: Step): string {
   let line = [basename(s.exe), ...s.args].join(" ");
-  if (s.env) line = Object.entries(s.env).map(([k, v]) => `${k}=${v}`).join(" ") + " " + line;
+  const env = Object.entries(s.env ?? {}).filter(([k]) => k !== "RUSTC_WORKSPACE_WRAPPER" && k !== "CARGO_TARGET_DIR");
+  if (env.length) line = env.map(([k, v]) => `${k}=${v}`).join(" ") + " " + line;
   if (s.cwd !== ROOT) line += `   (in ${relative(ROOT, s.cwd).replace(/\\/g, "/")})`;
   return line;
 }
 
+const noRun = (): Run => {
+  throw new Error("verify: a step asked for the run before it began");
+};
+
 /** `--list`: the order the gate walks, narrowed by `-p`, `--fast` and `--doc` exactly as a run is. */
 function listSteps(opts: Opts): number {
-  const steps = stepsFor(opts);
+  const steps = stepsFor(opts, noRun);
   const scope = opts.package ? ` (-p ${opts.package})` : "";
-  console.log(`verify: ${steps.length} step(s) in this order${scope}; \`--list\` runs none of them.`);
+  console.log(`verify: ${steps.length} step(s) in this order${scope}, each run only when the change reaches it; \`--list\` runs none of them.`);
   steps.forEach((s, i) => console.log(`  ${i + 1}. ${s.name.padEnd(13)} ${shown(s)}`));
   return 0;
-}
-
-// ---- the green cache -------------------------------------------------------------------------------
-
-let graphRead: Promise<Graph | null> | undefined;
-
-/** One reading of every input, or `null` if anything goes wrong, and then nothing is answered from the
- * cache and nothing is recorded in it. The graph is read once: no step changes a manifest. */
-async function takeTree(): Promise<Ctx | null> {
-  try {
-    graphRead ??= metadata().catch(() => null);
-    const [tree, graph] = await Promise.all([Tree.read(), graphRead]);
-    return { tree, graph, keys: new Map() };
-  } catch {
-    return null;
-  }
-}
-
-function keyFor(ctx: Ctx | null, name: string, scope?: string): string | null {
-  if (ctx === null) return null;
-  const id = `${name}\0${scope ?? ""}`;
-  if (!ctx.keys.has(id)) {
-    let k: string | null;
-    try {
-      k = stepKey(ctx.tree, ctx.graph, name, scope);
-    } catch {
-      k = null;
-    }
-    ctx.keys.set(id, k);
-  }
-  return ctx.keys.get(id)!;
-}
-
-function loadCache(): Cache {
-  const got = readObject<unknown>(CACHE);
-  const ok = got.shape === CACHE_SHAPE;
-  const obj = (v: unknown) => (ok && v && typeof v === "object" && !Array.isArray(v) ? v : {});
-  return { shape: CACHE_SHAPE, steps: obj(got.steps) as Record<string, Entry>, formatted: obj(got.formatted) as Record<string, string> };
-}
-
-/** Read the cache, apply `change`, write it back. Read again every time, because two runs overlap by
- * design, a `--doc` beside a `--start`, and each owns only the entries it proved. */
-function amendCache(change: (c: Cache) => void): void {
-  const cache = loadCache();
-  change(cache);
-  writeQuiet(CACHE, JSON.stringify(cache, null, 1));
-}
-
-/** `-p` narrows which test binaries run and nothing else, so it is part of that one key. */
-const scopeOf = (name: string, opts: Opts) => (name === "test" ? opts.package : undefined);
-
-/** The entry `name` was last green under, if the key it has now is that entry's. */
-function held(cache: Cache, ctx: Ctx | null, opts: Opts, name: string): Entry | null {
-  if (ctx === null || opts.noCache) return null;
-  const entry = cache.steps[name];
-  if (!entry || typeof entry !== "object") return null;
-  // An unscoped `test` verdict proves every `-p`; the reverse does not hold.
-  const wanted = [keyFor(ctx, name, scopeOf(name, opts)), keyFor(ctx, name)].filter((k) => k !== null);
-  return wanted.includes(entry.key ?? "") ? entry : null;
-}
-
-function record(ctx: Ctx | null, opts: Opts, name: string, summaryLine: string, seconds: number): void {
-  const key = keyFor(ctx, name, scopeOf(name, opts));
-  if (key === null) return;
-  const entry: Entry = { key, when: now(), summary: summaryLine, seconds: Math.round(seconds * 10) / 10 };
-  amendCache((c) => (c.steps[name] = entry));
 }
 
 // ---- output ----------------------------------------------------------------------------------------
@@ -881,8 +918,6 @@ function clock(seconds: number): string {
   if (seconds >= 60) return `${Math.floor(seconds / 60)}m${String(Math.floor(seconds) % 60).padStart(2, "0")}s`;
   return `${seconds.toFixed(0)}s`;
 }
-
-const ago = (seconds: number) => (seconds < 90 ? `${Math.floor(seconds)}s ago` : `${Math.floor(seconds / 60)}m ago`);
 
 function tail(text: string, limit: number): [string, number] {
   const lines = text.replace(/\n+$/, "").split("\n");
@@ -911,10 +946,23 @@ async function hooksNote(): Promise<void> {
   console.log("        (it rejects attribution trailers; docs/agent/conventions.md says why)\n");
 }
 
+/** One line: what the change is and how much of each kind it selects. */
+function selectionLine(r: Run): string {
+  if (r.opts.noCache) return "verify: --no-cache, so every step, test binary and case runs";
+  const c = r.change;
+  const kinds: Record<string, number> = {};
+  for (const s of r.sel.selected.values()) kinds[s.kind] = (kinds[s.kind] ?? 0) + 1;
+  const what = Object.entries(kinds)
+    .map(([k, n]) => `${n} ${k}`)
+    .join(", ");
+  const since = c.full ? c.global : `${c.changes.length} path(s) changed since the recorded tree (${c.since.slice(0, 12)})`;
+  return `verify: ${since}; the store selects ${what || "nothing"}`;
+}
+
 // ---- --start and --wait ----------------------------------------------------------------------------
 
 /** Starts the same verification as an `nv bg` job and returns at once, so the wrap is written while it
- * runs. It is the same steps, the same cache and the same exit status. */
+ * runs. It is the same steps, the same store and the same exit status. */
 function startBackground(args: string[]): number {
   const passthrough = args.filter((a) => a !== "--start" && a !== "--wait");
   const id = startJob([process.execPath, join(ROOT, "tools", "nv", "main.ts"), "verify", ...passthrough]);
@@ -960,64 +1008,79 @@ async function waitBackground(): Promise<number> {
 
 // ---- the run ---------------------------------------------------------------------------------------
 
+const lastSlot = (name: string) => `verify:${name}`;
+
 async function verify(opts: Opts): Promise<number> {
-  const steps = stepsFor(opts);
-  const scope = opts.package ? ` (-p ${opts.package})` : "";
   await hooksNote();
+  const store = new SelectStore();
+  const graph = await metadata();
+  const first = await select(store, graph);
+  const rec = await Recorder.open(store, first.change.view, graph, "verify", { say: (l) => console.error(l) });
+  const r: Run = { opts, store, graph, ...first, rec, ran: new Set() };
+  try {
+    return await walk(r);
+  } finally {
+    rec.close();
+    store.close();
+  }
+}
 
-  const cache = loadCache();
-  let ctx = await takeTree();
-  for (const s of steps) if (s.name === "nvs-fmt") [s.todo, s.changed] = await unformatted(cache);
-
-  const answered = (s: Step): Entry | null => {
-    if (s.name === "nvs-fmt") return s.todo!.length ? null : { summary: "nothing new to format", seconds: 0 };
-    return held(cache, ctx, opts, s.name);
-  };
+async function walk(r: Run): Promise<number> {
+  const { opts, store } = r;
+  const steps = stepsFor(opts, () => r);
+  const scope = opts.package ? ` (-p ${opts.package})` : "";
+  console.log(selectionLine(r));
+  for (const s of steps) if (s.name === "nvs-fmt") [s.todo, s.changed] = await unformatted(store);
 
   const done: Step[] = [];
-  const unchanged = new Map<string, Entry>();
+  /** The steps not run, with the summary of their last green run. */
+  const unchanged = new Map<string, string>();
   let failed: Step | null = null;
   // `fmt` red: reported only if nothing after it is.
   let deferred: Step | null = null;
   const began = performance.now();
 
-  /** `null` when `s` has to run; otherwise the green entry that replaces running it. */
-  const needed = (i: number, s: Step): Entry | null => {
-    let entry = answered(s);
-    if (entry !== null && s.name === "build") {
-      // Only if nothing after it will use what `build` leaves, and `test` does not when its binaries
-      // are provably the ones this code compiles to.
-      const leansOnBuild = (t: Step) => NEEDS_BINARY.has(t.name) && answered(t) === null && (t.name !== "test" || jobsOnDisk(keyFor(ctx, "build")) === null);
-      if (steps.slice(i + 1).some(leansOnBuild)) entry = null;
-    }
-    if (entry !== null) unchanged.set(s.name, entry);
-    return entry;
+  /** Whether `s` runs; a step that does not is noted with its last summary. */
+  const needed = (i: number, s: Step): boolean => {
+    let run = wanted(r, s);
+    // `build` also runs for any later step that uses what it leaves on disk.
+    if (!run && s.name === "build") run = steps.slice(i + 1).some((t) => NEEDS_BINARY.has(t.name) && wanted(r, t));
+    if (!run) unchanged.set(s.name, s.name === "nvs-fmt" ? "nothing new to format" : (store.verdict(lastSlot(s.name))?.verdict ?? "the change reaches nothing it reads"));
+    else unchanged.delete(s.name);
+    return run;
   };
 
-  const prepare = (i: number, s: Step) => {
-    if (s.name === "test") {
-      // `--no-cache` is every step for real, and cargo's build is part of this one.
-      s.binaryKey = !opts.noCache ? keyFor(ctx, "build") : null;
-      s.ctx = ctx;
-      s.noCache = opts.noCache;
-      if (!opts.package) s.skipDoc = held(cache, ctx, opts, "test:doc") !== null;
+  const prepare = (i: number, s: Step) => progress(done, s, steps.length, undefined, i + 1);
+
+  /** Records a finished step's own atom. */
+  const recordStep = async (s: Step, ok: boolean) => {
+    if (!s.atom || !s.footprint) return;
+    let keys: Keyed;
+    try {
+      keys = await s.footprint(s);
+    } catch {
+      keys = new Map([[WILD, ""]]);
     }
-    progress(done, s, steps.length, undefined, i + 1);
+    store.recordRun(s.atom, { def: digest(cmdOf(s)), verdict: ok ? "green" : "red", keys });
+    r.ran.add(s.atom);
   };
 
   /** One finished run's verdict, taken in list order; false when it stops the run. */
   const settle = async (s: Step, ok: boolean): Promise<boolean> => {
-    if (WRITES.has(s.name) && s.out.trim()) {
-      // It rewrote files, so every verdict from here on belongs to the tree as it now is.
-      ctx?.tree.save();
-      ctx = await takeTree();
-    }
+    await recordStep(s, ok);
     if (s.formatted && Object.keys(s.formatted).length) {
       // A path that is no longer new or modified has been committed, and is dropped.
       const kept = new Set(s.changed ?? []);
-      amendCache((c) => (c.formatted = { ...Object.fromEntries(Object.entries(c.formatted).filter(([k]) => kept.has(k))), ...s.formatted }));
+      const was = formattedOf(store);
+      store.putVerdict(FORMATTED, "", JSON.stringify({ ...Object.fromEntries(Object.entries(was).filter(([k]) => kept.has(k))), ...s.formatted }));
     }
-    if (s.docGreen) record(ctx, opts, "test:doc", "ok", 0);
+    if (WRITES.has(s.name) && /^rewrote |\.rs\s*$/m.test(s.out)) {
+      // It rewrote files, so the change is read again, and what ran over the old text and is selected
+      // again counts as not run.
+      Object.assign(r, await select(store, r.graph));
+      for (const id of [...r.ran]) if (r.sel.selected.has(id) && id !== s.atom) r.ran.delete(id);
+      r.rec.remap(r.change.view, r.graph);
+    }
     if (s.name === "fmt" && !ok) {
       deferred = s;
       return true;
@@ -1026,7 +1089,7 @@ async function verify(opts: Opts): Promise<number> {
       failed = s;
       return false;
     }
-    record(ctx, opts, s.name, s.summarize(s.out), s.seconds);
+    store.putVerdict(lastSlot(s.name), "", s.summarize(s.out));
     done.push(s);
     return true;
   };
@@ -1036,26 +1099,26 @@ async function verify(opts: Opts): Promise<number> {
     let j = i;
     while (j < steps.length && BESIDE_BUILD.has(steps[j]!.name)) j++;
     const group = j < steps.length && steps[j]!.name === "build" ? steps.slice(i, j + 1) : steps.slice(i, j);
-    const todo = group.map((s, k) => [i + k, s] as const).filter(([k, s]) => needed(k, s) === null);
-    const running = todo.map(([k, s]) => {
+    const todo = group.map((s, k) => [i + k, s] as const).filter(([k, s]) => needed(k, s));
+    const inFlight = todo.map(([k, s]) => {
       prepare(k, s);
       return [s, runStep(s)] as const;
     });
-    for (const [s, p] of running) if (!(await settle(s, await p))) break;
-    await Promise.allSettled(running.map(([, p]) => p));
+    for (const [s, p] of inFlight) if (!(await settle(s, await p))) break;
+    await Promise.allSettled(inFlight.map(([, p]) => p));
     return group.length;
   };
 
   /** `test`, and the steps after it, started on one lane while its slowest binaries still run. */
   const withTail = async (i: number): Promise<number> => {
     const test = steps[i]!;
-    if (needed(i, test) !== null) return 1;
+    const testRuns = needed(i, test);
     const after = steps
       .slice(i + 1)
       .map((s, k) => [i + 1 + k, s] as const)
-      .filter(([k, s]) => needed(k, s) === null);
+      .filter(([k, s]) => needed(k, s));
     let release!: () => void;
-    const tailReached = new Promise<void>((r) => (release = r));
+    const tailReached = new Promise<void>((res) => (release = res));
     let stop = false;
     const ran = new Map<string, boolean>();
     const lane = (async () => {
@@ -1075,12 +1138,15 @@ async function verify(opts: Opts): Promise<number> {
       release();
       await lane;
     };
-    prepare(i, test);
-    const ok = await runStep(test);
+    let ok = true;
+    if (testRuns) {
+      prepare(i, test);
+      ok = await runStep(test);
+    }
     if (!ok) stop = true;
     release();
     await lane;
-    if (await settle(test, ok)) {
+    if (!testRuns || (await settle(test, ok))) {
       for (const [, s] of after) if (!ran.has(s.name) || !(await settle(s, ran.get(s.name)!))) break;
     }
     return steps.length - i;
@@ -1092,7 +1158,7 @@ async function verify(opts: Opts): Promise<number> {
     if (BESIDE_BUILD.has(s.name) || s.name === "build") i += await besideBuild(i);
     else if (s.name === "test") i += await withTail(i);
     else {
-      if (needed(i, s) === null) {
+      if (needed(i, s)) {
         prepare(i, s);
         await settle(s, await runStep(s));
       }
@@ -1100,39 +1166,48 @@ async function verify(opts: Opts): Promise<number> {
     }
   }
   const stopped = failed as Step | null;
-  // A step after the one that stopped the run was not reached, whatever the cache holds.
+  // A step after the one that stopped the run was not reached, whatever it would have been.
   if (stopped !== null) for (const s of steps.slice(steps.indexOf(stopped) + 1)) unchanged.delete(s.name);
   const red: Step | null = stopped ?? (deferred as Step | null);
   progress(done, undefined, 0, red ? 1 : 0);
-  (ctx as Ctx | null)?.tree.save();
+
+  let owedNote = "";
+  if (red === null) {
+    const { owed } = advance(store, r.change, r.sel, r.ran, r.graph);
+    if (owed > 0) owedNote = `; ${owed} reached atom(s) verify does not run stay owed (\`bun nv select\` names them)`;
+  }
 
   const total = (performance.now() - began) / 1000;
   const lines = () => {
     for (const s of steps) {
       const e = unchanged.get(s.name);
-      if (e) console.log(`  ${s.name.padEnd(13)} ${"--".padStart(6)}   ${e.summary ?? "ok"}`);
+      if (e !== undefined) console.log(`  ${s.name.padEnd(13)} ${"--".padStart(6)}   ${e}`);
       else if (done.includes(s)) console.log(`  ${s.name.padEnd(13)} ${clock(s.seconds).padStart(6)}   ${s.summarize(s.out)}`);
     }
   };
+  const ranLine = () => {
+    const kinds: Record<string, number> = {};
+    for (const id of r.ran) kinds[id.slice(0, id.indexOf(":"))] = (kinds[id.slice(0, id.indexOf(":"))] ?? 0) + 1;
+    return Object.entries(kinds)
+      .map(([k, n]) => `${n} ${k}`)
+      .join(", ");
+  };
 
   if (red === null && done.length === 0) {
-    const whens = [...unchanged.values()].filter((e) => e.when !== undefined).map((e) => Number(e.when));
-    const oldest = whens.length ? Math.min(...whens) : now();
-    console.log(`verify: green, nothing a step reads has changed since ${ago(now() - oldest)} -- nothing to re-run${scope}`);
+    console.log(`verify: green, the change reaches nothing a step reads -- nothing to re-run${scope}${owedNote}`);
     lines();
-    const cost = [...unchanged.values()].reduce((n, e) => n + Number(e.seconds ?? 0), 0);
-    console.log(`\nthat verdict cost ${clock(cost)} and every step's inputs are as they were; \`--no-cache\` runs it again anyway.`);
+    console.log("\n`--no-cache` runs every step anyway.");
     return 0;
   }
 
-  const note = unchanged.size ? ` -- ${unchanged.size} not re-run, their inputs unchanged (\`--\` below)` : "";
+  const note = unchanged.size ? ` -- ${unchanged.size} not reached (\`--\` below)` : "";
   if (red === null) {
-    console.log(`verify: ${done.length + unchanged.size} of ${steps.length} green in ${clock(total)}${scope}${note}`);
+    console.log(`verify: ${done.length + unchanged.size} of ${steps.length} green in ${clock(total)}${scope}${note}; ran ${ranLine() || "nothing recorded"}${owedNote}`);
     lines();
     return 0;
   }
 
-  amendCache((c) => delete c.steps[red.name]);
+  store.putVerdict(lastSlot(red.name), "", "");
   console.log(`verify: FAILED at ${red.name} (step ${steps.indexOf(red) + 1} of ${steps.length}) after ${clock(total)}${scope}${note}`);
   lines();
   console.log(`  ${red.name.padEnd(13)} ${"---".padStart(6)}   exit ${red.code}`);
@@ -1146,89 +1221,65 @@ async function verify(opts: Opts): Promise<number> {
 
 /** The steps an unnarrowed run walks, in order. */
 export function stepNames(): string[] {
-  return stepsFor({ fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false }).map((s) => s.name);
+  return stepsFor({ fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false }, noRun).map((s) => s.name);
 }
 
-/** Whether the green cache answers step `name` over `tree`, as an unnarrowed run would. `nvs-fmt` has
- * no key, and a step `steps.ts` does not describe always runs. */
-export function stepGreen(tree: Tree, graph: Graph | null, name: string): boolean {
-  const entry = loadCache().steps[name];
-  const key = stepKey(tree, graph, name);
-  return key !== null && entry?.key === key;
-}
-
-/** Each test binary's last green run, by its name: the key it was green under and the test lines it
- * printed. */
-export function greenBinaries(): Map<string, { key: string; tests: string[] }> {
-  return new Map(
-    Object.entries(readObject<Green>(TEST_GREEN)).flatMap(([name, g]) => (typeof g?.key === "string" ? [[name, { key: g.key, tests: Array.isArray(g.tests) ? g.tests : [] }] as const] : [])),
-  );
+/** What an unnarrowed `bun nv verify` would run over the tree as it stands: each step it would start,
+ * and the test binaries and cases, from the store's selection. `nv affected` prints it. */
+export async function verifyPlan(graph: Graph | null): Promise<{ steps: string[]; tests: string[]; cases: Record<string, string[]>; change: ChangeSet; sel: Selection }> {
+  const store = new SelectStore();
+  try {
+    const got = await select(store, graph);
+    const opts: Opts = { fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false };
+    const r = { opts, store, graph, ...got, rec: null as unknown as Recorder, ran: new Set<string>() };
+    const steps = stepsFor(opts, () => r);
+    for (const s of steps) if (s.name === "nvs-fmt") [s.todo, s.changed] = await unformatted(store);
+    const run = steps.filter((s) => wanted(r, s)).map((s) => s.name);
+    if (!run.includes("build") && steps.some((s) => NEEDS_BINARY.has(s.name) && run.includes(s.name))) run.push("build");
+    const order = steps.map((s) => s.name).filter((n) => run.includes(n));
+    return { steps: order, tests: testsToRun(r), cases: Object.fromEntries(CASE_TREES.map((t) => [t, casesToRun(r, t)])), change: got.change, sel: got.sel };
+  } finally {
+    store.close();
+  }
 }
 
 /**
- * The checks `nv verify`'s last test run answers over `tree`: a `cargo test` check of that shape whose
- * every binary passed a whole run under the key it has now, with every test the check names among the
- * lines that run printed. Verify's run has already paid for these, so the loop's sweep takes them as
- * green instead of running the binaries a second time.
+ * The checks `nv verify`'s test runs answer over the tree as it stands: a `cargo test` check of that
+ * shape whose every binary is green in the store and not selected by the change since the store's tree,
+ * with every test the check names among the lines its last green run printed. Verify's run has already
+ * paid for these, so the loop's sweep takes them as green instead of running the binaries a second time.
  */
-export function verifiedByRecord(graph: Graph, tree: Tree, all: Unit[]): (c: { kind: string; args?: string[]; tests?: string[] }) => boolean {
-  const tested = greenBinaries();
-  const binaries = new Map(all.filter((u) => u.role === "binary").map((u) => [u.name, u]));
-  const keys = new Map<string, string | null>();
-  const keyOfBinary = (name: string): string | null => {
-    if (!keys.has(name)) {
-      const u = binaries.get(name);
-      let k: string | null = null;
-      try {
-        k = u === undefined ? null : keyOf(name, u.parts(tree));
-      } catch {
-        k = null;
-      }
-      keys.set(name, k);
-    }
-    return keys.get(name)!;
-  };
+export async function verifiedByStore(graph: Graph): Promise<(c: { kind: string; args?: string[]; tests?: string[] }) => boolean> {
+  const store = new SelectStore();
+  let sel: Selection | null = null;
+  try {
+    if (store.base() !== null) sel = query(store, await computeChange(store, { graph }));
+  } catch {
+    sel = null;
+  }
   return (c) => {
     const args = c.args ?? [];
-    if (c.kind !== "cargo-named" || subsetRun(args) === null) return false;
+    if (sel === null || c.kind !== "cargo-named" || subsetRun(args) === null) return false;
     const names = testTargets(graph, args)?.names ?? [];
     if (names.length === 0) return false;
     const lines: string[] = [];
     for (const n of names) {
-      const g = tested.get(n);
-      const k = keyOfBinary(n);
-      if (g === undefined || k === null || g.key !== k) return false;
-      lines.push(...g.tests);
+      const atom = store.atom(`test:${n}`);
+      const green = greenOf(store, n);
+      if (!atom || atom.verdict !== "green" || sel.selected.has(`test:${n}`) || green === null) return false;
+      lines.push(...(green.tests ?? []));
     }
     const text = lines.join("\n");
     return (c.tests ?? []).every((t) => text.includes(t));
   };
 }
 
-/** `--keys`: `{name: {key, wide}}` for every binary the last build recorded, keyed as `test` keys it. */
-async function printKeys(): Promise<number> {
-  const ctx = await takeTree();
-  if (!ctx?.graph) {
-    console.error("nv verify: the tree or `cargo metadata` could not be read, and every key needs both");
-    return 2;
-  }
-  const built = readJson(TEST_BUILT) as { jobs?: Job[] } | undefined;
-  const reach = new Reach(ctx, ctx.graph);
-  const out: Record<string, { key: string; wide: boolean }> = {};
-  for (const j of built?.jobs ?? []) out[j.name] = { key: reach.key(j), wide: reach.wide(j) };
-  console.log(JSON.stringify(out));
-  return 0;
-}
-
-const USAGE = [
-  "usage: nv verify [-h] [-p PACKAGE] [--fast] [--doc] [--full] [--no-cache]",
-  "                 [--start] [--wait] [--list] [--keys]",
-].join("\n");
+const USAGE = ["usage: nv verify [-h] [-p PACKAGE] [--fast] [--doc] [--full] [--no-cache]", "                 [--start] [--wait] [--list]"].join("\n");
 
 export async function run(args: string[]): Promise<number> {
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ["--fast", "--doc", "--full", "--no-cache", "--start", "--wait", "--list", "--keys"], valued: ["--package"], short: { "-p": "--package" } });
+    parsed = parseArgs(args, { flags: ["--fast", "--doc", "--full", "--no-cache", "--start", "--wait", "--list"], valued: ["--package"], short: { "-p": "--package" } });
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
     console.error(`${USAGE}\nnv verify: error: ${e.message}`);
@@ -1238,13 +1289,6 @@ export async function run(args: string[]): Promise<number> {
   if (flags.has("--help")) {
     console.log(`${USAGE}\n\nnv verify: ${summary}\n\nThe module doc of tools/nv/cmd/verify.ts says what each step is and why.`);
     return 0;
-  }
-  if (flags.has("--keys")) {
-    if (flags.size > 1 || values.size > 0) {
-      console.log("verify: --keys runs nothing, and takes no other flag.");
-      return 2;
-    }
-    return printKeys();
   }
   const opts: Opts = {
     ...(values.has("--package") ? { package: values.get("--package")! } : {}),

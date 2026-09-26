@@ -9,25 +9,27 @@
 //     bun nv affected --run             run the plan: `nv verify`, then the acceptance checks it names
 //     bun nv affected --json            the plan as JSON, for a tool
 //
-// **How it decides.** The tree before the change is the working tree with every changed path put back as
-// the base commit holds it. Every unit is keyed over both trees: each `nv verify` step
-// (`keys/steps.ts`), each test binary, and each acceptance check and leg of the live plan
-// (`keys/checks.ts`). A unit whose key moves is reached, and it is printed with the changed paths in its
-// key. These are the keys the memos answer from, so the rule exists once.
+// **The verify half** is the observed selection (`tools/nv/select/`), exactly as `nv verify` makes it:
+// the change since the tree the store last recorded, and each step, test binary and case of the two
+// case trees whose footprint holds a key the change moved, or that is new, red or owed. It is printed
+// with the path each came from. The other atoms the change reaches (proof programs, other case trees,
+// the `bun nv` checks) are counted: verify marks them owed, and whoever runs them next pays.
 //
-// **What runs.** A reached unit that is already green over the tree as it stands is not run. It is green
-// when `nv verify`'s cache or the sweep's memo holds its current key, and a `cargo test -p` check is also
-// green when every binary it names is green in `nv verify`'s record under its current key and each test
-// it names passed there. The plan is the reached units that are not green, less the heavy ones: a check
-// that builds or measures the release profile, fuzz, TSan, the database matrix, the two Linux legs and a
-// check that is never memoized. Those are named as deferred, and the loop's floor gate runs them. A verify
-// step that is not green and not reached still runs, because `nv verify` runs every step its cache does
-// not answer, and the plan says so. An acceptance check that is not green and not reached is owed from
-// before the change. It is named as a count and never run here: the floor gate or `bun nv loop --settle`
-// pays it, and the pre-push hook refuses a push until one has.
+// **The acceptance half** is still keyed by prediction until the sweep moves onto the store. The tree
+// before the change is the working tree with every changed path put back as the base commit holds it,
+// and each acceptance check and leg of the live plan (`keys/checks.ts`) is keyed over both trees. A
+// check whose key moves is reached. A reached check is not run when the sweep's memo holds its current
+// key, or, for a `cargo test -p` check, when every binary it names is green in the store and not
+// selected, and each test it names passed in that run. The plan is the reached checks that are not
+// green, less the heavy ones: a check that builds or measures the release profile, fuzz, TSan, the
+// database matrix, the two Linux legs and a check that is never memoized. Those are named as deferred,
+// and the loop's floor gate runs them. An acceptance check that is not green and not reached is owed
+// from before the change. It is named as a count and never run here: the floor gate or `bun nv loop
+// --settle` pays it, and the pre-push hook refuses a push until one has.
 //
-// `--run` runs `nv verify` when a step is due, then plans again, so a `cargo test -p` check the verify run
-// answered is remembered green in the sweep's memo rather than run a second time, then sweeps the rest.
+// `--run` runs `nv verify` when it has anything to run, then plans again, so a `cargo test -p` check the
+// verify run answered is remembered green in the sweep's memo rather than run a second time, then
+// sweeps the rest.
 //
 // Exits 0 when nothing reached is due, or when `--run` ran it green; 1 when something reached is due, or
 // `--run` found a red; 2 on a bad argument or a change git cannot name.
@@ -40,20 +42,18 @@ import { type Graph, metadata } from "../keys/graph.ts";
 import { type Part, keyOf } from "../keys/key.ts";
 import { partitionOf } from "../keys/partition.ts";
 import { digest } from "../keys/scan.ts";
-import { STEP_READS } from "../keys/steps.ts";
 import { Tree } from "../keys/tree.ts";
 import { goalPlan, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as proc } from "../lib/proc.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
-import { greenBinaries, stepGreen, stepNames, verifiedByRecord } from "./verify.ts";
+import { describe } from "../select/select.ts";
+import { verifiedByStore, verifyPlan } from "./verify.ts";
 
 export const summary = "what a change reaches and exactly what verifying it runs: nv affected [--since <rev> | --paths <p>...] [--run | --json]";
 
 const GREEN = ".loop/accept-green.json";
 const SESSION_BASE = ".loop/session-start.json";
-/** The `.nvs` trees `nv verify`'s `nvs-fmt` step formats, and the one it leaves alone. */
-const NVS_FMT = { trees: ["tests/", "examples/"], skip: "tests/fmt/input/" };
 /** How many changed paths a unit's line names before it counts the rest. */
 const SHOWN = 3;
 
@@ -84,9 +84,25 @@ export interface ReachedCheck extends Reached {
   key: string | null;
 }
 
+/** One atom `nv verify` runs, and where the key that selected it came from. */
+export interface VerifyAtom {
+  id: string;
+  why: string;
+}
+
 export interface Plan {
   change: Change;
-  verify: { steps: Reached[]; unreached: string[]; binaries: Reached[] };
+  verify: {
+    /** The tree the store recorded, and how many paths differ from it. */
+    since: string;
+    paths: number;
+    /** The steps verify starts, in order. */
+    steps: string[];
+    tests: VerifyAtom[];
+    cases: VerifyAtom[];
+    /** Atoms the change reaches that verify does not run, by kind: they stay owed. */
+    others: Record<string, number>;
+  };
   acceptance: { checks: ReachedCheck[]; legs: Reached[]; owed: number };
 }
 
@@ -187,33 +203,32 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
   const tree = await Tree.read();
   const { tree: pre, paths } = before(tree, change);
   const changed = new Set(paths);
-  const out: Plan = { change: { ...change, paths }, verify: { steps: [], unreached: [], binaries: [] }, acceptance: { checks: [], legs: [], owed: 0 } };
-
-  for (const name of stepNames()) {
-    if (name === "nvs-fmt") {
-      const by = paths.filter((p) => p.endsWith(".nvs") && NVS_FMT.trees.some((t) => p.startsWith(t)) && !p.startsWith(NVS_FMT.skip));
-      if (by.length > 0) out.verify.steps.push({ name, by, green: false });
-      continue;
-    }
-    const reads = STEP_READS[name];
-    const green = stepGreen(tree, graph, name);
-    if (reads === undefined) {
-      out.verify.steps.push({ name, by: [], green: false });
-      continue;
-    }
-    let by: string[] | null;
-    try {
-      by = reach(name, reads(pre, graph), reads(tree, graph), changed);
-    } catch {
-      by = paths;
-    }
-    if (by !== null) out.verify.steps.push({ name, by, green });
-    else if (!green) out.verify.unreached.push(name);
-  }
+  const v = await verifyPlan(graph);
+  const why = (id: string): string => {
+    const s = v.sel.selected.get(id);
+    if (!s) return "--no-cache";
+    const first = s.keys[0];
+    return first ? describe(first.origin) : s.why === "new" ? "never recorded" : s.why;
+  };
+  const inVerify = new Set([...v.tests.map((n) => `test:${n}`), ...Object.values(v.cases).flatMap((cs) => cs.map((p) => `case:${p}`))]);
+  if (v.steps.length > 0) for (const s of v.sel.selected.keys()) if (s.startsWith("step:")) inVerify.add(s);
+  const others: Record<string, number> = {};
+  for (const s of v.sel.selected.values()) if (!inVerify.has(s.id) && s.kind !== "step") others[s.kind] = (others[s.kind] ?? 0) + 1;
+  const out: Plan = {
+    change: { ...change, paths },
+    verify: {
+      since: v.change.full ? "" : v.change.since,
+      paths: v.change.changes.length,
+      steps: v.steps,
+      tests: v.tests.map((n) => ({ id: `test:${n}`, why: why(`test:${n}`) })),
+      cases: Object.values(v.cases).flatMap((cs) => cs.map((p) => ({ id: `case:${p}`, why: why(`case:${p}`) }))),
+      others,
+    },
+    acceptance: { checks: [], legs: [], owed: 0 },
+  };
   if (graph === null) return out;
 
   const all = units(loadRecords(graph));
-  const tested = greenBinaries();
   const memo = GreenMemo.load(join(ROOT, GREEN));
   const live = liveGoal();
   const goal = live === null ? null : goalPlan(live.slug);
@@ -227,17 +242,14 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
     }
   };
   /** Whether `nv verify`'s record answers a `cargo test -p` check over the tree as it stands. */
-  const verified = verifiedByRecord(graph, tree, all);
+  const verified = await verifiedByStore(graph);
 
   for (const u of all) {
+    if (u.role === "binary") continue;
     const now = partsOf(u, tree);
     const was = partsOf(u, pre);
     const by = now === null || was === null ? paths : reach(u.name, was, now, changed);
     const key = now === null ? null : keyOf(u.name, now);
-    if (u.role === "binary") {
-      if (by !== null) out.verify.binaries.push({ name: u.name, by, green: key !== null && tested.get(u.name)?.key === key });
-      continue;
-    }
     if (u.role === "leg" && LEGS.includes(u.name)) {
       if (by !== null) out.acceptance.legs.push({ name: u.name, by, green: memo.answers({ id: u.name } as AcceptCheck, key) });
       continue;
@@ -261,7 +273,7 @@ function due(p: Plan): ReachedCheck[] {
 
 /** Whether anything the change reaches is due. */
 function owes(p: Plan): boolean {
-  return p.verify.steps.some((s) => !s.green) || p.verify.binaries.some((b) => !b.green) || due(p).length > 0;
+  return p.verify.steps.length > 0 || due(p).length > 0;
 }
 
 // ---- output ------------------------------------------------------------------------------------------
@@ -280,16 +292,21 @@ function print(p: Plan, asked: string[] | undefined): void {
   const same = (asked ?? []).filter((a) => !c.paths.some((q) => q === a || q.startsWith(`${a}/`)));
   if (same.length > 0) console.log(`  ${same.join(", ")}: the same as HEAD, so no change. Name a committed change with \`--since <rev>\`, such as \`--since HEAD~1\`.`);
 
-  const steps = p.verify.steps.filter((s) => !s.green);
-  const bins = p.verify.binaries.filter((b) => !b.green);
-  const answered = p.verify.steps.length - steps.length + p.verify.binaries.length - bins.length;
-  console.log("\nverify -- `bun nv verify` runs:");
-  if (steps.length === 0 && p.verify.unreached.length === 0) console.log("  nothing: every step is green over this tree");
-  for (const s of steps) console.log(`  ${s.name.padEnd(12)}${s.name === "test" ? ` ${bins.length} binar${bins.length === 1 ? "y" : "ies"}` : ""}${from(s.by)}`);
-  for (const b of bins.slice(0, 12)) console.log(`      ${b.name}${from(b.by)}`);
-  if (bins.length > 12) console.log(`      +${bins.length - 12} more binaries`);
-  if (p.verify.unreached.length > 0) console.log(`  ${p.verify.unreached.join(", ")}: not green from before this change, and verify runs them too`);
-  if (answered > 0) console.log(`  (${answered} reached step(s) and binaries are green over this tree already)`);
+  const v = p.verify;
+  const since = v.since ? `the ${v.paths} path(s) changed since the store's recorded tree (${v.since.slice(0, 12)})` : "a store with no recorded tree, so everything";
+  console.log(`\nverify -- \`bun nv verify\` runs, from ${since}:`);
+  if (v.steps.length === 0) console.log("  nothing: the change reaches nothing a step reads");
+  const cases = (tree: string) => v.cases.filter((c) => c.id.startsWith(`case:tests/${tree}/`));
+  for (const s of v.steps) {
+    const n = s === "test" ? v.tests.length : cases(s).length;
+    const what = s === "test" ? ` ${n} binar${n === 1 ? "y" : "ies"}` : s === "conformance" || s === "differential" ? ` ${n} case(s)` : "";
+    console.log(`  ${s.padEnd(12)}${what}`);
+    const atoms = s === "test" ? v.tests : cases(s);
+    for (const a of atoms.slice(0, 8)) console.log(`      ${a.id.slice(a.id.indexOf(":") + 1)}  <- ${a.why}`);
+    if (atoms.length > 8) console.log(`      +${atoms.length - 8} more`);
+  }
+  const others = Object.entries(v.others);
+  if (others.length > 0) console.log(`  (the change also reaches ${others.map(([k, n]) => `${n} ${k}`).join(", ")} that verify does not run; they stay owed until a run of each is green)`);
 
   const run = due(p);
   const deferred = p.acceptance.checks.filter((x) => !x.green && x.deferred).length + p.acceptance.legs.filter((l) => !l.green).length;
@@ -369,7 +386,7 @@ export async function run(args: string[]): Promise<number> {
   print(p, paths);
   if (!doRun) return owes(p) ? 1 : 0;
 
-  const verifyDue = p.verify.steps.some((s) => !s.green) || p.verify.unreached.length > 0 || p.verify.binaries.some((b) => !b.green);
+  const verifyDue = p.verify.steps.length > 0;
   let after = p;
   if (verifyDue) {
     console.log("");

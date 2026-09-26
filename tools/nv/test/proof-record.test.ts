@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
 import { RECORD_ENV, proofRecording, recordName, spawnProof } from "../proofs/run.ts";
 import { scratch } from "./scratch.ts";
@@ -24,8 +25,8 @@ describe("recording a proof program", () => {
   });
 
   test("a recorded run leaves the program's footprint log under its name", async () => {
-    const nvs = abs(`target/debug/nvs${process.platform === "win32" ? ".exe" : ""}`);
-    if (!existsSync(nvs)) throw new Error(`${nvs} is built by \`cargo build\` before this test runs`);
+    const nvs = covwsNvs();
+    if (!existsSync(nvs)) throw new Error(`${nvs} is built by \`bun nv verify\` before this test runs`);
     const proof = "docs/examples/core/Math/sqrt/01-square-roots.nvs";
     const s = scratch();
     const before = process.env[RECORD_ENV];

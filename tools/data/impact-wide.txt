@@ -10,4 +10,4 @@
 # hands over, and that test is judged.
 # A line naming a binary that is narrow now fails too, so this list only ever shrinks by hand.
 #
-# `<binary>  --  <why it cannot be narrow>`. The binary is named as `bun nv verify --keys` prints it.
+# `<binary>  --  <why it cannot be narrow>`. The binary is named as `bun nv verify` names it: `<package> <kind> <target>`.

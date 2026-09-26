@@ -4,17 +4,19 @@
 // `edited` returns a copy of the tree with some files' text replaced, added or deleted in memory. It
 // shares every answer for a file it does not touch, so a what-if over one file costs that file.
 //
-// Analyses are memoized against a file's raw digest in `.agent-tmp/nv-key-tiers.json`, under
+// Analyses are memoized against a file's raw digest in the selection store's `key-tiers` slot, under
 // `SCANNER`, so a run re-scans only the files that changed. What git ignores is never an input: every
 // rule in `.gitignore` is build output, a cache or machine-local state.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { run } from "../lib/proc.ts";
-import { NOT_INPUTS, ROOT, abs } from "../lib/paths.ts";
+import { NOT_INPUTS, abs } from "../lib/paths.ts";
+import { SelectStore } from "../select/store.ts";
 import { type Analysis, type Tier, SCANNER, analyseAll, digest } from "./scan.ts";
 
-const MEMO = join(ROOT, ".agent-tmp", "nv-key-tiers.json");
+/** The selection store's slot the analyses are memoized in, under the scanner that made them. */
+const MEMO = "key-tiers";
 
 /** `a/b/../c` as `a/c`; a path that climbs above the root keeps its leading `..`. */
 export function normalize(path: string): string {
@@ -71,8 +73,15 @@ export class Tree {
     }
     let memo: Record<string, Analysis> = {};
     try {
-      const got = JSON.parse(readFileSync(MEMO, "utf8"));
-      if (got && typeof got === "object" && got[SCANNER] && typeof got[SCANNER] === "object") memo = got[SCANNER];
+      const store = new SelectStore();
+      let held: { digest: string; verdict: string } | null;
+      try {
+        held = store.verdict(MEMO);
+      } finally {
+        store.close();
+      }
+      const got = held && held.digest === SCANNER ? JSON.parse(held.verdict) : null;
+      if (got && typeof got === "object") memo = got;
     } catch {
       // No memo yet, or an unreadable one: every file is scanned again.
     }
@@ -189,10 +198,14 @@ export class Tree {
   save(): void {
     if (!this.shared.memoDirty) return;
     try {
-      mkdirSync(dirname(MEMO), { recursive: true });
       let memo = this.shared.memo;
       if (Object.keys(memo).length > MEMO_CAP) memo = Object.fromEntries([...this.shared.used].map((d) => [d, memo[d]!]));
-      writeFileSync(MEMO, JSON.stringify({ [SCANNER]: memo }));
+      const store = new SelectStore();
+      try {
+        store.putVerdict(MEMO, SCANNER, JSON.stringify(memo));
+      } finally {
+        store.close();
+      }
       this.shared.memoDirty = false;
     } catch {
       // A memo that cannot be written costs the next run a scan, and nothing else.

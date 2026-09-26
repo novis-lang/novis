@@ -74,6 +74,11 @@ export function covwsCargo(): { env: Record<string, string>; args: string[] } {
   };
 }
 
+/** The `covws` debug build's `nvs`, absolute: the one every debug run of the pipeline uses. */
+export function covwsNvs(): string {
+  return abs(`${COVWS_TARGET}/${hostTriple()}/debug/nvs${EXE}`);
+}
+
 export interface CovwsBuild {
   triple: string;
   /** `target/covws/<triple>/debug`, absolute. */

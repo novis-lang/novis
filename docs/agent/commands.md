@@ -271,34 +271,17 @@ summary line names every file it rewrote, and its exit status is held to the end
 still reported by `build`. The measurement is § *Why `fmt` formats, and runs first* in the same
 module doc at tag `pre-overhaul`.
 
-**A step whose inputs have not changed is not run again**, and that is decided a step at a time. Each step
-is green against a key over what *it* reads, so documentation reaches no step, a reformatted `.nvs` under
-`tests/hostile/` reaches `build` and `test` alone, and a comment or a re-wrapped line in a `.rs` file
-reaches the steps that read source as text and not the `.nvst` trees — `test` then runs the binaries
-cargo last built for that same code, with no rebuild. A `#[test]` added to a source file's
-`#[cfg(test)]` module reaches the steps that compile it and, again, not the `.nvst` trees, because
-the `nvs` binary is built without it. That is not a check being skipped:
-the step's inputs are identical in every respect it can observe. A step is recorded the moment it is
-green, so a run that goes red at `test` keeps the verdicts before it; an entry expires after an hour,
-`--no-cache` runs everything, and a `-p` verdict never satisfies an unscoped run. The argument is
-§ *Why a step whose inputs did not change is not run* in that module doc at tag `pre-overhaul`,
-and `tools/nv/keys/steps.ts` is the table.
-
-**Inside `test`, a binary whose inputs have not changed is not run either.** `tools/nv/keys/checks.ts` keys
-each test binary on what *it* reads: its own package as bytes, the workspace packages it is compiled
-against with comments and layout removed, and what it opens while it runs when it says so through
-`nvs_repo`. An edit to `nvs-lsp` therefore runs the binaries of `nvs-lsp` and `nvs-cli` and answers
-the rest from `.agent-tmp/verify-test-green.json`, with the `test result:` line each printed when it
-was green, so the step's counts stay the workspace's. The record also keeps every `test <name> ...`
-line, and the loop's acceptance sweep reads it: a test binary whose key matches is answered from
-`nv verify`'s run and not run a second time. Every doubt resolves wide — a binary whose sources leave
-their package some other way, or whose dep-info cannot be found, keeps the whole-tree key, less the
-files a wrap writes, so the wrap that follows `nv verify` does not undo its answers.
-`bun nv verify --keys` prints each binary with its key and whether that key is wide,
-`tools/data/impact-wide.txt` says why each wide one is, `tools/data/impact-data-literals.txt` lists
-the `"../x"` literals that are data and so make no binary wide, and `bun nv why "<name>"` prints what
-one key is read from. The argument is § *Why `test` runs only the binaries a change reaches* in the old
-`verify` tool's module doc at tag `pre-overhaul`.
+**A step, a test binary or a case that the change does not reach is not started.** Every build and run
+is the `covws` build, and every run records what it was observed to use in `.cache/select.sqlite`
+(`tools/nv/select/`): a test binary and a case by coverage and the footprint log, each step by the files
+it reads. The change since the tree the store last recorded selects exactly the atoms whose footprint
+holds a key it moved; a step not selected prints `--` and its last green summary, and a binary not
+selected prints its last green `test result:` line. A green run records the tree, and marks each atom
+the change reached that it did not run owed; `--no-cache` runs everything. `bun nv select --explain
+<atom>` says why one was chosen or not. The module doc of `tools/nv/cmd/verify.ts` is the whole rule,
+and `bun nv affected` prints what a run would start. A test binary that asks `nvs_repo` for a path
+outside its package is judged by `tools/nv/keys/escape.ts`: `tools/data/impact-wide.txt` says why each
+wide one is, and `tools/data/impact-data-literals.txt` lists the `"../x"` literals that are data.
 
 `nvs-fmt`, straight after `build`, **formats** each `.nvs` file git reports as new or modified under
 `tests/` and `examples/`, for `fmt`'s reason: `nvs-fmt`'s identity test fails on an unformatted one, and

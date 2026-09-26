@@ -147,7 +147,7 @@ import { checkName, LEGS, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { keyOf } from "../keys/key.ts";
 import { Tree } from "../keys/tree.ts";
-import { verifiedByRecord } from "./verify.ts";
+import { verifiedByStore } from "./verify.ts";
 
 export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
@@ -411,7 +411,7 @@ async function checkKeys(goal: Goal, shown: Check[]): Promise<Keyed | string> {
   for (const c of shown) keys.set(c.id, keyed(unitOf.get(at.get(c.id)!)));
   // Each leg is keyed under its own name, which no check id can be, since an id has no space.
   for (const leg of LEGS) keys.set(leg, keyed(all_units.find((u) => u.role === "leg" && u.name === leg)));
-  const byRecord = verifiedByRecord(graph, tree, all_units);
+  const byRecord = await verifiedByStore(graph);
   for (const c of shown) if (keys.get(c.id) != null && byRecord(c)) verified.add(c.id);
   return { keys, tree, verified };
 }

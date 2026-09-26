@@ -8,7 +8,9 @@
 //
 // The copies come from the main tree and are never links, and a file already in the worktree is kept.
 // The memos are keyed by content, so a verdict the chain run filed answers for the same bytes in the
-// worktree, and the first sweep runs what the branch changed rather than the whole floor. The database
+// worktree, and the first sweep runs what the branch changed rather than the whole floor. The selection
+// store is copied the same way (`seedStore`): its footprints name the tree's items and files, never a
+// build, so the worktree's first verify selects from what differs from the tree the main store recorded. The database
 // fixtures' certificate is a copy of a Docker volume's that `.gitignore` keeps out of git, and a floor
 // check that opens the database fails without it. The fuzz corpus directory is made empty rather than
 // copied: the floor's `nv playbook --check` needs every path a bullet names to exist, and a fuzz run
@@ -23,21 +25,14 @@ import { mainRoot } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { SIDE_ENV } from "../lib/chain.ts";
+import { SelectStore } from "../select/store.ts";
 import { enoughDisk } from "./gates.ts";
 
 /** Free space a new worktree needs on top of the run's own floor: one debug and one release build. */
 export const WORKTREE_GB = 30;
 
 /** Repo-relative, the git-ignored files a fresh worktree is given from the main tree: the memos, then the fixtures. */
-const SEEDS = [
-  ".loop/accept-green.json",
-  ".loop/nv-reads.json",
-  ".loop/proof-reads.json",
-  ".loop/proofs-green.json",
-  ".loop/machine.json",
-  ".agent-tmp/impact-reads.json",
-  "tests/db/ca.crt",
-];
+const SEEDS = [".loop/accept-green.json", ".loop/nv-reads.json", ".loop/machine.json", "tests/db/ca.crt"];
 /** Repo-relative, the git-ignored directories a fresh worktree is given empty. */
 const SEED_DIRS = [".agent-tmp", "fuzz/corpus"];
 
@@ -94,7 +89,24 @@ export async function prepare(slug: string, main: string, dir: string, minFreeGb
     copyFileSync(from, to);
   }
   for (const seed of SEED_DIRS) mkdirSync(join(dir, seed), { recursive: true });
+  seedStore(join(main, STORE_PATH), join(dir, STORE_PATH));
   return "";
+}
+
+const STORE_PATH = ".cache/select.sqlite";
+
+/** Gives a new worktree a copy of the selection store, so its first run selects from what the branch
+ * changed rather than recording every atom again. The copy is taken through SQLite, so what the main
+ * tree's store holds in its write-ahead log is in it too. A worktree that has a store keeps it. */
+export function seedStore(from: string, to: string): void {
+  if (existsSync(to) || !existsSync(from)) return;
+  mkdirSync(dirname(to), { recursive: true });
+  const store = new SelectStore(from);
+  try {
+    store.copyTo(to);
+  } finally {
+    store.close();
+  }
 }
 
 /**
