@@ -2,6 +2,7 @@
 `Core\Reflect\ClassInfo::call` judges `$arguments` against the callee's declared parameters — both sides of the arity bound, and a type the parameter does not accept — `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::call
 // `rule:security/reflection-enforces-visibility`'s check is the ordinary call's, so what the argument list is
 // judged against is the *callee's* shape and never the array's. Both sides of
 // each bound are named here: a member that stopped one entry early would print

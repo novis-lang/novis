@@ -1,0 +1,30 @@
+<?nvs
+// Shows how a command line tool runs the method that has the same name as the
+// command the user typed.
+
+class Tasks {
+    public function build(): string {
+        return "building the project";
+    }
+
+    public function clean(): string {
+        return "deleting old files";
+    }
+}
+
+class Runner {
+    public static function run(object $tasks, string $command): string {
+        var $info = Core\Reflect::forObject($tasks);
+        // `hasMethod` checks the name first, so an unknown command gets a helpful message.
+        if (!$info->hasMethod($command)) {
+            return "unknown command: " . $command;
+        }
+        return $info->call($tasks, $command, []) as string;
+    }
+}
+
+// These are the commands a user typed. This prints one line for each.
+array<string> $typed = ["build", "clean", "deploy"];
+foreach ($typed as string $command) {
+    echo Runner::run(new Tasks(), $command), "\n";
+}

@@ -1,0 +1,90 @@
+<?nvs
+// Attack: `call` gets names and argument lists that do not fit the method, and a
+// method calls itself through `call` until the stack is full. Each step should
+// throw an error or stop the program cleanly, and must not crash.
+// hostile: ends-early
+
+class Target
+{
+    public function add(int $a, int $b): int
+    {
+        return $a + $b;
+    }
+
+    private function hidden(): int
+    {
+        return 1;
+    }
+
+    public function down(int $depth): int
+    {
+        var $info = Core\Reflect::forObject($this);
+        return $info->call($this, 'down', [$depth + 1]) as int;
+    }
+}
+
+class Other
+{
+}
+
+var $target = new Target();
+var $info = Core\Reflect::forObject($target);
+
+// 1. Names that are not methods: empty, a zero byte, a very long name, and names with `::`.
+array<string> $names = ['', "add\0", Core\Str::repeat('a', 1000000), 'Target::add', '__construct'];
+foreach ($names as string $name) {
+    try {
+        $info->call($target, $name, [1, 2]);
+    } catch (Throwable $error) {
+        echo 'refused ', Core\Str::length($name), "\n";
+    }
+}
+
+// 2. A private method, called from outside the class.
+try {
+    $info->call($target, 'hidden', []);
+} catch (Throwable $error) {
+    echo "private refused\n";
+}
+
+// 3. Too few arguments, too many arguments, and arguments of the wrong type.
+array<mixed> $many = [];
+uint $i = 0;
+while ($i < 100000) {
+    $many[] = $i;
+    $i = $i + 1;
+}
+array<array<mixed>> $lists = [[1], $many, ['one', 'two'], [null, null]];
+foreach ($lists as array<mixed> $arguments) {
+    try {
+        $info->call($target, 'add', $arguments);
+    } catch (Throwable $error) {
+        echo 'refused ', Core\Arr::count($arguments), "\n";
+    }
+}
+
+// 4. A value that is not an instance of the described class, and a value that is not an object.
+array<mixed> $values = [new Other(), 42, null];
+foreach ($values as mixed $wrong) {
+    try {
+        $info->call($wrong, 'add', [1, 2]);
+    } catch (Throwable $error) {
+        echo "wrong object refused\n";
+    }
+}
+
+// 5. The same bad call 100000 times. Each error should be freed.
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $info->call($target, 'hidden', []);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
+
+// 6. A method that calls itself through `call` with no end.
+echo $target->down(0), "\n";

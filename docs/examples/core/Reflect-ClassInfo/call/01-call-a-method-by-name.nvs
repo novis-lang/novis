@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to call a method when its name is in a string.
+
+class Greeter {
+    public function greet(string $greeting, string $name): string {
+        return $greeting . ", " . $name . "!";
+    }
+}
+
+var $greeter = new Greeter();
+var $info = Core\Reflect::forObject($greeter);
+
+// `call` runs the method "greet" on `$greeter`. The list gives the arguments in order.
+// This prints "Good morning, Ana!".
+echo $info->call($greeter, "greet", ["Good morning", "Ana"]) as string, "\n";

@@ -2,6 +2,7 @@
 `Core\Reflect\ClassInfo::call` runs a `public` method and refuses a `private` one, with a wrong class and a misspelling told apart from neither — `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::call
 // `rule:security/reflection-enforces-visibility`: *acting* on a member runs the check ordinary code at the call
 // site would run, and there is no `setAccessible` to lift it with. `call` does
 // not restate that rule anywhere — it hands the call to the same path an

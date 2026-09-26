@@ -1,0 +1,33 @@
+<?nvs
+// Shows that `call` follows the same visibility rules as a normal method call.
+
+class Account {
+    public function label(): string {
+        return "Account " . $this->number();
+    }
+
+    private function number(): string {
+        return "DE-4471";
+    }
+}
+
+var $account = new Account();
+var $info = Core\Reflect::forObject($account);
+
+// A public method works. This prints "Account DE-4471".
+echo $info->call($account, "label", []) as string, "\n";
+
+// `number` is private, so code outside the class cannot call it.
+// `call` throws a `LogicError`, the same as a normal call would.
+try {
+    $info->call($account, "number", []);
+} catch (LogicError $error) {
+    echo "number is private\n";
+}
+
+// A name that is not a method also throws a `LogicError`.
+try {
+    $info->call($account, "lable", []);
+} catch (LogicError $error) {
+    echo "no method lable\n";
+}
