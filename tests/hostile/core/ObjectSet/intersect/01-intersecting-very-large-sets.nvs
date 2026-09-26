@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a program intersects very large sets, sets that share nothing, and a set that contains itself.
+// It keeps every result until memory runs out. The program should stop at its memory limit and must not crash.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+// 1. Two sets of 100000 objects each share half of their objects, and are intersected both ways.
+Core\ObjectSet<Node> $left = new Core\ObjectSet<Node>();
+Core\ObjectSet<Node> $right = new Core\ObjectSet<Node>();
+int $i = 0;
+while ($i < 150000) {
+    Node $node = new Node($i);
+    if ($i < 100000) {
+        $left->add($node);
+    }
+    if ($i >= 50000) {
+        $right->add($node);
+    }
+    $i = $i + 1;
+}
+echo '1: ', $left->intersect($right)->count(), ' ', $right->intersect($left)->count(), "\n";
+
+// 2. A large set is intersected with an empty set and with itself, 10 times each.
+Core\ObjectSet<Node> $none = new Core\ObjectSet<Node>();
+uint $total = 0;
+$i = 0;
+while ($i < 10) {
+    $total = $total + $left->intersect($none)->count() + $none->intersect($left)->count();
+    $total = $total + $left->intersect($left)->count();
+    $i = $i + 1;
+}
+echo '2: ', $total, "\n";
+
+// 3. A set of 1000 objects is intersected with the result of the last round, 1000 times.
+Core\ObjectSet<Node> $small = new Core\ObjectSet<Node>();
+$i = 0;
+while ($i < 1000) {
+    $small->add(new Node($i));
+    $i = $i + 1;
+}
+Core\ObjectSet<Node> $shrink = $small->intersect($small);
+$i = 0;
+while ($i < 1000) {
+    $shrink = $small->intersect($shrink);
+    $i = $i + 1;
+}
+echo '3: ', $shrink->count(), "\n";
+
+// 4. A set contains itself and other values, and is intersected with itself.
+Core\ObjectSet<mixed> $self = new Core\ObjectSet<mixed>();
+$self->add($self);
+$self->add(Core\Str::repeat('v', 1000000));
+$self->add(null);
+Core\ObjectSet<mixed> $copy = $self->intersect($self);
+$self->remove($self);
+echo '4: ', $copy->count(), ' ', $copy->has($self) ? 'y' : 'n', "\n";
+
+// 5. Every result of a large intersection is kept, until the memory limit stops the program.
+array<Core\ObjectSet<Node>> $kept = [];
+while (true) {
+    $kept[] = $left->intersect($left);
+}
