@@ -32,18 +32,17 @@
 //! against the mount root afterwards, and a production deployment
 //! (`dispatch = "entry"`, `static = false`) never runs either of them.
 //!
-//! # Decision: an unwritten switch is the closed one, not development's
+//! # Decision: an unwritten switch is the mode's, chosen when a configuration is published
 //!
-//! `rule:config/a-startup-default-is-never-flipped`
-//! gives `dispatch` and `static` different defaults per mode — `path` and
-//! on in development, `entry` and off in production. [`Table::new`] takes both
-//! as decided values and [`Table::from_config`] reads only what was *written*,
-//! defaulting to the production pair. Resolving a mode's defaults is the mode
-//! slice's, and until it lands the absent value is the fail-closed one: a
-//! deployment that gets development's dispatch by accident executes `.nvs` files
-//! nobody enumerated, which is exactly what § 2 exists to prevent, while one that
-//! gets production's by accident answers every request with its entry — a
-//! feature missing, not a rule broken.
+//! `rule:config/a-startup-default-is-never-flipped` gives `dispatch` and
+//! `static` a row per mode — `path` and on in development, `entry` and off in
+//! production. [`Table::new`] takes both as decided values, and
+//! [`Table::from_config`] takes them from [`nvs_config::server::switches_for`],
+//! which holds the two rows: a written value wins, and an unwritten one follows
+//! the mode the configuration names, with no mode written read as production. A
+//! runtime mode flip never reaches a table, because a table is built from a
+//! published snapshot before any request under it is dispatched. Only a host
+//! that writes `mode = "development"` runs steps 3 and 4 without naming them.
 //!
 //! # What a remainder may be
 //!
@@ -83,19 +82,7 @@ use nvs_config::mount::Mounted;
 use nvs_config::tree::Config;
 use nvs_runtime::Inbound;
 
-/// Which of § 4's two dispatch readings is in force.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Dispatch {
-    /// `dispatch = "entry"` — step 4 does not run, and every request the mount
-    /// matched runs its entry. The default here, for this module's docs
-    /// § *Decision*.
-    #[default]
-    Entry,
-    /// `dispatch = "path"` — an existing `.nvs` file under the mount root runs
-    /// itself, which is the `try_files $uri /index.nvs` every PHP application
-    /// already deploys under.
-    Path,
-}
+pub use nvs_config::server::Dispatch;
 
 /// The one question § 4 steps 3 and 4 ask of a filesystem.
 ///
@@ -169,28 +156,20 @@ impl Table {
         self
     }
 
-    /// The two switches as `[server]` *wrote* them, over the production pair —
-    /// this module's docs § *Decision* is why an unwritten one is not
-    /// development's.
+    /// The table over `config`'s two switches as
+    /// [`nvs_config::server::switches_for`] resolves them — written, or the
+    /// row of the mode the configuration names — and its probe path.
     #[must_use]
     pub fn from_config(mounts: Vec<Mounted>, config: &Config) -> Self {
-        let server = config.server.as_ref();
-        let dispatch = match server.and_then(|server| server.dispatch.as_deref()) {
-            Some("path") => Dispatch::Path,
-            _ => Dispatch::Entry,
-        };
-        let serve_static = server
-            .and_then(|server| server.serve_static)
-            .unwrap_or(false);
+        let switches = nvs_config::server::switches_for(config);
         // A path this server could not answer on is refused at boot by
         // `nvs_config::server::validate`, so the only tree that reaches here
-        // with one is one nothing validated — and reading that as *no probe* is
-        // this module's § *Decision* applied to a third switch: an unreadable
-        // one reserves nothing rather than reserving something nobody wrote.
+        // with one is one nothing validated, and it reserves nothing rather
+        // than reserving something nobody wrote.
         let health = nvs_config::server::health_path(config, &BTreeMap::new())
             .ok()
             .flatten();
-        Self::new(mounts, dispatch, serve_static).with_health(health)
+        Self::new(mounts, switches.dispatch, switches.serve_static).with_health(health)
     }
 
     /// Every mount this table holds, which is § 2's executable set in full.
@@ -962,6 +941,52 @@ mod tests {
         assert_eq!(
             Table::from_config(mounts(), &config).resolve(None, "/healthz", &fs),
             Some(Resolved::Health)
+        );
+    }
+
+    /// The two switches of a table built from `text`, a configuration file.
+    fn switches_of(text: &str) -> (Dispatch, bool) {
+        let config: Config = toml::from_str(text).expect("the fixture did not deserialize");
+        let table = Table::from_config(Vec::new(), &config);
+        (table.dispatch, table.serve_static)
+    }
+
+    /// `rule:config/a-startup-default-is-never-flipped`'s development row:
+    /// with neither switch written, the table runs path dispatch and serves
+    /// static files.
+    #[test]
+    fn development_with_both_switches_unwritten_dispatches_by_path_and_serves_static() {
+        assert_eq!(
+            switches_of("[mode]\ndefault = \"development\"\n"),
+            (Dispatch::Path, true)
+        );
+    }
+
+    /// A written switch wins over development's row, each one alone, so a
+    /// reading that took one key's absence as the other's cannot pass.
+    #[test]
+    fn a_written_switch_wins_over_developments_row() {
+        assert_eq!(
+            switches_of("[mode]\ndefault = \"development\"\n[server]\ndispatch = \"entry\"\n"),
+            (Dispatch::Entry, true)
+        );
+        assert_eq!(
+            switches_of("[mode]\ndefault = \"development\"\n[server]\nstatic = false\n"),
+            (Dispatch::Path, false)
+        );
+    }
+
+    /// Production's row, and a configuration that names no mode reads as
+    /// production: entry dispatch and no static files.
+    #[test]
+    fn production_and_no_mode_dispatch_to_the_entry_and_serve_no_static() {
+        for text in ["[mode]\ndefault = \"production\"\n", "[mode]\n", ""] {
+            assert_eq!(switches_of(text), (Dispatch::Entry, false), "for {text:?}");
+        }
+        // And a written switch still wins there, in the open direction too.
+        assert_eq!(
+            switches_of("[server]\ndispatch = \"path\"\nstatic = true\n"),
+            (Dispatch::Path, true)
         );
     }
 
