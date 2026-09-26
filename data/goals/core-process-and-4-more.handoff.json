@@ -1,23 +1,26 @@
 {
-  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle` and `Core\\Process\\Result` are green: `Result` has its class card (`RESULT_CARD`), its three member cards are in the plain voice, and `exitCode`, `stdout` and `stderr` have all their feature proofs. `Core\\Program` and `Core\\Queue` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\n`nvs agent show <Class>` now prints a class's `ClassDoc` prose above its members (`crates/nvs-cli/src/agent.rs`'s `push_class_card`). Before this, no class card reached the binary's help.\n\nA Unix-only example is run by hand under WSL. Put the commands in a script under `.agent-tmp/` and start it with `wsl.exe -- bash -lc \"bash <script>\"`. In the script, build with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build --bin nvs` from `/mnt/d/mwl`, run `/var/tmp/nvs-target-wsl/debug/nvs run --config <dir>/nvs.toml <file> 2>&1`, and write the `.out` with Write from what it printed. The attacks and benches run on both platforms: they pick `/bin/sh` or `cmd.exe` by `Core\\Path::SEPARATOR`. `Core\\Bytes::length` returns `uint`, so a total it feeds is `uint` and an array index made from it is `(... ) as int`. `as string` over bytes that are not UTF-8 throws `RuntimeError`.\n\nThe driver's last sweep reported `proofs: Core\\IO (2/2)` red with a bare `exit 1`. Re-run at the start of this session, it was green with nothing owed and no failure, so it read as a one-off rather than a regression.",
+  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle`, `Core\\Process\\Result` and now `Core\\Program` are green: `Core\\Program` has its class card (`PROGRAM_CARD`), its three member cards are in the plain voice, and `implementing`, `implementingWith` and `id` have all their feature proofs, with perf recorded. `Core\\Queue`, `Core\\Queue\\Id` and `Core\\Queue\\Stats` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\nThe `implementing` attack found two leaks, both fixed and pinned. A keyless array literal, a variadic argument list and the `implementing`/`implementingWith` expansions did not free the elements already built when a later one threw (`crates/nvs-ir/src/lower/expr.rs`'s `lower_array_literal` and `lower_program_instances`, `call.rs`'s `lower_args_as_array`). They now stage each element as a transferred temporary. An object whose constructor throws was never freed (`crates/nvs-codegen/src/emit.rs`'s `emit_new`). Its error edge now releases the object before the landing block. Valgrind under WSL showed 0 bytes definitely lost for both.\n\nA Unix-only example, or a valgrind run, is done by hand under WSL. `bun nv proofs --valgrind` needs `valgrind` on `PATH`, so it does not run on Windows. Put the commands in a script under `.agent-tmp/` and start it with `wsl.exe -- bash -lc \"bash <script>\"`. In the script, build with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build --bin nvs` from `/mnt/d/mwl`. Then run `/var/tmp/nvs-target-wsl/debug/nvs run <file>` directly or under `valgrind --leak-check=full`. One \"possibly lost\" block from the TLS client cache is always there and is not a finding.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/program.rs`, `crates/nvs-stdlib/src/registry.rs` and the proof trees under `core/Program/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/registry.rs` and the proof trees under `core/Queue/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Program`'s class card** — add its `ClassDoc` above `CLASS`, the way `RESULT_CARD` sits above `RESULT` in `crates/nvs-stdlib/src/process.rs`, delete it from `CLASSES_STILL_OWING_A_CARD`, and bring the member cards to the plain voice. Check it with `nvs agent show 'Core\\Program'`. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/program.rs:92` `crates/nvs-stdlib/src/registry.rs:5248`"
+        "text": "**`Core\\Queue`'s class card, and `Core\\Queue\\Id`'s and `Core\\Queue\\Stats`'s** — add a `ClassDoc` above each `CLASS` row, the way `PROGRAM_CARD` sits above `CLASS` in `crates/nvs-stdlib/src/program.rs`, delete the three from `CLASSES_STILL_OWING_A_CARD`, and bring the member cards to the plain voice. Check with `nvs agent show 'Core\\Queue'`. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/queue.rs:1899` `crates/nvs-stdlib/src/queue.rs:2515` `crates/nvs-stdlib/src/queue.rs:2542` `crates/nvs-stdlib/src/registry.rs:5248`"
       },
       {
         "done": false,
-        "text": "**`Core\\Program::implementing`, `implementingWith`, `id`** — about, three examples, attack, bench and the tests `bun nv proofs --group 'Core\\Program' --show` names; `id` owes a Rust test carrying `// covers:`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/program.rs:115`"
+        "text": "**`Core\\Queue::push` and `status`** — about, three examples, attack, bench and a Rust `covers:` marker each. The examples need a `[db.<name>]` block and a `[queue] connection`; `crates/nvs-stdlib/tests/queue_sqlite.rs` shows an in-memory SQLite one. `bun nv proofs --id 'Core\\Queue::push'` prints the paths. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:1899`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Queue::cancel`, `delete`, `purge` and `stats`** — the same proofs. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2093`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Queue`'s class card and member proofs, after `Core\\Program` — `crates/nvs-stdlib/src/queue.rs`, `rule:testing/feature-proofs`.",
-    "`Core\\Html` and `Core\\Html\\Markup` still owe cards; `a_class_name_resolves_to_a_card_listing_its_members` in `crates/nvs-cli/tests/agent.rs` pins `Core\\Html\\Markup`'s card as the bare class line, and changes when that card lands — goal `core-class-cards`."
+    "`bun nv proofs --verify` flags a bench as stale after any edit to its member's implementing file, even a card-only edit. Run `bun nv proofs --record-perf --group '<Class>'` after the card, before the check (`tools/nv/proofs/collect.ts:423`)."
   ]
 }

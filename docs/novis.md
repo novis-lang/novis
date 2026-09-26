@@ -17231,9 +17231,9 @@ id is 64 characters, and stable within the run: yes
 Core\Program::implementing<T>(): array<T>
 ```
 
-Expands, at compile time, to an array literal of `new` expressions — one per non-abstract class in the program implementing the interface `T` written as the type argument. Nothing runs at run time, and the type argument is never optional: the call is always `Core\Program::implementing<T>()`.
+Returns a new object of every class that implements the interface `T`. You write the interface between `<` and `>`: `Core\Program::implementing<Module>()`. Abstract classes are not included. Each class needs a constructor without arguments, or the program does not compile. Novis finds the classes when it compiles the program, so nothing is searched while it runs.
 
-**Returns** `array<T>` — One fresh instance per implementing class, as an `array<T>`; an empty array when no class implements `T`.
+**Returns** `array<T>` — An `array<T>` with one new object per class, sorted by class name. Every call creates new objects. The array is empty when no class implements `T`.
 
 <a id="core-core-program-implementingwith"></a>
 #### `Core\Program::implementingWith`
@@ -17242,13 +17242,13 @@ Expands, at compile time, to an array literal of `new` expressions — one per n
 Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>
 ```
 
-Expands, at compile time, to `implementing<I>()`'s array with one attribute joined to each class: every row is `{instance: I, attribute: ?T}`, where `attribute` is the one attached literal on that class's own member `$member` — or on the class itself when `$member` is empty — that satisfies the shape `T`, and `null` where there is none. Nothing runs at run time, and both type arguments are written at the call: `Core\Program::implementingWith<View, {path: string}>("render")`.
+Returns the same objects as `implementing<I>()`, each with one attribute of its class. You write the interface `I` and the shape `T` of the attribute between `<` and `>`: `Core\Program::implementingWith<Page, {path: string}>("render")`. Novis reads the attributes when it compiles the program, so nothing is searched while it runs.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$member` | `string` (default `""`, neutral) | The member whose attributes are read on every class: a method name, a property or constructor-parameter name, or the empty string for the attributes on the class itself. |
+| `$member` | `string` (default `""`, neutral) | The name of the method, property or constructor parameter that has the attribute. An empty string reads the attributes of the class itself. |
 
-**Returns** `array<{instance: I, attribute: ?T}>` — One row per non-abstract class implementing `I`, sorted by fully-qualified name, as an `array<{instance: I, attribute: ?T}>`; an empty array when no class implements `I`. Two matching attributes on one class do not compile.
+**Returns** `array<{instance: I, attribute: ?T}>` — An array with one row per class, sorted by class name. Each row is `{instance: I, attribute: ?T}`. `attribute` is `null` when the class has no attribute of the shape `T`. Two matching attributes on one class do not compile.
 
 <a id="core-core-program-id"></a>
 #### `Core\Program::id`
@@ -17257,11 +17257,11 @@ Expands, at compile time, to `implementing<I>()`'s array with one attribute join
 Core\Program::id(): string
 ```
 
-This program's identity: `BLAKE3` over every compiled unit's content hash, in program order, combined with the digest of the environment they were compiled for. The same code on the same host answers the same thing on every run, and any change to either answers something else.
+Returns a text that identifies this version of the program. It is a `BLAKE3` hash of all the compiled code and of the environment it was compiled for. The same code on the same server gives the same value on every run.
 
-**Returns** `string` — All 32 bytes as 64 lowercase hex characters, never truncated — take a prefix if a shorter one is wanted. It is safe to echo: it is a digest, so it reveals no source, though a reader who watches it can tell when a deployment last changed.
+**Returns** `string` — 64 lowercase hexadecimal characters. The value changes when the code or the environment changes. It is safe to print, because a hash does not show any source code.
 
-**Throws** `LogicError` — No host wrote an identity onto this context, so there is nothing to answer with and an invented value would be worse than none — callers key caches on this.
+**Throws** `LogicError` — The program was started without an identity. `nvs run` always gives a program one, so this happens only when a program is started some other way.
 
 <a id="core-core-cli"></a>
 ### `Core\Cli`
