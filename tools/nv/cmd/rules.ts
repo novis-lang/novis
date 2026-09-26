@@ -27,6 +27,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { FileMemo } from "../lib/filememo.ts";
 import { ROOT, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, parseArgs, pyRepr, splitlines } from "../lib/py.ts";
 import { load, pathOf, type Loaded } from "../lib/store.ts";
@@ -370,8 +371,10 @@ function walk(dir: string): string[] {
 
 const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
-/** Every `rule:<id>` in the tree, as [path, line number, id]. */
+/** Every `rule:<id>` in the tree, as [path, line number, id]. Each file's citations are memoized against
+ * its text. */
 function* citations(): Generator<[string, number, string]> {
+  const memo = new FileMemo<[number, string][]>("rule-citations", import.meta.path);
   for (const [dir, exts] of CITATION_GLOBS) {
     for (const path of walk(dir)) {
       if (path.split("/").includes("target")) continue;
@@ -383,12 +386,16 @@ function* citations(): Generator<[string, number, string]> {
         continue;
       }
       if (!text.includes("rule:") || text.includes(EXAMPLES_ONLY)) continue;
-      const lines = splitlines(text);
-      for (let i = 0; i < lines.length; i++) {
-        for (const m of lines[i]!.matchAll(CITATION)) yield [path, i + 1, m[1]!];
-      }
+      const found = memo.get(path, text, () => {
+        const out: [number, string][] = [];
+        const lines = splitlines(text);
+        for (let i = 0; i < lines.length; i++) for (const m of lines[i]!.matchAll(CITATION)) out.push([i + 1, m[1]!]);
+        return out;
+      });
+      for (const [line, id] of found) yield [path, line, id];
     }
   }
+  memo.save();
 }
 
 const USAGE = [

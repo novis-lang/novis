@@ -369,8 +369,9 @@ export interface ManifestCopy {
  */
 export function manifestProblems(copies: ManifestCopy[]): string[] {
   const problems: string[] = [];
+  const shared = {};
   for (const c of copies) {
-    for (const p of manifestFindings(c.value, c.where, c.prose).problems) if (!problems.includes(p)) problems.push(p);
+    for (const p of manifestFindings(c.value, c.where, c.prose, shared).problems) if (!problems.includes(p)) problems.push(p);
   }
   return problems.map((p) => `${p} -- \`nv chain --check\` is on the floor and halts a DONE claim on this; fix the manifest before the wrap, or drop the line`);
 }

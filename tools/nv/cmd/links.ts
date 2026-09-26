@@ -33,6 +33,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
+import { FileMemo } from "../lib/filememo.ts";
 import { tracked } from "../lib/git.ts";
 import { ROOT, rel } from "../lib/paths.ts";
 
@@ -152,7 +153,17 @@ export function deadMentions(text: string): Finding[] {
  * written can be checked, and a `resolve` so the tree it is checked against can be another commit's.
  */
 export function findingsIn(text: string, source: boolean, base: string, resolveTarget: Resolver = onDisk): Finding[] {
-  const out: Finding[] = [];
+  return resolveLinks(linksIn(text, source), base, resolveTarget);
+}
+
+/** One link of a text, before its target is looked up: a finding already, or a target to resolve from
+ * the root or from the file's own directory. */
+type Link = { line: number; raw: string; kind: "relative" | "absolute" } | { line: number; raw: string; from: "root" | "base"; target: string };
+
+/** The links of `text`, read as a source file when `source`: what depends on the text alone, and so
+ * what `run` memoizes per file. */
+export function linksIn(text: string, source: boolean): Link[] {
+  const out: Link[] = [];
   let fenced = false;
   text.split("\n").forEach((line, i) => {
     // The fence is markdown's rule. A doc comment's links are prose inside a fence or out of one.
@@ -167,28 +178,30 @@ export function findingsIn(text: string, source: boolean, base: string, resolveT
       if (spans.some(([start, end]) => start <= at && at < end)) continue;
       const raw = m[1]!;
       if (SKIP_SCHEMES.some((s) => raw.startsWith(s))) continue;
-      let target = unquote(raw.split("#", 1)[0]!);
+      const target = unquote(raw.split("#", 1)[0]!);
       if (!target) continue;
-      let here: string;
       if (source) {
         if (!target.includes("/") || target.endsWith(".html")) continue;
-        if (!target.startsWith("/")) {
-          out.push({ line: i + 1, target: raw, kind: "relative" });
-          continue;
-        }
-        here = ROOT;
-        target = target.replace(/^\/+/, "");
-      } else {
-        if (target.startsWith("/")) {
-          out.push({ line: i + 1, target: raw, kind: "absolute" });
-          continue;
-        }
-        here = base;
-      }
-      const kind = resolveTarget(here, target);
-      if (kind) out.push({ line: i + 1, target: raw, kind });
+        if (!target.startsWith("/")) out.push({ line: i + 1, raw, kind: "relative" });
+        else out.push({ line: i + 1, raw, from: "root", target: target.replace(/^\/+/, "") });
+      } else if (target.startsWith("/")) out.push({ line: i + 1, raw, kind: "absolute" });
+      else out.push({ line: i + 1, raw, from: "base", target });
     }
   });
+  return out;
+}
+
+/** The findings among `links`, each target looked up from the root or from `base`. */
+function resolveLinks(links: Link[], base: string, resolveTarget: Resolver): Finding[] {
+  const out: Finding[] = [];
+  for (const l of links) {
+    if ("kind" in l) {
+      out.push({ line: l.line, target: l.raw, kind: l.kind });
+      continue;
+    }
+    const kind = resolveTarget(l.from === "root" ? ROOT : base, l.target);
+    if (kind) out.push({ line: l.line, target: l.raw, kind });
+  }
   return out;
 }
 
@@ -255,6 +268,8 @@ export async function run(args: string[]): Promise<number> {
 
   const findings: { rel: string; finding: Finding }[] = [];
   let generated = 0;
+  // Each file's links are memoized against its text; every target is looked up again on every run.
+  const memo = new FileMemo<Link[]>("links", import.meta.path);
   for (const { f } of ordered) {
     const text = readText(f);
     if (text !== null && isGenerated(text)) {
@@ -262,8 +277,11 @@ export async function run(args: string[]): Promise<number> {
       continue;
     }
     if (text === null) continue;
-    for (const finding of fileFindings(f, text)) findings.push({ rel: rel(f), finding });
+    const ext = extname(f);
+    const found = MENTION_EXTS.includes(ext) ? deadMentions(text) : resolveLinks(memo.get(rel(f), text, () => linksIn(text, SOURCE_EXTS.includes(ext))), dirname(f), onDisk);
+    for (const finding of found) findings.push({ rel: rel(f), finding });
   }
+  memo.save();
 
   const lines: string[] = [];
   for (const { rel: path, finding } of findings) {

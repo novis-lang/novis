@@ -42,7 +42,7 @@ import { chain as chainType } from "../schema/chain.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { RECORDS } from "../schema/index.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
-import { type GoalValue, manifestFindings } from "./orient.ts";
+import { type GoalValue, type ManifestShared, manifestFindings } from "./orient.ts";
 
 export const summary = "the loop's goal chain, over data/chain.json: nv chain --check | --new | --move | --remove";
 
@@ -75,12 +75,16 @@ async function shownFiles(): Promise<string[]> {
  */
 async function graduatedGone(records: Map<string, any>, walked: string[]): Promise<string[]> {
   const rust = (await shownFiles()).filter((p) => p.endsWith(".rs")).map((p) => read(p) ?? "").join("\n");
+  // Every identifier the files spell answers a name at once; a name spelled only inside a longer one is
+  // still found by searching the whole text.
+  const words = new Set(rust.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []);
+  const spelled = (name: string) => words.has(name) || rust.includes(name);
   const out: string[] = [];
   for (const slug of walked) {
     for (const c of records.get(slug)?.checks ?? []) {
       if (graduatesTo(c) === null) continue;
       for (const t of (c.tests ?? []) as string[]) {
-        if (!rust.includes(t.split("::").pop()!)) out.push(`data/goals/${slug}.json: check \`${c.id}\` names test \`${t}\`, which no Rust file spells`);
+        if (!spelled(t.split("::").pop()!)) out.push(`data/goals/${slug}.json: check \`${c.id}\` names test \`${t}\`, which no Rust file spells`);
       }
       for (const k of (c.cases ?? []) as string[]) {
         if (!existsSync(join(ROOT, k))) out.push(`data/goals/${slug}.json: check \`${c.id}\` names case ${k}, which is not on disk`);
@@ -159,8 +163,10 @@ async function check(): Promise<number> {
   // The other half of walkable: the driver can run the checks, and the session gets the pack. A manifest
   // naming a heading that is not there costs nothing until the chain reaches the goal, and then costs
   // one session the section it needed.
+  // The playbook and the rulebook are read once for every goal's manifest.
+  const shared: ManifestShared = {};
   const audit = (value: unknown, record: string, prose: string | null) => {
-    const found = manifestFindings(value as GoalValue, record, prose);
+    const found = manifestFindings(value as GoalValue, record, prose, shared);
     problems.push(...found.problems);
     notes.push(...found.notes);
   };

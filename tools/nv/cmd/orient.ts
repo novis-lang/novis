@@ -690,7 +690,7 @@ function runStandingDecisions(src: Sources): void {
   else warn(`${src.md} has no \`## Standing decisions\` section -- loop-authoring.md § 4`);
 }
 
-interface BookRule {
+export interface BookRule {
   id: string;
   title: string;
   status: string;
@@ -1529,7 +1529,14 @@ const RULE_TOKEN = /rule:([a-z0-9-]+\/[a-z0-9-]+)/g;
  * warning is where a pattern that matches nothing shows. A `context` key no stage or goal has is the
  * schema's finding, not this one's.
  */
-export function manifestFindings(g: GoalValue, where: string, prose: string | null): { problems: string[]; notes: string[] } {
+/** What one call over many goals reads once and hands every goal: the playbook's bullets and the
+ * rulebook, each filled the first time a goal needs it. */
+export interface ManifestShared {
+  book?: BookSection[];
+  rules?: Map<string, BookRule>;
+}
+
+export function manifestFindings(g: GoalValue, where: string, prose: string | null, shared: ManifestShared = {}): { problems: string[]; notes: string[] } {
   const problems: string[] = [];
   const notes: string[] = [];
   const m = manifest(g, null);
@@ -1554,7 +1561,7 @@ export function manifestFindings(g: GoalValue, where: string, prose: string | nu
   }
 
   if (m.playbook.length > 0) {
-    const book = playbookBook();
+    const book = (shared.book ??= playbookBook());
     for (const selector of m.playbook) {
       const [hits, complaint] = sliceBullets(book, selector);
       if (complaint) problems.push(`${where}: playbook selector ${pyRepr(selector)} -- ${complaint}`);
@@ -1577,7 +1584,7 @@ export function manifestFindings(g: GoalValue, where: string, prose: string | nu
   }
 
   if (m.rules.length > 0) {
-    const book = rulebook();
+    const book = (shared.rules ??= rulebook());
     for (const entry of m.rules) {
       if (entry.includes("/")) {
         if (!book.has(entry)) notes.push(`${where}: rules names rule:${entry}, and the rulebook has no rule with that id`);
