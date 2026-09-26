@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { type Check, GreenMemo, type Outcome } from "../driver/accept.ts";
+import { type Check, type Outcome } from "../driver/accept.ts";
 import { ROOT } from "../lib/paths.ts";
-import { type LegName, type LegsOptions, type LegsSeams, legSpec, legSteps, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../driver/legs.ts";
+import { type LegName, type LegsOptions, type LegsSeams, legSteps, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../driver/legs.ts";
 import { CARRIED, carryLine, mirrorPath, targetLine } from "../driver/mirror.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -61,8 +61,16 @@ function fake(answer: (line: string) => Outcome | undefined = () => undefined, p
   return f;
 }
 
+/** The legs the store records green, by options. */
+const recorded = new WeakMap<LegsOptions, Set<LegName>>();
+const greenOf = (o: LegsOptions) => recorded.get(o)!;
+
+/** Options whose change reaches every leg but those in `unreached`. */
+const unreached = (legs: LegName[]): Partial<LegsOptions> => ({ reached: (leg) => !legs.includes(leg) });
+
 function options(f: Fake, over: Partial<LegsOptions> = {}): LegsOptions {
-  return {
+  const green = new Set<LegName>();
+  const o: LegsOptions = {
     programs: [program("examples/a.nvs"), program("examples/b.nvs")],
     suites: [suite],
     setups: [],
@@ -70,21 +78,23 @@ function options(f: Fake, over: Partial<LegsOptions> = {}): LegsOptions {
     valgrindSkip: [],
     wslTarget: "/var/tmp/nvs-target-wsl",
     gateOpen: true,
-    memo: new GreenMemo(),
-    key: (leg: LegName) => `key-${leg}`,
-    full: false,
+    reached: () => true,
+    onGreen: (leg) => void green.add(leg),
+    onRed: (leg) => void green.delete(leg),
     label,
     onRun: (what) => f.said.push(what),
     seams: f.seams,
     ...over,
   };
+  recorded.set(o, green);
+  return o;
 }
 
 const valgrindRuns = (f: Fake) => f.lines.filter((l) => l.includes("valgrind --error-exitcode"));
 const builds = (f: Fake) => f.lines.filter((l) => l.includes("cargo build"));
 
 describe("linuxLegs", () => {
-  test("a green WSL leg and a green valgrind sweep are remembered when the floor gate is open", async () => {
+  test("a green WSL leg and a green valgrind sweep are recorded when the floor gate is open", async () => {
     const f = fake();
     const o = options(f);
     expect(await linuxLegs(o)).toBe("");
@@ -98,8 +108,7 @@ describe("linuxLegs", () => {
     expect(valgrindRuns(f)).toHaveLength(2);
     expect(f.origins).toBe(1);
     expect(f.closed).toBe(1);
-    expect(o.memo.answers(legSpec("wsl leg"), "key-wsl leg")).toBe(true);
-    expect(o.memo.answers(legSpec("valgrind sweep"), "key-valgrind sweep")).toBe(true);
+    expect(greenOf(o)).toEqual(new Set(["wsl leg", "valgrind sweep"]));
   });
 
   test("the legs are counted before they run, say that count as they begin, and finish exactly that many", async () => {
@@ -113,51 +122,45 @@ describe("linuxLegs", () => {
     };
     // The build, one setup check, two fixtures, one suite and two valgrind runs.
     expect(await count({ setups: [migrate] })).toEqual({ before: 7, planned: [7], steps: 7 });
-    expect(await count({ memo: new GreenMemo({ "wsl leg": "key-wsl leg" }) })).toEqual({ before: 3, planned: [3], steps: 3 });
+    expect(await count(unreached(["wsl leg"]))).toEqual({ before: 3, planned: [3], steps: 3 });
     expect(await count({}, "linux")).toEqual({ before: 3, planned: [3], steps: 3 });
     expect(await count({ programs: [] })).toEqual({ before: 0, planned: [], steps: 0 });
-    expect(await count({ memo: new GreenMemo({ "wsl leg": "key-wsl leg", "valgrind sweep": "key-valgrind sweep" }) })).toEqual({ before: 0, planned: [], steps: 0 });
+    expect(await count(unreached(["wsl leg", "valgrind sweep"]))).toEqual({ before: 0, planned: [], steps: 0 });
     expect(await count({ wslTarget: null })).toEqual({ before: 0, planned: [], steps: 0 });
   });
 
-  test("with the floor gate shut, a green leg is not remembered", async () => {
+  test("with the floor gate shut, a green leg is not recorded", async () => {
     const f = fake();
     const o = options(f, { gateOpen: false });
     expect(await linuxLegs(o)).toBe("");
-    expect(o.memo.answers(legSpec("wsl leg"), "key-wsl leg")).toBe(false);
-    expect(o.memo.answers(legSpec("valgrind sweep"), "key-valgrind sweep")).toBe(false);
+    expect(greenOf(o).size).toBe(0);
   });
 
-  test("a memo that answers both legs skips the build and every run", async () => {
+  test("a change that reaches neither leg skips the build and every run", async () => {
     const f = fake();
-    const memo = new GreenMemo({ "wsl leg": "key-wsl leg", "valgrind sweep": "key-valgrind sweep" });
-    expect(await linuxLegs(options(f, { memo }))).toBe("");
+    expect(await linuxLegs(options(f, unreached(["wsl leg", "valgrind sweep"])))).toBe("");
     expect(f.lines).toEqual([]);
     expect(f.synced).toEqual([]);
     expect(f.origins).toBe(0);
-    // `full` consults no memo.
-    expect(await linuxLegs(options(f, { memo, full: true }))).toBe("");
-    expect(builds(f)).toHaveLength(1);
+    expect(f.said).toContain("wsl leg and valgrind sweep: the change reaches neither -- neither is rebuilt");
   });
 
-  test("a memo that answers one leg still builds, and runs only the other", async () => {
+  test("a change that reaches one leg still builds, and runs only that one", async () => {
     const f = fake();
-    const memo = new GreenMemo({ "wsl leg": "key-wsl leg" });
-    expect(await linuxLegs(options(f, { memo }))).toBe("");
+    expect(await linuxLegs(options(f, unreached(["wsl leg"])))).toBe("");
     expect(builds(f)).toHaveLength(1);
     expect(f.lines.filter((l) => l.includes(" run ") && !l.includes("valgrind"))).toHaveLength(0);
     expect(valgrindRuns(f)).toHaveLength(2);
   });
 
-  test("a fixture red on the WSL leg is the programFailLine, earliest stage first, and is not remembered", async () => {
+  test("a fixture red on the WSL leg is the programFailLine, earliest stage first, and is recorded red", async () => {
     const f = fake((line) => (line.includes("valgrind") ? undefined : line.endsWith("run examples/b.nvs") || line.endsWith("run examples/a.nvs") ? { code: 0, out: "wrong\n", err: "" } : undefined));
     const o = options(f, { programs: [program("examples/a.nvs", 5), program("examples/b.nvs", 1)] });
     const got = await linuxLegs(o);
     expect(got.split("\n")[0]).toBe("wsl examples/b.nvs [1 floor]: stdout was [wrong], wanted [ok]");
     expect(got).toContain("(and 1 later fixture(s) red, in stage order: examples/a.nvs [5])");
-    expect(o.memo.answers(legSpec("wsl leg"), "key-wsl leg")).toBe(false);
     // The valgrind sweep still ran and is green.
-    expect(o.memo.answers(legSpec("valgrind sweep"), "key-valgrind sweep")).toBe(true);
+    expect(greenOf(o)).toEqual(new Set(["valgrind sweep"]));
   });
 
   test("a red suite on the WSL leg is reported", async () => {
@@ -185,15 +188,13 @@ describe("linuxLegs", () => {
     expect(f.said).toContain("wsl bun setup [1 floor] -- skipped: it does not run nvs");
   });
 
-  test("a red setup check on the WSL leg is reported first, and runs even when the fixtures are remembered", async () => {
+  test("a red setup check on the WSL leg is reported first, and runs even when the change reaches no fixture of it", async () => {
     const red = (line: string) => (line.includes("queue migrate") ? { code: 1, out: "", err: "error: no such database\n" } : undefined);
     const f = fake(red);
     const got = await linuxLegs(options(f, { setups: [migrate] }));
     expect(got.split("\n")[0]).toContain("wsl migrate [1 floor]");
-    const memo = new GreenMemo();
-    memo.remember(legSpec("wsl leg"), "key-wsl leg");
     const g = fake(red);
-    expect(await linuxLegs(options(g, { setups: [migrate], memo }))).toContain("wsl migrate [1 floor]");
+    expect(await linuxLegs(options(g, { setups: [migrate], ...unreached(["wsl leg"]) }))).toContain("wsl migrate [1 floor]");
   });
 
   test("checks that name one command line share one run on the WSL leg, and each judges it", async () => {
@@ -213,8 +214,7 @@ describe("linuxLegs", () => {
     expect(await linuxLegs(o)).toBe(
       "valgrind examples/a.nvs: exit 97 -- ==1== 8 bytes in 1 blocks are definitely lost  (and 1 more: valgrind examples/b.nvs)",
     );
-    expect(o.memo.answers(legSpec("valgrind sweep"), "key-valgrind sweep")).toBe(false);
-    expect(o.memo.answers(legSpec("wsl leg"), "key-wsl leg")).toBe(true);
+    expect(greenOf(o)).toEqual(new Set(["wsl leg"]));
   });
 
   test("a fixture's own non-zero exit through valgrind is not a leak", async () => {
@@ -286,7 +286,7 @@ describe("linuxLegs", () => {
     expect(valgrindRuns(f)).toHaveLength(2);
     expect(valgrindRuns(f)[0]).toMatch(/[\\/]target[\\/]debug[\\/]nvs'? run examples\/a\.nvs$/);
     expect(f.lines.filter((l) => l.includes("cargo build"))).toHaveLength(1);
-    expect(o.memo.answers(legSpec("valgrind sweep"), "key-valgrind sweep")).toBe(true);
+    expect(greenOf(o)).toEqual(new Set(["valgrind sweep"]));
     const g = fake(undefined, "linux");
     g.seams.hasValgrind = () => false;
     expect(await linuxLegs(options(g))).toBe("");

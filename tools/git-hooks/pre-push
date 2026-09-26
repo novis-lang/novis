@@ -4,15 +4,15 @@
 # Verification here runs what a change can reach, and the checks that cost minutes -- the fuzz
 # run, the valgrind sweep, the release-profile guards, the database matrix -- are deferred until
 # the loop's floor gate next opens. A change made by hand has no such moment, so the debt is
-# collected where the work leaves the machine: `bun nv loop --owed` reads the same memo and the
-# same keys a sweep uses, runs nothing, and exits non-zero while any carried check is not green
-# over the tree as it stands.
+# collected where the work leaves the machine: `bun nv loop --owed` asks the selection store what
+# a sweep would ask it, runs nothing, and exits non-zero while the change since the store's tree
+# reaches any carried check.
 #
 # What clears it is `bun nv loop --settle`, which runs the owed checks and only those. Never
 # bypass with `--no-verify`: a commit nothing has checked is the one thing this exists to keep
 # in the building.
 #
-# A tree with uncommitted changes to tracked files is refused too. The memo answers for the files
+# A tree with uncommitted changes to tracked files is refused too. The store answers for the files
 # on disk, and those are then not the commits being pushed.
 #
 # Enabled per clone, because git does not version `.git/hooks`:

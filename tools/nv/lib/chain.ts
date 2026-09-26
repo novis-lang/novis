@@ -244,3 +244,18 @@ export function sidePlan(slug: string, root: string = ROOT): Goal | null {
   const wsl = plan.env.wsl;
   return wsl?.targetDir ? { ...plan, env: { ...plan.env, wsl: { ...wsl, targetDir: `${wsl.targetDir}-side-${slug}` } } } : plan;
 }
+
+/**
+ * The plan this process works against: the side goal `SIDE_ENV` names, with `sidePlan`'s plan, or else the
+ * live goal, with `goalPlan`'s. Null when neither has a record, or no goal is live.
+ */
+export function currentPlan(root: string = ROOT): { slug: string; goal: Goal } | null {
+  const side = sideGoal(root);
+  if (side !== null) {
+    const goal = sidePlan(side, root);
+    return goal === null ? null : { slug: side, goal };
+  }
+  const live = chainRecord(root).live;
+  const goal = live === null ? null : goalPlan(live, root);
+  return goal === null || live === null ? null : { slug: live, goal };
+}

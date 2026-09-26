@@ -7,10 +7,9 @@
 // they share is `driver/sweep-lock.ts`'s lock, which lets one of them sweep at a time.
 //
 // The copies come from the main tree and are never links, and a file already in the worktree is kept.
-// The memos are keyed by content, so a verdict the chain run filed answers for the same bytes in the
-// worktree, and the first sweep runs what the branch changed rather than the whole floor. The selection
-// store is copied the same way (`seedStore`): its footprints name the tree's items and files, never a
-// build, so the worktree's first verify selects from what differs from the tree the main store recorded. The database
+// The selection store is copied the same way (`seedStore`): its footprints name the tree's items and
+// files, never a build, so the worktree's first verify and first sweep select from what differs from the
+// tree the main store recorded, and run what the branch changed rather than the whole floor. The database
 // fixtures' certificate is a copy of a Docker volume's that `.gitignore` keeps out of git, and a floor
 // check that opens the database fails without it. The fuzz corpus directory is made empty rather than
 // copied: the floor's `nv playbook --check` needs every path a bullet names to exist, and a fuzz run
@@ -31,8 +30,8 @@ import { enoughDisk } from "./gates.ts";
 /** Free space a new worktree needs on top of the run's own floor: one debug and one release build. */
 export const WORKTREE_GB = 30;
 
-/** Repo-relative, the git-ignored files a fresh worktree is given from the main tree: the memos, then the fixtures. */
-const SEEDS = [".loop/accept-green.json", ".loop/nv-reads.json", ".loop/machine.json", "tests/db/ca.crt"];
+/** Repo-relative, the git-ignored files a fresh worktree is given from the main tree: the machine's facts, then the fixtures. */
+const SEEDS = [".loop/machine.json", "tests/db/ca.crt"];
 /** Repo-relative, the git-ignored directories a fresh worktree is given empty. */
 const SEED_DIRS = [".agent-tmp", "fuzz/corpus"];
 

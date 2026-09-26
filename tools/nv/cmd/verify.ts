@@ -89,13 +89,13 @@
 import { cpus } from "node:os";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
-import { subsetRun } from "../driver/accept.ts";
+
 import { COVWS_TARGET, covwsCargo, covwsNvs, hostTriple } from "../lib/covws.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { cargoStatus, progress as showProgress } from "../lib/progress.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
-import { testTargets } from "../keys/checks.ts";
+
 import { findings } from "../keys/escape.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
@@ -103,8 +103,9 @@ import { recordName } from "../proofs/run.ts";
 import { caseFiles, caseId, fileDef, nvTestFiles, nvTestId } from "../select/atoms.ts";
 import { buildScripts } from "../select/build.ts";
 import { WILD, repoPath } from "../select/keys.ts";
-import { advance, depInfoPaths, fullChange, pool, Recorder, recordCases } from "../select/record.ts";
+import { advance, depInfoPaths, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
 import { type ChangeSet, computeChange, discover, type Selection, query, rustFiles } from "../select/select.ts";
+import { NV_TSC, runNvTest, runTsc } from "../select/nvtests.ts";
 import { nvKeys, testKeys } from "../select/seed.ts";
 import { type Keyed, SelectStore, testReads, type Verdict } from "../select/store.ts";
 import { alive, dirOf, exitOf, readJob, startJob } from "./bg.ts";
@@ -142,8 +143,6 @@ const DOC_TESTS = "step:doc-tests";
 const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", "nv", "fuzz-lock", "build", "reference", "clippy", "extension", "doc"].map((n) => `step:${n}`).concat(DOC_TESTS);
 
 const RESULT_RE = /test result: \w+\. (\d+) passed; (\d+) failed/g;
-/** One test's line in libtest's output, a `#[should_panic]` test's included. */
-const TEST_LINE_RE = /^test \S+ (?:- should panic )?\.\.\. \w+/;
 const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/g;
 const WARN_RE = /^(warning|error)(\[[^\]]+\])?: (.*)$/gm;
 
@@ -411,25 +410,6 @@ async function runJob(job: Job): Promise<[number, number, string]> {
   return [(performance.now() - started) / 1000, code, out];
 }
 
-/** A binary's last green run: its `test result:` line and the test lines it printed. */
-interface Green {
-  result?: string;
-  tests?: string[];
-}
-
-const greenSlot = (name: string) => `verify:test:${name}`;
-
-function greenOf(store: SelectStore, name: string): Green | null {
-  const v = store.verdict(greenSlot(name));
-  if (!v || !v.verdict) return null;
-  try {
-    return JSON.parse(v.verdict) as Green;
-  } catch {
-    return null;
-  }
-}
-
-
 const RERUN_ALONE_PASSED = (name: string) =>
   `error: \`${name}\` failed beside the other test binaries and passed alone. It shares something with a ` +
   `binary that runs at the same time -- a fixed port, a fixed path under the shared temp or target directory, ` +
@@ -489,11 +469,9 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
     recording.push(
       r.rec.keysOf(recordName(id), [j.argv[0]!, nvs]).then((ext) => {
         const verdict: Verdict = code === 0 && ext ? "green" : "red";
-        r.store.recordRun(id, { def: "", verdict, keys: testKeys(j.owner, ext) });
+        r.store.recordRun(id, { def: "", verdict, keys: testKeys(j.owner, ext, j.name) });
         r.ran.add(id);
-        const out = text.split(/\r?\n/);
-        const green: Green = { result: out.filter((l) => new RegExp(RESULT_RE.source).test(l)).join("\n"), tests: out.filter((l) => TEST_LINE_RE.test(l)).map((l) => l.trimEnd()) };
-        r.store.putVerdict(greenSlot(j.name), "", verdict === "green" ? JSON.stringify(green) : "");
+        putTestGreen(r.store, j.name, verdict, text);
       }),
     );
   };
@@ -551,7 +529,7 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   const out: string[] = note ? [note] : [];
   const held = scoped.filter((j) => !results.has(j.name)).map((j) => j.name).sort();
   if (held.length) out.push(`${held.length} of ${scoped.length} test binaries not re-run: the change reaches nothing each one ran`);
-  for (const n of held) out.push(`     Unchanged ${n}\n${greenOf(r.store, n)?.result ?? ""}`);
+  for (const n of held) out.push(`     Unchanged ${n}\n${testGreen(r.store, n)?.result ?? ""}`);
   for (const n of [...results.keys()].sort()) if (!names.has(n)) out.push(`     Running ${n}\n${results.get(n)![2]}`);
   for (const j of failed) out.push(`     Running ${j.name}  -- FAILED, exit ${results.get(j.name)![1]}\n${results.get(j.name)![2]}`);
   for (const j of failed) out.push(alone.get(j.name) ? RERUN_ALONE_PASSED(j.name) : `error: \`${j.name}\` failed, alone as well; \`${j.rerun}\` runs it again.`);
@@ -575,13 +553,6 @@ async function runCases(r: Run, s: Step): Promise<[number, string]> {
 
 // ---- the tools' own gate ---------------------------------------------------------------------------
 
-/** `tsc` over the tools, the `nv` step's own atom. */
-const NV_TSC = "step:nv";
-const TSC = join(ROOT, "node_modules", "typescript", "bin", "tsc");
-/** What `tsc` reads besides the modules under `tools/nv`. */
-const TSC_INPUTS = ["package.json", "bun.lock", "tsconfig.json", "bunfig.toml"];
-const BUN_TEST_RE = /^\s*(\d+) pass\s*$[\s\S]*?^\s*(\d+) fail\s*$/m;
-
 /** The `bun test` files this run runs, repo-relative. */
 function nvTestsToRun(r: Run): string[] {
   const files = nvTestFiles();
@@ -590,47 +561,30 @@ function nvTestsToRun(r: Run): string[] {
 
 /**
  * The `nv` step: `tsc` when the change reaches what it reads, then each selected `bun test` file in a
- * process of its own, a few at a time, each recorded as its own atom (`nvtest:<file>`): what it read
- * through `lib/reads-preload.ts`, the modules it loaded, and any `nvs` it ran. So a test file that
- * starts `git` holds the whole tree alone, and the rest are selected by what each one read. A red `tsc`
+ * process of its own, a few at a time, each recorded as its own atom (`select/nvtests.ts`). A red `tsc`
  * stops the step before any test runs.
  */
 async function runSelftest(r: Run, s: Step): Promise<[number, string]> {
   const out: string[] = [];
   if (picked(r, NV_TSC)) {
     stepDetail(s.name, "tsc");
-    const [code, text] = await spawnOut([process.execPath, TSC, "--noEmit", "-p", "tsconfig.json"], ROOT, undefined, undefined, true);
-    const keys: Keyed = new Map([["tree:tools/nv", ""]]);
-    for (const f of TSC_INPUTS) maybe(keys, f);
-    r.store.recordRun(NV_TSC, { def: digest("tsc --noEmit -p tsconfig.json"), verdict: code === 0 ? "green" : "red", keys });
+    const t = await runTsc(r.rec);
     r.ran.add(NV_TSC);
-    if (code !== 0) return [1, `${text}\nnv selftest: tsc failed with exit ${code}`];
+    if (t.verdict === "red") return [1, `${t.out}\nnv selftest: tsc failed with exit ${t.code}`];
     out.push("nv selftest: the types check");
   } else out.push("nv selftest: the types check (the change reaches nothing tsc reads)");
   const files = nvTestsToRun(r);
-  const nvs = covwsNvs();
   let passed = 0;
   let failed = 0;
   let done = 0;
   const reds: string[] = [];
   const width = Math.max(1, Math.min(4, Math.floor((cpus().length || 4) / 4)));
   await pool(files, width, async (file) => {
-    const id = nvTestId(file);
-    const name = recordName(id);
-    const log = join(r.rec.dir, `${name}.reads`);
-    rmSync(log, { force: true });
-    const [code, text] = await spawnOut([process.execPath, "test", "--preload", "./tools/nv/lib/reads-preload.ts", file], ROOT, { ...r.rec.env(name), NV_READS_LOG: log, NO_COLOR: "1" }, undefined, true);
-    const keys = nvKeys(log);
-    rmSync(log, { force: true });
-    for (const [k, d] of (await r.rec.keysOf(name, [nvs]))?.keys ?? []) keys.set(k, d);
-    keys.set(`file:${file}`, "");
-    const m = BUN_TEST_RE.exec(text);
-    passed += Number(m?.[1] ?? 0);
-    failed += Number(m?.[2] ?? 0);
-    const verdict: Verdict = code === 0 && m !== null ? "green" : "red";
-    if (verdict === "red") reds.push(`-- ${file}: exit ${code}\n${text}`);
-    r.store.recordRun(id, { def: fileDef(file), verdict, keys });
-    r.ran.add(id);
+    const t = await runNvTest(r.rec, file);
+    passed += t.passed;
+    failed += t.failed;
+    if (t.verdict === "red") reds.push(`-- ${file}: exit ${t.code}\n${t.out}`);
+    r.ran.add(nvTestId(file));
     stepDetail(s.name, `${++done}/${files.length} test files`);
   });
   const all = nvTestFiles().length;
@@ -1317,36 +1271,6 @@ export async function verifyPlan(graph: Graph | null): Promise<{ steps: string[]
   }
 }
 
-/**
- * The checks `nv verify`'s test runs answer over the tree as it stands: a `cargo test` check of that
- * shape whose every binary is green in the store and not selected by the change since the store's tree,
- * with every test the check names among the lines its last green run printed. Verify's run has already
- * paid for these, so the loop's sweep takes them as green instead of running the binaries a second time.
- */
-export async function verifiedByStore(graph: Graph): Promise<(c: { kind: string; args?: string[]; tests?: string[] }) => boolean> {
-  const store = new SelectStore();
-  let sel: Selection | null = null;
-  try {
-    if (store.base() !== null) sel = query(store, await computeChange(store, { graph }));
-  } catch {
-    sel = null;
-  }
-  return (c) => {
-    const args = c.args ?? [];
-    if (sel === null || c.kind !== "cargo-named" || subsetRun(args) === null) return false;
-    const names = testTargets(graph, args)?.names ?? [];
-    if (names.length === 0) return false;
-    const lines: string[] = [];
-    for (const n of names) {
-      const atom = store.atom(`test:${n}`);
-      const green = greenOf(store, n);
-      if (!atom || atom.verdict !== "green" || sel.selected.has(`test:${n}`) || green === null) return false;
-      lines.push(...(green.tests ?? []));
-    }
-    const text = lines.join("\n");
-    return (c.tests ?? []).every((t) => text.includes(t));
-  };
-}
 
 const USAGE = ["usage: nv verify [-h] [-p PACKAGE] [--fast] [--doc] [--full] [--no-cache]", "                 [--start] [--wait] [--list]"].join("\n");
 

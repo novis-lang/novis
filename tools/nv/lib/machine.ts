@@ -41,7 +41,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT } from "./paths.ts";
 
-/** Under `.loop/`, beside the sweep's memo: git-ignored, per clone, and never pruned. */
+/** Under `.loop/`: git-ignored, per clone, and never pruned. */
 export const CACHE_FILE = join(ROOT, ".loop", "machine.json");
 
 /** The cache format. Bumped when a probe learns a new field the width depends on. */

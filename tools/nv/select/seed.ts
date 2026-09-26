@@ -18,7 +18,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { cpus } from "node:os";
 import { join } from "node:path";
-import { goalPlan } from "../lib/chain.ts";
+import { currentPlan } from "../lib/chain.ts";
 import { buildCovws } from "../lib/covws.ts";
 import { metadata } from "../keys/graph.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -28,7 +28,8 @@ import type { TestExe } from "../driver/accept.ts";
 import { namedBinary, RECORD_ENV, recordName, runPrograms } from "../proofs/run.ts";
 import { caseFiles, caseId, nvDef, nvId, proofDef, proofId, proofPrograms, testId } from "./atoms.ts";
 import { type Extracted, recordedIn } from "./extract.ts";
-import { readsKeys, testsKey } from "./keys.ts";
+import { allowedWide } from "../keys/escape.ts";
+import { readsKeys, testsKey, WILD } from "./keys.ts";
 import { advance, chunks, fullChange, pool, Recorder, recordCases } from "./record.ts";
 import { type AtomKind, type Keyed, type SelectStore, type Verdict } from "./store.ts";
 
@@ -191,31 +192,35 @@ async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[]): Promise
     const p = await run([t.exe], { cwd: t.dir, env, timeoutMs: 3_600_000, reap: true });
     const ext = await ctx.r.keysOf(name, [t.exe, ctx.nvs]);
     const verdict: Verdict = p.code === 0 && ext ? "green" : "red";
-    ctx.r.record(id, "", verdict, testKeys(pkg, ext));
+    ctx.r.record(id, "", verdict, testKeys(pkg, ext, id.slice(5)));
     ctx.tally("test", verdict, ext);
     ctx.say(`select: test binaries ${++done}/${exes.length}${verdict === "red" ? ` (${id} red)` : ""}`);
   });
 }
 
+let wide: Set<string> | null = null;
+
 /** A test binary's footprint: what it ran, and `tests:<package>`. A test added to its package cannot be
  * in any footprint yet, so every binary of the package holds that key, which an added test moves; a
- * binary that ran no instrumented code holds only this one. */
-export function testKeys(pkg: string, ext: Extracted | null): Keyed {
+ * binary that ran no instrumented code holds only this one. A binary `tools/data/impact-wide.txt` lists
+ * opens files nothing records (`keys/escape.ts`), so it also holds `*`, which every change moves. */
+export function testKeys(pkg: string, ext: Extracted | null, name?: string): Keyed {
   const keys: Keyed = new Map(ext?.keys ?? []);
   keys.set(testsKey(pkg), "");
+  wide ??= allowedWide();
+  if (name !== undefined && wide.has(name)) keys.set(WILD, "");
   return keys;
 }
 
-/** The `bun nv` command checks of the live plan a seed runs. */
+/** The `bun nv` command checks a seed runs: the side goal's plan when `NOVIS_SIDE_GOAL` names one, else
+ * the live goal's. */
 export function nvChecks(root: string = ROOT): { id: string; argv: string[]; cwd: string }[] {
-  let live: string | null = null;
+  let checks: { id: string; kind: string; argv?: string[]; cwd?: string }[];
   try {
-    live = (JSON.parse(readFileSync(join(root, "data", "chain.json"), "utf8")) as { live: string | null }).live;
+    checks = (currentPlan(root)?.goal.checks ?? []) as typeof checks;
   } catch {
     return [];
   }
-  if (!live) return [];
-  const checks = (goalPlan(live, root)?.checks ?? []) as { id: string; kind: string; argv?: string[]; cwd?: string }[];
   return checks
     .filter((c) => c.kind === "command" && (c.argv ?? []).slice(0, 2).join(" ") === "bun nv" && seedable(c.argv!))
     .map((c) => ({ id: c.id, argv: c.argv!, cwd: c.cwd ?? "." }));

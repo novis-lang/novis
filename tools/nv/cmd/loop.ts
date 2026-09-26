@@ -11,34 +11,40 @@
 // A check with no name of its own is named by its `file`, so `--name` reaches a fixture's check too.
 //
 // `bun nv loop --goal` prints the goal table `[g]` prints, one row per stage, without a run. Its results
-// are the checks the memo `.loop/accept-green.json` holds green, by id, as the status row's are, and its
-// session number is `.loop/run.json`'s `index`. No session runs under this command, so the table's last
+// are the checks whose atoms the selection store last recorded green (`driver/runner.ts` `lastGreen`),
+// as the status row's are, and its session number is `.loop/run.json`'s `index`. No session runs under
+// this command, so the table's last
 // line names none. The table is as wide as the terminal, or 100
 // columns when the output is not one, and it draws its lines in box-drawing characters on Windows and
 // under a UTF-8 locale.
 //
 // `bun nv loop --run` takes the same three filters, at least one of them, and runs each check they
-// select once, through `driver/accept.ts`'s `Sweep`. It prints one line per check, `ok`, `FAIL` with the
+// select once, every atom of it, through `driver/runner.ts`'s `PlanSweep`, recording each run. It prints
+// one line per check, `ok`, `FAIL` with the
 // line the ledger would quote, or `SHORT` for a suite below its `minPassing`, then `run: N green, M red`.
 // What each process is doing goes to stderr as it starts. A session proves its own check this way, one
 // command at a time, rather than by starting a sweep. It and every sweep below hold `driver/origin.ts`'s
 // listener up while their checks run, since `examples/http.nvs` talks to it. Every sweep below first takes
 // `driver/sweep-lock.ts`'s lock, so one tree on this machine sweeps at a time; `--run` does not take it.
 //
-// `bun nv loop --goal-only` is the acceptance sweep, `driver/accept.ts`'s `acceptance`: every check in
-// the tiers' order, the memo `.loop/accept-green.json` answering each check still green over its inputs,
-// and a stop at the first red. It ends on `NOT GREEN: <the red check's line>` or `GOAL REACHED`. `--full`
-// consults no memo, and `--collect` runs past every red and names each one after the first on an
-// `also red:` line. The three filters narrow it to the checks they select, and a narrowed sweep that
-// passes ends on `GREEN` instead, since it has not asked the whole plan. A check's key is `nv why`'s,
-// taken over the tree as the sweep begins.
+// `bun nv loop --goal-only` is the acceptance sweep, `driver/accept.ts`'s `acceptance` over
+// `driver/runner.ts`'s `PlanSweep`: the change since the selection store's tree is read once, and a
+// check is started only when the change reaches one of its atoms (`select/checks.ts`), each check in the
+// tiers' order, with a stop at the first red. A check the change does not reach prints nothing, and the
+// sweep says how many there were. It ends on `NOT GREEN: <the red check's line>` or `GOAL REACHED`.
+// `--full` reaches every atom of every check, and `--collect` runs past every red and names each one
+// after the first on an `also red:` line. `--gate-shut` is a turn's sweep in nine of ten: the heavy
+// checks and the Linux legs are held, a held check the change reached is owed, and a green sweep ends
+// on `GREEN` rather than `GOAL REACHED`. The three filters narrow it to the checks they select, and a
+// narrowed sweep that passes ends on `GREEN` instead, since it has not asked the whole plan. Every sweep
+// records what it ran, and moves the store's tree past the change, green or red.
 //
-// `bun nv loop --owed` names the carried checks, the stages whose label says `floor`, that the memo does
-// not answer for the tree as it stands, and runs nothing. A change made outside a run stales the checks
-// that read what it touched, and `tools/git-hooks/pre-push` refuses a push while this names one. The
-// goal's own checks and a `memoize = false` check are never owed. `bun nv loop --settle` is the sweep over
-// the carried checks alone, memo consulted and every red collected, so it runs what `--owed` names and
-// ends on `SETTLED` or `NOT GREEN`.
+// `bun nv loop --owed` names the carried checks, the stages whose label says `floor`, that the change
+// since the store's tree reaches, and runs nothing: a check whose atom is new, red or owed, or holds a key
+// the change moved. A change made outside a run reaches the checks that read what it touched, and
+// `tools/git-hooks/pre-push` refuses a push while this names one. The goal's own checks and a
+// `memoize = false` check are never owed. `bun nv loop --settle` is the sweep over the carried checks
+// alone, every red collected, so it runs what `--owed` names and ends on `SETTLED` or `NOT GREEN`.
 //
 // `bun nv loop` with none of those modes is the run. Started by hand, with no `NOVIS_LOOP_RUN`, it is
 // `driver/respawn.ts`: it names the run and starts one turn after another, each its own process. A turn
@@ -77,11 +83,11 @@
 // overloaded, or the CLI failed is swept and run again inside the same turn, and one whose stream dropped
 // is rejoined with `claude --resume`: `driver/sweep.ts` says how and how often.
 //
-// The acceptance sweep behind it is every check in the plan, carried or the goal's own, with the memo
-// answering each whose key did not move, so what runs is what the session's change reached. The heavy
-// checks (`accept.ts`'s `isHeavy`: the release profile, fuzz, TSan, the database matrix and the checks
-// never memoized) and the Linux legs are held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in
-// `.loop/accept-floor.json`). A scoped sweep that is green with checks held runs again over the whole
+// The acceptance sweep behind it is every check in the plan, carried or the goal's own, and what starts
+// is what the session's change reached. The heavy checks (`accept.ts`'s `isHeavy`: the release profile,
+// fuzz, TSan, the database matrix and the checks never memoized) and the Linux legs are held in nine
+// turns of ten (`FLOOR_GATE_EVERY`, counted in the store as `floor-gate:since`), and a heavy check a held
+// sweep reached is owed until the gate opens. A scoped sweep that is green with checks held runs again over the whole
 // plan, collecting every red, since a goal is never reached on a held check. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
 // would reach the goal also runs the goal-end gates, rustdoc and owner, and a goal is reached only when
 // the sweep and both gates are green. Then `advance` makes the next goal on the chain live, commits
@@ -140,28 +146,23 @@ import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin, type Origin } from "../driver/origin.ts";
 import { takeSweepLock } from "../driver/sweep-lock.ts";
-import { type AcceptanceResult, type Check, GreenMemo, PROGRAM_KINDS, Sweep, acceptance, allReds, isCarried, isHeavy, owedChecks, tiers } from "../driver/accept.ts";
+import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, isCarried, isHeavy, owedChecks, tiers } from "../driver/accept.ts";
 import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
+import { lastGreen, PlanSweep } from "../driver/runner.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
-import { checkName, LEGS, loadRecords, units } from "../keys/checks.ts";
-import { metadata } from "../keys/graph.ts";
-import { keyOf } from "../keys/key.ts";
-import { Tree } from "../keys/tree.ts";
-import { verifiedByStore } from "./verify.ts";
+import { SelectStore } from "../select/store.ts";
 
-export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
+export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
 const RUN = ".loop/run.json";
-/** The memo of green verdicts every sweep reads and writes. */
-const GREEN = ".loop/accept-green.json";
 
 const USAGE =
-  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
+  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
-/** Turns since the sweep last ran the heavy checks and the Linux legs. */
-const FLOOR_GATE = ".loop/accept-floor.json";
+/** Turns since the sweep last ran the heavy checks and the Linux legs, in the selection store's `meta`. */
+const FLOOR_META = "floor-gate:since";
 /**
  * One sweep in this many runs the heavy checks and the Linux legs. A regression only they see waits at
  * most this many sessions to be named; every other check runs in the sweep after the change that reached it.
@@ -174,14 +175,16 @@ interface Filters {
   feature?: string;
   full?: boolean;
   collect?: boolean;
+  /** `--gate-shut`: hold the heavy checks and the legs, as a turn does in nine of ten. */
+  shut?: boolean;
 }
 
 function parse(args: string[]): Filters | null {
   const out: Filters = {};
   for (let i = 1; i < args.length; i += 2) {
     const flag = args[i]!;
-    if (args[0] === "--goal-only" && (flag === "--full" || flag === "--collect")) {
-      out[flag === "--full" ? "full" : "collect"] = true;
+    if (args[0] === "--goal-only" && (flag === "--full" || flag === "--collect" || flag === "--gate-shut")) {
+      out[flag === "--full" ? "full" : flag === "--collect" ? "collect" : "shut"] = true;
       i--;
       continue;
     }
@@ -284,20 +287,12 @@ function jsonObject(path: string): Record<string, unknown> {
   }
 }
 
-/** Every check the memo holds a green verdict for, by id: what the status row and the goal table start from. */
-function memoGreen(): Results {
-  const results: Results = new Map();
-  const green = jsonObject(GREEN).green;
-  if (typeof green === "object" && green !== null) for (const id of Object.keys(green)) results.set(id, true);
-  return results;
-}
-
-function goalView(): number {
+async function goalView(): Promise<number> {
   const found = livePlan();
   if (found === null) return 2;
   const { live, goal, total } = found;
   const plan = { slug: live.slug, stages: goal.stages, checks: goal.checks as Check[] };
-  const results = memoGreen();
+  const results: Results = await lastGreen(plan.checks);
   const session = new Session(plan, results);
   session.begin(Number(jsonObject(RUN).index ?? 0) || 0);
   const locale = process.env.LC_ALL || process.env.LC_CTYPE || process.env.LANG || "";
@@ -351,7 +346,8 @@ function list(filters: Filters): number {
   return 0;
 }
 
-/** Runs the checks the filters select, once each and in the sweep's tiers, and prints one verdict a line. */
+/** Runs the checks the filters select, once each, every atom of each, in the sweep's tiers, and prints
+ * one verdict a line. Every run records, and the store's tree moves past the change as after a sweep. */
 async function runChecks(filters: Filters): Promise<number> {
   if (filters.stage === undefined && filters.name === undefined && filters.feature === undefined) {
     console.error("nv loop: --run needs --stage, --name or --feature; the whole plan is the acceptance sweep's to run");
@@ -359,9 +355,9 @@ async function runChecks(filters: Filters): Promise<number> {
   }
   const found = selected(filters);
   if (found === null) return 2;
-  const { shown, labelOf } = found;
+  const { goal, shown, labelOf } = found;
   const order = tiers(shown, labelOf).flatMap((t) => t.checks);
-  const sweep = new Sweep({ stageLabel: labelOf, onRun: (what) => console.error(`  .. ${what}`) });
+  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: true, onRun: (what) => console.error(`  .. ${what}`), say: (l) => console.error(`  ${l}`) });
   sweep.batch(order);
   let red = 0;
   const origin = await holdOrigin();
@@ -376,58 +372,16 @@ async function runChecks(filters: Filters): Promise<number> {
     }
   } finally {
     origin.close();
+    sweep.close();
   }
   console.log(`run: ${order.length - red} green, ${red} red, of ${order.length} ${order.length === 1 ? "check" : "checks"}`);
   return red === 0 ? 0 : 1;
 }
 
-/**
- * Each selected check's key over `tree`, by check id. The keys are `nv why`'s units, read from the same
- * plan, so a unit is paired with the goal's check at the same position. A plan the two read differently
- * keys nothing, and every check runs.
- */
-async function checkKeys(goal: Goal, shown: Check[]): Promise<Keyed | string> {
-  const graph = await metadata();
-  if (!graph) return "`cargo metadata` failed, and every key needs the graph";
-  const tree = await Tree.read();
-  const records = loadRecords(graph);
-  const all = goal.checks as Check[];
-  const keys = new Map<string, string | null>();
-  const verified = new Set<string>();
-  if (records.checks.length !== all.length || records.checks.some((raw, i) => checkName(raw) !== checkName(all[i]! as unknown as typeof raw))) {
-    console.error("nv loop: the keys read the plan differently from the goal record, so the memo answers nothing this sweep");
-    return { keys, tree, verified };
-  }
-  const all_units = units(records);
-  const unitOf = new Map(all_units.flatMap((u) => (u.check === undefined ? [] : [[u.check, u] as const])));
-  const at = new Map(all.map((c, i) => [c.id, records.checks[i]!]));
-  const keyed = (u: (typeof all_units)[number] | undefined): string | null => {
-    try {
-      return u === undefined ? null : keyOf(u.name, u.parts(tree));
-    } catch {
-      return null;
-    }
-  };
-  for (const c of shown) keys.set(c.id, keyed(unitOf.get(at.get(c.id)!)));
-  // Each leg is keyed under its own name, which no check id can be, since an id has no space.
-  for (const leg of LEGS) keys.set(leg, keyed(all_units.find((u) => u.role === "leg" && u.name === leg)));
-  const byRecord = await verifiedByStore(graph);
-  for (const c of shown) if (keys.get(c.id) != null && byRecord(c)) verified.add(c.id);
-  return { keys, tree, verified };
-}
-
-/** Each check's key by id, the tree they were read over, and the checks `nv verify`'s last test run
- * answers green over that tree. */
-interface Keyed {
-  keys: Map<string, string | null>;
-  tree: Tree;
-  verified: Set<string>;
-}
-
-/** How a sweep reports itself: each process as it starts, each check as it is reached, and any other line. The Linux legs' steps are counted before the sweep starts, then the legs say when they begin and each step they finish. */
+/** How a sweep reports itself: each process as it starts, each check the change reaches as it starts, and any other line. The Linux legs' steps are counted before the sweep starts, then the legs say when they begin and each step they finish. */
 interface Progress {
   run: (what: string) => void;
-  trace: (c: Check, answered: boolean) => void;
+  trace: (c: Check) => void;
   note: (text: string) => void;
   count: (steps: number) => void;
   plan: (steps: number) => void;
@@ -435,39 +389,37 @@ interface Progress {
 }
 
 /**
- * One acceptance sweep over `checks`, with the memo read before it and written after it. `onDone` is
- * called with each check the memo answers green once the sweep ends, which is how a caller learns the
- * verdicts without a second run.
+ * One acceptance sweep over `checks`, on the selection store: the change since its tree is read once,
+ * only the checks it reaches start, every run records, and the store's tree moves past the change when
+ * the sweep ends, green or red. `onDone` is called with each check's verdict once the sweep ends, which
+ * is how a caller learns them without a second run.
  */
 async function sweepOver(
   goal: Goal,
   checks: Check[],
   labelOf: (n: number) => string,
-  keyed: Keyed,
   o: { full: boolean; collect: boolean; legs?: boolean; gateOpen?: boolean; onDone?: (c: Check, green: boolean) => void; progress?: Progress },
-): Promise<{ result: AcceptanceResult; secs: number }> {
-  const memo = GreenMemo.load(join(ROOT, GREEN));
-  const key = (c: Check) => keyed.keys.get(c.id) ?? null;
-  // A test check `nv verify` has just run green over these inputs is green here too, and is not run twice.
-  let taken = 0;
-  if (!o.full) {
-    for (const c of checks) {
-      if (!keyed.verified.has(c.id) || memo.answers(c, key(c))) continue;
-      memo.remember(c, key(c));
-      taken++;
-    }
-  }
+): Promise<{ result: AcceptanceResult; secs: number; owed: number }> {
   const started = Date.now();
   const p: Progress = o.progress ?? {
     run: (what) => console.error(`  .. ${what}`),
-    trace: (c, answered) => console.error(`  ${answered ? "memo" : "check"} ${nameOf(c)} [${labelOf(c.stage)}]`),
+    trace: (c) => console.error(`  check ${nameOf(c)} [${labelOf(c.stage)}]`),
     note: (text) => console.error(`  ${text}`),
     count: () => {},
     plan: () => {},
     step: () => {},
   };
-  if (taken > 0) p.note(`${taken} test check(s) taken from \`nv verify\`'s run over these inputs`);
-  const sweep = new Sweep({ stageLabel: labelOf, onRun: p.run });
+  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: o.full, onRun: p.run, say: p.note });
+  const reachedOf = new Map<string, boolean>();
+  const reached = (c: Check) => {
+    let r = reachedOf.get(c.id);
+    if (r === undefined) reachedOf.set(c.id, (r = sweep.reached(c)));
+    return r;
+  };
+  const n = checks.filter(reached).length;
+  const c = sweep.change;
+  const since = c.full ? (c.global ?? "everything") : `${c.changes.length} path(s) changed since the recorded tree`;
+  p.note(`${since}; ${n} of ${checks.length} check(s) reached, the other ${checks.length - n} not started`);
   // The two Linux legs, over the fixtures and suites this sweep reaches, run after its tiers.
   const legs: LegsOptions = {
     programs: checks.filter((c) => PROGRAM_KINDS.has(c.kind)),
@@ -479,24 +431,28 @@ async function sweepOver(
     valgrindSkip: goal.env.valgrind?.skip ?? [],
     wslTarget: goal.env.wsl?.targetDir ?? null,
     gateOpen: o.gateOpen ?? false,
-    memo,
-    key: (leg) => keyed.keys.get(leg) ?? null,
-    full: o.full,
+    reached: (leg) => o.full || sweep.legReached(leg),
+    onGreen: (leg) => sweep.legGreen(leg),
+    onRed: (leg) => sweep.legRed(leg),
     label: labelOf,
     onRun: p.run,
     onPlan: p.plan,
     onStep: p.step,
   };
+  // The legs run only with the floor gate open; a leg the change reached with the gate shut is owed.
+  const runLegs = o.legs === true && o.gateOpen === true;
   // Another tree's sweep would share the origin, the distro and the cores with this one. The time spent
   // waiting for it is not this sweep's cost.
   const asked = Date.now();
   const lock = await takeSweepLock({ note: p.note });
   const waited = Date.now() - asked;
   let result: AcceptanceResult;
+  let owed = 0;
   let origin: Origin | null = null;
   try {
-    if (o.legs) {
+    if (runLegs) {
       p.count(legSteps(legs));
+      p.note("the Linux legs run `nvs` where nothing records a footprint: they keep the floor gate's cadence, keyed on what nvs-cli builds and the fixture trees");
       startWslBuild(legs);
     }
     origin = await holdOrigin();
@@ -504,64 +460,62 @@ async function sweepOver(
     result = await acceptance(checks, {
       label: labelOf,
       sweep,
-      key,
-      memo,
-      full: o.full,
+      reached,
+      judged: (x) => sweep.judged(x),
       collect: o.collect,
       trace: p.trace,
     });
     // A sweep that stopped at a red check stops here too, as it would have at any later tier.
-    if (o.legs && (result.fail === "" || o.collect)) {
+    if (runLegs && (result.fail === "" || o.collect)) {
       const red = await linuxLegs(legs);
       if (red) result = { ...result, fail: result.fail ? allReds([result.fail, red]) : red };
     }
   } finally {
     origin?.close();
     lock.release();
-    memo.save(join(ROOT, GREEN), new Set([...(goal.checks as Check[]).map((c) => c.id), ...LEGS]));
-    keyed.tree.save();
+    owed = sweep.close().owed;
   }
-  for (const c of checks) o.onDone?.(c, memo.answers(c, key(c)));
-  return { result, secs: Math.round((Date.now() - started - waited) / 1000) };
+  for (const x of checks) o.onDone?.(x, result.verdicts.get(x.id) ?? false);
+  return { result, secs: Math.round((Date.now() - started - waited) / 1000), owed };
 }
 
 /** The acceptance sweep over the checks the filters select, or over the whole plan. */
 async function goalOnly(filters: Filters): Promise<number> {
   const found = selected(filters);
   if (found === null) return 2;
-  const { goal, shown, labelOf } = found;
+  const { goal, labelOf } = found;
   const narrowed = filters.stage !== undefined || filters.name !== undefined || filters.feature !== undefined;
-  const keyed = await checkKeys(goal, shown);
-  if (typeof keyed === "string") {
-    console.error(`nv loop: ${keyed}`);
-    return 2;
-  }
-  console.log(`running the acceptance sweep over ${shown.length} ${shown.length === 1 ? "check" : "checks"}${filters.full ? " (full: no memo)" : ""}${filters.collect ? " (collecting every red)" : ""}`);
+  // `--gate-shut` is a turn's sweep in nine of ten: the heavy checks and the legs are held, and owed.
+  const shown = filters.shut ? found.shown.filter((c) => !isHeavy(c)) : found.shown;
+  const held = found.shown.length - shown.length;
+  console.log(`running the acceptance sweep over ${shown.length} ${shown.length === 1 ? "check" : "checks"}${filters.full ? " (full: every atom)" : ""}${filters.collect ? " (collecting every red)" : ""}${filters.shut ? ` (floor gate shut: ${held} heavy check(s) and the Linux legs held)` : ""}`);
   // The whole plan is a sweep with the floor gate open, and it runs both legs; a narrowed one runs neither.
-  const { result, secs } = await sweepOver(goal, shown, labelOf, keyed, { full: filters.full === true, collect: filters.collect === true, legs: !narrowed, gateOpen: !narrowed });
-  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} answered by the memo, of ${shown.length}`);
+  const open = !narrowed && !filters.shut;
+  const { result, secs } = await sweepOver(goal, shown, labelOf, { full: filters.full === true, collect: filters.collect === true, legs: open, gateOpen: open });
+  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} not reached by the change, of ${shown.length}`);
   if (result.fail !== "") {
     console.log(`NOT GREEN: ${result.fail}`);
     return 1;
   }
   if (narrowed) console.log("GREEN: every check the filters select passes");
+  else if (filters.shut) console.log("GREEN: every check but the heavy ones passes; the floor gate has still to run those and the Linux legs");
   else console.log("GOAL REACHED: every acceptance check passes, the WSL leg and the valgrind sweep with them");
   return 0;
 }
 
-/** `--owed`: names the carried checks the memo does not answer for the tree as it stands, and runs nothing. */
+/** `--owed`: names the carried checks the change since the store's tree reaches, and runs nothing. */
 async function owed(): Promise<number> {
   const found = selected({});
   if (found === null) return 2;
   const { goal, labelOf } = found;
   const carried = (goal.checks as Check[]).filter((c) => isCarried(labelOf(c.stage)));
-  const keyed = await checkKeys(goal, carried);
-  if (typeof keyed === "string") {
-    console.log(`owed: ${keyed}, so every carried check is owed`);
-    return 1;
+  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: false });
+  let names: string[];
+  try {
+    names = owedChecks(carried, labelOf, (c) => sweep.reached(c)).map(nameOf);
+  } finally {
+    sweep.discard();
   }
-  const memo = GreenMemo.load(join(ROOT, GREEN));
-  const names = owedChecks(carried, labelOf, memo, (c) => keyed.keys.get(c.id) ?? null).map(nameOf);
   if (names.length === 0) {
     console.log("owed: nothing -- every carried check is green over this tree");
     return 0;
@@ -572,20 +526,15 @@ async function owed(): Promise<number> {
   return 1;
 }
 
-/** `--settle`: the carried checks alone, memo consulted and every red collected, so it runs what `--owed` names. */
+/** `--settle`: the carried checks alone, only the ones the change reaches started and every red collected, so it runs what `--owed` names. */
 async function settle(): Promise<number> {
   const found = selected({});
   if (found === null) return 2;
   const { goal, labelOf } = found;
   const carried = (goal.checks as Check[]).filter((c) => isCarried(labelOf(c.stage)));
-  const keyed = await checkKeys(goal, carried);
-  if (typeof keyed === "string") {
-    console.error(`nv loop: ${keyed}`);
-    return 2;
-  }
   console.log(`running the carried floor, ${carried.length} ${carried.length === 1 ? "check" : "checks"} (collecting every red)`);
-  const { result, secs } = await sweepOver(goal, carried, labelOf, keyed, { full: false, collect: true });
-  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} answered by the memo, of ${carried.length}`);
+  const { result, secs } = await sweepOver(goal, carried, labelOf, { full: false, collect: true });
+  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} not reached by the change, of ${carried.length}`);
   if (result.fail !== "") {
     console.log(`NOT GREEN: ${result.fail}`);
     return 1;
@@ -595,9 +544,9 @@ async function settle(): Promise<number> {
 }
 
 /**
- * The sweep over the live plan's checks whose ids are in `ids`, memo consulted and every red collected:
- * what `nv affected --run` runs once it has chosen them. Exits 0 when every one is green, 1 when one is
- * red, and 2 when there is no plan or no key.
+ * The sweep over the plan's checks whose ids are in `ids`, every red collected: what `nv affected --run`
+ * runs once it has chosen them. Exits 0 when every one is green, 1 when one is red, and 2 when there is
+ * no plan.
  */
 export async function sweepIds(ids: Set<string>): Promise<number> {
   const found = selected({});
@@ -605,14 +554,9 @@ export async function sweepIds(ids: Set<string>): Promise<number> {
   const { goal, labelOf } = found;
   const chosen = (goal.checks as Check[]).filter((c) => ids.has(c.id));
   if (chosen.length === 0) return 0;
-  const keyed = await checkKeys(goal, chosen);
-  if (typeof keyed === "string") {
-    console.error(`nv loop: ${keyed}`);
-    return 2;
-  }
   console.log(`running ${chosen.length} acceptance ${chosen.length === 1 ? "check" : "checks"} (collecting every red)`);
-  const { result, secs } = await sweepOver(goal, chosen, labelOf, keyed, { full: false, collect: true });
-  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} answered by the memo, of ${chosen.length}`);
+  const { result, secs } = await sweepOver(goal, chosen, labelOf, { full: false, collect: true });
+  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} not reached by the change, of ${chosen.length}`);
   if (result.fail !== "") {
     console.log(`NOT GREEN: ${result.fail}`);
     return 1;
@@ -870,10 +814,25 @@ function standIn(): string[] | null {
   return words.length > 0 ? words : null;
 }
 
-/** Turns since the floor gate last opened; an unreadable file opens it, the safe direction. */
+/** Turns since the floor gate last opened; a store that holds no count opens it, the safe direction. */
 function floorSince(): number {
-  const since = Number(jsonObject(FLOOR_GATE).since);
-  return Number.isInteger(since) && since >= 0 ? since : FLOOR_GATE_EVERY;
+  const store = new SelectStore();
+  try {
+    const raw = store.meta(FLOOR_META);
+    const since = raw === null ? NaN : Number(raw);
+    return Number.isInteger(since) && since >= 0 ? since : FLOOR_GATE_EVERY;
+  } finally {
+    store.close();
+  }
+}
+
+function setFloorSince(since: number): void {
+  const store = new SelectStore();
+  try {
+    store.setMeta(FLOOR_META, String(since));
+  } finally {
+    store.close();
+  }
 }
 
 /**
@@ -983,7 +942,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   }
   const checks = goal.checks as Check[];
   const plan = { slug: live.slug, stages: goal.stages, checks };
-  const results = memoGreen();
+  const results: Results = await lastGreen(checks);
 
   const session = new Session(plan, results);
   // The status line is the goal's row. Between sessions its last field is the driver's phase. The
@@ -1225,12 +1184,10 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   const again = selected({});
   if (again === null) return end("chain-error", "the goal's plan did not read after the session; `bun nv check` and `bun nv chain --check` say why");
   const all = again.goal.checks as Check[];
-  const keyed = await checkKeys(again.goal, all);
-  if (typeof keyed === "string") return end("chain-error", keyed);
   const since = floorSince() + 1;
   let open = since >= FLOOR_GATE_EVERY;
-  // Every check but a heavy one: the memo answers each whose key did not move, so what runs is what this
-  // session's change reached, carried or the goal's own, and what was owed before it.
+  // Every check but a heavy one: what starts is what this session's change reached, carried or the
+  // goal's own, and what was owed before it.
   const heldBack = open ? [] : all.filter(isHeavy);
   const scoped = all.filter((c) => !heldBack.includes(c));
   step(`acceptance check: every check a change reached${open ? ", the heavy ones and the Linux legs with them" : ` (heavy checks and the Linux legs held, 1 session in ${FLOOR_GATE_EVERY})`}`, C.CYAN);
@@ -1240,8 +1197,8 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   TICKER.set({ phase: "acceptance sweep", total: scoped.length, done: 0 });
   // Every red is collected: a carried check that went red must not keep the goal's own checks behind it
   // from being judged.
-  let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, keyed, { full: false, collect: true, legs: true, gateOpen: open, onDone, progress });
-  let cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
+  let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, { full: false, collect: true, legs: true, gateOpen: open, onDone, progress });
+  let cost = `${secs}s over ${result.ran} check(s), ${result.answered} not reached`;
   // Only a sweep that would reach the goal pays for the two goal-end gates. They ask about the goal's own
   // work, which the scoped sweep has just passed, so they run on the gate-open sweep red or green, and one
   // session sees every finding.
@@ -1252,10 +1209,10 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     open = true;
     reaching = true;
     TICKER.set({ phase: "acceptance sweep, floor gate open", total: all.length, done: 0 });
-    ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, keyed, { full: false, collect: true, legs: true, gateOpen: true, onDone, progress }));
-    cost = `${secs}s over ${result.ran} check(s), ${result.answered} remembered`;
+    ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, { full: false, collect: true, legs: true, gateOpen: true, onDone, progress }));
+    cost = `${secs}s over ${result.ran} check(s), ${result.answered} not reached`;
   }
-  writeFileSync(join(ROOT, FLOOR_GATE), `${JSON.stringify({ since: open ? 0 : since })}\n`);
+  setFloorSince(open ? 0 : since);
   step(`acceptance check done in ${mmss((performance.now() - checkedAt) / 1000)}`, C.CYAN);
   ledger(`       goal cost: ${cost}${open ? "" : `, ${heldBack.length} held (floor gate shut)`}`);
   // Every session: the sweep has just left the build warm, nothing is building, and a day of builds is what fills `target/`.
@@ -1360,9 +1317,9 @@ function sweepProgress(labelOf: (n: number) => string, begun: number): Progress 
   const at = () => `+${mmss((performance.now() - begun) / 1000).padStart(6)}`;
   return {
     run: (what) => say(`   .. ${at()}  ${what}`, C.GRAY),
-    trace: (c, answered) => {
+    trace: (c) => {
       TICKER.advance();
-      say(`   .. ${at()}  ${nameOf(c)} [${labelOf(c.stage)}]${answered ? " (green on these inputs already)" : ""}`, C.GRAY);
+      say(`   .. ${at()}  ${nameOf(c)} [${labelOf(c.stage)}]`, C.GRAY);
     },
     note: (text) => say(`   .. ${" ".repeat(7)}  ${text}`, C.GRAY),
     count: (steps) => TICKER.grow(steps),
@@ -1388,7 +1345,7 @@ export async function run(args: string[]): Promise<number> {
     }
     args = args.slice(2);
   }
-  if (args.length === 1 && args[0] === "--goal") return goalView();
+  if (args.length === 1 && args[0] === "--goal") return await goalView();
   if (args.length === 1 && args[0] === "--owed") return owed();
   if (args.length === 1 && args[0] === "--settle") return settle();
   const mode = args[0];

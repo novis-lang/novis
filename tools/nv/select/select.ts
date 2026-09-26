@@ -290,6 +290,9 @@ export interface Selection {
 export interface QueryOptions {
   /** Atoms that exist now beyond the ones the store knows, with their definitions: new ones run. */
   discovered?: { id: string; def: string }[];
+  /** The current definition of each atom whose definition is no file: a plan check's own atom. A known
+   * atom whose recorded definition differs runs. */
+  defs?: Map<string, string>;
 }
 
 /** The atoms `change` selects. */
@@ -326,7 +329,9 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     else if (a.keys === 0) add(a.id, "new");
     else if (a.verdict === "red") add(a.id, "red");
     else if (a.verdict === "owed") add(a.id, "owed");
-    else if (defTouched.has(a.id) || (a.kind === "proof" && tomlDirs.has(dirname(a.id.slice(6))))) {
+    else if (opts.defs?.has(a.id)) {
+      if (opts.defs.get(a.id) !== a.def) add(a.id, "def");
+    } else if (defTouched.has(a.id) || (a.kind === "proof" && tomlDirs.has(dirname(a.id.slice(6))))) {
       const def = change.until ? null : currentDef(a.id);
       if (change.until || (def !== null && def !== a.def)) add(a.id, "def");
     }

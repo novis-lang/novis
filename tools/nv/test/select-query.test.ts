@@ -96,6 +96,15 @@ describe("the reverse-index query", () => {
     expect(sel.known.test).toBe(6);
   });
 
+  test("a plan check's own atom whose recorded definition differs from the plan's runs, and one that matches does not", () => {
+    const s = store();
+    s.recordRun("check:a", { def: "d1", verdict: "green", keys: new Map([["file:x", ""]]) });
+    s.recordRun("check:b", { def: "d2", verdict: "green", keys: new Map([["file:y", ""]]) });
+    const sel = query(s, change([]), { defs: new Map([["check:a", "d1-changed"], ["check:b", "d2"]]) });
+    expect(sel.selected.get("check:a")?.why).toBe("def");
+    expect(sel.selected.has("check:b")).toBe(false);
+  });
+
   test("the seed runs only the bun nv checks that read, and reads a case report's failures", () => {
     expect(seedable(["bun", "nv", "rules", "--check"])).toBe(true);
     expect(seedable(["bun", "nv", "proofs", "--gate"])).toBe(true);

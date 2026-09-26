@@ -193,6 +193,44 @@ export class Recorder {
   }
 }
 
+/** A test binary's last green run: its `test result:` lines and every test line it printed. A check that
+ * names a test is judged on these when the binary does not run. */
+export interface TestGreen {
+  result?: string;
+  tests?: string[];
+}
+
+export const testGreenSlot = (name: string) => `verify:test:${name}`;
+const RESULT_LINE = /test result: \w+\. (\d+) passed; (\d+) failed/;
+const TEST_LINE = /^test \S+ (?:- should panic )?\.\.\. \w+/;
+
+/** The last green run of the binary `<package> <kind> <target>`, or null when none is kept. */
+export function testGreen(store: SelectStore, name: string): TestGreen | null {
+  const v = store.verdict(testGreenSlot(name));
+  if (!v || !v.verdict) return null;
+  try {
+    return JSON.parse(v.verdict) as TestGreen;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps what one run of a binary printed when it was green, and forgets it when it was not. */
+export function putTestGreen(store: SelectStore, name: string, verdict: Verdict, text: string): void {
+  const out = text.split(/\r?\n/);
+  const green: TestGreen = { result: out.filter((l) => RESULT_LINE.test(l)).join("\n"), tests: out.filter((l) => TEST_LINE.test(l)).map((l) => l.trimEnd()) };
+  store.putVerdict(testGreenSlot(name), "", verdict === "green" ? JSON.stringify(green) : "");
+}
+
+/** The slot a case's last skip is kept in: "skip" when `nvs test` skipped it on this platform. */
+export const caseSkipSlot = (path: string) => `case-skip:${process.platform}:${path}`;
+
+/** Whether the store holds a skip verdict for `path`: null when no run has said. */
+export function caseSkipped(store: SelectStore, path: string): boolean | null {
+  const v = store.verdict(caseSkipSlot(path));
+  return v === null ? null : v.verdict === "skip";
+}
+
 /** What one `recordCases` call ran. */
 export interface CaseRun {
   /** Everything `nvs test` printed, batch after batch. */
@@ -272,6 +310,7 @@ export async function recordCases(
         for (const [k, d] of ext?.keys ?? []) keys.set(k, d);
         const verdict: Verdict = failed.has(path) || (!got && !skipped.has(path)) || p.timedOut || !counts ? "red" : "green";
         r.record(caseId(path), caseDef(path, root), verdict, keys);
+        r.store.putVerdict(caseSkipSlot(path), "", skipped.has(path) ? "skip" : "");
         result.verdicts.set(path, verdict);
         result.processes += ext?.processes ?? 0;
       });

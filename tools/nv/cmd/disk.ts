@@ -361,6 +361,10 @@ export function strayProfiles(root: string = ROOT): string[] {
  * now; `clean` deletes the ones still on disk.
  */
 export const RETIRED_MEMOS = [
+  ".loop/accept-green.json",
+  ".loop/accept-floor.json",
+  ".loop/nv-reads.json",
+  ".loop/reads",
   ".loop/proofs-green.json",
   ".loop/proof-reads.json",
   ".agent-tmp/impact-reads.json",

@@ -1,11 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { ROOT } from "../lib/paths.ts";
 import {
   type Check,
   type Verdict,
-  GreenMemo,
   acceptance,
   allReds,
   firstErrLine,
@@ -217,7 +213,8 @@ describe("the whole sweep", () => {
       },
     };
   };
-  const opts = (sweep: ReturnType<typeof fake>, memo = new GreenMemo(), more: Partial<Parameters<typeof acceptance>[1]> = {}) => ({ label, sweep, key: (c: Check) => `k-${c.id}`, memo, full: false, collect: false, ...more });
+  const everything = () => true;
+  const opts = (sweep: ReturnType<typeof fake>, more: Partial<Parameters<typeof acceptance>[1]> = {}) => ({ label, sweep, reached: everything, collect: false, ...more });
 
   test("it stops at the first red, after starting the overlap command behind the setup tier", async () => {
     const s = fake(["cmd2"]);
@@ -226,63 +223,61 @@ describe("the whole sweep", () => {
     expect(s.ran).toEqual(["catch", "setup", "over", "floor-fix", "cmd2"]);
   });
 
-  test("the sweep names each tier's checks the memo does not answer before the first of them runs", async () => {
+  test("the sweep names each tier's reached checks before the first of them runs", async () => {
     const told: string[][] = [];
     const s = { ...fake([]), batch: (checks: Check[]) => told.push(checks.map((c) => c.id)) };
-    await acceptance(plan, opts(s, new GreenMemo({ cmd2: "k-cmd2" })));
+    await acceptance(plan, opts(s, { reached: (c) => c.id !== "cmd2" }));
     expect(told).toEqual([["catch"], ["setup"], ["floor-fix"], ["cmd3"], ["goal-fix"], ["over"], ["rel"]]);
   });
 
   test("a collecting sweep runs past each red and names every one", async () => {
     const s = fake(["cmd2", "goal-fix", "rel"]);
-    const r = await acceptance(plan, opts(s, new GreenMemo(), { collect: true }));
+    const r = await acceptance(plan, opts(s, { collect: true }));
     expect(r.fail).toBe("cmd2 red\n       also red: goal-fix red\n       also red: rel red");
     expect(r.ran).toBe(plan.length);
   });
 
-  test("the memo answers a check green over the same key, and --full asks it nothing", async () => {
-    const memo = new GreenMemo();
-    expect((await acceptance(plan, opts(fake([]), memo))).fail).toBe("");
-    const again = fake([]);
-    expect(await acceptance(plan, opts(again, memo))).toEqual({ fail: "", ran: 0, answered: plan.length });
-    const moved = fake([]);
-    await acceptance(plan, opts(moved, memo, { key: (c: Check) => (c.id === "cmd3" ? "new" : `k-${c.id}`) }));
-    expect(moved.ran).toEqual(["cmd3"]);
-    const full = fake([]);
-    await acceptance(plan, opts(full, memo, { full: true }));
-    expect(full.ran.length).toBe(plan.length);
+  test("a check the change does not reach is never started, and its verdict is the store's", async () => {
+    const none = fake([]);
+    const r = await acceptance(plan, opts(none, { reached: () => false }));
+    expect(r).toEqual({ fail: "", ran: 0, answered: plan.length, verdicts: new Map(plan.map((c) => [c.id, true])) });
+    expect(none.ran).toEqual([]);
+    const one = fake([]);
+    const traced: string[] = [];
+    await acceptance(plan, opts(one, { reached: (c) => c.id === "cmd3", trace: (c) => traced.push(c.id) }));
+    expect(one.ran).toEqual(["cmd3"]);
+    expect(traced).toEqual(["cmd3"]);
+    const judged = await acceptance(plan, opts(fake([]), { reached: () => false, judged: (c) => ({ fail: c.id === "cmd2" ? "cmd2: a named test did not run" : "", short: "" }), collect: true }));
+    expect(judged.fail).toBe("cmd2: a named test did not run");
+    expect(judged.verdicts.get("cmd2")).toBe(false);
   });
 
-  test("a short suite, a memoize = false check and a keyless one are never remembered", async () => {
-    const memo = new GreenMemo();
-    const odd = [check({ id: "short", kind: "nvs-suite" }), check({ id: "live", memoize: false }), check({ id: "keyless" })];
-    const r = await acceptance(odd, opts(fake([], ["short"]), memo, { key: (c: Check) => (c.id === "keyless" ? null : "k") }));
+  test("an overlap command the change does not reach is not started beside the tiers", async () => {
+    const s = fake([]);
+    await acceptance(plan, opts(s, { reached: (c) => c.id !== "over" }));
+    expect(s.ran).not.toContain("over");
+  });
+
+  test("a short suite is reported, and its verdict is not green", async () => {
+    const odd = [check({ id: "short", kind: "nvs-suite" }), check({ id: "fine" })];
+    const r = await acceptance(odd, opts(fake([], ["short"])));
     expect(r.fail).toBe("short short");
-    const again = fake([]);
-    await acceptance(odd, opts(again, memo, { key: (c: Check) => (c.id === "keyless" ? null : "k") }));
-    expect(again.ran).toEqual(["short", "live", "keyless"]);
+    expect(r.verdicts.get("short")).toBe(false);
+    expect(r.verdicts.get("fine")).toBe(true);
   });
 
-  test("owed is the carried checks the memo does not answer, less stage 0, the goal's own and memoize = false", () => {
+  test("a failed build stops a collecting sweep at once", async () => {
+    const s = { ran: [] as string[], check: async (c: Check): Promise<Verdict> => ({ fail: c.id === "cmd2" ? "the native build failed -- error: x" : c.id === "catch" ? "catch red" : "", short: "" }) };
+    const r = await acceptance(plan, { label, sweep: s, reached: everything, collect: true });
+    expect(r.fail).toBe("catch red\n       also red: the native build failed -- error: x");
+  });
+
+  test("owed is the carried checks the change reaches, less stage 0, the goal's own and memoize = false", () => {
     const live = check({ id: "live", stage: 1, memoize: false });
-    const memo = new GreenMemo({ over: "k-over", setup: "old", cmd3: "k-cmd3" });
-    const owed = owedChecks([...plan, live], label, memo, (c: Check) => `k-${c.id}`);
+    const reached = new Set(["floor-fix", "setup", "cmd3", "live", "catch"]);
+    const owed = owedChecks([...plan, live], label, (c: Check) => reached.has(c.id));
     expect(owed.map((c) => c.id)).toEqual(["floor-fix", "setup"]);
-    expect(owedChecks(plan, label, memo, () => null).map((c) => c.id)).toEqual(["over", "floor-fix", "setup"]);
-  });
-
-  test("the memo keeps only the checks still in the plan", () => {
-    const dir = mkdtempSync(join(ROOT, ".agent-tmp", "memo-"));
-    try {
-      const memo = new GreenMemo({ gone: "k" });
-      memo.remember(check({ id: "kept" }), "k2");
-      memo.save(join(dir, "green.json"), new Set(["kept"]));
-      expect(JSON.parse(readFileSync(join(dir, "green.json"), "utf8"))).toEqual({ green: { kept: "k2" } });
-      expect(GreenMemo.load(join(dir, "green.json")).answers(check({ id: "kept" }), "k2")).toBe(true);
-      expect(GreenMemo.load(join(dir, "absent.json")).answers(check({ id: "kept" }), "k2")).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    expect(owedChecks(plan, label, everything).map((c) => c.id)).toEqual(["over", "floor-fix", "setup"]);
   });
 });
 

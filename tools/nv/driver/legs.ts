@@ -1,6 +1,6 @@
 // The acceptance sweep's two Linux legs, run after the native sweep is green: the WSL leg and the valgrind
-// sweep. `linuxLegs` runs both and returns the ledger's line, or "" when both are green, skipped or
-// answered by the memo.
+// sweep. `linuxLegs` runs both and returns the ledger's line, or "" when both are green, skipped or not
+// reached by the change.
 //
 // **The WSL leg** is Windows only. It builds the CLI inside the default WSL distro, into the goal's
 // `env.wsl.targetDir`, and runs every fixture the sweep reached and every `nvs-suite` check against that
@@ -44,10 +44,14 @@
 // inside the distro, which is the case under mirrored networking, that listener is left alone. The origin
 // stops when its `bash` reads the end of its standard input. On Linux the sweep holds `origin.ts` itself.
 //
-// Each leg is remembered in the memo under its own id (`LEGS` in `tools/nv/keys/checks.ts`), and only
-// when it is green on a sweep with the floor gate open: a leg over the goal's own fixtures alone is not
-// the leg the memo names. The build is skipped only when the memo answers both legs, since either one
-// still to run needs the binary.
+// Each leg is an atom of the selection store's heavy set (`heavy:wsl leg`, `heavy:valgrind sweep`,
+// `select/checks.ts`). A leg runs `nvs` inside WSL or under valgrind, and neither records coverage or a
+// footprint log the store can read, so a leg keeps the floor gate's cadence and is keyed on what
+// `nvs-cli` builds and the trees its fixtures read, which `bun nv loop` says when the legs begin. A leg
+// is recorded green only when it is green on a sweep with the floor gate open: a leg over the goal's own
+// fixtures alone is not the leg the store names. A red leg stays selected until a run of it is green.
+// The build is skipped only when the change reaches neither leg, since either one still to run needs
+// the binary.
 //
 // Every process this module starts goes through `LegsSeams`, so `tools/nv/test/legs.test.ts` drives it
 // with recorded outcomes and no WSL.
@@ -58,7 +62,7 @@ import { join } from "node:path";
 import * as machine from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
-import { type Check, type GreenMemo, type Outcome, PROGRAM_KINDS, allReds, firstErrLine, judgeCommand, judgeProgram, judgeTests, programFailLine } from "./accept.ts";
+import { type Check, type Outcome, PROGRAM_KINDS, allReds, firstErrLine, judgeCommand, judgeProgram, judgeTests, programFailLine } from "./accept.ts";
 import { mirrorPath, q, syncMirror, wslPath } from "./mirror.ts";
 
 export { wslPath };
@@ -83,13 +87,14 @@ export interface LegsOptions {
   valgrindSkip: string[];
   /** `env.wsl.targetDir`, or null when the goal names none (then no WSL leg). */
   wslTarget: string | null;
-  /** The floor gate is open: only then is a green leg remembered, since a leg over the goal's own fixtures alone is not the leg the memo names. */
+  /** The floor gate is open: only then is a green leg recorded, since a leg over the goal's own fixtures alone is not the leg the store names. */
   gateOpen: boolean;
-  memo: GreenMemo;
-  /** Each leg's key over the tree, or null (never remembered). */
-  key: (leg: LegName) => string | null;
-  /** Consult no memo. */
-  full: boolean;
+  /** Whether the change reaches the leg: its atom is new, red, owed or holds a key the change moved. */
+  reached: (leg: LegName) => boolean;
+  /** Records a leg that was green on a sweep with the floor gate open. */
+  onGreen?: (leg: LegName) => void | Promise<void>;
+  /** Records a leg that was red. */
+  onRed?: (leg: LegName) => void;
   label: (stage: number) => string;
   /** A process is starting / a step is reached, for the console. */
   onRun?: (what: string) => void;
@@ -137,10 +142,6 @@ export const LEG_NEEDS: Record<string, (leg: { afUnix: boolean }) => boolean> = 
   "af-unix": (leg) => leg.afUnix,
 };
 
-/** The memo's stand-in for a whole leg: an id, remembered like a check. */
-export function legSpec(leg: LegName): Check {
-  return { id: leg, kind: "leg", stage: 0 };
-}
 
 /** The valgrind line for one fixture, run from the repository root where `repo` names it. */
 export function valgrindLine(repo: string, binary: string, file: string): string {
@@ -288,8 +289,8 @@ function seamsOf(o: { seams?: Partial<LegsSeams> }): LegsSeams {
 /** One leg's build, started early and awaited by `linuxLegs`, by target directory. */
 const inflight = new Map<string, Promise<string>>();
 
-function answered(o: Pick<LegsOptions, "memo" | "key" | "full">, leg: LegName): boolean {
-  return !o.full && o.memo.answers(legSpec(leg), o.key(leg));
+function answered(o: Pick<LegsOptions, "reached">, leg: LegName): boolean {
+  return !o.reached(leg);
 }
 
 /** The copy of this checkout the WSL leg builds and runs from, for a target directory. */
@@ -306,7 +307,7 @@ async function buildWsl(s: LegsSeams, targetDir: string): Promise<string> {
 
 /**
  * Starts the WSL build in the background, beside the cargo tier, when `linuxLegs` will need it: the floor
- * gate is open, the sweep reaches a fixture, WSL is here and the memo does not answer both legs. The
+ * gate is open, the sweep reaches a fixture, WSL is here and the change reaches a leg. The
  * build and nothing after it: the fixtures and the sweep reach the same database servers the cargo tier's
  * tests do, so they wait for `linuxLegs`.
  */
@@ -328,7 +329,7 @@ function valgrindTargets(o: Pick<LegsOptions, "programs" | "files" | "valgrindSk
 
 /**
  * How many steps `linuxLegs` takes over `o`, or 0 when it skips both legs: the build, then each setup check,
- * fixture, suite and valgrind run still to judge. It reads only the memo, the machine and `o`'s lists, so a
+ * fixture, suite and valgrind run still to judge. It reads only `reached`, the machine and `o`'s lists, so a
  * sweep can count the legs into its total before its first check runs.
  */
 export function legSteps(o: LegsOptions): number {
@@ -355,7 +356,7 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
 
   if (s.platform !== "win32") {
     if (answered(o, "valgrind sweep")) {
-      say("valgrind sweep green on these inputs -- not run");
+      say("valgrind sweep: the change reaches nothing it runs -- not run");
       return "";
     }
     if (!s.hasValgrind()) {
@@ -385,7 +386,7 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
   const sweepGreen = answered(o, "valgrind sweep");
   if (legGreen && sweepGreen) {
     inflight.delete(o.wslTarget);
-    say("wsl leg and valgrind sweep both green on these inputs -- neither is rebuilt");
+    say("wsl leg and valgrind sweep: the change reaches neither -- neither is rebuilt");
     return "";
   }
   if (!s.hasWsl()) {
@@ -410,14 +411,16 @@ export async function linuxLegs(o: LegsOptions): Promise<string> {
     const reds: string[] = [];
     const setupFails = await wslSetup(o, s, repo, binary);
     if (legGreen) {
-      say("wsl fixtures green on these inputs -- not run");
+      say("wsl fixtures: the change reaches nothing they run -- not run");
       if (setupFails.length > 0) reds.push(programFailLine(setupFails, o.label));
     } else {
       const line = await wslFixtures(o, s, repo, binary, setupFails);
-      if (line !== "") reds.push(line);
-      else if (o.gateOpen) o.memo.remember(legSpec("wsl leg"), o.key("wsl leg"));
+      if (line !== "") {
+        reds.push(line);
+        o.onRed?.("wsl leg");
+      } else if (o.gateOpen) await o.onGreen?.("wsl leg");
     }
-    if (sweepGreen) say("valgrind sweep green on these inputs -- not run");
+    if (sweepGreen) say("valgrind sweep: the change reaches nothing it runs -- not run");
     else if (targets.length > 0) {
       const line = await valgrindSweep(o, s, "wsl", repo, binary, targets);
       if (line !== "") reds.push(line);
@@ -545,8 +548,11 @@ async function valgrindSweep(o: LegsOptions, s: LegsSeams, where: Where, repo: s
     s.remember(where, { sweep_s: round1(spent), sweep_speedup: Math.round(((prof.sample_s * targets.length) / spent) * 100) / 100 });
   }
   s.remember(where, { fixture_s: Object.fromEntries([...done].map(([f, d]) => [f, round1(d.seconds)])) });
-  if (fails.length > 0) return valgrindFailLine(fails);
-  if (o.gateOpen) o.memo.remember(legSpec("valgrind sweep"), o.key("valgrind sweep"));
+  if (fails.length > 0) {
+    o.onRed?.("valgrind sweep");
+    return valgrindFailLine(fails);
+  }
+  if (o.gateOpen) await o.onGreen?.("valgrind sweep");
   return "";
 }
 

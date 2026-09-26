@@ -5,7 +5,7 @@ import { descendants, killTree, processTable, run } from "../lib/proc.ts";
 import { sinceOverlay } from "../select/change.ts";
 import { CovMap } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
-import { advance, caseLabels, depInfoPaths } from "../select/record.ts";
+import { advance, caseLabels, depInfoPaths, NO_ADVANCE_ENV } from "../select/record.ts";
 import { type ChangeSet, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { digest } from "../keys/scan.ts";
@@ -97,6 +97,35 @@ describe("moving the base past a green run", () => {
     const { tree: _, ...replay } = change();
     advance(st, replay, null, new Set(), null);
     expect(st.base()).toBeNull();
+  });
+
+  test("a red run moves the tree too: what ran red stays red, and the next run repeats only it", () => {
+    const st = new SelectStore(":memory:", "test-os");
+    const key = "fn:crates/x/src/a.rs#f";
+    for (const id of ["test:a lib a", "test:b lib b"]) st.recordRun(id, { def: "", verdict: "green", keys: new Map([[key, ""]]) });
+    const c = change({ changes: [{ path: "crates/x/src/a.rs", status: "modified" }], moved: new Map([[key, { path: "crates/x/src/a.rs", how: "changed" }]]) });
+    const sel = query(st, c);
+    st.recordRun("test:a lib a", { def: "", verdict: "red", keys: new Map([[key, ""]]) });
+    st.recordRun("test:b lib b", { def: "", verdict: "green", keys: new Map([[key, ""]]) });
+    advance(st, c, sel, new Set(["test:a lib a", "test:b lib b"]), null);
+    expect(st.base()).toBe("c2");
+    const next = query(st, change());
+    expect(Object.fromEntries([...next.selected.values()].map((x) => [x.id, x.why]))).toEqual({ "test:a lib a": "red" });
+  });
+
+  test("a run another recording run started leaves the tree to it", () => {
+    const st = new SelectStore(":memory:", "test-os");
+    st.recordRun("test:a lib a", { def: "", verdict: "green", keys: new Map([["file:x", ""]]) });
+    const c = change({ moved: new Map([["file:x", { path: "x", how: "path" }]]) });
+    const sel = query(st, c);
+    process.env[NO_ADVANCE_ENV] = "1";
+    try {
+      expect(advance(st, c, sel, new Set(), null)).toEqual({ owed: 0 });
+    } finally {
+      delete process.env[NO_ADVANCE_ENV];
+    }
+    expect(st.base()).toBeNull();
+    expect(st.atom("test:a lib a")!.verdict).toBe("green");
   });
 });
 
