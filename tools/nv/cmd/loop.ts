@@ -131,6 +131,7 @@ import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin } from "../driver/origin.ts";
 import { type AcceptanceResult, type Check, GreenMemo, PROGRAM_KINDS, Sweep, acceptance, allReds, isCarried, isHeavy, owedChecks, tiers } from "../driver/accept.ts";
 import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
+import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { checkName, LEGS, loadRecords, units } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { keyOf } from "../keys/key.ts";
@@ -1262,7 +1263,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
 
 /**
  * The goal switch, once goal `from` is reached: `data/chain.json`'s `live` moves to the next goal on the chain
- * and is committed alone, that goal's services come up, and the counts a goal owns start over. Nothing is
+ * and is committed with the goal plan it changes and nothing else, that goal's services come up, and the counts a goal owns start over. Nothing is
  * copied or retired, since the next goal's floor is `goalPlan`'s view over every walked goal. Returns null
  * when the run goes on, or the verdict: the chain is complete, or the next goal cannot be run.
  */
@@ -1282,11 +1283,13 @@ async function advance(state: RunState, from: string): Promise<Ended | null> {
   if (down) return end("chain-error", `chain: ${down}`);
 
   const path = setLive(next.slug);
+  // The goal plan marks which goal is live, so it moves in the same commit.
+  const rendered = writeGoalPlan();
   const msg = join(ROOT, ".agent-tmp", "chain-switch.txt");
   mkdirSync(dirname(msg), { recursive: true });
   // The subject names the goals and never their positions, which a later insert moves.
   writeFileSync(msg, `docs(loop): the chain advances from \`${from}\` to \`${next.slug}\`\n`);
-  const committed = await runProc(["git", "commit", "-q", "-F", msg, "--", path]);
+  const committed = await runProc(["git", "commit", "-q", "-F", msg, "--", path, ...(rendered ? [join(ROOT, rendered)] : [])]);
   if (committed.code !== 0) return end("chain-error", `chain: \`${next.slug}\` is live in ${path}, and its commit failed -- ${(committed.stderr || committed.stdout).trim().split("\n")[0]}`);
 
   const up = await bringUp(plan.env.docker, (l) => step(l, C.CYAN));

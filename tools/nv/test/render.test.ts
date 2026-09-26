@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { NUMBER_CITE } from "../cmd/chain.ts";
 import { isGenerated } from "../cmd/links.ts";
+import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
+import { GOAL_PLAN, renderGoalPlan } from "../renderers/goal-plan.ts";
 import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans } from "../lib/render.ts";
 import { isDraft, PAGES_DIR as CORE_DIR, parseSignature, websiteCore } from "../renderers/website-core.ts";
 import { PAGES_DIR, renderWebsiteRules, websiteRules } from "../renderers/website-rules.ts";
@@ -88,6 +91,18 @@ describe("render", () => {
       expect(isGenerated(page.text)).toBe(true);
     }
     expect(orphans([websiteRules.owns!], outputs)).toEqual([]);
+  });
+
+  test("the goal plan lists every goal in chain order, marks the live one, and names none by its number", () => {
+    const goals = chainGoals();
+    const live = liveGoal(goals);
+    const plan = renderGoalPlan(ROOT);
+    expect(plan.path).toBe(GOAL_PLAN);
+    expect(plan.text.split("\n", 1)[0]).toBe(`<!-- ${MARKER} -->`);
+    const headings = [...plan.text.matchAll(/^## (\d+)\. `([^`]+)`/gm)].map((m) => [Number(m[1]), m[2]]);
+    expect(headings).toEqual(goals.map((g) => [g.num, g.slug]));
+    if (live) expect(plan.text).toContain(`\`${live.slug}\` is live at ${live.num} of ${goals.length}`);
+    expect(plan.text.match(NUMBER_CITE)).toBeNull();
   });
 
   test("two outputs for one path are an error", () => {

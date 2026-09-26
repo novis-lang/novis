@@ -6,6 +6,10 @@ and the table below is that order for the hand-written goals. Everything between
 goals are ordinary goals, edited by hand like any other; a goal whose record says `position: last` stays behind all of them, and
 `bun nv chain --check` refuses an unpinned goal behind a pinned one.
 
+**[goal-plan.md](../goal-plan.md) is the whole chain in one file**: every goal in order with its stages,
+which goal is live, and the side goals. It is rendered from the records, and `bun nv chain`, the goal
+switch and every wrap write it again when they change them.
+
 **Every goal states its own case, and this file does not restate it.** A goal's front matter names its
 milestone, its opening says what it builds, and its `## Why here` is why it sits where it does, against the
 goals on either side. A paragraph here describing a goal would be a second copy of a fact that already has

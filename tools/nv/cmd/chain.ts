@@ -1,8 +1,9 @@
 // `bun nv chain`: the loop's goal chain, which is `data/chain.json`: `goals`, a list of slugs, and `live`,
 // the goal the driver works on. A goal's position is its place in that list, printed as `N of M`, so no
 // file is renamed and no number is written. `--new`, `--move` and `--remove` edit the list in that one
-// file and nothing else, and never `live`, which only the goal switch moves; a goal's record and prose
-// are written by hand around it, and `--check` reports what is still missing.
+// file, then render `docs/agent/goal-plan.md` again for the new order, and never touch `live`, which only
+// the goal switch moves; a goal's record and prose are written by hand around it, and `--check` reports
+// what is still missing.
 //
 // `--check` is whether the driver can walk the chain, as a query over the records.
 //
@@ -37,6 +38,7 @@ import { load, write } from "../lib/store.ts";
 import { chain as chainType } from "../schema/chain.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { RECORDS } from "../schema/index.ts";
+import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { type GoalValue, manifestFindings } from "./orient.ts";
 
 export const summary = "the loop's goal chain, over data/chain.json: nv chain --check | --new | --move | --remove";
@@ -313,6 +315,8 @@ function edit(args: string[]): number {
     console.log(`chain: \`${slug}\` is ${n} of ${order.length}` + (moved !== undefined ? `, from ${at + 1}` : ""));
     if (!existsSync(join(ROOT, record))) console.log(`       ${record} is not written yet, and \`nv check\` reports the chain until it is`);
   }
+  const plan = writeGoalPlan();
+  if (plan) console.log(`       ${plan} rendered again for the new order`);
   return 0;
 }
 

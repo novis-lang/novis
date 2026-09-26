@@ -37,6 +37,7 @@ import { ANCHOR_RE, type BookSection, type Bullet, type GoalValue, manifestFindi
 import { bodyOf, type Entry, FIELDS, fieldLimits, H1, milestones, planFields, verifyParagraph } from "./plan.ts";
 import { CITATION, Rulebook } from "./rules.ts";
 import { NUMBER_CITE, OWN_HEADER } from "./chain.ts";
+import { GOAL_PLAN, writeGoalPlan } from "../renderers/goal-plan.ts";
 import { anchors, bulletValue } from "../import/playbook.ts";
 import { blocks, declaration, EXPIRY, expiryReport, retire } from "./playbook.ts";
 
@@ -1256,11 +1257,11 @@ const PACK_NOTE_AT = 1_500;
 const PLAN_WIDTH = 100;
 const FIELD_LINE = /^> \*\*([^*:]+):\*\*\s*(.*)$/;
 /**
- * Files no session writes by hand and any session can leave dirty: `bun nv verify` regenerates them in
- * place from what the session's own commits changed. Nothing in the wrap writes them, so `writtenPaths`
+ * Files no session writes by hand and any session can leave dirty: `bun nv verify` or `refreshGenerated`
+ * regenerates them in place from what the session changed. No wrap section writes them, so `writtenPaths`
  * cannot see them, and they join the last commit through `dirtyGenerated` instead.
  */
-const GENERATED = ["docs/novis.md", "fuzz/Cargo.lock"];
+const GENERATED = ["docs/novis.md", "fuzz/Cargo.lock", GOAL_PLAN];
 
 /** A command that must succeed; its failure stops the wrap with what the command printed. */
 async function checked(argv: string[]): Promise<string> {
@@ -1463,11 +1464,14 @@ async function dirtyGenerated(): Promise<string[]> {
 }
 
 /**
- * Regenerates `docs/novis.md` when the tree has left it stale, and returns a refusal when that cannot be
- * told. A step-4 edit to a reference chapter leaves the reference stale and clean, which nothing else in
- * the session sees. A tree with no debug binary cannot answer, and the wrap then writes nothing.
+ * Renders the goal plan again from the goal records, and regenerates `docs/novis.md` when the tree has
+ * left it stale, and returns a refusal when that cannot be told. A session that edits a goal's stages
+ * leaves the plan stale, and a step-4 edit to a reference chapter leaves the reference stale and clean,
+ * which nothing else in the session sees. A tree with no debug binary cannot answer, and the wrap then
+ * writes nothing.
  */
 async function refreshGenerated(dry: boolean): Promise<string> {
+  if (!dry && writeGoalPlan()) console.log(`nv session: ${GOAL_PLAN} rendered again from the goal records`);
   const done = await runProc(nv("reference", "--check"));
   if (done.code === 0) return "";
   const said = (done.stdout + done.stderr).trim().split("\n").pop() ?? "";
