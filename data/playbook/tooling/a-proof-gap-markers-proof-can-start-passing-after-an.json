@@ -1,0 +1,11 @@
+{
+  "lead": "A `proof: gap` marker's proof can start passing after an unrelated fix, while the gap it names is still open.",
+  "body": "A hostile case passes on how the program ends, so a fix that changes where the ceiling is met (a charge carried off the blocking pool) turns a memory attack green even though the host still peaks far over the limit. Before removing the marker, measure what the gap claims (`PeakWorkingSet64` from `Start-Process -PassThru`, or `/usr/bin/time -v` under WSL), and rewrite the gap record to what is still true instead of deleting it.",
+  "files": [
+    "tools/nv/proofs/run.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/run.ts:is still marked"
+  }
+}

@@ -12245,11 +12245,11 @@ Waits until the program writes to its standard output, and returns what it wrote
 $handle->readStderr(): ?bytes
 ```
 
-`readStdout` on the other stream, kept separate from it exactly as a completed run's two captures are.
+Waits until the program writes to its standard error, and returns what it wrote. Programs write their error messages and warnings there. It works like `readStdout`, and the two outputs are never mixed.
 
-**Returns** `?bytes` — The octets the child wrote to its standard error, or `null` once that stream has ended.
+**Returns** `?bytes` — The next part of the error output, as `bytes`, up to 64 KiB. At the end of the error output the result is `null`, and every later call also returns `null`. Use `as string` to convert a part to text.
 
-**Throws** `IOError` — The operating system failed the read, on `readStdout`'s terms.
+**Throws** `IOError` — The operating system could not read the error output. The error output is then closed, so the next call returns `null`.
 
 <a id="core-core-process-handle-writestdin"></a>
 #### `Core\Process\Handle->writeStdin`
