@@ -1,11 +1,24 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { liveKey, liveSet } from "../cmd/disk.ts";
+import { liveKey, liveSet, strayProfiles } from "../cmd/disk.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
 afterEach(() => tmp?.cleanup());
+
+describe("leftovers", () => {
+  test("a default profile at the root or in a package directory is a stray, and a named one is not", () => {
+    tmp = scratch();
+    tmp.put("default_123_0_456.profraw", "x");
+    tmp.put("crates/nvs-cli/default_9_0_1.profraw", "x");
+    tmp.put("crates/nvs-cli/src/default_9_0_2.profraw", "x");
+    tmp.put("crates/nvs-cli/atom-4.profraw", "x");
+    tmp.put("benches/abi-probe/default_1_0_1.profraw", "x");
+    const got = strayProfiles(tmp.root).map((p) => p.slice(tmp.root.length + 1).replace(/\\/g, "/"));
+    expect(got).toEqual(["benches/abi-probe/default_1_0_1.profraw", "crates/nvs-cli/default_9_0_1.profraw", "default_123_0_456.profraw"]);
+  });
+});
 
 /** A one-crate cargo workspace of its own, so cargo never attaches it to the repository's. */
 function crate(): Scratch {

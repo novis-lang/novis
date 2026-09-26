@@ -9,7 +9,7 @@
 // adopted by init and only a timeout's kill, taken while the tree is whole, reaches it.
 
 import { dlopen, FFIType, ptr } from "bun:ffi";
-import { ROOT } from "./paths.ts";
+import { DISCARD_PROFILE, ROOT } from "./paths.ts";
 import { erase } from "./progress.ts";
 
 export interface RunOptions {
@@ -48,10 +48,19 @@ export function resolved(argv: string[], env: Record<string, string | undefined>
   return found === null ? argv : [found, ...argv.slice(1)];
 }
 
+/**
+ * The environment a started program gets: this process's, then `extra`. `LLVM_PROFILE_FILE` is
+ * `DISCARD_PROFILE` when neither sets it, so an instrumented binary that no run records writes its
+ * counters under `.agent-tmp/`, never a `default_*.profraw` into its working directory.
+ */
+export function childEnv(extra?: Record<string, string>): Record<string, string | undefined> {
+  return { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...extra };
+}
+
 /** Runs `argv` to completion and returns what it printed. A program that cannot be started throws. */
 export async function run(argv: string[], opts: RunOptions = {}): Promise<RunResult> {
   if (argv.length === 0) throw new Error("proc.run: an empty argument list");
-  const env = opts.env ? { ...process.env, ...opts.env } : process.env;
+  const env = childEnv(opts.env);
   const child = Bun.spawn(resolved(argv, env), {
     cwd: opts.cwd ?? ROOT,
     env,
@@ -221,7 +230,7 @@ async function drain(stream: ReadableStream<Uint8Array>, onLine: (line: string) 
  * progress line, when one is shown, is erased first. */
 export async function passthrough(argv: string[], opts: Omit<RunOptions, "input" | "onLine"> = {}): Promise<number> {
   erase();
-  const env = opts.env ? { ...process.env, ...opts.env } : process.env;
+  const env = childEnv(opts.env);
   const child = Bun.spawn(resolved(argv, env), {
     cwd: opts.cwd ?? ROOT,
     env,
