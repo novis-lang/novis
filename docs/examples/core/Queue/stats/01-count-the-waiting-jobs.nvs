@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to count the jobs that wait in a queue.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push("jobs/send-mail.nvs", {queue: "mail", args: ["to" => "ana@example.com"]});
+Queue::push("jobs/send-mail.nvs", {queue: "mail", args: ["to" => "ben@example.com"]});
+Queue::push("jobs/send-mail.nvs", {queue: "mail", args: ["to" => "eva@example.com"]});
+
+// No worker runs, so all three jobs wait.
+// This prints `waiting: 3` and `running: 0`.
+var $stats = Queue::stats("mail");
+echo "waiting: ", $stats->pending(), "\n";
+echo "running: ", $stats->claimed(), "\n";

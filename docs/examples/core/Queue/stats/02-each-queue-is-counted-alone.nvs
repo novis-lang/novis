@@ -1,0 +1,35 @@
+<?nvs
+// Shows that `stats` counts one queue, and that a queue with no jobs returns zeros.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push("jobs/send-mail.nvs", {queue: "mail"});
+Queue::push("jobs/export.nvs", {queue: "exports"});
+Queue::push("jobs/export.nvs", {queue: "exports"});
+
+// One call counts one queue. Nobody added a job to `images`.
+// This prints `mail: 1`, `exports: 2` and `images: 0`.
+array<string> $queues = ["mail", "exports", "images"];
+foreach ($queues as string $queue) {
+    echo $queue, ": ", Queue::stats($queue)->pending(), "\n";
+}
