@@ -2255,7 +2255,10 @@ mod tests {
     /// relative one against.
     #[test]
     fn a_sqlite_block_opens_a_queue_worker() {
-        let path = std::env::temp_dir().join("nvs-worker-a-sqlite-block-opens-a-queue-worker.db");
+        let path = std::env::temp_dir().join(format!(
+            "nvs-worker-{}-a-sqlite-block-opens-a-queue-worker.db",
+            std::process::id()
+        ));
         let _ = std::fs::remove_file(&path);
         let block = nvs_config::tree::Database {
             driver: Some("sqlite".to_owned()),
@@ -2525,9 +2528,12 @@ mod tests {
     /// to say which database that is by handing it the same block a `nvs.toml` would. Absolute for
     /// the reason [`a_sqlite_block_opens_a_queue_worker`] is —
     /// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` has no file to
-    /// resolve against here.
+    /// resolve against here. The name carries the process id as well as the case, because two
+    /// runs of this test binary can overlap, and two runs sharing one file delete and claim each
+    /// other's jobs.
     fn a_queue_file(case: &str) -> (nvs_config::tree::Database, std::path::PathBuf) {
-        let path = std::env::temp_dir().join(format!("nvs-worker-{case}.db"));
+        let path =
+            std::env::temp_dir().join(format!("nvs-worker-{}-{case}.db", std::process::id()));
         let _ = std::fs::remove_file(&path);
         let block = nvs_config::tree::Database {
             driver: Some("sqlite".to_owned()),
