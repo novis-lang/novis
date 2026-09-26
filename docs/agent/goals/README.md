@@ -167,8 +167,8 @@ Four rules bind every one of them, and they are the reason the run can be left a
 ## Side goals
 
 **A side goal is a goal the chain never walks.** It is `docs/agent/goals/side/<slug>.md` and
-`data/goals/side/<slug>.json` plus, until it is retired, its handoff record beside that: the same three
-files, the same shapes and the same rules as a chain goal, with three differences.
+`data/goals/side/<slug>.json` plus its handoff record beside that: the same three files, the same shapes
+and the same rules as a chain goal, with three differences.
 
 - **No place in the chain.** Nothing walks to it, so `data/chain.json` does not name it: its `.md`
   opens `# Side goal — <title>`, and prose names it by its slug as it names any goal. `bun nv chain
@@ -178,7 +178,10 @@ files, the same shapes and the same rules as a chain goal, with three difference
   runs one. A side goal and the chain run may run at once.
 - **It lands instead of switching.** When its list is green, the person running it rebases the branch
   onto `main`, runs `nv verify` and the whole list again, and fast-forwards `main` while the chain run
-  holds between two sessions. The goal is retired and the worktree and branch are removed.
+  holds between two sessions. **Then the goal is deleted**: one commit on `main` removes its prose, its
+  record and its handoff, and the worktree and branch are removed with it. A side goal is never retired, because no plan
+  section or milestone cites it and `git log` already keeps what it was. `bun nv chain --check` refuses
+  a side goal with no checks, which is one that landed and was kept.
 
 Its list is checked over **main's carried floor** as well as its own checks, so a side branch cannot
 land anything that breaks a walked goal. The live chain goal's own checks are not part of it. A side

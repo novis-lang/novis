@@ -200,4 +200,3 @@ Run by hand in a worktree of their own, never by the loop.
 | Goal | What it builds | State | Milestone | Stages |
 |---|---|---|---|---|
 | [`mode-startup-switches`](goals/side/mode-startup-switches.md) | an unwritten `dispatch` and `static` follow the mode a configuration names | side |  | **2** the switches · **3** the template and the reference |
-| [`restart-free`](goals/side/restart-free.md) | a running server takes every code change without a restart, and every config change it can | side |  |  |

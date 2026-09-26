@@ -17,6 +17,7 @@
 //   - a retired goal, one whose record has no checks, stands at or behind the installed goal;
 //   - a goal pinned `position: last` has an unpinned goal behind it;
 //   - a side goal with checks has no prose, no `# Side goal` H1 or no handoff record;
+//   - a side goal has no checks, which is one that has landed: its files are deleted, never kept;
 //   - prose names a goal by its number, which is a position and moves;
 //   - a goal's `context` names a shape or a playbook bullet that is not there (`nv orient`'s
 //     `manifestFindings`, over every goal not retired and every side goal with checks).
@@ -110,7 +111,7 @@ async function check(): Promise<number> {
   if (goals.length === 0) problems.push("data/chain.json holds no goal -- the driver has nothing to walk");
 
   const index = new Index({ types: RECORDS });
-  let handoffs: Set<string>, pinned: Set<string>, sideGoals: string[], sideHandoffs: Set<string>;
+  let handoffs: Set<string>, pinned: Set<string>, sideGoals: string[], landedSides: string[], sideHandoffs: Set<string>;
   try {
     index.refresh();
     for (const f of index.check()) {
@@ -120,6 +121,10 @@ async function check(): Promise<number> {
     pinned = new Set(one<string>(index.query("SELECT id FROM goal WHERE position = 'last'"), "id"));
     sideGoals = one<string>(
       index.query("SELECT id FROM side_goal WHERE EXISTS (SELECT 1 FROM side_goal__checks c WHERE c.owner = side_goal.id) ORDER BY id"),
+      "id",
+    );
+    landedSides = one<string>(
+      index.query("SELECT id FROM side_goal WHERE NOT EXISTS (SELECT 1 FROM side_goal__checks c WHERE c.owner = side_goal.id) ORDER BY id"),
       "id",
     );
     sideHandoffs = new Set(one<string>(index.query("SELECT id FROM side_handoff"), "id"));
@@ -191,6 +196,12 @@ async function check(): Promise<number> {
     if (!h1Of(text).startsWith("# Side goal ")) problems.push(`${md}: its H1 is ${JSON.stringify(h1Of(text).slice(0, 60))}; a side goal's opens \`# Side goal — \``);
     if (!sideHandoffs.has(slug)) problems.push(`side goal \`${slug}\`: no data/goals/side/${slug}.handoff.json`);
     if (sideRecords.has(slug)) audit(sideRecords.get(slug), `data/goals/side/${slug}.json`, md);
+  }
+  for (const slug of landedSides) {
+    problems.push(
+      `side goal \`${slug}\`: no checks, so it has landed -- delete ${GOALS}/side/${slug}.md and data/goals/side/${slug}.json ` +
+        "with its handoff, because a side goal is deleted when it is done, never retired",
+    );
   }
 
   const stale = await numberCitations();
