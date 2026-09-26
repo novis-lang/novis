@@ -1,0 +1,23 @@
+<?nvs
+// Shows a login limit of 5 tries per 15 minutes for each account. When the
+// limit cannot be checked, this program refuses the login.
+
+class Login {
+    public static function mayTry(string $account): bool {
+        try {
+            var $decision = Core\RateLimit::consume("login:" . $account, 5, 15m);
+            return $decision->allowed();
+        } catch (Throwable $error) {
+            // A guessed password is worse than a login that has to wait,
+            // so an error here means no.
+            return false;
+        }
+    }
+}
+
+// This server has no shared store, so this prints `refused`.
+if (Login::mayTry("kim@example.com")) {
+    echo "checking the password\n";
+} else {
+    echo "refused\n";
+}

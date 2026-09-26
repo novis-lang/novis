@@ -102,7 +102,7 @@
 use nvs_runtime::{Fault, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -142,7 +142,7 @@ const OPTIONS: &[CoreOption] = &[
 /// § 1's two members: the coherent one, and the approximate one.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "consume",
@@ -188,6 +188,14 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\RateLimit`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Limits how often something may happen for one key, such as one account or one API \
+            key. `consume` counts in the shared store, so every server gives the same answer. \
+            `shed` counts on this core only, to drop load quickly. Both return a \
+            `Core\\RateLimit\\Decision`.",
 };
 
 /// `Core\RateLimit::consume`'s reference card — `rule:core-api/reference-card`.
@@ -305,7 +313,7 @@ const SHED_DOC: MethodDoc = MethodDoc {
 /// the same reason and its `->status()` is the precedent.
 pub(crate) const DECISION: CoreClass = CoreClass {
     name: DECISION_NAME,
-    doc: None,
+    doc: Some(&DECISION_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -350,6 +358,13 @@ pub(crate) const DECISION: CoreClass = CoreClass {
     ],
     slots: &["allowed", "limit", "remaining", "retryAfter"],
     constants: &[],
+};
+
+/// `Core\RateLimit\Decision`'s class card — `rule:core-api/reference-card`.
+const DECISION_CARD: ClassDoc = ClassDoc {
+    short: "The result of one `Core\\RateLimit::consume` or `shed` call. `allowed` says whether \
+            the call was inside the limit. `limit`, `remaining` and `retryAfter` give the numbers \
+            for `RateLimit` and `Retry-After` response headers.",
 };
 
 /// `Core\RateLimit\Decision::allowed`'s reference card — `rule:core-api/reference-card`.
@@ -838,7 +853,7 @@ mod tests {
 
     use super::{
         ALLOWED_SLOT, CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, SHED_DOC, Value, Window,
-        decoded, nvs_core_ratelimit_shed, step, window,
+        decoded, nvs_core_ratelimit_consume, nvs_core_ratelimit_shed, step, window,
     };
     use crate::cache::redis::Connection;
     use crate::cache::{Dial, Target};
@@ -987,6 +1002,93 @@ mod tests {
         assert_eq!(reply, vec![1, 0, 4]);
         let decision = decoded(&reply, 5).expect("three integers are a decision");
         assert!(decision.obj_ptr().is_some(), "a decision is an instance");
+    }
+
+    /// `rule:core-classes/ratelimit-gcra` and `rule:core-classes/ratelimit-two-members`: the whole
+    /// member, from a program's five arguments to the `Decision` it reads, over a deployment that
+    /// granted `cache.shared` and configured a store.
+    ///
+    /// Two claims. A limit that can never be enforced is refused **before** the door, so the
+    /// store is never dialled for it — asserted by the listener having nothing to accept. And an
+    /// arrival the store refuses comes back as that refusal, field by field: the `cost` option
+    /// crosses as written, and the wait is the store's microseconds as nanoseconds.
+    // covers: Core\RateLimit::consume
+    #[test]
+    fn consume_refuses_an_unenforceable_limit_undialled_and_reads_the_stores_refusal() {
+        let (listener, address) = listening();
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(&format!(
+            "[capabilities]\ncache.shared = true\n\n[cache.shared]\nurl = \"redis://{address}\"\n"
+        )));
+        let arguments = |limit: u64, cost: Value| {
+            [
+                Value::str(NvsStr::new(b"account:1")),
+                Value::uint(limit),
+                crate::time::duration_of(1_000_000_000),
+                Value::null(),
+                cost,
+            ]
+        };
+
+        let zero = nvs_runtime::call(
+            nvs_core_ratelimit_consume,
+            &mut ctx,
+            &arguments(0, Value::null()),
+        );
+        assert!(zero.is_err(), "a limit of 0 is refused");
+        let said = ctx.take_pending().unwrap_or_default();
+        assert!(
+            said.contains("a `$limit` of 0"),
+            "the refusal names the limit: {said}"
+        );
+        listener
+            .set_nonblocking(true)
+            .expect("a listener can be polled");
+        assert!(
+            listener.accept().is_err(),
+            "the refusal came before the door, so nothing dialled the store"
+        );
+        listener.set_nonblocking(false).expect("and put back");
+
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the member dials once");
+            let sent = read_command(&mut stream);
+            stream
+                .write_all(b"*3\r\n:0\r\n:1234567\r\n:0\r\n")
+                .expect("the reply");
+            sent
+        });
+        let answered = nvs_runtime::call(
+            nvs_core_ratelimit_consume,
+            &mut ctx,
+            &arguments(5, Value::uint(2)),
+        )
+        .expect("a configured, granted store that answers is a decision");
+        let sent = String::from_utf8(server.join().expect("the fake store runs to completion"))
+            .expect("the command is text");
+        assert!(
+            sent.ends_with("$1\r\n2\r\n"),
+            "the `cost` option crosses as the script's last argument: {sent}"
+        );
+
+        let object = answered.obj_ptr().expect("a decision is an instance");
+        assert_eq!(
+            crate::instance::slot(object, ALLOWED_SLOT).as_bool(),
+            Some(false)
+        );
+        assert_eq!(
+            crate::instance::slot(object, super::LIMIT_SLOT).as_uint(),
+            Some(5)
+        );
+        assert_eq!(
+            crate::instance::slot(object, super::REMAINING_SLOT).as_uint(),
+            Some(0)
+        );
+        let wait = crate::instance::slot(object, super::RETRY_AFTER_SLOT);
+        assert_eq!(
+            crate::time::nanos_of(&[wait], 0, "retryAfter").expect("a refusal carries a wait"),
+            1_234_567_000
+        );
     }
 
     /// `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`: `shed` is the same algorithm over this core's own
