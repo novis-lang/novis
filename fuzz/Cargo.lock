@@ -1339,6 +1339,7 @@ dependencies = [
  "jiff",
  "libc",
  "nvs-diagnostics",
+ "nvs-footprint",
  "nvs-render",
  "serde",
  "toml",
@@ -1365,7 +1366,12 @@ name = "nvs-diagnostics"
 version = "0.0.1"
 dependencies = [
  "anstyle",
+ "nvs-footprint",
 ]
+
+[[package]]
+name = "nvs-footprint"
+version = "0.0.1"
 
 [[package]]
 name = "nvs-fuzz"
@@ -1415,6 +1421,7 @@ dependencies = [
  "jiff",
  "libc",
  "nvs-config",
+ "nvs-footprint",
  "nvs-render",
  "rand",
  "subtle",
@@ -1455,6 +1462,7 @@ dependencies = [
  "num-integer",
  "nvs-config",
  "nvs-db",
+ "nvs-footprint",
  "nvs-host",
  "nvs-render",
  "nvs-runtime",

@@ -101,7 +101,7 @@ export async function buildCovws(opts: CovwsOptions = {}): Promise<CovwsBuild> {
   const cargo = async (sub: string[]) => {
     const r = await run(["cargo", ...sub, ...args, "--message-format=json-render-diagnostics"], {
       env,
-      onLine: opts.onLine,
+      ...(opts.onLine ? { onLine: opts.onLine } : {}),
       timeoutMs: opts.timeoutMs ?? 60 * 60 * 1000,
     });
     if (r.code !== 0) throw new Error(`\`cargo ${sub.join(" ")}\` for covws failed:\n${r.stderr}${r.stdout}`);

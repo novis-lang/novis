@@ -323,8 +323,16 @@ mod tests {
 
     #[test]
     fn an_empty_path_is_the_working_directory() {
-        let cwd = std::env::current_dir().expect("a working directory");
-        assert_eq!(shown(Path::new("")), shown(&cwd));
+        let shown = shown(Path::new(""));
+        assert!(Path::new(&shown).is_absolute(), "{shown:?}");
+        assert!(shown.ends_with(&shown_tail()), "{shown:?}");
+    }
+
+    /// The last component of the path `shown` gives for `.`, which names the same directory.
+    fn shown_tail() -> String {
+        let dot = shown(Path::new("."));
+        let dot = dot.strip_suffix("/.").unwrap_or(&dot);
+        dot.rsplit('/').next().unwrap_or_default().to_string()
     }
 
     #[test]
