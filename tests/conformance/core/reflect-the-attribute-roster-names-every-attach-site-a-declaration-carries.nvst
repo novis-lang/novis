@@ -2,6 +2,7 @@
 `Core\Reflect\ClassInfo::attributes` names every attach site a declaration carries and `Core\Reflect\AttributeInfo` says which declaration each is written on — `rule:core-classes/reflect` and `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::attributes
 // covers: Core\Reflect\AttributeInfo::name
 // covers: Core\Reflect\AttributeInfo::target
 // covers: Core\Reflect\AttributeInfo::parameter

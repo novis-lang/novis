@@ -2,6 +2,7 @@
 A description's attribute roster carries only what its own declaration wrote, where the constant roster beside it is flattened over the ancestors — `rule:core-classes/reflect` and `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::attributes
 // The two rosters answer different questions and so walk the chain
 // differently, which is the one thing about `attributes` a caller has to know.
 // A constant is a *name a program may write on this class*, and `Base::MAX`

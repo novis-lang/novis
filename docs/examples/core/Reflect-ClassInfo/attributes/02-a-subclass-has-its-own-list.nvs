@@ -1,0 +1,30 @@
+<?nvs
+// Shows that a class only lists the attributes written in its own declaration.
+
+type Table = {name: string};
+
+#[Table(name: "documents")]
+class Document {
+    public string $title = "";
+}
+
+class Invoice extends Document {
+    #[{format: "money"}]
+    public int $total = 0;
+}
+
+var $document = Core\Reflect::forObject(new Document());
+var $invoice = Core\Reflect::forObject(new Invoice());
+
+// `Invoice` extends `Document`, but the `Table` attribute is written on `Document`.
+// So `Invoice` lists only its own attribute. This prints 1 and then 1.
+echo Core\Arr::count($document->attributes()), "\n";
+echo Core\Arr::count($invoice->attributes()), "\n";
+
+// To find the table of an `Invoice`, read the attributes of its parent class.
+// This prints "documents".
+foreach ($document->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    if ($attribute->name() == "Table") {
+        echo $attribute->field("name") as string, "\n";
+    }
+}

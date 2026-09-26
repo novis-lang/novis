@@ -1,0 +1,28 @@
+<?nvs
+// Reads the attribute list of a class, as a framework does when it looks for routes or rules on a class.
+// bench: iterations 400000
+// bench: allocations 0
+
+type Route = {path: string};
+
+#[Route(path: "/orders")]
+class OrderController {
+    #[Route(path: "/list")]
+    public function list(): void {}
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $info = Core\Reflect::forObject(new OrderController());
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The count is added to the total, so no round can be skipped.
+            $total = $total + Core\Arr::count($info->attributes()) as uint + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
