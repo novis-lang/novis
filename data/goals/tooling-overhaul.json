@@ -17060,28 +17060,18 @@
       ]
     },
     {
-      "id": "every-probe-in-the-table-holds-each-with-a-rerun-and-a-keep",
+      "id": "each-kind-of-edit-selects-what-it-reaches-and-nothing-else",
       "kind": "command",
       "stage": 6,
-      "name": "every probe in the table holds, each with a rerun and a keep list",
+      "name": "each kind of edit selects the atoms that used what it changed, and no other",
       "argv": [
         "bun",
-        "nv",
-        "impact",
-        "--probe"
+        "test",
+        "tools/nv/test/select-query.test.ts"
       ],
       "want": [
-        "test-module",
-        "self-included-test-module",
-        "card",
-        "stdlib-code",
-        "syntax-code",
-        "host-code",
-        "embedded-chapter",
-        "driver-tool",
-        "new-example",
-        "editor",
-        "impact probes: every probe holds"
+        " pass",
+        " 0 fail"
       ]
     },
     {
@@ -17092,11 +17082,12 @@
       "argv": [
         "bun",
         "nv",
-        "why",
+        "select",
+        "--explain",
         "nvs-cli script (units held stay bounded after many edits)"
       ],
       "want": [
-        "source: verify record"
+        "the test binaries nvs-cli bin nvs, which nv verify runs too"
       ]
     },
     {
@@ -17107,11 +17098,12 @@
       "argv": [
         "bun",
         "nv",
-        "why",
+        "select",
+        "--explain",
         "the permanent suite: nvs test tests/conformance/"
       ],
       "want": [
-        "source: verify record"
+        "the cases under tests/conformance, which nv verify runs too"
       ]
     },
     {
@@ -17122,14 +17114,16 @@
       "argv": [
         "bun",
         "nv",
-        "why",
+        "select",
+        "--explain",
         "the prefix fuzz target finds no panic in five minutes"
       ],
       "want": [
-        "source: package key",
+        "a heavy check",
+        "held for the floor gate",
         "nvs-diagnostics",
         "nvs-syntax",
-        "fuzz/"
+        "reads fuzz/ besides"
       ]
     },
     {
@@ -17140,11 +17134,13 @@
       "argv": [
         "bun",
         "nv",
-        "why",
+        "select",
+        "--explain",
         "ThreadSanitizer is clean over nvs-host and nvs-runtime"
       ],
       "want": [
-        "source: package key",
+        "a heavy check",
+        "held for the floor gate",
         "nvs-host",
         "nvs-runtime",
         "tools/tsan.sh"
@@ -17180,11 +17176,13 @@
       "argv": [
         "bun",
         "nv",
-        "why",
-        "proofs: lang:types"
+        "select",
+        "--explain",
+        "one proofs run verifies several groups"
       ],
       "want": [
-        "source: observed"
+        "its own atom nv:one-proofs-run-verifies-several-groups, keyed on what the command was seen to read",
+        "the proof programs of lang:types, types:exception"
       ]
     },
     {

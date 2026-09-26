@@ -7,14 +7,22 @@
 //     bun nv select --stats              counts only: atoms per kind and reason, keys per kind
 //     bun nv select --json               the selection as one JSON document
 //     bun nv select --explain ATOM       why one atom was selected or not: the key, the path, the item
+//     bun nv select --explain CHECK      what a plan check is made of, and why each of its atoms was
+//                                        selected or not; CHECK is its id or its name
 //     bun nv select --seed               record every atom from nothing (builds covws; long)
 //          [--kinds case,proof,test,nv] [--limit N] [--jobs N]
 //
 // `tools/nv/select/` is the engine; `select.ts` there holds the rule a selection follows, and `store.ts`
 // the store in `.cache/select.sqlite`. An atom is `case:<path>`, `proof:<path>`, `test:<package> <kind>
-// <target>` or `nv:<check id>`.
+// <target>`, `nvtest:<file>`, `step:<name>`, or a plan check's own `check:`, `nv:` or `heavy:<check id>`.
+// A plan check is a group of atoms (`select/checks.ts`); what it is made of does not depend on what
+// changed, so `--explain CHECK` prints that first, whether or not the store has a tree to compare with.
 
+import type { Check } from "../driver/accept.ts";
 import { metadata } from "../keys/graph.ts";
+import { currentPlan } from "../lib/chain.ts";
+import { caseFiles, nvTestFiles } from "../select/atoms.ts";
+import { describeGroup, grouped, groupDirsOf } from "../select/checks.ts";
 import { type AtomKind, ATOM_KINDS, SelectStore } from "../select/store.ts";
 import { computeChange, counts, describe, discover, explain, query } from "../select/select.ts";
 import { seed } from "../select/seed.ts";
@@ -30,7 +38,7 @@ const USAGE = `usage: bun nv select [--since REV [--until REV]] [--paths PATH ..
   --paths P ...   take these paths as the change instead of asking git
   --stats         print counts only: atoms selected per kind and reason, keys moved per kind
   --json          print the selection as JSON
-  --explain ATOM  say why ATOM was selected or not
+  --explain ATOM  say why ATOM was selected or not; a plan check's id or name says what it is made of
   --seed          build covws and record every atom from nothing
   --kinds K,...   with --seed: only these kinds (case, proof, test, nv)
   --limit N       with --seed: at most N atoms of each kind
@@ -111,8 +119,25 @@ export async function run(args: string[]): Promise<number> {
       return 0;
     }
     const graph = await metadata();
+    const plan = o.explain ? currentPlan() : null;
+    const check = plan ? (plan.goal.checks as Check[]).find((c) => c.id === o.explain || c.name === o.explain) : undefined;
+    let atoms: string[] = [];
+    if (check) {
+      const g = grouped(check, { graph, cases: caseFiles(), nvTests: nvTestFiles(), groupDirs: groupDirsOf(store), proofs: store.atoms("proof").map((a) => a.id.slice(6)) });
+      for (const line of describeGroup(check, g, graph)) console.log(line);
+      atoms = g.atoms;
+      if (store.base() === null && !o.since) {
+        console.log("  the store has no recorded tree, so every atom of it runs");
+        return 0;
+      }
+    }
     const change = await computeChange(store, { ...(o.since ? { since: o.since } : {}), ...(o.until ? { until: o.until } : {}), ...(o.paths ? { paths: o.paths } : {}), graph });
     const sel = query(store, change, { discovered: await discover(graph) });
+    if (check) {
+      for (const a of atoms.slice(0, 10)) console.log(`  ${explain(store, sel, a)[0]}`);
+      if (atoms.length > 10) console.log(`  ... and ${atoms.length - 10} more atom(s)`);
+      return 0;
+    }
     if (o.explain) {
       for (const line of explain(store, sel, o.explain)) console.log(line);
       return 0;
