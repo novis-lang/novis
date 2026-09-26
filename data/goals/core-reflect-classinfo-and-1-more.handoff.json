@@ -1,28 +1,25 @@
 {
-  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2. `ClassInfo::attributes`, `::call`,\n`::constant` and `::constants` are complete: tests from both sides, three examples, `about.md`,\none attack and one recorded bench each. `Core\\Reflect\\ClassInfo` has its class card.\n`ClassInfo::get` has its Novis test marked (`covers:` on\n`tests/conformance/core/reflect-get-refuses-a-private-read-and-tells-it-from-a-misspelling.nvst`)\nand owes the rest. Items 5 to 16 of the goal prose remain, and every one owes an `about.md` too\n(goal prose § *The target*), which the check does not count. No proof found a behaviour bug in\n`Core\\Reflect`; the `constants` bench found a codegen cost in its own scaffolding (Backlog).",
+  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2. `ClassInfo::attributes`, `::call`,\n`::constant`, `::constants` and `::get` are complete: tests from both sides, three examples,\n`about.md`, one attack and one recorded bench each. `Core\\Reflect\\ClassInfo` has its class card.\nThe `get` proofs found two bugs, both fixed: `get` read the slot itself, so it skipped a `get` hook\nand returned an unwritten `lateinit` slot's storage state. It now goes through\n`nvs_runtime::read_erased_property_owned`. Separately, `subject_of` no longer allocates the class name\non the success path, so `get` measures 0 allocations and `call` 7 (was 8). Items 6 to 16 of the goal\nprose remain, and each owes an `about.md` too (goal prose § *The target*).",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs`, its `mod tests`, and the `docs/examples`, `tests/hostile`, `benches/members` trees under `core/Reflect-ClassInfo/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs`, its `mod tests`, and the `docs/examples`, `tests/hostile`, `benches/members` trees under `core/Reflect-ClassInfo/` and `core/Reflect-ConstantInfo/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::get`** — Rust test, about, examples, hostile, perf (`rule:testing/feature-proofs`, `rule:security/reflection-enforces-visibility`). The `.nvst` half is marked; the Rust test at the `set` observer's tail calls `get` only in passing and is not one. `crates/nvs-stdlib/src/reflect.rs:604`"
+        "text": "**`Core\\Reflect\\ClassInfo::construct`** — about, examples, hostile, perf, Rust test (`rule:testing/feature-proofs`, `rule:security/reflection-enforces-visibility`). The two `reflect-construct-*.nvst` cases under `tests/conformance/core/` need a `covers:` marker. `crates/nvs-stdlib/src/reflect.rs:2906`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::construct`** — about, examples, hostile, perf, tests. The two `reflect-construct-*.nvst` cases under `tests/conformance/core/` need a `covers:` marker. `crates/nvs-stdlib/src/reflect.rs:2882`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Reflect\\ConstantInfo::name`** — then `isPublic` and `hasValue`, and the class card for `Core\\Reflect\\ConstantInfo` (remove it from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`). `crates/nvs-stdlib/src/reflect.rs:1400`"
+        "text": "**`Core\\Reflect\\ConstantInfo::name`** — then `isPublic` and `hasValue`, and the class card for `Core\\Reflect\\ConstantInfo` (remove it from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283`). `crates/nvs-stdlib/src/reflect.rs:2451`"
       }
     ]
   },
   "backlog": [
+    "Compiled `nvs_object_slot_get` returns a `get` hook's fresh reference where its doc says the result is borrowed, so a hooked read of a counted value may leak one reference per read (not checked) — `crates/nvs-runtime/src/object.rs`'s `read_erased_property_hinted`.",
     "An array read with a computed `uint` index allocates on every read; the same index `as int` does not (measured with `nvs run --count`, allocating site not checked). Owner not chosen: codegen's array-read lowering is the likely home.",
     "`constants` on a subclass lists the parent's `private` constants (`KEY` on `Child extends Base`). The card says \"every inherited one\"; whether a `private` one is inherited is not stated in `rule:core-classes/reflect` (not checked against ADR 0019).",
-    "`ClassInfo::set`, `::methods`, `::properties` and the rest of goal prose items 5 to 16 — goal prose § *The target*."
+    "`ClassInfo::set`, `::methods`, `::properties` and the rest of goal prose items 6 to 16 — goal prose § *The target*."
   ]
 }

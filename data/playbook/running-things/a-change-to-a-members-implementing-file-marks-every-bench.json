@@ -1,0 +1,12 @@
+{
+  "lead": "A change to a member's implementing file marks every bench recorded against that file stale, and the group's dossier check turns red.",
+  "body": "`bun nv proofs --id` then reads `perf  stale: <file> changed since it was last measured` for siblings you never touched, because the record is keyed on the implementing file's hash. After any code change to a shared file such as `crates/nvs-stdlib/src/reflect.rs`, run `bun nv proofs --record-perf --group '<class>'` once, before the wrap.",
+  "files": [
+    "crates/nvs-stdlib/src/reflect.rs",
+    "tools/nv/proofs/collect.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/collect.ts:changed since it was last measured"
+  }
+}
