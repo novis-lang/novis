@@ -21,6 +21,7 @@ import {
   proofOutcome,
   proofSections,
   stdoutLines,
+  subsetRun,
   testExecutables,
   tiers,
 } from "../driver/accept.ts";
@@ -294,5 +295,16 @@ test("testExecutables groups test artefacts by package", () => {
   ].map((l) => JSON.stringify(l));
   const exes = testExecutables([...lines, "not json"].join("\n"));
   expect([...exes.keys()].sort()).toEqual(["nvs-abi-probe", "nvs-types"]);
-  expect(exes.get("nvs-abi-probe")).toEqual([{ target: "perf_guards", exe: "t2.exe", dir: "d:/mwl/benches/abi-probe" }]);
+  expect(exes.get("nvs-abi-probe")).toEqual([{ target: "perf_guards", kind: "test", exe: "t2.exe", dir: "d:/mwl/benches/abi-probe" }]);
+});
+
+test("subsetRun names what a filtered `cargo test` runs, and nothing when a flag can change it", () => {
+  expect(subsetRun(["test", "-p", "nvs-cli"])).toEqual({ crate: "nvs-cli", kind: null, target: null });
+  expect(subsetRun(["test", "-p", "nvs-cli", "--bin", "nvs", "units_held_stay_bounded"])).toEqual({ crate: "nvs-cli", kind: "bin", target: "nvs" });
+  expect(subsetRun(["test", "-p", "nvs-stdlib", "--lib", "math::tests", "--", "--exact"])).toEqual({ crate: "nvs-stdlib", kind: "lib", target: null });
+  expect(subsetRun(["test", "-p", "nvs-cli", "--test", "live_config", "reload"])).toEqual({ crate: "nvs-cli", kind: "test", target: "live_config" });
+  expect(subsetRun(["test", "-p", "nvs-db", "--features", "mssql"])).toBeNull();
+  expect(subsetRun(["test", "-p", "nvs-db", "x", "--", "--ignored"])).toBeNull();
+  expect(subsetRun(["test", "--release", "-p", "nvs-db"])).toBeNull();
+  expect(subsetRun(["build", "-p", "nvs-db"])).toBeNull();
 });

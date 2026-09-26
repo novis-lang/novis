@@ -137,6 +137,33 @@ export function plainCrateTest(args: string[]): [string, string | null] | null {
   return null;
 }
 
+/** libtest flags after `--` that change how a run reports and never which tests it runs. */
+const REPORTING = /^(?:--exact|--nocapture|--quiet|-q|--test-threads(?:=\d+)?|\d+)$/;
+
+/**
+ * The executables `args` runs a subset of, when `args` is `test -p <crate>` with at most one target,
+ * `--lib`, `--bin <n>` or `--test <n>`, then name filters, then reporting flags after `--`. A whole run
+ * of those executables that passed answers such a check. Null for any other flag, which can change
+ * what runs: `--ignored`, `--features`, `--release`.
+ */
+export function subsetRun(args: string[]): { crate: string; kind: string | null; target: string | null } | null {
+  if (args[0] !== "test" || args[1] !== "-p" || !args[2]) return null;
+  let i = 3;
+  let kind: string | null = null;
+  let target: string | null = null;
+  if (args[i] === "--lib") {
+    kind = "lib";
+    i++;
+  } else if ((args[i] === "--bin" || args[i] === "--test") && args[i + 1]) {
+    kind = args[i]!.slice(2);
+    target = args[i + 1]!;
+    i += 2;
+  }
+  for (; i < args.length && args[i] !== "--"; i++) if (args[i]!.startsWith("-")) return null;
+  for (i++; i < args.length; i++) if (!REPORTING.test(args[i]!)) return null;
+  return { crate: args[2]!, kind, target };
+}
+
 /** Whether `c` reads `target/release/nvs`, which only a bench measures and nothing else here builds. */
 export function measuresReleaseCli(c: Check): boolean {
   const argv = c.argv ?? [];
@@ -211,6 +238,8 @@ export function judgeTests(c: Check, r: Outcome, label: string, onDisk: (rel: st
 /** One test executable of the workspace build: its target name, its path and its package's directory. */
 export interface TestExe {
   target: string;
+  /** `lib`, `bin` or `test`. */
+  kind: string;
   exe: string;
   dir: string;
 }
@@ -231,14 +260,15 @@ export function testExecutables(json: string): Map<string, TestExe[]> {
     }
     if (m?.reason !== "compiler-artifact" || !m.executable || !m.profile?.test) continue;
     const kinds: string[] = m.target?.kind ?? [];
-    if (!kinds.some((k) => k === "lib" || k === "bin" || k === "test")) continue;
+    const kind = kinds.find((k) => k === "lib" || k === "bin" || k === "test");
+    if (kind === undefined) continue;
     const pid: string = m.package_id ?? "";
     const hash = pid.lastIndexOf("#");
     const source = hash < 0 ? "" : pid.slice(0, hash);
     const tail = hash < 0 ? pid : pid.slice(hash + 1);
     const name = tail.includes("@") ? tail.split("@", 1)[0]! : source.replace(/\/+$/, "").split("/").pop()!;
     const list = exes.get(name) ?? [];
-    list.push({ target: m.target.name, exe: m.executable, dir: dirname(m.manifest_path) });
+    list.push({ target: m.target.name, kind, exe: m.executable, dir: dirname(m.manifest_path) });
     exes.set(name, list);
   }
   return exes;
@@ -334,6 +364,8 @@ export class Sweep {
   private release: Promise<Outcome> | undefined;
   private exes: Promise<Map<string, TestExe[]> | { fail: string }> | undefined;
   private readonly memo = new Map<string, Promise<Outcome>>();
+  /** Each test executable's whole run this sweep, by its path. */
+  private readonly exeRuns = new Map<string, Promise<Outcome>>();
   private proofs: { groups: string[]; run?: Promise<Outcome> } | undefined;
 
   constructor(private readonly opts: SweepOptions) {}
@@ -391,8 +423,7 @@ export class Sweep {
       const outs: string[] = [];
       const errs: string[] = [];
       for (const t of chosen) {
-        this.opts.onRun?.(`${crate}: ${t.target}`);
-        const one = await capture([t.exe], t.dir, { CARGO_MANIFEST_DIR: t.dir });
+        const one = await this.runExe(crate, t);
         outs.push(one.out);
         errs.push(one.err);
         if (one.code !== 0) {
@@ -404,6 +435,33 @@ export class Sweep {
       }
       return { code: 0, out: outs.join("\n"), err: errs.join("\n") };
     });
+  }
+
+  /** One whole run of a test executable, run once per sweep whichever check reaches it first. */
+  private runExe(crate: string, t: TestExe): Promise<Outcome> {
+    let p = this.exeRuns.get(t.exe);
+    if (p === undefined) {
+      this.opts.onRun?.(`${crate}: ${t.target}`);
+      p = capture([t.exe], t.dir, { CARGO_MANIFEST_DIR: t.dir });
+      this.exeRuns.set(t.exe, p);
+    }
+    return p;
+  }
+
+  /** A `cargo test` run of a subset of executables this sweep has already run whole and seen pass,
+   * answered from those runs; null when one of them has not run, or did not pass. */
+  private async fromWholeRuns(args: string[]): Promise<Outcome | null> {
+    const subset = subsetRun(args);
+    if (subset === null) return null;
+    const exes = await this.testExes();
+    if (!(exes instanceof Map)) return null;
+    const chosen = (exes.get(subset.crate) ?? []).filter(
+      (t) => subset.kind === null || (t.kind === subset.kind && (subset.target === null || t.target === subset.target)),
+    );
+    if (chosen.length === 0 || chosen.some((t) => !this.exeRuns.has(t.exe))) return null;
+    const runs = await Promise.all(chosen.map((t) => this.exeRuns.get(t.exe)!));
+    if (runs.some((r) => r.code !== 0)) return null;
+    return { code: 0, out: runs.map((r) => r.out).join("\n"), err: runs.map((r) => r.err).join("\n") };
   }
 
   /** `cargo test --workspace`'s outcome: every package's tests off the shared build, stopping at the first failure. */
@@ -482,7 +540,7 @@ export class Sweep {
       const plain = plainCrateTest(args);
       if (plain !== null) r = await this.crateTests(plain[0], plain[1]);
       else if (args.length === 2 && args[0] === "test" && args[1] === "--workspace") r = await this.workspaceTests();
-      else r = await this.once(`cargo\0${args.join("\0")}`, `cargo ${args.join(" ")}`, () => capture(["cargo", ...args]));
+      else r = (await this.fromWholeRuns(args)) ?? (await this.once(`cargo\0${args.join("\0")}`, `cargo ${args.join(" ")}`, () => capture(["cargo", ...args])));
     }
     return judgeTests(c, r, label, (rel) => existsSync(join(ROOT, rel)));
   }
