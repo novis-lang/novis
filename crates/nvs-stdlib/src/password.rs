@@ -127,6 +127,11 @@
 //! anything a machine notices, so it costs nothing to a real deployment and
 //! closes a denial of service that would otherwise be one `UPDATE` away.
 //!
+//! The `t` parameter is the same lever on time: each pass walks the whole
+//! table again, so a row reading `t=1000000` over this class's own 19 MiB is
+//! over an hour of one core. [`MAX_WORK`] bounds `m` times `t`, the work
+//! itself, and is refused before any pass runs.
+//!
 //! A bcrypt row is the same lever with a different unit: its cost is the base-2
 //! log of the round count, so it buys CPU time where `m` bought memory, and it
 //! is the same `UPDATE` away. [`MAX_BCRYPT_COST`] is that ceiling, `rule:security/bcrypt-cost-ceiling`'s
@@ -140,7 +145,9 @@ use rand::Rng;
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The variant every hash this module writes is made with — RFC 9106 § 4's
 /// recommendation for password hashing, and the module doc's home for why.
@@ -168,6 +175,13 @@ const P_COST: u32 = 1;
 /// stored hash, in KiB — 1 GiB. The module doc's last section is why there is
 /// a ceiling at all.
 const MAX_M_COST: u32 = 1024 * 1024;
+
+/// The most work [`nvs_core_password_verify`] will do for a stored hash, as
+/// its memory cost in KiB times its passes — 4 GiB of passes, which is
+/// libsodium's `SENSITIVE` preset (1 GiB over four passes) and the most
+/// expensive configuration a real deployment writes. [`MAX_M_COST`] bounds
+/// the table; this bounds how many times it is walked.
+const MAX_WORK: u64 = 4 * 1024 * 1024;
 
 /// The salt length in bytes, `password_hash`'s own `RECOMMENDED_SALT_LEN`.
 const SALT_LEN: usize = 16;
@@ -201,7 +215,7 @@ fn params() -> Params {
 /// Spec § 16's password hashing, and `rule:core-classes/secret-reveal`'s second escape hatch.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Password",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "hash",
@@ -236,83 +250,85 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Password`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Stores and checks passwords safely. `hash` turns a password into a string you can \
+            save, `verify` checks a password against that string, and `needsRehash` tells you \
+            when a saved hash should be made again. This replaces PHP's `password_hash`, \
+            `password_verify` and `password_needs_rehash`.",
+};
+
 /// `Core\Password::hash`'s reference card — `rule:core-api/reference-card`.
 const HASH_DOC: MethodDoc = MethodDoc {
-    short: "Hashes `$password` for storage with Argon2id under parameters this library chooses, \
-            answering the PHC string that carries the algorithm, the version, the cost and the \
-            salt alongside the digest. There is no algorithm or cost argument: `needsRehash` is \
-            how a stored hash learns it has fallen behind.",
+    short: "Turns `$password` into a hash you can store, using Argon2id. The library chooses the \
+            settings, so there is no algorithm or cost argument. The result contains everything \
+            `verify` needs later: the algorithm, the settings, a random salt and the hash itself.",
     params: &[ParamDoc {
         name: "password",
-        desc: "The password to hash. A `secret` is accepted here and the answer is not one — \
-               storing the hash is the point.",
+        desc: "The password to hash. It may be a `secret` string. The result is not secret, \
+               because it is made to be stored.",
         shape: &[],
     }],
-    ret: "The PHC string to store, as in `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<digest>`. Two \
-          calls with the same password answer differently, because each draws its own salt.",
+    ret: "A string such as `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`. Each call uses a new \
+          random salt, so the same password gives a different string every time.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "This process cannot spare the ~19 MiB the parameters ask for.",
+        desc: "The request cannot use the 19 MiB of memory that one hash needs.",
     }],
 };
 
 /// `Core\Password::verify`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether `$password` is the one `$hash` was made from, recomputing under the \
-            parameters `$hash` itself carries so that a hash written under older settings still \
-            verifies. Two shapes are read: the Argon2id string `hash` writes, and a PHP-stored \
-            bcrypt hash under `$2y$`, `$2a$` or `$2b$`. The comparison is constant-time.",
+    short: "Checks whether `$password` is the password `$hash` was made from. It uses the \
+            settings stored in `$hash`, so a hash made with older settings still works. It reads \
+            the Argon2id strings `hash` writes, and bcrypt hashes that PHP wrote with `$2y$`, \
+            `$2a$` or `$2b$`. The check takes the same time for every wrong password.",
     params: &[
         ParamDoc {
             name: "password",
-            desc: "The password offered. A `secret` is accepted; the answer is a `bool` and \
-                   carries nothing of it.",
+            desc: "The password somebody typed. It may be a `secret` string.",
             shape: &[],
         },
         ParamDoc {
             name: "hash",
-            desc: "The stored hash: the PHC string `hash` answered, or a bcrypt hash a PHP \
-                   application stored.",
+            desc: "The stored hash: a string from `hash`, or a bcrypt hash that PHP stored.",
             shape: &[],
         },
     ],
-    ret: "`true` when `$password` produced `$hash`, `false` when it did not.",
+    ret: "`true` when `$password` matches `$hash`, `false` when it does not.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$hash` is outside the read roster — it does not parse, or it names another \
-                   algorithm, version or salt, or it carries the `$2x$` tag. A storage bug \
-                   rather than a wrong password, which is why it is not `false`.",
+            desc: "`$hash` is not a password hash this class can read. It does not parse, it \
+                   uses another algorithm, or it starts with `$2x$`. This usually means the \
+                   stored value is broken, so it is an error and not `false`.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$hash` asks for more work than any hash it could be — more memory than \
-                   this class writes, or a bcrypt cost above 17 — or this process cannot \
-                   spare what it asks for.",
+            desc: "`$hash` asks for too much work: more than 1 GiB of memory, too many passes \
+                   over that memory, or a bcrypt cost above 17. It is also thrown when the \
+                   request cannot use the memory the hash needs.",
         },
     ],
 };
 
 /// `Core\Password::needsRehash`'s reference card — `rule:core-api/reference-card`.
 const NEEDS_REHASH_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether `$hash` is weaker than what `hash` would write today — a different \
-            algorithm or version, or a lower memory or time cost — so that a program can \
-            rehash the password it has just verified.",
+    short: "Checks whether `$hash` is weaker than a hash `hash` makes today. Call it right after \
+            `verify` returns `true`. If it returns `true`, hash the password again and store the \
+            new hash.",
     params: &[ParamDoc {
         name: "hash",
-        desc: "The stored hash to measure.",
+        desc: "The stored hash to check.",
         shape: &[],
     }],
-    ret: "`true` when the stored hash has fallen behind, `false` when it is at or above the \
-          current parameters. A hash *stronger* than the current ones answers `false`: \
-          rehashing it would lower its cost. Every bcrypt hash answers `true` — a different \
-          algorithm is weaker by this member's own rule — which is what makes the login-time \
-          upgrade loop the migration path for a PHP user table.",
+    ret: "`true` when `$hash` uses another algorithm or version, or less memory or fewer passes \
+          than `hash` uses now. Every bcrypt hash returns `true`. `false` when `$hash` is as \
+          strong as a new hash, or stronger.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$hash` is neither a PHC string nor a bcrypt hash. One that parses but names \
-               another algorithm answers `true` here rather than throwing — that is precisely \
-               the question this member is asked.",
+        desc: "`$hash` is not a password hash at all. A hash that uses another algorithm does not \
+               throw: it returns `true`.",
     }],
 };
 
@@ -395,6 +411,13 @@ fn footprint(m_cost: u32) -> usize {
         .saturating_mul(1024)
 }
 
+/// The work a PHC hash's parameters ask for, in the unit [`MAX_WORK`] is
+/// written in: KiB of table times passes over it. Widened first, so no pair of
+/// `u32`s can wrap it.
+fn work(m_cost: u32, t_cost: u32) -> u64 {
+    u64::from(m_cost) * u64::from(t_cost)
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Password::hash(secret string $password): string` — replacing
     /// `password_hash`, and with it `crypt`.
@@ -475,6 +498,17 @@ nvs_runtime::nvs_helper! {
                 return Err(Fault::thrown(format!(
                     "Core\\Password::verify(): $hash asks for {} KiB of memory, past this \
                      class's {MAX_M_COST} KiB ceiling — no hash it writes needs that",
+                    asked.m_cost()
+                )));
+            }
+            // The passes are data too, and they buy time the way `m` buys
+            // memory — so the product is bounded, not `t` alone, because a
+            // cheap pass over a small table is not the work a costly one is.
+            if work(asked.m_cost(), asked.t_cost()) > MAX_WORK {
+                return Err(Fault::thrown(format!(
+                    "Core\\Password::verify(): $hash asks for {} passes over {} KiB, past this \
+                     class's ceiling of {MAX_WORK} KiB of passes — no hash it writes needs that",
+                    asked.t_cost(),
                     asked.m_cost()
                 )));
             }
@@ -580,6 +614,7 @@ mod tests {
     /// migrating application arrives with verifies, and the wrong password
     /// answers `false` rather than throwing — the whole point being that a
     /// legacy row is a *readable* hash and not a storage bug.
+    // covers: Core\Password::verify
     #[test]
     fn a_php_stored_bcrypt_hash_verifies_and_the_wrong_password_does_not() {
         let offered = std::str::from_utf8(PASSWORD).expect("the fixture is text");
@@ -599,6 +634,7 @@ mod tests {
     /// different algorithm is weaker by this member's own rule. Asserted over
     /// the whole roster rather than one tag, so a member that grew a comparison
     /// for one spelling fails here.
+    // covers: Core\Password::needsRehash
     #[test]
     fn needs_rehash_answers_true_for_every_bcrypt_tag() {
         for tag in BCRYPT_TAGS {
@@ -703,6 +739,75 @@ mod tests {
         assert!(asked.m_cost() >= M_COST && asked.t_cost() >= T_COST);
         assert_eq!(hash.algorithm, ALGORITHM.ident());
         assert_eq!(hash.version, Some(VERSION as u32));
+    }
+
+    /// `hash` called the way a program calls it: the same password twice gives
+    /// two different strings, because each call draws its own salt, and both
+    /// verify and are current.
+    // covers: Core\Password::hash
+    #[test]
+    fn hash_draws_a_salt_per_call_and_each_answer_verifies() {
+        let mut ctx = Ctx::buffered();
+        let password = [Value::str(NvsStr::new(PASSWORD))];
+        let stored: Vec<String> = (0..2)
+            .map(|_| {
+                let value = call(nvs_core_password_hash, &mut ctx, &password)
+                    .expect("the module's own parameters hash");
+                value
+                    .as_text()
+                    .expect("`hash` answers a `string`")
+                    .to_owned()
+            })
+            .collect();
+
+        assert_ne!(stored[0], stored[1], "each call draws its own salt");
+        let offered = std::str::from_utf8(PASSWORD).expect("the fixture is text");
+        for hash in &stored {
+            assert!(
+                hash.starts_with("$argon2id$v=19$m=19456,t=2,p=1$"),
+                "{hash}"
+            );
+            assert_eq!(answer(nvs_core_password_verify, &[offered, hash]), Ok(true));
+            assert_eq!(answer(nvs_core_password_needs_rehash, &[hash]), Ok(false));
+        }
+    }
+
+    /// [`MAX_WORK`] on both sides, and the refusal end to end: `t` is data out
+    /// of the store like `m`, so a row asking for more passes than the ceiling
+    /// allows is refused before one pass runs, and the sentence never quotes
+    /// the row. The bound itself is libsodium's `SENSITIVE` preset.
+    #[test]
+    fn a_stored_pass_count_past_the_work_ceiling_is_refused_before_any_work() {
+        assert_eq!(
+            work(1024 * 1024, 4),
+            MAX_WORK,
+            "1 GiB over four passes is the ceiling"
+        );
+        assert!(
+            work(M_COST, 215) <= MAX_WORK,
+            "215 passes over 19 MiB is inside it"
+        );
+        assert!(
+            work(M_COST, 216) > MAX_WORK,
+            "216 is the first count past it"
+        );
+        assert!(
+            work(u32::MAX, u32::MAX) > MAX_WORK,
+            "and the widest pair does not wrap"
+        );
+
+        let endless = "$argon2id$v=19$m=19456,t=1000000,p=1$jJ+hokoSJRsAzYsgfwhV6g\
+                       $BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI";
+        let refusal = answer(nvs_core_password_verify, &["hunter2", endless])
+            .expect_err("a million passes is over an hour of one core");
+        assert!(
+            refusal.contains("1000000 passes over 19456 KiB"),
+            "the sentence names what was asked: {refusal}"
+        );
+        assert!(
+            !refusal.contains("jJ+hokoSJRsAzYsgfwhV6g"),
+            "and never the stored bytes"
+        );
     }
 
     /// `rule:core-api/tier-roster` places this class as a `Core\Crypto` primitive, and the
