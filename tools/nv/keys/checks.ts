@@ -13,7 +13,9 @@
 // - `package key`: a check that builds or runs a program. Its build is `builtFrom` at the tier the
 //   check reads, plus the paths the program opens. A check that only runs programs builds at `card`,
 //   since no program prints a card: the program kinds, the legs, the suites, fuzz, TSan and the
-//   database matrix. An `nvs` command, the editor's host run and a cost margin build at `shipped`.
+//   database matrix. The editor's host run and a cost margin build at `shipped`, and so does an `nvs`
+//   command that prints a card; any other `nvs` command builds at `card`, and one that opens only its
+//   configuration and the paths it names keys on those (`nvsCommandParts`).
 // - `observed`: a check over what it was last seen to read. A proofs group, the unit `proofs: <group>` for
 //   each `--group` an `nv proofs --run` or `--verify` check names, keys on the proof binary, the
 //   `nv proofs` modules, what the roster and the audit read for every group, the markers and calls it
@@ -99,6 +101,43 @@ const TEST_TREES = ["tests", "conformance", "differential", "hostile", "lsp-case
 const PROGRAM_READS = ["docs", "examples", "tests"];
 /** What an `nvs` command opens besides its build. */
 const NVS_COMMAND_READS = ["docs", "examples", ...TEST_TREES];
+/** The `nvs` subcommands that print a reference card, and read the build at `shipped`. */
+const CARD_COMMANDS = new Set(["meta", "doc", "agent", "lsp"]);
+/** The `nvs` subcommands that open only their configuration and the paths their arguments name. `fmt`
+ * and `check` walk their working directory when no path is named, so they are here only with one. */
+const NAMED_READERS = new Set(["ast", "build", "config", "ctl", "doc", "meta", "queue", "schema", "service"]);
+const WALKERS = new Set(["check", "fmt"]);
+/** What every `nvs` command reads of its configuration: the file in its working directory, and the
+ * databases' certificates and files that file names. */
+const NVS_CONFIG_READS = ["nvs.toml", "nvs.local.toml", ".env", "tests/db"];
+
+/** The card reader whose code reads a card only when its binary runs a `CARD_COMMANDS` subcommand. It
+ * has no library, so an integration test of it reaches a card only by starting the binary with one. */
+const CARD_BY_COMMAND = "nvs-cli";
+
+/** Does this test source start a subcommand that prints a card: hold one as a whole string literal? A
+ * source that declares a module file is taken to, since that file is not read here. */
+function asksForCards(text: string): boolean {
+  if (/^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*;/m.test(text)) return true;
+  return [...text.matchAll(/"((?:[^"\\]|\\.)*)"/g)].some((m) => CARD_COMMANDS.has(m[1]!));
+}
+
+/** What an `{nvs} <argv>` check reads: its build, at `shipped` for a command that prints a card and at
+ * `card` for any other, and what it opens. A command that opens only its configuration and named paths
+ * keys on those, a named file standing for its directory since a program opens the files beside it. Any
+ * other keys on every tree a command might walk. */
+function nvsCommandParts(tree: Tree, graph: Graph, argv: string[], cwd: string): Part[] {
+  const args = argv.slice(1);
+  const sub = args.find((a) => !a.startsWith("-")) ?? "";
+  const tier = CARD_COMMANDS.has(sub) ? "shipped" : "card";
+  const trimmed = args.filter((a) => a !== sub && !a.startsWith("-")).map((a) => a.replace(/\\/g, "/").replace(/\/+$/, ""));
+  const named = trimmed.filter((a) => tree.has(a) || tree.under(a).length > 0);
+  const narrow = cwd === "." && (NAMED_READERS.has(sub) || (WALKERS.has(sub) && named.length > 0));
+  if (!narrow) return programParts(tree, graph, NVS_COMMAND_READS, tier);
+  // A file at the root stands for itself, since its directory is the whole tree.
+  const opened = named.map((a) => (tree.has(a) && dirname(a) !== "." ? dirname(a).replace(/\\/g, "/") : a));
+  return union(build(tree, graph, program(tier)), ...[...NVS_CONFIG_READS, ...opened].map((p) => path(tree, p)));
+}
 /** The case trees whose verdicts `verify` keeps. */
 const VERIFY_TREES = ["tests/conformance", "tests/differential"];
 /** Every partition a unit keyed on everything reads. `state` is not one: a wrap rewrites it every
@@ -476,7 +515,13 @@ function nvParts(tree: Tree, graph: Graph, name: string, rec: Reads): Part[] {
 
 /** A test binary's parts. Its name is `<package> <kind> <target>`, as `testBinaries` writes it. */
 function binaryParts(tree: Tree, r: Records, pkg: string, name: string): Part[] {
-  const built = build(tree, r.graph, testBuild(pkg, name.split(" ")[1]));
+  const kind = name.split(" ")[1];
+  let b = testBuild(pkg, kind);
+  if (kind === "test" && pkg === CARD_BY_COMMAND) {
+    const src = testBinaries(r.graph, pkg).find((x) => x.name === name)?.target.src;
+    if (src !== undefined && tree.has(src) && !asksForCards(tree.text(src))) b = { ...b, ownTier: "card", depTier: "card" };
+  }
+  const built = build(tree, r.graph, b);
   if (r.wide.has(name)) return union(built, everythingButWrap(tree));
   return union(built, ...(r.reads.get(name) ?? []).map((rel) => path(tree, rel)));
 }
@@ -599,7 +644,7 @@ function checkUnit(r: Records, c: Check): Unit {
   const argv = strings(c.argv);
   const cwd = typeof c.cwd === "string" ? c.cwd : ".";
 
-  if (argv[0] === "{nvs}") return unit("package key", (t) => programParts(t, g, NVS_COMMAND_READS, "shipped"));
+  if (argv[0] === "{nvs}") return unit("package key", (t) => nvsCommandParts(t, g, argv, cwd));
 
   if (argv[0] === "npm" && cwd.startsWith("editors/")) {
     // The host run starts `nvs lsp`; packaging and the headless suite read the extension alone.

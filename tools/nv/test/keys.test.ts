@@ -6,6 +6,7 @@ import { analyse } from "../keys/scan.ts";
 import { readsCard } from "../keys/escape.ts";
 import { metadata } from "../keys/graph.ts";
 import { CARD_READERS, builtFrom, keyOf, testBuild } from "../keys/key.ts";
+import { units } from "../keys/checks.ts";
 import { Tree } from "../keys/tree.ts";
 
 describe("partitionOf", () => {
@@ -72,6 +73,30 @@ describe("a test binary's dependency tier", () => {
     expect(key(edited, "nvs-cli", "bin")).not.toBe(key(tree, "nvs-cli", "bin"));
     expect(key(edited, "nvs-lsp", "lib")).not.toBe(key(tree, "nvs-lsp", "lib"));
     expect(key(edited, "nvs-stdlib", "lib")).not.toBe(key(tree, "nvs-stdlib", "lib"));
+  });
+
+  test("an `nvs-cli` integration test that starts no card command, and an `nvs` command that prints no card, skip a card edit", async () => {
+    const graph = (await metadata())!;
+    const tree = await Tree.read();
+    const math = "crates/nvs-stdlib/src/math.rs";
+    const text = readFileSync(abs(math), "utf8");
+    const carded = tree.edited({ [math]: text.replace('short: "Returns `$n` without its sign', 'short: "Gives `$n` without its sign') });
+    const example = tree.edited({ "docs/examples/core/Math/abs/zz-probe.nvs": "<?nvs\necho 1;\n", "tests/hostile/core/Math/abs/zz-probe.nvs": "<?nvs\necho 1;\n" });
+    const config = tree.edited({ "nvs.toml": `${tree.text("nvs.toml")}\n# probe\n` });
+    const checks = [
+      { kind: "command", name: "migrate", argv: ["{nvs}", "queue", "migrate", "--connection", "main"] },
+      { kind: "command", name: "meta", argv: ["{nvs}", "meta", "--json"] },
+      { kind: "command", name: "fmt anywhere", argv: ["{nvs}", "fmt", "--check"] },
+    ];
+    const us = units({ graph, checks, reads: new Map(), wide: new Set<string>(), proofReads: new Map(), nvReads: new Map() });
+    const key = (t: Tree, name: string) => keyOf(name, us.find((u) => u.name === name)!.parts(t));
+    expect(key(carded, "nvs-cli test live_config")).toBe(key(tree, "nvs-cli test live_config"));
+    expect(key(carded, "nvs-cli test meta")).not.toBe(key(tree, "nvs-cli test meta"));
+    expect(key(carded, "migrate")).toBe(key(tree, "migrate"));
+    expect(key(example, "migrate")).toBe(key(tree, "migrate"));
+    expect(key(config, "migrate")).not.toBe(key(tree, "migrate"));
+    expect(key(carded, "meta")).not.toBe(key(tree, "meta"));
+    expect(key(example, "fmt anywhere")).not.toBe(key(tree, "fmt anywhere"));
   });
 
   test("only the registered card readers read a card outside the registry's package", () => {
