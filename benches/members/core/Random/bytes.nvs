@@ -1,0 +1,24 @@
+<?nvs
+// Measures drawing a 16-byte salt, as a program does before it stores a new password.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $previous = Core\Random::bytes(16);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round compares its salt with the salt of the round before it,
+            // so no round can be left out.
+            bytes $salt = Core\Random::bytes(16);
+            $total = $total + (($salt != $previous ? 1 : 0) as uint);
+            $previous = $salt;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

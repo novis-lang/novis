@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to draw a random key of 32 bytes and write it as hex.
+
+bytes $key = Core\Random::bytes(32);
+
+// The key has exactly the length you asked for. This prints 32.
+echo Core\Bytes::length($key), "\n";
+
+// `Core\Encoding::toHex` writes each byte as two characters. This prints 64.
+string $hex = Core\Encoding::toHex($key);
+echo Core\Str::length($hex), "\n";

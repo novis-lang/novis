@@ -95,7 +95,9 @@ use rand::{Rng, RngExt};
 
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -108,11 +110,18 @@ pub(crate) const NAME: &str = r"Core\Random";
 /// [`SEEDED`]'s name, the same way, and as [`CoreTy::Instance`] spells it.
 pub(crate) const SEEDED_NAME: &str = r"Core\Random\Seeded";
 
+/// `Core\Random`'s own card — `rule:core-api/reference-card`.
+const RANDOM_CARD: ClassDoc = ClassDoc {
+    short: "Random numbers, bytes, tokens and choices from a cryptographic generator, so a \
+            value is safe to use for a key, a code or a password reset link. For a sequence \
+            that repeats from a seed, use `Core\\Random\\Seeded`.",
+};
+
 /// `Core\Random`'s registry rows, in the spec's own order — all seven of
 /// § 11's first table.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&RANDOM_CARD),
     methods: &[
         CoreMethod {
             name: "int",
@@ -700,41 +709,71 @@ fn float_from(rng: &mut Generator<'_>) -> Value {
     Value::float(rng.random::<f64>())
 }
 
-/// `bytes`'s and `token`'s draw: `count` octets, in a buffer reserved fallibly.
+/// How many octets [`octets_from`] and [`hex_from`] draw onto the stack at a
+/// time before writing them into their result. A multiple of eight, so a
+/// [`SplitMix`] sequence reads the same whether a draw is made in one pass or
+/// in several.
+const PASS: usize = 256;
+
+/// `bytes`'s draw: `count` octets, written straight into the buffer the member
+/// answers with.
 ///
-/// `vec![0; n]` *aborts the process* when the allocator refuses it, which in a
-/// server is every in-flight request paying for one argument, so the buffer is
-/// reserved fallibly and the caller says which member could not be served.
+/// One allocation, exactly `count` wide: the octets are drawn a [`PASS`] at a
+/// time onto the stack and pushed, so no scratch buffer is built and copied.
+/// [`NvsStr::try_build`] reserves it fallibly because `count` is off a call
+/// site, and an allocator refusing a count is otherwise a process abort, which
+/// in a server is every in-flight request paying for one argument.
 ///
 /// # Errors
 ///
 /// `refusal`, when the allocator will not hold `count` octets.
-fn buffer_from(
+fn octets_from(
     rng: &mut Generator<'_>,
     count: usize,
     refusal: impl FnOnce() -> Fault,
-) -> Result<Vec<u8>, Fault> {
-    let mut drawn: Vec<u8> = Vec::new();
-    drawn.try_reserve_exact(count).map_err(|_| refusal())?;
-    drawn.resize(count, 0);
-    rng.fill_bytes(&mut drawn);
-    Ok(drawn)
+) -> Result<NvsStr, Fault> {
+    NvsStr::try_build(count, |out| {
+        let mut pass = [0_u8; PASS];
+        let mut left = count;
+        while left > 0 {
+            let width = left.min(PASS);
+            rng.fill_bytes(&mut pass[..width]);
+            out.push(&pass[..width]);
+            left -= width;
+        }
+    })
+    .ok_or_else(refusal)
 }
 
-/// `token`'s rendering: `drawn` as lower-case hex, in a string reserved
-/// fallibly for the reason [`buffer_from`] gives.
+/// `token`'s draw: `bytes` octets rendered as lower-case hex, written straight
+/// into the `digits`-wide string the member answers with — one allocation, for
+/// [`octets_from`]'s reasons.
 ///
 /// # Errors
 ///
 /// `refusal`, when the allocator will not hold `digits` characters.
-fn hex_from(drawn: &[u8], digits: usize, refusal: impl FnOnce() -> Fault) -> Result<String, Fault> {
-    let mut token = String::new();
-    token.try_reserve_exact(digits).map_err(|_| refusal())?;
-    for byte in drawn.iter().copied() {
-        token.push(HEX_DIGITS[usize::from(byte >> 4)]);
-        token.push(HEX_DIGITS[usize::from(byte & 0x0f)]);
-    }
-    Ok(token)
+fn hex_from(
+    rng: &mut Generator<'_>,
+    bytes: usize,
+    digits: usize,
+    refusal: impl FnOnce() -> Fault,
+) -> Result<NvsStr, Fault> {
+    NvsStr::try_build(digits, |out| {
+        let mut pass = [0_u8; PASS];
+        let mut hex = [0_u8; 2 * PASS];
+        let mut left = bytes;
+        while left > 0 {
+            let width = left.min(PASS);
+            rng.fill_bytes(&mut pass[..width]);
+            for (pair, byte) in hex.chunks_exact_mut(2).zip(pass[..width].iter().copied()) {
+                pair[0] = HEX_DIGITS[usize::from(byte >> 4)];
+                pair[1] = HEX_DIGITS[usize::from(byte & 0x0f)];
+            }
+            out.push(&hex[..2 * width]);
+            left -= width;
+        }
+    })
+    .ok_or_else(refusal)
 }
 
 /// `pick`'s draw: one entry's value, or `null` over an empty subject.
@@ -980,7 +1019,7 @@ nvs_runtime::nvs_helper! {
     /// rather than `""`.
     ///
     /// A count larger than this process can hold is an ordinary throw too, and
-    /// it is decided by `try_reserve` rather than by an arithmetic bound: there
+    /// it is decided by the allocator rather than by an arithmetic bound: there
     /// is no doubling here to overflow the way [`nvs_core_random_token`]'s
     /// does, so the only question left is whether the allocator has the buffer,
     /// and asking it is both exact and the difference between a throw and an
@@ -997,7 +1036,7 @@ nvs_runtime::nvs_helper! {
 
         // Two checks, and they answer different questions: `affordable` is the
         // policy seam every count-shaped argument passes through, and
-        // `try_reserve_exact` is the allocator actually refusing. Keep both —
+        // `octets_from`'s fallible build is the allocator actually refusing. Keep both —
         // the first is where `[limits.hard]` will attach, the second is what
         // catches a draw the machine cannot satisfy today.
         nvs_runtime::affordable(Some(count), "Core\\Random::bytes()")?;
@@ -1007,9 +1046,7 @@ nvs_runtime::nvs_helper! {
                  could hold",
             )
         };
-        let drawn = draw(ctx, |rng| buffer_from(rng, count, refusal))?;
-
-        Ok(Value::bytes(NvsStr::new(&drawn)))
+        Ok(Value::bytes(draw(ctx, |rng| octets_from(rng, count, refusal))?))
     }
 }
 
@@ -1036,11 +1073,8 @@ nvs_runtime::nvs_helper! {
     /// own — a token is twice as long as its draw, so `2 * $bytes` is what the
     /// seam is asked about, and the answer is that this member's bound sits at
     /// exactly half of `bytes`'s. Everything the seam allows is then asked of
-    /// the allocator rather than assumed: `vec![0; n]` and
-    /// `String::with_capacity(n)` both *abort the process* when it refuses,
-    /// which in a server is every in-flight request paying for one argument,
-    /// so both buffers are reserved fallibly and report the same refusal
-    /// `bytes` reports.
+    /// the allocator rather than assumed, through the same fallible build
+    /// `bytes` uses, and a refusal reports the same sentence `bytes` reports.
     fn nvs_core_random_token(ctx, args: [1]) {
         let bytes = count(NAME, &args[0], "token", "the byte count")?;
 
@@ -1056,21 +1090,17 @@ nvs_runtime::nvs_helper! {
         // the same shape for the same reason.
         let digits = nvs_runtime::affordable(bytes.checked_mul(2), "Core\\Random::token()")?;
 
-        // The allocator is then asked rather than assumed: `vec![0; n]` and
-        // `String::with_capacity(n)` abort the process on a refusal, and a
-        // count the seam allows can still be a draw this machine cannot serve.
-        // One sentence for both buffers, since a caller cannot act on which of
-        // the two the allocator stopped at.
+        // The allocator is then asked rather than assumed, since a count the
+        // seam allows can still be a draw this machine cannot serve.
         let refusal = || {
             Fault::thrown(
                 "Core\\Random::token(): the requested draw is larger than any buffer this \
                  process could hold",
             )
         };
-        let drawn = draw(ctx, |rng| buffer_from(rng, bytes, refusal))?;
-        let token = hex_from(&drawn, digits, refusal)?;
-
-        Ok(Value::str(NvsStr::new(token.as_bytes())))
+        Ok(Value::str(draw(ctx, |rng| {
+            hex_from(rng, bytes, digits, refusal)
+        })?))
     }
 }
 
@@ -1226,9 +1256,9 @@ nvs_runtime::nvs_helper! {
                  this process could hold",
             )
         };
-        let drawn = sequence(args, "bytes", |rng| buffer_from(rng, count, refusal))??;
-
-        Ok(Value::bytes(NvsStr::new(&drawn)))
+        Ok(Value::bytes(sequence(args, "bytes", |rng| {
+            octets_from(rng, count, refusal)
+        })??))
     }
 }
 
@@ -1258,10 +1288,9 @@ nvs_runtime::nvs_helper! {
                  this process could hold",
             )
         };
-        let drawn = sequence(args, "token", |rng| buffer_from(rng, bytes, refusal))??;
-        let token = hex_from(&drawn, digits, refusal)?;
-
-        Ok(Value::str(NvsStr::new(token.as_bytes())))
+        Ok(Value::str(sequence(args, "token", |rng| {
+            hex_from(rng, bytes, digits, refusal)
+        })??))
     }
 }
 
@@ -1306,9 +1335,7 @@ nvs_runtime::nvs_helper! {
 
 /// Lower-case hex, which is what `bin2hex` emits and what every consumer of a
 /// token compares against.
-const HEX_DIGITS: [char; 16] = [
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-];
+const HEX_DIGITS: [u8; 16] = *b"0123456789abcdef";
 
 #[cfg(test)]
 mod tests {
@@ -1350,6 +1377,7 @@ mod tests {
         text
     }
 
+    // covers: Core\Random::int
     #[test]
     fn a_drawn_int_is_inside_its_inclusive_bounds() {
         for _ in 0..256 {
@@ -1389,6 +1417,7 @@ mod tests {
         assert_eq!(status, nvs_runtime::THROWN);
     }
 
+    // covers: Core\Random::float
     #[test]
     fn a_drawn_float_is_in_the_half_open_unit_interval() {
         for _ in 0..256 {
@@ -1397,6 +1426,45 @@ mod tests {
                 .as_float()
                 .expect("`float` answers with a `float`");
             assert!((0.0..1.0).contains(&drawn), "{drawn} is outside [0, 1)");
+        }
+    }
+
+    /// The octets drawn, releasing the reference this test now owns.
+    fn octets(value: Value) -> Vec<u8> {
+        let drawn = value
+            .as_bytes()
+            .expect("`bytes` answers with a `bytes`")
+            .to_vec();
+        #[expect(
+            unsafe_code,
+            reason = "the helper handed back the one reference it built, so \
+                      this test owns it"
+        )]
+        unsafe {
+            value.release();
+        }
+        drawn
+    }
+
+    /// A draw is exactly its count long, two draws differ, and the empty draw
+    /// and the one no allocator could hold both throw rather than answer.
+    // covers: Core\Random::bytes
+    #[test]
+    fn a_byte_draw_is_its_count_long_and_zero_or_too_many_throws() {
+        let first = octets(
+            run(super::nvs_core_random_bytes, &[Value::uint(32)]).expect("32 bytes is drawable"),
+        );
+        let second = octets(
+            run(super::nvs_core_random_bytes, &[Value::uint(32)]).expect("32 bytes is drawable"),
+        );
+        assert_eq!(first.len(), 32);
+        assert_eq!(second.len(), 32);
+        assert_ne!(first, second);
+
+        for refused in [0, u64::MAX] {
+            let status = run(super::nvs_core_random_bytes, &[Value::uint(refused)])
+                .expect_err("neither the empty buffer nor an unallocatable one is a draw");
+            assert_eq!(status, nvs_runtime::THROWN, "a draw of {refused} bytes");
         }
     }
 

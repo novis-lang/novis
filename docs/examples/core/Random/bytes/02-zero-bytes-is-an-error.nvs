@@ -1,0 +1,13 @@
+<?nvs
+// Shows what happens when a program asks for zero bytes.
+
+// The count here comes from a calculation that went wrong.
+uint $count = 0;
+
+// `Core\Random::bytes(0)` throws an error. An empty key would protect nothing.
+try {
+    bytes $key = Core\Random::bytes($count);
+    echo Core\Bytes::length($key), "\n";
+} catch (Throwable $e) {
+    echo "Error: ", $e->message, "\n";
+}

@@ -160,6 +160,48 @@ fn arg(text: &str) -> nvs_runtime::Value {
     nvs_runtime::Value::str(nvs_runtime::NvsStr::new(text.as_bytes()))
 }
 
+/// A draw is written into the buffer it answers with, a pass at a time, and
+/// never drawn into a scratch buffer and copied — at a width past one pass, so
+/// a member that allocated per pass fails too.
+// covers: Core\Random::bytes
+#[cfg(debug_assertions)]
+#[test]
+fn a_random_draw_allocates_its_result_once() {
+    use nvs_runtime::Value;
+    use nvs_stdlib::random::{nvs_core_random_bytes, nvs_core_random_token};
+
+    let cases: [(&str, nvs_runtime::NvsFn); 2] = [
+        ("bytes", nvs_core_random_bytes),
+        ("token", nvs_core_random_token),
+    ];
+    for (name, member) in cases {
+        let (spent, answer) = allocations_of(member, &[Value::uint(1000)]);
+        assert_eq!(
+            spent, 1,
+            "`Core\\Random::{name}` made {spent} allocations answering one draw, and it owes \
+             exactly one: the draw is written into the value it answers with"
+        );
+        let width = answer
+            .as_bytes()
+            .or_else(|| answer.as_str_bytes())
+            .map(<[u8]>::len);
+        assert_eq!(
+            width,
+            Some(if name == "bytes" { 1000 } else { 2000 }),
+            "`Core\\Random::{name}` answered the wrong width, so the count above measured the \
+             wrong thing"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the value came back from `call`, which transfers the \
+                      reference the helper produced"
+        )]
+        unsafe {
+            nvs_runtime::nvs_value_release(u64::from(answer.tag_byte()), answer.bits());
+        }
+    }
+}
+
 #[cfg(debug_assertions)]
 #[test]
 fn a_str_member_allocates_its_result_once() {
