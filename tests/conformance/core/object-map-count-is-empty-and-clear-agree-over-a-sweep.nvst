@@ -2,6 +2,7 @@
 `Core\ObjectMap<K, V>::count`, `::isEmpty` and `::clear` agree with each other and with both lists at every point of a sweep — docs/spec/01-core-library.md § 9
 --FILE--
 <?nvs
+// covers: Core\ObjectMap::clear, Core\ObjectMap::count, Core\ObjectMap::isEmpty
 // The *invariance over a sweep* shape: the four ways to ask how much a map
 // holds — `count`, `isEmpty`, and the length of each of the two positionally
 // paired lists — are one question, so what is asserted is that they **agree**

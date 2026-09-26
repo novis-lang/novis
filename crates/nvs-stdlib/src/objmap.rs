@@ -30,7 +30,7 @@
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\ObjectMap";
@@ -73,7 +73,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// [`crate::cursor`] owns the mechanism and what the snapshot spends.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -160,6 +160,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     ],
     slots: &["keys", "values"],
     constants: &[],
+};
+
+/// `Core\ObjectMap`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A map whose keys are objects or other values of any type. A key is found by \
+            identity: the same object, not an equal one. Build one with `new \
+            Core\\ObjectMap<K, V>()`. A `foreach` over the map gives its keys in insertion order.",
 };
 
 /// `new Core\ObjectMap`'s reference card — `rule:core-api/reference-card`.
@@ -310,7 +317,11 @@ fn map_of(value: Value, member: &str) -> Result<*mut ObjHeader, Fault> {
 /// # Errors
 ///
 /// [`store::borrow`]'s, unchanged.
-fn at(receiver: *mut ObjHeader, key: Value, member: &str) -> Result<(Vec<u8>, bool), Fault> {
+fn at(
+    receiver: *mut ObjHeader,
+    key: Value,
+    member: &str,
+) -> Result<(store::ChainKey, bool), Fault> {
     let keys = store::borrow(receiver, KEYS, &CLASS, member)?;
     Ok(store::locate(&keys, key))
 }
@@ -543,6 +554,7 @@ mod tests {
     /// `keys` and `values` stay paired across an overwrite and a removal —
     /// the alignment invariant this module's docs make load-bearing, which no
     /// single member can check on its own.
+    // covers: Core\ObjectMap::set, Core\ObjectMap::get, Core\ObjectMap::remove, Core\ObjectMap::count, Core\ObjectMap::keys, Core\ObjectMap::values
     #[test]
     fn the_two_stores_stay_paired_through_set_and_remove() {
         let mut ctx = Ctx::buffered();
@@ -586,6 +598,58 @@ mod tests {
         )]
         unsafe {
             map.release();
+        }
+    }
+
+    /// `clear` releases the reference the map held on every key and every
+    /// value, and leaves a map that takes the next write like a fresh one —
+    /// a clear that swapped the stores without releasing the old ones would
+    /// leave both counts at two.
+    // covers: Core\ObjectMap::clear
+    #[test]
+    fn clear_releases_every_key_and_value_and_the_map_takes_a_write_after() {
+        let mut ctx = Ctx::buffered();
+        let map = call(nvs_core_object_map_new, &mut ctx, &[]).expect("a fresh map does not throw");
+        let key = Value::array(NvsArray::new());
+        let value = Value::array(NvsArray::new());
+        let counts = || {
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns one reference to each array, so both are live"
+            )]
+            unsafe {
+                (
+                    NvsArray::refcount_of(key.array_ptr().expect("an array")),
+                    NvsArray::refcount_of(value.array_ptr().expect("an array")),
+                )
+            }
+        };
+
+        on(map, nvs_core_object_map_set, &[key, value]);
+        assert_eq!(counts(), (2, 2), "the map keeps a reference to each");
+
+        on(map, nvs_core_object_map_clear, &[]);
+        assert_eq!(counts(), (1, 1), "clear gives both references back");
+        assert_eq!(on(map, nvs_core_object_map_count, &[]).as_uint(), Some(0));
+        on(map, nvs_core_object_map_clear, &[]);
+        assert_eq!(counts(), (1, 1), "a second clear releases nothing twice");
+
+        on(
+            map,
+            nvs_core_object_map_set,
+            &[Value::int(7), Value::int(70)],
+        );
+        assert_eq!(on(map, nvs_core_object_map_count, &[]).as_uint(), Some(1));
+        assert_eq!(ints(on(map, nvs_core_object_map_values, &[])), vec![70]);
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference each of the three was built with"
+        )]
+        unsafe {
+            map.release();
+            key.release();
+            value.release();
         }
     }
 }

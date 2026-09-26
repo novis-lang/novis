@@ -1,0 +1,30 @@
+<?nvs
+// Empties a small map of objects, as a program does with a cache between two batches of work.
+// bench: iterations 200000
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Key> $keys = [new Key(1), new Key(2), new Key(3)];
+        Core\ObjectMap<Key, uint> $cache = new Core\ObjectMap<Key, uint>();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: which key is written depends on last round's total
+            $cache->set($keys[($total % 3) as int], $i);
+            $total = $total + $cache->count();
+            $cache->clear();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

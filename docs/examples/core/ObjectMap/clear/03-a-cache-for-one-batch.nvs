@@ -1,0 +1,40 @@
+<?nvs
+// Shows a cache that is emptied after each batch of work, so old results are never used again.
+
+final class Customer {
+    public string $name;
+    public int $orders;
+
+    public function constructor(string $name, int $orders) {
+        $this->name = $name;
+        $this->orders = $orders;
+    }
+}
+
+final class Discounts {
+    // The cache has one computed discount per customer object.
+    public static function of(Core\ObjectMap<Customer, int> $cache, Customer $c): int {
+        ?int $known = $cache->get($c);
+        if ($known != null) {
+            return $known;
+        }
+        int $percent = $c->orders >= 10 ? 15 : 5;
+        $cache->set($c, $percent);
+        return $percent;
+    }
+}
+
+Customer $mia = new Customer("Mia", 12);
+Customer $tom = new Customer("Tom", 2);
+array<array<Customer>> $batches = [[$mia, $tom, $mia], [$tom, $tom]];
+
+Core\ObjectMap<Customer, int> $cache = new Core\ObjectMap<Customer, int>();
+foreach ($batches as array<Customer> $batch) {
+    foreach ($batch as Customer $c) {
+        echo $c->name, " gets ", Discounts::of($cache, $c), "%\n";
+    }
+    // This prints how many discounts the batch computed: 2, then 1.
+    // Then `clear` empties the cache for the next batch.
+    echo "cached: ", $cache->count(), "\n";
+    $cache->clear();
+}
