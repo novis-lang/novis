@@ -182,10 +182,9 @@ export function unselectedReds(ran: Map<string, Verdict>, selected: Set<string>)
 const BUSY = new Set(["EBUSY", "EPERM", "ENOTEMPTY"]);
 
 /**
- * Deletes `dir` and everything in it. On Windows a file another handle has open cannot be deleted, and
- * the store copy is still open for a moment after a long run (a scanner, or a process the run started
- * that is still exiting), so a busy error is tried again every `delayMs` for up to `tries` attempts before
- * it is thrown.
+ * Deletes `dir` and everything in it. On Windows a file another handle has open cannot be deleted, and a
+ * process the run started can still hold the store copy for a moment while it exits, so a busy error is
+ * tried again every `delayMs` for up to `tries` attempts before it is thrown.
  */
 export function removeScratch(dir: string, o: { tries?: number; delayMs?: number; rm?: (dir: string) => void } = {}): void {
   const rm = o.rm ?? ((d: string) => rmSync(d, { recursive: true, force: true }));

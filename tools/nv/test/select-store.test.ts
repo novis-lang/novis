@@ -1,9 +1,45 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { pack, SelectStore, unpack } from "../select/store.ts";
+import { scratch } from "./scratch.ts";
 
 const store = () => new SelectStore(":memory:", "test-os");
 
 describe("the select store", () => {
+  test("a closed store lets go of its file, however many statements it prepared", () => {
+    const t = scratch();
+    const file = join(t.root, "select.sqlite");
+    const s = new SelectStore(file, "test-os");
+    s.recordRun("case:tests/a.nvst", { def: "d", verdict: "green", keys: new Map([["fn:a.rs#f", "x"], ["class:core\\math", ""]]) });
+    s.recordRun("test:x lib x", { def: "", verdict: "red", keys: new Map([["tree:docs", ""]]) });
+    s.atoms();
+    s.atoms("case");
+    s.atom("case:tests/a.nvst");
+    s.footprint("case:tests/a.nvst");
+    s.owe(["case:tests/a.nvst"]);
+    s.putVerdict("slot:a", "", "x");
+    s.verdictsWithPrefix("slot:");
+    s.markDiverged("case:tests/a.nvst", "why");
+    s.divergences();
+    s.clearDiverged("case:tests/a.nvst");
+    s.keysWithPrefix("fn:");
+    s.atomsUnderIds(s.keyIdsOf(["fn:a.rs#f"]));
+    s.keysUnder("tree:", "test");
+    s.setBase("c1", {});
+    s.base();
+    s.stats();
+    s.prune(["fn:a.rs#f"]);
+    s.removeAtom("test:x lib x");
+    // `bun:sqlite` caches twenty statements of its own; this store has prepared more than that.
+    expect((s as unknown as { statements: Map<string, unknown> }).statements.size).toBeGreaterThan(20);
+    s.close();
+    // The last connection to close checkpoints the WAL and deletes it, and the directory goes at once.
+    expect(existsSync(`${file}-wal`)).toBe(false);
+    rmSync(t.root, { recursive: true });
+    expect(existsSync(t.root)).toBe(false);
+  });
+
   test("a key list survives the blob it is kept in", () => {
     const ids = [1, 2, 3, 127, 128, 129, 16_384, 2_000_000];
     expect(unpack(pack(ids))).toEqual(ids);

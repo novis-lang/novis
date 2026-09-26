@@ -26,7 +26,7 @@
 // An atom's own key list is kept as a blob of key numbers beside the reverse index, so a new run can
 // replace or widen one atom's footprint by point writes rather than a scan of the whole index.
 
-import { Database } from "bun:sqlite";
+import { Database, type Statement } from "bun:sqlite";
 import { mkdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { FileItems } from "../keys/scan.ts";
@@ -106,6 +106,7 @@ export type Overlay = Record<string, string | null>;
 export class SelectStore {
   readonly db: Database;
   readonly platform: string;
+  private readonly statements = new Map<string, Statement>();
   private keyIds = new Map<string, number>();
   private keyDigests = new Map<string, string>();
 
@@ -130,18 +131,36 @@ export class SelectStore {
     this.setMeta("schema", SCHEMA);
   }
 
+  /**
+   * The prepared statement for `sql`, prepared once per store and finalized by `close`. `db.query`'s own
+   * cache keeps twenty statements and prepares every one past them uncached, finalized only when the
+   * garbage collector reaches it. A statement left unfinalized keeps the connection open after
+   * `db.close()`, so the file and its `-wal` stay held, and on Windows cannot be deleted, until the
+   * process ends.
+   */
+  private stmt(sql: string): Statement {
+    let st = this.statements.get(sql);
+    if (!st) {
+      st = this.db.prepare(sql);
+      this.statements.set(sql, st);
+    }
+    return st;
+  }
+
   close(): void {
+    for (const st of this.statements.values()) st.finalize();
+    this.statements.clear();
     this.db.close();
   }
 
   /** Writes a copy of the whole store to `path`, which must not exist. */
   copyTo(path: string): void {
-    this.db.query("VACUUM INTO ?").run(path);
+    this.stmt("VACUUM INTO ?").run(path);
   }
 
   private tryMeta(key: string): string | null {
     try {
-      const row = this.db.query("SELECT value FROM meta WHERE key = ?").get(key) as { value: string } | null;
+      const row = this.stmt("SELECT value FROM meta WHERE key = ?").get(key) as { value: string } | null;
       return row?.value ?? null;
     } catch {
       return null;
@@ -153,7 +172,7 @@ export class SelectStore {
   }
 
   setMeta(key: string, value: string): void {
-    this.db.query("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, value);
+    this.stmt("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, value);
   }
 
   /** The commit whose tree this platform's footprints and items were last recorded against. */
@@ -214,7 +233,7 @@ export class SelectStore {
   /** The numbers of the keys that exist of `keys`; a key no footprint ever held has none. */
   keyIdsOf(keys: Iterable<string>): Map<string, number> {
     const out = new Map<string, number>();
-    const q = this.db.query("SELECT n FROM keys WHERE key = ?");
+    const q = this.stmt("SELECT n FROM keys WHERE key = ?");
     for (const k of keys) {
       const row = q.get(k) as { n: number } | null;
       if (row) out.set(k, row.n);
@@ -225,13 +244,13 @@ export class SelectStore {
   /** Every key that starts with `prefix`, with its number. */
   keysWithPrefix(prefix: string): Map<string, number> {
     const out = new Map<string, number>();
-    const rows = this.db.query("SELECT key, n FROM keys WHERE key >= ? AND key < ?").all(prefix, `${prefix}\u{10FFFF}`) as { key: string; n: number }[];
+    const rows = this.stmt("SELECT key, n FROM keys WHERE key >= ? AND key < ?").all(prefix, `${prefix}\u{10FFFF}`) as { key: string; n: number }[];
     for (const r of rows) out.set(r.key, r.n);
     return out;
   }
 
   keyDigest(key: string): string | null {
-    const row = this.db.query("SELECT digest FROM keys WHERE key = ?").get(key) as { digest: string } | null;
+    const row = this.stmt("SELECT digest FROM keys WHERE key = ?").get(key) as { digest: string } | null;
     return row?.digest ?? null;
   }
 
@@ -242,35 +261,35 @@ export class SelectStore {
   }
 
   atom(id: string): AtomRow | null {
-    const r = this.db.query("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as any;
+    const r = this.stmt("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as any;
     return r ? this.row(r) : null;
   }
 
   atoms(kind?: AtomKind): AtomRow[] {
     const rows = (
       kind
-        ? this.db.query("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE platform = ? AND kind = ? ORDER BY id").all(this.platform, kind)
-        : this.db.query("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE platform = ? ORDER BY id").all(this.platform)
+        ? this.stmt("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE platform = ? AND kind = ? ORDER BY id").all(this.platform, kind)
+        : this.stmt("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE platform = ? ORDER BY id").all(this.platform)
     ) as any[];
     return rows.map((r) => this.row(r));
   }
 
   private atomN(id: string): number | null {
-    const r = this.db.query("SELECT n FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as { n: number } | null;
+    const r = this.stmt("SELECT n FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as { n: number } | null;
     return r?.n ?? null;
   }
 
   /** Makes the atom known, with no footprint, when it is new. */
   ensureAtom(id: string, def = ""): void {
-    this.db.query("INSERT INTO atoms (id, platform, kind, def) VALUES (?, ?, ?, ?) ON CONFLICT (id, platform) DO NOTHING").run(id, this.platform, kindOfAtom(id), def);
+    this.stmt("INSERT INTO atoms (id, platform, kind, def) VALUES (?, ?, ?, ?) ON CONFLICT (id, platform) DO NOTHING").run(id, this.platform, kindOfAtom(id), def);
   }
 
   /** The keys of an atom's footprint, sorted. */
   footprint(id: string): string[] {
-    const r = this.db.query("SELECT keys FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as { keys: Uint8Array | null } | null;
+    const r = this.stmt("SELECT keys FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as { keys: Uint8Array | null } | null;
     if (!r?.keys) return [];
     const ids = unpack(r.keys);
-    const q = this.db.query("SELECT key FROM keys WHERE n = ?");
+    const q = this.stmt("SELECT key FROM keys WHERE n = ?");
     return ids.map((n) => (q.get(n) as { key: string }).key).sort();
   }
 
@@ -295,13 +314,13 @@ export class SelectStore {
     this.transaction(() => {
       this.ensureAtom(id, run.def);
       const n = this.atomN(id)!;
-      const was = this.db.query("SELECT def, keys FROM atoms WHERE n = ?").get(n) as { def: string; keys: Uint8Array | null };
+      const was = this.stmt("SELECT def, keys FROM atoms WHERE n = ?").get(n) as { def: string; keys: Uint8Array | null };
       const old = was.keys ? unpack(was.keys) : [];
       const fresh = was.def !== run.def;
       const ids = new Set<number>(fresh ? [] : old);
       for (const [k, d] of run.keys) ids.add(this.keyId(k, d));
-      const del = this.db.query("DELETE FROM footprint WHERE key = ? AND atom = ?");
-      const ins = this.db.query("INSERT OR IGNORE INTO footprint (key, atom) VALUES (?, ?)");
+      const del = this.stmt("DELETE FROM footprint WHERE key = ? AND atom = ?");
+      const ins = this.stmt("INSERT OR IGNORE INTO footprint (key, atom) VALUES (?, ?)");
       if (fresh) for (const k of old) if (!ids.has(k)) del.run(k, n);
       const oldSet = new Set(old);
       for (const k of ids) if (fresh || !oldSet.has(k)) ins.run(k, n);
@@ -314,14 +333,14 @@ export class SelectStore {
 
   /** Sets an atom's verdict without touching its footprint. */
   setVerdict(id: string, verdict: Verdict): void {
-    this.db.query("UPDATE atoms SET verdict = ?, last_run = ? WHERE id = ? AND platform = ?").run(verdict, Date.now(), id, this.platform);
+    this.stmt("UPDATE atoms SET verdict = ?, last_run = ? WHERE id = ? AND platform = ?").run(verdict, Date.now(), id, this.platform);
   }
 
   /** Marks each known atom of `ids` owed, keeping a red one red; returns how many it marked. An atom
    * the store does not know has no footprint, and is selected as new without a mark. */
   owe(ids: Iterable<string>): number {
     let n = 0;
-    const q = this.db.query("UPDATE atoms SET verdict = 'owed' WHERE id = ? AND platform = ? AND verdict != 'red'");
+    const q = this.stmt("UPDATE atoms SET verdict = 'owed' WHERE id = ? AND platform = ? AND verdict != 'red'");
     this.transaction(() => {
       for (const id of ids) n += q.run(id, this.platform).changes;
     });
@@ -333,10 +352,10 @@ export class SelectStore {
     this.transaction(() => {
       const n = this.atomN(id);
       if (n === null) return;
-      const r = this.db.query("SELECT keys FROM atoms WHERE n = ?").get(n) as { keys: Uint8Array | null };
-      const del = this.db.query("DELETE FROM footprint WHERE key = ? AND atom = ?");
+      const r = this.stmt("SELECT keys FROM atoms WHERE n = ?").get(n) as { keys: Uint8Array | null };
+      const del = this.stmt("DELETE FROM footprint WHERE key = ? AND atom = ?");
       for (const k of r.keys ? unpack(r.keys) : []) del.run(k, n);
-      this.db.query("DELETE FROM atoms WHERE n = ?").run(n);
+      this.stmt("DELETE FROM atoms WHERE n = ?").run(n);
     });
   }
 
@@ -347,17 +366,17 @@ export class SelectStore {
       const ids = this.keyIdsOf(keys);
       const touched = new Map<number, Set<number>>();
       for (const kn of ids.values()) {
-        const rows = this.db.query("SELECT f.atom AS atom FROM footprint f JOIN atoms a ON a.n = f.atom WHERE f.key = ? AND a.platform = ?").all(kn, this.platform) as { atom: number }[];
+        const rows = this.stmt("SELECT f.atom AS atom FROM footprint f JOIN atoms a ON a.n = f.atom WHERE f.key = ? AND a.platform = ?").all(kn, this.platform) as { atom: number }[];
         for (const r of rows) {
           (touched.get(r.atom) ?? touched.set(r.atom, new Set()).get(r.atom)!).add(kn);
-          this.db.query("DELETE FROM footprint WHERE key = ? AND atom = ?").run(kn, r.atom);
+          this.stmt("DELETE FROM footprint WHERE key = ? AND atom = ?").run(kn, r.atom);
           removed++;
         }
       }
       for (const [atom, gone] of touched) {
-        const r = this.db.query("SELECT keys FROM atoms WHERE n = ?").get(atom) as { keys: Uint8Array | null };
+        const r = this.stmt("SELECT keys FROM atoms WHERE n = ?").get(atom) as { keys: Uint8Array | null };
         const left = (r.keys ? unpack(r.keys) : []).filter((k) => !gone.has(k));
-        this.db.query("UPDATE atoms SET keys = ?, nkeys = ? WHERE n = ?").run(pack(left), left.length, atom);
+        this.stmt("UPDATE atoms SET keys = ?, nkeys = ? WHERE n = ?").run(pack(left), left.length, atom);
       }
     });
     return removed;
@@ -374,7 +393,7 @@ export class SelectStore {
   /** As `atomsUnder`, for keys already numbered. */
   atomsUnderIds(ids: Map<string, number>): Map<string, string[]> {
     const out = new Map<string, string[]>();
-    const q = this.db.query("SELECT a.id AS id FROM footprint f JOIN atoms a ON a.n = f.atom WHERE f.key = ? AND a.platform = ?");
+    const q = this.stmt("SELECT a.id AS id FROM footprint f JOIN atoms a ON a.n = f.atom WHERE f.key = ? AND a.platform = ?");
     for (const [key, n] of ids) {
       for (const r of q.all(n, this.platform) as { id: string }[]) (out.get(r.id) ?? out.set(r.id, []).get(r.id)!).push(key);
     }
@@ -384,7 +403,7 @@ export class SelectStore {
   // ---- items ---------------------------------------------------------------------------------------
 
   setItems(files: FileItems[]): void {
-    const q = this.db.query("INSERT INTO items (platform, file, raw, json) VALUES (?, ?, ?, ?) ON CONFLICT (platform, file) DO UPDATE SET raw = excluded.raw, json = excluded.json");
+    const q = this.stmt("INSERT INTO items (platform, file, raw, json) VALUES (?, ?, ?, ?) ON CONFLICT (platform, file) DO UPDATE SET raw = excluded.raw, json = excluded.json");
     this.transaction(() => {
       for (const f of files) q.run(this.platform, f.file, f.raw, JSON.stringify(f));
     });
@@ -393,44 +412,44 @@ export class SelectStore {
   /** Replaces this platform's whole scan. */
   replaceItems(files: FileItems[]): void {
     this.transaction(() => {
-      this.db.query("DELETE FROM items WHERE platform = ?").run(this.platform);
+      this.stmt("DELETE FROM items WHERE platform = ?").run(this.platform);
       this.setItems(files);
     });
   }
 
   removeItems(files: string[]): void {
-    const q = this.db.query("DELETE FROM items WHERE platform = ? AND file = ?");
+    const q = this.stmt("DELETE FROM items WHERE platform = ? AND file = ?");
     this.transaction(() => {
       for (const f of files) q.run(this.platform, f);
     });
   }
 
   items(file: string): FileItems | null {
-    const r = this.db.query("SELECT json FROM items WHERE platform = ? AND file = ?").get(this.platform, file) as { json: string } | null;
+    const r = this.stmt("SELECT json FROM items WHERE platform = ? AND file = ?").get(this.platform, file) as { json: string } | null;
     return r ? (JSON.parse(r.json) as FileItems) : null;
   }
 
   allItems(): Map<string, FileItems> {
     const out = new Map<string, FileItems>();
-    for (const r of this.db.query("SELECT file, json FROM items WHERE platform = ?").all(this.platform) as { file: string; json: string }[]) {
+    for (const r of this.stmt("SELECT file, json FROM items WHERE platform = ?").all(this.platform) as { file: string; json: string }[]) {
       out.set(r.file, JSON.parse(r.json) as FileItems);
     }
     return out;
   }
 
   itemFiles(): string[] {
-    return (this.db.query("SELECT file FROM items WHERE platform = ? ORDER BY file").all(this.platform) as { file: string }[]).map((r) => r.file);
+    return (this.stmt("SELECT file FROM items WHERE platform = ? ORDER BY file").all(this.platform) as { file: string }[]).map((r) => r.file);
   }
 
   // ---- verdicts ------------------------------------------------------------------------------------
 
   verdict(slot: string): { digest: string; verdict: string; at: number } | null {
-    return (this.db.query("SELECT digest, verdict, at FROM verdicts WHERE slot = ?").get(slot) as any) ?? null;
+    return (this.stmt("SELECT digest, verdict, at FROM verdicts WHERE slot = ?").get(slot) as any) ?? null;
   }
 
   /** Every slot that starts with `prefix`, with what it holds. */
   verdictsWithPrefix(prefix: string): Map<string, { digest: string; verdict: string }> {
-    const rows = this.db.query("SELECT slot, digest, verdict FROM verdicts WHERE slot >= ? AND slot < ?").all(prefix, `${prefix}\u{10FFFF}`) as { slot: string; digest: string; verdict: string }[];
+    const rows = this.stmt("SELECT slot, digest, verdict FROM verdicts WHERE slot >= ? AND slot < ?").all(prefix, `${prefix}\u{10FFFF}`) as { slot: string; digest: string; verdict: string }[];
     return new Map(rows.map((r) => [r.slot, { digest: r.digest, verdict: r.verdict }]));
   }
 
@@ -450,7 +469,12 @@ export class SelectStore {
 
   /** Clears `id`'s divergence mark: its recording run ended as its judged run did. */
   clearDiverged(id: string): void {
-    this.db.query("DELETE FROM verdicts WHERE slot = ?").run(divergedSlot(this.platform, id));
+    this.deleteVerdict(divergedSlot(this.platform, id));
+  }
+
+  /** Forgets whatever `slot` holds. */
+  deleteVerdict(slot: string): void {
+    this.stmt("DELETE FROM verdicts WHERE slot = ?").run(slot);
   }
 
   /** Every atom marked diverged on this platform, with why. */
@@ -464,14 +488,14 @@ export class SelectStore {
   stats(): { atoms: Record<string, number>; recorded: Record<string, number>; red: number; owed: number; keys: number; entries: number; bytes: number } {
     const atoms: Record<string, number> = {};
     const recorded: Record<string, number> = {};
-    for (const r of this.db.query("SELECT kind, COUNT(*) AS c, SUM(nkeys > 0) AS rec FROM atoms WHERE platform = ? GROUP BY kind").all(this.platform) as any[]) {
+    for (const r of this.stmt("SELECT kind, COUNT(*) AS c, SUM(nkeys > 0) AS rec FROM atoms WHERE platform = ? GROUP BY kind").all(this.platform) as any[]) {
       atoms[r.kind] = r.c;
       recorded[r.kind] = r.rec ?? 0;
     }
-    const red = (this.db.query("SELECT COUNT(*) AS c FROM atoms WHERE platform = ? AND verdict = 'red'").get(this.platform) as { c: number }).c;
-    const owed = (this.db.query("SELECT COUNT(*) AS c FROM atoms WHERE platform = ? AND verdict = 'owed'").get(this.platform) as { c: number }).c;
-    const keys = (this.db.query("SELECT COUNT(*) AS c FROM keys").get() as { c: number }).c;
-    const entries = (this.db.query("SELECT COALESCE(SUM(nkeys), 0) AS c FROM atoms WHERE platform = ?").get(this.platform) as { c: number }).c;
+    const red = (this.stmt("SELECT COUNT(*) AS c FROM atoms WHERE platform = ? AND verdict = 'red'").get(this.platform) as { c: number }).c;
+    const owed = (this.stmt("SELECT COUNT(*) AS c FROM atoms WHERE platform = ? AND verdict = 'owed'").get(this.platform) as { c: number }).c;
+    const keys = (this.stmt("SELECT COUNT(*) AS c FROM keys").get() as { c: number }).c;
+    const entries = (this.stmt("SELECT COALESCE(SUM(nkeys), 0) AS c FROM atoms WHERE platform = ?").get(this.platform) as { c: number }).c;
     let bytes = 0;
     if (this.file !== ":memory:") {
       for (const f of [this.file, `${this.file}-wal`]) {

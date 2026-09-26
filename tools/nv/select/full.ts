@@ -86,7 +86,7 @@ export function selectionMisses(before: Map<string, Pick<AtomRow, "verdict" | "l
 /** Keeps each miss in the store, and forgets the kept miss of every atom this run found green. */
 export function keepMisses(store: SelectStore, misses: Miss[], ran: Map<string, Verdict>): void {
   store.transaction(() => {
-    for (const [id, v] of ran) if (v === "green") store.db.query("DELETE FROM verdicts WHERE slot = ?").run(missSlot(store.platform, id));
+    for (const [id, v] of ran) if (v === "green") store.deleteVerdict(missSlot(store.platform, id));
     for (const m of misses) store.putVerdict(missSlot(store.platform, m.id), "", JSON.stringify({ lastGreen: m.lastGreen }));
   });
 }
