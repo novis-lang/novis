@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a caller passes the largest burst the limiter accepts, and costs at and past
+// that burst. `remaining` should stay exact, every bad call should throw an error, and nothing should crash.
+
+class Attempt
+{
+    public static function run(string $key, uint $burst, uint $cost): string
+    {
+        try {
+            var $decision = Core\RateLimit::shed($key, 1000000, 1s, { burst: $burst, cost: $cost });
+            return 'remaining ' . $decision->remaining();
+        } catch (RuntimeError $error) {
+            return 'error';
+        }
+    }
+}
+
+uint $largest = 9000000000000;
+
+// 1. The largest burst at one unit per microsecond. One unit is used.
+echo Attempt::run('wide', $largest, 1), "\n";
+
+// 2. A cost equal to the whole burst, on a new key. Nothing is left.
+echo Attempt::run('whole', $largest, $largest), "\n";
+
+// 3. A cost one larger than the burst. No wait could allow it, so this throws an error.
+echo Attempt::run('past', $largest, $largest + 1), "\n";
+
+// 4. A burst one past what the limiter counts exactly. This throws an error.
+echo Attempt::run('ceiling', 9007199254740993, 1), "\n";
+
+// 5. 20000 keys, each asked for the largest cost a `uint` can have.
+uint $errors = 0;
+uint $i = 0;
+while ($i < 20000) {
+    if (Attempt::run('key:' . $i, $largest, 18446744073709551615) == 'error') {
+        $errors = $errors + 1;
+    }
+    $i = $i + 1;
+}
+echo $errors, "\n";
