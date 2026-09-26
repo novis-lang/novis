@@ -31,7 +31,7 @@ import { namedBinary, RECORD_ENV, recordName, runPrograms } from "../proofs/run.
 import { caseDef, caseFiles, caseId, nvDef, nvId, proofDef, proofId, proofPrograms, testId, treeOf } from "./atoms.ts";
 import { buildScripts, generatedDigest, generatedIncludes, generatedMeta } from "./build.ts";
 import { commitOf } from "./change.ts";
-import { CovMap, type Extracted, extract, ItemIndex, recordedIn } from "./extract.ts";
+import { CovMap, type Extracted, extract, ItemIndex, type Recorded, recordedIn } from "./extract.ts";
 import { readsKeys } from "./keys.ts";
 import { graphScope, rustFiles } from "./select.ts";
 import { type AtomKind, type Keyed, type SelectStore, type Verdict } from "./store.ts";
@@ -40,6 +40,8 @@ export interface SeedOptions {
   kinds?: AtomKind[];
   /** At most this many atoms of each kind, for a trial. */
   limit?: number;
+  /** Skip every atom that already has a footprint on this platform: a seed that stopped goes on. */
+  resume?: boolean;
   jobs?: number;
   say?: (line: string) => void;
   root?: string;
@@ -132,13 +134,17 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
       k.unmapped += ext.unmapped;
     }
   };
-  const limit = <T>(xs: T[]) => (opts.limit ? xs.slice(0, opts.limit) : xs);
+  const recorded = new Set(opts.resume ? store.atoms().filter((a) => a.keys > 0).map((a) => a.id) : []);
+  const limit = <T>(xs: T[], id: (x: T) => string) => {
+    const left = xs.filter((x) => !recorded.has(id(x)));
+    return opts.limit ? left.slice(0, opts.limit) : left;
+  };
   const ctx = { store, build, covmap, index, generated, merge, rec, tmpEnv, jobs, say, tally, root };
 
-  if (kinds.includes("case")) await seedCases(ctx, limit(caseFiles(root)));
-  if (kinds.includes("proof")) await seedProofs(ctx, limit(await proofPrograms(build.nvs)));
-  if (kinds.includes("test")) await seedTests(ctx, limit([...build.tests].flatMap(([pkg, ts]) => ts.map((t) => ({ pkg, t })))));
-  if (kinds.includes("nv")) await seedNv(ctx, limit(nvChecks(root)));
+  if (kinds.includes("case")) await seedCases(ctx, limit(caseFiles(root), caseId));
+  if (kinds.includes("proof")) await seedProofs(ctx, limit(await proofPrograms(build.nvs), (p) => proofId(p.path)));
+  if (kinds.includes("test")) await seedTests(ctx, limit([...build.tests].flatMap(([pkg, ts]) => ts.map((t) => ({ pkg, t }))), (x) => testId(x.pkg, x.t)));
+  if (kinds.includes("nv")) await seedNv(ctx, limit(nvChecks(root), (c) => nvId(c.id)));
 
   store.setBase(base);
   rmSync(rec, { recursive: true, force: true });
@@ -159,6 +165,19 @@ interface Ctx {
   say: (line: string) => void;
   tally: (kind: AtomKind, verdict: Verdict, ext: Extracted | null) => void;
   root: string;
+}
+
+/** `extract`, with a failure to read an atom's record kept to that atom: its footprint becomes `*`,
+ * which every change selects, and the seed goes on. */
+async function extractOr(ctx: Ctx, rec: Recorded, objects: string[]): Promise<Extracted> {
+  try {
+    return await extract(rec, objects, ctx.covmap, ctx.index, ctx.generated, ctx.merge);
+  } catch (e) {
+    ctx.say(`select: ${rec.name}: its record could not be read, so it depends on everything: ${(e as Error).message.split("\n")[0]}`);
+    for (const f of rec.profraws) rmSync(f, { force: true });
+    if (rec.log) rmSync(rec.log, { force: true });
+    return { keys: new Map([["*", ""]]), executed: 0, unmapped: 0, processes: rec.profraws.length };
+  }
 }
 
 /** The labels a `nvs test` report names as failed; a skipped case is not red. */
@@ -189,14 +208,14 @@ async function seedCases(ctx: Ctx, files: string[]): Promise<void> {
       });
       const failed = failedLabels(r.stdout);
       const parent = recordedIn(join(ctx.rec, "parent")).get("p");
-      const parentKeys: Keyed = parent ? (await extract(parent, [ctx.build.nvs], ctx.covmap, ctx.index, ctx.generated, ctx.merge)).keys : new Map();
+      const parentKeys: Keyed = parent ? (await extractOr(ctx, parent, [ctx.build.nvs])).keys : new Map();
       // The parent walks the whole tree to find the listed cases, and what else the tree holds decides
       // nothing about one case's verdict: its listings and path tests are not the case's.
       for (const k of [...parentKeys.keys()]) if (/^(dir|exists|tree):/.test(k)) parentKeys.delete(k);
       const recorded = recordedIn(dir);
       await pool(batch, ctx.jobs, async (path) => {
         const got = recorded.get(recordName(path));
-        const ext = got ? await extract(got, [ctx.build.nvs], ctx.covmap, ctx.index, ctx.generated, ctx.merge) : null;
+        const ext = got ? await extractOr(ctx, got, [ctx.build.nvs]) : null;
         const keys: Keyed = new Map(parentKeys);
         for (const [k, d] of ext?.keys ?? []) keys.set(k, d);
         // A run that crashed before it wrote anything leaves no record; it is red whatever the report says.
@@ -225,7 +244,7 @@ async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; pa
       const recorded = recordedIn(dir);
       await pool(batch, ctx.jobs, async ({ what, path }) => {
         const got = recorded.get(recordName(path));
-        const ext = got ? await extract(got, [ctx.build.nvs], ctx.covmap, ctx.index, ctx.generated, ctx.merge) : null;
+        const ext = got ? await extractOr(ctx, got, [ctx.build.nvs]) : null;
         const result = pass.results.get(`${what}:${path}`);
         const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
         ctx.store.recordRun(proofId(path), { def: proofDef(path, ctx.root), verdict, keys: ext?.keys ?? new Map() });
@@ -269,7 +288,7 @@ async function seedTests(ctx: Ctx, exes: { pkg: string; t: import("../driver/acc
       timeoutMs: 3_600_000,
     });
     const got = recordedIn(dir).get(name);
-    const ext = got ? await extract(got, [t.exe, ctx.build.nvs], ctx.covmap, ctx.index, ctx.generated, ctx.merge) : null;
+    const ext = got ? await extractOr(ctx, got, [t.exe, ctx.build.nvs]) : null;
     const verdict: Verdict = r.code === 0 && got ? "green" : "red";
     ctx.store.recordRun(id, { def: "", verdict, keys: ext?.keys ?? new Map() });
     ctx.tally("test", verdict, ext);

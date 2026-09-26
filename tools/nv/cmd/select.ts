@@ -20,7 +20,7 @@ import { computeChange, counts, describe, discover, explain, query } from "../se
 import { seed } from "../select/seed.ts";
 
 export const summary =
-  "which atoms a change reaches, from what each was seen to use: nv select [--since REV [--until REV]] [--paths P...] [--stats] [--json] [--explain ATOM] [--seed [--kinds K,...] [--limit N] [--jobs N]]";
+  "which atoms a change reaches, from what each was seen to use: nv select [--since REV [--until REV]] [--paths P...] [--stats] [--json] [--explain ATOM] [--seed [--kinds K,...] [--limit N] [--jobs N] [--resume]]";
 
 const USAGE = `usage: bun nv select [--since REV [--until REV]] [--paths PATH ...] [--stats] [--json] [--explain ATOM]
        bun nv select --seed [--kinds case,proof,test,nv] [--limit N] [--jobs N]
@@ -34,7 +34,8 @@ const USAGE = `usage: bun nv select [--since REV [--until REV]] [--paths PATH ..
   --seed          build covws and record every atom from nothing
   --kinds K,...   with --seed: only these kinds (case, proof, test, nv)
   --limit N       with --seed: at most N atoms of each kind
-  --jobs N        with --seed: how many runs and extractions at once`;
+  --jobs N        with --seed: how many runs and extractions at once
+  --resume        with --seed: skip every atom that already has a footprint`;
 
 interface Opts {
   since?: string;
@@ -44,6 +45,7 @@ interface Opts {
   json: boolean;
   explain?: string;
   seed: boolean;
+  resume?: boolean;
   kinds?: AtomKind[];
   limit?: number;
   jobs?: number;
@@ -70,6 +72,7 @@ export function parse(args: string[]): Opts {
     else if (a === "--json") o.json = true;
     else if (a === "--explain") o.explain = value();
     else if (a === "--seed") o.seed = true;
+    else if (a === "--resume") o.resume = true;
     else if (a === "--kinds") {
       const kinds = value().split(",") as AtomKind[];
       const bad = kinds.find((k) => !ATOM_KINDS.includes(k));
@@ -97,7 +100,7 @@ export async function run(args: string[]): Promise<number> {
   const store = new SelectStore();
   try {
     if (o.seed) {
-      const r = await seed(store, { ...(o.kinds ? { kinds: o.kinds } : {}), ...(o.limit ? { limit: o.limit } : {}), ...(o.jobs ? { jobs: o.jobs } : {}) });
+      const r = await seed(store, { ...(o.kinds ? { kinds: o.kinds } : {}), ...(o.limit ? { limit: o.limit } : {}), ...(o.jobs ? { jobs: o.jobs } : {}), ...(o.resume ? { resume: true } : {}) });
       const s = store.stats();
       if (o.json) console.log(JSON.stringify({ seed: r, store: s }, null, 2));
       else {

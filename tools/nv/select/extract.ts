@@ -136,8 +136,11 @@ export class CovMap {
     if (existsSync(cache)) map = JSON.parse(readFileSync(cache, "utf8"));
     else {
       const r = await run([llvmTool("llvm-cov"), "export", "-format=text", "-skip-expansions", "-instr-profile", profdata, object], { timeoutMs: 1_800_000 });
-      if (r.code !== 0) throw new Error(`llvm-cov export ${object} failed:\n${r.stderr.slice(0, 2000)}`);
-      map = parseExport(r.stdout);
+      // An object built from no instrumented crate holds no coverage map; a name only it could place is
+      // then unmapped, which widens.
+      if (r.code !== 0 && r.stderr.includes("no coverage data found")) map = {};
+      else if (r.code !== 0) throw new Error(`llvm-cov export ${object} failed:\n${r.stderr.slice(0, 2000)}`);
+      else map = parseExport(r.stdout);
       mkdirSync(this.dir, { recursive: true });
       writeFileSync(cache, JSON.stringify(map));
     }
