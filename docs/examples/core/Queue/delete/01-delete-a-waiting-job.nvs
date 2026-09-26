@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to delete a job, and what `status` does after that.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+var $job = Queue::push("jobs/export.nvs", {queue: "exports", args: ["report" => "sales"]});
+
+// The job is waiting, so `delete` removes its row. This prints `deleted: yes`.
+echo "deleted: ", Queue::delete($job) ? "yes" : "no", "\n";
+
+// The row is gone, so `status` throws a `RuntimeError`.
+// This prints `status: the job does not exist`.
+try {
+    Queue::status($job);
+    echo "status: found\n";
+} catch (RuntimeError $e) {
+    echo "status: the job does not exist\n";
+}

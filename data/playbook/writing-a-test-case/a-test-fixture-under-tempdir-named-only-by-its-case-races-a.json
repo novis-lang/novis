@@ -1,0 +1,11 @@
+{
+  "lead": "A test fixture under `temp_dir()` named only by its case races a second run of the same test binary, and the failure appears only in the driver's sweep.",
+  "body": "The driver's checks and `nv verify` can run one binary at the same time, so two processes delete and claim each other's rows in one SQLite file, while `cargo test` alone passes every time. Put `std::process::id()` in the name as well as the case, the way `a_queue_file` in `crates/nvs-cli/src/worker.rs` does, and reproduce a suspected race by starting three copies of the binary from `target/debug/deps/` at once.",
+  "files": [
+    "crates/nvs-cli/src/worker.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/worker.rs:fn a_queue_file"
+  }
+}

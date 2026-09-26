@@ -7,9 +7,10 @@ path = ":memory:"
 [capabilities.db]
 connect = ["jobs"]
 
-# The program may delete the jobs of the `exports` queue.
+# The program may delete the jobs of the `mail` and `exports` queues.
+# Without this list, `Core\Queue::delete` throws an error.
 [capabilities.queue]
-purge = ["exports"]
+purge = ["mail", "exports"]
 
 # `Core\Queue` saves its jobs in the `jobs` database.
 # `workers = 0` starts no workers, so no job is started.

@@ -7,9 +7,9 @@ path = ":memory:"
 [capabilities.db]
 connect = ["jobs"]
 
-# The program may delete the jobs of the `exports` queue.
+# The program may delete the jobs of the queue `q` and of no other queue.
 [capabilities.queue]
-purge = ["exports"]
+purge = ["q"]
 
 # `Core\Queue` saves its jobs in the `jobs` database.
 # `workers = 0` starts no workers, so no job is started.

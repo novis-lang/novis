@@ -1,0 +1,45 @@
+<?nvs
+// Shows how to cancel the reminder emails of a user who unsubscribed.
+use Core\Queue;
+use Core\Queue\Id;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// When the user signed up, the program added three reminders and kept their ids.
+array<string> $days = ["day 1", "day 3", "day 7"];
+array<Id> $reminders = [];
+foreach ($days as string $day) {
+    $reminders[] = Queue::push("jobs/send-reminder.nvs", {queue: "mail", args: ["day" => $day]});
+}
+
+// Earlier, the user turned off the first reminder, so it is already cancelled.
+Queue::cancel($reminders[0]);
+
+// Now the user unsubscribes. The program cancels every reminder and counts
+// the ones that were still waiting. This prints `2 reminders stopped`.
+int $stopped = 0;
+foreach ($reminders as Id $job) {
+    if (Queue::cancel($job)) {
+        $stopped = $stopped + 1;
+    }
+}
+echo $stopped, " reminders stopped\n";

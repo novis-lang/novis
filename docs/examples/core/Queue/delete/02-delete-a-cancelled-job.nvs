@@ -1,0 +1,41 @@
+<?nvs
+// Shows the difference between `cancel` and `delete`.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+class Rows {
+    // Counts the rows in the jobs table.
+    public static function count(Core\Db\Connection $db): uint {
+        return $db->query("select id from nvs_jobs", [])->count();
+    }
+}
+
+var $job = Queue::push("jobs/send-invoice.nvs", {queue: "mail", args: ["order" => 1042]});
+
+// `cancel` stops the job, but the row stays. This prints `after cancel: 1 row`.
+Queue::cancel($job);
+echo "after cancel: ", Rows::count($db), " row\n";
+
+// `delete` removes the row. This prints `after delete: 0 rows`.
+Queue::delete($job);
+echo "after delete: ", Rows::count($db), " rows\n";

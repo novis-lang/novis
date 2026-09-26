@@ -1,0 +1,48 @@
+<?nvs
+// Deletes the row of one job, as a program does when a user deletes their account.
+// bench: iterations 2000
+// bench: calls 0
+use Core\Queue;
+use Core\Queue\Id;
+
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+class Bench {
+    public static function run(array<Id> $saved, int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // The next job depends on how many jobs were deleted so far.
+            Id $job = $saved[$total];
+            $total = $total + (Queue::delete($job) ? 1 : 0);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each round deletes a different job. The program prints `2000`.
+array<Id> $saved = [];
+int $n = 0;
+while ($n < 2000) {
+    $saved[] = Queue::push("jobs/export.nvs", {queue: "exports"});
+    $n = $n + 1;
+}
+echo Bench::run($saved, 2000), "\n";

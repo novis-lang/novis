@@ -1,0 +1,43 @@
+<?nvs
+// Shows how to delete the jobs of a user who deleted their account, so their data is gone.
+use Core\Queue;
+use Core\Queue\Id;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// The program kept the id of every job it added for this user.
+// Each job has the email address of the user in its arguments.
+array<Id> $userJobs = [
+    Queue::push("jobs/send-invoice.nvs", {queue: "mail", args: ["to" => "ana@example.com"]}),
+    Queue::push("jobs/send-newsletter.nvs", {queue: "mail", args: ["to" => "ana@example.com"]}),
+    Queue::push("jobs/export.nvs", {queue: "exports", args: ["email" => "ana@example.com"]}),
+];
+
+// The user deletes their account. The program deletes every job of the user.
+// This prints `3 jobs deleted`.
+int $deleted = 0;
+foreach ($userJobs as Id $job) {
+    if (Queue::delete($job)) {
+        $deleted = $deleted + 1;
+    }
+}
+echo $deleted, " jobs deleted\n";

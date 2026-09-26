@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle`, `Core\\Process\\Result` and `Core\\Program` are green. `Core\\Queue`, `Core\\Queue\\Id` and `Core\\Queue\\Stats` have class cards (`QUEUE_CARD`, `ID_CARD`, `STATS_CARD` in `crates/nvs-stdlib/src/queue.rs`), are out of `CLASSES_STILL_OWING_A_CARD`, and every member card of the three is in the plain voice. `Core\\Queue::push` and `Core\\Queue::status` have all their feature proofs, with perf recorded. Each of the six `Core\\Queue` members has a Rust `covers:` marker in `crates/nvs-stdlib/tests/queue_sqlite.rs`.\n\n`cancel`, `delete`, `purge` and `stats` still owe about, three examples, an attack and a bench each (`bun nv proofs --verify --group 'Core\\Queue'`). `Core\\Queue\\Stats`'s five members are credited to `stats`'s proofs or owe their own; check with `bun nv proofs --verify --group 'Core\\Queue\\Stats'` first.\n\nThe `status` attack found a fatal: a `state` cell the program overwrote with text ended the request. It now throws an `IOError`, pinned by `tests/conformance/core/queue-status-throws-for-a-state-that-is-not-a-number.nvst`.\n\nThe shape every `Core\\Queue` proof uses (an in-memory SQLite block, tables created by the program) is a playbook bullet under *Writing a test case*. Copy `docs/examples/core/Queue/status/nvs.toml` into each new member directory, and into `tests/hostile/core/Queue/<member>/`. The benches share `benches/members/core/Queue/nvs.toml`. `bun nv try` does not read a `--FILE nvs.toml--` section, so a queue `.nvst` runs only under `bun nv verify`.",
+  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle`, `Core\\Process\\Result` and `Core\\Program` are green. `Core\\Queue`, `Core\\Queue\\Id` and `Core\\Queue\\Stats` have class cards (`crates/nvs-stdlib/src/queue.rs`), and every member card of the three is in the plain voice. `Core\\Queue::push`, `status`, `cancel` and `delete` have all their feature proofs, with perf recorded. Each of the six `Core\\Queue` members has a Rust `covers:` marker in `crates/nvs-stdlib/tests/queue_sqlite.rs`.\n\n`stats` and `purge` still owe about, three examples, an attack and a bench each. `Core\\Queue\\Stats`'s five members owe every proof, tests included (`bun nv proofs --group 'Core\\Queue\\Stats'`).\n\nThe floor regression after the previous session (`worker::tests::a_job_pushed_to_a_server_with_one_worker_reaches_succeeded`) was two runs of the `nvs` test binary sharing one SQLite file under `temp_dir()`. Both fixture paths in `crates/nvs-cli/src/worker.rs` now carry the process id.\n\nThe shape every `Core\\Queue` proof uses (an in-memory SQLite block, tables created by the program) is a playbook bullet under *Writing a test case*. Copy `docs/examples/core/Queue/status/nvs.toml` into each new member directory and into `tests/hostile/core/Queue/<member>/`. A member needing `queue.purge` adds `[capabilities.queue] purge = [...]`, as `docs/examples/core/Queue/delete/nvs.toml` does. The benches share `benches/members/core/Queue/nvs.toml`, which grants `purge` on `exports`. `bun nv proofs --record-perf` takes one `--id`; a second one replaces the first.",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -8,19 +8,15 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Queue::cancel` and `Core\\Queue::delete`** — about, three examples, attack and bench each; the Rust markers exist. `delete` needs `[capabilities.queue] purge` (or however the grant is written; read the `DELETE_DOC` card and the grant check) in its `nvs.toml`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2289` `crates/nvs-stdlib/src/queue.rs:2345`"
+        "text": "**`Core\\Queue::stats` and `Core\\Queue::purge`** — about, three examples, attack and bench each. `purge` needs the `queue.purge` grant for the queue it names, and `nvs check` reads a literal queue name against it. The `stats` attack should overwrite `attempts` with text, to test whether the count throws or crashes. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2319` `crates/nvs-stdlib/src/queue.rs:2375`"
       },
       {
         "done": false,
-        "text": "**`Core\\Queue::stats` and `Core\\Queue::purge`** — the same proofs. The `stats` attack should overwrite `attempts` with text, to test whether the counter read at `crates/nvs-stdlib/src/queue.rs:5050` is still a `Fault::fatal` a program can reach. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2316` `crates/nvs-stdlib/src/queue.rs:2379`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Queue\\Stats`'s five members** — whatever `bun nv proofs --verify --group 'Core\\Queue\\Stats'` still names after the item above. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2548`"
+        "text": "**`Core\\Queue\\Stats`'s five members** — each owes tests from Novis and Rust, examples, perf and an attack, unless a policy entry credits them to `stats`. Read `data/proofs/policy.json` for how another value class's methods were handled first. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2539`"
       }
     ]
   },
   "backlog": [
-    "`push` reads its new row's `id` with a `Fault::fatal` for a non-integer (`crates/nvs-stdlib/src/queue.rs:3817`); a program cannot write that cell before the insert, so it is likely unreachable. Not checked. Owner: `crates/nvs-stdlib/src/queue.rs`'s module doc if it proves reachable."
+    "`Core\\Queue::delete` deletes a row whose `state` cell has text, because only a claimed row is protected. It is not a crash; if that is wrong, `docs/decisions/0153.md` owns the answer."
   ]
 }
