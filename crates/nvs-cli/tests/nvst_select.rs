@@ -87,6 +87,8 @@ fn a_recording_run_leaves_each_cases_log_under_its_name() {
                 .to_string_lossy()
                 .into_owned()
         })
+        // A binary built with coverage also leaves each process's counters here.
+        .filter(|name| !name.ends_with(".profraw"))
         .collect();
     logs.sort();
     assert_eq!(logs.len(), 2, "{logs:?}");

@@ -7,7 +7,8 @@
 //   `nvs test` parent is recorded too, and what it ran is part of every case of its batch;
 // - every proof program of the roster, through `runPrograms` with `NV_PROOF_RECORD` set;
 // - every Rust test executable of the build, one process each in its package directory, with
-//   `LLVM_PROFILE_FILE`, `NVS_FOOTPRINT_LOG` and `NOVIS_NO_FILE_CACHE` inherited by every `nvs` it starts;
+//   `LLVM_PROFILE_FILE` and `NVS_FOOTPRINT_LOG` inherited by every `nvs` it starts, and a compile cache
+//   of its own that starts empty;
 // - every `bun nv` command check of the live plan that reads and does not build, run, bench or write,
 //   with `NV_READS_LOG` set, for its reads and the modules it loaded.
 //
@@ -40,7 +41,8 @@ export interface SeedOptions {
   kinds?: AtomKind[];
   /** At most this many atoms of each kind, for a trial. */
   limit?: number;
-  /** Skip every atom that already has a footprint on this platform: a seed that stopped goes on. */
+  /** Skip every atom already recorded green on this platform: a seed that stopped goes on, and a red
+   * atom runs again. */
   resume?: boolean;
   jobs?: number;
   say?: (line: string) => void;
@@ -77,6 +79,20 @@ export function seedable(argv: string[]): boolean {
   return true;
 }
 
+/**
+ * Makes `dir`, writable by this account, the administrators and the system alone. `nvs` refuses to
+ * write into a directory an ordinary group may write to, and a directory under this repository inherits
+ * whatever its drive grants, so a test that makes its scratch under the temporary directory would fail
+ * for the place rather than for what it tests.
+ */
+export async function privateDir(dir: string): Promise<void> {
+  mkdirSync(dir, { recursive: true });
+  if (process.platform !== "win32") return;
+  const user = process.env.USERNAME ?? "";
+  const r = await run(["icacls", dir, "/inheritance:r", "/grant:r", "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", `${user}:(OI)(CI)F`], { timeoutMs: 60_000 });
+  if (r.code !== 0) throw new Error(`icacls ${dir} failed:\n${r.stdout}${r.stderr}`);
+}
+
 /** Runs `jobs` at a time. */
 async function pool<T>(items: T[], width: number, body: (item: T) => Promise<void>): Promise<void> {
   let next = 0;
@@ -100,7 +116,7 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
   const started = performance.now();
   const rec = join(root, REC);
   rmSync(rec, { recursive: true, force: true });
-  mkdirSync(join(rec, "tmp"), { recursive: true });
+  await privateDir(join(rec, "tmp"));
   const tmpEnv = { TMP: join(rec, "tmp"), TEMP: join(rec, "tmp"), TMPDIR: join(rec, "tmp") };
 
   say("select: building covws");
@@ -134,7 +150,7 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
       k.unmapped += ext.unmapped;
     }
   };
-  const recorded = new Set(opts.resume ? store.atoms().filter((a) => a.keys > 0).map((a) => a.id) : []);
+  const recorded = new Set(opts.resume ? store.atoms().filter((a) => a.keys > 0 && a.verdict === "green").map((a) => a.id) : []);
   const limit = <T>(xs: T[], id: (x: T) => string) => {
     const left = xs.filter((x) => !recorded.has(id(x)));
     return opts.limit ? left.slice(0, opts.limit) : left;
@@ -272,6 +288,10 @@ async function seedTests(ctx: Ctx, exes: { pkg: string; t: import("../driver/acc
     const name = recordName(id);
     const dir = join(ctx.rec, "tests", name);
     mkdirSync(dir, { recursive: true });
+    // The binary's own compile cache starts empty, so the first compile of each program runs whole.
+    // `NOVIS_NO_FILE_CACHE` is not set: the binaries that test the cache would test nothing.
+    const cache = join(ctx.rec, "cache", name);
+    await privateDir(cache);
     const r = await run([t.exe], {
       cwd: t.dir,
       env: {
@@ -279,7 +299,8 @@ async function seedTests(ctx: Ctx, exes: { pkg: string; t: import("../driver/acc
         CARGO_MANIFEST_DIR: t.dir,
         RUST_TEST_THREADS: threads,
         NO_COLOR: "1",
-        NOVIS_NO_FILE_CACHE: "1",
+        LOCALAPPDATA: cache,
+        XDG_CACHE_HOME: cache,
         // A merge pool: every process of one binary adds its counters to one of a few files, since a test
         // binary can start hundreds of `nvs` processes and each would leave a profile of its own.
         LLVM_PROFILE_FILE: join(dir, `${name}-%4m.profraw`),
@@ -293,6 +314,7 @@ async function seedTests(ctx: Ctx, exes: { pkg: string; t: import("../driver/acc
     ctx.store.recordRun(id, { def: "", verdict, keys: ext?.keys ?? new Map() });
     ctx.tally("test", verdict, ext);
     rmSync(dir, { recursive: true, force: true });
+    rmSync(cache, { recursive: true, force: true });
     ctx.say(`select: test binaries ${++done}/${exes.length}${verdict === "red" ? ` (${id} red)` : ""}`);
   });
 }

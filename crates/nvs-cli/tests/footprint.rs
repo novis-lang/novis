@@ -31,6 +31,9 @@ fn run_with(global: &[&Path], env: &[(&str, &Path)]) -> String {
         command.arg("--config").arg(config);
     }
     command.args(["run", "main.nvs"]).current_dir(fixture());
+    // A recorded run of this test binary has both set, and each case here decides them itself.
+    command.env_remove("NVS_FOOTPRINT_LOG");
+    command.env_remove("NOVIS_NO_FILE_CACHE");
     for (name, value) in env {
         command.env(name, value);
     }
