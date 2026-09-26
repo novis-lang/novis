@@ -2,6 +2,7 @@
 `Core\Reflect\ClassInfo::constants` names every constant a class declares and `Core\Reflect\ConstantInfo` carries the visibility of each and whether its value folded — `rule:core-classes/reflect` and `rule:types/constant-in-type-position`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::constants
 // `rule:core-classes/reflect`: naming a constant reads the program's *shape* and
 // is always available; reading its value is acting, and that is
 // `Core\Reflect\ClassInfo::constant`'s. So the roster is complete — the

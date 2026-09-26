@@ -1,0 +1,33 @@
+<?nvs
+// Lists the constants of a class, as a program does when it prints a class's settings or checks a name.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Limits {
+    public const int SMALL = 1;
+    public const int LARGE = 2;
+    private const string KEY = "k";
+}
+
+class Sizes {
+    public const int MAX = 3;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\ClassInfo> $infos = [
+            Core\Reflect::forObject(new Limits()),
+            Core\Reflect::forObject(new Sizes()),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which class is listed comes from last round's total, so no round can be reused.
+            $total = $total + Core\Arr::count($infos[($total % 2) as int]->constants());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

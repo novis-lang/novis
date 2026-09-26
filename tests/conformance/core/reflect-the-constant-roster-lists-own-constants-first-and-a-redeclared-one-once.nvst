@@ -1,0 +1,54 @@
+--TEST--
+`Core\Reflect\ClassInfo::constants` lists a class's own constants first, then its ancestors' and its interfaces', and a constant a subclass redeclares once with the redeclaration's visibility — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// covers: Core\Reflect\ClassInfo::constants
+// `MAX` is `protected` on `Base` and widened to `public` on `Child`. A roster
+// that listed both declarations prints five rows, and one that kept the
+// ancestor's row prints `MAX closed`, so the count and the bit are asserted
+// together.
+interface Versioned {
+    public const int VERSION = 2;
+}
+
+class Base implements Versioned {
+    protected const int MAX = 10;
+    public const string UNIT = "MB";
+}
+
+class Child extends Base {
+    public const int MAX = 3;
+    public const float RATE = 1.5;
+}
+
+var $child = Core\Reflect::forObject(new Child());
+echo Core\Arr::count($child->constants()), "\n";
+foreach ($child->constants() as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), " ", $constant->isPublic() ? "public" : "closed", "\n";
+}
+
+// Every name the roster lists is one `constant` reads, and the value read is
+// the redeclaration's. Counted rather than printed, so a name `constant` did
+// not recognise would stop the loop with a `LogicError` short of four.
+uint $read = 0;
+foreach ($child->constants() as Core\Reflect\ConstantInfo $constant) {
+    $child->constant($constant->name());
+    $read = $read + 1;
+}
+echo $read, " ", $child->constant("MAX") as int, "\n";
+
+// The ancestor's own description is untouched by the subclass: its `MAX` is
+// still the `protected` one.
+foreach (Core\Reflect::forObject(new Base())->constants() as Core\Reflect\ConstantInfo $constant) {
+    echo "base ", $constant->name(), " ", $constant->isPublic() ? "public" : "closed", "\n";
+}
+--EXPECT--
+4
+MAX public
+RATE public
+UNIT public
+VERSION public
+4 3
+base MAX closed
+base UNIT public
+base VERSION public

@@ -3725,6 +3725,147 @@ mod tests {
         }
     }
 
+    /// `constants` answers one `ConstantInfo` per constant the descriptor
+    /// carries, in the descriptor's order, and each row reads back its own name,
+    /// visibility and fold. The four rows differ in exactly one of the two bits
+    /// each, so a row answered under its neighbour's bits fails on the pairing.
+    /// Both closed kinds read `isPublic` as `false`. Asking twice hands back the
+    /// same array, and a class with no constant answers an empty one, never
+    /// `null`. Which constants a descriptor carries (own first, then inherited)
+    /// is `nvs_types`'s, and the `.nvst` case that extends a class pins it.
+    // covers: Core\Reflect\ClassInfo::constants
+    #[test]
+    fn class_info_constants_is_one_row_per_constant_with_its_own_visibility_and_fold() {
+        let mut classes = ClassTable::new();
+        let limits = classes.define("Limits", &[] as &[&str], &[]);
+        let plain = classes.define("Plain", &[] as &[&str], &[]);
+        let rows = [
+            ("MAX", true, false, ConstantValue::Int(10)),
+            ("TAG", false, true, ConstantValue::Str("t".to_owned())),
+            ("KEY", false, false, ConstantValue::Str("k".to_owned())),
+            ("ROWS", true, false, ConstantValue::Opaque),
+        ];
+        classes.set_class_constants(
+            limits,
+            rows.iter()
+                .map(
+                    |(name, public, protected, value)| nvs_runtime::ConstantDesc {
+                        name: (*name).to_owned(),
+                        public: *public,
+                        protected: *protected,
+                        secret: false,
+                        value: value.clone(),
+                    },
+                )
+                .collect(),
+        );
+        let mut ctx = Ctx::buffered();
+        let bit = |ctx: &mut Ctx, member: NvsFn, row: Value| {
+            call(member, ctx, &[row])
+                .expect("a bit slot always answers")
+                .as_bool()
+                .expect("the slot holds a bool")
+        };
+
+        #[expect(
+            unsafe_code,
+            reason = "`classes` outlives every use below, and the table never moves a descriptor \
+                      it handed out"
+        )]
+        let info = super::describe(unsafe { &*classes.desc(limits) });
+        let listed = call(
+            super::nvs_core_reflect_class_info_constants,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        let again = call(
+            super::nvs_core_reflect_class_info_constants,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        assert_eq!(
+            listed.array_ptr(),
+            again.array_ptr(),
+            "the roster is the description's own array, handed back rather than rebuilt"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "`constants` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`constants` answers an array"))
+        });
+        let mut read = Vec::new();
+        for at in 0..roster.count() {
+            let row = roster.value_at(at).expect("every position holds a row");
+            read.push((
+                attribute_text(&mut ctx, super::nvs_core_reflect_constant_info_name, row),
+                bit(
+                    &mut ctx,
+                    super::nvs_core_reflect_constant_info_is_public,
+                    row,
+                ),
+                bit(
+                    &mut ctx,
+                    super::nvs_core_reflect_constant_info_has_value,
+                    row,
+                ),
+            ));
+        }
+        let expected: Vec<(String, bool, bool)> = rows
+            .iter()
+            .map(|(name, public, _, value)| {
+                ((*name).to_owned(), *public, *value != ConstantValue::Opaque)
+            })
+            .collect();
+        assert_eq!(
+            read, expected,
+            "one row per constant, in the descriptor's order"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "`classes` outlives every use below, and the table never moves a descriptor \
+                      it handed out"
+        )]
+        let bare = super::describe(unsafe { &*classes.desc(plain) });
+        let empty = call(
+            super::nvs_core_reflect_class_info_constants,
+            &mut ctx,
+            &[bare],
+        )
+        .expect("the roster always answers");
+        assert_eq!(
+            empty.tag(),
+            Some(Tag::Array),
+            "no constant is an empty roster"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "`constants` answered an array this frame owns one reference to"
+        )]
+        let none = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(empty.array_ptr().expect("an array"))
+        });
+        assert_eq!(none.count(), 0);
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the two descriptions and one reference to each of the \
+                      three rosters `constants` handed back"
+        )]
+        unsafe {
+            listed.release();
+            again.release();
+            empty.release();
+            info.release();
+            bare.release();
+        }
+    }
+
     /// The member is one call where PHP had fifteen, and that rests on two
     /// properties of the roster rather than on any one answer: every
     /// representation a value can be in has a case, and no two share one. The

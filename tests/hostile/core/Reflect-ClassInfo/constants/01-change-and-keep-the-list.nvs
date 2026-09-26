@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program changes the list that `constants` returns, keeps items after
+// the class description is freed, and asks for the list many times. The class's
+// own list should never change, and every list should be freed.
+
+interface Floors
+{
+    public const int FLOOR = 0;
+}
+
+class Base implements Floors
+{
+    protected const string TAG = 'base';
+    private const secret string TOKEN = 's3cr3t';
+    public const array<int> LIST = [1, 2, 3];
+}
+
+class Child extends Base
+{
+    public const int MAX = 3;
+}
+
+var $info = Core\Reflect::forObject(new Child());
+
+// 1. Add items to the returned list and remove them. The next list still has 5 items.
+array<Core\Reflect\ConstantInfo> $list = $info->constants();
+uint $n = 0;
+while ($n < 10000) {
+    $list[] = $list[0];
+    $n = $n + 1;
+}
+$list = [];
+echo Core\Arr::count($info->constants()), "\n";
+
+// 2. Keep the items after the description is freed, then read them.
+array<Core\Reflect\ConstantInfo> $kept = Core\Reflect::forObject(new Child())->constants();
+foreach ($kept as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), ' ', $constant->isPublic() ? 1 : 0, $constant->hasValue() ? 1 : 0, "\n";
+}
+
+// 3. Ask for the list 200000 times, from new descriptions and from one, and keep some lists.
+array<array<Core\Reflect\ConstantInfo>> $held = [];
+uint $total = 0;
+uint $i = 0;
+while ($i < 200000) {
+    array<Core\Reflect\ConstantInfo> $one = $i % 2 == 0
+        ? Core\Reflect::forObject(new Child())->constants()
+        : $info->constants();
+    $total = $total + Core\Arr::count($one);
+    if ($i % 1000 == 0) {
+        $held[] = $one;
+    }
+    $i = $i + 1;
+}
+echo $total, ' ', Core\Arr::count($held), "\n";
