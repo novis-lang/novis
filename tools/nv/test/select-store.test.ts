@@ -1,0 +1,59 @@
+import { describe, expect, test } from "bun:test";
+import { pack, SelectStore, unpack } from "../select/store.ts";
+
+const store = () => new SelectStore(":memory:", "test-os");
+
+describe("the select store", () => {
+  test("a key list survives the blob it is kept in", () => {
+    const ids = [1, 2, 3, 127, 128, 129, 16_384, 2_000_000];
+    expect(unpack(pack(ids))).toEqual(ids);
+    expect(unpack(pack([]))).toEqual([]);
+  });
+
+  test("a run widens a footprint, and a run of a new definition starts it again", () => {
+    const s = store();
+    s.recordRun("case:tests/a.nvst", { def: "d1", verdict: "green", keys: new Map([["fn:a.rs#f", "x"], ["class:core\\math", ""]]) });
+    s.recordRun("case:tests/a.nvst", { def: "d1", verdict: "green", keys: new Map([["fn:a.rs#g", "y"]]) });
+    expect(s.footprint("case:tests/a.nvst")).toEqual(["class:core\\math", "fn:a.rs#f", "fn:a.rs#g"]);
+    s.recordRun("case:tests/a.nvst", { def: "d2", verdict: "red", keys: new Map([["fn:a.rs#h", ""]]) });
+    expect(s.footprint("case:tests/a.nvst")).toEqual(["fn:a.rs#h"]);
+    expect(s.atom("case:tests/a.nvst")).toMatchObject({ kind: "case", def: "d2", verdict: "red", keys: 1 });
+    expect(s.atomsUnder(["fn:a.rs#f"]).size).toBe(0);
+    expect(s.keyDigest("fn:a.rs#g")).toBe("y");
+  });
+
+  test("the reverse index answers which atoms hold a key, and only on its own platform", () => {
+    const s = store();
+    s.recordRun("test:a lib a", { def: "", verdict: "green", keys: new Map([["fn:a.rs#f", ""], ["file:x.txt", ""]]) });
+    s.recordRun("test:b lib b", { def: "", verdict: "green", keys: new Map([["fn:a.rs#g", ""], ["file:x.txt", ""]]) });
+    const under = s.atomsUnder(["file:x.txt", "fn:a.rs#g", "fn:none.rs#z"]);
+    expect([...under.keys()].sort()).toEqual(["test:a lib a", "test:b lib b"]);
+    expect(under.get("test:b lib b")!.sort()).toEqual(["file:x.txt", "fn:a.rs#g"]);
+    expect([...s.keysWithPrefix("fn:a.rs#").keys()].sort()).toEqual(["fn:a.rs#f", "fn:a.rs#g"]);
+    const other = new SelectStore(":memory:", "other-os");
+    expect(other.atomsUnder(["file:x.txt"]).size).toBe(0);
+  });
+
+  test("a vanished item is pruned from every footprint", () => {
+    const s = store();
+    s.recordRun("test:a lib a", { def: "", verdict: "green", keys: new Map([["fn:a.rs#f", ""], ["fn:a.rs#gone", ""]]) });
+    expect(s.prune(["fn:a.rs#gone"])).toBe(1);
+    expect(s.footprint("test:a lib a")).toEqual(["fn:a.rs#f"]);
+    expect(s.atom("test:a lib a")!.keys).toBe(1);
+    s.removeAtom("test:a lib a");
+    expect(s.atom("test:a lib a")).toBeNull();
+    expect(s.atomsUnder(["fn:a.rs#f"]).size).toBe(0);
+  });
+
+  test("the base tree, the items and the counts are per platform", () => {
+    const s = store();
+    s.setBase("abc");
+    s.replaceItems([{ file: "a.rs", parsed: true, raw: "r", items: [] }]);
+    expect(s.base()).toBe("abc");
+    expect(s.items("a.rs")?.raw).toBe("r");
+    s.replaceItems([{ file: "b.rs", parsed: true, raw: "r2", items: [] }]);
+    expect(s.itemFiles()).toEqual(["b.rs"]);
+    s.ensureAtom("proof:docs/x.nvs");
+    expect(s.stats()).toMatchObject({ atoms: { proof: 1 }, recorded: { proof: 0 }, red: 0 });
+  });
+});

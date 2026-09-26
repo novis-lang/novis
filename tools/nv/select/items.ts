@@ -11,7 +11,9 @@
 // - a `fn` stops there: its callers ran it, so their atoms hold its key already;
 // - a card (`cards`) moves `card:` keys and nothing else, so a card edit re-runs no program;
 // - a class table (`rows`) moves the `class:` key of each row whose digest moved, compared by position;
-//   a table reached through a name moves every row's class, since which row named it is not known;
+//   a table reached through an item that names a class adds nothing, since the rows naming that item
+//   are its class's, and one reached through any other name moves every row's class, since which row
+//   named it is not known;
 // - an item that names a class (`class`) moves that `class:` key and the items of its own file that
 //   name it: programs reach a row by lookup, and code of the same module may read the const directly;
 // - a `macro_rules!` moves every item that invokes it;
@@ -144,9 +146,10 @@ export function closure(changes: ItemChange[], universe: Universe, wideFiles: st
     emit(ALL_CARDS, origin);
   }
   const seen = new Set<string>();
-  const queue: { file: string; item: Item; was?: Item; how: How; via?: string }[] = [];
+  const queue: { file: string; item: Item; was?: Item; how: How; via?: string; viaClasses?: string[] }[] = [];
   for (const c of changes) queue.push({ file: c.file, item: c.item, ...(c.was ? { was: c.was } : {}), how: c.how });
   const reach = (from: { file: string; item: Item }, names: string[], sameFile: boolean) => {
+    const viaClasses = from.item.class ?? [];
     const owner = universe.scope.pkgOf(from.file);
     for (const name of names) {
       if (name === "*" || name === "") continue;
@@ -157,7 +160,7 @@ export function closure(changes: ItemChange[], universe: Universe, wideFiles: st
           const user = universe.scope.pkgOf(p.file);
           if (user !== null && !universe.scope.sees(user, owner)) continue;
         }
-        queue.push({ file: p.file, item: p.item, how: "reached", via: `${from.file}#${from.item.id}` });
+        queue.push({ file: p.file, item: p.item, how: "reached", via: `${from.file}#${from.item.id}`, viaClasses });
       }
     }
   };
@@ -175,7 +178,9 @@ export function closure(changes: ItemChange[], universe: Universe, wideFiles: st
     }
     if (e.item.rows?.length || e.was?.rows?.length) {
       if (e.how === "reached") {
-        for (const r of e.item.rows ?? []) for (const c of r.classes) emit(classKey(c), origin);
+        // Reached through an item that names a class, the rows naming it are that class's, which moved
+        // already. Reached through anything else, which row names it is not known.
+        if (!e.viaClasses?.length) for (const r of e.item.rows ?? []) for (const c of r.classes) emit(classKey(c), origin);
         continue;
       }
       const classes = e.how === "changed" ? rowClasses(e.was?.rows, e.item.rows) : rowClasses(undefined, e.item.rows);
