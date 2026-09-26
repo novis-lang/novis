@@ -87,7 +87,9 @@
 // is what the session's change reached. The heavy checks (`accept.ts`'s `heldByGate`: the release
 // profile, fuzz, TSan, the database matrix and the checks never memoized, but never a setup command,
 // which the fixtures behind it need) and the Linux legs are held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in the store as `floor-gate:since`), and a heavy check a held
-// sweep reached is owed until the gate opens. A scoped sweep that is green with checks held runs again over the whole
+// sweep reached is owed until the gate opens. On the turn the gate opens by its count, the full run
+// (`select/full.ts`, `bun nv select --full`) comes first: every atom that is not heavy runs and records,
+// and a selection miss it finds is a red of the sweep. A scoped sweep that is green with checks held runs again over the whole
 // plan, collecting every red, since a goal is never reached on a held check. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
 // would reach the goal also runs the goal-end gates, rustdoc and owner, and a goal is reached only when
 // the sweep and both gates are green. Then `advance` makes the next goal on the chain live, commits
@@ -151,6 +153,7 @@ import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/
 import { lastGreen, PlanSweep } from "../driver/runner.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { SelectStore } from "../select/store.ts";
+import { describeFull, fullRun } from "../select/full.ts";
 
 export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
@@ -835,6 +838,27 @@ function floorSince(): number {
   }
 }
 
+/**
+ * `bun nv select --full` inside a turn, under the sweep lock: every atom that is not heavy runs and
+ * records, and the store's tree moves past the change. Returns a red line naming the selection misses,
+ * or a covws build that failed, and "" when there is neither.
+ */
+async function fullRunTurn(note: (line: string) => void): Promise<string> {
+  const lock = await takeSweepLock({ note });
+  const store = new SelectStore();
+  try {
+    const r = await fullRun(store, { say: note });
+    for (const line of describeFull(r)) note(line);
+    if (r.buildFailed) return "full run: the covws build failed";
+    if (r.misses.length === 0) return "";
+    const named = r.misses.slice(0, 5).map((m) => m.id).join(", ");
+    return `full run: ${r.misses.length} selection miss(es), red now and not selected by the change that broke them: ${named}${r.misses.length > 5 ? ", ..." : ""}`;
+  } finally {
+    store.close();
+    lock.release();
+  }
+}
+
 function setFloorSince(since: number): void {
   const store = new SelectStore();
   try {
@@ -1200,6 +1224,16 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   // what it writes.
   const heldBack = open ? [] : all.filter(heldByGate);
   const scoped = all.filter((c) => !heldBack.includes(c));
+  // On the floor gate's cadence the full run comes first: every atom that is not heavy runs and records,
+  // so the sweep after it reaches the heavy checks, the Linux legs and whatever is red. A selection miss
+  // it finds is a red of this sweep.
+  let missed = "";
+  if (open) {
+    step("full run: every atom that is not heavy runs and records, and a red one the selection did not pick is a selection miss", C.CYAN);
+    TICKER.set({ phase: "full run" });
+    missed = await fullRunTurn((l) => say(`   ${l}`, C.GRAY));
+    if (missed) ledger(`       ${missed}`);
+  }
   step(`acceptance check: every check a change reached${open ? ", the heavy ones and the Linux legs with them" : ` (heavy checks and the Linux legs held, 1 session in ${FLOOR_GATE_EVERY})`}`, C.CYAN);
   const checkedAt = performance.now();
   const progress = sweepProgress(again.labelOf, checkedAt);
@@ -1223,6 +1257,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     cost = `${secs}s over ${result.ran} check(s), ${result.answered} not reached`;
   }
   setFloorSince(open ? 0 : since);
+  if (missed) result = { ...result, fail: result.fail ? allReds([result.fail, missed]) : missed };
   step(`acceptance check done in ${mmss((performance.now() - checkedAt) / 1000)}`, C.CYAN);
   ledger(`       goal cost: ${cost}${open ? "" : `, ${heldBack.length} held (floor gate shut)`}`);
   // Every session: the sweep has just left the build warm, nothing is building, and a day of builds is what fills `target/`.

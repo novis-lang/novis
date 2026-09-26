@@ -545,6 +545,7 @@ function heavyRun(all: string[], cwd: string): string | null {
       return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";
     }
     if (cmd === "verify" && rest.includes("--no-cache")) return "`bun nv verify --no-cache` runs every step whatever its inputs, and the green cache is keyed on exactly what each step reads";
+    if (cmd === "select" && rest.includes("--full")) return "`bun nv select --full` runs every atom the store knows, whatever your change reaches; the loop runs it on the floor gate's cadence";
     return null;
   }
   if (base(words[0]) !== "cargo") return null;

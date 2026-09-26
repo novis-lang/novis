@@ -87,7 +87,8 @@ export function failedLabels(out: string): Set<string> {
   return failed;
 }
 
-interface Ctx {
+/** What the runners below share: the recorder, the covws `nvs`, and how many runs go at once. */
+export interface Ctx {
   r: Recorder;
   nvs: string;
   jobs: number;
@@ -147,7 +148,10 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
   return report;
 }
 
-async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; path: string }[]): Promise<void> {
+/** Judges every program of `programs` on the proof binary, records each one's footprint on the covws
+ * `nvs`, and marks a program whose two runs ended differently diverged. `bun nv select --full` runs it
+ * too. */
+export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; path: string }[]): Promise<void> {
   if (programs.length === 0) return;
   const bin = await proofBinary();
   if (typeof bin === "string") throw new Error(`select: no proof binary to judge the proof programs on: ${bin}`);
@@ -185,7 +189,9 @@ async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; pa
   }
 }
 
-async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[]): Promise<void> {
+/** Runs every test executable of `exes` whole, in its package directory, and records each one. `bun nv
+ * select --full` runs it too. */
+export async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[]): Promise<void> {
   const width = Math.max(1, Math.min(4, Math.floor(ctx.jobs / 2)));
   const threads = String(Math.max(1, Math.floor(cpus().length / width)));
   let done = 0;

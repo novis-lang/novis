@@ -101,6 +101,9 @@ export interface OpenOptions {
   onRun?: (what: string) => void;
   /** A line about what the sweep could not read, which never stops it. */
   say?: (line: string) => void;
+  /** The store to read and record in, which the caller closes; the default store, closed by `close`,
+   * when absent. */
+  store?: SelectStore;
 }
 
 /** One sweep over a plan: the change it reads, what that reaches, and the runs it makes. */
@@ -136,7 +139,7 @@ export class PlanSweep {
   /** Reads the change since the store's tree and what it reaches of `plan`, the whole plan's checks. A
    * store with no tree, or one git can no longer name, reaches everything. */
   static async open(plan: Check[], label: (n: number) => string, o: OpenOptions): Promise<PlanSweep> {
-    const store = new SelectStore();
+    const store = o.store ?? new SelectStore();
     const graph = await metadata();
     let change: ChangeSet;
     try {
@@ -587,7 +590,7 @@ export class PlanSweep {
   /** Closes the store without moving its tree: for a caller that only asked what the change reaches. */
   discard(): void {
     this.rec.close();
-    this.store.close();
+    if (this.o.store === undefined) this.store.close();
   }
 
   /**
@@ -614,7 +617,7 @@ export class PlanSweep {
       return { owed, ran: kinds, diverged: this.store.divergences() };
     } finally {
       this.rec.close();
-      this.store.close();
+      if (this.o.store === undefined) this.store.close();
     }
   }
 }
