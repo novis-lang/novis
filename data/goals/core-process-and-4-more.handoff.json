@@ -1,26 +1,26 @@
 {
-  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle`, `Core\\Process\\Result` and now `Core\\Program` are green: `Core\\Program` has its class card (`PROGRAM_CARD`), its three member cards are in the plain voice, and `implementing`, `implementingWith` and `id` have all their feature proofs, with perf recorded. `Core\\Queue`, `Core\\Queue\\Id` and `Core\\Queue\\Stats` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\nThe `implementing` attack found two leaks, both fixed and pinned. A keyless array literal, a variadic argument list and the `implementing`/`implementingWith` expansions did not free the elements already built when a later one threw (`crates/nvs-ir/src/lower/expr.rs`'s `lower_array_literal` and `lower_program_instances`, `call.rs`'s `lower_args_as_array`). They now stage each element as a transferred temporary. An object whose constructor throws was never freed (`crates/nvs-codegen/src/emit.rs`'s `emit_new`). Its error edge now releases the object before the landing block. Valgrind under WSL showed 0 bytes definitely lost for both.\n\nA Unix-only example, or a valgrind run, is done by hand under WSL. `bun nv proofs --valgrind` needs `valgrind` on `PATH`, so it does not run on Windows. Put the commands in a script under `.agent-tmp/` and start it with `wsl.exe -- bash -lc \"bash <script>\"`. In the script, build with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build --bin nvs` from `/mnt/d/mwl`. Then run `/var/tmp/nvs-target-wsl/debug/nvs run <file>` directly or under `valgrind --leak-check=full`. One \"possibly lost\" block from the TLS client cache is always there and is not a finding.",
+  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle`, `Core\\Process\\Result` and `Core\\Program` are green. `Core\\Queue`, `Core\\Queue\\Id` and `Core\\Queue\\Stats` have class cards (`QUEUE_CARD`, `ID_CARD`, `STATS_CARD` in `crates/nvs-stdlib/src/queue.rs`), are out of `CLASSES_STILL_OWING_A_CARD`, and every member card of the three is in the plain voice. `Core\\Queue::push` and `Core\\Queue::status` have all their feature proofs, with perf recorded. Each of the six `Core\\Queue` members has a Rust `covers:` marker in `crates/nvs-stdlib/tests/queue_sqlite.rs`.\n\n`cancel`, `delete`, `purge` and `stats` still owe about, three examples, an attack and a bench each (`bun nv proofs --verify --group 'Core\\Queue'`). `Core\\Queue\\Stats`'s five members are credited to `stats`'s proofs or owe their own; check with `bun nv proofs --verify --group 'Core\\Queue\\Stats'` first.\n\nThe `status` attack found a fatal: a `state` cell the program overwrote with text ended the request. It now throws an `IOError`, pinned by `tests/conformance/core/queue-status-throws-for-a-state-that-is-not-a-number.nvst`.\n\nThe shape every `Core\\Queue` proof uses (an in-memory SQLite block, tables created by the program) is a playbook bullet under *Writing a test case*. Copy `docs/examples/core/Queue/status/nvs.toml` into each new member directory, and into `tests/hostile/core/Queue/<member>/`. The benches share `benches/members/core/Queue/nvs.toml`. `bun nv try` does not read a `--FILE nvs.toml--` section, so a queue `.nvst` runs only under `bun nv verify`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/registry.rs` and the proof trees under `core/Queue/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/queue.rs` and the proof trees under `core/Queue/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Queue`'s class card, and `Core\\Queue\\Id`'s and `Core\\Queue\\Stats`'s** — add a `ClassDoc` above each `CLASS` row, the way `PROGRAM_CARD` sits above `CLASS` in `crates/nvs-stdlib/src/program.rs`, delete the three from `CLASSES_STILL_OWING_A_CARD`, and bring the member cards to the plain voice. Check with `nvs agent show 'Core\\Queue'`. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/queue.rs:1899` `crates/nvs-stdlib/src/queue.rs:2515` `crates/nvs-stdlib/src/queue.rs:2542` `crates/nvs-stdlib/src/registry.rs:5248`"
+        "text": "**`Core\\Queue::cancel` and `Core\\Queue::delete`** — about, three examples, attack and bench each; the Rust markers exist. `delete` needs `[capabilities.queue] purge` (or however the grant is written; read the `DELETE_DOC` card and the grant check) in its `nvs.toml`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2289` `crates/nvs-stdlib/src/queue.rs:2345`"
       },
       {
         "done": false,
-        "text": "**`Core\\Queue::push` and `status`** — about, three examples, attack, bench and a Rust `covers:` marker each. The examples need a `[db.<name>]` block and a `[queue] connection`; `crates/nvs-stdlib/tests/queue_sqlite.rs` shows an in-memory SQLite one. `bun nv proofs --id 'Core\\Queue::push'` prints the paths. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:1899`"
+        "text": "**`Core\\Queue::stats` and `Core\\Queue::purge`** — the same proofs. The `stats` attack should overwrite `attempts` with text, to test whether the counter read at `crates/nvs-stdlib/src/queue.rs:5050` is still a `Fault::fatal` a program can reach. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2316` `crates/nvs-stdlib/src/queue.rs:2379`"
       },
       {
         "done": false,
-        "text": "**`Core\\Queue::cancel`, `delete`, `purge` and `stats`** — the same proofs. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2093`"
+        "text": "**`Core\\Queue\\Stats`'s five members** — whatever `bun nv proofs --verify --group 'Core\\Queue\\Stats'` still names after the item above. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2548`"
       }
     ]
   },
   "backlog": [
-    "`bun nv proofs --verify` flags a bench as stale after any edit to its member's implementing file, even a card-only edit. Run `bun nv proofs --record-perf --group '<Class>'` after the card, before the check (`tools/nv/proofs/collect.ts:423`)."
+    "`push` reads its new row's `id` with a `Fault::fatal` for a non-integer (`crates/nvs-stdlib/src/queue.rs:3817`); a program cannot write that cell before the insert, so it is likely unreachable. Not checked. Owner: `crates/nvs-stdlib/src/queue.rs`'s module doc if it proves reachable."
   ]
 }

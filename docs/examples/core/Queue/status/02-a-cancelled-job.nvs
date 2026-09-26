@@ -1,0 +1,48 @@
+<?nvs
+// Shows how the state of a job changes when it is cancelled.
+use Core\Queue;
+use Core\Queue\Id;
+use Core\Queue\State;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// Two reminders are added. The user then cancels the first one.
+var $monday = Queue::push("jobs/send-reminder.nvs", {queue: "mail", args: ["day" => "monday"]});
+var $friday = Queue::push("jobs/send-reminder.nvs", {queue: "mail", args: ["day" => "friday"]});
+Queue::cancel($monday);
+
+class Reminder {
+    // Returns the name of the state, so the program can print it.
+    public static function state(Id $job): string {
+        return match (Queue::status($job)) {
+            State::Pending => "Pending",
+            State::Claimed => "Claimed",
+            State::Succeeded => "Succeeded",
+            State::Dead => "Dead",
+            State::Cancelled => "Cancelled",
+        };
+    }
+}
+
+// This prints `monday: Cancelled` and `friday: Pending`.
+echo "monday: ", Reminder::state($monday), "\n";
+echo "friday: ", Reminder::state($friday), "\n";

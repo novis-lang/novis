@@ -385,6 +385,7 @@ fn push_in_two(conn: &SqliteConn, key: Option<&str>, run_at: i64) -> (i64, bool)
 /// Asserted as the same id and one row, not as a refusal: a deduped push is an
 /// ordinary answer carrying the pending job's receipt, and a case asserting an
 /// error would pin the opposite of what `Core\Queue::push` promises.
+// covers: Core\Queue::push
 #[test]
 fn a_sqlite_push_of_a_key_already_pending_answers_that_job_and_inserts_nothing() {
     let (first, second) = two_connections("nvs-stdlib-queue-dedupe-pending");
@@ -526,6 +527,7 @@ fn status(conn: &SqliteConn, id: i64) -> Option<i64> {
 /// reading — it is the same statement in both dialects only if the `limit` binds
 /// to the compound and not to its second arm, and a statement that answered the
 /// dead-letter arm first would read plausibly against any single state.
+// covers: Core\Queue::status
 #[test]
 fn a_sqlite_status_reads_the_live_state_and_then_the_dead_letter_ordinal() {
     let (worker, reader) = two_connections("nvs-stdlib-queue-status-both-arms");
@@ -579,6 +581,7 @@ fn cancel(conn: &SqliteConn, id: i64) -> u64 {
 /// The key is pushed through `INSERT_SQLITE` so the last assertion can be about
 /// `dedupe_pending`: cancel releases a key with the same `null` the claim writes,
 /// which is § 2's guarantee holding across a state no worker reached.
+// covers: Core\Queue::cancel
 #[test]
 fn a_sqlite_cancel_takes_a_pending_job_and_changes_nothing_else() {
     let (worker, canceller) = two_connections("nvs-stdlib-queue-cancel-only-pending");
@@ -663,6 +666,7 @@ fn counts(conn: &SqliteConn) -> [i64; 5] {
 /// reads `stats` for. The move is also where the two attempt sums prove they are
 /// disjoint — the buried job's attempts leave one and arrive in the other, and
 /// their total does not move.
+// covers: Core\Queue::stats
 #[test]
 fn sqlite_stats_answer_five_integers_over_an_empty_queue_and_a_worked_one() {
     let (worker, reader) = two_connections("nvs-stdlib-queue-stats-five-counters");
@@ -729,6 +733,7 @@ fn present(conn: &SqliteConn, id: i64) -> (i64, i64) {
 /// two arms standing in for a data-modifying CTE — and a pair that removed from
 /// the wrong table, or that let the second arm answer for the first, reads
 /// plausibly in either text alone.
+// covers: Core\Queue::delete
 #[test]
 fn a_sqlite_delete_removes_a_receipt_from_either_table_and_a_claimed_job_from_neither() {
     let (worker, caller) = two_connections("nvs-stdlib-queue-delete-two-arms");
@@ -819,6 +824,7 @@ fn remaining(conn: &SqliteConn, table: &str) -> Vec<i64> {
 /// inside it, the bound removes exactly one row and takes the oldest, the
 /// default set is what has finished, `State::Pending` is opt-in, and
 /// `State::Claimed` is refused by the text even when a call names it.
+// covers: Core\Queue::purge
 #[test]
 fn a_sqlite_purge_selects_the_finished_set_and_never_more_rows_than_its_bound() {
     let (worker, sweeper) = two_connections("nvs-stdlib-queue-purge-jobs");

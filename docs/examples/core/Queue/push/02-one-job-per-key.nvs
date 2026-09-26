@@ -1,0 +1,30 @@
+<?nvs
+// Shows how the `key` option stops the same job from being added twice.
+use Core\Db\Row;
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+
+// Two requests ask for the same monthly report. Both use the same key.
+// The first call adds the job. The second call adds nothing.
+Queue::push("jobs/build-report.nvs", {queue: "reports", key: "report-2026-09"});
+Queue::push("jobs/build-report.nvs", {queue: "reports", key: "report-2026-09"});
+
+// A different key adds a second job.
+Queue::push("jobs/build-report.nvs", {queue: "reports", key: "report-2026-10"});
+
+// This prints 2.
+foreach ($db->query("select count(*) as n from nvs_jobs", []) as Row $row) {
+    echo $row->int("n") ?? 0, "\n";
+}

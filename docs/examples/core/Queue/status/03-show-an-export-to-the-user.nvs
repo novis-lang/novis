@@ -1,0 +1,49 @@
+<?nvs
+// Shows how a page tells a user what happened to the export they asked for.
+use Core\Queue;
+use Core\Queue\Id;
+use Core\Queue\State;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+class ExportPage {
+    // `match` needs one arm for each of the five states.
+    // Each arm returns the text the user sees.
+    public static function message(Id $export): string {
+        return match (Queue::status($export)) {
+            State::Pending => "Your export is waiting to start.",
+            State::Claimed => "Your export is being built.",
+            State::Succeeded => "Your export is ready to download.",
+            State::Dead => "Your export failed. Please contact support.",
+            State::Cancelled => "You cancelled this export.",
+        };
+    }
+}
+
+// The user asks for two exports, and then cancels the second one.
+var $orders = Queue::push("jobs/export.nvs", {queue: "exports", args: ["table" => "orders"]});
+var $customers = Queue::push("jobs/export.nvs", {queue: "exports", args: ["table" => "customers"]});
+Queue::cancel($customers);
+
+// This prints the message for each export.
+echo "orders: ", ExportPage::message($orders), "\n";
+echo "customers: ", ExportPage::message($customers), "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to add a job that a worker runs later, outside the current request.
+use Core\Db\Row;
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+
+// `Queue::push` saves the job and returns at once.
+// A worker runs the file `jobs/send-welcome.nvs` later, with this data.
+Queue::push("jobs/send-welcome.nvs", {queue: "mail", args: ["user" => 42]});
+
+// The job is a row in the `nvs_jobs` table.
+// This prints the file the worker runs and the data it receives.
+foreach ($db->query("select script, args from nvs_jobs", []) as Row $row) {
+    echo $row->string("script") ?? "", "\n";
+    echo $row->string("args") ?? "", "\n";
+}

@@ -1,0 +1,47 @@
+<?nvs
+// Shows how a job is saved together with the order it belongs to, in one transaction.
+use Core\Db\RolledBack;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+$db->execute("create table orders (id integer primary key, total integer not null)", []);
+
+// Order 1 and its receipt email are saved in one transaction.
+// The transaction commits, so both are saved.
+$db->transaction(fn(Transaction $tx): void => {
+    $tx->execute("insert into orders (id, total) values (?, ?)", [1, 250]);
+    Queue::push("jobs/send-receipt.nvs", {queue: "mail", args: ["order" => 1]});
+});
+
+// The payment for order 2 fails, so the transaction rolls back.
+// The order is not saved, and its receipt email is not saved either.
+try {
+    $db->transaction(fn(Transaction $tx): void => {
+        $tx->execute("insert into orders (id, total) values (?, ?)", [2, 90]);
+        Queue::push("jobs/send-receipt.nvs", {queue: "mail", args: ["order" => 2]});
+        $tx->rollBack("payment declined");
+    });
+} catch (RolledBack $e) {
+    echo "order 2: ", $e->reason, "\n";
+}
+
+// This prints 1 and 1: one order, and one email for it.
+foreach ($db->query("select count(*) as n from orders", []) as Row $row) {
+    echo "orders: ", $row->int("n") ?? 0, "\n";
+}
+foreach ($db->query("select count(*) as n from nvs_jobs", []) as Row $row) {
+    echo "emails: ", $row->int("n") ?? 0, "\n";
+}

@@ -1,0 +1,77 @@
+<?nvs
+// Attack: the program changes the queue tables by hand and then reads the state of its jobs.
+// Each call should return a state or throw an error, and the program must not crash.
+use Core\Queue;
+use Core\Queue\State;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+var $job = Queue::push('jobs/a.nvs', { queue: 'q' });
+string $seen = '';
+
+// 1. The state column has a number that is not a state.
+$db->execute('update nvs_jobs set state = 99', []);
+try {
+    $seen = Queue::status($job) == State::Pending ? 'pending' : 'other';
+    echo '1: ', $seen, "\n";
+} catch (Throwable $e) {
+    echo "1: error\n";
+}
+
+// 2. The state column has a negative number.
+$db->execute('update nvs_jobs set state = -1', []);
+try {
+    $seen = Queue::status($job) == State::Pending ? 'pending' : 'other';
+    echo '2: ', $seen, "\n";
+} catch (Throwable $e) {
+    echo "2: error\n";
+}
+
+// 3. The state column has text in place of a number.
+$db->execute("update nvs_jobs set state = 'lost'", []);
+try {
+    $seen = Queue::status($job) == State::Pending ? 'pending' : 'other';
+    echo '3: ', $seen, "\n";
+} catch (Throwable $e) {
+    echo "3: error\n";
+}
+
+// 4. The row is deleted, so neither table has the job.
+$db->execute('delete from nvs_jobs', []);
+try {
+    $seen = Queue::status($job) == State::Pending ? 'pending' : 'other';
+    echo '4: ', $seen, "\n";
+} catch (Throwable $e) {
+    echo "4: error\n";
+}
+
+// 5. The same job is read 20000 times after the tables are gone.
+$db->execute('drop table nvs_dead_jobs', []);
+int $errors = 0;
+int $i = 0;
+while ($i < 20000) {
+    try {
+        Queue::status($job);
+    } catch (Throwable $e) {
+        $errors = $errors + 1;
+    }
+    $i = $i + 1;
+}
+echo '5: ', $errors, "\n";

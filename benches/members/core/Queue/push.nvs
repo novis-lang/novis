@@ -1,0 +1,33 @@
+<?nvs
+// Adds a small job to a queue, as a request does when it sends an email in the background.
+// bench: iterations 3000
+// bench: calls 0
+use Core\Queue;
+
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $queues = ["mail", "images", "reports"];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // The queue and the data depend on the previous round.
+            Queue::push("jobs/send.nvs", {queue: $queues[$total % 3], args: ["n" => $total]});
+            $total = $total + $i + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(3000), "\n";

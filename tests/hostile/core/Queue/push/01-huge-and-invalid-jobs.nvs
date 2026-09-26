@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a request adds jobs with huge data, huge names and invalid options.
+// Each call should save the job or throw an error, and the program must not crash.
+use Core\Db\Row;
+use Core\Queue;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$db->execute($jobs, []);
+
+// 1. A queue name of one million characters.
+try {
+    Queue::push('jobs/a.nvs', { queue: Core\Str::repeat('q', 1000000) });
+} catch (Throwable $e) {
+    echo "1: error\n";
+}
+
+// 2. Data with 200000 values in one job.
+array<int> $values = [];
+int $i = 0;
+while ($i < 200000) {
+    $values[] = $i;
+    $i = $i + 1;
+}
+try {
+    Queue::push('jobs/a.nvs', { queue: 'big', args: ['values' => $values] });
+} catch (Throwable $e) {
+    echo "2: error\n";
+}
+
+// 3. A job that may run zero times.
+try {
+    Queue::push('jobs/a.nvs', { queue: 'big', maxAttempts: 0 });
+} catch (Throwable $e) {
+    echo "3: error\n";
+}
+
+// 4. A job that asks for a capability this request does not have.
+try {
+    Queue::push('jobs/a.nvs', { queue: 'big', grants: ['fs.write'] });
+} catch (Throwable $e) {
+    echo "4: error\n";
+}
+
+// 5. The same key 5000 times, which should save one job.
+int $n = 0;
+while ($n < 5000) {
+    Queue::push('jobs/a.nvs', { queue: 'keyed', key: 'same' });
+    $n = $n + 1;
+}
+foreach ($db->query('select count(*) as n from nvs_jobs where queue = ?', ['keyed']) as Row $row) {
+    echo '5: ', $row->int('n') ?? 0, "\n";
+}

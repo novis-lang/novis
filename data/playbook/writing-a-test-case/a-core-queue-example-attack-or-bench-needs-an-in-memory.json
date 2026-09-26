@@ -1,0 +1,13 @@
+{
+  "lead": "A `Core\\Queue` example, attack or bench needs an in-memory SQLite block and must create the queue tables itself.",
+  "body": "`nvs queue migrate` cannot run inside a proof, and a `[db.<name>]` block with a file `path` keeps its rows between runs, so the second run of a proof prints different counts. Put `path = \":memory:\"`, `[capabilities.db] connect` and `[queue] connection`/`workers = 0` in the directory's `nvs.toml`: the queue and `Core\\Db::connect` then share the one database. Copy the two `create table` texts from `docs/examples/core/Queue/status/01-check-a-new-job.nvs`.",
+  "files": [
+    "docs/examples/core/Queue/status/01-check-a-new-job.nvs",
+    "nvs.toml",
+    "docs/examples/core/Queue/status/nvs.toml"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "docs/examples/core/Queue/status/nvs.toml:workers = 0"
+  }
+}

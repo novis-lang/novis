@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to read the state of a job that was just added.
+use Core\Queue;
+use Core\Queue\State;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// `Queue::push` returns the id of the new job.
+var $job = Queue::push("jobs/resize-photo.nvs", {queue: "images", args: ["photo" => 7]});
+
+// `Queue::status` returns a `Core\Queue\State` case. No worker has started
+// the job yet, so the state is `State::Pending` and this prints `waiting`.
+echo Queue::status($job) == State::Pending ? "waiting" : "not waiting", "\n";
