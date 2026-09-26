@@ -16,9 +16,13 @@
 //
 // A run over whole groups records each group's example and attack directories and bench file in
 // `.loop/proof-reads.json`, which is what `tools/nv/keys/checks.ts` keys a `proofs: <group>` unit on.
+//
+// With `NV_PROOF_RECORD=<dir>` in the environment, every program runs, whatever the memo says, and each
+// run is recorded into that directory under the program's `recordName`: `proofRecording` owns what the
+// program's processes are told.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { PROOF_READS } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { builtFrom, keyOf } from "../keys/key.ts";
@@ -137,6 +141,42 @@ export interface Ran {
 
 const sibling = (proof: string, suffix: string) => proof.replace(/\.nvs$/, suffix);
 
+/** The environment variable naming the directory each proof program's run is recorded into. */
+export const RECORD_ENV = "NV_PROOF_RECORD";
+
+/**
+ * The file name a recorded program's files start with, from its repo-relative path: `/` and `\` become
+ * `~`, and every other byte that is not an ASCII letter, digit, `.`, `_` or `-` becomes `@` and two hex
+ * digits. The same rule as `nvs test --record`'s (`nvs_test::record_name`), so one reader serves both.
+ */
+export function recordName(path: string): string {
+  let name = "";
+  for (const byte of new TextEncoder().encode(path)) {
+    const c = String.fromCharCode(byte);
+    if (c === "/" || c === "\\") name += "~";
+    else if (/[A-Za-z0-9._-]/.test(c)) name += c;
+    else name += `@${byte.toString(16).padStart(2, "0")}`;
+  }
+  return name;
+}
+
+/**
+ * The variables every process of one run of `proof` gets when `dir` names a record directory:
+ * `LLVM_PROFILE_FILE` as `<dir>/<name>-%p.profraw`, one file per process, `NVS_FOOTPRINT_LOG` as
+ * `<dir>/<name>.log`, which they share, and `NOVIS_NO_FILE_CACHE`, so the compile runs whole. A
+ * relative `dir` is taken from the repository root. Empty when nothing is recorded.
+ */
+export function proofRecording(proof: string, dir: string | undefined = process.env[RECORD_ENV]): Record<string, string> {
+  if (!dir) return {};
+  const at = resolve(ROOT, dir);
+  const name = recordName(proof);
+  return {
+    LLVM_PROFILE_FILE: resolve(at, `${name}-%p.profraw`),
+    NVS_FOOTPRINT_LOG: resolve(at, `${name}.log`),
+    NOVIS_NO_FILE_CACHE: "1",
+  };
+}
+
 /** One run of a proof program from the repository root. A proof with a `<name>.in` beside it reads that
  * file as its standard input, and every other proof reads nothing, so no proof ever waits on a terminal.
  * A proof whose directory holds an `nvs.toml` runs under that file alone, handed over as `--config`
@@ -147,9 +187,12 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   const config = `${dirname(proof)}/nvs.toml`;
   const at = argv.indexOf("run");
   if (at >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, at + 1), "--config", config, ...argv.slice(at + 1)];
+  const recording = proofRecording(proof);
+  if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
   const started = performance.now();
   const child = Bun.spawn(argv, {
     cwd: ROOT,
+    env: { ...process.env, ...recording },
     stdin: existsSync(feed) ? Bun.file(feed) : "ignore",
     stdout: "pipe",
     stderr: "pipe",
@@ -380,6 +423,8 @@ export interface Pass {
 /** Runs every program named, once each, in one pool. */
 export async function runPrograms(bin: Binary, programs: { what: What; path: string }[], opts: RunOptions): Promise<Pass> {
   const green = opts.cache ? loadGreen() : {};
+  // A recording run has to run each program to record it, so it answers nothing from the memo.
+  const recording = Boolean(process.env[RECORD_ENV]);
   const results = new Map<string, Result>();
   const todo: { what: What; path: string; slot: string; digest: string }[] = [];
   const seen = new Set<string>();
@@ -390,7 +435,7 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
     const slot = `${what}:${what === "hostile" && opts.valgrind ? "valgrind" : "plain"}:${path}`;
     const d = proofDigest(path);
     const was = green[slot];
-    if (was && was[0] === d && was[1] === bin.runs) results.set(id, { verdict: "ok", why: "", cached: true });
+    if (!recording && was && was[0] === d && was[1] === bin.runs) results.set(id, { verdict: "ok", why: "", cached: true });
     else todo.push({ what, path, slot, digest: d });
   }
   const width = jobsFor(todo.length);
