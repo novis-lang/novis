@@ -4,7 +4,8 @@ import type { Moved } from "../select/items.ts";
 import { failedLabels, seedable } from "../select/seed.ts";
 import { proofFiles } from "../select/atoms.ts";
 import { advance } from "../select/record.ts";
-import { type ChangeSet, counts, discover, explain, isGlobal, query } from "../select/select.ts";
+import { type FileItems, scanItems } from "../keys/scan.ts";
+import { type ChangeSet, computeChange, counts, discover, explain, isGlobal, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { join } from "node:path";
 import { scratch } from "./scratch.ts";
@@ -237,4 +238,48 @@ describe("what the recording build cannot see", () => {
     expect(keyed).toEqual([ATTACK, SQRT, "nv:odd"].sort());
     expect(sel.selected.get(SQRT)!.keys[0]!.origin.path).toBe("crates/s/src/alloc.rs");
   });
+});
+
+describe("a file Rust code embeds", () => {
+  const LIB = 'pub fn template() -> &\'static str {\n    include_str!("template.toml")\n}\n\npub fn plain() -> u8 {\n    7\n}\n';
+
+  test("a change to it selects every atom that ran the item embedding it, and the next run stores that item's new digest", async () => {
+    const t = scratch();
+    const git = (...args: string[]) => {
+      const r = Bun.spawnSync(["git", ...args], { cwd: t.root, stdout: "pipe", stderr: "pipe" });
+      if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+      return r.stdout.toString().trim();
+    };
+    const s = new SelectStore(":memory:", "test-os");
+    try {
+      git("init", "-q");
+      git("config", "user.email", "test@example.com");
+      git("config", "user.name", "test");
+      git("config", "core.hooksPath", ".no-hooks");
+      t.put("crates/demo/src/lib.rs", LIB);
+      t.put("crates/demo/src/template.toml", "# key = 1\n");
+      git("add", ".");
+      git("commit", "-q", "-m", "start");
+      const lib = "crates/demo/src/lib.rs";
+      s.setItems(scanItems([lib], t.root));
+      s.setBase(git("rev-parse", "HEAD"));
+      s.recordRun("test:demo test resolve", { def: "", verdict: "green", keys: new Map([[`fn:${lib}#template`, ""]]) });
+      s.recordRun("test:demo test other", { def: "", verdict: "green", keys: new Map([[`fn:${lib}#plain`, ""]]) });
+
+      t.put("crates/demo/src/template.toml", "key = 1\n");
+      const c = await computeChange(s, { paths: ["crates/demo/src/template.toml"], graph: null, root: t.root });
+      expect(c.moved.has(`fn:${lib}#template`)).toBe(true);
+      expect(c.moved.has(`fn:${lib}#plain`)).toBe(false);
+      const sel = query(s, c);
+      expect(sel.selected.get("test:demo test resolve")?.why).toBe("key");
+      expect(sel.selected.has("test:demo test other")).toBe(false);
+
+      advance(s, c, sel, new Set(["test:demo test resolve"]), null, t.root);
+      const digestOf = (f: FileItems | null) => f?.items.find((i) => i.id === "template")?.digest;
+      expect(digestOf(s.items(lib))).toBe(digestOf(scanItems([lib], t.root)[0]!));
+    } finally {
+      s.close();
+      t.cleanup();
+    }
+  }, 180_000);
 });

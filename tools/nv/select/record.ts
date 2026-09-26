@@ -29,7 +29,7 @@ import { buildScripts, type Generated, generatedDigest, generatedIncludes, gener
 import { snapshot } from "./change.ts";
 import { CovMap, type Extracted, extract, ItemIndex, type Recorded, recordedIn } from "./extract.ts";
 import { fileWild, fnKey, WILD } from "./keys.ts";
-import { type ChangeSet, graphScope, rustFiles, type Selection } from "./select.ts";
+import { type ChangeSet, embedders, graphScope, rustFiles, type Selection } from "./select.ts";
 import type { Keyed, SelectStore, Verdict } from "./store.ts";
 
 export const REC_ROOT = ".agent-tmp/select-rec";
@@ -369,7 +369,8 @@ export function advance(store: SelectStore, change: ChangeSet, sel: Selection | 
   if (!change.tree || process.env[NO_ADVANCE_ENV]) return { owed: 0 };
   const owed = sel ? store.owe([...sel.selected.keys()].filter((id) => !ran.has(id))) : 0;
   for (const id of sel?.gone ?? []) store.removeAtom(id);
-  const rust = new Set(change.changes.filter((c) => c.path.endsWith(".rs")).map((c) => c.path));
+  // A file that embeds a changed file was read again, so its stored items take the new digests too.
+  const rust = new Set([...change.changes.filter((c) => c.path.endsWith(".rs")).map((c) => c.path), ...embedders(change.view.values(), change.changes.map((c) => c.path))]);
   if (change.full) store.replaceItems([...change.view.values()]);
   else {
     store.setItems([...rust].flatMap((f) => (change.view.has(f) ? [change.view.get(f)!] : [])));

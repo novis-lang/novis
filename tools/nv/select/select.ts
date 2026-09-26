@@ -170,7 +170,13 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const graph = opts.graph === undefined ? await metadata() : opts.graph;
   const scope = graphScope(graph);
   const stored = store.allItems();
-  const rust = changes.filter((c) => isRust(c.path)).map((c) => c.path);
+  // Every Rust file's items as the store last scanned them, or every Rust file as it is now when the
+  // store holds no scan.
+  const files = stored.size > 0 ? stored : new Map(scanItems(await rustFiles(root), root).map((f) => [f.file, f]));
+  // Each changed Rust file, and each Rust file that embeds a changed file: its embedding item folds
+  // the embedded bytes into its digest, so reading it again moves that item like an edit of it.
+  const edited = changes.filter((c) => isRust(c.path)).map((c) => c.path);
+  const rust = [...new Set([...edited, ...embedders(files.values(), changes.map((c) => c.path))])];
   // The base side: the store's own scan when it was taken at `since`, else the files as they were then.
   // The scan is of the recorded tree, overlay and all, so it stands for the commit alone only when the
   // overlay is empty.
@@ -200,8 +206,6 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   }
 
   // The tree as the closure reads it: the stored scan, with every changed file as it is now.
-  let files = stored;
-  if (files.size === 0) files = new Map(scanItems(await rustFiles(root), root).map((f) => [f.file, f]));
   const view = new Map(files);
   for (const f of rust) {
     const now = after.get(f);
@@ -262,6 +266,16 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     view,
     ...(tree ? { tree } : {}),
   };
+}
+
+/** The Rust files of `files` that hold an item embedding one of `paths` with `include_str!`,
+ * `include_bytes!` or `include!`. The scan lists what an item embeds relative to the repository
+ * root, the way a change names a path. */
+export function embedders(files: Iterable<FileItems>, paths: Iterable<string>): string[] {
+  const changed = new Set(paths);
+  const out: string[] = [];
+  for (const f of files) if (f.items.some((i) => i.includes?.some((p) => changed.has(p)))) out.push(f.file);
+  return out;
 }
 
 /** Every Rust file of the tree, tracked or not. */
