@@ -26,9 +26,12 @@
 // stops the perf proof from being owed. `--record-perf` takes `--reps N` timed runs per program (5),
 // `--force` to re-measure what already has a current figure, `--note` to record a word with each record,
 // and `--perf-report` to write the report after it. `--nvs` names the binary to use as it is. Without it,
-// the audit reads the roster from `target/release` and then `target/debug`, `--bless`, `--run` and
-// `--verify` use the proof binary, and `--record-perf` uses the release binary, each built first when it
-// is not current.
+// the audit reads the roster from the first built of `target/release`, `target/debug`, the proof binary
+// and the `covws` debug build, `--bless`, `--run` and `--verify` use the proof binary, and
+// `--record-perf` uses the release binary, each built first when it is not current. `--run` and
+// `--verify` on the proof binary run only the programs the change since the selection store's tree
+// reaches, record each, and report the rest green (`tools/nv/proofs/select.ts`); `--no-cache` runs
+// every program in scope, and a binary named with `--nvs` runs every program and records nothing.
 // `rule:testing/feature-proofs` is what a feature owes, `tools/nv/proofs/roster.ts` is where the features
 // come from, `tools/nv/proofs/collect.ts` is how each proof is found on disk, `tools/nv/proofs/run.ts` is
 // how a proof program is run and judged, and `tools/nv/proofs/perf.ts` is how a figure is taken.
@@ -40,7 +43,9 @@ import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/
 import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
-import { bless, namedBinary, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
+import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
+import { bless, namedBinary, proofBinary, proofBinaryPath, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
+import { runSelected } from "../proofs/select.ts";
 
 export const summary =
   "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report]";
@@ -55,12 +60,13 @@ const USAGE = [
   "                 [--perf-report] [--impl-hash FILE [FILE ...]]",
 ].join("\n");
 
-/** What the binary is: the one named, or the newest profile built. */
+/** What the binary is: the one named, or the first built of the release binary, a debug build by hand,
+ * the proof binary and the pipeline's debug build. */
 function binary(explicit: string | undefined): string | null {
   if (explicit !== undefined) return existsSync(explicit) ? explicit : null;
   const exe = process.platform === "win32" ? "nvs.exe" : "nvs";
-  for (const profile of ["release", "debug"]) {
-    const p = abs(`target/${profile}/${exe}`);
+  const covws = `${COVWS_TARGET}/${hostTriple()}`;
+  for (const p of [`target/release/${exe}`, `target/debug/${exe}`, proofBinaryPath(), `${covws}/debug/${exe}`].map((x) => abs(x))) {
     if (existsSync(p)) return p;
   }
   return null;
@@ -310,7 +316,7 @@ function groupReads(entries: Entry[]): string[] {
 /** `--run`, or `--verify` when `verify`: each scope's gate first when verifying, then both suites over
  * every scope whose gate passed, in one pool. */
 async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: boolean, flags: Set<string>, proofs: Map<string, Proofs>, policy: Policy, skips: Skips): Promise<number> {
-  const opts = { valgrind: flags.has("--valgrind"), cache: !flags.has("--no-cache"), strict: flags.has("--strict"), quiet: flags.has("--quiet") };
+  const opts = { valgrind: flags.has("--valgrind"), strict: flags.has("--strict"), quiet: flags.has("--quiet") };
   const heads = new Map<Scope, string[]>();
   const running: Scope[] = [];
   let rc = 0;
@@ -331,7 +337,9 @@ async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: bo
     }
   }
   const programs = running.flatMap((s) => suites.flatMap((what) => programsOf(s, what).map((path) => ({ what, path }))));
-  const pass = await runPrograms(bin, programs, opts);
+  // A binary named by hand is not the one the store records on: every program runs, and nothing is
+  // recorded.
+  const pass = bin.recorded ? await runSelected(bin, programs, opts, flags.has("--no-cache")) : await runPrograms(bin, programs, opts);
   for (const scope of scopes) {
     const lines = heads.get(scope)!;
     let failed = !running.includes(scope);

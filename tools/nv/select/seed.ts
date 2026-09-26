@@ -155,7 +155,7 @@ async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; pa
     for (const batch of chunks(programs, 96)) {
       rmSync(dir, { recursive: true, force: true });
       mkdirSync(dir, { recursive: true });
-      const pass = await runPrograms(namedBinary(ctx.nvs), batch, { valgrind: false, cache: false, strict: false });
+      const pass = await runPrograms(namedBinary(ctx.nvs), batch, { valgrind: false, strict: false });
       const recorded = recordedIn(dir);
       await pool(batch, ctx.jobs, async ({ what, path }) => {
         const got = recorded.get(recordName(path));

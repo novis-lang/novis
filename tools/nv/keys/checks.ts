@@ -43,6 +43,7 @@ import { goalPlan, liveGoal } from "../lib/chain.ts";
 import { abs } from "../lib/paths.ts";
 import type { Reads } from "../lib/reads.ts";
 import { CALL_ROOTS, MARKER_ROOTS, callsIn, markersIn } from "../proofs/markers.ts";
+import { proofReadsSlot, SelectStore, testReads } from "../select/store.ts";
 import { type Graph, byCrate, testBinaries } from "./graph.ts";
 import { type Build, type Part, UnknownPackage, builtFrom, testBuild } from "./key.ts";
 import { NV_MANIFESTS, commandModules } from "./modules.ts";
@@ -76,20 +77,18 @@ export interface Unit {
 export interface Records {
   graph: Graph;
   checks: Check[];
-  /** Each test binary's run-time reads, repo-relative, as `verify` last recorded them. */
+  /** Each test binary's run-time reads, repo-relative: the paths its recorded footprint says it asked
+   * `nvs_repo` for (`testReads`). */
   reads: Map<string, string[]>;
   /** The test binaries keyed on everything. */
   wide: Set<string>;
-  /** Each proofs group's own paths, as `nv proofs` last recorded them. */
+  /** Each proofs group's own paths, as `nv proofs` last recorded them in the selection store. */
   proofReads: Map<string, string[]>;
   /** What each `bun nv` check's processes read when it last ran, by `recordId`. */
   nvReads: Map<string, Reads>;
 }
 
-const READS = ".agent-tmp/impact-reads.json";
 const WIDE = "tools/data/impact-wide.txt";
-/** Each proofs group's example and attack directories and bench file, which `nv proofs` writes. */
-export const PROOF_READS = ".loop/proof-reads.json";
 /** What each `bun nv` check read when it last ran, which the sweep writes (`lib/reads.ts`). */
 export const NV_READS = ".loop/nv-reads.json";
 
@@ -169,25 +168,28 @@ function liveChecks(): Check[] {
  * no checks, for a caller that keys only the test binaries. */
 export function loadRecords(graph: Graph, live = true): Records {
   const doc = { check: live ? liveChecks() : [] };
-  const reads = new Map<string, string[]>();
-  const got = readJson(READS);
-  if (got && typeof got === "object") {
-    for (const [name, v] of Object.entries(got as Record<string, { reads?: unknown }>)) {
-      if (Array.isArray(v?.reads)) reads.set(name, v.reads.filter((r): r is string => typeof r === "string"));
+  // The test binaries' reads and the proof groups' paths live in the selection store.
+  let reads = new Map<string, string[]>();
+  const proofReads = new Map<string, string[]>();
+  try {
+    const store = new SelectStore();
+    try {
+      reads = testReads(store);
+      for (const [slot, v] of store.verdictsWithPrefix(proofReadsSlot(""))) {
+        const paths = JSON.parse(v.verdict) as unknown;
+        if (Array.isArray(paths)) proofReads.set(slot.slice(proofReadsSlot("").length), paths.filter((p): p is string => typeof p === "string"));
+      }
+    } finally {
+      store.close();
     }
+  } catch {
+    // A store that cannot be read reads as empty.
   }
   const wide = new Set<string>();
   if (existsSync(abs(WIDE))) {
     for (const line of readFileSync(abs(WIDE), "utf8").split(/\r?\n/)) {
       if (!line.trim() || line.startsWith("#")) continue;
       wide.add(line.split("  --")[0]!.trim());
-    }
-  }
-  const proofReads = new Map<string, string[]>();
-  const recorded = readJson(PROOF_READS);
-  if (recorded && typeof recorded === "object") {
-    for (const [group, v] of Object.entries(recorded as Record<string, unknown>)) {
-      if (Array.isArray(v)) proofReads.set(group, v.filter((p): p is string => typeof p === "string"));
     }
   }
   const nvReads = new Map<string, Reads>();

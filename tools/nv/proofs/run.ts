@@ -3,33 +3,33 @@
 // `bun nv proofs --run` and `--verify` call this, over any number of groups in one pass: the files of
 // every group go into one pool, and each group's verdict lines are counted from its own files.
 //
-// The programs run on the proof binary, `target/proof/`, and `proofBinary` builds it when the Stage 6 key
-// of what it is compiled from has moved since it was last built. The key is the one `builtFrom` computes
-// for every Rust build, at the `shipped` tier because the roster reads the binary's own cards. So a relink
-// that changed nothing runs nothing again, and an edit to a reference chapter the binary embeds rebuilds.
-// `releaseBinary` is the same rule for `target/release/`, which the perf ledger is measured on.
+// The programs run on the proof binary: the `proof` profile built through `covwrap` into `target/covws`
+// (`lib/covws.ts`), so a proof program is recorded on the binary it is judged on. Coverage counters are
+// placed before inlining, so optimized code maps to the same items a debug build does. `proofBinary`
+// runs cargo every time, and cargo rebuilds what changed. `releaseBinary` is `target/release/`, which
+// the perf ledger measures on, uninstrumented: it is built when the Stage 6 key of what it is compiled
+// from has moved since it was last built.
 //
-// A green verdict is remembered in `.loop/proofs-green.json`, keyed on the program's bytes (with its `.out`
-// and `.in`) and on the binary's key at `card`, so an unchanged program on a binary whose code is
-// unchanged is not run again. No program prints a card, so an edit to one runs nothing again. Only a pass
-// is remembered: a failure is run and reported every time.
+// Which programs run is the selection's (`tools/nv/select/`), and `cmd/proofs.ts` makes it; this file
+// runs every program it is handed. With `NV_PROOF_RECORD=<dir>` in the environment each run is recorded
+// into that directory under the program's `recordName`: `proofRecording` owns what the program's
+// processes are told. Without it, an instrumented binary's counters go to `DISCARD_PROFILE`, never into
+// the working directory.
 //
-// A run over whole groups records each group's example and attack directories and bench file in
-// `.loop/proof-reads.json`, which is what `tools/nv/keys/checks.ts` keys a `proofs: <group>` unit on.
-//
-// With `NV_PROOF_RECORD=<dir>` in the environment, every program runs, whatever the memo says, and each
-// run is recorded into that directory under the program's `recordName`: `proofRecording` owns what the
-// program's processes are told.
+// A run over whole groups records each group's example and attack directories and bench file in the
+// selection store (`proofReadsSlot`), which is what `tools/nv/keys/checks.ts` keys a `proofs: <group>`
+// unit on.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { PROOF_READS } from "../keys/checks.ts";
 import { metadata } from "../keys/graph.ts";
 import { builtFrom, keyOf } from "../keys/key.ts";
 import { digest } from "../keys/scan.ts";
 import { Tree } from "../keys/tree.ts";
-import { abs, ROOT } from "../lib/paths.ts";
-import { run as runProc } from "../lib/proc.ts";
+import { COVWS_TARGET, covwsCargo, hostTriple } from "../lib/covws.ts";
+import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
+import { killTree, reapOrphans, run as runProc } from "../lib/proc.ts";
+import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { cargoLines, progress } from "../lib/progress.ts";
 import { linked } from "../lib/relink.ts";
 import { gapTitle, knownGap } from "./collect.ts";
@@ -42,22 +42,20 @@ export interface Binary {
   path: string;
   /** What the binary was built at: the Stage 6 key at `shipped`, or the bytes of a binary named by hand. */
   key: string;
-  /** What a green verdict is remembered against: the same key at `card`, since no program prints a
-   * card, or the bytes of a binary named by hand. */
+  /** The same key at `card`, since no program prints a card, or the bytes of a binary named by hand. */
   runs: string;
+  /** The proof binary the selection store records on; a binary named by hand is not. */
+  recorded?: boolean;
 }
 
 const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
-export const PROOF_BINARY = `target/proof/${EXE}`;
+/** The proof binary, repo-relative: the `proof` profile of the `covws` build. */
+export const proofBinaryPath = () => `${COVWS_TARGET}/${hostTriple()}/proof/${EXE}`;
 export const RELEASE_BINARY = `target/release/${EXE}`;
-const GREEN = ".loop/proofs-green.json";
 
-/** The two builds a proof runs on. The release build is the argv `bun nv loop`'s acceptance sweep runs, so both share one set
- * of artefacts under `target/release/`. Each writes the key it was built at to `key` beside it. */
-const BUILDS = {
-  proof: { name: "proof binary", path: PROOF_BINARY, key: "target/proof/nvs.key", argv: ["cargo", "build", "--profile", "proof", "--bin", "nvs"] },
-  release: { name: "release binary", path: RELEASE_BINARY, key: "target/release/nvs.key", argv: ["cargo", "build", "--release", "-p", "nvs-cli"] },
-};
+/** The release build, the argv `bun nv loop`'s acceptance sweep runs, so both share one set of
+ * artefacts under `target/release/`. It writes the key it was built at to `key` beside it. */
+const RELEASE = { name: "release binary", path: RELEASE_BINARY, key: "target/release/nvs.key", argv: ["cargo", "build", "--release", "-p", "nvs-cli"] };
 
 /** `// requires: unimplemented`, the website's own skip marker. */
 const UNIMPL_RE = /^(?:\/\/|#)\s*requires:\s*unimplemented/m;
@@ -95,14 +93,26 @@ const CRASH_MARKERS = [
 const EXAMPLE_TIMEOUT_MS = 60_000;
 export const HOSTILE_TIMEOUT_MS = 10_000;
 
-/** The proof binary of the tree as it stands, built first when its key has moved. A string is why not. */
-export const proofBinary = () => builtBinary("proof");
+/** The proof binary of the tree as it stands: cargo builds the `proof` profile through `covwrap`, and
+ * rebuilds only what changed. A string is why there is none. */
+export async function proofBinary(): Promise<Binary | string> {
+  const { env, args } = covwsCargo();
+  const argv = ["cargo", "build", "--profile", "proof", "--bin", "nvs", ...args];
+  const path = abs(proofBinaryPath());
+  const onLine = cargoLines("proofs: building the proof binary");
+  const built = await linked(path, () => runProc(argv, { env, timeoutMs: 60 * 60 * 1000, onLine }), (r) => r.stderr);
+  if (built.code !== 0 || !existsSync(path)) {
+    const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
+    return `\`${argv.join(" ")}\` failed (exit ${built.code}):\n${tail}`;
+  }
+  return { path, key: "proof", runs: "proof", recorded: true };
+}
 
 /** The release binary of the tree as it stands, which `--record-perf` measures on. */
-export const releaseBinary = () => builtBinary("release");
+export const releaseBinary = () => builtBinary();
 
-async function builtBinary(profile: keyof typeof BUILDS): Promise<Binary | string> {
-  const build = BUILDS[profile];
+async function builtBinary(): Promise<Binary | string> {
+  const build = RELEASE;
   progress(`proofs: checking whether the ${build.name} is current`);
   const graph = await metadata();
   if (!graph) return `\`cargo metadata\` failed, and the ${build.name}'s key needs the graph`;
@@ -192,7 +202,7 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   const started = performance.now();
   const child = Bun.spawn(argv, {
     cwd: ROOT,
-    env: { ...process.env, ...recording },
+    env: { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...recording },
     stdin: existsSync(feed) ? Bun.file(feed) : "ignore",
     stdout: "pipe",
     stderr: "pipe",
@@ -200,10 +210,14 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    child.kill();
+    killTree(child.pid);
   }, timeoutMs);
   try {
-    const [stdout, stderr, exited] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+    const reading = Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
+    const exited = await child.exited;
+    // What a failed or killed program left running is killed with it, so it holds no pipe and no file.
+    if (exited !== 0 || timedOut) reapOrphans(child.pid);
+    const [stdout, stderr] = await reading;
     // A program ended by a signal has no exit status of its own, and that is crash-shaped.
     const code = child.signalCode && !timedOut ? -1 : exited;
     return { code, stdout, stderr, timedOut, ms: performance.now() - started };
@@ -347,47 +361,19 @@ function judgeGap(path: string, verdict: Verdict, why: string): [Verdict, string
   return ["known", `${title} (gap ${id})`];
 }
 
-/** What a green verdict on `proof` is remembered against: its bytes, its `.out` and `.in` when present,
- * and the `nvs.toml` beside it that `spawnProof` runs it under. */
-function proofDigest(proof: string): string {
-  const chunks: (string | Uint8Array)[] = [readFileSync(abs(proof))];
-  for (const s of [abs(sibling(proof, ".out")), abs(sibling(proof, ".in")), abs(`${dirname(proof)}/nvs.toml`)]) {
-    chunks.push(existsSync(s) ? readFileSync(s) : "");
-  }
-  return digest(...chunks);
-}
-
-function loadGreen(): Record<string, [string, string]> {
-  try {
-    return JSON.parse(readFileSync(abs(GREEN), "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function saveGreen(green: Record<string, [string, string]>): void {
-  try {
-    mkdirSync(dirname(abs(GREEN)), { recursive: true });
-    writeFileSync(abs(GREEN), JSON.stringify(green, Object.keys(green).sort(), 0));
-  } catch {
-    // A cache that cannot be written is a slow run, never a failed one.
-  }
-}
-
-/** Records each group's own paths in `PROOF_READS`, which a `proofs: <group>` unit keys on. Groups this
- * run did not name keep their record. */
+/** Records each group's own paths in the selection store, which a `proofs: <group>` unit keys on.
+ * Groups this run did not name keep their record. */
 export function saveReads(groups: [string, string[]][]): void {
   if (groups.length === 0) return;
-  let reads: Record<string, string[]> = {};
   try {
-    reads = JSON.parse(readFileSync(abs(PROOF_READS), "utf8"));
-  } catch {
-    // No record yet, or one that cannot be read: this run writes it afresh.
-  }
-  for (const [group, paths] of groups) reads[group] = paths;
-  try {
-    mkdirSync(dirname(abs(PROOF_READS)), { recursive: true });
-    writeFileSync(abs(PROOF_READS), JSON.stringify(Object.fromEntries(Object.entries(reads).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))));
+    const store = new SelectStore();
+    try {
+      store.transaction(() => {
+        for (const [group, paths] of groups) store.putVerdict(proofReadsSlot(group), "", JSON.stringify(paths));
+      });
+    } finally {
+      store.close();
+    }
   } catch {
     // A record that cannot be written keys the group on everything, which only re-runs it.
   }
@@ -403,13 +389,13 @@ function jobsFor(count: number): number {
 
 export interface RunOptions {
   valgrind: boolean;
-  cache: boolean;
   strict: boolean;
 }
 
 export interface Result {
   verdict: Verdict;
   why: string;
+  /** Not run: the change reaches nothing it ran, and its last run was green. */
   cached: boolean;
 }
 
@@ -420,23 +406,18 @@ export interface Pass {
   seconds: number;
 }
 
-/** Runs every program named, once each, in one pool. */
-export async function runPrograms(bin: Binary, programs: { what: What; path: string }[], opts: RunOptions): Promise<Pass> {
-  const green = opts.cache ? loadGreen() : {};
-  // A recording run has to run each program to record it, so it answers nothing from the memo.
-  const recording = Boolean(process.env[RECORD_ENV]);
+/** Runs every program named, once each, in one pool; each of `unchanged` is reported green without a
+ * run. */
+export async function runPrograms(bin: Binary, programs: { what: What; path: string }[], opts: RunOptions, unchanged: Set<string> = new Set()): Promise<Pass> {
   const results = new Map<string, Result>();
-  const todo: { what: What; path: string; slot: string; digest: string }[] = [];
+  const todo: { what: What; path: string }[] = [];
   const seen = new Set<string>();
   for (const { what, path } of programs) {
     const id = `${what}:${path}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    const slot = `${what}:${what === "hostile" && opts.valgrind ? "valgrind" : "plain"}:${path}`;
-    const d = proofDigest(path);
-    const was = green[slot];
-    if (!recording && was && was[0] === d && was[1] === bin.runs) results.set(id, { verdict: "ok", why: "", cached: true });
-    else todo.push({ what, path, slot, digest: d });
+    if (unchanged.has(path)) results.set(id, { verdict: "ok", why: "", cached: true });
+    else todo.push({ what, path });
   }
   const width = jobsFor(todo.length);
   const started = performance.now();
@@ -455,12 +436,9 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
       ran++;
       if (verdict === "fail") failed++;
       say();
-      if (verdict === "ok") green[t.slot] = [t.digest, bin.runs];
-      else delete green[t.slot];
     }
   };
   await Promise.all(Array.from({ length: width }, worker));
-  if (opts.cache && todo.length > 0) saveGreen(green);
   return { results, width, seconds: (performance.now() - started) / 1000 };
 }
 
@@ -500,7 +478,7 @@ export function suiteLines(out: string[], what: What, files: string[], pass: Pas
   if (!opts.quiet) for (const [f, r] of skipped.sort(byPath)) out.push(`  skip  ${f}: ${r.why}`);
   out.push(
     `proofs ${what}: ${ok} ok, ${skipped.length} skipped, ${gaps.length} known-gap, ${bad.length} failed ` +
-      `(${files.length} files, ${cached} unchanged since they last passed, ${pass.width} at a time, ${pass.seconds.toFixed(1)}s)`,
+      `(${files.length} files, ${cached} green and not reached by the change, ${pass.width} at a time, ${pass.seconds.toFixed(1)}s)`,
   );
   return bad.length > 0;
 }
