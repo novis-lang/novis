@@ -1,0 +1,21 @@
+<?nvs
+// Measures drawing one float from a seeded generator, as a simulation does for each event.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every float is compared and counted, so no round can be left out.
+            $total = $total + (($generator->float() < 0.5 ? 1 : 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000) > 0 ? "done" : "none", "\n";
