@@ -20,7 +20,7 @@ import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, NOT_INPUTS, ROOT } from "../lib/paths.ts";
 import { caseDef, caseFiles, caseId, currentDef, stillThere } from "./atoms.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
-import { blobAt, type Change, changedPaths, commitOf, namedChanges } from "./change.ts";
+import { blobAt, type Change, changedBetween, changedPaths, commitOf, namedChanges } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { ALL_CARDS, ALL_CLASSES, fileWild, itemPrefix, kindOf, pathKeys, WILD } from "./keys.ts";
 import { type AtomKind, kindOfAtom, type SelectStore } from "./store.ts";
@@ -42,6 +42,8 @@ export function isGlobal(path: string): boolean {
 /** What changed, as keys. */
 export interface ChangeSet {
   since: string;
+  /** The commit a replayed change ends at; absent for a change read from the working tree. */
+  until?: string;
   changes: Change[];
   /** Every key that moved, with why. A key ending in `#` stands for every key of that file. */
   moved: Moved;
@@ -119,6 +121,10 @@ export async function scanAt(rev: string, files: string[], root: string = ROOT):
 export interface ChangeOptions {
   /** The commit to compare the working tree with; the store's base when omitted. */
   since?: string;
+  /** A commit to take as the changed side instead of the working tree: a change replayed from history.
+   * What a build script generated is not known for it, and every atom whose definition files it touches
+   * counts as redefined. */
+  until?: string;
   /** Paths to take as changed instead of asking git. */
   paths?: string[];
   graph?: Graph | null;
@@ -132,7 +138,8 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const sinceRev = opts.since ?? base;
   if (!sinceRev) throw new Error("the store has no recorded tree: run `bun nv select --seed` first, or name one with --since");
   const since = await commitOf(sinceRev, root);
-  const changes = opts.paths ? await namedChanges(opts.paths, since, root) : await changedPaths(since, root);
+  const until = opts.until ? await commitOf(opts.until, root) : null;
+  const changes = until ? await changedBetween(since, until, root) : opts.paths ? await namedChanges(opts.paths, since, root) : await changedPaths(since, root);
   const moved: Moved = new Map();
   const emit = (key: string, origin: Origin) => {
     if (!moved.has(key)) moved.set(key, origin);
@@ -156,9 +163,11 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     for (const f of [...before.keys()]) if (!rust.includes(f)) before.delete(f);
   }
   // The head side, scanned with the class batch.
-  const present = rust.filter((f) => existsSync(join(root, f)));
+  const present = until ? rust.filter((f) => changes.find((c) => c.path === f)?.status !== "deleted") : rust.filter((f) => existsSync(join(root, f)));
   const batch = [...new Set([...present, ...classBatch(stored.size > 0 ? stored : new Map())])];
-  const after = new Map(scanItems(batch, root).filter((f) => present.includes(f.file)).map((f) => [f.file, f]));
+  const after = until
+    ? new Map([...(await scanAt(until, batch, root))].filter(([f]) => present.includes(f)))
+    : new Map(scanItems(batch, root).filter((f) => present.includes(f.file)).map((f) => [f.file, f]));
 
   const itemChanges: ItemChange[] = [];
   const wideFiles: string[] = [];
@@ -183,7 +192,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const pkgDirs = new Map([...(graph?.values() ?? [])].map((p) => [p.name, p.dir]));
   const scripts = buildScripts(abs(`${COVWS_TARGET}/${hostTriple()}/debug/build`, root), pkgDirs);
   const newest = (paths: Change[]) => Math.max(0, ...paths.map((c) => (existsSync(join(root, c.path)) ? Bun.file(join(root, c.path)).lastModified : Date.now())));
-  for (const g of generatedIncludes(view.values(), (f) => scope.pkgOf(f), root)) {
+  for (const g of until ? [] : generatedIncludes(view.values(), (f) => scope.pkgOf(f), root)) {
     const script = scripts.get(g.pkg);
     const inputsMoved = script ? changes.filter((c) => isInput(c.path, script.inputs)) : [];
     const recorded = store.meta(generatedMeta(store.platform, g));
@@ -212,7 +221,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   for (const [k, o] of closure(itemChanges, universe, wideFiles, extra)) emit(k, o);
   // Code of a file no item held was recorded as the whole file.
   for (const c of itemChanges) emit(fileWild(c.file), { path: c.file, item: c.id, how: c.how });
-  return { since, changes, moved, global, rustFiles: rust.length, itemChanges: itemChanges.length, wideFiles };
+  return { since, ...(until ? { until } : {}), changes, moved, global, rustFiles: rust.length, itemChanges: itemChanges.length, wideFiles };
 }
 
 /** Every Rust file of the tree, tracked or not. */
@@ -281,8 +290,8 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     else if (a.keys === 0) add(a.id, "new");
     else if (a.verdict === "red") add(a.id, "red");
     else if (defTouched.has(a.id) || (a.kind === "proof" && tomlDirs.has(dirname(a.id.slice(6))))) {
-      const def = currentDef(a.id);
-      if (def !== null && def !== a.def) add(a.id, "def");
+      const def = change.until ? null : currentDef(a.id);
+      if (change.until || (def !== null && def !== a.def)) add(a.id, "def");
     }
   }
   for (const d of opts.discovered ?? []) {

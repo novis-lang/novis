@@ -62,6 +62,14 @@ describe("the reverse-index query", () => {
     expect(isGlobal("crates/nvs-cli/src/main.rs")).toBe(false);
   });
 
+  test("a replayed change counts every atom whose definition it touches as redefined", () => {
+    const s = store();
+    const path = "tools/nv/test/select-query.test.ts";
+    s.recordRun(`case:${path}`, { def: "whatever", verdict: "green", keys: new Map([["fn:x.rs#f", ""]]) });
+    const replay = { ...change([["file:" + path, path]]), until: "later" };
+    expect(query(s, replay).selected.get(`case:${path}`)?.why).toBe("def");
+  });
+
   test("an atom discovered on disk and unknown to the store is new", () => {
     const sel = query(store(), change([]), { discovered: [{ id: "test:fresh test fresh", def: "" }] });
     expect(sel.selected.get("test:fresh test fresh")?.why).toBe("new");

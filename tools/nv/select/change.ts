@@ -44,6 +44,19 @@ export async function changedPaths(since: string, root: string = ROOT): Promise<
   return [...out].map(([path, status]) => ({ path, status })).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
+/** Every path that differs between the commits `since` and `until`, sorted by path: a change replayed
+ * from history rather than read from the working tree. */
+export async function changedBetween(since: string, until: string, root: string = ROOT): Promise<Change[]> {
+  const out: Change[] = [];
+  const parts = (await git(["diff", "--name-status", "--no-renames", "-z", since, until, "--"], root)).split("\0");
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const code = parts[i]!;
+    const path = parts[i + 1]!;
+    if (path) out.push({ path, status: code.startsWith("A") ? "added" : code.startsWith("D") ? "deleted" : "modified" });
+  }
+  return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
 /** The changes `--paths` names by hand: each path is taken as changed, as added when it is on disk and
  * absent from `since`, as deleted when it is gone. */
 export async function namedChanges(paths: string[], since: string, root: string = ROOT): Promise<Change[]> {

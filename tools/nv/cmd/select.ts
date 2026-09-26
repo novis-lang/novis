@@ -2,6 +2,7 @@
 //
 //     bun nv select                      the atoms the change since the recorded tree selects, and why
 //     bun nv select --since REV          compare the working tree with REV instead
+//     bun nv select --since A --until B  replay the change from commit A to commit B
 //     bun nv select --paths A B ...      take these paths as the change instead of asking git
 //     bun nv select --stats              counts only: atoms per kind and reason, keys per kind
 //     bun nv select --json               the selection as one JSON document
@@ -19,12 +20,13 @@ import { computeChange, counts, describe, discover, explain, query } from "../se
 import { seed } from "../select/seed.ts";
 
 export const summary =
-  "which atoms a change reaches, from what each was seen to use: nv select [--since REV] [--paths P...] [--stats] [--json] [--explain ATOM] [--seed [--kinds K,...] [--limit N] [--jobs N]]";
+  "which atoms a change reaches, from what each was seen to use: nv select [--since REV [--until REV]] [--paths P...] [--stats] [--json] [--explain ATOM] [--seed [--kinds K,...] [--limit N] [--jobs N]]";
 
-const USAGE = `usage: bun nv select [--since REV] [--paths PATH ...] [--stats] [--json] [--explain ATOM]
+const USAGE = `usage: bun nv select [--since REV [--until REV]] [--paths PATH ...] [--stats] [--json] [--explain ATOM]
        bun nv select --seed [--kinds case,proof,test,nv] [--limit N] [--jobs N]
 
   --since REV     compare the working tree with REV; the store's recorded tree by default
+  --until REV     take commit REV as the changed side instead of the working tree
   --paths P ...   take these paths as the change instead of asking git
   --stats         print counts only: atoms selected per kind and reason, keys moved per kind
   --json          print the selection as JSON
@@ -36,6 +38,7 @@ const USAGE = `usage: bun nv select [--since REV] [--paths PATH ...] [--stats] [
 
 interface Opts {
   since?: string;
+  until?: string;
   paths?: string[];
   stats: boolean;
   json: boolean;
@@ -58,6 +61,7 @@ export function parse(args: string[]): Opts {
     };
     if (a === "-h" || a === "--help") o.help = true;
     else if (a === "--since") o.since = value();
+    else if (a === "--until") o.until = value();
     else if (a === "--paths") {
       o.paths = [];
       while (i + 1 < args.length && !args[i + 1]!.startsWith("--")) o.paths.push(args[++i]!);
@@ -104,7 +108,7 @@ export async function run(args: string[]): Promise<number> {
       return 0;
     }
     const graph = await metadata();
-    const change = await computeChange(store, { ...(o.since ? { since: o.since } : {}), ...(o.paths ? { paths: o.paths } : {}), graph });
+    const change = await computeChange(store, { ...(o.since ? { since: o.since } : {}), ...(o.until ? { until: o.until } : {}), ...(o.paths ? { paths: o.paths } : {}), graph });
     const sel = query(store, change, { discovered: await discover(graph) });
     if (o.explain) {
       for (const line of explain(store, sel, o.explain)) console.log(line);
