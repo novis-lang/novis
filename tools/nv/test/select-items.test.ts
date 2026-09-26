@@ -145,14 +145,17 @@ describe("the item diff and the reference-graph closure", () => {
     expect([...closure(d.changes, new Universe(head, depends)).keys()]).toContain("fn:crates/b/src/lib.rs#reads");
   });
 
-  test("an added test moves every key of its file, and a file that does not parse is taken whole", () => {
+  test("a test-only class table moves no class, and a file that does not parse is taken whole", () => {
     const file = "crates/demo/src/t.rs";
-    tree.put(file, "pub fn f() {}\n");
+    const table = (rows: string) => `pub fn f() {}\n#[cfg(test)]\nmod tests {\n    const OWING: &[&str] = &[${rows}];\n    #[test]\n    fn owing() { assert!(!OWING.is_empty()); }\n}\n`;
+    tree.put(file, table('"Core\\\\Arr", "Core\\\\Str"'));
     const base = scanned([file]);
-    tree.put(file, "pub fn f() {}\n#[test]\nfn new_test() { f(); }\n");
+    tree.put(file, table('"Core\\\\Str"'));
     const head = scanned([file]);
     const d = diffFile(base.get(file)!, head.get(file)!);
-    expect([...closure(d.changes, new Universe(head)).keys()]).toContain("fn:crates/demo/src/t.rs#");
+    const moved = [...closure(d.changes, new Universe(head)).keys()];
+    expect(moved.filter((k) => k.startsWith("class:"))).toEqual([]);
+    expect(moved).toContain("fn:crates/demo/src/t.rs#tests::owing");
     tree.put(file, "pub fn f( {\n");
     const broken = scanned([file]);
     expect(diffFile(base.get(file)!, broken.get(file)!).wide).toBe(true);
@@ -160,10 +163,12 @@ describe("the item diff and the reference-graph closure", () => {
     expect(keys).toEqual(["fn:crates/demo/src/t.rs#", "class:*", "card:*"]);
   });
 
-  test("rows are compared by position", () => {
+  test("a row added, taken out or edited moves that row alone, and a reordered table every moved position", () => {
     const row = (d: string, c: string) => ({ digest: d, classes: [c] });
     expect([...rowClasses([row("1", "A"), row("2", "B")], [row("1", "A"), row("3", "B")])]).toEqual(["B"]);
     expect([...rowClasses([row("1", "A")], [row("1", "A"), row("2", "C")])]).toEqual(["C"]);
+    expect([...rowClasses([row("1", "A"), row("2", "B"), row("3", "C")], [row("1", "A"), row("3", "C")])]).toEqual(["B"]);
+    expect([...rowClasses([row("1", "A"), row("2", "B")], [row("2", "B"), row("1", "A")])].sort()).toEqual(["A", "B"]);
   });
 });
 

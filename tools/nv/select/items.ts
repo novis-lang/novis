@@ -22,8 +22,9 @@
 // - any other item (a const, a static, a struct, an enum, a type alias) moves every item that names
 //   it, in its own package and in the packages that depend on it, and so on until a `fn` is reached.
 //
-// A test item that was added moves every key of its file, because no footprint can hold a test that
-// did not exist when the binary last ran: every atom that ran code of that file is selected.
+// An item compiled only for tests (`test`) is never a card or a class row a program reads: its cards,
+// classes and rows are ignored and it moves what names it, like any other item. A test that was added
+// is in no footprint yet; `select.ts` moves its package's `tests:` key for it.
 
 import type { FileItems, Item, ItemRow } from "../keys/scan.ts";
 import { ALL_CARDS, ALL_CLASSES, cardKey, classKey, fnKey, itemPrefix } from "./keys.ts";
@@ -114,11 +115,36 @@ export class Universe {
   }
 }
 
-/** The classes of the rows that differ between two versions of a class table, compared by position. */
+/** The classes of the rows that differ between two versions of a class table: each row one side has and
+ * the other lacks, so a row added or taken out moves that row alone. When the rows both sides share
+ * are in another order, every position whose row moved counts, since a table's order can be what a
+ * reader indexes by. */
 export function rowClasses(before: ItemRow[] | undefined, after: ItemRow[] | undefined): Set<string> {
   const out = new Set<string>();
   const a = before ?? [];
   const b = after ?? [];
+  const count = (rows: ItemRow[]) => {
+    const m = new Map<string, number>();
+    for (const r of rows) m.set(r.digest, (m.get(r.digest) ?? 0) + 1);
+    return m;
+  };
+  const inA = count(a);
+  const inB = count(b);
+  const only = (rows: ItemRow[], other: Map<string, number>) => {
+    const left = new Map(other);
+    const shared: string[] = [];
+    for (const r of rows) {
+      const n = left.get(r.digest) ?? 0;
+      if (n > 0) {
+        left.set(r.digest, n - 1);
+        shared.push(r.digest);
+      } else for (const c of r.classes) out.add(c);
+    }
+    return shared;
+  };
+  const sharedA = only(a, inB);
+  const sharedB = only(b, inA);
+  if (sharedA.join("\n") === sharedB.join("\n")) return out;
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
     if (a[i]?.digest === b[i]?.digest) continue;
     for (const c of a[i]?.classes ?? []) out.add(c);
@@ -171,12 +197,12 @@ export function closure(changes: ItemChange[], universe: Universe, wideFiles: st
     seen.add(id);
     const origin: Origin = { path: e.file, item: e.item.id, how: e.how, ...(e.via ? { via: e.via } : {}) };
     emit(fnKey(e.file, e.item.id), origin);
-    if (e.how === "added" && e.item.test) emit(itemPrefix(e.file), origin);
-    if (e.item.cards?.length || e.was?.cards?.length) {
+    const shipped = !e.item.test;
+    if (shipped && (e.item.cards?.length || e.was?.cards?.length)) {
       for (const c of [...(e.item.cards ?? []), ...(e.was?.cards ?? [])]) emit(cardKey(c), origin);
       continue;
     }
-    if (e.item.rows?.length || e.was?.rows?.length) {
+    if (shipped && (e.item.rows?.length || e.was?.rows?.length)) {
       if (e.how === "reached") {
         // Reached through an item that names a class, the rows naming it are that class's, which moved
         // already. Reached through anything else, which row names it is not known.
@@ -189,7 +215,7 @@ export function closure(changes: ItemChange[], universe: Universe, wideFiles: st
       if (e.how === "changed" && classes.size === 0) emit(ALL_CLASSES, origin);
       continue;
     }
-    if (e.item.class?.length || e.was?.class?.length) {
+    if (shipped && (e.item.class?.length || e.was?.class?.length)) {
       for (const c of [...(e.item.class ?? []), ...(e.was?.class ?? [])]) emit(classKey(c), origin);
       reach(e, e.item.defines, true);
       continue;
