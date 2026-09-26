@@ -1,26 +1,34 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\ObjectMap has been taken yet.",
+  "state": "Goal `core-objectmap`. `Core\\ObjectMap` has its class card, and `clear`, `count` and `get` have every feature proof: about, examples, attack, bench with a recorded figure, and a Novis and a Rust test each.\nThe `get` bench found that every identity-store lookup allocated its chain key on the heap. `crate::identity_store::ChainKey` now builds it on the stack, so `get` records 0 allocations; this also speeds up `Core\\ObjectSet`, which shares the store.\nThe remaining members are `set`, `has`, `remove`, `isEmpty`, `keys`, `values` and the constructor. Their tests already exist: `the_two_stores_stay_paired_through_set_and_remove` in `crates/nvs-stdlib/src/objmap.rs` carries `covers:` for set/get/remove/count/keys/values, and the three `object-map-*` conformance cases name what they assert.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "member proofs",
+    "files": [
+      "crates/nvs-stdlib/src/objmap.rs",
+      "docs/examples/core/ObjectMap/",
+      "tests/hostile/core/ObjectMap/",
+      "benches/members/core/ObjectMap/"
+    ],
+    "note": "Run `bun nv proofs --id '<member>'` first; a test may only owe a `covers:` line.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\ObjectMap::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:151`"
+        "text": "**`Core\\ObjectMap::has`** — owes about, examples, hostile, perf, and probably a `covers:` on `tests/conformance/core/object-map-has-is-the-only-member-that-tells-an-absent-key-from-a-null-value.nvst` plus a Rust test. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:98`"
       },
       {
         "done": false,
-        "text": "**`Core\\ObjectMap::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:115`"
+        "text": "**`Core\\ObjectMap::isEmpty`** — owes about, examples, hostile, perf and a Rust test; the sweep case already names it. A bench declares `allocations 0`. `crates/nvs-stdlib/src/objmap.rs:125`"
       },
       {
         "done": false,
-        "text": "**`Core\\ObjectMap::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objmap.rs:88`"
+        "text": "**`Core\\ObjectMap::set`** — owes about, examples, hostile, perf. Its bench will not reach `allocations 0` when it inserts a new key (a store entry is an allocation); re-`set` of a present key is the zero-allocation case to measure. `crates/nvs-stdlib/src/objmap.rs:80`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`remove`, `keys`, `values` and the constructor follow the same shape — `crates/nvs-stdlib/src/objmap.rs`.",
+    "A bench that indexes an array with a `uint` pays 2 allocations per read; `benches/members/README.md` § *Index with an `int`* owns that.",
+    "`?uint ?? 0` types as `mixed` because the literal is an `int`; write `?? (0 as uint)` — not a bug this goal owns.",
+    "`nvs agent show 'Core\\ObjectMap'` prints the member list but not the class card's text, and `Core\\Net\\Stream` does the same; not checked whether that is intended — `crates/nvs-cli` agent renderer."
   ]
 }

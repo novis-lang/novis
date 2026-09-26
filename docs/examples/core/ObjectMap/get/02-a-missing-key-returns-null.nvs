@@ -1,0 +1,29 @@
+<?nvs
+// Shows what `get` returns for a key that is not in the map, and how `has` tells this case apart.
+
+final class User {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+User $ada = new User("Ada");
+User $bob = new User("Bob");
+User $cy = new User("Cy");
+
+Core\ObjectMap<User, ?string> $nickname = new Core\ObjectMap<User, ?string>();
+$nickname->set($ada, "Addy");
+// Bob is in the map, but his value is `null`.
+$nickname->set($bob, null);
+
+// `get` returns `null` for Bob and for Cy. The `??` operator gives a default.
+// This prints "Addy", "-" and "-".
+echo $nickname->get($ada) ?? "-", "\n";
+echo $nickname->get($bob) ?? "-", "\n";
+echo $nickname->get($cy) ?? "-", "\n";
+
+// `has` checks if the key is in the map. This prints `true` for Bob and `false` for Cy.
+echo $nickname->has($bob) ? "true" : "false", "\n";
+echo $nickname->has($cy) ? "true" : "false", "\n";

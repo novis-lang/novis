@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to store a computed result for each object, so it is computed only once.
+
+final class Cart {
+    public array<int> $prices;
+
+    public function constructor(array<int> $prices) {
+        $this->prices = $prices;
+    }
+}
+
+final class Totals {
+    public static function of(Core\ObjectMap<Cart, int> $known, Cart $cart): int {
+        // `get` returns the stored total, or `null` when this cart has none yet.
+        ?int $total = $known->get($cart);
+        if ($total != null) {
+            return $total;
+        }
+        int $sum = 0;
+        foreach ($cart->prices as int $price) {
+            $sum = $sum + $price;
+        }
+        echo "computed a total\n";
+        $known->set($cart, $sum);
+        return $sum;
+    }
+}
+
+Cart $cart = new Cart([1200, 350, 99]);
+Core\ObjectMap<Cart, int> $known = new Core\ObjectMap<Cart, int>();
+
+// The first call computes the total. The second call gets it from the map.
+// This prints "computed a total" once, then 1649 twice.
+echo Totals::of($known, $cart), "\n";
+echo Totals::of($known, $cart), "\n";

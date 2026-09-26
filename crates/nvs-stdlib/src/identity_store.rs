@@ -46,6 +46,7 @@
 use std::cell::OnceCell;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
+use std::io::Write as _;
 use std::mem::ManuallyDrop;
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Tag, Value};
@@ -68,9 +69,29 @@ fn identity_hash(value: Value) -> u64 {
     })
 }
 
+/// A chain key, written on the stack. Sixteen hex digits, `#` and a `usize`
+/// ordinal are at most 37 bytes, so looking a key up allocates nothing — a
+/// `get`, `has` or `set` over a present key costs no heap traffic at all.
+pub(crate) struct ChainKey {
+    bytes: [u8; 40],
+    len: usize,
+}
+
+impl std::ops::Deref for ChainKey {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
 /// The key at ordinal `n` of `hash`'s chain — see this module's docs.
-fn chain_key(hash: u64, n: usize) -> Vec<u8> {
-    format!("{hash:016x}#{n}").into_bytes()
+fn chain_key(hash: u64, n: usize) -> ChainKey {
+    let mut bytes = [0u8; 40];
+    let mut rest = &mut bytes[..];
+    write!(rest, "{hash:016x}#{n}").expect("a chain key fits in 40 bytes");
+    let len = 40 - rest.len();
+    ChainKey { bytes, len }
 }
 
 /// Where `value` lives in `store`, as `(key, present)`.
@@ -79,7 +100,7 @@ fn chain_key(hash: u64, n: usize) -> Vec<u8> {
 /// where it is `false` the key is the first free one in the chain, which is
 /// exactly where a write goes. Walking to the first absent key is what the
 /// chain's density buys.
-pub(crate) fn locate(store: &NvsArray, value: Value) -> (Vec<u8>, bool) {
+pub(crate) fn locate(store: &NvsArray, value: Value) -> (ChainKey, bool) {
     let hash = identity_hash(value);
     let mut n = 0usize;
     loop {

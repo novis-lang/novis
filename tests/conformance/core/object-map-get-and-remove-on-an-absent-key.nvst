@@ -2,6 +2,7 @@
 `Core\ObjectMap<K, V>::get` and `::remove` answer nothing and change nothing for a key the map does not hold — docs/spec/01-core-library.md § 9
 --FILE--
 <?nvs
+// covers: Core\ObjectMap::get, Core\ObjectMap::remove, Core\ObjectMap::count
 // The *edge* shape: what each member answers where it stops accepting — an
 // absent key — and that a `remove` which matched nothing leaves `count` and
 // the two positionally paired lists exactly as they were.
