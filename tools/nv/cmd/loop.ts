@@ -473,7 +473,10 @@ async function sweepOver(
   } finally {
     origin?.close();
     lock.release();
-    owed = sweep.close().owed;
+    const closed = sweep.close();
+    owed = closed.owed;
+    const ran = Object.entries(closed.ran).map(([k, n]) => `${n} ${k}`).join(", ");
+    p.note(`the sweep ran ${ran || "no atom"}; ${owed} atom(s) the change reached and nothing ran stay owed`);
   }
   for (const x of checks) o.onDone?.(x, result.verdicts.get(x.id) ?? false);
   return { result, secs: Math.round((Date.now() - started - waited) / 1000), owed };
