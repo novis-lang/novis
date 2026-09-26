@@ -1,0 +1,20 @@
+<?nvs
+// Measures rolling a die, as a program does when it picks a random number in a range.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The upper bound depends on the last result, so no round can be left out.
+            $total = $total + Core\Random::int(1, 6 + $total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000) > 0 ? "done" : "none", "\n";

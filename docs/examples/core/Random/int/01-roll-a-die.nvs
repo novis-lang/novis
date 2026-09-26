@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to roll a die, and that both ends of the range come up.
+
+bool $sawOne = false;
+bool $sawSix = false;
+uint $outside = 0;
+uint $roll = 0;
+while ($roll < 1000) {
+    int $value = Core\Random::int(1, 6);
+    if ($value == 1) {
+        $sawOne = true;
+    }
+    if ($value == 6) {
+        $sawSix = true;
+    }
+    if ($value < 1 || $value > 6) {
+        $outside = $outside + 1;
+    }
+    $roll = $roll + 1;
+}
+
+// No roll is outside 1 to 6. This prints 0.
+echo $outside, "\n";
+
+// In 1000 rolls, both 1 and 6 come up. This prints "yes".
+echo $sawOne && $sawSix ? "yes" : "no", "\n";

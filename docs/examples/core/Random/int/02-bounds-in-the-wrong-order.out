@@ -1,0 +1,2 @@
+5
+Error: Core\Random::int(): the range is empty — the lower bound 10 is above the upper bound 1, and both ends are inclusive

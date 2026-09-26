@@ -1,0 +1,12 @@
+<?nvs
+// Shows what happens when the two bounds are the same, and when they are in the wrong order.
+
+// When both bounds are 5, the result is 5. This prints 5.
+echo Core\Random::int(5, 5), "\n";
+
+// A lower bound above the upper bound throws an error. The bounds are not swapped.
+try {
+    echo Core\Random::int(10, 1), "\n";
+} catch (Throwable $e) {
+    echo "Error: ", $e->message, "\n";
+}

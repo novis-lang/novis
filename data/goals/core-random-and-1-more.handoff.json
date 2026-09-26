@@ -1,26 +1,35 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Random and 1 more has been taken yet.",
+  "state": "Goal `core-random-and-1-more`: `Core\\Random` and `Core\\Random\\Seeded` owe their feature proofs.\n`Core\\Random::bytes`, `::float` and `::int` are complete (`bun nv proofs --id` says so), with\nfigures in `docs/perf/members.ndjson`. `Core\\Random` has its class card. `Core\\Random\\Seeded` is\nstill in `CLASSES_STILL_OWING_A_CARD`. `bytes` and `token` (both classes) now draw straight into\ntheir result, one allocation each: `octets_from` and `hex_from` in `crates/nvs-stdlib/src/random.rs`,\npinned by `a_random_draw_allocates_its_result_once` in `crates/nvs-stdlib/tests/allocation_policy.rs`.\nSo `token`'s bench can declare `allocations 1`. Nothing is blocked.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 2,
+    "title": "the dossier",
+    "files": [
+      "crates/nvs-stdlib/src/random.rs",
+      "docs/examples/core/Random/",
+      "tests/hostile/core/Random/",
+      "benches/members/core/Random/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Random::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:135`"
+        "text": "**`Core\\Random::token`** — examples, hostile, perf, a `covers:` marker on `a_token_is_twice_its_byte_count_in_lower_case_hex`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:154`"
       },
       {
         "done": false,
-        "text": "**`Core\\Random::float`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:126`"
+        "text": "**`Core\\Random::pick`** — examples, hostile, perf, a `covers:` marker on `every_pick_is_an_element_of_the_subject`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:163`"
       },
       {
         "done": false,
-        "text": "**`Core\\Random::int`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:117`"
+        "text": "**`Core\\Random::sample`** — examples, hostile, perf, a `covers:` marker on `a_sample_is_that_many_distinct_entries`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:172`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Random::shuffle`** — examples, hostile, perf, a `covers:` marker on `a_shuffle_keeps_every_element_and_renumbers`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:181`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Random\\Seeded`'s seven members and its constructor, then its class card and its row in `CLASSES_STILL_OWING_A_CARD` (`crates/nvs-stdlib/src/registry.rs`). `rule:core-api/reference-card`.",
+    "`bun nv proofs --id` reads help off the release binary, so a card just added reads as owed until `--nvs target/debug/nvs.exe` is passed. Owner: `tools/nv/cmd/proofs.ts`."
   ]
 }
