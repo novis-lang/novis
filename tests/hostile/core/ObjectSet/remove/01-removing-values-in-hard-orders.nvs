@@ -1,0 +1,91 @@
+<?nvs
+// Attack: a program removes values that were never added, and removes the same value many times.
+// It also removes values in a hard order. The set should stay correct, and the program must not crash.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public int $id;
+    public ?Node $next = null;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+Core\ObjectSet<mixed> $set = new Core\ObjectSet<mixed>();
+
+// 1. A value that was never added is removed 1 million times from an empty set.
+Node $ghost = new Node(0);
+int $i = 0;
+while ($i < 1000000) {
+    $set->remove($ghost);
+    $i = $i + 1;
+}
+echo '1: ', $set->count(), "\n";
+
+// 2. 100000 objects are added, and removed from the last one to the first.
+array<Node> $nodes = [];
+$i = 0;
+while ($i < 100000) {
+    Node $node = new Node($i);
+    $nodes[] = $node;
+    $set->add($node);
+    $i = $i + 1;
+}
+$i = 99999;
+while ($i >= 0) {
+    $set->remove($nodes[$i as string]);
+    $i = $i - 1;
+}
+echo '2: ', $set->count(), "\n";
+
+// 3. The objects are added again, and every third one is removed twice.
+uint $wrong = 0;
+foreach ($nodes as Node $node) {
+    $set->add($node);
+}
+foreach ($nodes as Node $node) {
+    if ($node->id % 3 == 0) {
+        $set->remove($node);
+        $set->remove($node);
+    }
+}
+foreach ($nodes as Node $node) {
+    if ($set->has($node) == ($node->id % 3 == 0)) {
+        $wrong = $wrong + 1;
+    }
+}
+echo '3: ', $set->count(), ' ', $wrong, "\n";
+
+// 4. The set is added to itself and removed again, and a string of 1 million characters is removed.
+$set->add($set);
+$set->remove($set);
+$set->add(Core\Str::repeat('v', 1000000));
+$set->remove(Core\Str::repeat('v', 1000000));
+echo '4: ', $set->count(), "\n";
+
+// 5. A chain of 100000 objects is added and removed. The chain is freed with the last reference.
+Node $head = new Node(0);
+Node $tail = $head;
+int $n = 0;
+while ($n < 100000) {
+    Node $link = new Node($n);
+    $tail->next = $link;
+    $tail = $link;
+    $n = $n + 1;
+}
+$set->add($head);
+$set->remove($head);
+echo '5: ', $set->has($head) ? 'y' : 'n', "\n";
+
+// 6. New objects are added and removed until the memory limit stops the program.
+Core\ObjectSet<Node> $kept = new Core\ObjectSet<Node>();
+while (true) {
+    Node $fresh = new Node(0);
+    $set->add($fresh);
+    $kept->add($fresh);
+    $set->remove($fresh);
+}

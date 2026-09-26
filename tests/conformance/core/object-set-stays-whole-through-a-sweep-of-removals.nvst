@@ -2,6 +2,7 @@
 A `Core\ObjectSet` swept with scattered removals keeps every survivor findable and every removal absent, and its algebra agrees with the set built directly from the survivors — docs/spec/01-core-library.md § 9
 --FILE--
 <?nvs
+// covers: Core\ObjectSet::remove, Core\ObjectSet::has
 final class Tag {
     public string $name;
 

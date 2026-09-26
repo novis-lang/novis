@@ -1,0 +1,35 @@
+<?nvs
+// Removes an object from a set and adds it back, as a program does when a user logs out and in again.
+// bench: iterations 500000
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Key $first = new Key(1);
+        Key $second = new Key(2);
+        Core\ObjectSet<Key> $online = new Core\ObjectSet<Key>();
+        $online->add($first);
+        $online->add($second);
+        $online->add(new Key(3));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the key this round removes
+            Key $leaving = $total % 2 == 0 ? $first : $second;
+            $online->remove($leaving);
+            $total = $total + $online->count() + 1;
+            $online->add($leaving);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(500000), "\n";

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/identity_store.rs",
+  "title": "Removing a value whose identity hash another member shares can move that member in iteration order.",
+  "text": "`identity_store::vacate` keeps a chain dense by writing the chain's last entry into the removed key and unsetting the last key. `NvsArray::set` on an existing key keeps that key's position, so the moved member now iterates where the removed one did, not where it was inserted. The card of `Core\\ObjectSet` and `Core\\ObjectMap` promises insertion order. It shows only when two distinct values share a seeded 64-bit hash, so no program can aim for it, and the Rust test that plants a collision can pin it. Closing it needs `NvsArray` to rename a key in place, or a store whose order is not the array's, which is a change to the runtime's array type and not a proof slice.",
+  "milestone": "M12"
+}
