@@ -1,0 +1,23 @@
+<?nvs
+// Measures choosing one of eight products with a seeded generator, as a test does for each test order.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+        array<int> $products = [1, 2, 3, 4, 5, 6, 7, 8];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds the product it chose, so no round can be left out.
+            ?int $product = $generator->pick($products);
+            $total = $total + ($product ?? 0);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

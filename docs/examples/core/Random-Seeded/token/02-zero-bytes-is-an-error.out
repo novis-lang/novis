@@ -1,0 +1,2 @@
+Error: Core\Random\Seeded::token(): a token of zero bytes is the empty string, which is no sequence at all — draw at least one byte
+same

@@ -1,0 +1,18 @@
+<?nvs
+// Shows that two generators with the same seed choose the same values.
+
+array<string> $colors = ["red", "green", "blue", "yellow"];
+Core\Random\Seeded $first = new Core\Random\Seeded(42);
+Core\Random\Seeded $second = new Core\Random\Seeded(42);
+
+// Each generator chooses five colors. Both lines are the same.
+string $line = "";
+string $again = "";
+int $i = 0;
+while ($i < 5) {
+    $line = $line . ($first->pick($colors) ?? "none") . " ";
+    $again = $again . ($second->pick($colors) ?? "none") . " ";
+    $i = $i + 1;
+}
+echo $line, "\n";
+echo $again, "\n";

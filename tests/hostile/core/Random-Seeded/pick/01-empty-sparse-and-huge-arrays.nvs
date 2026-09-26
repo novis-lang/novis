@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a seeded generator picks from an empty array and from an array with keys far
+// apart. It also picks from a very large array and a very large string. Every pick should
+// return a value from the array, or `null` for the empty one. The program must not crash.
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(-9223372036854775807 - 1);
+
+// 1. An empty array, one thousand times. Every result is `null`.
+array<int> $empty = [];
+uint $nulls = 0;
+uint $round = 0;
+while ($round < 1000) {
+    if ($generator->pick($empty) == null) {
+        $nulls = $nulls + 1;
+    }
+    $round = $round + 1;
+}
+echo '1 nulls: ', $nulls, "\n";
+
+// 2. Two keys at the two ends of `int`. Every result is one of the two values.
+array<string> $far = [-9223372036854775807 - 1 => 'low', 9223372036854775807 => 'high'];
+uint $low = 0;
+uint $high = 0;
+$round = 0;
+while ($round < 10000) {
+    ?string $drawn = $generator->pick($far);
+    if ($drawn == 'low') {
+        $low = $low + 1;
+    } else if ($drawn == 'high') {
+        $high = $high + 1;
+    }
+    $round = $round + 1;
+}
+echo '2 both ends: ', $low + $high, ' of 10000', "\n";
+
+// 3. One million entries, one hundred thousand picks. Every result is in the range.
+array<int> $large = Core\Arr::range(0, 999999);
+uint $outside = 0;
+$round = 0;
+while ($round < 100000) {
+    ?int $value = $generator->pick($large);
+    if ($value == null || $value < 0 || $value > 999999) {
+        $outside = $outside + 1;
+    }
+    $round = $round + 1;
+}
+echo '3 outside the range: ', $outside, "\n";
+$large = [];
+
+// 4. One string of one megabyte is picked one thousand times and every result is kept.
+// A copy for each pick would need one gigabyte, which is more than the memory limit.
+array<string> $one = [Core\Str::repeat('x', 1048576)];
+array<string> $kept = [];
+$round = 0;
+while ($round < 1000) {
+    ?string $text = $generator->pick($one);
+    if ($text != null) {
+        $kept[] = $text;
+    }
+    $round = $round + 1;
+}
+echo '4 kept: ', Core\Arr::count($kept), "\n";

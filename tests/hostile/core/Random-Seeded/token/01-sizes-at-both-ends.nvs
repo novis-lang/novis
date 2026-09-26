@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a seeded generator makes tokens of zero bytes and of many large sizes. It also
+// gets sizes whose hex text is too long to count. Each step should throw an error or stop
+// at the memory limit, and the program must not crash.
+// hostile: ends-early
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(9223372036854775807);
+
+// 1. Zero bytes throws an error, and it is caught here.
+try {
+    $generator->token(0);
+    echo '1 zero bytes: served', "\n";
+} catch (Throwable $e) {
+    echo '1 zero bytes: error', "\n";
+}
+
+// 2. One hundred thousand short tokens are kept. Each is compared with the one before.
+array<string> $kept = [];
+uint $repeats = 0;
+uint $drawn = 0;
+while ($drawn < 100000) {
+    string $next = $generator->token(4);
+    if ($drawn > 0 && $next == $kept[$drawn - 1]) {
+        $repeats = $repeats + 1;
+    }
+    $kept[] = $next;
+    $drawn = $drawn + 1;
+}
+echo '2 repeats: ', $repeats, "\n";
+$kept = [];
+
+// 3. Three hundred tokens of two megabytes each. Together they are more than the memory
+// limit, so the program only survives if each token is freed after its round.
+uint $total = 0;
+uint $round = 0;
+while ($round < 300) {
+    $total = $total + Core\Str::length($generator->token(1048576));
+    $round = $round + 1;
+}
+echo '3 characters drawn: ', $total, "\n";
+
+// 4. Half of the largest `uint`, plus one. Its hex text would be twice as long, which is
+// more than a `uint` can count. This throws an error, and it is caught here.
+try {
+    $generator->token(9223372036854775808);
+    echo '4 a length that cannot be counted: served', "\n";
+} catch (Throwable $e) {
+    echo '4 a length that cannot be counted: error', "\n";
+}
+
+// 5. The largest count a `uint` can have. This throws an error, and it is caught here.
+try {
+    $generator->token(18446744073709551615);
+    echo '5 the largest count: served', "\n";
+} catch (Throwable $e) {
+    echo '5 the largest count: error', "\n";
+}
+
+// 6. A token of one gigabyte is more than this request may use. The program should stop
+// at its memory limit.
+$generator->token(536870912);
+echo '6 one gigabyte was served', "\n";

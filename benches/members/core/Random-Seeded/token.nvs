@@ -1,0 +1,25 @@
+<?nvs
+// Measures making a 6-byte ID from a seeded generator, as a test does for each test user.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+        string $previous = $generator->token(6);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round compares its token with the token of the round before it,
+            // so no round can be left out.
+            string $token = $generator->token(6);
+            $total = $total + (($token != $previous ? 1 : 0) as uint);
+            $previous = $token;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

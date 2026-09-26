@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to give test users an ID that is the same on every run.
+
+// A test creates three users. The seed is fixed, so each user gets the same
+// ID every time, and the test can look a user up by that ID.
+Core\Random\Seeded $generator = new Core\Random\Seeded(2024);
+array<string> $names = ["Ana", "Ben", "Chen"];
+array<string> $ids = [];
+foreach ($names as string $name) {
+    string $id = "user_" . $generator->token(6);
+    $ids[$name] = $id;
+    echo $name, ": ", $id, "\n";
+}
+
+// The test can look Ben up by this ID, because it never changes.
+echo "find ", $ids["Ben"], "\n";
