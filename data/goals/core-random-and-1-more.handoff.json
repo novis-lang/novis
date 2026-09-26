@@ -1,26 +1,22 @@
 {
-  "state": "Goal `core-random-and-1-more`: `Core\\Random` is done. `bun nv proofs --verify --group 'Core\\Random'`\npasses with all seven members complete and their figures in `docs/perf/members.ndjson`. `sample_from`\nin `crates/nvs-stdlib/src/random.rs` now costs O(count). Up to half the subject, it draws slots and\ndraws again on a hole or on a repeat. Past half, it walks the slots. `Core\\Random\\Seeded` has its class\ncard and is no longer in `CLASSES_STILL_OWING_A_CARD`. All seven of its instance members still owe\nexamples, hostile, perf and tests (each needs a `covers:` marker, because an instance member gets no\ncredit from a plain call), and possibly help. Nothing is blocked.",
+  "state": "Goal `core-random-and-1-more`: `Core\\Random` is done and its group check passes. `Core\\Random\\Seeded`\nhas its class card, and `::int`, `::float` and `::bytes` are complete: `about.md`, three examples, an\nattack, a bench with its figure in `docs/perf/members.ndjson`, `covers:` markers on the three\n`tests/conformance/core/random-seeded-*.nvst` cases, and one seeded Rust test each in\n`crates/nvs-stdlib/src/random.rs`. `::token`, `::pick`, `::sample` and `::shuffle` still owe\neverything except help. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
-    "files": [
-      "docs/examples/core/Random-Seeded/",
-      "tests/hostile/core/Random-Seeded/",
-      "benches/members/core/Random-Seeded/",
-      "tests/conformance/core/random-seeded-*.nvst"
-    ],
+    "files": [],
+    "note": "one file set: `docs/examples/core/Random-Seeded/`, `tests/hostile/core/Random-Seeded/`, `benches/members/core/Random-Seeded/`, `tests/conformance/core/random-seeded-*.nvst`, the tests module of `crates/nvs-stdlib/src/random.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Random\\Seeded::int`, `::float`, `::bytes`** — examples, hostile, perf, and two test cases each. Add `// covers: Core\\Random\\Seeded::<member>` to the existing `random-seeded-*.nvst` cases that already call the member; a Rust `covers:` goes above a seeded `#[test]`. First run `bun nv proofs --id 'Core\\Random\\Seeded::int'`: it shows what \"help\" still owes now that the class card has landed. An example can print the seeded values themselves, because the same seed gives the same output. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:1250`"
+        "text": "**`Core\\Random\\Seeded::token`, `::pick`, `::sample`, `::shuffle`** — `about.md`, three examples, one attack, one bench, and tests. Add their names to the `// covers:` line at the top of each `random-seeded-*.nvst` case that calls them (all three cases call all four members). Add one seeded Rust `#[test]` each, with `// covers:`, beside `a_seeded_float_repeats_for_its_seed_and_stays_below_one`, reusing `seeded`, `taken`, `ints`, `taken_ints` and `release`. The `Core\\Random` twins' proofs under `docs/examples/core/Random/` are the model, and `bytes`/`int` under `Random-Seeded/` show the seeded shape. Then `bun nv proofs --record-perf --only` the four. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:1314`, `crates/nvs-stdlib/src/random.rs:1340`, `crates/nvs-stdlib/src/random.rs:1351`, `crates/nvs-stdlib/src/random.rs:1369`"
       },
       {
         "done": false,
-        "text": "**`Core\\Random\\Seeded::token`, `::pick`, `::sample`, `::shuffle`** — the same four proofs. `sample` shares `sample_from` with its twin, so the seeded `sample` stream now differs between the small-count path and the large-count path. Any blessed `.out` pins whichever path its count takes. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:347`"
+        "text": "**Close the goal** — `bun nv proofs --verify --group 'Core\\Random\\Seeded'` and `--group 'Core\\Random'` both pass, then the `DONE` gates in the session prompt. `rule:testing/feature-proofs`. `tools/nv/cmd/proofs.ts:62`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Random::shuffle`'s card still says it replaces `str_shuffle`, but the member takes only an array (`crates/nvs-stdlib/src/random.rs` `SHUFFLE_DOC`). Its owner is this goal."
+    "`foreach ([$a, $b] as Core\\Random\\Seeded $g)` does not compile (`E0401`, the literal is `mixed`); the example avoids it. Owner: the types chapter, not checked whether a gap record exists."
   ]
 }
