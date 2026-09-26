@@ -1,0 +1,99 @@
+<?nvs
+// Attack: waiting jobs start at the ends of the 64-bit range. The `state` is text or bytes,
+// and 200000 jobs wait at once. `pending()` should return a number or throw an error.
+// The program must not crash.
+use Core\Queue;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push('jobs/a.nvs', { queue: 'q' });
+Queue::push('jobs/a.nvs', { queue: 'q' });
+Queue::push('jobs/a.nvs', { queue: 'other' });
+
+// 1. The queue name is SQL that tries to count the waiting jobs of every queue.
+try {
+    echo '1: ', Queue::stats("q' or '1'='1")->pending(), "\n";
+} catch (Throwable $e) {
+    echo "1: error\n";
+}
+
+// 2. One job may start at the largest 64-bit time, the other at the smallest.
+$db->execute('update nvs_jobs set run_at = 9223372036854775807 where id = 1', []);
+$db->execute('update nvs_jobs set run_at = -9223372036854775808 where id = 2', []);
+try {
+    echo '2: ', Queue::stats('q')->pending(), "\n";
+} catch (Throwable $e) {
+    echo "2: error\n";
+}
+
+// 3. A job asks to start 2000000 hours from now. That is about 228 years.
+try {
+    Queue::push('jobs/a.nvs', { queue: 'q', runAt: Core\Time::now()->plus(2000000h) });
+    echo '3: ', Queue::stats('q')->pending(), "\n";
+} catch (Throwable $e) {
+    echo "3: error\n";
+}
+
+// 4. The state is the text '0'.
+$db->execute("update nvs_jobs set state = '0' where queue = 'q'", []);
+try {
+    echo '4: ', Queue::stats('q')->pending(), "\n";
+} catch (Throwable $e) {
+    echo "4: error\n";
+}
+
+// 5. The state is bytes.
+$db->execute("update nvs_jobs set state = x'00' where queue = 'q'", []);
+try {
+    echo '5: ', Queue::stats('q')->pending(), "\n";
+} catch (Throwable $e) {
+    echo "5: error\n";
+}
+
+// 6. The queue name has 100000 characters.
+try {
+    echo '6: ', Queue::stats(Core\Str::repeat('q', 100000))->pending(), "\n";
+} catch (Throwable $e) {
+    echo "6: error\n";
+}
+
+// 7. 200000 jobs of the queue wait at once, each for a different time.
+$db->execute('delete from nvs_jobs', []);
+$db->execute(<<<'SQL'
+with recursive n(i) as (select 1 union all select i + 1 from n where i < 200000)
+insert into nvs_jobs (queue, script, state, attempts, max_attempts, backoff_ms, run_at,
+    created_at)
+select 'q', 'jobs/a.nvs', 0, 0, 5, 1000, i * 46116860184273, 0 from n
+SQL, []);
+try {
+    echo '7: ', Queue::stats('q')->pending(), "\n";
+} catch (Throwable $e) {
+    echo "7: error\n";
+}
+
+// 8. `pending()` is called 1000000 times on one result.
+var $stats = Queue::stats('q');
+uint $total = 0;
+int $i = 0;
+while ($i < 1000000) {
+    $total = ($total + $stats->pending()) % 1000003;
+    $i = $i + 1;
+}
+echo '8: ', $total, "\n";

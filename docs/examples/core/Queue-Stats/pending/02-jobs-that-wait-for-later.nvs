@@ -1,0 +1,39 @@
+<?nvs
+// Shows that a job that must wait for a later time is also pending.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+// The first job may start now. `runAt` says the second job may start in one hour.
+Queue::push("jobs/send-reminder.nvs", {queue: "reminders"});
+Queue::push("jobs/send-reminder.nvs", {queue: "reminders", runAt: Core\Time::now()->plus(1h)});
+
+// Both jobs wait for a worker. This prints `pending: 2`.
+echo "pending: ", Queue::stats("reminders")->pending(), "\n";
+
+// On a real server, a worker starts the first job and it fails.
+// The job then waits before its next attempt. No worker runs here, so SQL changes the row.
+$db->execute("update nvs_jobs set attempts = 1, run_at = 9000000000000 where id = 1", []);
+
+// A job that waits between two attempts is still pending. This prints `pending: 2, claimed: 0`.
+var $stats = Queue::stats("reminders");
+echo "pending: ", $stats->pending(), ", claimed: ", $stats->claimed(), "\n";

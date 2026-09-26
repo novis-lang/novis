@@ -1,0 +1,80 @@
+--TEST--
+`Core\Queue\Stats::pending` counts the rows of one queue in `nvs_jobs` whose `state` is pending, whatever their `run_at` — a job pushed with a future `runAt` and a job waiting between two attempts are both counted — counts no other state, no other queue and no dead-lettered row, and keeps the number it read when the rows change after — `rule:concurrency/enqueue-commits-with-your-write`
+--FILE--
+<?nvs
+// covers: Core\Queue\Stats::pending
+use Core\Queue;
+
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+echo "empty: ", Queue::stats("q")->pending(), "\n";
+
+// Six rows on `q`: one due now, one due in an hour, and one in each other state. Two rows wait
+// on another queue.
+int $n = 0;
+while ($n < 6) {
+    Queue::push("jobs/a.nvs", {queue: "q", args: ["n" => $n]});
+    $n = $n + 1;
+}
+Queue::push("jobs/a.nvs", {queue: "q", runAt: Core\Time::now()->plus(1h)});
+Queue::push("jobs/a.nvs", {queue: "other"});
+Queue::push("jobs/a.nvs", {queue: "other"});
+echo "pushed: ", Queue::stats("q")->pending(), "\n";
+
+// Row 1 failed once and waits between two attempts, far in the future.
+$db->execute("update nvs_jobs set attempts = 1, run_at = 9000000000000, errors = '[]' where id = 1", []);
+$db->execute("update nvs_jobs set state = 1, attempts = 1, claimed_at = 0 where id = 2", []);
+$db->execute("update nvs_jobs set state = 2, attempts = 1 where id = 3", []);
+$db->execute("update nvs_jobs set state = 3, attempts = 1 where id = 4", []);
+$db->execute("update nvs_jobs set state = 4 where id = 5", []);
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (90, 'q', 'jobs/a.nvs', 5, 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+
+var $stats = Queue::stats("q");
+echo "pending: ", $stats->pending(), "\n";
+echo "claimed: ", $stats->claimed(), "\n";
+echo "other: ", Queue::stats("other")->pending(), "\n";
+
+// The result is read once, so a later write does not change it.
+$db->execute("update nvs_jobs set state = 2", []);
+echo "kept: ", $stats->pending(), "\n";
+echo "read again: ", Queue::stats("q")->pending(), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs"]
+
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+empty: 0
+pushed: 7
+pending: 3
+claimed: 1
+other: 2
+kept: 3
+read again: 0

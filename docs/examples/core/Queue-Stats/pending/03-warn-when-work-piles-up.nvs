@@ -1,0 +1,41 @@
+<?nvs
+// Shows a health check that warns when too many jobs wait in a queue.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+int $n = 0;
+while ($n < 12) {
+    Queue::push("jobs/export.nvs", {queue: "exports", args: ["n" => $n]});
+    $n = $n + 1;
+}
+Queue::push("jobs/send-email.nvs", {queue: "emails"});
+
+// Your team wants a warning when more than 10 jobs wait in one queue.
+uint $limit = 10;
+array<string> $queues = ["exports", "emails"];
+
+// This prints `exports: 12 waiting, too many` and then `emails: 1 waiting, ok`.
+foreach ($queues as string $name) {
+    uint $waiting = Queue::stats($name)->pending();
+    echo $name, ": ", $waiting, " waiting, ", $waiting > $limit ? "too many" : "ok", "\n";
+}
