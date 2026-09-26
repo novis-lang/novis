@@ -100,7 +100,7 @@ import { findings } from "../keys/escape.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
 import { recordName } from "../proofs/run.ts";
-import { caseFiles, caseId, fileDef, nvTestFiles, nvTestId } from "../select/atoms.ts";
+import { caseFiles, caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
 import { buildScripts } from "../select/build.ts";
 import { WILD, repoPath } from "../select/keys.ts";
 import { advance, depInfoPaths, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
@@ -254,10 +254,9 @@ async function select(store: SelectStore, graph: Graph | null): Promise<{ change
       change = await fullChange(ROOT, `the recorded tree could not be read: ${(e as Error).message.split("\n")[0]}`);
     }
   }
-  const found = await discover(graph);
-  const testNames = new Set(found.filter((d) => d.id.startsWith("test:")).map((d) => d.id.slice(5)));
-  const tests = nvTestFiles().map((f) => ({ id: nvTestId(f), def: fileDef(f) }));
-  const sel = query(store, change, { discovered: [...found, ...tests, ...STEP_ATOMS.map((id) => ({ id, def: "" }))] });
+  const found = discover(graph);
+  const testNames = new Set(found.atoms.filter((id) => id.startsWith("test:")).map((id) => id.slice(5)));
+  const sel = query(store, change, { discovered: [...found.atoms, ...STEP_ATOMS], complete: found.complete });
   return { change, sel, testNames };
 }
 

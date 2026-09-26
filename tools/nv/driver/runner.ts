@@ -40,11 +40,11 @@ import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { linked, releaseCli } from "../lib/relink.ts";
 import { recordName } from "../proofs/run.ts";
-import { caseFiles, caseId, fileDef, nvTestFiles, nvTestId, proofDef } from "../select/atoms.ts";
-import { commandKeys, grouped, type Grouped, groupDirsOf, heavyKeys, LEG_TREES, LEGS, legId, onDisk, type PlanContext } from "../select/checks.ts";
+import { caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
+import { commandKeys, grouped, type Grouped, heavyKeys, LEG_TREES, LEGS, legId, onDisk, planContext } from "../select/checks.ts";
 import { NO_ADVANCE_ENV, advance, caseSkipped, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
 import { NV_TSC, runNvTest, runTsc, type ToolRun } from "../select/nvtests.ts";
-import { type ChangeSet, computeChange, query, rustFiles, type Selection } from "../select/select.ts";
+import { type ChangeSet, computeChange, discover, query, rustFiles, type Selection } from "../select/select.ts";
 import { nvKeys, testKeys } from "../select/seed.ts";
 import { type Keyed, SelectStore, type Verdict as AtomVerdict } from "../select/store.ts";
 import { ENV as READS_ENV } from "../lib/reads.ts";
@@ -147,30 +147,25 @@ export class PlanSweep {
     } catch (e) {
       change = await fullChange(ROOT, `the recorded tree could not be read: ${(e as Error).message.split("\n")[0]}`);
     }
-    const cases = caseFiles();
-    const nvTests = nvTestFiles();
-    const ctx: PlanContext = { graph, cases, nvTests, groupDirs: groupDirsOf(store), proofs: store.atoms("proof").map((a) => a.id.slice(6)) };
+    const ctx = planContext(store, graph);
     const groups = new Map(plan.map((c) => [c.id, grouped(c, ctx)]));
-    const discovered = new Map<string, string>();
+    // Every atom the tree names is discovered, whether or not a check of this plan runs it, so one the
+    // store has never recorded is selected as new.
+    const found = discover(graph);
+    const discovered = new Set(found.atoms);
     const defs = new Map<string, string>();
     for (const g of groups.values()) {
-      for (const a of g.atoms) {
-        if (discovered.has(a)) continue;
-        if (a.startsWith("case:")) discovered.set(a, fileDef(a.slice(5)));
-        else if (a.startsWith("proof:")) discovered.set(a, proofDef(a.slice(6)));
-        else if (a.startsWith("nvtest:")) discovered.set(a, fileDef(a.slice(7)));
-        else if (a === NV_TSC || a.startsWith("test:")) discovered.set(a, "");
-      }
+      for (const a of g.atoms) discovered.add(a);
       if (g.own) {
-        discovered.set(g.own.id, g.own.def);
+        discovered.add(g.own.id);
         defs.set(g.own.id, g.own.def);
       }
     }
     for (const leg of LEGS) {
-      discovered.set(legId(leg), LEG_DEF);
+      discovered.add(legId(leg));
       defs.set(legId(leg), LEG_DEF);
     }
-    const sel = query(store, change, { discovered: [...discovered].map(([id, def]) => ({ id, def })), defs });
+    const sel = query(store, change, { discovered: [...discovered], complete: found.complete, defs });
     const rec = await Recorder.open(store, change.view, graph, "sweep", { say: o.say ?? (() => {}) });
     return new PlanSweep(store, graph, change, sel, groups, plan, rec, label, o);
   }
@@ -634,7 +629,7 @@ export async function lastGreen(plan: Check[]): Promise<Map<string, boolean>> {
   const store = new SelectStore();
   try {
     const verdicts = new Map(store.atoms().map((a) => [a.id, a.verdict]));
-    const ctx: PlanContext = { graph: await metadata(), cases: caseFiles(), nvTests: nvTestFiles(), groupDirs: groupDirsOf(store), proofs: store.atoms("proof").map((a) => a.id.slice(6)) };
+    const ctx = planContext(store, await metadata());
     const out = new Map<string, boolean>();
     for (const c of plan) {
       const g = grouped(c, ctx);

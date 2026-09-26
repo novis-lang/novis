@@ -35,7 +35,7 @@ import { type Check, isHeavy, PROGRAM_KINDS, proofGroups, subsetRun } from "../d
 import { closure, type Graph, testBinaries } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
-import { caseId, nvTestId, proofId } from "./atoms.ts";
+import { caseFiles, caseId, nvTestFiles, nvTestId, proofFiles, proofId } from "./atoms.ts";
 import { fileWild, spawnKeys, WILD } from "./keys.ts";
 import { type Keyed, proofReadsSlot, type SelectStore } from "./store.ts";
 
@@ -59,7 +59,8 @@ export interface Grouped {
   tests?: string[];
   /** `proofs`: its groups. */
   groups?: string[];
-  /** `proofs`: a group `nv proofs` has never recorded, so which programs it runs is not known yet. */
+  /** `proofs`: a group `nv proofs` has never recorded, or a new program no group's directory holds, so
+   * which programs it runs is not known yet. */
   unknown?: boolean;
   /** `nvtest`: the file. */
   file?: string;
@@ -74,8 +75,27 @@ export interface PlanContext {
   nvTests: string[];
   /** Each proofs group's example and attack directories, as `nv proofs` last recorded them. */
   groupDirs: Map<string, string[]>;
-  /** Every proof program the store knows. */
+  /** Every proof program on disk (`atoms.ts` `proofFiles`). */
   proofs: string[];
+  /** Set when a program on disk that the store never recorded is in no directory a group recorded: which
+   * group it belongs to is not known until `nv proofs` runs, so every proofs group is taken as unknown. */
+  homeless?: boolean;
+}
+
+/**
+ * The context `grouped` reads, from the tree as it is and the store: every case, tools test and proof
+ * program on disk, and each group's recorded directories. A new program in a directory no group recorded
+ * sets `homeless`, so every `nv proofs` group check is reached until a run records it. That costs one
+ * `nv proofs` process per batch of groups, each running only its picked programs, in every sweep until
+ * then.
+ */
+export function planContext(store: SelectStore, graph: Graph | null, root: string = ROOT): PlanContext {
+  const groupDirs = groupDirsOf(store);
+  const proofs = proofFiles(root);
+  const recorded = new Set(store.atoms("proof").map((a) => a.id.slice(6)));
+  const dirs = [...groupDirs.values()].flat();
+  const homeless = proofs.some((p) => !recorded.has(p) && !dirs.some((d) => p.startsWith(`${d}/`)));
+  return { graph, cases: caseFiles(root), nvTests: nvTestFiles(root), groupDirs, proofs, homeless };
 }
 
 /** The groups' directories from the store: what each `nv proofs` run over a whole group recorded. */
@@ -161,7 +181,7 @@ export function grouped(c: Check, ctx: PlanContext): Grouped {
       const known = dirs.flatMap((d) => d ?? []);
       const programs = ctx.proofs.filter((p) => known.some((d) => p.startsWith(`${d}/`)));
       const o = own("nv");
-      return { how: "proofs", atoms: [o.id, ...programs.map(proofId)], own: o, groups, unknown: dirs.some((d) => d === undefined) };
+      return { how: "proofs", atoms: [o.id, ...programs.map(proofId)], own: o, groups, unknown: ctx.homeless === true || dirs.some((d) => d === undefined) };
     }
     if (argv.length === 3 && argv[2] === "selftest") return { how: "selftest", atoms: ["step:nv", ...ctx.nvTests.map(nvTestId)] };
     return single("nv", "nv");

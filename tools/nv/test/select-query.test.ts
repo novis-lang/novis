@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "../cmd/select.ts";
 import type { Moved } from "../select/items.ts";
 import { failedLabels, seedable } from "../select/seed.ts";
-import { type ChangeSet, counts, explain, isGlobal, query } from "../select/select.ts";
+import { proofFiles } from "../select/atoms.ts";
+import { advance } from "../select/record.ts";
+import { type ChangeSet, counts, discover, explain, isGlobal, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { join } from "node:path";
 import { scratch } from "./scratch.ts";
@@ -93,9 +95,55 @@ describe("the reverse-index query", () => {
   });
 
   test("an atom discovered on disk and unknown to the store is new", () => {
-    const sel = query(store(), change([]), { discovered: [{ id: "test:fresh test fresh", def: "" }] });
+    const sel = query(store(), change([]), { discovered: ["test:fresh test fresh"] });
     expect(sel.selected.get("test:fresh test fresh")?.why).toBe("new");
     expect(sel.known.test).toBe(6);
+  });
+
+  test("a kind listed in full makes a known atom the listing lacks gone, and the run that moves the tree forgets it", () => {
+    const s = store();
+    s.markDiverged("test:math lib math", "cut short");
+    const listed = ["test:proc lib proc", "test:meta bin meta", "test:red lib red", "test:new lib new"];
+    const sel = query(s, change([["class:core\\math", "crates/s/src/math.rs"]]), { discovered: listed, complete: ["test"] });
+    expect(sel.gone).toEqual(["test:math lib math"]);
+    expect(sel.selected.has("test:math lib math")).toBe(false);
+    // Without the kind listed in full, the same listing leaves the atom known.
+    expect(query(s, change([]), { discovered: listed }).gone).toEqual([]);
+    advance(s, { ...change([]), tree: { commit: "c1", overlay: {} } }, sel, new Set(), null);
+    expect(s.atom("test:math lib math")).toBeNull();
+    expect(s.atom("test:proc lib proc")).not.toBeNull();
+  });
+
+  test("discovery lists every proof program, case and tools test on disk, and a new program is selected as new", () => {
+    const t = scratch();
+    try {
+      t.put("docs/examples/core/Str/length/01-basics.nvs", "");
+      t.put("docs/examples/core/Str/length/about.md", "");
+      t.put("docs/examples/lang/programs/autoload/01-find.nvs", "");
+      t.put("docs/examples/lang/programs/autoload/vendor/Pdf/Reader.nvs", "");
+      t.put("tests/hostile/core/Str/length/01-x.nvs", "");
+      t.put("tests/hostile/lang/concurrency/spawn/jobs/helper.nvs", "");
+      t.put("tests/hostile/lang/concurrency/spawn/01-spawn.nvs", "");
+      t.put("tests/conformance/a.nvst", "");
+      t.put("tools/nv/test/a.test.ts", "");
+      expect(proofFiles(t.root)).toEqual([
+        "docs/examples/core/Str/length/01-basics.nvs",
+        "docs/examples/lang/programs/autoload/01-find.nvs",
+        "tests/hostile/core/Str/length/01-x.nvs",
+        "tests/hostile/lang/concurrency/spawn/01-spawn.nvs",
+      ]);
+      const found = discover(null, t.root);
+      expect(found.complete).toEqual([]);
+      expect(found.atoms).toContain("proof:tests/hostile/lang/concurrency/spawn/01-spawn.nvs");
+      expect(found.atoms).toContain("case:tests/conformance/a.nvst");
+      expect(found.atoms).toContain("nvtest:tools/nv/test/a.test.ts");
+      expect(found.atoms).toContain("step:nv");
+      const sel = query(store(), change([]), { discovered: found.atoms, complete: found.complete });
+      expect(sel.selected.get("proof:docs/examples/core/Str/length/01-basics.nvs")?.why).toBe("new");
+      expect(sel.selected.get("step:nv")?.why).toBe("new");
+    } finally {
+      t.cleanup();
+    }
   });
 
   test("a plan check's own atom whose recorded definition differs from the plan's runs, and one that matches does not", () => {

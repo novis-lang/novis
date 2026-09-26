@@ -5,7 +5,9 @@
 import { describe, expect, test } from "bun:test";
 import type { Check } from "../driver/accept.ts";
 import type { Graph } from "../keys/graph.ts";
-import { checkDef, commandKeys, grouped, heavyCrates, heavyKeys, type PlanContext } from "../select/checks.ts";
+import { checkDef, commandKeys, grouped, heavyCrates, heavyKeys, type PlanContext, planContext } from "../select/checks.ts";
+import { proofReadsSlot, SelectStore } from "../select/store.ts";
+import { scratch } from "./scratch.ts";
 
 const pkg = (name: string, dir: string, deps: [string, "normal" | "dev"][] = [], targets = [{ kind: "lib", name: name.replace(/-/g, "_"), src: `${dir}/src/lib.rs`, test: true }]) => [name, { name, dir, deps: new Map(deps), targets }] as const;
 const graph: Graph = new Map([
@@ -53,6 +55,28 @@ describe("a check as atoms", () => {
     const g = grouped(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Str"] }), ctx);
     expect(g).toMatchObject({ how: "proofs", atoms: ["nv:c", "proof:docs/examples/core/Str/length/01-basics.nvs", "proof:tests/hostile/core/Str/length/01-x.nvs"], unknown: false });
     expect(grouped(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Arr"] }), ctx)).toMatchObject({ how: "proofs", atoms: ["nv:c"], unknown: true });
+  });
+
+  test("a proofs check's programs are read from disk: a new one in a group's directory is its atom, and one in no group's directory makes every group unknown", () => {
+    const t = scratch();
+    const store = new SelectStore(":memory:", "test-os");
+    try {
+      t.put("docs/examples/core/Str/length/01-basics.nvs", "");
+      t.put("docs/examples/core/Str/length/02-new.nvs", "");
+      store.recordRun("proof:docs/examples/core/Str/length/01-basics.nvs", { def: "", verdict: "green", keys: new Map([["file:x", ""]]) });
+      store.putVerdict(proofReadsSlot("Core\\Str"), "", JSON.stringify(["docs/examples/core/Str/length", "benches/members/core/Str/length.nvs"]));
+      const c = check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Str"] });
+      const known = planContext(store, null, t.root);
+      expect(known.homeless).toBe(false);
+      expect(grouped(c, known)).toMatchObject({ atoms: ["nv:c", "proof:docs/examples/core/Str/length/01-basics.nvs", "proof:docs/examples/core/Str/length/02-new.nvs"], unknown: false });
+      t.put("docs/examples/core/Str/pad/01-new-feature.nvs", "");
+      const stray = planContext(store, null, t.root);
+      expect(stray.homeless).toBe(true);
+      expect(grouped(c, stray).unknown).toBe(true);
+    } finally {
+      store.close();
+      t.cleanup();
+    }
   });
 
   test("the tools' gate is tsc and every test file, and one test file is its own atom", () => {

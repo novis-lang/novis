@@ -40,7 +40,7 @@ async function selection(store: SelectStore, graph: Graph | null, programs: { pa
   } catch (e) {
     change = await fullChange(undefined, `the recorded tree could not be read: ${(e as Error).message.split("\n")[0]}`);
   }
-  const sel = query(store, change, { discovered: programs.map((p) => ({ id: proofId(p.path), def: proofDef(p.path) })) });
+  const sel = query(store, change, { discovered: programs.map((p) => proofId(p.path)) });
   return { change, sel };
 }
 

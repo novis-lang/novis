@@ -17,7 +17,7 @@ import { dirname, join } from "node:path";
 import type { TestExe } from "../driver/accept.ts";
 import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
-import { examplesDir, hostileDir, namesIn, roster } from "../proofs/roster.ts";
+import { EXAMPLES, examplesDir, HOSTILE, hostileDir, namesIn, roster } from "../proofs/roster.ts";
 
 /** The case trees: every directory under `tests/` whose `.nvst` files `nvs test` runs. */
 export const CASE_ROOT = "tests";
@@ -120,6 +120,33 @@ export async function proofPrograms(nvs: string): Promise<{ what: "examples" | "
     }
   }
   return [...out].map(([path, what]) => ({ what, path })).sort((a, b) => (a.path < b.path ? -1 : 1));
+}
+
+/**
+ * Every proof program on disk, sorted, found by listing directories and without the roster: each `.nvs`
+ * file under the example and attack trees whose directory has no ancestor, from the tree's area
+ * (`docs/examples/<area>`, `tests/hostile/<area>`) down, that holds a `.nvs` file itself. A feature's programs
+ * sit directly in its directory, and a file in a directory below them is a helper one of them loads, so
+ * this is the set `proofPrograms` reads from the roster, a feature the roster does not know yet included.
+ */
+export function proofFiles(root: string = ROOT): string[] {
+  const out: string[] = [];
+  const walk = (dir: string, depth: number, under: boolean) => {
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(join(root, dir), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    const here = entries.filter((e) => e.isFile() && e.name.endsWith(".nvs")).map((e) => `${dir}/${e.name}`);
+    if (!under) out.push(...here);
+    // `docs/examples` and `tests/hostile` are depth 2. From an area (depth 3) down, a directory that holds
+    // a program makes every `.nvs` file below it a helper.
+    const holds = depth >= 3 && here.length > 0;
+    for (const e of entries) if (e.isDirectory()) walk(`${dir}/${e.name}`, depth + 1, under || holds);
+  };
+  for (const tree of [EXAMPLES, HOSTILE]) walk(tree, 2, false);
+  return out.sort();
 }
 
 /** The kinds whose atom is named by a file of the tree. */

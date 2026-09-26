@@ -360,13 +360,15 @@ export const NO_ADVANCE_ENV = "NV_SELECT_NO_ADVANCE";
 /**
  * Records the tree `change` was read at as the store's base, after a run, green or red, that ran the
  * atoms in `ran`. Each atom `sel` selected that this run did not run is marked owed first, and an atom
- * that ran red keeps its red verdict, so both stay selected. The changed Rust files' items replace the
+ * that ran red keeps its red verdict, so both stay selected. Each atom `sel` found gone is forgotten,
+ * with its footprint. The changed Rust files' items replace the
  * stored ones, the items that are gone leave every footprint, and each generated file's digest is taken
  * from the `covws` build as it stands. Nothing moves in a process `NO_ADVANCE_ENV` names.
  */
 export function advance(store: SelectStore, change: ChangeSet, sel: Selection | null, ran: Set<string>, graph: Graph | null, root: string = ROOT): { owed: number } {
   if (!change.tree || process.env[NO_ADVANCE_ENV]) return { owed: 0 };
   const owed = sel ? store.owe([...sel.selected.keys()].filter((id) => !ran.has(id))) : 0;
+  for (const id of sel?.gone ?? []) store.removeAtom(id);
   const rust = new Set(change.changes.filter((c) => c.path.endsWith(".rs")).map((c) => c.path));
   if (change.full) store.replaceItems([...change.view.values()]);
   else {

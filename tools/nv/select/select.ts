@@ -20,7 +20,8 @@ import { type FileItems, scanItems } from "../keys/scan.ts";
 import { metadata, type Graph, closure as pkgClosure, testBinaries } from "../keys/graph.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, NOT_INPUTS, ROOT } from "../lib/paths.ts";
-import { caseDef, caseFiles, caseId, currentDef, stillThere } from "./atoms.ts";
+import { caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proofId, stillThere } from "./atoms.ts";
+import { NV_TSC } from "./nvtests.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, namedChanges, sinceOverlay, snapshot } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
@@ -287,13 +288,17 @@ export interface Selection {
   selected: Map<string, Selected>;
   /** Atoms known on this platform, by kind. */
   known: Record<string, number>;
-  /** Known atoms whose definition is gone from disk. */
+  /** Known atoms that no longer exist: their file is gone from disk, or their kind is listed in full
+   * (`QueryOptions.complete`) and the listing lacks them. The run that moves the tree forgets them. */
   gone: string[];
 }
 
 export interface QueryOptions {
-  /** Atoms that exist now beyond the ones the store knows, with their definitions: new ones run. */
-  discovered?: { id: string; def: string }[];
+  /** Atoms that exist now: each one the store does not know runs as new. */
+  discovered?: string[];
+  /** The kinds `discovered` lists in full: a known atom of one of them that it does not list is gone. A
+   * kind named by a file is gone when its file is, whatever this says. */
+  complete?: AtomKind[];
   /** The current definition of each atom whose definition is no file: a plan check's own atom. A known
    * atom whose recorded definition differs runs. */
   defs?: Map<string, string>;
@@ -322,9 +327,12 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     defTouched.add(`proof:${c.path.replace(/\.(out|in)$/, ".nvs")}`);
   }
   const tomlDirs = new Set(change.changes.filter((c) => c.path.endsWith("/nvs.toml")).map((c) => dirname(c.path)));
+  const complete = new Set(opts.complete ?? []);
+  const listed = new Set(complete.size > 0 ? (opts.discovered ?? []) : []);
+  const present = (id: string, kind: AtomKind) => stillThere(id) && (!complete.has(kind) || listed.has(id));
   for (const a of atoms) {
     knownIds.add(a.id);
-    if (!stillThere(a.id)) {
+    if (!present(a.id, a.kind)) {
       gone.push(a.id);
       continue;
     }
@@ -340,19 +348,21 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
       if (change.until || (def !== null && def !== a.def)) add(a.id, "def");
     }
   }
-  for (const d of opts.discovered ?? []) {
-    if (knownIds.has(d.id)) continue;
-    known[kindOfAtom(d.id)] = (known[kindOfAtom(d.id)] ?? 0) + 1;
-    add(d.id, "new");
+  for (const id of opts.discovered ?? []) {
+    if (knownIds.has(id)) continue;
+    knownIds.add(id);
+    known[kindOfAtom(id)] = (known[kindOfAtom(id)] ?? 0) + 1;
+    add(id, "new");
   }
+  const goneIds = new Set(gone);
   // A footprint a diverged run recorded may be cut short, so the atom runs whatever changed.
-  for (const id of store.divergences().keys()) if (knownIds.has(id) && stillThere(id)) add(id, "diverged");
+  for (const id of store.divergences().keys()) if (knownIds.has(id) && !goneIds.has(id) && stillThere(id)) add(id, "diverged");
   if (change.global || change.moved.size === 0) return { change, selected, known, gone };
   // Code only an optimized build compiles never ran on the build that records, so no footprint holds it.
   const profile = change.moved.get(PROFILE_ONLY);
   if (profile) {
     for (const a of atoms) if (a.kind === "proof" && stillThere(a.id)) add(a.id, "key", { key: PROFILE_ONLY, origin: profile });
-    for (const d of opts.discovered ?? []) if (kindOfAtom(d.id) === "proof") add(d.id, "key", { key: PROFILE_ONLY, origin: profile });
+    for (const id of opts.discovered ?? []) if (kindOfAtom(id) === "proof") add(id, "key", { key: PROFILE_ONLY, origin: profile });
   }
 
   const exact = new Map<string, number>();
@@ -397,19 +407,30 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     return change.moved.get(prefix) ?? { path: "", how: "path" };
   };
   for (const [id, keys] of store.atomsUnderIds(exact)) {
-    if (!stillThere(id)) continue;
+    if (goneIds.has(id) || !stillThere(id)) continue;
     for (const key of keys) add(id, "key", { key, origin: originOf(key) });
   }
   return { change, selected, known, gone };
 }
 
-/** The atoms that exist now: every case file, every test binary cargo would build, and whatever the store
- * knows of the other kinds. A proof program or a `bun nv` check the store does not know yet is found by
- * the seed, which asks the roster and the plan. */
-export async function discover(graph: Graph | null, root: string = ROOT): Promise<{ id: string; def: string }[]> {
-  const out: { id: string; def: string }[] = caseFiles(root).map((p) => ({ id: caseId(p), def: caseDef(p, root) }));
-  for (const pkg of graph?.keys() ?? []) for (const b of testBinaries(graph!, pkg)) out.push({ id: `test:${b.name}`, def: "" });
-  return out;
+/** What `discover` found: every atom the tree names now, and the kinds it lists in full. */
+export interface Discovery {
+  atoms: string[];
+  /** The kinds whose every atom is in `atoms`, which `QueryOptions.complete` takes. */
+  complete: AtomKind[];
+}
+
+/**
+ * The atoms that exist now, read from directory listings and the cargo graph the caller already has:
+ * every case file, every proof program (`proofFiles`), every tools test file and the tools' `tsc`, and
+ * every test binary cargo would build. No file is read. A plan check's own atom is the plan's, which the
+ * sweep adds. The test binaries are listed in full when there is a graph, so a known one cargo no longer
+ * builds is gone.
+ */
+export function discover(graph: Graph | null, root: string = ROOT): Discovery {
+  const atoms = [...caseFiles(root).map(caseId), ...proofFiles(root).map(proofId), ...nvTestFiles(root).map(nvTestId), NV_TSC];
+  for (const pkg of graph?.keys() ?? []) for (const b of testBinaries(graph!, pkg)) atoms.push(`test:${b.name}`);
+  return { atoms, complete: graph ? ["test"] : [] };
 }
 
 /** Counts of a selection: atoms per kind and reason, and the changed keys per kind. */
