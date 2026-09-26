@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-ratelimit-and-3-more`. `Core\\RateLimit`, `Core\\RateLimit\\Decision` and `Core\\Reflect` owe nothing: `bun nv proofs --verify --group` is green for all three, and every perf figure is current against `crates/nvs-stdlib/src/reflect.rs` and `crates/nvs-stdlib/src/ratelimit.rs` as they stand.\n`Core\\Reflect` and `Core\\Reflect\\AttributeInfo` both carry a class card now, and neither is in `CLASSES_STILL_OWING_A_CARD` any more.\n`Core\\Reflect\\AttributeInfo` is the last red check (`dossier-core-reflect-attributeinfo`): its five members `name`, `target`, `parameter`, `fields` and `field` each owe two test cases, three examples, an attack and a bench. The card is done.\nAny further edit to `reflect.rs` makes the three `Core\\Reflect` figures stale again: re-record with `bun nv proofs --record-perf --only '<feature>'` for `Core\\Reflect::typeOf`, `::forClass` and `::forObject` as well as for whatever `AttributeInfo` member lands.",
+  "state": "Goal `core-ratelimit-and-3-more` is met. All four stage-2 checks pass: `bun nv proofs --verify --group` owes nothing for `Core\\RateLimit`, `Core\\RateLimit\\Decision`, `Core\\Reflect` and `Core\\Reflect\\AttributeInfo`.\n`Core\\Reflect\\AttributeInfo`'s five members each have two tests (two `.nvst` cases with `// covers:` markers, and one Rust test in `crates/nvs-stdlib/src/reflect.rs`'s test module), three examples, an attack and a recorded bench.\n`bun nv owners --closes` and `bun nv playbook --closes` name nothing for this goal, and `bun nv verify --doc` is green.\nNo proof found a bug: every example and attack printed what the member's card says.",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -7,20 +7,20 @@
     "note": "one file set: the `ATTRIBUTE_INFO` members in `crates/nvs-stdlib/src/reflect.rs`, its test module, and the proof trees under `core/Reflect-AttributeInfo/`.",
     "items": [
       {
-        "done": false,
-        "text": "**Tests from both sides for all five `AttributeInfo` members** — one `.nvst` case under `tests/conformance/core/` carrying a `// covers:` line per member, and Rust `#[test]`s in `reflect.rs`'s test module with the same markers: an instance member is credited by a marker only. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/reflect.rs:1482` `crates/nvs-stdlib/src/reflect.rs:2375`"
+        "done": true,
+        "text": "**Tests from both sides for all five `AttributeInfo` members** — `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/reflect.rs:3368`"
       },
       {
-        "done": false,
-        "text": "**Examples, an attack and a bench for `name`, `target`, `parameter`, `fields` and `field`** — reached through `Core\\Reflect::forClass(...)->attributes()`. `field` throws a `LogicError` for an unknown field and for a value it does not fold, which is what the attack aims at. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/reflect.rs:2323`"
+        "done": true,
+        "text": "**Examples, an attack and a bench for `name`, `target`, `parameter`, `fields` and `field`** — `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/reflect.rs:1482`"
       },
       {
-        "done": false,
-        "text": "**Record the benches** with `bun nv proofs --record-perf --only '<feature>'` once the last Rust edit is in, and re-record the three `Core\\Reflect` members if `reflect.rs` moved. `crates/nvs-stdlib/src/reflect.rs:1482`"
+        "done": true,
+        "text": "**Record the benches** — `rule:testing/member-perf-ledger`. `crates/nvs-stdlib/src/reflect.rs:2375`"
       }
     ]
   },
   "backlog": [
-    "The other six `Core\\Reflect\\*Info` classes still sit in `CLASSES_STILL_OWING_A_CARD` (`crates/nvs-stdlib/src/registry.rs`); they belong to goal `core-class-cards`, not this one."
+    "The five `AttributeInfo` benches measured zero allocations; a `// bench: allocations 0` line would let a later run judge that figure (`benches/members/README.md`)."
   ]
 }

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read one value from an attribute, by the name of its field.
+
+type RateLimit = {perMinute: int, scope: string};
+
+#[RateLimit(perMinute: 120, scope: "user")]
+class SearchController {}
+
+var $info = Core\Reflect::forObject(new SearchController());
+
+// `field` returns the value as it is written: here an `int` and a `string`.
+// This prints `120 per minute, per user`.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    int $limit = $attribute->field("perMinute") as int;
+    string $scope = $attribute->field("scope") as string;
+    echo $limit, " per minute, per ", $scope, "\n";
+}

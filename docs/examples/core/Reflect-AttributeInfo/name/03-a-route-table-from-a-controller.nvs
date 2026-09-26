@@ -1,0 +1,40 @@
+<?nvs
+// Shows how a small web framework builds its route table from the attributes of a controller class.
+
+type Route = {method: string, path: string};
+
+class UserController {
+    #[Route(method: "GET", path: "/users")]
+    public function list(): void {}
+
+    #[Route(method: "POST", path: "/users")]
+    public function create(): void {}
+
+    // This attribute is not a route, so the table does not include it.
+    #[{internal: true}]
+    public function rebuildCache(): void {}
+}
+
+class Routes {
+    public static function of(string $className): array<string> {
+        array<string> $lines = [];
+        var $info = Core\Reflect::forClass($className);
+        if ($info == null) {
+            return $lines;
+        }
+        foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+            if ($attribute->name() != "Route") {
+                continue;
+            }
+            string $method = $attribute->field("method") as string;
+            string $path = $attribute->field("path") as string;
+            $lines[] = $method . " " . $path . " -> " . $className . "::" . $attribute->target();
+        }
+        return $lines;
+    }
+}
+
+// This prints one line for each route: the HTTP method, the path and the method that handles it.
+foreach (Routes::of("UserController") as string $line) {
+    echo $line, "\n";
+}

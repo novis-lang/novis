@@ -1,0 +1,3 @@
+$id is read from the path
+$title is read from the body
+$authorization is read from the header

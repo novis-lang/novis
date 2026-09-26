@@ -1,0 +1,56 @@
+<?nvs
+// Attack: `field` is given names the attribute does not have, and one field that has no value to read.
+// Each call should throw a `LogicError`, and the program should keep running.
+
+class Limits
+{
+    public const int MAX = 5;
+}
+
+#[{count: 3, cap: Limits::MAX}]
+class Job
+{
+}
+
+class Probe
+{
+    public static function ask(Core\Reflect\AttributeInfo $attribute, string $name): string
+    {
+        try {
+            return Core\Json::encode($attribute->field($name));
+        } catch (LogicError $error) {
+            return 'LogicError';
+        }
+    }
+}
+
+foreach (Core\Reflect::forObject(new Job())->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    // 1. The empty string.
+    echo Probe::ask($attribute, ''), "\n";
+
+    // 2. A name of 8 million characters.
+    echo Probe::ask($attribute, Core\Str::repeat('count', 1600000)), "\n";
+
+    // 3. A real field name with a zero byte after it.
+    echo Probe::ask($attribute, "count\0"), "\n";
+
+    // 4. A real field name in capital letters. Field names are case-sensitive.
+    echo Probe::ask($attribute, 'COUNT'), "\n";
+
+    // 5. The first letters of a real field name.
+    echo Probe::ask($attribute, 'coun'), "\n";
+
+    // 6. A field whose value is a class constant. It has no value that `field` can read.
+    echo Probe::ask($attribute, 'cap'), "\n";
+
+    // 7. A wrong name 200000 times. Each error is freed before the next one.
+    uint $thrown = 0;
+    uint $i = 0;
+    while ($i < 200000) {
+        if (Probe::ask($attribute, 'missing') == 'LogicError') {
+            $thrown = $thrown + 1;
+        }
+        $i = $i + 1;
+    }
+    echo $thrown, "\n";
+}

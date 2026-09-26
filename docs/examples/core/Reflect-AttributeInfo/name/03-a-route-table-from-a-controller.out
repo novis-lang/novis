@@ -1,0 +1,2 @@
+GET /users -> UserController::list
+POST /users -> UserController::create

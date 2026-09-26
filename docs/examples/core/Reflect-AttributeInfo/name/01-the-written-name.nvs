@@ -1,0 +1,16 @@
+<?nvs
+// Shows the name of each attribute on a class, for the named form and for the short form.
+
+type Route = {path: string};
+
+#[Route(path: "/orders")]
+#[{cache: 60}]
+class OrderController {}
+
+var $info = Core\Reflect::forObject(new OrderController());
+
+// The first attribute has the name `Route`. The second one has no name, so `name` returns "".
+// This prints `[Route]` and then `[]`.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    echo "[", $attribute->name(), "]\n";
+}

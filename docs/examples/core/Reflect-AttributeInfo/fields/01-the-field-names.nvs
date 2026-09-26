@@ -1,0 +1,16 @@
+<?nvs
+// Shows the field names of an attribute, in the order they are written.
+
+type Cache = {seconds: int, shared: bool, key: string};
+
+class ReportController {
+    #[Cache(seconds: 600, shared: true, key: "daily-report")]
+    public function daily(): void {}
+}
+
+var $info = Core\Reflect::forObject(new ReportController());
+
+// `fields` returns the names only. This prints `seconds, shared, key`.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    echo Core\Str::join($attribute->fields(), ", "), "\n";
+}

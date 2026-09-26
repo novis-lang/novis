@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `parameter` is an empty string for an attribute on a class, a property or a method.
+
+#[{table: "notes"}]
+class Note {
+    #[{column: "body"}]
+    public string $text = "";
+
+    #[{cache: 60}]
+    public function summary(): string {
+        return "";
+    }
+}
+
+var $info = Core\Reflect::forObject(new Note());
+
+// None of the three attributes is written on a parameter.
+// This prints `0` three times, the length of each empty string.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    echo Core\Str::length($attribute->parameter()), "\n";
+}

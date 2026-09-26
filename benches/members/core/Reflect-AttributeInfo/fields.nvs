@@ -1,0 +1,30 @@
+<?nvs
+// Reads the field names of an attribute, as a framework does when it checks an attribute for unknown settings.
+// bench: iterations 400000
+
+class CheckoutController {
+    #[{method: "POST", path: "/checkout"}]
+    public function pay(): void {}
+
+    #[{method: "GET", path: "/checkout/done", cache: 60}]
+    public function done(): void {}
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\AttributeInfo> $attributes =
+            Core\Reflect::forObject(new CheckoutController())->attributes();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which attribute is read comes from last round's total,
+            // so no round can be reused.
+            Core\Reflect\AttributeInfo $attribute = $attributes[($total % 2) as int];
+            $total = $total + Core\Arr::count($attribute->fields()) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
