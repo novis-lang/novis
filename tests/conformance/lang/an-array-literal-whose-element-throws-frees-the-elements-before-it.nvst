@@ -1,0 +1,67 @@
+--TEST--
+An array literal, a variadic argument list and `Core\Program::implementing<T>()` free the elements already built when a later element throws, `rule:programs/implementing`
+--FILE--
+<?nvs
+// covers: Core\Program::implementing
+// Each `Big` holds 64 KiB. 5000 rounds that each kept one would pass the
+// 256 MiB request limit, so a count printed at the end means every round freed it.
+interface Part {}
+
+class Big implements Part
+{
+    private string $buffer;
+
+    public function constructor()
+    {
+        $this->buffer = Core\Str::repeat("a", 65536);
+    }
+}
+
+// Sorted by name, `Big` is built before `Broken` throws.
+class Broken implements Part
+{
+    public function constructor()
+    {
+        throw new RuntimeError("cannot start");
+    }
+}
+
+class Parts
+{
+    public static function count(Part ...$parts): uint
+    {
+        return Core\Arr::count($parts);
+    }
+}
+
+uint $literal = 0;
+uint $variadic = 0;
+uint $enumerated = 0;
+uint $round = 0;
+while ($round < 5000) {
+    try {
+        array<Part> $parts = [new Big(), new Broken()];
+        echo Core\Arr::count($parts), "\n";
+    } catch (RuntimeError $error) {
+        $literal = $literal + 1;
+    }
+    try {
+        echo Parts::count(new Big(), new Broken()), "\n";
+    } catch (RuntimeError $error) {
+        $variadic = $variadic + 1;
+    }
+    try {
+        echo Core\Arr::count(Core\Program::implementing<Part>()), "\n";
+    } catch (RuntimeError $error) {
+        $enumerated = $enumerated + 1;
+    }
+    $round = $round + 1;
+}
+echo "literal=", $literal, " variadic=", $variadic, " enumerated=", $enumerated, "\n";
+
+// The normal path still keeps what it built.
+array<Part> $kept = [new Big(), new Big()];
+echo Core\Arr::count($kept), " ", Parts::count(new Big(), $kept[0]), "\n";
+--EXPECT--
+literal=5000 variadic=5000 enumerated=5000
+2 2

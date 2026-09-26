@@ -1,0 +1,49 @@
+<?nvs
+// Shows how a command line tool prints a help page that lists every command it has.
+
+interface Command {
+    public function name(): string;
+    public function summary(): string;
+}
+
+class Deploy implements Command {
+    public function name(): string {
+        return "deploy";
+    }
+
+    public function summary(): string {
+        return "Copies the current version to the servers.";
+    }
+}
+
+class Migrate implements Command {
+    public function name(): string {
+        return "migrate";
+    }
+
+    public function summary(): string {
+        return "Updates the database tables.";
+    }
+}
+
+// An abstract class is not in the result, so this base class is not listed.
+abstract class HiddenCommand implements Command {
+    public function summary(): string {
+        return "Not shown.";
+    }
+}
+
+class Status implements Command {
+    public function name(): string {
+        return "status";
+    }
+
+    public function summary(): string {
+        return "Shows what is running.";
+    }
+}
+
+echo "Commands:\n";
+foreach (Core\Program::implementing<Command>() as Command $command) {
+    echo "  ", Core\Str::padEnd($command->name(), 10), $command->summary(), "\n";
+}

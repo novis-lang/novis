@@ -1,0 +1,64 @@
+<?nvs
+// Attack: one class throws an error in its constructor while the list of objects
+// is built. The objects built before it should be freed each time. The program
+// catches every error, stays inside its memory limit and runs to its last line.
+
+interface Plugin
+{
+    public function name(): string;
+}
+
+// 1. `Alpha` comes first in the list and keeps a large text in every object.
+class Alpha implements Plugin
+{
+    private string $buffer;
+
+    public function constructor()
+    {
+        $this->buffer = Core\Str::repeat('a', 65536);
+    }
+
+    public function name(): string
+    {
+        return 'alpha';
+    }
+}
+
+// 2. `Broken` comes second and always throws an error.
+class Broken implements Plugin
+{
+    public function constructor()
+    {
+        throw new RuntimeError('this plugin cannot start');
+    }
+
+    public function name(): string
+    {
+        return 'broken';
+    }
+}
+
+class Zeta implements Plugin
+{
+    public function name(): string
+    {
+        return 'zeta';
+    }
+}
+
+// 3. The list is built 10000 times. Each attempt leaves one `Alpha` of 64 KiB
+//    behind if it is not freed. That is more than twice the memory limit.
+uint $caught = 0;
+uint $round = 0;
+while ($round < 10000) {
+    try {
+        var $plugins = Core\Program::implementing<Plugin>();
+        echo Core\Arr::count($plugins), "\n";
+    } catch (RuntimeError $error) {
+        $caught = $caught + 1;
+    }
+    $round = $round + 1;
+}
+
+// 4. Every attempt threw. This prints `10000`.
+echo $caught, "\n";

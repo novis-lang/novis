@@ -2,6 +2,7 @@
 `Core\Program::implementing<T>()` answers the non-abstract implementors sorted by fully-qualified name, and expands at the call site so every call allocates its own — `rule:programs/implementing`
 --FILE--
 <?nvs
+// covers: Core\Program::implementing
 // Nothing here names a module class, and no `require` reaches one: the
 // `autoload` root is the only thing that can find them, which is § 3's
 // "answering the query requires parsing and collecting declarations from every

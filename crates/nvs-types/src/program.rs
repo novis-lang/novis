@@ -397,6 +397,7 @@ mod tests {
     /// classes reaching the interface, they are **sorted by fully-qualified
     /// name**, and each carries the constructor `nvs-ir` is to name — the
     /// declaring one, or `None` where the class declares none.
+    // covers: Core\Program::implementing
     #[test]
     fn program_implementing_expands_to_new_expressions() {
         let (exprs, span, diags) = check(

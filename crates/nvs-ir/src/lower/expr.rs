@@ -3201,7 +3201,9 @@ impl<'a> Lowering<'a> {
     /// point of § 3 specifying an *array literal of `new` expressions* rather
     /// than a runtime answer. Nothing is retained: each entry is a fresh
     /// allocation transferred straight into the array, exactly as an
-    /// element that is not an aliasing read already is.
+    /// element that is not an aliasing read already is. Each is staged as a
+    /// transferred temporary until then, so a later constructor that throws
+    /// releases the instances built before it.
     ///
     /// `nvs_types::program` resolved both halves — the classes and each one's
     /// declaring constructor — for [`Self::lower_new`]'s reason: this crate
@@ -3214,6 +3216,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
         let mut entries = Vec::with_capacity(classes.len());
         for (index, class) in classes.iter().enumerate() {
             let built = self.emit_enumerated_new(
@@ -3222,8 +3225,10 @@ impl<'a> Lowering<'a> {
                 env,
                 cur,
             );
+            self.own_transferred_temporary(built);
             entries.push((index.to_string(), built));
         }
+        self.forget_transferred_since(mark);
         self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
     }
 
@@ -3287,6 +3292,8 @@ impl<'a> Lowering<'a> {
     /// [`Self::record_shape_class`] degrades to that anyway. Nothing is
     /// retained — the instance and the payload are fresh producers whose one
     /// reference the slot takes, exactly as in [`Self::emit_const_shape`].
+    /// The instance is staged until its row takes it, and each row until
+    /// `ArrayNew` does, so a later constructor that throws releases them.
     fn lower_program_instances_with(
         &mut self,
         classes: &[String],
@@ -3297,6 +3304,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let fields = vec!["attribute".to_owned(), "instance".to_owned()];
         let label = super::shape_class_label(&fields);
+        let mark = self.temporaries_mark();
         let mut entries = Vec::with_capacity(classes.len());
         for (index, class) in classes.iter().enumerate() {
             let instance = self.emit_enumerated_new(
@@ -3305,6 +3313,8 @@ impl<'a> Lowering<'a> {
                 env,
                 cur,
             );
+            let row_mark = self.temporaries_mark();
+            self.own_transferred_temporary(instance);
             let (attribute, _) = match payloads.get(index) {
                 Some(payload) => self.emit_const_arg(payload, None, env, *cur),
                 None => self.emit(*cur, Ty::Null, InstKind::ConstNull),
@@ -3319,10 +3329,13 @@ impl<'a> Lowering<'a> {
                 },
                 env,
             );
+            self.forget_transferred_since(row_mark);
             self.emit_field_set(*cur, row, label.clone(), "attribute".to_owned(), attribute);
             self.emit_field_set(*cur, row, label.clone(), "instance".to_owned(), instance);
+            self.own_transferred_temporary(row);
             entries.push((index.to_string(), row));
         }
+        self.forget_transferred_since(mark);
         self.record_shape_class(label, fields, vec![Ty::Tagged, Ty::Object]);
         self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
     }
@@ -5073,14 +5086,24 @@ impl<'a> Lowering<'a> {
         // have rather than one this function has not learned.
         let spread = items.iter().any(|item| item.spread);
         if !spread && items.iter().all(|item| item.key.is_none()) {
+            // Every element is evaluated before the one `ArrayNew` that takes
+            // them all, so a later element that throws leaves the earlier ones
+            // owned by nobody. Each is staged as a transferred temporary: the
+            // landing block releases it, and the stack forgets it just before
+            // `ArrayNew`, which cannot throw, takes the reference.
+            let mark = self.temporaries_mark();
             let mut entries = Vec::with_capacity(items.len());
             for (i, item) in items.iter().enumerate() {
                 let (v, ty) = self.lower_expr(&item.value, None, env, cur);
-                if ty.is_refcounted() && self.aliasing_read(&item.value) {
-                    self.emit_retain(*cur, v);
+                if ty.is_refcounted() {
+                    if self.aliasing_read(&item.value) {
+                        self.emit_retain(*cur, v);
+                    }
+                    self.own_transferred_temporary(v);
                 }
                 entries.push((i.to_string(), v));
             }
+            self.forget_transferred_since(mark);
             self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
         } else {
             let array = self.emit(

@@ -396,6 +396,9 @@ impl<'a> Lowering<'a> {
         // `name:` never reaches the variadic parameter at all, so the first
         // spread is where the lowering-time keys stop.
         let spread_from = rest.iter().position(|arg| arg.spread).unwrap_or(rest.len());
+        // Each element is staged until `ArrayNew` takes it, exactly as an array
+        // literal's are: a later argument that throws must release the earlier ones.
+        let mark = self.temporaries_mark();
         let mut entries = Vec::with_capacity(spread_from);
         for (index, arg) in rest[..spread_from].iter().enumerate() {
             let (v, ty) = self.lower_expr(&arg.value, expected, env, cur);
@@ -410,8 +413,12 @@ impl<'a> Lowering<'a> {
                 Some(expected) => self.coerce(*cur, v, ty, expected, env),
                 None => v,
             };
+            if ty.is_refcounted() {
+                self.own_transferred_temporary(v);
+            }
             entries.push((index.to_string(), v));
         }
+        self.forget_transferred_since(mark);
         let (mut array, _) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
         if spread_from < rest.len() {
             // The tail array is named by no local while the copies run, and

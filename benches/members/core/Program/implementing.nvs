@@ -1,0 +1,37 @@
+<?nvs
+// Measures building one object of every class that implements an interface, as a
+// framework does when it collects its health checks or its commands.
+// bench: iterations 100000
+// bench: calls 0
+
+interface Check {
+    public function name(): string;
+}
+
+class Database implements Check {
+    public function name(): string { return "database"; }
+}
+
+class Disk implements Check {
+    public function name(): string { return "disk"; }
+}
+
+class Queue implements Check {
+    public function name(): string { return "queue"; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the count of this round is added to the total
+            // carried out of the round before.
+            $total = $total + Core\Arr::count(Core\Program::implementing<Check>()) + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

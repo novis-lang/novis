@@ -2,6 +2,7 @@
 `Core\Program::implementing<T>()` enumerates every class that reaches the interface — directly, through a class, through an abstract intermediate, through an interface that extends it — and nothing that does not, `rule:programs/implementing`
 --FILE--
 <?nvs
+// covers: Core\Program::implementing
 // The companion case pins the *order* and the expansion; this one pins the
 // *membership*, which is the half § 3 states as "one per non-abstract class in
 // the program implementing `T`". `nvs_hir::hierarchy::implements_interface` is
