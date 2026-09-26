@@ -78,6 +78,26 @@
         "replace": "spawn = false",
         "note": "nvs.toml: scripts may no longer spawn a child (concurrency examples and proofs that start a job)"
       }
+    ],
+    [
+      {
+        "file": "docs/reference/lang/10-programs.md",
+        "find": "autoload 'App' from './src';                       // one prefix, one root",
+        "replace": "autoload 'App' from 'src';                         // one prefix, one root",
+        "note": "an include_str! target in shipped code: the chapter `nvs agent show` prints a section from loses the `./` (nvs-cli tests/agent.rs keyword section test)"
+      },
+      {
+        "file": "crates/nvs-stdlib/src/process.rs",
+        "find": "short: \"The result of a program that has ended. `Core\\\\Process::run` and \\",
+        "replace": "short: \"The result of a program that has finished. `Core\\\\Process::run` and \\",
+        "note": "a class card's prose: `Core\\Process\\Result`'s card, which `nvs agent show` prints, says finished (nvs-cli tests/agent.rs class card prose test)"
+      },
+      {
+        "file": "crates/nvs-runtime/src/value.rs",
+        "find": "    Bytes = 11,",
+        "replace": "    Bytes = 9,",
+        "note": "an enum discriminant in a runtime type: `Tag::Bytes` moves into a hole, so it no longer agrees with the parameter nibble compiled code checks (nvs-codegen tag nibble test, closures over `bytes`)"
+      }
     ]
   ]
 }
