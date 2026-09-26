@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1015,
-    "shipped": 777,
-    "designed": 238,
+    "shipped": 778,
+    "designed": 237,
     "diverging": 589
   },
   "topics": [
@@ -8435,8 +8435,8 @@
       "single": false,
       "counts": {
         "total": 68,
-        "shipped": 60,
-        "designed": 8,
+        "shipped": 61,
+        "designed": 7,
         "diverging": 44
       },
       "sections": [
@@ -8807,8 +8807,8 @@
           "url": "/docs/rules/config/run-modes/",
           "counts": {
             "total": 6,
-            "shipped": 4,
-            "designed": 2,
+            "shipped": 5,
+            "designed": 1,
             "diverging": 4
           },
           "rules": [
@@ -8848,7 +8848,7 @@
               "id": "config/a-startup-default-is-never-flipped",
               "slug": "a-startup-default-is-never-flipped",
               "title": "A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/config/run-modes/#a-startup-default-is-never-flipped",
               "diverges": null
             },

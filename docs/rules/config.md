@@ -3,7 +3,7 @@
 
 # Configuration
 
-*8 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -1205,7 +1205,7 @@ should differ between modes gets a directive first and a row second, in that ord
 
 <a id="config-a-startup-default-is-never-flipped"></a>
 
-## A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code  *(designed — not yet in the compiler)*
+## A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code
 
 `rule:config/a-startup-default-is-never-flipped`
 
@@ -1231,9 +1231,10 @@ objection is always to the *flip*, never to the *default*: a value chosen by a r
 request move how the process treats its source. The list stays closed at eight rows across the two
 tables, and which table a future directive belongs in is decided by its changeability class alone.
 
-**What is on disk.** The `settle` row, chosen where the snapshot's revalidation policy is read
-(`nvs_config::cache::Revalidation::from_config`). `dispatch` and `static` are not derived from the
-mode yet: an unwritten switch is production's value in both modes.
+**What is on disk.** All three rows. `settle` is chosen where the snapshot's revalidation policy is
+read (`nvs_config::cache::Revalidation::from_config`), and `dispatch` and `static` by
+`nvs_config::server::switches_for`, which the mount table is built from and which a reload compares
+to decide whether a core's table is rebuilt.
 
 <sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
 
