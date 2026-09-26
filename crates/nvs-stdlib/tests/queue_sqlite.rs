@@ -695,6 +695,34 @@ fn sqlite_stats_answer_five_integers_over_an_empty_queue_and_a_worked_one() {
     );
 }
 
+/// `attempts` is summed over every row of the queue in `nvs_jobs`, whatever its
+/// state: a finished or cancelled job keeps the attempts it used until `purge`
+/// or `delete` removes its row. The `where queue = ?` is the aggregate's own
+/// and not the subqueries', so a row on another queue adds nothing even when
+/// it is the only row with attempts to add.
+// covers: Core\Queue\Stats::attempts
+#[test]
+fn sqlite_attempts_sum_every_state_of_one_queue_and_nothing_of_another() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-stats-attempts");
+    push_on(&worker, "another-queue", NOW, 0, 1000, None);
+    assert_eq!(
+        counts(&reader)[2],
+        0,
+        "the other queue's attempts are not this queue's"
+    );
+
+    for (state, attempts) in [(0, 1), (1, 2), (2, 4), (3, 8), (4, 16)] {
+        let claimed_at = (state == 1).then_some(NOW);
+        push(&worker, NOW, state, attempts, claimed_at);
+    }
+    assert_eq!(
+        counts(&reader)[2],
+        31,
+        "each of the five states adds its own power of two, so a state left out is named by the \
+         bit missing from the sum"
+    );
+}
+
 /// `DELETE_SQLITE`'s pair, taken whole: both arms inside one immediate
 /// transaction, and the member's `bool` is either of them having removed a row.
 ///

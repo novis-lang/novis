@@ -1,0 +1,44 @@
+<?nvs
+// Shows how to count every attempt of a queue, with the attempts of the jobs that failed.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push("jobs/send-mail.nvs", {queue: "mail", args: ["to" => "ana@example.com"]});
+Queue::push("jobs/send-mail.nvs", {queue: "mail", args: ["to" => "ben@example.com"]});
+
+// On a real server, workers run the jobs and move a job that failed 5 times
+// to the dead-letter table. No worker runs here, so SQL changes the rows.
+$db->execute("update nvs_jobs set state = 2, attempts = 2 where id = 1", []);
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (2, 'mail', 'jobs/send-mail.nvs', 5, 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+$db->execute("delete from nvs_jobs where id = 2", []);
+
+// `attempts()` counts the jobs table. `deadAttempts()` counts the dead-letter table.
+// This prints `attempts: 2`, `failed: 5` and `total: 7`.
+var $stats = Queue::stats("mail");
+echo "attempts: ", $stats->attempts(), "\n";
+echo "failed: ", $stats->deadAttempts(), "\n";
+echo "total: ", $stats->attempts() + $stats->deadAttempts(), "\n";

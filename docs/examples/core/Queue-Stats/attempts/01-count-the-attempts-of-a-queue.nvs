@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to count how many times the jobs of a queue have started.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push("jobs/resize-image.nvs", {queue: "images"});
+Queue::push("jobs/resize-image.nvs", {queue: "images"});
+
+// The new jobs have not started yet. This prints `attempts: 0`.
+echo "attempts: ", Queue::stats("images")->attempts(), "\n";
+
+// On a real server, workers start the jobs. No worker runs here, so SQL changes the rows.
+// The first job finished at its first attempt. The second job failed twice and waits.
+$db->execute("update nvs_jobs set state = 2, attempts = 1 where id = 1", []);
+$db->execute("update nvs_jobs set state = 0, attempts = 2 where id = 2", []);
+
+// This prints `attempts: 3`. The finished job is counted too.
+echo "attempts: ", Queue::stats("images")->attempts(), "\n";

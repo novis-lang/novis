@@ -1,0 +1,47 @@
+<?nvs
+// Shows a check that warns when the jobs of a queue fail and run again.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+int $n = 0;
+while ($n < 3) {
+    Queue::push("jobs/export.nvs", {queue: "exports", args: ["n" => $n]});
+    $n = $n + 1;
+}
+
+// The check reads the numbers two times.
+var $before = Queue::stats("exports");
+
+// On a real server, workers run the jobs between the two checks. Here, every job
+// fails two times and waits again. No worker runs, so SQL changes the rows.
+$db->execute("update nvs_jobs set attempts = attempts + 2", []);
+
+var $after = Queue::stats("exports");
+uint $retries = $after->attempts() - $before->attempts();
+
+// This prints `6 new attempts, 3 jobs waiting`, and then a warning,
+// because the jobs started again and no job finished.
+echo $retries, " new attempts, ", $after->pending(), " jobs waiting\n";
+if ($retries > 0 && $after->pending() >= $before->pending()) {
+    echo "warning: jobs in the exports queue fail and run again\n";
+}

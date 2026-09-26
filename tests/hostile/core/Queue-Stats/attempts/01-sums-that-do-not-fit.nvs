@@ -1,0 +1,92 @@
+<?nvs
+// Attack: the attempts of a queue add up to more than a 64-bit number can hold, or are not
+// whole numbers. `attempts()` should return a number or throw an error. The program must not crash.
+use Core\Queue;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push('jobs/a.nvs', { queue: 'q' });
+Queue::push('jobs/a.nvs', { queue: 'q' });
+Queue::push('jobs/a.nvs', { queue: 'other' });
+$db->execute('update nvs_jobs set attempts = 7', []);
+
+// 1. The queue name is SQL that tries to count the attempts of every queue.
+try {
+    echo '1: ', Queue::stats("q' or '1'='1")->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "1: error\n";
+}
+
+// 2. One row has the largest 64-bit number and the other has 0, so the sum just fits.
+$db->execute('update nvs_jobs set attempts = 9223372036854775807 where id = 1', []);
+$db->execute('update nvs_jobs set attempts = 0 where id = 2', []);
+try {
+    echo '2: ', Queue::stats('q')->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "2: error\n";
+}
+
+// 3. The other row has 1, so the sum is one more than the largest 64-bit number.
+$db->execute('update nvs_jobs set attempts = 1 where id = 2', []);
+try {
+    echo '3: ', Queue::stats('q')->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "3: error\n";
+}
+
+// 4. The attempts are numbers with a fraction.
+$db->execute("update nvs_jobs set attempts = 1.5 where queue = 'q'", []);
+try {
+    echo '4: ', Queue::stats('q')->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "4: error\n";
+}
+
+// 5. The attempts are bytes.
+$db->execute("update nvs_jobs set attempts = x'00ff00ff' where queue = 'q'", []);
+try {
+    echo '5: ', Queue::stats('q')->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "5: error\n";
+}
+
+// 6. The queue has 200000 jobs, and each job used 1000000 attempts.
+$db->execute('delete from nvs_jobs', []);
+$db->execute(<<<'SQL'
+with recursive n(i) as (select 1 union all select i + 1 from n where i < 200000)
+insert into nvs_jobs (queue, script, state, attempts, max_attempts, backoff_ms, run_at,
+    created_at)
+select 'q', 'jobs/a.nvs', 0, 1000000, 5, 1000, 0, 0 from n
+SQL, []);
+try {
+    echo '6: ', Queue::stats('q')->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "6: error\n";
+}
+
+// 7. `attempts()` is called 1000000 times on one result.
+var $stats = Queue::stats('q');
+uint $total = 0;
+int $i = 0;
+while ($i < 1000000) {
+    $total = ($total + $stats->attempts()) % 1000003;
+    $i = $i + 1;
+}
+echo '7: ', $total, "\n";
