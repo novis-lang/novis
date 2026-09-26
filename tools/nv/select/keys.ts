@@ -14,6 +14,7 @@
 // | `tree:<path>` | a file or a directory a test asked `nvs_repo` for: everything beneath it; `tree:.` is the whole tree |
 // | `named:<name>` | every file called `<name>`, anywhere |
 // | `mod:<path>` | a TypeScript module a `bun nv` process loaded |
+// | `tests:<package>` | computed: held by every test binary of the package, moved by a test added to it |
 // | `*` | something ran that could not be attributed at all: any change selects the atom |
 //
 // Paths are repo-relative with `/`. A path outside the repository, or under a directory that is never
@@ -32,6 +33,8 @@ export const fileWild = (file: string) => `fn:${file}#*`;
 export const itemPrefix = (file: string) => `fn:${file}#`;
 export const classKey = (name: string) => `class:${norm(name)}`;
 export const cardKey = (name: string) => `card:${norm(name)}`;
+/** Held by every test binary of `pkg`, and moved by a test added anywhere in it. */
+export const testsKey = (pkg: string) => `tests:${pkg}`;
 export const ALL_CLASSES = "class:*";
 export const ALL_CARDS = "card:*";
 export const WHOLE_TREE = "tree:.";

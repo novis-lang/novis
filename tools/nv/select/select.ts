@@ -22,7 +22,7 @@ import { caseDef, caseFiles, caseId, currentDef, stillThere } from "./atoms.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, namedChanges } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
-import { ALL_CARDS, ALL_CLASSES, fileWild, itemPrefix, kindOf, pathKeys, WILD } from "./keys.ts";
+import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, testsKey, WILD } from "./keys.ts";
 import { type AtomKind, kindOfAtom, type SelectStore } from "./store.ts";
 
 /** Files whose change selects every atom: the toolchain, the lock file, a manifest, and the two tools
@@ -221,6 +221,11 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   for (const [k, o] of closure(itemChanges, universe, wideFiles, extra)) emit(k, o);
   // Code of a file no item held was recorded as the whole file.
   for (const c of itemChanges) emit(fileWild(c.file), { path: c.file, item: c.id, how: c.how });
+  // A test that did not exist is in no footprint: every test binary of its package runs.
+  for (const c of itemChanges) {
+    const pkg = c.how === "added" && c.item.test ? scope.pkgOf(c.file) : null;
+    if (pkg) emit(testsKey(pkg), { path: c.file, item: c.id, how: c.how });
+  }
   return { since, ...(until ? { until } : {}), changes, moved, global, rustFiles: rust.length, itemChanges: itemChanges.length, wideFiles };
 }
 

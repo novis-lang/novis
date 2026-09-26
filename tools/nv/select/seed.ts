@@ -33,7 +33,7 @@ import { caseDef, caseFiles, caseId, nvDef, nvId, proofDef, proofId, proofProgra
 import { buildScripts, generatedDigest, generatedIncludes, generatedMeta } from "./build.ts";
 import { commitOf } from "./change.ts";
 import { CovMap, type Extracted, extract, ItemIndex, type Recorded, recordedIn } from "./extract.ts";
-import { readsKeys } from "./keys.ts";
+import { readsKeys, testsKey } from "./keys.ts";
 import { graphScope, rustFiles } from "./select.ts";
 import { type AtomKind, type Keyed, type SelectStore, type Verdict } from "./store.ts";
 
@@ -311,7 +311,11 @@ async function seedTests(ctx: Ctx, exes: { pkg: string; t: import("../driver/acc
     const got = recordedIn(dir).get(name);
     const ext = got ? await extractOr(ctx, got, [t.exe, ctx.build.nvs]) : null;
     const verdict: Verdict = r.code === 0 && got ? "green" : "red";
-    ctx.store.recordRun(id, { def: "", verdict, keys: ext?.keys ?? new Map() });
+    // A test added to its package cannot be in any footprint yet, so every binary of the package holds
+    // this key, which an added test moves; a binary that ran no instrumented code holds only this one.
+    const keys: Keyed = new Map(ext?.keys ?? []);
+    keys.set(testsKey(pkg), "");
+    ctx.store.recordRun(id, { def: "", verdict, keys });
     ctx.tally("test", verdict, ext);
     rmSync(dir, { recursive: true, force: true });
     rmSync(cache, { recursive: true, force: true });
