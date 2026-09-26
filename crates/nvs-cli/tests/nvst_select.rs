@@ -92,15 +92,20 @@ fn a_recording_run_leaves_each_cases_log_under_its_name() {
         .collect();
     logs.sort();
     assert_eq!(logs.len(), 2, "{logs:?}");
-    let math = logs
-        .iter()
-        .find(|name| name.ends_with("~record~math.nvst.log"))
-        .unwrap_or_else(|| panic!("the square-root case's log: {logs:?}"));
+    // A case's name is its path as the report names it, cut and hashed when it is long, and how long
+    // it is depends on where the checkout is.
+    let log_of = |parts: &[&str]| {
+        let mut path = tree();
+        path.extend(parts);
+        format!("{}.log", nvs_test::record_name(&path.display().to_string()))
+    };
+    let math = log_of(&["math.nvst"]);
     assert!(
-        logs.iter()
-            .any(|name| name.ends_with("~record~nested~text.nvst.log")),
-        "{logs:?}"
+        logs.contains(&math),
+        "the square-root case's log {math}: {logs:?}"
     );
+    let text_log = log_of(&["nested", "text.nvst"]);
+    assert!(logs.contains(&text_log), "{text_log}: {logs:?}");
     let text = std::fs::read_to_string(records.join(math)).expect("the log is readable");
     assert!(
         text.lines().any(|line| line == "class\tCore\\Math"),

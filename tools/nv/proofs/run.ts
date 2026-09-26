@@ -144,7 +144,9 @@ export const RECORD_ENV = "NV_PROOF_RECORD";
 /**
  * The file name a recorded program's files start with, from its repo-relative path: `/` and `\` become
  * `~`, and every other byte that is not an ASCII letter, digit, `.`, `_` or `-` becomes `@` and two hex
- * digits. The same rule as `nvs test --record`'s (`nvs_test::record_name`), so one reader serves both.
+ * digits. A name longer than 96 bytes keeps its first 64 and ends in `@` and the 64-bit FNV-1a hash of
+ * the whole name as sixteen hex digits, so a profile's path stays inside Windows' 260-character limit.
+ * The same rule as `nvs test --record`'s (`nvs_test::record_name`), so one reader serves both.
  */
 export function recordName(path: string): string {
   let name = "";
@@ -154,7 +156,13 @@ export function recordName(path: string): string {
     else if (/[A-Za-z0-9._-]/.test(c)) name += c;
     else name += `@${byte.toString(16).padStart(2, "0")}`;
   }
-  return name;
+  if (name.length <= 96) return name;
+  let hash = 0xcbf29ce484222325n;
+  for (let i = 0; i < name.length; i++) {
+    hash ^= BigInt(name.charCodeAt(i));
+    hash = (hash * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
+  return `${name.slice(0, 64)}@${hash.toString(16).padStart(16, "0")}`;
 }
 
 /**

@@ -103,6 +103,12 @@ impl Options {
 /// letter, digit, `.`, `_` or `-` becomes `@` and two hex digits, so two paths
 /// never share a name and none holds a `%` the profile runtime would expand.
 /// `tests/conformance/a b.nvst` is `tests~conformance~a@20b.nvst`.
+///
+/// A name longer than [`RECORD_NAME_MAX`] bytes keeps its first
+/// [`RECORD_NAME_KEEP`] and ends in `@` and the 64-bit FNV-1a hash of the whole
+/// name as sixteen hex digits, so the path a profile is written to stays inside
+/// Windows' 260-character limit however long a case's name is.
+/// `tools/nv/proofs/run.ts`'s `recordName` follows the same rule.
 #[must_use]
 pub fn record_name(label: &str) -> String {
     let mut name = String::with_capacity(label.len());
@@ -115,8 +121,21 @@ pub fn record_name(label: &str) -> String {
             other => name.push_str(&format!("@{other:02x}")),
         }
     }
-    name
+    if name.len() <= RECORD_NAME_MAX {
+        return name;
+    }
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in name.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{}@{hash:016x}", &name[..RECORD_NAME_KEEP])
 }
+
+/// The longest name [`record_name`] leaves whole.
+pub const RECORD_NAME_MAX: usize = 96;
+/// How much of a longer name it keeps before the hash.
+pub const RECORD_NAME_KEEP: usize = 64;
 
 /// The environment every `nvs` process of `case` gets when [`Options::record`]
 /// names a directory: `LLVM_PROFILE_FILE` as `<dir>/<name>-%p.profraw`, one
@@ -626,6 +645,24 @@ mod tests {
         assert_eq!(record_name("50%.nvst"), "50@25.nvst");
         assert_ne!(record_name("a~b.nvst"), record_name("a/b.nvst"));
         assert_eq!(record_name("D:/x.nvst"), "D@3a~x.nvst");
+    }
+
+    #[test]
+    fn a_long_record_name_is_cut_and_ends_in_the_hash_of_the_whole() {
+        let long = "tests/conformance/reject/a-binding-refuses-a-second-declaration-an-undeclared-assignment-a-changed-type.nvst";
+        // `tools/nv/test/proof-record.test.ts` pins the same name for the same path.
+        assert_eq!(
+            record_name(long),
+            "tests~conformance~reject~a-binding-refuses-a-second-declaration-@43cc62f86b7c4528"
+        );
+        assert_eq!(
+            record_name(&"x".repeat(RECORD_NAME_MAX)).len(),
+            RECORD_NAME_MAX
+        );
+        assert_ne!(
+            record_name(&format!("{long}a")),
+            record_name(&format!("{long}b"))
+        );
     }
 
     #[test]

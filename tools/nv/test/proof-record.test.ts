@@ -13,6 +13,10 @@ describe("recording a proof program", () => {
     expect(recordName("50%.nvs")).toBe("50@25.nvs");
     expect(recordName("é.nvs")).toBe("@c3@a9.nvs");
     expect(recordName("a~b.nvs")).not.toBe(recordName("a/b.nvs"));
+    // A long name is cut and ends in the hash of the whole, as `nvs_test::record_name` does.
+    const long = "tests/conformance/reject/a-binding-refuses-a-second-declaration-an-undeclared-assignment-a-changed-type.nvst";
+    expect(recordName(long)).toBe("tests~conformance~reject~a-binding-refuses-a-second-declaration-@43cc62f86b7c4528");
+    expect(recordName("x".repeat(96))).toBe("x".repeat(96));
   });
 
   test("nothing is recorded unless a directory is named, and a named one gets absolute paths", () => {
