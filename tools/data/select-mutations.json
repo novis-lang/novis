@@ -1,0 +1,83 @@
+{
+  "about": "The mutation batches `bun nv select --mutate tools/data/select-mutations.json` applies one batch at a time. Every edit breaks something a test, case, proof program or check sees; every atom that goes red must have been selected. No two edits of a batch touch one file.",
+  "batches": [
+    [
+      {
+        "file": "crates/nvs-stdlib/src/path.rs",
+        "find": "None | Some(0) => (name, None),",
+        "replace": "None => (name, None),",
+        "note": "a fn body in a stdlib class file: a leading dot reads as an extension, so `Core\\Path::extension('.gitignore')` is 'gitignore' (nvs-stdlib path tests)"
+      },
+      {
+        "file": "crates/nvs-runtime/src/metrics.rs",
+        "find": "0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,",
+        "replace": "0.005, 0.01, 0.025, 0.04, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,",
+        "note": "a const in a runtime table: the 0.05 latency bucket becomes 0.04 (nvs-server prometheus scrape test)"
+      },
+      {
+        "file": "docs/reference/core/Str.md",
+        "find": "changes its argument. Every position",
+        "replace": "changes its input. Every position",
+        "note": "a docs/reference/core intro, build-script input for the help and hover text (tests/lsp hover case on a core class card)"
+      },
+      {
+        "file": "crates/nvs-runtime/src/alloc.rs",
+        "find": "ptr::copy_nonoverlapping(ptr, fresh, layout.size().min(new_size));",
+        "replace": "ptr::copy_nonoverlapping(ptr, fresh, layout.size().min(new_size).min(16));",
+        "note": "profile-only code: the optimized build's pooled realloc copies only 16 bytes when a block changes class (proof programs judged on target/proof)"
+      }
+    ],
+    [
+      {
+        "file": "crates/nvs-stdlib/src/math.rs",
+        "find": "symbol: \"nvs_core_math_max\",",
+        "replace": "symbol: \"nvs_core_math_min\",",
+        "note": "a registry row of one class: `Core\\Math::max` calls min (Core\\Math max examples)"
+      },
+      {
+        "file": "crates/nvs-runtime/src/helpers.rs",
+        "find": "lhs.$method(rhs)",
+        "replace": "rhs.$method(lhs)",
+        "note": "a macro_rules! body: decimal subtraction, division and remainder swap their operands (tests/conformance/core decimal cases)"
+      },
+      {
+        "file": "crates/nvs-cli/tests/fixtures/check/diagnostics.nvs",
+        "find": "class my_class {",
+        "replace": "class MyClass {",
+        "note": "a data file a test reads: the fixture no longer reports E0110 (nvs-cli tests/check.rs)"
+      },
+      {
+        "file": "tools/nv/proofs/roster.ts",
+        "find": "export const ABOUT = \"about.md\";",
+        "replace": "export const ABOUT = \"about.txt\";",
+        "note": "a tools module a `bun nv` check uses: no feature finds its about.md, so every group owes a description (`bun nv proofs --verify --group` checks, tools tests)"
+      }
+    ],
+    [
+      {
+        "file": "crates/nvs-config/src/default.toml",
+        "find": "#default = \"production\"               # default",
+        "replace": "default = \"production\"               # default",
+        "note": "an include_str! target: the shipped template gets a live key (nvs-config tests/directives.rs)"
+      },
+      {
+        "file": "crates/nvs-stdlib/src/registry.rs",
+        "find": "const CLASSES_STILL_OWING_A_CARD: &[&str] = &[",
+        "replace": "const CLASSES_STILL_OWING_A_CARD: &[&str] = &[\n        r\"Core\\IO\",",
+        "note": "a class card: the list of classes that owe a card names `Core\\IO`, which has one (nvs-stdlib registry card test)"
+      },
+      {
+        "file": "docs/examples/core/Reflect-ClassInfo/constant/04-a-broken-example.nvs",
+        "find": "",
+        "replace": "// This program does not compile.\nvar $x = (;\n",
+        "note": "a new .nvs file in a directory a check lists: an example that does not compile and has no .out (`bun nv proofs --verify --group \"Core\\Reflect\\ClassInfo\"`)"
+      },
+      {
+        "file": "nvs.toml",
+        "find": "spawn = true",
+        "replace": "spawn = false",
+        "note": "nvs.toml: scripts may no longer spawn a child (concurrency examples and proofs that start a job)"
+      }
+    ]
+  ]
+}
