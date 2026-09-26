@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to start several programs at once, and then wait for each one.
+// requires: unix
+
+// Three jobs. Each one takes one second, and then prints a line.
+array<string> $jobs = [
+    "sleep 1; echo report ready",
+    "sleep 1; echo backup done",
+    "sleep 1; echo cache cleared",
+];
+
+// `spawn()` does not wait. All three programs start now and run at the same time.
+array<Core\Process\Handle> $running = [];
+foreach ($jobs as string $job) {
+    $running[] = Core\Process::spawn("/bin/sh", ["-c", $job]);
+}
+
+// `wait()` returns the result of each program. The whole script takes about one second, not three.
+// This prints `0: report ready`, `0: backup done` and `0: cache cleared`.
+foreach ($running as Core\Process\Handle $program) {
+    var $result = $program->wait();
+    echo $result->exitCode(), ": ", $result->stdout() as string;
+}

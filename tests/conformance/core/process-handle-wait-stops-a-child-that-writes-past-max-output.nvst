@@ -1,0 +1,79 @@
+--TEST--
+`Core\Process\Handle::wait` stops a child whose unread output passes `[limits] max_output`, and a child that ignores the broken pipe still does not hang the wait — `rule:core-classes/process-spawn`, `rule:core-classes/process-run`
+--FILE--
+<?nvs
+// The wait reads what is left of both pipes up to one byte past the ceiling
+// and stops reading there. A child that dies of the closed pipe ends by itself;
+// the Unix child here ignores `SIGPIPE`, so only a wait that ends the child
+// returns at all. A wait that only closed the pipe hung on it.
+//
+// The candidate that is not this platform's has nothing at its path, so the
+// operating system answers `IOError` and that block starts nothing.
+// covers: Core\Process\Handle::wait
+
+int $started = 0;
+int $absent = 0;
+string $out = "<nothing ran>";
+string $err = "<nothing ran>";
+string $small = "<nothing ran>";
+
+try {
+    Core\Process\Handle $flood = Core\Process::spawn("/bin/sh", ["-c", 'trap "" PIPE; while :; do echo a line that repeats; done']);
+    $started += 1;
+    try {
+        $flood->wait();
+        $out = "returned";
+    } catch (RuntimeError $over) {
+        $out = "RuntimeError";
+    }
+    Core\Process\Handle $floodErr = Core\Process::spawn("/bin/sh", ["-c", 'trap "" PIPE; while :; do echo a line that repeats >&2; done']);
+    try {
+        $floodErr->wait();
+        $err = "returned";
+    } catch (RuntimeError $overErr) {
+        $err = "RuntimeError";
+    }
+    // Under the ceiling, the same wait answers the whole capture.
+    $small = Core\Str::trim(Core\Process::spawn("/bin/sh", ["-c", "echo fits"])->wait()->stdout() as string);
+} catch (IOError $notAUnix) {
+    $absent += 1;
+}
+
+try {
+    Core\Process\Handle $floodOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "for /l %i in (0,0,1) do @echo a line that repeats"]);
+    $started += 1;
+    try {
+        $floodOnWindows->wait();
+        $out = "returned";
+    } catch (RuntimeError $overOnWindows) {
+        $out = "RuntimeError";
+    }
+    Core\Process\Handle $floodErrOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "for /l %i in (0,0,1) do @echo a line that repeats 1>&2"]);
+    try {
+        $floodErrOnWindows->wait();
+        $err = "returned";
+    } catch (RuntimeError $overErrOnWindows) {
+        $err = "RuntimeError";
+    }
+    $small = Core\Str::trim(Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo fits"])->wait()->stdout() as string);
+} catch (IOError $notWindows) {
+    $absent += 1;
+}
+
+echo "started=", $started, "\n";
+echo "absent=", $absent, "\n";
+echo "stdout past the ceiling=", $out, "\n";
+echo "stderr past the ceiling=", $err, "\n";
+echo "under the ceiling=", $small, "\n";
+--FILE nvs.toml--
+[capabilities.process]
+exec = true
+
+[limits]
+max_output = "64K"
+--EXPECT--
+started=1
+absent=1
+stdout past the ceiling=RuntimeError
+stderr past the ceiling=RuntimeError
+under the ceiling=fits

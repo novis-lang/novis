@@ -16,6 +16,7 @@
 // covers: Core\Process\Handle::readStdout
 // covers: Core\Process\Handle::readStderr
 // covers: Core\Process\Handle::writeStdin
+// covers: Core\Process\Handle::wait
 
 int $started = 0;
 int $absent = 0;

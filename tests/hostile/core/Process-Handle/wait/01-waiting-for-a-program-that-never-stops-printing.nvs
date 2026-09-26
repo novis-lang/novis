@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a program waits twice, waits after `kill()`, and waits for programs that never stop
+// printing. Each wait should return a result or throw an error. The runtime must not hang or crash.
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    // Starts a shell command: `/bin/sh` on Linux and macOS, `cmd.exe` on Windows.
+    public static function shell(string $unix, string $windows): Core\Process\Handle
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', $windows]);
+        }
+        return Core\Process::spawn('/bin/sh', ['-c', $unix]);
+    }
+
+    // Calls `wait()` and returns one line: what happened.
+    public static function wait(Core\Process\Handle $program): string
+    {
+        try {
+            var $result = $program->wait();
+            return 'exit code ' . $result->exitCode() . ', '
+                . Core\Bytes::length($result->stdout()) . ' bytes';
+        } catch (RuntimeError $tooMuch) {
+            return 'RuntimeError';
+        } catch (IOError $failed) {
+            return 'IOError';
+        }
+    }
+}
+
+// 1. The same program is waited for twice. The second wait returns the same exit code.
+var $twice = Attack::shell('echo hello; exit 3', 'echo hello& exit 3');
+echo 'first wait: ', Attack::wait($twice), "\n";
+echo 'second wait: ', Attack::wait($twice), "\n";
+
+// 2. A wait after `kill()`, on a program that would otherwise run for a long time.
+var $killed = Attack::shell('exec sleep 60', 'ping -n 60 127.0.0.1 >nul');
+$killed->kill();
+echo 'wait after kill: ', Attack::wait($killed), "\n";
+
+// 3. A program that prints forever, and keeps printing when nobody reads its output.
+// It passes the 1 MiB limit, so `wait()` throws `RuntimeError`.
+var $endless = Attack::shell(
+    'trap "" PIPE; while :; do echo a line that repeats; done',
+    'for /l %i in (0,0,1) do @echo a line that repeats',
+);
+echo 'endless output: ', Attack::wait($endless), "\n";
+
+// 4. The same, on the error output.
+var $endlessErrors = Attack::shell(
+    'trap "" PIPE; while :; do echo a line that repeats >&2; done',
+    'for /l %i in (0,0,1) do @echo a line that repeats 1>&2',
+);
+echo 'endless error output: ', Attack::wait($endlessErrors), "\n";
+
+// 5. 200 programs are started and waited for, one after another. Memory should not grow.
+int $waited = 0;
+while ($waited < 200) {
+    Attack::shell('exit 0', 'exit 0')->wait();
+    $waited = $waited + 1;
+}
+echo 'waited for ', $waited, " programs\n";
+
+echo "the runtime is still standing\n";

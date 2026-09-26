@@ -1,0 +1,4 @@
+# The examples run `/bin/sh` from the system folder `/bin`.
+# These lines allow that, and nothing else.
+[capabilities.process]
+exec = ["/bin"]

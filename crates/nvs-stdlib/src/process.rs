@@ -425,23 +425,21 @@ const WRITE_STDIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Process\Handle::wait`'s reference card — `rule:core-api/reference-card`.
 const HANDLE_WAIT_DOC: MethodDoc = MethodDoc {
-    short: "Closes the child's standard input, waits for it to exit, and answers what it did — \
-            `proc_close`, without the caller having to remember that closing the pipes comes \
-            first. The wait suspends this coroutine exactly as `run`'s does.",
+    short: "Closes the program's standard input, waits until the program ends, and returns its \
+            result. While it waits, the server keeps handling other requests.",
     params: &[],
-    ret: "A `Core\\Process\\Result` carrying the exit status and whatever neither `readStdout` nor \
-          `readStderr` had already taken. A program that streamed the whole output gets two empty \
-          captures, which is the answer and not a loss.",
+    ret: "A `Core\\Process\\Result` with the exit code, and the output and error output that \
+          `readStdout` and `readStderr` did not read yet. If you already read all of the output, \
+          both are empty. A second call returns the same exit code and empty output.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "What the child had left to write is more than `[limits] max_output`, on \
-                   `Core\\Process::run`'s terms — the ceiling on a response is the ceiling on one \
-                   capture too.",
+            desc: "The output that was not read yet is larger than `[limits] max_output`. The \
+                   program is then stopped.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The operating system failed to drain a pipe or to reap the child.",
+            desc: "The operating system could not read the output or get the exit code.",
         },
     ],
 };
@@ -732,9 +730,14 @@ fn drain(mut child: Child, bound: u64) -> std::io::Result<Output> {
     let out_pipe = child.stdout.take();
     let err_pipe = child.stderr.take();
     let child = Mutex::new(child);
+    let stop = || {
+        if let Ok(mut child) = child.lock() {
+            let _ = child.kill();
+        }
+    };
     let (stdout, stderr) = std::thread::scope(|scope| {
-        let stderr = scope.spawn(|| read_bounded(err_pipe, bound, &child));
-        let stdout = read_bounded(out_pipe, bound, &child);
+        let stderr = scope.spawn(|| read_bounded(err_pipe, bound, &stop));
+        let stdout = read_bounded(out_pipe, bound, &stop);
         (stdout, stderr.join())
     });
     let stderr = stderr.unwrap_or_else(|panic| std::panic::resume_unwind(panic))?;
@@ -749,8 +752,15 @@ fn drain(mut child: Child, bound: u64) -> std::io::Result<Output> {
     })
 }
 
-/// One pipe read to its end or to `bound`, whichever comes first, killing the
-/// child at the second.
+/// One pipe read to its end or to `bound`, whichever comes first, calling
+/// `stop` at the second.
+///
+/// `stop` ends the child, and every caller owes one. A reader that fills its
+/// allowance stops reading, and the child then either blocks on a full pipe or
+/// ignores the broken one and writes forever, so the reap that follows would
+/// never return. Closing the pipe is not enough on its own: a child that
+/// ignores `SIGPIPE` sees only a failed write. [`drain`] and
+/// `Core\Process\Handle::wait` hold their child differently, so each says how.
 ///
 /// A stream this process never piped answers empty rather than failing: the
 /// caller took the handle out of the child, and a `None` there is a child
@@ -762,17 +772,15 @@ fn drain(mut child: Child, bound: u64) -> std::io::Result<Output> {
 fn read_bounded<R: Read>(
     pipe: Option<R>,
     bound: u64,
-    child: &Mutex<Child>,
+    stop: &(dyn Fn() + Sync),
 ) -> std::io::Result<Vec<u8>> {
     let Some(pipe) = pipe else {
         return Ok(Vec::new());
     };
     let mut held = Vec::new();
     let read = pipe.take(bound).read_to_end(&mut held)?;
-    if u64::try_from(read).unwrap_or(u64::MAX) >= bound
-        && let Ok(mut child) = child.lock()
-    {
-        let _ = child.kill();
+    if u64::try_from(read).unwrap_or(u64::MAX) >= bound {
+        stop();
     }
     Ok(held)
 }
@@ -939,22 +947,6 @@ fn write_off_core<W: Write + Send + 'static>(
     })
 }
 
-/// Whatever is left of one pipe, to its end or to `bound` — [`read_bounded`]
-/// without the kill, which a drain that is about to reap the child anyway has
-/// no use for.
-///
-/// # Errors
-///
-/// Whatever the operating system said about the read.
-fn rest_of<R: Read>(pipe: Option<R>, bound: u64) -> std::io::Result<Vec<u8>> {
-    let Some(pipe) = pipe else {
-        return Ok(Vec::new());
-    };
-    let mut held = Vec::new();
-    pipe.take(bound).read_to_end(&mut held)?;
-    Ok(held)
-}
-
 nvs_runtime::nvs_helper! {
     /// `$handle->readStdout(): ?bytes` — the next chunk the child wrote, or
     /// `null` at the end of the stream.
@@ -1063,11 +1055,20 @@ nvs_runtime::nvs_helper! {
             drop(held.stdin.take());
             let out = held.stdout.take();
             let err = held.stderr.take();
+            let held = Mutex::new(held);
+            let stop = || {
+                if let Ok(mut held) = held.lock() {
+                    let _ = held.kill();
+                }
+            };
             let (stdout, stderr) = std::thread::scope(|scope| {
-                let stderr = scope.spawn(|| rest_of(err, bound));
-                (rest_of(out, bound), stderr.join())
+                let stderr = scope.spawn(|| read_bounded(err, bound, &stop));
+                (read_bounded(out, bound, &stop), stderr.join())
             });
             let stderr = stderr.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+            let mut held = held
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let status = held.reap();
             (held, stdout, stderr, status)
         });
@@ -1474,6 +1475,7 @@ mod tests {
     /// A write after `wait` is the other half: the input is closed by then, so the write throws
     /// rather than answering as though the child had taken it.
     // covers: Core\Process\Handle::writeStdin
+    // covers: Core\Process\Handle::wait
     #[test]
     fn two_writes_reach_a_spawned_child_and_wait_closes_its_input() {
         let mut ctx = Ctx::buffered();

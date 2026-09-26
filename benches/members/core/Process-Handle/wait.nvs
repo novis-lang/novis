@@ -1,0 +1,27 @@
+<?nvs
+// Measures waiting for a short program to end and reading its result, as a server does after it runs a converter.
+// bench: iterations 100
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // `/bin/sh` on Linux and macOS, and `cmd.exe` on Windows. Each program prints one line and ends.
+        string $path = "/bin/sh";
+        array<array<string>> $lists = [["-c", "echo done"], ["-c", "echo a longer line"]];
+        if (Core\Path::SEPARATOR == "\\") {
+            $path = "C:\\Windows\\System32\\cmd.exe";
+            $lists = [["/c", "echo done"], ["/c", "echo a longer line"]];
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The arguments of the next program depend on the output so far, so no round can be skipped.
+            var $program = Core\Process::spawn($path, $lists[($total % 2) as int]);
+            $total = $total + Core\Bytes::length($program->wait()->stdout());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100), "\n";
