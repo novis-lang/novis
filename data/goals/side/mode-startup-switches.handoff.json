@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `mode-startup-switches` — stage 2 has landed; stage 3 is next.** An unwritten\n`[server] dispatch` and `static` now follow `[mode] default` when a configuration is published:\n`nvs_config::server::switches_for` holds the two rows, `Table::from_config` calls it, and a\ncore's `switches` compares its result, so a reload that changes only the mode builds a new table.\n`Dispatch` moved to `nvs_config::server` and `nvs_server::mount` re-exports it.\n\nThe template, the server chapter and the rule's *What is on disk* paragraph still say the old\nthing, which is stage 0's catch-up list and stage 3's work. The goal file's § *Standing decisions*\nanswers every call; no session re-decides one.",
+  "state": "**Side goal `mode-startup-switches` — every stage has landed, and the goal is met.** An unwritten\n`[server] dispatch` and `static` follow `[mode] default` when a configuration is published\n(`nvs_config::server::switches_for`), a reload that changes only the mode rebuilds a core's table,\nand the template, the server chapter, `docs/novis.md`, the `[server]` about page and the rule say so.\n`rule:config/a-startup-default-is-never-flipped` is `shipped`, guarded by the three test homes.\nThe stage 2 tests carry the names the goal's checks run, and main's playbook-selector fix is\ncherry-picked here, so `bun nv chain --check` is green on this branch.\n\nWhat remains is the merge into `main` and the worktree's removal, which is the user's hand\n(AGENTS.md rule 10).",
   "next": {
     "stage": 3,
     "title": "the template and the reference say it, and the proofs exist",
@@ -10,24 +10,24 @@
     ],
     "items": [
       {
-        "done": false,
-        "text": "**The template's two lines and the mode line** (`rule:config/a-startup-default-is-never-flipped`): `crates/nvs-config/src/default.toml:449` and `crates/nvs-config/src/default.toml:451` end `# default: \"entry\"; \"path\" in development` and `# default: false; true in development`, and the `[mode] default` comment at `crates/nvs-config/src/default.toml:49` says development also turns on path dispatch and static files when those two are unwritten. `bun nv directives --check-template` stays green."
+        "done": true,
+        "text": "**The template's two lines and the mode line** (`rule:config/a-startup-default-is-never-flipped`): `crates/nvs-config/src/default.toml:452` and `crates/nvs-config/src/default.toml:454`."
       },
       {
-        "done": false,
-        "text": "**The server chapter** (`rule:config/a-startup-default-is-never-flipped`): the two comments at `docs/reference/tools/25-server.md:43` and `docs/reference/tools/25-server.md:44`, and the sentence at `docs/reference/tools/25-server.md:118` names the development mode again."
+        "done": true,
+        "text": "**The server chapter** (`rule:config/a-startup-default-is-never-flipped`): `docs/reference/tools/25-server.md:43`."
       },
       {
-        "done": false,
-        "text": "**The rule's *What is on disk*** (`rule:config/a-startup-default-is-never-flipped`) at `docs/rules/config/a-startup-default-is-never-flipped.md:23` names `switches_for` and drops the sentence saying the two rows are not derived; `bun nv rules --render` regenerates the chapter."
+        "done": true,
+        "text": "**The rule's *What is on disk*** (`rule:config/a-startup-default-is-never-flipped`): `docs/rules/config/a-startup-default-is-never-flipped.md:23`."
       },
       {
-        "done": false,
-        "text": "**The proofs** (`rule:testing/feature-proofs`): `bun nv proofs --id` for the server chapter's sections and the two keys, each paid; `docs/novis.md` regenerated with `bun nv reference --no-examples` (goal file § *Stage 0*, `docs/agent/goals/side/mode-startup-switches.md:38`)."
+        "done": true,
+        "text": "**The proofs** (`rule:testing/feature-proofs`): `directive:server` is complete, and its about page names the development default at `docs/examples/config/server/about.md:12`."
       }
     ]
   },
   "backlog": [
-    "After stage 3, the goal is met: run the `DONE` gates the loop prompt names and land the branch on `main`."
+    "Merge `side/mode-startup-switches` into `main`, then `git worktree remove` and `git branch -d` (AGENTS.md rule 10)."
   ]
 }
