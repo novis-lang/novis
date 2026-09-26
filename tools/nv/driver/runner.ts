@@ -81,6 +81,19 @@ async function capture(argv: string[], cwd: string, env?: Record<string, string>
 const none = (fail: string): Verdict => ({ fail, short: "" });
 const green: Verdict = { fail: "", short: "" };
 
+/**
+ * The variables a check's command runs with beyond the recorder's. A command that runs the pipeline's
+ * `nvs` itself has the compile cache off. A `command` check that does not measure the release CLI has
+ * that `nvs` in `NVS_BIN`, so a script that starts `nvs` itself, as the editor's headless suites do,
+ * runs this tree's build and records its footprint, and never falls back to a `target/debug` build that
+ * may be missing or old. `exe` is the pipeline's `nvs`, or null when it did not build.
+ */
+export function commandEnv(c: Check, argv: string[], exe: string | null): Record<string, string> {
+  const env: Record<string, string> = argv.includes(covwsNvs()) ? { NOVIS_NO_FILE_CACHE: "1" } : {};
+  if (exe !== null && c.kind === "command" && !measuresReleaseCli(c)) env.NVS_BIN = exe;
+  return env;
+}
+
 export interface OpenOptions {
   /** Pick every atom of every check, whatever changed. */
   full: boolean;
@@ -344,14 +357,8 @@ export class PlanSweep {
       if (built.code !== 0) return none(`the release build failed -- ${label}: ${firstErrLine(built)}`);
     }
     const cwd = c.cwd ?? ".";
-    const extra: Record<string, string> = argv.includes(covwsNvs()) ? { NOVIS_NO_FILE_CACHE: "1" } : {};
-    // A command names the pipeline's `nvs` to whatever it starts through `NVS_BIN`, built first, so a
-    // script that runs `nvs` itself runs this tree's build and records its footprint here. A command
-    // that measures the release CLI names its binary itself.
-    if (c.kind === "command" && !measuresReleaseCli(c)) {
-      const exe = await this.binary();
-      if (typeof exe === "string") extra.NVS_BIN = exe;
-    }
+    const exe = c.kind === "command" && !measuresReleaseCli(c) ? await this.binary() : null;
+    const extra = commandEnv(c, argv, typeof exe === "string" ? exe : null);
     const { o, keys } = await this.recorded(argv, cwd, argv.join(" "), extra);
     const own: Keyed = new Map(keys);
     // What records nothing of its reads: a command's `commandKeys`, and any `cargo` run everything.
