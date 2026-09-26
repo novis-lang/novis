@@ -1,0 +1,4 @@
+"./templates/" is the same folder as "templates"
+"shop/../templates" is the same folder as "templates"
+"shop//views" is the same folder as "shop/views"
+2

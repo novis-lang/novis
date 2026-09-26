@@ -1,0 +1,23 @@
+<?nvs
+// Measures removing the `.` and `..` parts from a short path, as a program does before it compares two paths.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = [
+            "/srv/shop/../invoices/./invoice-10420.pdf",
+            "guide/install/../unix.md",
+            "./uploads//2026/09/holiday.jpeg",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The path normalized next depends on the last result, so no round can be skipped.
+            $total = $total + Core\Str::length(Core\Path::normalize($paths[$total % 3]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

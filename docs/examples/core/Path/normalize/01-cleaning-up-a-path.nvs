@@ -1,0 +1,19 @@
+<?nvs
+// Shows how `Core\Path::normalize` removes the `.` and `..` parts from a path.
+
+// On Windows, the result is written with `\`. This example replaces it with `/`,
+// so the output is the same on every platform.
+class Show {
+    public static function normal(string $path): void {
+        echo Core\Str::replace(Core\Path::normalize($path), Core\Path::SEPARATOR, "/"), "\n";
+    }
+}
+
+// `..` removes `www`, and `.` is removed. This prints `/var/log/app.log`.
+Show::normal("/var/www/../log/./app.log");
+
+// Repeated separators and the one at the end are removed. This prints `shop/images/logo.png`.
+Show::normal("shop//images/./logo.png/");
+
+// A `\` is a separator too. This prints `C:/Users/report.txt`.
+Show::normal("C:\\Users\\Public\\..\\report.txt");

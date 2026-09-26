@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to find the folders in a list that are written differently but are the same folder.
+
+// In a real program, this list comes from a configuration file.
+array<string> $folders = ["templates", "./templates/", "shop/../templates", "shop/views", "shop//views"];
+
+// The normal form is the key, so two ways of writing one folder give one key.
+array<string> $first = [];
+foreach ($folders as string $folder) {
+    string $key = Core\Str::replace(Core\Path::normalize($folder), Core\Path::SEPARATOR, "/");
+    if (Core\Arr::hasKey($first, $key)) {
+        echo "\"", $folder, "\" is the same folder as \"", $first[$key], "\"\n";
+    } else {
+        $first[$key] = $folder;
+    }
+}
+
+// Five entries name two folders. This prints `2`.
+echo Core\Arr::count($first), "\n";
