@@ -1,0 +1,17 @@
+<?nvs
+// Shows what happens when you ask for none of the values, and for more values than the array has.
+
+array<string> $colors = ["red", "green", "blue"];
+
+// A count of 0 returns an empty list. This prints [].
+echo Core\Json::encode(Core\Random::sample($colors, 0)), "\n";
+
+// A count of 3 returns every color, in a random order. This prints 3.
+echo Core\Arr::count(Core\Random::sample($colors, 3)), "\n";
+
+// The array has only three colors, so a count of 4 throws an error.
+try {
+    echo Core\Json::encode(Core\Random::sample($colors, 4)), "\n";
+} catch (Throwable $e) {
+    echo "Error: ", $e->message, "\n";
+}

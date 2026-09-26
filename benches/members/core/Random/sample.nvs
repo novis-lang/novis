@@ -1,0 +1,20 @@
+<?nvs
+// Measures choosing three of twenty questions, as a program does when it builds a short quiz.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<int> $questions = Core\Arr::range(1, 20);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds the questions it chose, so no round can be left out.
+            array<int> $quiz = Core\Random::sample($questions, 3);
+            $total = $total + $quiz[0] + $quiz[1] + $quiz[2];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

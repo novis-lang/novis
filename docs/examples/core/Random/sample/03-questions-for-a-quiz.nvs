@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to build a quiz from five questions chosen at random from a larger set.
+
+array<string> $questions = [
+    "q1" => "What is 2 + 2?",
+    "q2" => "What is the capital of France?",
+    "q3" => "How many days are in a week?",
+    "q4" => "What color is the sky on a clear day?",
+    "q5" => "How many legs does a spider have?",
+    "q6" => "What is the boiling point of water in Celsius?",
+    "q7" => "How many minutes are in an hour?",
+    "q8" => "What is 10 divided by 2?",
+];
+
+// The result is a list of five question texts. The keys "q1" to "q8" are not kept.
+array<string> $quiz = Core\Random::sample($questions, 5);
+
+// The questions change on every run. This prints the numbers 1 to 5, each with `ok`.
+int $number = 1;
+foreach ($quiz as string $question) {
+    echo $number, ". ", Core\Arr::contains($questions, $question) ? "ok" : "missing", "\n";
+    $number = $number + 1;
+}
+
+// Every student gets five different questions. This prints 5.
+echo Core\Arr::count(Core\Arr::unique($quiz)), "\n";

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to choose three different winners from a list of names.
+
+array<string> $names = ["Ana", "Ben", "Chen", "Dara", "Emil", "Fay"];
+
+// `Core\Random::sample` returns three of the names. No name is chosen twice.
+array<string> $winners = Core\Random::sample($names, 3);
+
+// The winners change on every run, so this prints only what is always true: 3 and 3.
+echo Core\Arr::count($winners), "\n";
+echo Core\Arr::count(Core\Arr::unique($winners)), "\n";
+
+// Every winner is one of the names. This prints `yes` three times.
+foreach ($winners as string $winner) {
+    echo Core\Arr::contains($names, $winner) ? "yes" : "no", "\n";
+}
+
+// The list of names does not change. This prints 6.
+echo Core\Arr::count($names), "\n";

@@ -90,6 +90,8 @@
 //! equivalent, because seeding the global generator is the spelling this
 //! separation removes.
 
+use std::collections::HashSet;
+
 use rand::seq::SliceRandom;
 use rand::{Rng, RngExt};
 
@@ -341,6 +343,13 @@ pub(crate) const SEEDED_NEW: CoreMethod = CoreMethod {
     doc: Some(&SEEDED_CONSTRUCTOR_DOC),
 };
 
+/// `Core\Random\Seeded`'s own card — `rule:core-api/reference-card`.
+const SEEDED_CARD: ClassDoc = ClassDoc {
+    short: "A random generator that starts from a seed you give it, so the same seed gives the \
+            same values every time. Use it for tests and simulations. For a key, a code or a \
+            token, use `Core\\Random`.",
+};
+
 /// `Core\Random\Seeded`'s registry rows — [`CLASS`]'s seven members, in the
 /// same order, over a sequence an explicit seed fixes.
 ///
@@ -357,7 +366,7 @@ pub(crate) const SEEDED_NEW: CoreMethod = CoreMethod {
 /// into a table of native ones.
 pub(crate) const SEEDED: CoreClass = CoreClass {
     name: SEEDED_NAME,
-    doc: None,
+    doc: Some(&SEEDED_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -639,9 +648,10 @@ fn subject(
 
 /// Every live slot of a borrowed subject, in insertion order.
 ///
-/// `sample` and `shuffle` draw over *slots* rather than over values, so a
-/// value is retained only for the entries that end up in the answer. `pick`
-/// needs one entry and does not build this list at all — `pick_from`.
+/// `shuffle`, and a `sample` of more than half the subject, draw over *slots*
+/// rather than over values, so a value is retained only for the entries that
+/// end up in the answer. `pick` and a smaller `sample` draw slots directly and
+/// do not build this list at all — `pick_from`, `sample_from`.
 fn slots(subject: &NvsArray) -> Vec<usize> {
     let mut out = Vec::new();
     let mut from = 0_usize;
@@ -796,6 +806,14 @@ fn pick_from(rng: &mut Generator<'_>, subject: &NvsArray) -> Value {
 
 /// `sample`'s draw: `count` distinct entries, in the order they were drawn.
 ///
+/// Its cost follows `count`, not the subject's size. Up to half of the
+/// entries, it draws slots the way `pick_from` does and draws again on a hole
+/// or on a slot it already took, so every draw succeeds with a fixed chance
+/// and one entry out of a million costs the same as one out of three. Past
+/// half, the answer is itself as long as the subject, so it walks every live
+/// slot and shuffles the front `count` of them. Each path answers every
+/// ordered choice of `count` entries with the same chance.
+///
 /// # Errors
 ///
 /// `refusal`, handed the number of entries the subject holds, when `count` is
@@ -806,12 +824,25 @@ fn sample_from(
     count: usize,
     refusal: impl FnOnce(usize) -> Fault,
 ) -> Result<Value, Fault> {
-    let mut slots = slots(subject);
-    if count > slots.len() {
-        return Err(refusal(slots.len()));
+    let live = subject.count();
+    if count > live {
+        return Err(refusal(live));
     }
-    let (sampled, _) = slots.partial_shuffle(rng, count);
-    Ok(drawn(subject, sampled))
+    if count.saturating_mul(2) > live {
+        let mut slots = slots(subject);
+        let (sampled, _) = slots.partial_shuffle(rng, count);
+        return Ok(drawn(subject, sampled));
+    }
+    let end = subject.slot_end();
+    let mut taken = HashSet::with_capacity(count);
+    let mut sampled = Vec::with_capacity(count);
+    while sampled.len() < count {
+        let slot = rng.random_range(0..end);
+        if subject.value_at(slot).is_some() && taken.insert(slot) {
+            sampled.push(slot);
+        }
+    }
+    Ok(drawn(subject, &sampled))
 }
 
 /// `shuffle`'s draw: every entry, in a uniformly random order.
@@ -1617,6 +1648,38 @@ mod tests {
             sample.dedup();
             assert_eq!(sample.len(), 4, "a sample repeated an entry");
         }
+        release(subject);
+    }
+
+    /// A small sample draws slots directly, so over an array with holes it
+    /// must still answer only live entries, never one twice, and reach every
+    /// live entry across enough draws.
+    // covers: Core\Random::sample
+    #[test]
+    fn a_small_sample_over_holes_draws_only_live_entries() {
+        let mut array = NvsArray::new();
+        for n in 0..20 {
+            array.append(Value::int(n));
+        }
+        for n in (0..16).step_by(2) {
+            array.unset(n.to_string().as_bytes());
+        }
+        let subject = Value::array(array);
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..400 {
+            let sample = taken_ints(
+                run(super::nvs_core_random_sample, &[subject, Value::uint(5)])
+                    .expect("5 of 12 is drawable"),
+            );
+            assert_eq!(sample.len(), 5);
+            for n in &sample {
+                assert!(n % 2 == 1 || *n >= 16, "{n} was unset");
+            }
+            let distinct: std::collections::HashSet<i64> = sample.iter().copied().collect();
+            assert_eq!(distinct.len(), 5, "a sample repeated an entry");
+            seen.extend(distinct);
+        }
+        assert_eq!(seen.len(), 12, "some live entry was never drawn");
         release(subject);
     }
 
