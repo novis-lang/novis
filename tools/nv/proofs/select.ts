@@ -2,24 +2,33 @@
 //
 // A program runs when the selection picks it (`tools/nv/select/`): its footprint holds a key the change
 // since the store's tree moved, its definition changed (the program, its `.out` and `.in`, the `nvs.toml`
-// beside it), it was never recorded, or its last run was red or owed. Every other program is reported
-// green without a run. `--no-cache` runs every program in scope.
+// beside it), it was never recorded, its last run was red or owed, or it is marked diverged. Every other
+// program is reported green without a run. `--no-cache` runs every program in scope.
 //
-// Each program that runs is recorded on the binary it ran on: its coverage and footprint log go under
-// the run's scratch directory through `NV_PROOF_RECORD`, a batch of programs at a time so the disk holds
-// one batch's counters, and a program that is skipped on this host holds its own file alone. The run,
-// green or red, then moves the store's tree past the change (`advance`), with every other atom the
-// change reached marked owed and a red program kept red. A run the sweep started leaves the tree to the
-// sweep (`NO_ADVANCE_ENV`).
+// Each program that runs is judged on the proof binary and recorded in a second run on the covws debug
+// `nvs` (`recordingRun`), whose outcome is never the verdict: its coverage and footprint log go under the
+// run's scratch directory, a batch of programs at a time so the disk holds one batch's counters. A
+// recording run that ends differently from the judged run, with another exit status or other standard
+// output, may have stopped short of code the judged run reached: the program is marked diverged
+// (`SelectStore.markDiverged`), and the selection picks it every time until a recording run agrees
+// again. A program that is skipped on this host holds its own file alone. The run, green or red, then
+// moves the store's tree past the change (`advance`), with every other atom the change reached marked
+// owed and a red program kept red. A run the sweep started leaves the tree to the sweep
+// (`NO_ADVANCE_ENV`).
+//
+// A recording run costs a second process per program on a build many times slower than the judged one.
+// That time buys a verdict taken on the binary a person ships, under the time limit written for it.
 
 import { join } from "node:path";
 import { type Graph, metadata } from "../keys/graph.ts";
+import { buildCovws } from "../lib/covws.ts";
+import { cargoLines } from "../lib/progress.ts";
 import { proofDef, proofId } from "../select/atoms.ts";
 import { recordedIn } from "../select/extract.ts";
 import { advance, chunks, fullChange, pool, Recorder } from "../select/record.ts";
 import { type ChangeSet, computeChange, query, type Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
-import { type Binary, type Pass, RECORD_ENV, recordName, type RunOptions, runPrograms, type What } from "./run.ts";
+import { type Binary, divergence, type Pass, recordingRun, recordName, type Result, type RunOptions, runPrograms, type What } from "./run.ts";
 
 /** How many programs one recorded batch runs. */
 const BATCH = 96;
@@ -35,8 +44,38 @@ async function selection(store: SelectStore, graph: Graph | null, programs: { pa
   return { change, sel };
 }
 
+/** A program whose recording run ended differently from its judged run, and why. */
+export interface Diverged {
+  path: string;
+  why: string;
+}
+
+/**
+ * Records one judged program: its recording run on `nvs` into `dir`, the keys that run left, and the
+ * judged verdict. A recording run that diverged marks the program, and one that agreed clears its mark.
+ * Returns why it diverged, or null.
+ */
+export async function recordProgram(rec: Recorder, nvs: string, dir: string, what: What, path: string, result: Result | undefined): Promise<string | null> {
+  const id = proofId(path);
+  const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
+  // A program skipped on this host ran nothing; it is selected again when its own file changes.
+  if (!result?.ran) {
+    rec.record(id, proofDef(path), verdict, new Map([[`file:${path}`, ""]]));
+    return null;
+  }
+  const recorded = await recordingRun(nvs, what, path, dir, rec.tmpEnv, result.ran);
+  const got = recordedIn(dir).get(recordName(path));
+  const keys: Keyed = got ? (await rec.extract(got, [nvs])).keys : new Map();
+  if (keys.size === 0) keys.set(`file:${path}`, "");
+  rec.record(id, proofDef(path), verdict, keys);
+  const why = divergence(result.ran, recorded);
+  if (why === null) rec.store.clearDiverged(id);
+  else rec.store.markDiverged(id, why);
+  return why;
+}
+
 /** Runs the programs of `programs` the change selects, all of them with `all`, and records each. */
-export async function runSelected(bin: Binary, programs: { what: What; path: string }[], opts: RunOptions, all: boolean): Promise<Pass & { ran: number }> {
+export async function runSelected(bin: Binary, programs: { what: What; path: string }[], opts: RunOptions, all: boolean): Promise<Pass & { ran: number; diverged: Diverged[] }> {
   const store = new SelectStore();
   const graph = await metadata();
   const { change, sel } = await selection(store, graph, programs);
@@ -44,42 +83,36 @@ export async function runSelected(bin: Binary, programs: { what: What; path: str
   const picked = new Set(chosen.map((p) => p.path));
   const unchanged = new Set(programs.filter((p) => !picked.has(p.path)).map((p) => p.path));
   const rec = await Recorder.open(store, change.view, graph, "proofs");
-  const dir = join(rec.dir, "proofs");
-  const saved = { [RECORD_ENV]: process.env[RECORD_ENV], TMP: process.env.TMP, TEMP: process.env.TEMP, TMPDIR: process.env.TMPDIR };
-  process.env[RECORD_ENV] = dir;
-  Object.assign(process.env, rec.tmpEnv);
   const results: Pass = { results: new Map(), width: 1, seconds: 0 };
   const ran = new Set<string>();
+  const diverged: Diverged[] = [];
   try {
     // What is not run is reported first, in one pass with no programs to run.
     const quiet = await runPrograms(bin, programs.filter((p) => unchanged.has(p.path)), opts, unchanged);
     for (const [k, v] of quiet.results) results.results.set(k, v);
-    for (const batch of chunks(chosen, BATCH)) {
+    // The recording build is the pipeline's debug build, which cargo brings up to date.
+    const nvs = chosen.length > 0 ? (await buildCovws({ onLine: cargoLines("proofs: building the covws debug nvs") })).nvs : "";
+    for (const [n, batch] of chunks(chosen, BATCH).entries()) {
+      // Every program of the batch is judged before any is recorded, so a judged run never shares the
+      // machine with the slower recording runs.
       const pass = await runPrograms(bin, batch, opts);
       results.width = Math.max(results.width, pass.width);
       results.seconds += pass.seconds;
-      const recorded = recordedIn(dir);
+      const dir = join(rec.dir, "proofs", String(n));
       await pool(batch, Math.max(1, pass.width), async ({ what, path }) => {
         const result = pass.results.get(`${what}:${path}`);
         if (result) results.results.set(`${what}:${path}`, result);
-        const got = recorded.get(recordName(path));
-        const keys: Keyed = got ? (await rec.extract(got, [bin.path])).keys : new Map();
-        // A program skipped on this host ran nothing; it is selected again when its own file changes.
-        if (keys.size === 0) keys.set(`file:${path}`, "");
-        const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
-        rec.record(proofId(path), proofDef(path), verdict, keys);
+        const why = await recordProgram(rec, nvs, dir, what, path, result);
+        if (why !== null) diverged.push({ path, why });
         ran.add(proofId(path));
       });
     }
     // Red or green, the tree moves; a red program stays selected as red.
     advance(store, change, sel, ran, graph);
   } finally {
-    for (const [k, v] of Object.entries(saved)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
     rec.close();
     store.close();
   }
-  return { ...results, ran: ran.size };
+  diverged.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return { ...results, ran: ran.size, diverged };
 }

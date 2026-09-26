@@ -156,7 +156,7 @@ export function reason(s: Selected): string {
 }
 
 /** The reasons a reached check's picked atoms give, each once, and whether all of them are from before
- * the change: owed, red or never recorded. */
+ * the change: owed, red, diverged or never recorded. */
 export function reasons(atoms: string[], picked: Map<string, Selected>): { by: string[]; before: boolean } {
   const by = new Set<string>();
   let before = true;
@@ -164,7 +164,7 @@ export function reasons(atoms: string[], picked: Map<string, Selected>): { by: s
     const s = picked.get(a);
     if (!s) continue;
     by.add(reason(s));
-    if (s.why !== "owed" && s.why !== "red" && s.why !== "new") before = false;
+    if (s.why !== "owed" && s.why !== "red" && s.why !== "new" && s.why !== "diverged") before = false;
   }
   return { by: [...by].sort(), before: before && by.size > 0 };
 }

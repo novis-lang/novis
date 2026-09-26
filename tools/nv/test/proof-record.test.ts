@@ -3,7 +3,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
-import { RECORD_ENV, proofRecording, recordName, spawnProof } from "../proofs/run.ts";
+import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, spawnProof } from "../proofs/run.ts";
+import { recordProgram } from "../proofs/select.ts";
+import { proofId } from "../select/atoms.ts";
+import { Recorder } from "../select/record.ts";
+import { SelectStore } from "../select/store.ts";
 import { scratch } from "./scratch.ts";
 
 describe("recording a proof program", () => {
@@ -47,4 +51,52 @@ describe("recording a proof program", () => {
       s.cleanup();
     }
   }, 120_000);
+});
+
+describe("the judged run and the recording run", () => {
+  const SQRT = "docs/examples/core/Math/sqrt/01-square-roots.nvs";
+  const ran = (code: number, stdout: string, timedOut = false): Ran => ({ code, stdout, stderr: "", timedOut, ms: 1000 });
+
+  test("a verdict is taken on the uninstrumented proof profile, built as plain cargo builds it", () => {
+    expect(PROOF_BINARY).toBe(`target/proof/${process.platform === "win32" ? "nvs.exe" : "nvs"}`);
+    expect(PROOF_BUILD.argv).toEqual(["cargo", "build", "--profile", "proof", "--bin", "nvs"]);
+    expect(PROOF_BUILD.path).toBe(PROOF_BINARY);
+  });
+
+  test("a recording run may take many times its program's limit, and its own limit after a judged timeout", () => {
+    const attack = "tests/hostile/core/Attributes/all/01-one-roster-read-back-at-many-places.nvs";
+    expect(recordingLimitMs("hostile", attack)).toBe(hostileLimitMs(readFileSync(abs(attack), "utf8")) * HANG_FACTOR);
+    expect(recordingLimitMs("examples", SQRT, ran(0, "", true))).toBe(60_000);
+  });
+
+  test("a recording run diverges on another exit status or other standard output, and never after a judged timeout", () => {
+    expect(divergence(ran(0, "a\nb\n"), ran(0, "a\r\nb"))).toBeNull();
+    expect(divergence(ran(0, "a\n"), ran(101, "a\n"))).toBe("exit 101 on the recording run, 0 on the judged run");
+    expect(divergence(ran(0, "a\nb\n"), ran(0, "a\nc\n"))).toBe("stdout differs from the judged run's at line 2");
+    expect(divergence(ran(0, "a\n"), ran(1, "", true))).toBe("the recording run was still running after 1s");
+    expect(divergence(ran(1, "", true), ran(0, "x"))).toBeNull();
+  });
+
+  test("a recording run records on the covws build, and marks or clears the program's divergence", async () => {
+    const nvs = covwsNvs();
+    if (!existsSync(nvs)) throw new Error(`${nvs} is built by \`bun nv verify\` before this test runs`);
+    const store = new SelectStore(":memory:", "test-os");
+    const rec = await Recorder.open(store, new Map(), null, "proof-record-test");
+    try {
+      const out = readFileSync(abs(SQRT.replace(/\.nvs$/, ".out")), "utf8");
+      const dir = join(rec.dir, "proofs");
+      const diverged = await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "ok", why: "", cached: false, ran: ran(0, `${out}extra\n`) });
+      expect(diverged).toMatch(/^stdout differs from the judged run's at line /);
+      expect([...store.divergences().keys()]).toEqual([proofId(SQRT)]);
+      expect(store.atom(proofId(SQRT))?.verdict).toBe("green");
+      expect(await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "ok", why: "", cached: false, ran: ran(0, out) })).toBeNull();
+      expect(store.divergences().size).toBe(0);
+      // A program skipped on this host is not run again, and holds its own file.
+      expect(await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "skip", why: "", cached: false })).toBeNull();
+      expect(store.footprint(proofId(SQRT))).toContain(`file:${SQRT}`);
+    } finally {
+      rec.close();
+      store.close();
+    }
+  }, 240_000);
 });

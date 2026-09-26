@@ -477,6 +477,10 @@ async function sweepOver(
     owed = closed.owed;
     const ran = Object.entries(closed.ran).map(([k, n]) => `${n} ${k}`).join(", ");
     p.note(`the sweep ran ${ran || "no atom"}; ${owed} atom(s) the change reached and nothing ran stay owed`);
+    if (closed.diverged.size > 0) {
+      p.note(`${closed.diverged.size} atom(s) ended differently on the recording run than on the judged run, and run every time until they agree:`);
+      for (const [id, why] of [...closed.diverged].sort(([a], [b]) => (a < b ? -1 : 1))) p.note(`  diverged  ${id}: ${why}`);
+    }
   }
   for (const x of checks) o.onDone?.(x, result.verdicts.get(x.id) ?? false);
   return { result, secs: Math.round((Date.now() - started - waited) / 1000), owed };

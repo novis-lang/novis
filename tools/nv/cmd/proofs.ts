@@ -30,8 +30,9 @@
 // debug build, `--bless`, `--run` and `--verify` use the proof binary, and
 // `--record-perf` uses the release binary, each built first when it is not current. `--run` and
 // `--verify` on the proof binary run only the programs the change since the selection store's tree
-// reaches, record each, and report the rest green (`tools/nv/proofs/select.ts`); `--no-cache` runs
-// every program in scope, and a binary named with `--nvs` runs every program and records nothing.
+// reaches, record each in a second run on the covws debug build, and report the rest green
+// (`tools/nv/proofs/select.ts`); `--no-cache` runs every program in scope, and a binary named with
+// `--nvs` runs every program and records nothing.
 // `rule:testing/feature-proofs` is what a feature owes, `tools/nv/proofs/roster.ts` is where the features
 // come from, `tools/nv/proofs/collect.ts` is how each proof is found on disk, `tools/nv/proofs/run.ts` is
 // how a proof program is run and judged, and `tools/nv/proofs/perf.ts` is how a figure is taken.
@@ -44,8 +45,8 @@ import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, kn
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
-import { bless, namedBinary, proofBinary, proofBinaryPath, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
-import { runSelected } from "../proofs/select.ts";
+import { bless, namedBinary, type Pass, PROOF_BINARY, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
+import { type Diverged, runSelected } from "../proofs/select.ts";
 
 export const summary =
   "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report]";
@@ -66,7 +67,7 @@ function binary(explicit: string | undefined): string | null {
   if (explicit !== undefined) return existsSync(explicit) ? explicit : null;
   const exe = process.platform === "win32" ? "nvs.exe" : "nvs";
   const covws = `${COVWS_TARGET}/${hostTriple()}`;
-  for (const p of [`target/release/${exe}`, proofBinaryPath(), `${covws}/debug/${exe}`].map((x) => abs(x))) {
+  for (const p of [`target/release/${exe}`, PROOF_BINARY, `${covws}/debug/${exe}`].map((x) => abs(x))) {
     if (existsSync(p)) return p;
   }
   return null;
@@ -339,7 +340,7 @@ async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: bo
   const programs = running.flatMap((s) => suites.flatMap((what) => programsOf(s, what).map((path) => ({ what, path }))));
   // A binary named by hand is not the one the store records on: every program runs, and nothing is
   // recorded.
-  const pass = bin.recorded ? await runSelected(bin, programs, opts, flags.has("--no-cache")) : await runPrograms(bin, programs, opts);
+  const pass: Pass & { diverged?: Diverged[] } = bin.recorded ? await runSelected(bin, programs, opts, flags.has("--no-cache")) : await runPrograms(bin, programs, opts);
   for (const scope of scopes) {
     const lines = heads.get(scope)!;
     let failed = !running.includes(scope);
@@ -348,6 +349,13 @@ async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: bo
     if (scopes.length > 1) lines.push(`-- ${scope.label ?? "the whole roster"}: ${failed ? "failed" : "passed"}`);
     out.push(...lines);
     if (failed) rc = 1;
+  }
+  // A divergence is no verdict: it says which footprints are not trusted, and those programs run every
+  // time until a recording run agrees with its judged run again.
+  const diverged = pass.diverged ?? [];
+  if (diverged.length > 0) {
+    out.push(`proofs: ${diverged.length} program(s) ended differently on the recording run, so each runs every time until they agree:`);
+    for (const d of diverged) out.push(`  diverged  ${d.path}: ${d.why}`);
   }
   return rc;
 }

@@ -3,18 +3,19 @@
 // `bun nv proofs --run` and `--verify` call this, over any number of groups in one pass: the files of
 // every group go into one pool, and each group's verdict lines are counted from its own files.
 //
-// The programs run on the proof binary: the `proof` profile built through `covwrap` into `target/covws`
-// (`lib/covws.ts`), so a proof program is recorded on the binary it is judged on. Coverage counters are
-// placed before inlining, so optimized code maps to the same items a debug build does. `proofBinary`
-// runs cargo every time, and cargo rebuilds what changed. `releaseBinary` is `target/release/`, which
-// the perf ledger measures on, uninstrumented, and it too is cargo's to bring up to date: a build that
-// has nothing to do costs cargo's own look at its fingerprints.
+// A verdict is taken on the proof binary, `target/proof/`, the optimized `proof` profile built without
+// coverage counters: counters slow optimized code several times over, and an attack's time limit is
+// written for the binary a person ships. `proofBinary` runs cargo every time, and cargo rebuilds when
+// what the binary is built from changed. `releaseBinary` is `target/release/`, which the perf ledger
+// measures on, and it too is cargo's to bring up to date: a build that has nothing to do costs cargo's
+// own look at its fingerprints.
 //
 // Which programs run is the selection's (`tools/nv/select/`), and `cmd/proofs.ts` makes it; this file
-// runs every program it is handed. With `NV_PROOF_RECORD=<dir>` in the environment each run is recorded
-// into that directory under the program's `recordName`: `proofRecording` owns what the program's
-// processes are told. Without it, an instrumented binary's counters go to `DISCARD_PROFILE`, never into
-// the working directory.
+// runs every program it is handed. What a program used is recorded in a second run of it, on the covws
+// debug `nvs` (`recordingRun`), whose outcome is never a verdict. With `NV_PROOF_RECORD=<dir>` in the
+// environment each run is recorded into that directory under the program's `recordName`:
+// `proofRecording` owns what the program's processes are told. Without it, an instrumented binary's
+// counters go to `DISCARD_PROFILE`, never into the working directory.
 //
 // A run over whole groups records each group's example and attack directories and bench file in the
 // selection store (`proofReadsSlot`), which is how `select/checks.ts` knows which proof programs a
@@ -23,7 +24,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { digest } from "../keys/scan.ts";
-import { COVWS_TARGET, covwsCargo, hostTriple } from "../lib/covws.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
 import { killTree, reapOrphans, run as runProc } from "../lib/proc.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
@@ -41,18 +41,25 @@ export interface Binary {
   key: string;
   /** The same, for what a run of it depends on. */
   runs: string;
-  /** The proof binary the selection store records on; a binary named by hand is not. */
+  /** Whether the selection picks and records the programs judged on it: the proof binary's are, and a
+   * binary named by hand runs every program and records nothing. */
   recorded?: boolean;
 }
 
 const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
-/** The proof binary, repo-relative: the `proof` profile of the `covws` build. */
-export const proofBinaryPath = () => `${COVWS_TARGET}/${hostTriple()}/proof/${EXE}`;
+/** The proof binary, repo-relative: the `proof` profile, built without coverage counters. */
+export const PROOF_BINARY = `target/proof/${EXE}`;
 export const RELEASE_BINARY = `target/release/${EXE}`;
 
-/** The release build, the argv `bun nv loop`'s acceptance sweep runs, so both share one set of
- * artefacts under `target/release/`. */
-const RELEASE = { name: "release binary", path: RELEASE_BINARY, argv: ["cargo", "build", "--release", "-p", "nvs-cli"] };
+/** The two optimized builds. The release build is the argv `bun nv loop`'s acceptance sweep runs, so
+ * both share one set of artefacts under `target/release/`. */
+export const PROOF_BUILD = { name: "proof binary", key: "proof", path: PROOF_BINARY, argv: ["cargo", "build", "--profile", "proof", "--bin", "nvs"] };
+const RELEASE = { name: "release binary", key: "release", path: RELEASE_BINARY, argv: ["cargo", "build", "--release", "-p", "nvs-cli"] };
+
+/** How many times its own limit a recording run may take before it counts as hung: the covws debug
+ * build is unoptimized and instrumented, so it is many times slower than the binary a verdict is
+ * taken on. The same factor the valgrind run gets. */
+export const HANG_FACTOR = 20;
 
 /** `// requires: unimplemented`, the website's own skip marker. */
 const UNIMPL_RE = /^(?:\/\/|#)\s*requires:\s*unimplemented/m;
@@ -90,26 +97,14 @@ const CRASH_MARKERS = [
 const EXAMPLE_TIMEOUT_MS = 60_000;
 export const HOSTILE_TIMEOUT_MS = 10_000;
 
-/** The proof binary of the tree as it stands: cargo builds the `proof` profile through `covwrap`, and
- * rebuilds only what changed. A string is why there is none. */
-export async function proofBinary(): Promise<Binary | string> {
-  const { env, args } = covwsCargo();
-  const argv = ["cargo", "build", "--profile", "proof", "--bin", "nvs", ...args];
-  const path = abs(proofBinaryPath());
-  const onLine = cargoLines("proofs: building the proof binary");
-  const built = await linked(path, () => runProc(argv, { env, timeoutMs: 60 * 60 * 1000, onLine }), (r) => r.stderr);
-  if (built.code !== 0 || !existsSync(path)) {
-    const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
-    return `\`${argv.join(" ")}\` failed (exit ${built.code}):\n${tail}`;
-  }
-  return { path, key: "proof", runs: "proof", recorded: true };
-}
+/** The proof binary of the tree as it stands, uninstrumented, which verdicts are taken on. A string is
+ * why there is none. */
+export const proofBinary = () => builtBinary(PROOF_BUILD, true);
 
 /** The release binary of the tree as it stands, which `--record-perf` measures on. */
-export const releaseBinary = () => builtBinary();
+export const releaseBinary = () => builtBinary(RELEASE, false);
 
-async function builtBinary(): Promise<Binary | string> {
-  const build = RELEASE;
+async function builtBinary(build: typeof RELEASE, recorded: boolean): Promise<Binary | string> {
   progress(`proofs: bringing the ${build.name} up to date`);
   const path = abs(build.path);
   const command = build.argv.join(" ");
@@ -119,7 +114,7 @@ async function builtBinary(): Promise<Binary | string> {
     const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
     return `\`${command}\` failed (exit ${built.code}):\n${tail}`;
   }
-  return { path, key: "release", runs: "release" };
+  return { path, key: build.key, runs: build.key, ...(recorded ? { recorded } : {}) };
 }
 
 /** A binary named with `--nvs`, taken as it is and remembered by its bytes. */
@@ -186,18 +181,19 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * file as its standard input, and every other proof reads nothing, so no proof ever waits on a terminal.
  * A proof whose directory holds an `nvs.toml` runs under that file alone, handed over as `--config`
  * after `run`, so a feature that needs a grant carries it where its reader sees it; every other proof
- * runs under the repository root's. */
-export async function spawnProof(argv: string[], proof: string, timeoutMs: number): Promise<Ran> {
+ * runs under the repository root's. `record` names the directory the run is recorded into, which
+ * defaults to `NV_PROOF_RECORD`, and variables its processes get beside the recording's. */
+export async function spawnProof(argv: string[], proof: string, timeoutMs: number, record?: { dir: string; env?: Record<string, string> }): Promise<Ran> {
   const feed = abs(sibling(proof, ".in"));
   const config = `${dirname(proof)}/nvs.toml`;
   const at = argv.indexOf("run");
   if (at >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, at + 1), "--config", config, ...argv.slice(at + 1)];
-  const recording = proofRecording(proof);
+  const recording = proofRecording(proof, record?.dir ?? process.env[RECORD_ENV]);
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
   const started = performance.now();
   const child = Bun.spawn(argv, {
     cwd: ROOT,
-    env: { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...recording },
+    env: { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...record?.env, ...recording },
     stdin: existsSync(feed) ? Bun.file(feed) : "ignore",
     stdout: "pipe",
     stderr: "pipe",
@@ -229,22 +225,26 @@ function declaredExit(source: string): number {
   return m ? Number(m[1]) : 0;
 }
 
+/** One judged run: the verdict, why, and what the program did, which a program skipped on this host
+ * does not have. */
+type Judged = [Verdict, string, Ran?];
+
 /** An example passes when it ends with the status it declares and prints exactly its `.out`. */
-async function runExample(nvs: string, path: string): Promise<[Verdict, string]> {
+async function runExample(nvs: string, path: string): Promise<Judged> {
   const source = read(path);
   const skip = skipReason(source);
   if (skip) return ["skip", skip];
   const out = await spawnProof([nvs, "run", path], path, EXAMPLE_TIMEOUT_MS);
-  if (out.timedOut) return ["fail", `timed out after ${EXAMPLE_TIMEOUT_MS / 1000}s`];
+  if (out.timedOut) return ["fail", `timed out after ${EXAMPLE_TIMEOUT_MS / 1000}s`, out];
   const want = declaredExit(source);
   if (out.code !== want) {
     const first = out.stderr.trim().split(/\r?\n/)[0] ?? "";
-    return ["fail", want ? `exit ${out.code} where it declares \`proof: exit ${want}\`` : `exit ${out.code}: ${first}`];
+    return ["fail", want ? `exit ${out.code} where it declares \`proof: exit ${want}\`` : `exit ${out.code}: ${first}`, out];
   }
   const expected = sibling(path, ".out");
-  if (!existsSync(abs(expected))) return ["fail", `no ${basename(expected)} beside it`];
-  if (normalise(out.stdout) !== normalise(read(expected))) return ["fail", "stdout differs from its .out"];
-  return ["ok", ""];
+  if (!existsSync(abs(expected))) return ["fail", `no ${basename(expected)} beside it`, out];
+  if (normalise(out.stdout) !== normalise(read(expected))) return ["fail", "stdout differs from its .out", out];
+  return ["ok", "", out];
 }
 
 /**
@@ -300,7 +300,7 @@ export function hostileLimitMs(source: string): number {
  * each is an attack that was never delivered: a compile diagnostic, unless the file declares
  * `expect-refusal`, and a program that ends before its last line, unless the file declares `ends-early`.
  */
-async function runHostile(nvs: string, path: string, valgrind: boolean): Promise<[Verdict, string]> {
+async function runHostile(nvs: string, path: string, valgrind: boolean): Promise<Judged> {
   const source = read(path);
   const skip = skipReason(source);
   if (skip) return ["skip", skip];
@@ -308,7 +308,7 @@ async function runHostile(nvs: string, path: string, valgrind: boolean): Promise
   let argv = [nvs, "run", path];
   if (valgrind) {
     argv = ["valgrind", "--quiet", "--error-exitcode=97", "--leak-check=full", "--errors-for-leak-kinds=definite", ...argv];
-    limit *= 20;
+    limit *= HANG_FACTOR;
   }
   let out: Ran;
   try {
@@ -316,6 +316,11 @@ async function runHostile(nvs: string, path: string, valgrind: boolean): Promise
   } catch (e) {
     return ["fail", `could not run: ${e instanceof Error ? e.message : String(e)}`];
   }
+  return [...judgeHostile(source, out, limit, valgrind), out];
+}
+
+/** An attack's verdict from one run of it under `limit`. */
+function judgeHostile(source: string, out: Ran, limit: number, valgrind: boolean): [Verdict, string] {
   if (out.timedOut) return ["fail", `still running after ${Math.round(limit / 1000)}s -- unbounded${reached(out.stdout)}`];
   const blob = out.stderr + out.stdout;
   for (const marker of CRASH_MARKERS) if (blob.includes(marker)) return ["fail", `stderr carries ${JSON.stringify(marker)}`];
@@ -392,6 +397,8 @@ export interface Result {
   why: string;
   /** Not run: the change reaches nothing it ran, and its last run was green. */
   cached: boolean;
+  /** What the judged run did; absent for a program not run or skipped on this host. */
+  ran?: Ran;
 }
 
 export interface Pass {
@@ -425,9 +432,9 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
   const worker = async () => {
     while (next < todo.length) {
       const t = todo[next++]!;
-      const [raw, rawWhy] = t.what === "examples" ? await runExample(bin.path, t.path) : await runHostile(bin.path, t.path, opts.valgrind);
+      const [raw, rawWhy, out] = t.what === "examples" ? await runExample(bin.path, t.path) : await runHostile(bin.path, t.path, opts.valgrind);
       const [verdict, why] = judgeGap(t.path, raw, rawWhy);
-      results.set(`${t.what}:${t.path}`, { verdict, why, cached: false });
+      results.set(`${t.what}:${t.path}`, { verdict, why, cached: false, ...(out ? { ran: out } : {}) });
       ran++;
       if (verdict === "fail") failed++;
       say();
@@ -435,6 +442,37 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
   };
   await Promise.all(Array.from({ length: width }, worker));
   return { results, width, seconds: (performance.now() - started) / 1000 };
+}
+
+/** How long a recording run of `path` may take before it is killed as hung: its own limit times
+ * `HANG_FACTOR`, or its own limit alone when the judged run already ran out of it. */
+export function recordingLimitMs(what: What, path: string, judged?: Ran): number {
+  const limit = what === "hostile" ? hostileLimitMs(read(path)) : EXAMPLE_TIMEOUT_MS;
+  return judged?.timedOut ? limit : limit * HANG_FACTOR;
+}
+
+/** The recording run of one program on `nvs`, the covws debug build, recorded into `dir` with `env`
+ * beside it. It has a hang limit and no verdict. */
+export function recordingRun(nvs: string, what: What, path: string, dir: string, env: Record<string, string> = {}, judged?: Ran): Promise<Ran> {
+  return spawnProof([nvs, "run", path], path, recordingLimitMs(what, path, judged), { dir, env });
+}
+
+/**
+ * Why a recording run ended differently from the judged run, or null when both ended alike: the same
+ * exit status and the same standard output. A recording run that ends differently may have stopped
+ * short of code the judged run reached, so its footprint is not trusted. A judged run that ran out of
+ * time is red whatever the recording run did, and is compared with nothing.
+ */
+export function divergence(judged: Ran, recorded: Ran): string | null {
+  if (judged.timedOut) return null;
+  if (recorded.timedOut) return `the recording run was still running after ${Math.round(recorded.ms / 1000)}s`;
+  if (recorded.code !== judged.code) return `exit ${recorded.code} on the recording run, ${judged.code} on the judged run`;
+  const a = normalise(judged.stdout).split("\n");
+  const b = normalise(recorded.stdout).split("\n");
+  if (a.join("\n") === b.join("\n")) return null;
+  let line = 0;
+  while (line < a.length && line < b.length && a[line] === b[line]) line++;
+  return `stdout differs from the judged run's at line ${line + 1}`;
 }
 
 /** One program run for a person to read: a `== <path>` line, what it printed, then its exit status and

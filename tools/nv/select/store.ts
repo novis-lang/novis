@@ -419,6 +419,25 @@ export class SelectStore {
       .run(slot, digest, verdict, Date.now());
   }
 
+  // ---- divergences ---------------------------------------------------------------------------------
+
+  /** Marks `id` as an atom whose recording run ended differently from the run it was judged on, with
+   * why. Its footprint may be cut short, so a selection picks it every time until the mark is cleared. */
+  markDiverged(id: string, why: string): void {
+    this.putVerdict(divergedSlot(this.platform, id), "", why);
+  }
+
+  /** Clears `id`'s divergence mark: its recording run ended as its judged run did. */
+  clearDiverged(id: string): void {
+    this.db.query("DELETE FROM verdicts WHERE slot = ?").run(divergedSlot(this.platform, id));
+  }
+
+  /** Every atom marked diverged on this platform, with why. */
+  divergences(): Map<string, string> {
+    const prefix = divergedSlot(this.platform, "");
+    return new Map([...this.verdictsWithPrefix(prefix)].map(([slot, v]) => [slot.slice(prefix.length), v.verdict]));
+  }
+
   // ---- counts --------------------------------------------------------------------------------------
 
   stats(): { atoms: Record<string, number>; recorded: Record<string, number>; red: number; owed: number; keys: number; entries: number; bytes: number } {
@@ -454,6 +473,9 @@ export function testReads(store: SelectStore): Map<string, string[]> {
   for (const [id, keys] of store.keysUnder("tree:", "test")) out.set(id.slice(5), keys.map((k) => k.slice(5)));
   return out;
 }
+
+/** The slot an atom's divergence mark is kept in. */
+const divergedSlot = (platform: string, id: string) => `diverged:${platform}:${id}`;
 
 /** The slot a proof group's own paths are kept in: its example and attack directories and its bench
  * file, which a `proofs: <group>` unit keys on. */

@@ -594,9 +594,9 @@ export class PlanSweep {
    * Moves the store's tree past the change, green or red, and closes the store. What this sweep ran, and
    * what a `bun nv` process it started recorded, counts as run; every other atom the change reached is
    * owed. The atoms of checks the plan no longer holds are forgotten. Returns how many atoms are owed,
-   * and how many of each kind ran.
+   * how many of each kind ran, and every atom marked diverged, with why.
    */
-  close(): { owed: number; ran: Record<string, number> } {
+  close(): { owed: number; ran: Record<string, number>; diverged: Map<string, string> } {
     try {
       const ids = new Set(this.plan.map((c) => c.id));
       for (const kind of ["check", "nv", "heavy"] as const) {
@@ -610,7 +610,8 @@ export class PlanSweep {
       for (const a of this.store.atoms()) if (a.lastRun >= this.started && a.verdict !== "owed") ran.add(a.id);
       const kinds: Record<string, number> = {};
       for (const id of ran) kinds[id.slice(0, id.indexOf(":"))] = (kinds[id.slice(0, id.indexOf(":"))] ?? 0) + 1;
-      return { owed: advance(this.store, this.change, this.sel, ran, this.graph).owed, ran: kinds };
+      const owed = advance(this.store, this.change, this.sel, ran, this.graph).owed;
+      return { owed, ran: kinds, diverged: this.store.divergences() };
     } finally {
       this.rec.close();
       this.store.close();

@@ -5,9 +5,11 @@
 //            -> each build script whose inputs moved: the items that include what it generated
 //            -> every path: file:, tree:, named:, and exists:/dir: for a path that came or went
 //     run = atoms never recorded on this platform, last red, or owed from an earlier change
+//         + atoms marked diverged: a recording run that ended differently from the judged run
 //         + atoms whose definition changed
 //         + atoms indexed under any changed key
 //         + every atom, when a global file changed
+
 //
 // Nothing outside `run` is started. `explain` says for one atom which key selected it, the path and
 // item the key came from, and for a key reached through the reference graph the item that reached it.
@@ -268,7 +270,7 @@ export async function rustFiles(root: string = ROOT): Promise<string[]> {
     .filter((p) => p && isRust(p) && existsSync(join(root, p)));
 }
 
-export type Why = "new" | "red" | "owed" | "def" | "key" | "global";
+export type Why = "new" | "red" | "owed" | "diverged" | "def" | "key" | "global";
 
 export interface Selected {
   id: string;
@@ -341,7 +343,10 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     known[kindOfAtom(d.id)] = (known[kindOfAtom(d.id)] ?? 0) + 1;
     add(d.id, "new");
   }
+  // A footprint a diverged run recorded may be cut short, so the atom runs whatever changed.
+  for (const id of store.divergences().keys()) if (knownIds.has(id) && stillThere(id)) add(id, "diverged");
   if (change.global || change.moved.size === 0) return { change, selected, known, gone };
+
 
   const exact = new Map<string, number>();
   const lookup = (key: string) => {
@@ -433,6 +438,7 @@ export function explain(store: SelectStore, sel: Selection, id: string): string[
       new: "it has no footprint on this platform yet",
       red: "its last run was red",
       owed: "an earlier change reached it and nothing has run it since",
+      diverged: "its last recording run ended differently from the run it was judged on, so its footprint is not trusted",
       def: "its definition changed",
       key: "its footprint holds a key the change moved",
       global: "a file every atom depends on changed",

@@ -4,6 +4,8 @@ import type { Moved } from "../select/items.ts";
 import { failedLabels, seedable } from "../select/seed.ts";
 import { type ChangeSet, counts, explain, isGlobal, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
+import { join } from "node:path";
+import { scratch } from "./scratch.ts";
 
 /** A store holding four test-binary atoms, which are always on disk, and two `bun nv` checks. */
 function store(): SelectStore {
@@ -130,5 +132,49 @@ describe("the reverse-index query", () => {
     const not = explain(s, sel, "test:math lib math");
     expect(not[0]).toContain("not selected");
     expect(not[1]).toBe("  docs/a.md changed; this atom did not read it");
+  });
+});
+
+describe("what the recording build cannot see", () => {
+  const SQRT = "proof:docs/examples/core/Math/sqrt/01-square-roots.nvs";
+  const ATTACK = "proof:tests/hostile/core/Attributes/all/01-one-roster-read-back-at-many-places.nvs";
+
+  /** The store above with two recorded proof programs. */
+  function withProofs(): SelectStore {
+    const s = store();
+    s.recordRun(SQRT, { def: "", verdict: "green", keys: new Map([["class:core\\math", ""]]) });
+    s.recordRun(ATTACK, { def: "", verdict: "green", keys: new Map([["class:core\\attributes", ""]]) });
+    return s;
+  }
+
+  test("a diverged atom is selected whatever changed, until its mark is cleared", () => {
+    const s = withProofs();
+    s.markDiverged(SQRT, "exit 101 on the recording run, 0 on the judged run");
+    expect(s.divergences()).toEqual(new Map([[SQRT, "exit 101 on the recording run, 0 on the judged run"]]));
+    expect(query(s, change([])).selected.get(SQRT)?.why).toBe("diverged");
+    expect(query(s, change([["docs/a.md", "docs/a.md"]])).selected.get(SQRT)?.why).toBe("diverged");
+    expect(query(s, change([])).selected.has(ATTACK)).toBe(false);
+    expect(counts(query(s, change([]))).byWhy).toEqual({ new: { test: 1 }, red: { test: 1 }, diverged: { proof: 1 } });
+    s.clearDiverged(SQRT);
+    expect(s.divergences().size).toBe(0);
+    expect(query(s, change([])).selected.has(SQRT)).toBe(false);
+  });
+
+  test("a mark belongs to its platform", () => {
+    const dir = scratch();
+    try {
+      const file = join(dir.root, "select.sqlite");
+      const here = new SelectStore(file, "test-os");
+      here.markDiverged(SQRT, "stdout differs from the judged run's at line 2");
+      here.close();
+      const there = new SelectStore(file, "other-os");
+      expect(there.divergences().size).toBe(0);
+      there.close();
+      const again = new SelectStore(file, "test-os");
+      expect([...again.divergences().keys()]).toEqual([SQRT]);
+      again.close();
+    } finally {
+      dir.cleanup();
+    }
   });
 });

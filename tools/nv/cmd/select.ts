@@ -4,7 +4,8 @@
 //     bun nv select --since REV          compare the working tree with REV instead
 //     bun nv select --since A --until B  replay the change from commit A to commit B
 //     bun nv select --paths A B ...      take these paths as the change instead of asking git
-//     bun nv select --stats              counts only: atoms per kind and reason, keys per kind
+//     bun nv select --stats              counts only: atoms per kind and reason, keys per kind, and
+//                                        the atoms marked diverged
 //     bun nv select --json               the selection as one JSON document
 //     bun nv select --explain ATOM       why one atom was selected or not: the key, the path, the item
 //     bun nv select --explain CHECK      what a plan check is made of, and why each of its atoms was
@@ -143,8 +144,9 @@ export async function run(args: string[]): Promise<number> {
       return 0;
     }
     const c = counts(sel);
+    const diverged = [...store.divergences()].sort(([a], [b]) => (a < b ? -1 : 1));
     if (o.json) {
-      const doc: Record<string, unknown> = { since: change.since, ...c, global: change.global, gone: sel.gone };
+      const doc: Record<string, unknown> = { since: change.since, ...c, global: change.global, gone: sel.gone, diverged: Object.fromEntries(diverged) };
       if (!o.stats) {
         doc.atoms = [...sel.selected.values()].map((s) => ({ id: s.id, why: s.why, keys: s.keys.slice(0, 5).map((k) => ({ key: k.key, from: describe(k.origin) })) }));
         doc.changes = change.changes;
@@ -158,6 +160,10 @@ export async function run(args: string[]): Promise<number> {
     console.log(`select: ${total} of ${known} atom(s) selected`);
     for (const [kind, n] of Object.entries(c.selected)) console.log(`  ${kind.padEnd(6)} ${n} of ${c.known[kind] ?? 0}`);
     for (const [why, byKind] of Object.entries(c.byWhy)) console.log(`  because ${why}: ${Object.entries(byKind).map(([k, n]) => `${n} ${k}`).join(", ")}`);
+    if (diverged.length > 0) {
+      console.log(`select: ${diverged.length} atom(s) marked diverged: the recording run ended differently from the judged run, so each runs every time`);
+      for (const [id, why] of diverged) console.log(`  diverged  ${id}: ${why}`);
+    }
     if (o.stats) return 0;
     for (const s of sel.selected.values()) {
       const first = s.keys[0];
