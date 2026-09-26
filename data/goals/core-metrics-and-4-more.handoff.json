@@ -1,20 +1,19 @@
 {
-  "state": "Goal `core-metrics-and-4-more` is reached. Every check of stage 2, the goal's last stage, passes:\n`Core\\Metrics`, `Core\\Mime`, `Core\\Net`, `Core\\Net\\Datagram` and `Core\\Net\\Datagram\\Message` owe\nnothing, and their examples and attacks pass. The floor check `bun nv check` is green again:\n`data/proofs/policy.json` is back in the writer's key order after the `connectLocal` and\n`listenLocal` perf skips were inserted by hand. `bun nv verify --doc`, `owners --closes` and\n`playbook --closes` are green. Nothing is blocked.",
+  "state": "Goal `core-metrics-and-4-more` is reached. Every check of stage 2, the goal's last stage, passes:\n`Core\\Metrics`, `Core\\Mime`, `Core\\Net`, `Core\\Net\\Datagram` and `Core\\Net\\Datagram\\Message` owe\nnothing. The floor check `nvs-cli (cost margins)` failed on the driver's release tier because the\nwarm arm of `a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names` timed the first\nopen of a file written microseconds earlier, which Windows' on-access scan prices at several times\nthe loader's own work. The test now opens the artifact once, untimed, between the arms; the margin\nof 4 is unchanged and the best pair measures about 35x. `bun nv check`, `verify --doc`,\n`owners --closes` and `playbook --closes` are green. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [
-      "data/proofs/policy.json",
-      "tools/nv/lib/store.ts"
+      "crates/nvs-cli/src/cache.rs"
     ],
     "items": [
       {
         "done": true,
-        "text": "**`data/proofs/policy.json` is in the writer's layout**, so `bun nv check` reports 0 findings — `tools/nv/lib/store.ts:56`."
+        "text": "**The warm-start cost margin times the loader and not the first open of a fresh file** — `rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`, `crates/nvs-cli/src/cache.rs:2967`."
       }
     ]
   },
   "backlog": [
-    "Nothing this goal owes. The next goal on `data/chain.json` starts from its own handoff record."
+    "None owed by this goal; the next goal on the chain starts from its own handoff record."
   ]
 }

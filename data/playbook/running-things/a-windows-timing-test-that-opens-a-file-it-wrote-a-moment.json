@@ -1,0 +1,11 @@
+{
+  "lead": "A Windows timing test that opens a file it wrote a moment ago is timing the on-access scanner, not the code.",
+  "body": "The first `File::open` of a freshly written file waits for Defender's scan, a few milliseconds that grow when the scanner is busy with a release binary just linked, so a best-of-N margin still fails when the driver runs it straight after `cargo build --release`. Open the file once, untimed, before the timed arm, the way `a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names` does, since a real later run never pays that first open.",
+  "files": [
+    "crates/nvs-cli/src/cache.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/cache.rs:the arms and times neither"
+  }
+}
