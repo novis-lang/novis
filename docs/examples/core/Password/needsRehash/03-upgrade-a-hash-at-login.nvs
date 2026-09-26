@@ -1,0 +1,34 @@
+<?nvs
+// Shows how a login upgrades an old stored hash. This is the only moment the
+// program has the password, so it is the moment to hash it again.
+
+class Account {
+    public string $passwordHash = "";
+}
+
+class Login {
+    public static function attempt(Account $account, secret string $typed): bool {
+        if (!Core\Password::verify($typed, $account->passwordHash)) {
+            return false;
+        }
+        // The password is correct. If the stored hash is old, replace it.
+        if (Core\Password::needsRehash($account->passwordHash)) {
+            $account->passwordHash = Core\Password::hash($typed);
+            echo "the stored hash was upgraded\n";
+        }
+        return true;
+    }
+}
+
+// This account was moved from a PHP application, so its hash is bcrypt.
+Account $account = new Account();
+$account->passwordHash = '$2y$10$PE6UB/yJ1bk1dIwtgHee0es/SxguHDHJgvcdKauDX66xu84voItOi';
+secret string $typed = "correct horse battery staple";
+
+// The first login upgrades the hash. The second login finds it current.
+// This prints `the stored hash was upgraded`, then `logged in` twice.
+echo Login::attempt($account, $typed) ? "logged in" : "wrong password", "\n";
+echo Login::attempt($account, $typed) ? "logged in" : "wrong password", "\n";
+
+// The account now has a new Argon2id hash. This prints `$argon2id$`.
+echo Core\Str::slice($account->passwordHash, 0, 10), "\n";

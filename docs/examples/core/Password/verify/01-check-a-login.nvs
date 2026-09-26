@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to check a password somebody typed against the stored hash.
+
+string $stored = Core\Password::hash("correct horse battery staple");
+
+// The right password returns `true`. This prints `welcome`.
+secret string $typed = "correct horse battery staple";
+echo Core\Password::verify($typed, $stored) ? "welcome" : "wrong password", "\n";
+
+// A wrong password returns `false`. This prints `wrong password`.
+secret string $guess = "Correct horse battery staple";
+echo Core\Password::verify($guess, $stored) ? "welcome" : "wrong password", "\n";

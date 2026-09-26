@@ -1,0 +1,31 @@
+<?nvs
+// Shows a login function as a web application writes it. A wrong password is
+// a normal answer. A broken stored value is a bug, so it is logged.
+
+class Login {
+    public static function check(secret string $typed, string $stored): string {
+        try {
+            if (Core\Password::verify($typed, $stored)) {
+                return "logged in";
+            }
+            return "wrong email or password";
+        } catch (LogicError $broken) {
+            // The stored value is not a password hash. The user sees the same
+            // message, but the error is written to the log for a developer.
+            Core\Log::write(Core\Log\Level::Error, "the stored password hash cannot be read");
+            return "wrong email or password";
+        }
+    }
+}
+
+string $stored = Core\Password::hash("my first pet was a cat");
+secret string $right = "my first pet was a cat";
+secret string $wrong = "my first pet was a dog";
+
+// This prints `logged in`, then `wrong email or password`.
+echo Login::check($right, $stored), "\n";
+echo Login::check($wrong, $stored), "\n";
+
+// This stored value was damaged, so `verify` throws a `LogicError`. The
+// function catches it. This prints the log line, then `wrong email or password`.
+echo Login::check($right, "not-a-hash"), "\n";

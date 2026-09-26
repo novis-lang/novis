@@ -1,22 +1,18 @@
 {
-  "state": "Goal `core-os-and-2-more`: `Core\\Os` and `Core\\Out` are green (`dossier-core-os`, `dossier-core-out`). Only `dossier-core-password` is still red.\n`Core\\Out` has its class card, a plain-voice `capture` card, `about.md`, three examples, one attack, one bench, a recorded figure, and the Rust test `capture_answers_the_carrier_swallows_and_closes_on_a_throw` in `crates/nvs-stdlib/src/out.rs`. That test drives the member with a native closure (`closure_of` in the same module).\nThe call-depth limit is measured in stack bytes, so a debug build reaches `RecursionError` far sooner than the proof build. The attack's successful nesting steps stay at 50 levels for that reason.\n`Core\\Password` has no card, and none of `hash`, `verify` and `needsRehash` has an example, an attack, a bench or a Rust `covers:` marker.",
+  "state": "Goal `core-os-and-2-more` is met: `dossier-core-os`, `dossier-core-out` and `dossier-core-password` all pass `bun nv proofs --verify`.\n`Core\\Password` has its class card, plain-voice cards for `hash`, `verify` and `needsRehash`, an `about.md`, three examples, one attack, one bench and a recorded figure per member, and a Rust `covers:` test each in `crates/nvs-stdlib/src/password.rs`.\nThe attack on `verify` found that a stored hash's pass count was unbounded (a `t=1000000` row was over an hour of one core). `verify` now refuses a PHC hash whose memory times passes is past `MAX_WORK` (4 GiB of passes, libsodium's `SENSITIVE` preset). The module doc's *`verify` bounds what the stored hash may ask for* section owns it, and `tests/conformance/core/password-verify-refuses-a-stored-pass-count-past-its-work-ceiling.nvst` pins it.\n`needsRehash` allocates three times per Argon2id string it parses (the argon2 crate's PHC parser), and its bench declares the measured mix as `allocations 2`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/password.rs`, `crates/nvs-stdlib/src/registry.rs`, and the `core/Password/` trees under `docs/examples/`, `tests/hostile/`, `benches/members/`.",
+    "note": "goal met; the next session starts from the next goal's own handoff record.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Password::hash`, `verify` and `needsRehash`** — each owes about, examples, hostile, perf and a Rust `covers:` marker, and the class owes its card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/password.rs:202`. The card goes on that `CLASS` row, and `Core\\Password` leaves `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5248`. Existing Rust tests in `password.rs` may only need a `// covers:` line each."
-      },
-      {
-        "done": false,
-        "text": "**Record the figures** — `bun nv proofs --record-perf --group 'Core\\Password'` after the benches exist (`rule:testing/member-perf-ledger`). `crates/nvs-stdlib/src/password.rs:207`. Then `bun nv proofs --verify --group 'Core\\Password'`, and close the goal with `DONE` if all three dossier checks pass."
+        "done": true,
+        "text": "**`Core\\Password::hash`, `verify` and `needsRehash` owe nothing** (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/password.rs:216`."
       }
     ]
   },
   "backlog": [
-    "An arrow closure whose body is a `throw` expression does not compile: `fn (): int => throw new RuntimeError(\"x\")` gives E0401 \"expected `int`, found `never`\", and `return throw …` gives E0403. PHP 8 accepts both. Owner: the type checker's assignability of `never` (`rule:types/grammar`); not this goal's to fix."
+    "`Core\\Password::needsRehash` parses a PHC string with three allocations per call; a hand parser of the header would make it zero, a latency item only (`crates/nvs-stdlib/src/password.rs` module doc)."
   ]
 }

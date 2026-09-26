@@ -1,0 +1,52 @@
+<?nvs
+// Attack: somebody changes stored hashes in the database, so that each check
+// asks for huge memory, endless passes or broken input. Every check should
+// throw an error at once, and none should run for long.
+
+secret string $password = 'correct horse battery staple';
+string $salt = 'jJ+hokoSJRsAzYsgfwhV6g$BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI';
+
+class Probe
+{
+    public static function check(secret string $password, string $stored): string
+    {
+        try {
+            return Core\Password::verify($password, $stored) ? 'matched' : 'false';
+        } catch (RuntimeError $tooMuch) {
+            return 'too much work';
+        } catch (LogicError $broken) {
+            return 'not a hash';
+        }
+    }
+}
+
+// 1. A hash asks for 4 GiB of memory.
+echo Probe::check($password, '$argon2id$v=19$m=4194304,t=2,p=1$' . $salt), "\n";
+
+// 2. A hash asks for the largest memory number there is.
+echo Probe::check($password, '$argon2id$v=19$m=4294967295,t=1,p=1$' . $salt), "\n";
+
+// 3. A hash asks for a million passes over 19 MiB.
+echo Probe::check($password, '$argon2id$v=19$m=19456,t=1000000,p=1$' . $salt), "\n";
+
+// 4. A hash asks for the largest pass count there is.
+echo Probe::check($password, '$argon2id$v=19$m=19456,t=4294967295,p=1$' . $salt), "\n";
+
+// 5. A hash asks for a huge number of lanes.
+echo Probe::check($password, '$argon2id$v=19$m=1048576,t=1,p=16777215$' . $salt), "\n";
+
+// 6. A bcrypt hash asks for cost 31, which is two billion rounds.
+echo Probe::check($password, '$2y$31$PE6UB/yJ1bk1dIwtgHee0es/SxguHDHJgvcdKauDX66xu84voItOi'), "\n";
+
+// 7. A bcrypt hash has characters outside its alphabet.
+echo Probe::check($password, '$2y$10$!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'), "\n";
+
+// 8. The stored value is 8 MiB of `$` signs.
+echo Probe::check($password, Core\Str::repeat('$', 8388608)), "\n";
+
+// 9. A hash has a salt of 1 MiB.
+string $longSalt = Core\Str::repeat('A', 1048576);
+echo Probe::check($password, '$argon2id$v=19$m=19456,t=2,p=1$' . $longSalt . '$BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI'), "\n";
+
+// 10. The stored value is empty.
+echo Probe::check($password, ''), "\n";

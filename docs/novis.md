@@ -20136,15 +20136,15 @@ done
 Core\Password::hash(string $password): string
 ```
 
-Hashes `$password` for storage with Argon2id under parameters this library chooses, answering the PHC string that carries the algorithm, the version, the cost and the salt alongside the digest. There is no algorithm or cost argument: `needsRehash` is how a stored hash learns it has fallen behind.
+Turns `$password` into a hash you can store, using Argon2id. The library chooses the settings, so there is no algorithm or cost argument. The result contains everything `verify` needs later: the algorithm, the settings, a random salt and the hash itself.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$password` | `string` (reveal) | The password to hash. A `secret` is accepted here and the answer is not one — storing the hash is the point. |
+| `$password` | `string` (reveal) | The password to hash. It may be a `secret` string. The result is not secret, because it is made to be stored. |
 
-**Returns** `string` — The PHC string to store, as in `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<digest>`. Two calls with the same password answer differently, because each draws its own salt.
+**Returns** `string` — A string such as `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`. Each call uses a new random salt, so the same password gives a different string every time.
 
-**Throws** `RuntimeError` — This process cannot spare the ~19 MiB the parameters ask for.
+**Throws** `RuntimeError` — The request cannot use the 19 MiB of memory that one hash needs.
 
 <a id="core-core-password-verify"></a>
 #### `Core\Password::verify`
@@ -20153,16 +20153,16 @@ Hashes `$password` for storage with Argon2id under parameters this library choos
 Core\Password::verify(string $password, string $hash): bool
 ```
 
-Reports whether `$password` is the one `$hash` was made from, recomputing under the parameters `$hash` itself carries so that a hash written under older settings still verifies. Two shapes are read: the Argon2id string `hash` writes, and a PHP-stored bcrypt hash under `$2y$`, `$2a$` or `$2b$`. The comparison is constant-time.
+Checks whether `$password` is the password `$hash` was made from. It uses the settings stored in `$hash`, so a hash made with older settings still works. It reads the Argon2id strings `hash` writes, and bcrypt hashes that PHP wrote with `$2y$`, `$2a$` or `$2b$`. The check takes the same time for every wrong password.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$password` | `string` (reveal) | The password offered. A `secret` is accepted; the answer is a `bool` and carries nothing of it. |
-| `$hash` | `string` (neutral) | The stored hash: the PHC string `hash` answered, or a bcrypt hash a PHP application stored. |
+| `$password` | `string` (reveal) | The password somebody typed. It may be a `secret` string. |
+| `$hash` | `string` (neutral) | The stored hash: a string from `hash`, or a bcrypt hash that PHP stored. |
 
-**Returns** `bool` — `true` when `$password` produced `$hash`, `false` when it did not.
+**Returns** `bool` — `true` when `$password` matches `$hash`, `false` when it does not.
 
-**Throws** `LogicError` — `$hash` is outside the read roster — it does not parse, or it names another algorithm, version or salt, or it carries the `$2x$` tag. A storage bug rather than a wrong password, which is why it is not `false`.; `RuntimeError` — `$hash` asks for more work than any hash it could be — more memory than this class writes, or a bcrypt cost above 17 — or this process cannot spare what it asks for.
+**Throws** `LogicError` — `$hash` is not a password hash this class can read. It does not parse, it uses another algorithm, or it starts with `$2x$`. This usually means the stored value is broken, so it is an error and not `false`.; `RuntimeError` — `$hash` asks for too much work: more than 1 GiB of memory, too many passes over that memory, or a bcrypt cost above 17. It is also thrown when the request cannot use the memory the hash needs.
 
 <a id="core-core-password-needsrehash"></a>
 #### `Core\Password::needsRehash`
@@ -20171,15 +20171,15 @@ Reports whether `$password` is the one `$hash` was made from, recomputing under 
 Core\Password::needsRehash(string $hash): bool
 ```
 
-Reports whether `$hash` is weaker than what `hash` would write today — a different algorithm or version, or a lower memory or time cost — so that a program can rehash the password it has just verified.
+Checks whether `$hash` is weaker than a hash `hash` makes today. Call it right after `verify` returns `true`. If it returns `true`, hash the password again and store the new hash.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$hash` | `string` (neutral) | The stored hash to measure. |
+| `$hash` | `string` (neutral) | The stored hash to check. |
 
-**Returns** `bool` — `true` when the stored hash has fallen behind, `false` when it is at or above the current parameters. A hash *stronger* than the current ones answers `false`: rehashing it would lower its cost. Every bcrypt hash answers `true` — a different algorithm is weaker by this member's own rule — which is what makes the login-time upgrade loop the migration path for a PHP user table.
+**Returns** `bool` — `true` when `$hash` uses another algorithm or version, or less memory or fewer passes than `hash` uses now. Every bcrypt hash returns `true`. `false` when `$hash` is as strong as a new hash, or stronger.
 
-**Throws** `LogicError` — `$hash` is neither a PHC string nor a bcrypt hash. One that parses but names another algorithm answers `true` here rather than throwing — that is precisely the question this member is asked.
+**Throws** `LogicError` — `$hash` is not a password hash at all. A hash that uses another algorithm does not throw: it returns `true`.
 
 <a id="core-core-crypto"></a>
 ### `Core\Crypto`

@@ -1,0 +1,27 @@
+<?nvs
+// Measures checking one password against a stored hash, as every login does.
+// bench: iterations 20
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // A hash of "correct horse battery staple", made with the current
+        // settings.
+        string $stored = '$argon2id$v=19$m=19456,t=2,p=1$Lv4LVelmRjIaEnA/hGtlTg$ZmLo3si3EKQ75A6icotD9q3j06Lp08fw6IrVl0tkebc';
+        array<string> $typed = ["correct horse battery staple", "hunter2"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The password checked next depends on the last answer, so no
+            // round can be skipped.
+            if (Core\Password::verify($typed[$total % 2], $stored)) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20), "\n";

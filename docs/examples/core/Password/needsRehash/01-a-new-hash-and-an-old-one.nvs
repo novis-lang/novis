@@ -1,0 +1,17 @@
+<?nvs
+// Shows which hashes need to be made again. A new hash does not. A hash made
+// with less memory does.
+
+// This prints `false`: a hash made now uses the current settings.
+string $fresh = Core\Password::hash("correct horse battery staple");
+echo Core\Password::needsRehash($fresh) ? "true" : "false", "\n";
+
+// This hash was made with 4 MiB of memory (`m=4096`). A new hash uses 19 MiB,
+// so this one is weaker. This prints `true`.
+string $old = '$argon2id$v=19$m=4096,t=2,p=1$jJ+hokoSJRsAzYsgfwhV6g$BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI';
+echo Core\Password::needsRehash($old) ? "true" : "false", "\n";
+
+// This hash uses more memory than a new one. Hashing it again would make it
+// weaker, so this prints `false`.
+string $stronger = '$argon2id$v=19$m=65536,t=3,p=1$jJ+hokoSJRsAzYsgfwhV6g$BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI';
+echo Core\Password::needsRehash($stronger) ? "true" : "false", "\n";

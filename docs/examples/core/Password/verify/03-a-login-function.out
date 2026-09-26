@@ -1,0 +1,4 @@
+logged in
+wrong email or password
+{"level":"error","msg":"the stored password hash cannot be read","source":{"file":"docs/examples/core/Password/verify/03-a-login-function.nvs","line":15,"member":"Login::check"}}
+wrong email or password
