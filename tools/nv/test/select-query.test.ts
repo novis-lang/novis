@@ -170,6 +170,11 @@ describe("the reverse-index query", () => {
     expect(parse(["--seed", "--kinds", "case,test", "--limit", "3"])).toMatchObject({ seed: true, kinds: ["case", "test"], limit: 3 });
     expect(() => parse(["--kinds", "cases"])).toThrow("no atom kind");
     expect(() => parse(["--since"])).toThrow("needs a value");
+    expect(parse(["--mutate", "m.json", "--batch", "3"])).toMatchObject({ mutate: "m.json", batch: [3] });
+    expect(parse(["--mutate", "m.json", "--batch", "2,3,4"])).toMatchObject({ batch: [2, 3, 4] });
+    expect(() => parse(["--mutate", "m.json", "--batch", "2,0"])).toThrow("a number from 1");
+    expect(() => parse(["--mutate", "m.json", "--batch", "2,x"])).toThrow("a number from 1");
+    expect(() => parse(["--mutate", "m.json", "--batch", "2,2"])).toThrow("twice");
   });
 
   test("explain names the key and where it came from, or why nothing reached the atom", () => {

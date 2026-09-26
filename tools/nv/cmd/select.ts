@@ -15,7 +15,8 @@
 //     bun nv select --full [--jobs N]    run and record every atom that is not heavy, move the tree, and
 //                                        report the selection misses; exits 1 on one (`select/full.ts`)
 //     bun nv select --mutate FILE        apply each batch of FILE's edits, run every atom on a copy of the
-//          [--batch N] [--jobs N]        store, and require every red atom to have been selected
+//          [--batch N[,N...]]            store, and require every red atom to have been selected; a list
+//          [--jobs N]                    of batches is applied at once and checked once
 //                                        (`select/mutate.ts`); exits 1 on a miss or a failed batch
 //
 // `tools/nv/select/` is the engine; `select.ts` there holds the rule a selection follows, and `store.ts`
@@ -32,16 +33,16 @@ import { type AtomKind, ATOM_KINDS, SelectStore } from "../select/store.ts";
 import { computeChange, counts, describe, discover, explain, query } from "../select/select.ts";
 import { seed } from "../select/seed.ts";
 import { describeFull, fullRun } from "../select/full.ts";
-import { describeBatch, mutateBatch, readMutations } from "../select/mutate.ts";
+import { describeBatch, mutateBatch, mutateBatches, readMutations } from "../select/mutate.ts";
 import { abs } from "../lib/paths.ts";
 
 export const summary =
-  "which atoms a change reaches, from what each was seen to use: nv select [--since REV [--until REV]] [--paths P...] [--stats] [--json] [--explain ATOM] [--seed [--kinds K,...] [--limit N] [--jobs N] [--resume]] [--full] [--mutate FILE [--batch N]]";
+  "which atoms a change reaches, from what each was seen to use: nv select [--since REV [--until REV]] [--paths P...] [--stats] [--json] [--explain ATOM] [--seed [--kinds K,...] [--limit N] [--jobs N] [--resume]] [--full] [--mutate FILE [--batch N[,N...]]]";
 
 const USAGE = `usage: bun nv select [--since REV [--until REV]] [--paths PATH ...] [--stats] [--json] [--explain ATOM]
        bun nv select --seed [--kinds case,proof,test,nv] [--limit N] [--jobs N]
        bun nv select --full [--jobs N]
-       bun nv select --mutate FILE [--batch N] [--jobs N]
+       bun nv select --mutate FILE [--batch N[,N...]] [--jobs N]
 
   --since REV     compare the working tree with REV; the store's recorded tree by default
   --until REV     take commit REV as the changed side instead of the working tree
@@ -55,10 +56,12 @@ const USAGE = `usage: bun nv select [--since REV [--until REV]] [--paths PATH ..
   --jobs N        with --seed: how many runs and extractions at once
   --resume        with --seed: skip every atom that already has a footprint
   --full          run and record every atom that is not heavy, move the recorded tree, and report each
-                  selection miss: an atom red now, green before, that the selection did not pick
+                  selection miss: an atom red now that the selection did not pick
   --mutate FILE   apply each batch of edits FILE lists, run every atom that is not heavy on a copy of
                   the store, and require every red atom to have been selected; the edits are reverted
-  --batch N       with --mutate: only batch N, counted from 1`;
+  --batch N       with --mutate: only batch N, counted from 1; a list (--batch 2,3,4) applies those
+                  batches at once, runs every atom once, and checks the combined selection; batches
+                  whose edits touch the same text of a file are refused`;
 
 interface Opts {
   since?: string;
@@ -74,7 +77,7 @@ interface Opts {
   jobs?: number;
   full: boolean;
   mutate?: string;
-  batch?: number;
+  batch?: number[];
   help: boolean;
 }
 
@@ -109,8 +112,9 @@ export function parse(args: string[]): Opts {
     else if (a === "--full") o.full = true;
     else if (a === "--mutate") o.mutate = value();
     else if (a === "--batch") {
-      o.batch = Number.parseInt(value(), 10);
-      if (!(o.batch >= 1)) throw new Error("--batch needs a number from 1");
+      o.batch = value().split(",").map((n) => (/^\d+$/.test(n.trim()) ? Number.parseInt(n, 10) : Number.NaN));
+      if (o.batch.some((n) => !(n >= 1))) throw new Error("--batch needs a number from 1, or a list of them: --batch 2,3,4");
+      if (new Set(o.batch).size !== o.batch.length) throw new Error("--batch names a batch twice");
     } else throw new Error(`unknown argument ${a}`);
   }
   if (o.batch !== undefined && o.mutate === undefined) throw new Error("--batch goes with --mutate");
@@ -207,22 +211,32 @@ export async function run(args: string[]): Promise<number> {
   }
 }
 
-/** `--mutate FILE [--batch N]`: each batch, or batch N alone, through `mutateBatch`; 1 when a batch
- * failed or missed. */
-async function mutate(file: string, only: number | undefined, jobs: number | undefined): Promise<number> {
+/** `--mutate FILE [--batch N[,N...]]`: each batch, or batch N alone, through `mutateBatch`, or the listed
+ * batches at once through `mutateBatches`; 1 when a batch failed or missed. */
+async function mutate(file: string, only: number[] | undefined, jobs: number | undefined): Promise<number> {
   const doc = readMutations(abs(file));
-  if (only !== undefined && only > doc.batches.length) {
-    console.error(`nv select: error: ${file} has ${doc.batches.length} batch(es), and no batch ${only}`);
+  const absent = (only ?? []).find((n) => n > doc.batches.length);
+  if (absent !== undefined) {
+    console.error(`nv select: error: ${file} has ${doc.batches.length} batch(es), and no batch ${absent}`);
     return 2;
+  }
+  const opts = {
+    run: (store: SelectStore) => fullRun(store, { ...(jobs ? { jobs } : {}), say: (l: string) => console.error(`  ${l}`) }),
+    explain,
+  };
+  if (only !== undefined && only.length > 1) {
+    console.log(`select: batches ${only.join(", ")} of ${doc.batches.length} at once`);
+    const rep = await mutateBatches(only.map((n) => ({ index: n, edits: doc.batches[n - 1]! })), opts);
+    for (const line of describeBatch(rep)) console.log(line);
+    const bad = rep.failed !== undefined || rep.misses.length > 0;
+    console.log(bad ? "select: the batches run at once failed or missed" : "select: every red atom of the batches run at once was selected");
+    return bad ? 1 : 0;
   }
   let bad = 0;
   for (let i = 0; i < doc.batches.length; i++) {
-    if (only !== undefined && i + 1 !== only) continue;
+    if (only !== undefined && i + 1 !== only[0]) continue;
     console.log(`select: batch ${i + 1} of ${doc.batches.length}`);
-    const rep = await mutateBatch(i + 1, doc.batches[i]!, {
-      run: (store) => fullRun(store, { ...(jobs ? { jobs } : {}), say: (l) => console.error(`  ${l}`) }),
-      explain,
-    });
+    const rep = await mutateBatch(i + 1, doc.batches[i]!, opts);
     for (const line of describeBatch(rep)) console.log(line);
     if (rep.failed || rep.misses.length > 0) bad++;
   }

@@ -11,6 +11,11 @@
 // process it starts. Every atom that went red must be one the selection picked; a red atom it did not
 // pick is a miss, printed with what `--explain` says about it. Every edit is reverted in a `finally`, and
 // the batch fails when `git status` afterwards differs from before.
+//
+// Several batches can also run at once (`mutateBatches`): their edits, which must not touch the same text
+// of a file (`overlap`), are applied together, every atom runs once, and every red atom must be one the
+// combined selection picked. The report is the combined one, with the red atoms traced to each batch's
+// files.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -48,6 +53,8 @@ export interface BatchReport {
   misses: { id: string; explain: string[] }[];
   /** Why the batch proves nothing: an edit that did not apply, a build that failed, a tree left changed. */
   failed?: string;
+  /** For batches run at once (`mutateBatches`): each batch, with the red atoms traced to its files. */
+  parts?: (Part & { red: string[] })[];
 }
 
 export interface RunResult {
@@ -232,9 +239,102 @@ export async function withStoreCopy<T>(from: string, scratch: string, body: (sto
 /** Applies batch `index` (from 1), runs every atom on a copy of the store, and checks that every atom that
  * went red was selected. The edits are always reverted. */
 export async function mutateBatch(index: number, edits: Edit[], o: BatchOptions): Promise<BatchReport> {
+  return (await mutateEdits({ index, edits, selected: {}, red: [], misses: [] }, o)).report;
+}
+
+/** One batch of a combined run, by its number from 1. */
+export interface Part {
+  index: number;
+  edits: Edit[];
+}
+
+/** Where `find` is in `text`, matched with CRLF line ends when `text` has them, as `planEdits` does. */
+function locate(text: string, find: string): { from: number; to: number } | null {
+  const f = text.includes("\r\n") ? find.replace(/\r?\n/g, "\r\n") : find;
+  const at = text.indexOf(f);
+  return at < 0 ? null : { from: at, to: at + f.length };
+}
+
+/**
+ * Why the batches of `parts` cannot be applied at once, or null. Each batch covers, in each file it
+ * edits, the span from the first to the last text its edits find in the file as it is now; a file it
+ * creates, or text it finds only after its own earlier edits, covers the whole file. Two batches whose
+ * spans in one file share a character overlap. Spans that only touch do not.
+ */
+export function overlap(parts: Part[], root: string = ROOT): string | null {
+  const spans = new Map<string, { index: number; from: number; to: number }[]>();
+  const texts = new Map<string, string | null>();
+  const text = (file: string) => {
+    if (!texts.has(file)) {
+      const path = join(root, file);
+      texts.set(file, existsSync(path) ? readFileSync(path, "utf8") : null);
+    }
+    return texts.get(file)!;
+  };
+  for (const p of parts) {
+    const own = new Map<string, { from: number; to: number }>();
+    for (const e of p.edits) {
+      const t = e.find === "" ? null : text(e.file);
+      const r = (t === null ? null : locate(t, e.find)) ?? { from: 0, to: Number.POSITIVE_INFINITY };
+      const was = own.get(e.file);
+      own.set(e.file, was ? { from: Math.min(was.from, r.from), to: Math.max(was.to, r.to) } : r);
+    }
+    for (const [file, r] of own) {
+      const list = spans.get(file) ?? [];
+      const hit = list.find((q) => r.from < q.to && q.from < r.to);
+      if (hit) return `batch ${hit.index} and batch ${p.index} both edit the same text of ${file}`;
+      list.push({ index: p.index, ...r });
+      spans.set(file, list);
+    }
+  }
+  return null;
+}
+
+/**
+ * The red atoms each batch of `parts` accounts for: those the selection picked through a key that came
+ * from a file the batch edits, and those a file of the batch names (a case, a tools test, or a proof
+ * program with its `.out`, `.in` and `nvs.toml`). An atom can count for more than one batch.
+ */
+export function attribute(parts: Part[], sel: Selection, red: string[]): { index: number; red: string[] }[] {
+  const named = (id: string, file: string) => {
+    const path = id.slice(id.indexOf(":") + 1);
+    if (path === file) return true;
+    if (!id.startsWith("proof:")) return false;
+    return file === path.replace(/\.nvs$/, ".out") || file === path.replace(/\.nvs$/, ".in") || file === `${dirname(path)}/nvs.toml`;
+  };
+  return parts.map((p) => {
+    const files = new Set(p.edits.map((e) => e.file));
+    const mine = red.filter((id) => (sel.selected.get(id)?.keys ?? []).some((k) => files.has(k.origin.path)) || [...files].some((f) => named(id, f)));
+    return { index: p.index, red: mine };
+  });
+}
+
+/**
+ * Applies the batches of `parts` at once, runs every atom on a copy of the store once, and checks that
+ * every atom that went red was selected by the one selection the combined edits make. Batches whose edits
+ * overlap (`overlap`) are not applied, and the run fails. The report is the combined one, with the red
+ * atoms each batch accounts for (`attribute`) in `parts`.
+ */
+export async function mutateBatches(parts: Part[], o: BatchOptions): Promise<BatchReport> {
+  const edits = parts.flatMap((p) => p.edits);
+  const report: BatchReport = { index: parts[0]?.index ?? 0, edits, selected: {}, red: [], misses: [], parts: parts.map((p) => ({ ...p, red: [] })) };
+  const why = overlap(parts, o.root ?? ROOT);
+  if (why !== null) {
+    report.failed = `the batches cannot be applied at once: ${why}`;
+    return report;
+  }
+  const { selection } = await mutateEdits(report, o);
+  if (selection) report.parts = attribute(parts, selection, report.red).map((a, i) => ({ ...parts[i]!, red: a.red }));
+  return report;
+}
+
+/** Applies `report.edits`, runs every atom on a copy of the store, and fills `report`; returns the
+ * selection the run took, when it got that far. The edits are always reverted. */
+async function mutateEdits(report: BatchReport, o: BatchOptions): Promise<{ report: BatchReport; selection?: Selection }> {
   const root = o.root ?? ROOT;
   const status = o.status ?? gitStatus;
-  const report: BatchReport = { index, edits, selected: {}, red: [], misses: [] };
+  const edits = report.edits;
+  let selection: Selection | undefined;
   const before = status(root);
   let applied: Applied[] = [];
   try {
@@ -245,6 +345,7 @@ export async function mutateBatch(index: number, edits: Edit[], o: BatchOptions)
         report.failed = `the build failed with the batch applied, so no atom's verdict says anything: ${res.buildFailed.split("\n")[0]}`;
         return;
       }
+      selection = res.selection;
       for (const s of res.selection.selected.values()) report.selected[s.kind] = (report.selected[s.kind] ?? 0) + 1;
       report.red = [...res.ran].filter(([, v]) => v === "red").map(([id]) => id).sort();
       const picked = new Set(res.selection.selected.keys());
@@ -258,13 +359,23 @@ export async function mutateBatch(index: number, edits: Edit[], o: BatchOptions)
   }
   const after = status(root);
   if (after !== before) report.failed = `${report.failed ? `${report.failed}; ` : ""}the tree is not as it was before the batch:\n${after}`;
-  return report;
+  return selection ? { report, selection } : { report };
 }
 
-/** The lines `bun nv select --mutate` prints for one batch. */
+/** The lines `bun nv select --mutate` prints for one batch, or for batches run at once. */
 export function describeBatch(b: BatchReport): string[] {
-  const lines = [`batch ${b.index}: ${b.edits.length} edit(s)`];
-  for (const e of b.edits) lines.push(`  edit  ${e.file}: ${e.note}`);
+  const lines: string[] = [];
+  if (b.parts) {
+    lines.push(`batches ${b.parts.map((p) => p.index).join(", ")} at once: ${b.edits.length} edit(s)`);
+    for (const p of b.parts) {
+      lines.push(`  batch ${p.index}: ${p.edits.length} edit(s), ${p.red.length} red atom(s) traced to its files${p.red.length > 0 ? `: ${p.red.slice(0, 6).join(", ")}${p.red.length > 6 ? ", ..." : ""}` : ""}`);
+      for (const e of p.edits) lines.push(`    edit  ${e.file}: ${e.note}`);
+    }
+    lines.push("  combined:");
+  } else {
+    lines.push(`batch ${b.index}: ${b.edits.length} edit(s)`);
+    for (const e of b.edits) lines.push(`  edit  ${e.file}: ${e.note}`);
+  }
   const kinds = Object.entries(b.selected).map(([k, n]) => `${n} ${k}`).join(", ");
   lines.push(`  selected: ${kinds || "nothing"}`);
   const redKinds = new Map<string, number>();

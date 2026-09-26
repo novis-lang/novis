@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { keepMisses, keptMisses, selectionMisses } from "../select/full.ts";
-import { applyEdits, describeBatch, type Edit, mutateBatch, removeScratch, revertEdits, unselectedReds, withStoreCopy } from "../select/mutate.ts";
+import { applyEdits, attribute, describeBatch, type Edit, mutateBatch, mutateBatches, overlap, removeScratch, revertEdits, unselectedReds, withStoreCopy } from "../select/mutate.ts";
 import type { ChangeSet, Selected, Selection } from "../select/select.ts";
 import { kindOfAtom, SelectStore, STORE_ENV, type Verdict } from "../select/store.ts";
 
@@ -144,6 +144,87 @@ describe("the mutation harness", () => {
     expect(rep.selected).toEqual({ case: 1, test: 1 });
     expect(rep.red).toEqual(["case:tests/a.nvst", "case:tests/c.nvst"]);
     expect(rep.misses).toEqual([{ id: "case:tests/c.nvst", explain: ["case:tests/c.nvst: not selected"] }]);
+  });
+
+  test("batches overlap when their edits share text of one file, and not when they only touch", () => {
+    const root = tree();
+    const e = (file: string, find: string): Edit => ({ file, find, replace: `${find}!`, note: "" });
+    expect(overlap([{ index: 1, edits: [e("a.txt", "one")] }, { index: 2, edits: [e("a.txt", "three")] }, { index: 3, edits: [e("src/b.txt", "beta")] }], root)).toBeNull();
+    expect(overlap([{ index: 1, edits: [e("a.txt", "one\ntwo")] }, { index: 2, edits: [e("a.txt", "two\nthree")] }], root)).toBe("batch 1 and batch 2 both edit the same text of a.txt");
+    // A batch's span runs from its first found text to its last, so a batch editing between them overlaps.
+    expect(overlap([{ index: 1, edits: [e("a.txt", "one"), e("a.txt", "three")] }, { index: 2, edits: [e("a.txt", "two")] }], root)).toMatch(/batch 1 and batch 2/);
+    // The CRLF file is matched with its own line ends.
+    expect(overlap([{ index: 1, edits: [e("src/b.txt", "alpha\nbeta")] }, { index: 2, edits: [e("src/b.txt", "beta")] }], root)).toMatch(/src\/b\.txt/);
+    // A created file is the whole file.
+    expect(overlap([{ index: 1, edits: [{ file: "new.txt", find: "", replace: "x", note: "" }] }, { index: 2, edits: [{ file: "new.txt", find: "", replace: "y", note: "" }] }], root)).toMatch(/new\.txt/);
+  });
+
+  test("batches run at once apply every edit for one run, check the combined selection, trace red atoms to each batch, and revert", async () => {
+    const root = tree();
+    const file = join(root, "real.sqlite");
+    new SelectStore(file).close();
+    const parts = [
+      { index: 2, edits: [{ file: "a.txt", find: "two", replace: "TWO", note: "a word" }] },
+      { index: 4, edits: [{ file: "src/b.txt", find: "gamma", replace: "GAMMA", note: "a CRLF word" }] },
+    ];
+    let seen: string[] = [];
+    let runs = 0;
+    const sel = selection(["case:tests/a.nvst", "case:tests/b.nvst"]);
+    sel.selected.get("case:tests/a.nvst")!.keys.push({ key: "file:a.txt", origin: { path: "a.txt", how: "changed" } });
+    sel.selected.get("case:tests/b.nvst")!.keys.push({ key: "file:src/b.txt", origin: { path: "src/b.txt", how: "changed" } });
+    const rep = await mutateBatches(parts, {
+      root,
+      storeFile: file,
+      scratch: join(root, "copy"),
+      status: () => "",
+      run: async () => {
+        runs++;
+        seen = [read(root, "a.txt"), read(root, "src/b.txt")];
+        return {
+          selection: sel,
+          ran: new Map<string, Verdict>([
+            ["case:tests/a.nvst", "red"],
+            ["case:tests/b.nvst", "red"],
+            ["case:tests/c.nvst", "red"],
+          ]),
+        };
+      },
+    });
+    expect(runs).toBe(1);
+    expect(seen).toEqual(["one\nTWO\nthree\n", "alpha\r\nbeta\r\nGAMMA\r\n"]);
+    expect(read(root, "a.txt")).toBe("one\ntwo\nthree\n");
+    expect(read(root, "src/b.txt")).toBe("alpha\r\nbeta\r\ngamma\r\n");
+    expect(rep.failed).toBeUndefined();
+    expect(rep.red).toEqual(["case:tests/a.nvst", "case:tests/b.nvst", "case:tests/c.nvst"]);
+    expect(rep.misses.map((m) => m.id)).toEqual(["case:tests/c.nvst"]);
+    expect(rep.parts?.map((p) => [p.index, p.red])).toEqual([
+      [2, ["case:tests/a.nvst"]],
+      [4, ["case:tests/b.nvst"]],
+    ]);
+    const lines = describeBatch(rep);
+    expect(lines[0]).toBe("batches 2, 4 at once: 2 edit(s)");
+    expect(lines).toContain("  batch 2: 1 edit(s), 1 red atom(s) traced to its files: case:tests/a.nvst");
+    expect(lines).toContain("  MISS  case:tests/c.nvst went red and was not selected");
+
+    let ran = false;
+    const clash = await mutateBatches([parts[0]!, { index: 3, edits: [{ file: "a.txt", find: "one\ntwo", replace: "x", note: "" }] }], {
+      root,
+      storeFile: file,
+      scratch: join(root, "copy"),
+      status: () => "",
+      run: async () => {
+        ran = true;
+        return { selection: selection([]), ran: new Map() };
+      },
+    });
+    expect(ran).toBe(false);
+    expect(clash.failed).toBe("the batches cannot be applied at once: batch 2 and batch 3 both edit the same text of a.txt");
+    expect(read(root, "a.txt")).toBe("one\ntwo\nthree\n");
+  });
+
+  test("a red atom a batch's own file names is traced to that batch", () => {
+    const parts = [{ index: 1, edits: [{ file: "docs/examples/x/01-a.out", find: "1", replace: "2", note: "" }] }];
+    expect(attribute(parts, selection([]), ["proof:docs/examples/x/01-a.nvs", "case:tests/z.nvst"])).toEqual([{ index: 1, red: ["proof:docs/examples/x/01-a.nvs"] }]);
   });
 
   test("a run that throws still reverts, and a tree left changed fails the batch", async () => {
