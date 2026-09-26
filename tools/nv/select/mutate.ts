@@ -176,9 +176,33 @@ export function unselectedReds(ran: Map<string, Verdict>, selected: Set<string>)
   return [...ran].filter(([id, v]) => v === "red" && !selected.has(id)).map(([id]) => id).sort();
 }
 
+/** The errors Windows gives while another handle still has a file of the directory open. */
+const BUSY = new Set(["EBUSY", "EPERM", "ENOTEMPTY"]);
+
+/**
+ * Deletes `dir` and everything in it. On Windows a file another handle has open cannot be deleted, and
+ * the store copy is still open for a moment after a long run (a scanner, or a process the run started
+ * that is still exiting), so a busy error is tried again every `delayMs` for up to `tries` attempts before
+ * it is thrown.
+ */
+export function removeScratch(dir: string, o: { tries?: number; delayMs?: number; rm?: (dir: string) => void } = {}): void {
+  const rm = o.rm ?? ((d: string) => rmSync(d, { recursive: true, force: true }));
+  const tries = o.tries ?? 60;
+  for (let i = 1; ; i++) {
+    try {
+      rm(dir);
+      return;
+    } catch (e) {
+      if (i >= tries || !BUSY.has((e as NodeJS.ErrnoException).code ?? "")) throw e;
+      Bun.sleepSync(o.delayMs ?? 500);
+    }
+  }
+}
+
 /**
  * Runs `body` on a copy of the store in `from`, with `STORE_ENV` naming the copy for this process and every
- * process it starts. The copy and its directory are deleted afterwards, and `STORE_ENV` is put back.
+ * process it starts. The copy and its directory are deleted afterwards (`removeScratch`), and `STORE_ENV`
+ * is put back.
  */
 export async function withStoreCopy<T>(from: string, scratch: string, body: (store: SelectStore) => Promise<T>): Promise<T> {
   rmSync(scratch, { recursive: true, force: true });
@@ -200,7 +224,7 @@ export async function withStoreCopy<T>(from: string, scratch: string, body: (sto
     store?.close();
     if (was === undefined) delete process.env[STORE_ENV];
     else process.env[STORE_ENV] = was;
-    rmSync(scratch, { recursive: true, force: true });
+    removeScratch(scratch);
   }
 }
 

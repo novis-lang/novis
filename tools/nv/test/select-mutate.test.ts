@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { keepMisses, keptMisses, selectionMisses } from "../select/full.ts";
-import { applyEdits, type Edit, mutateBatch, revertEdits, unselectedReds, withStoreCopy } from "../select/mutate.ts";
+import { applyEdits, type Edit, mutateBatch, removeScratch, revertEdits, unselectedReds, withStoreCopy } from "../select/mutate.ts";
 import type { ChangeSet, Selected, Selection } from "../select/select.ts";
 import { kindOfAtom, SelectStore, STORE_ENV, type Verdict } from "../select/store.ts";
 
@@ -94,6 +94,19 @@ describe("the mutation harness", () => {
     expect(after.atom("case:tests/a.nvst")?.verdict).toBe("green");
     expect(after.atom("case:tests/b.nvst")).toBeNull();
     after.close();
+  });
+
+  test("the scratch directory is deleted again while it is busy, and any other error is thrown at once", () => {
+    const busy = (code: string) => Object.assign(new Error(code), { code });
+    let calls = 0;
+    removeScratch("x", { delayMs: 0, rm: () => { if (++calls < 3) throw busy("EBUSY"); } });
+    expect(calls).toBe(3);
+    calls = 0;
+    expect(() => removeScratch("x", { tries: 4, delayMs: 0, rm: () => { calls++; throw busy("EBUSY"); } })).toThrow("EBUSY");
+    expect(calls).toBe(4);
+    calls = 0;
+    expect(() => removeScratch("x", { delayMs: 0, rm: () => { calls++; throw busy("ENOENT"); } })).toThrow("ENOENT");
+    expect(calls).toBe(1);
   });
 
   test("a batch applies its edits for the run, reports the red atoms not selected, and reverts", async () => {
