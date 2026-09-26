@@ -1,0 +1,13 @@
+<?nvs
+// Shows that two generators with the same seed roll the same dice.
+
+Core\Random\Seeded $first = new Core\Random\Seeded(42);
+Core\Random\Seeded $second = new Core\Random\Seeded(42);
+
+// Each generator rolls a die four times. Both lines are the same on every run.
+echo $first->int(1, 6), " ", $first->int(1, 6), " ", $first->int(1, 6), " ", $first->int(1, 6), "\n";
+echo $second->int(1, 6), " ", $second->int(1, 6), " ", $second->int(1, 6), " ", $second->int(1, 6), "\n";
+
+// A different seed gives different rolls.
+Core\Random\Seeded $other = new Core\Random\Seeded(7);
+echo $other->int(1, 6), " ", $other->int(1, 6), " ", $other->int(1, 6), " ", $other->int(1, 6), "\n";
