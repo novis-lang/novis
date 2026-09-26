@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { keepMisses, keptMisses, selectionMisses } from "../select/full.ts";
-import { applyEdits, type Edit, mutateBatch, removeScratch, revertEdits, unselectedReds, withStoreCopy } from "../select/mutate.ts";
+import { applyEdits, describeBatch, type Edit, mutateBatch, removeScratch, revertEdits, unselectedReds, withStoreCopy } from "../select/mutate.ts";
 import type { ChangeSet, Selected, Selection } from "../select/select.ts";
 import { kindOfAtom, SelectStore, STORE_ENV, type Verdict } from "../select/store.ts";
 
@@ -107,6 +107,12 @@ describe("the mutation harness", () => {
     calls = 0;
     expect(() => removeScratch("x", { delayMs: 0, rm: () => { calls++; throw busy("ENOENT"); } })).toThrow("ENOENT");
     expect(calls).toBe(1);
+  });
+
+  test("a batch's report counts its red atoms by kind", () => {
+    const lines = describeBatch({ index: 1, edits: [], selected: { case: 2 }, red: ["case:a.nvst", "case:b.nvst", "proof:c.nvs"], misses: [] });
+    expect(lines).toContain("  selected: 2 case");
+    expect(lines).toContain("  red: 3 (2 case, 1 proof): case:a.nvst, case:b.nvst, proof:c.nvs");
   });
 
   test("a batch applies its edits for the run, reports the red atoms not selected, and reverts", async () => {

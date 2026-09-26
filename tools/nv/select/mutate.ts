@@ -16,7 +16,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import type { Selection } from "./select.ts";
-import { type AtomKind, SelectStore, STORE_ENV, storeFile, type Verdict } from "./store.ts";
+import { type AtomKind, kindOfAtom, SelectStore, STORE_ENV, storeFile, type Verdict } from "./store.ts";
 
 export interface Edit {
   file: string;
@@ -266,7 +266,10 @@ export function describeBatch(b: BatchReport): string[] {
   for (const e of b.edits) lines.push(`  edit  ${e.file}: ${e.note}`);
   const kinds = Object.entries(b.selected).map(([k, n]) => `${n} ${k}`).join(", ");
   lines.push(`  selected: ${kinds || "nothing"}`);
-  lines.push(`  red: ${b.red.length}${b.red.length > 0 ? ` (${b.red.slice(0, 8).join(", ")}${b.red.length > 8 ? ", ..." : ""})` : ""}`);
+  const redKinds = new Map<string, number>();
+  for (const id of b.red) redKinds.set(kindOfAtom(id), (redKinds.get(kindOfAtom(id)) ?? 0) + 1);
+  const byKind = [...redKinds].map(([k, n]) => `${n} ${k}`).join(", ");
+  lines.push(`  red: ${b.red.length}${b.red.length > 0 ? ` (${byKind}): ${b.red.slice(0, 8).join(", ")}${b.red.length > 8 ? ", ..." : ""}` : ""}`);
   if (b.failed) lines.push(`  FAILED: ${b.failed}`);
   else if (b.misses.length === 0) lines.push("  every red atom was selected");
   for (const m of b.misses) {
