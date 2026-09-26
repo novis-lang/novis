@@ -23,12 +23,16 @@
 // site is in code a build without `cfg(test)` leaves out. A file embedded from shipped code is data,
 // and is raw in every key that holds the embedding file. One embedded from test code is an input of
 // that package's test binaries alone.
+//
+// `scanItems` runs the scanner's other mode, `--items`: every item of each file, with a stable id,
+// its line span, a digest without doc comments, the names it refers to and binds, and which `Core`
+// class a registry row or card belongs to. Observed selection maps coverage and changes onto these.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { abs } from "../lib/paths.ts";
 
 const HELPER = "tools/nv-scan";
-const SOURCES = ["Cargo.toml", "Cargo.lock", "src/main.rs"].map((f) => `${HELPER}/${f}`);
+const SOURCES = ["Cargo.toml", "Cargo.lock", "src/main.rs", "src/items.rs"].map((f) => `${HELPER}/${f}`);
 
 /** Folded into every tiered digest, so a change to the scanner is a change to every key. */
 export const SCANNER = digest("nv-scan", ...SOURCES.map((f) => readFileSync(abs(f))));
@@ -90,6 +94,50 @@ export function analyseAll(texts: string[]): Analysis[] {
 /** One text's analysis. A caller with several texts uses `analyseAll`, which starts one process. */
 export function analyse(text: string): Analysis {
   return analyseAll([text])[0]!;
+}
+
+/** One array element of a class table: the classes it names and its own digest. */
+export interface ItemRow {
+  classes: string[];
+  digest: string;
+}
+
+/** One item of a Rust file, as `nv-scan --items` reads it. `tools/nv-scan/src/items.rs` says what
+ * each field holds. */
+export interface Item {
+  id: string;
+  kind: string;
+  start: number;
+  end: number;
+  test: boolean;
+  digest: string;
+  refs: string[];
+  defines: string[];
+  parent?: string;
+  includes?: string[];
+  class?: string[];
+  rows?: ItemRow[];
+  cards?: string[];
+}
+
+/** One file's items. A file that is missing or does not parse has `parsed: false` and no items. */
+export interface FileItems {
+  file: string;
+  parsed: boolean;
+  /** The digest of the file's bytes, empty when the file is missing. */
+  raw: string;
+  items: Item[];
+}
+
+/** Each file's items, in order, from one run of the scanner. Paths are relative to the repository
+ * root; class attribution reads every file of the batch, so a caller passes every file at once. */
+export function scanItems(files: string[]): FileItems[] {
+  if (files.length === 0) return [];
+  const r = Bun.spawnSync([helper(), "--items", abs(".")], { stdin: Buffer.from(files.join("\n") + "\n"), stdout: "pipe", stderr: "pipe" });
+  if (r.exitCode !== 0) throw new Error(`nv-scan --items failed:\n${r.stderr.toString()}`);
+  const lines = r.stdout.toString().split("\n").filter((l) => l !== "");
+  if (lines.length !== files.length) throw new Error(`nv-scan --items answered ${lines.length} of ${files.length} file(s)`);
+  return lines.map((l) => JSON.parse(l) as FileItems);
 }
 
 /** A hex blake2b digest of `chunks`, each followed by a separator so no two splits collide. */

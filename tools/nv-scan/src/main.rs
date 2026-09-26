@@ -7,9 +7,15 @@
 //! stdout: one JSON object per file, in input order, with the four tier digests and the file's
 //! `include_str!`/`include_bytes!` sites. A file `syn` cannot parse is its text in every tier, and
 //! its include sites are read off its tokens as if none were in a test module.
+//!
+//! `nv-scan --items <root>` is the other mode: each file's items, with ids, line spans, digests and
+//! references, for observed selection. [`items`] owns its input and output.
+
+mod items;
 
 use std::collections::HashSet;
 use std::io::{self, Read, Write};
+use std::path::Path;
 
 use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 use quote::ToTokens;
@@ -59,6 +65,16 @@ fn main() {
 }
 
 fn run() -> io::Result<()> {
+    let mut args = std::env::args().skip(1);
+    if let Some(flag) = args.next() {
+        if flag != "--items" {
+            return Err(bad("the only argument is `--items <root>`"));
+        }
+        let root = args
+            .next()
+            .ok_or_else(|| bad("`--items` needs the root directory"))?;
+        return items::run(Path::new(&root));
+    }
     let mut input = Vec::new();
     io::stdin().read_to_end(&mut input)?;
     let mut out = io::BufWriter::new(io::stdout().lock());
