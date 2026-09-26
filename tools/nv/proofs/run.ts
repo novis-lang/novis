@@ -10,8 +10,9 @@
 // `releaseBinary` is the same rule for `target/release/`, which the perf ledger is measured on.
 //
 // A green verdict is remembered in `.loop/proofs-green.json`, keyed on the program's bytes (with its `.out`
-// and `.in`) and on the binary's key, so an unchanged program on an unchanged binary is not run again. Only
-// a pass is remembered: a failure is run and reported every time.
+// and `.in`) and on the binary's key at `card`, so an unchanged program on a binary whose code is
+// unchanged is not run again. No program prints a card, so an edit to one runs nothing again. Only a pass
+// is remembered: a failure is run and reported every time.
 //
 // A run over whole groups records each group's example and attack directories and bench file in
 // `.loop/proof-reads.json`, which is what `tools/nv/keys/checks.ts` keys a `proofs: <group>` unit on.
@@ -34,8 +35,11 @@ export type Verdict = "ok" | "skip" | "known" | "fail";
 
 export interface Binary {
   path: string;
-  /** What a green verdict is remembered against: the Stage 6 key, or the bytes of a binary named by hand. */
+  /** What the binary was built at: the Stage 6 key at `shipped`, or the bytes of a binary named by hand. */
   key: string;
+  /** What a green verdict is remembered against: the same key at `card`, since no program prints a
+   * card, or the bytes of a binary named by hand. */
+  runs: string;
 }
 
 const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
@@ -98,10 +102,11 @@ async function builtBinary(profile: keyof typeof BUILDS): Promise<Binary | strin
   if (!graph) return `\`cargo metadata\` failed, and the ${build.name}'s key needs the graph`;
   const tree = await Tree.read();
   const key = keyOf(build.name, builtFrom(tree, graph, { own: ["nvs-cli"], ownTier: "shipped", depTier: "shipped", test: false }));
+  const runs = keyOf(build.name, builtFrom(tree, graph, { own: ["nvs-cli"], ownTier: "card", depTier: "card", test: false }));
   tree.save();
   const path = abs(build.path);
   const stamp = existsSync(abs(build.key)) ? readFileSync(abs(build.key), "utf8").trim() : "";
-  if (existsSync(path) && stamp === key) return { path, key };
+  if (existsSync(path) && stamp === key) return { path, key, runs };
   const command = build.argv.join(" ");
   console.error(`nv proofs: building the ${build.name} (\`${command}\`)`);
   const built = await linked(path, () => runProc(build.argv, { timeoutMs: 60 * 60 * 1000 }), (r) => r.stderr);
@@ -110,12 +115,13 @@ async function builtBinary(profile: keyof typeof BUILDS): Promise<Binary | strin
     return `\`${command}\` failed (exit ${built.code}):\n${tail}`;
   }
   writeFileSync(abs(build.key), `${key}\n`);
-  return { path, key };
+  return { path, key, runs };
 }
 
 /** A binary named with `--nvs`, taken as it is and remembered by its bytes. */
 export function namedBinary(path: string): Binary {
-  return { path, key: `bytes:${digest(readFileSync(path))}` };
+  const key = `bytes:${digest(readFileSync(path))}`;
+  return { path, key, runs: key };
 }
 
 export interface Ran {
@@ -381,7 +387,7 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
     const slot = `${what}:${what === "hostile" && opts.valgrind ? "valgrind" : "plain"}:${path}`;
     const d = proofDigest(path);
     const was = green[slot];
-    if (was && was[0] === d && was[1] === bin.key) results.set(id, { verdict: "ok", why: "", cached: true });
+    if (was && was[0] === d && was[1] === bin.runs) results.set(id, { verdict: "ok", why: "", cached: true });
     else todo.push({ what, path, slot, digest: d });
   }
   const width = jobsFor(todo.length);
@@ -393,7 +399,7 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
       const [raw, rawWhy] = t.what === "examples" ? await runExample(bin.path, t.path) : await runHostile(bin.path, t.path, opts.valgrind);
       const [verdict, why] = judgeGap(t.path, raw, rawWhy);
       results.set(`${t.what}:${t.path}`, { verdict, why, cached: false });
-      if (verdict === "ok") green[t.slot] = [t.digest, bin.key];
+      if (verdict === "ok") green[t.slot] = [t.digest, bin.runs];
       else delete green[t.slot];
     }
   };
