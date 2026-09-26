@@ -1,0 +1,26 @@
+<?nvs
+// Shows that two objects with equal fields are two different keys.
+
+final class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+}
+
+Point $a = new Point(1, 2);
+Point $b = new Point(1, 2);
+
+Core\ObjectMap<Point, string> $labels = new Core\ObjectMap<Point, string>();
+$labels->set($a, "start");
+$labels->set($b, "end");
+
+// `$a` and `$b` are equal, but they are not the same object. This prints 2.
+echo $labels->count(), "\n";
+
+// Each object has its own value. This prints "start", then "end".
+echo $labels->get($a) ?? "-", "\n";
+echo $labels->get($b) ?? "-", "\n";

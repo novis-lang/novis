@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-objectmap`. `Core\\ObjectMap` has its class card, and `clear`, `count` and `get` have every feature proof: about, examples, attack, bench with a recorded figure, and a Novis and a Rust test each.\nThe `get` bench found that every identity-store lookup allocated its chain key on the heap. `crate::identity_store::ChainKey` now builds it on the stack, so `get` records 0 allocations; this also speeds up `Core\\ObjectSet`, which shares the store.\nThe remaining members are `set`, `has`, `remove`, `isEmpty`, `keys`, `values` and the constructor. Their tests already exist: `the_two_stores_stay_paired_through_set_and_remove` in `crates/nvs-stdlib/src/objmap.rs` carries `covers:` for set/get/remove/count/keys/values, and the three `object-map-*` conformance cases name what they assert.",
+  "state": "Goal `core-objectmap`. `Core\\ObjectMap` has its class card, and `clear`, `count`, `get`, `has`, `isEmpty` and `set` have every feature proof: about, examples, attack, bench with a recorded figure, and a Novis and a Rust test each.\n`has` and `isEmpty` record 0 allocations. `set` records 1 allocation of 50 bytes per overwrite: the value store is written through `NvsArray::set`, which takes an owned `NvsStr` key, so an overwrite builds the chain key on the heap even though the entry already exists (`crates/nvs-stdlib/src/objmap.rs:382`). The bench declares no allocation count; the Backlog carries the fix.\n`bun nv proofs --owed --group 'Core\\ObjectMap'` names what is left: `remove` (examples, hostile, perf), `keys` and `values` (examples, hostile, perf, and a Novis test each).",
   "next": {
     "stage": 1,
     "title": "member proofs",
@@ -7,28 +7,26 @@
       "crates/nvs-stdlib/src/objmap.rs",
       "docs/examples/core/ObjectMap/",
       "tests/hostile/core/ObjectMap/",
-      "benches/members/core/ObjectMap/"
+      "benches/members/core/ObjectMap/",
+      "tests/conformance/core/object-map-*.nvst"
     ],
-    "note": "Run `bun nv proofs --id '<member>'` first; a test may only owe a `covers:` line.",
+    "note": "Run `bun nv proofs --id '<member>'` first.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\ObjectMap::has`** — owes about, examples, hostile, perf, and probably a `covers:` on `tests/conformance/core/object-map-has-is-the-only-member-that-tells-an-absent-key-from-a-null-value.nvst` plus a Rust test. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:98`"
+        "text": "**`Core\\ObjectMap::remove`** — owes examples, hostile, perf (check `about` with `--id`). Its Rust test is `the_two_stores_stay_paired_through_set_and_remove`, and `tests/conformance/core/object-map-get-and-remove-on-an-absent-key.nvst` calls it. A bench that removes and re-adds one key will allocate on the re-add; measure a remove of an absent key for `allocations 0`, or declare none. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:434`"
       },
       {
         "done": false,
-        "text": "**`Core\\ObjectMap::isEmpty`** — owes about, examples, hostile, perf and a Rust test; the sweep case already names it. A bench declares `allocations 0`. `crates/nvs-stdlib/src/objmap.rs:125`"
+        "text": "**`Core\\ObjectMap::keys`** — owes examples, hostile, perf and a Novis test: add `// covers: Core\\ObjectMap::keys` to `tests/conformance/core/object-map-keys-on-identity.nvst`. It returns a new list, so its bench allocates. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:476`"
       },
       {
         "done": false,
-        "text": "**`Core\\ObjectMap::set`** — owes about, examples, hostile, perf. Its bench will not reach `allocations 0` when it inserts a new key (a store entry is an allocation); re-`set` of a present key is the zero-allocation case to measure. `crates/nvs-stdlib/src/objmap.rs:80`"
+        "text": "**`Core\\ObjectMap::values`** — the same as `keys`, and the same case can carry both markers. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/objmap.rs:486`"
       }
     ]
   },
   "backlog": [
-    "`remove`, `keys`, `values` and the constructor follow the same shape — `crates/nvs-stdlib/src/objmap.rs`.",
-    "A bench that indexes an array with a `uint` pays 2 allocations per read; `benches/members/README.md` § *Index with an `int`* owns that.",
-    "`?uint ?? 0` types as `mixed` because the literal is an `int`; write `?? (0 as uint)` — not a bug this goal owns.",
-    "`nvs agent show 'Core\\ObjectMap'` prints the member list but not the class card's text, and `Core\\Net\\Stream` does the same; not checked whether that is intended — `crates/nvs-cli` agent renderer."
+    "`Core\\ObjectMap::set` allocates its chain key on every overwrite. A borrowed-key replace on `NvsArray` (beside `NvsArray::set`, `crates/nvs-runtime/src/array.rs:953`) would take it to 0; then add `// bench: allocations 0` to `benches/members/core/ObjectMap/set.nvs` and re-record. `Core\\ObjectSet` may share the cost. Owner: this goal, after the member proofs."
   ]
 }

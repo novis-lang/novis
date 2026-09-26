@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a program stores huge values, deeply nested keys, and new keys without end.
+// Each `set` should store the value or stop at the memory limit, and must not crash or leak.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectMap<mixed, mixed> $map = new Core\ObjectMap<mixed, mixed>();
+
+// 1. One key gets a new string of 1 million characters 100 times. Each `set` frees the old one.
+Node $one = new Node();
+int $i = 0;
+while ($i < 100) {
+    $map->set($one, Core\Str::repeat('v', 1000000));
+    $i = $i + 1;
+}
+echo '1: ', $map->count(), "\n";
+
+// 2. An array nested 10000 levels deep is a key and a value.
+mixed $deep = [];
+int $d = 0;
+while ($d < 10000) {
+    $deep = [$deep];
+    $d = $d + 1;
+}
+$map->set($deep, $deep);
+echo '2: ', $map->has($deep) ? 'y' : 'n', "\n";
+
+// 3. The map stores itself, as a key and as its own value.
+$map->set($map, $map);
+echo '3: ', $map->count(), "\n";
+
+// 4. A chain of 100000 objects is stored as a value. `clear` frees the whole chain.
+Node $head = new Node();
+Node $tail = $head;
+int $n = 0;
+while ($n < 100000) {
+    Node $link = new Node();
+    $tail->next = $link;
+    $tail = $link;
+    $n = $n + 1;
+}
+$map->set(new Node(), $head);
+$map->clear();
+echo '4: ', $map->count(), "\n";
+
+// 5. New keys are added until the memory limit stops the program.
+while (true) {
+    $map->set(new Node(), Core\Str::repeat('x', 1000));
+}
