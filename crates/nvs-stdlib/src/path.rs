@@ -267,69 +267,69 @@ const EXTENSION_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Path::withExtension`'s reference card — `rule:core-api/reference-card`.
 const WITH_EXTENSION_DOC: MethodDoc = MethodDoc {
-    short: "Answers `$path` with its last component's extension replaced by `$extension`, or \
-            removed for `null` — the inverse of `Core\\Path::extension`, replacing the string \
-            surgery PHP leaves this to.",
+    short: "Returns `$path` with the extension of its last part changed to `$extension`. When \
+            `$extension` is `null`, the extension is removed. PHP has no function for this.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The path, with `/` and `\\` both read as separators.",
+            desc: "The path. `/` and `\\` are both separators on every platform.",
             shape: &[],
         },
         ParamDoc {
             name: "extension",
-            desc: "The new extension without its dot, exactly as `extension` answers it — an \
-                   interior dot such as `tar.gz` is fine — or `null` to remove the existing \
-                   one.",
+            desc: "The new extension, without its dot, the same way `Core\\Path::extension` \
+                   returns it. It may have a dot inside, such as `tar.gz`. `null` removes the \
+                   extension.",
             shape: &[],
         },
     ],
-    ret: "The rewritten path, rendered with `Path::SEPARATOR`.",
+    ret: "The new path, written with `Core\\Path::SEPARATOR`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$extension` is empty, starts with a `.`, or contains a path separator; or \
-               `$path` names no file — `/` or `''` — so there is no extension to set.",
+        desc: "`$extension` is empty, starts with a `.`, or contains `/` or `\\`. Or `$path` has \
+               no file name, such as `/` or `''`.",
     }],
 };
 
 /// `Core\Path::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
-    short: "Appends each of `$segments` to `$base` with a separator between — the \
-            `$a . \"/\" . $b` every PHP program writes. Only the base decides the root: a \
-            segment's own leading separator or root is dropped rather than allowed to replace \
-            what came before.",
+    short: "Adds each of `$segments` to the end of `$base`, with one separator between each \
+            part. This replaces the `$a . \"/\" . $b` that PHP programs write. Only `$base` \
+            decides where the result starts. A segment that starts with `/` or a drive is \
+            added after `$base` and does not replace it.",
     params: &[
         ParamDoc {
             name: "base",
-            desc: "The path the segments are appended to; its root, if any, is the result's.",
+            desc: "The first path. The result starts where this path starts.",
             shape: &[],
         },
         ParamDoc {
             name: "segments",
-            desc: "Any number of further path pieces, each split into components and appended \
-                   in order.",
+            desc: "Any number of paths to add, in order. A leading `/`, `\\` or drive in one of \
+                   them is removed.",
             shape: &[],
         },
     ],
-    ret: "The joined path, rendered with `Path::SEPARATOR`; `$base` with its separators \
-          normalized when there are no segments. Not a launder — a `..` segment still walks \
-          up.",
+    ret: "The joined path, written with `Core\\Path::SEPARATOR`. With no segments, the result \
+          is `$base` with its extra separators removed. A `..` segment stays in the result and \
+          still means the parent folder.",
     errors: &[],
 };
 
 /// `Core\Path::split`'s reference card — `rule:core-api/reference-card`.
 const SPLIT_DOC: MethodDoc = MethodDoc {
-    short: "Splits `$path` into its components — `explode(DIRECTORY_SEPARATOR, …)` for both \
-            separators at once, and lossless: `Path::join(...Path::split($p))` is `$p` with \
-            its separators normalized.",
+    short: "Splits `$path` into its parts: the folders and the file name, in order. This \
+            replaces PHP's `explode(\"/\", $path)`. `Core\\Path::join` puts the parts back \
+            together into the same path.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The path, with `/` and `\\` both read as separators.",
+        desc: "The path. `/` and `\\` are both separators on every platform.",
         shape: &[],
     }],
-    ret: "The components in order, an absolute path's root (`/`, `C:\\` or `\\\\server\\share\\`, \
-          rendered with `Path::SEPARATOR`) first; never an empty element, since a repeated or \
-          trailing separator contributes nothing, and an empty array for `''`.",
+    ret: "The parts in order. When the path starts at a root, the root is the first part: `/`, \
+          a drive such as `C:\\`, or a share such as `\\\\server\\share\\`. The root is written \
+          with `Core\\Path::SEPARATOR`. No part is empty, because a repeated separator or one \
+          at the end adds nothing. The empty path gives an empty array.",
     errors: &[],
 };
 
@@ -1248,6 +1248,7 @@ mod tests {
     }
 
     /// The member's reason for existing: it takes what `extension` answers.
+    // covers: Core\Path::withExtension
     #[test]
     fn with_extension_is_extensions_inverse() {
         let set = |path: &str, extension: Value| {
@@ -1267,6 +1268,7 @@ mod tests {
         assert_eq!(set("a\\b.txt", s("md")), "a/b.md");
     }
 
+    // covers: Core\Path::withExtension
     #[test]
     fn with_extension_refuses_what_extension_never_answers() {
         for bad in [".txt", "", "a/b", "a\\b"] {
@@ -1284,6 +1286,7 @@ mod tests {
         }
     }
 
+    // covers: Core\Path::split
     #[test]
     fn split_leads_with_the_root_and_never_with_an_empty() {
         assert_eq!(split("/a/b"), ["/", "a", "b"]);
@@ -1322,6 +1325,7 @@ mod tests {
         }
     }
 
+    // covers: Core\Path::join
     #[test]
     fn join_only_ever_appends() {
         assert_eq!(
@@ -1339,6 +1343,7 @@ mod tests {
     }
 
     /// The property `split`'s root-first element exists for.
+    // covers: Core\Path::join
     #[test]
     fn join_reassembles_what_split_took_apart() {
         for path in [

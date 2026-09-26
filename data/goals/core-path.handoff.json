@@ -1,28 +1,26 @@
 {
-  "state": "Goal `core-path`: `Core\\Path::basename`, `dirname` and `extension` are complete (`bun nv proofs --id` says `complete.` for each).\n`Core\\Path` has its class card, and the three member cards are rewritten in the plain voice.\nThe six Rust tests for those three members carry `covers:` markers in `crates/nvs-stdlib/src/path.rs`.\nFigures for the three are in `docs/perf/members.ndjson`. Nothing is blocked.\n`withExtension`, `join`, `split`, `normalize`, `isAbsolute` and `relativeTo` still owe about, examples, hostile and perf. Their Rust tests already exist in `path.rs`'s `mod tests` and only need a `covers:` marker. Their cards are still in the old voice.",
+  "state": "Goal `core-path`: `basename`, `dirname`, `extension`, `withExtension`, `join` and `split` are complete. Each has its about, three examples, an attack, a bench, a recorded figure in `docs/perf/members.ndjson`, `covers:` markers in `crates/nvs-stdlib/src/path.rs`'s `mod tests`, and a card in the plain voice.\n`normalize`, `isAbsolute` and `relativeTo` still owe about, examples, hostile and perf (`bun nv proofs --group 'Core\\Path' --owed`). Their Rust tests exist in `path.rs`'s `mod tests` and need only a `covers:` marker. Their cards are still in the old voice.\nThe floor's `nvs-cli` checks were red on a test race in `crates/nvs-cli/src/serve.rs` (three cases wrote one fixture file); each case now writes its own directory. Nothing is blocked.",
   "next": {
     "stage": 1,
-    "title": "the next three members' proofs",
+    "title": "the last three members' proofs",
     "files": [],
     "note": "one file set: `crates/nvs-stdlib/src/path.rs` (cards and `mod tests`), `docs/examples/core/Path/`, `tests/hostile/core/Path/`, `benches/members/core/Path/`. `rule:testing/feature-proofs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Path::withExtension`** — about, 3 examples, attack, bench, `covers:` on `with_extension_is_extensions_inverse`, plain-voice card. It throws `RuntimeError`, so the attack catches it. `crates/nvs-stdlib/src/path.rs:129`"
+        "text": "**`Core\\Path::normalize`** — about, 3 examples, attack, bench, `covers:` on `normalize_resolves_dots_by_counting_components`, plain-voice card. Its output has separators, so print it through `Core\\Str::replace($p, Core\\Path::SEPARATOR, \"/\")`, as `docs/examples/core/Path/join/01-a-folder-and-a-file.nvs` does. `crates/nvs-stdlib/src/path.rs:337`"
       },
       {
         "done": false,
-        "text": "**`Core\\Path::join`** — same set. Its output has separators, so print it through `Core\\Str::replace($p, Core\\Path::SEPARATOR, \"/\")` as `docs/examples/core/Path/dirname/01-the-folder-of-a-file.nvs` does. `crates/nvs-stdlib/src/path.rs:141`"
+        "text": "**`Core\\Path::isAbsolute`** — same set; it returns a `bool`, so its bench declares `// bench: allocations 0`. `crates/nvs-stdlib/src/path.rs:353`"
       },
       {
         "done": false,
-        "text": "**`Core\\Path::split`** — same set; same separator note for the root element. `crates/nvs-stdlib/src/path.rs:153`"
+        "text": "**`Core\\Path::relativeTo`** — same set; it returns `?string`, and `null` is a case its examples show. `crates/nvs-stdlib/src/path.rs:368`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Path::normalize`, `isAbsolute`, `relativeTo` — the group after this one, anchors `crates/nvs-stdlib/src/path.rs:162`, `:171`, `:180`.",
-    "`bun nv proofs --record-perf` takes only the last of several `--id` flags; run it once per member.",
-    "`nvs agent show 'Core\\Path'` prints the member list and not the class card text; the same holds for `Core\\Password`, so this is how the view works now, not a gap in this goal."
+    "`withExtension`, `join` and `split` each count 10 to 13 allocations per call in their figures. That is a perf question for `crates/nvs-stdlib/src/path.rs`, not a proof gap."
   ]
 }

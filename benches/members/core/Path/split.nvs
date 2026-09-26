@@ -1,0 +1,23 @@
+<?nvs
+// Measures splitting a short path into its parts, as a program does before it builds navigation links.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = [
+            "/srv/shop/invoices/invoice-1042.pdf",
+            "guide/install/linux.md",
+            "uploads/2026/09/holiday.jpeg",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The path split next depends on the last result, so no round can be skipped.
+            $total = $total + Core\Arr::count(Core\Path::split($paths[$total % 3]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
