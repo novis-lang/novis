@@ -1,0 +1,26 @@
+<?nvs
+// Shows how the count of a set changes when you add and remove values.
+
+final class File {
+    public string $path;
+
+    public function constructor(string $path) {
+        $this->path = $path;
+    }
+}
+
+File $readme = new File("README.md");
+File $notes = new File("notes.txt");
+
+Core\ObjectSet<File> $open = new Core\ObjectSet<File>();
+// A new set is empty. This prints 0.
+echo $open->count(), "\n";
+
+$open->add($readme);
+$open->add($notes);
+// This prints 2.
+echo $open->count(), "\n";
+
+$open->remove($readme);
+// This prints 1.
+echo $open->count(), "\n";

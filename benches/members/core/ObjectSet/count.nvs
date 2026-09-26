@@ -1,0 +1,31 @@
+<?nvs
+// Counts the objects in a set, as a program does before it checks a limit.
+// bench: iterations 1000000
+// bench: allocations 0
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\ObjectSet<Key> $seen = new Core\ObjectSet<Key>();
+        $seen->add(new Key(1));
+        $seen->add(new Key(2));
+        $seen->add(new Key(3));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: each round adds the count to last round's total
+            $total = $total + $seen->count() + ($total % 7);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000000), "\n";

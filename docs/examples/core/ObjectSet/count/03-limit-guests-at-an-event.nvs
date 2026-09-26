@@ -1,0 +1,47 @@
+<?nvs
+// Shows how to limit how many different guests can join an event.
+
+final class Guest {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+final class Event {
+    public uint $seats;
+    public Core\ObjectSet<Guest> $guests;
+
+    public function constructor(uint $seats) {
+        $this->seats = $seats;
+        $this->guests = new Core\ObjectSet<Guest>();
+    }
+
+    public function join(Guest $guest): bool {
+        // A guest who has already joined does not take a second seat.
+        if ($this->guests->has($guest)) {
+            return true;
+        }
+        if ($this->guests->count() >= $this->seats) {
+            return false;
+        }
+        $this->guests->add($guest);
+        return true;
+    }
+}
+
+Guest $ana = new Guest("Ana");
+Guest $li = new Guest("Li");
+Guest $sam = new Guest("Sam");
+
+array<Guest> $arrivals = [$ana, $li, $ana, $sam];
+
+Event $talk = new Event(2);
+// This prints "Ana yes", "Li yes", "Ana yes" and "Sam no".
+foreach ($arrivals as Guest $guest) {
+    echo $guest->name, " ", $talk->join($guest) ? "yes" : "no", "\n";
+}
+
+// This prints 2.
+echo $talk->guests->count(), "\n";
