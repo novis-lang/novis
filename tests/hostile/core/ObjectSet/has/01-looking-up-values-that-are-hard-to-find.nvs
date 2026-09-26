@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a program looks up values that are huge, deeply nested, equal but not the same, or the set
+// itself. Each `has` should give the right answer, and the program must not crash.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+Core\ObjectSet<mixed> $set = new Core\ObjectSet<mixed>();
+
+// 1. 100000 objects are added. An equal object that was never added is looked up 1 million times.
+array<Node> $nodes = [];
+int $i = 0;
+while ($i < 100000) {
+    Node $node = new Node($i);
+    $nodes[] = $node;
+    $set->add($node);
+    $i = $i + 1;
+}
+Node $stranger = new Node(7);
+uint $wrong = 0;
+$i = 0;
+while ($i < 1000000) {
+    if ($set->has($stranger)) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo '1: ', $wrong, "\n";
+
+// 2. Every added object is looked up. Each one should be found.
+$wrong = 0;
+foreach ($nodes as Node $node) {
+    if (!$set->has($node)) {
+        $wrong = $wrong + 1;
+    }
+}
+echo '2: ', $wrong, "\n";
+
+// 3. A string of 1 million characters is added, and an equal string built again is looked up.
+$set->add(Core\Str::repeat('v', 1000000));
+echo '3: ', $set->has(Core\Str::repeat('v', 1000000)) ? 'y' : 'n', "\n";
+
+// 4. An array nested 10000 levels deep is looked up, and it was never added.
+mixed $deep = [];
+int $d = 0;
+while ($d < 10000) {
+    $deep = [$deep];
+    $d = $d + 1;
+}
+echo '4: ', $set->has($deep) ? 'y' : 'n', "\n";
+
+// 5. The set looks for itself, before and after it is added to itself.
+echo '5: ', $set->has($set) ? 'y' : 'n';
+$set->add($set);
+echo $set->has($set) ? 'y' : 'n', "\n";
+
+// 6. New objects are added and looked up until the memory limit stops the program.
+while (true) {
+    Node $fresh = new Node(0);
+    $set->add($fresh);
+    $set->has($fresh);
+}

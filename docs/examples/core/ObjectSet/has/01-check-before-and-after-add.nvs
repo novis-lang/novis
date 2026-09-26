@@ -1,0 +1,24 @@
+<?nvs
+// Shows how `has` checks if a value is in a set, before and after you change the set.
+
+final class Room {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Room $kitchen = new Room("Kitchen");
+
+Core\ObjectSet<Room> $cleaned = new Core\ObjectSet<Room>();
+// The set is empty. This prints "no".
+echo $cleaned->has($kitchen) ? "yes" : "no", "\n";
+
+$cleaned->add($kitchen);
+// This prints "yes".
+echo $cleaned->has($kitchen) ? "yes" : "no", "\n";
+
+$cleaned->remove($kitchen);
+// This prints "no".
+echo $cleaned->has($kitchen) ? "yes" : "no", "\n";
