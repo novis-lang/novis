@@ -9,7 +9,7 @@
 //         + atoms whose definition changed
 //         + atoms indexed under any changed key
 //         + every atom, when a global file changed
-
+//         + every proof program, when code only an optimized build compiles changed and has no twin
 //
 // Nothing outside `run` is started. `explain` says for one atom which key selected it, the path and
 // item the key came from, and for a key reached through the reference graph the item that reached it.
@@ -24,7 +24,8 @@ import { caseDef, caseFiles, caseId, currentDef, stillThere } from "./atoms.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, namedChanges, sinceOverlay, snapshot } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
-import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, testsKey, WILD } from "./keys.ts";
+import { gitTexts, profileReader } from "./profile.ts";
+import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, PROFILE_ONLY, testsKey, WILD } from "./keys.ts";
 import { type AtomKind, kindOfAtom, type Overlay, type SelectStore } from "./store.ts";
 
 /** Files whose change selects every atom: the toolchain, the lock file, a manifest, and the two tools
@@ -238,7 +239,8 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   }
 
   const universe = new Universe(view, scope);
-  for (const [k, o] of closure(itemChanges, universe, wideFiles, extra)) emit(k, o);
+  const profile = profileReader(gitTexts(since, until, root), view);
+  for (const [k, o] of closure(itemChanges, universe, wideFiles, extra, profile)) emit(k, o);
   // Code of a file no item held was recorded as the whole file.
   for (const c of itemChanges) emit(fileWild(c.file), { path: c.file, item: c.id, how: c.how });
   // A test that did not exist is in no footprint: every test binary of its package runs.
@@ -346,7 +348,12 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   // A footprint a diverged run recorded may be cut short, so the atom runs whatever changed.
   for (const id of store.divergences().keys()) if (knownIds.has(id) && stillThere(id)) add(id, "diverged");
   if (change.global || change.moved.size === 0) return { change, selected, known, gone };
-
+  // Code only an optimized build compiles never ran on the build that records, so no footprint holds it.
+  const profile = change.moved.get(PROFILE_ONLY);
+  if (profile) {
+    for (const a of atoms) if (a.kind === "proof" && stillThere(a.id)) add(a.id, "key", { key: PROFILE_ONLY, origin: profile });
+    for (const d of opts.discovered ?? []) if (kindOfAtom(d.id) === "proof") add(d.id, "key", { key: PROFILE_ONLY, origin: profile });
+  }
 
   const exact = new Map<string, number>();
   const lookup = (key: string) => {

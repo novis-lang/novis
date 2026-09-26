@@ -15,6 +15,7 @@
 // | `named:<name>` | every file called `<name>`, anywhere |
 // | `mod:<path>` | a TypeScript module a `bun nv` process loaded |
 // | `tests:<package>` | computed: held by every test binary of the package, moved by a test added to it |
+// | `profile:optimized` | computed: moved by a change to code only an optimized build compiles, which selects every proof program |
 // | `*` | something ran that could not be attributed at all: any change selects the atom |
 //
 // Paths are repo-relative with `/`. A path outside the repository, or under a directory that is never
@@ -39,6 +40,9 @@ export const testsKey = (pkg: string) => `tests:${pkg}`;
 export const ALL_CLASSES = "class:*";
 export const ALL_CARDS = "card:*";
 export const WHOLE_TREE = "tree:.";
+/** Moved by a change to code only an optimized build compiles, with no twin the recording build runs:
+ * no footprint holds it, and it selects every proof program. */
+export const PROFILE_ONLY = "profile:optimized";
 
 /** A class or card name as a key holds it: lowercased, without a leading `\`. */
 export function norm(name: string): string {

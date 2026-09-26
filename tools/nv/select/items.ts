@@ -25,9 +25,15 @@
 // An item compiled only for tests (`test`) is never a card or a class row a program reads: its cards,
 // classes and rows are ignored and it moves what names it, like any other item. A test that was added
 // is in no footprint yet; `select.ts` moves its package's `tests:` key for it.
+//
+// An item only an optimized build compiles (`profile.ts`) never ran on the debug build every footprint
+// is recorded on. It moves its twin as well, the item of its file with the same id but for the `#N`
+// ordinal that a debug build compiles; with no twin it moves `PROFILE_ONLY`, which selects every proof
+// program.
 
 import type { FileItems, Item, ItemRow } from "../keys/scan.ts";
-import { ALL_CARDS, ALL_CLASSES, cardKey, classKey, fnKey, itemPrefix } from "./keys.ts";
+import { ALL_CARDS, ALL_CLASSES, cardKey, classKey, fnKey, itemPrefix, PROFILE_ONLY } from "./keys.ts";
+import { baseId, NO_PROFILE, type ProfileOnly, shipsIn } from "./profile.ts";
 
 export type How = "added" | "removed" | "changed" | "reached";
 
@@ -113,6 +119,12 @@ export class Universe {
   children(file: string, id: string): Placed[] {
     return this.byParent.get(`${file}#${id}`) ?? [];
   }
+
+  /** The other items of `file` whose id is `id` but for nv-scan's `#N` ordinal. */
+  twins(file: string, id: string): Item[] {
+    const base = baseId(id);
+    return (this.files.get(file)?.items ?? []).filter((i) => i.id !== id && baseId(i.id) === base);
+  }
 }
 
 /** The classes of the rows that differ between two versions of a class table: each row one side has and
@@ -158,9 +170,10 @@ export function rowClasses(before: ItemRow[] | undefined, after: ItemRow[] | und
 export type ExtraDefines = Map<string, string[]>;
 
 /**
- * The keys `changes` move, closed over the reference graph. `wideFiles` are files taken whole.
+ * The keys `changes` move, closed over the reference graph. `wideFiles` are files taken whole, and
+ * `profile` says which items only an optimized build compiles.
  */
-export function closure(changes: ItemChange[], universe: Universe, wideFiles: string[] = [], extra: ExtraDefines = new Map()): Moved {
+export function closure(changes: ItemChange[], universe: Universe, wideFiles: string[] = [], extra: ExtraDefines = new Map(), profile: ProfileOnly = NO_PROFILE): Moved {
   const moved: Moved = new Map();
   const emit = (key: string, origin: Origin) => {
     if (!moved.has(key)) moved.set(key, origin);
@@ -198,6 +211,11 @@ export function closure(changes: ItemChange[], universe: Universe, wideFiles: st
     const origin: Origin = { path: e.file, item: e.item.id, how: e.how, ...(e.via ? { via: e.via } : {}) };
     emit(fnKey(e.file, e.item.id), origin);
     const shipped = !e.item.test;
+    if (shipped && shipsIn(e.file) && profile(e.file, e.item, e.how === "removed" ? "base" : "head")) {
+      const twins = universe.twins(e.file, e.item.id).filter((t) => !profile(e.file, t, "head"));
+      for (const t of twins) queue.push({ file: e.file, item: t, how: "reached", via: id });
+      if (twins.length === 0) emit(PROFILE_ONLY, origin);
+    }
     if (shipped && (e.item.cards?.length || e.was?.cards?.length)) {
       for (const c of [...(e.item.cards ?? []), ...(e.was?.cards ?? [])]) emit(cardKey(c), origin);
       continue;

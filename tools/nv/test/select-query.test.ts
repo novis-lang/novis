@@ -177,4 +177,11 @@ describe("what the recording build cannot see", () => {
       dir.cleanup();
     }
   });
+
+  test("code only an optimized build compiles selects every proof program and nothing else by itself", () => {
+    const sel = query(withProofs(), change([["profile:optimized", "crates/s/src/alloc.rs"]]));
+    const keyed = [...sel.selected.values()].filter((x) => x.why === "key").map((x) => x.id).sort();
+    expect(keyed).toEqual([ATTACK, SQRT, "nv:odd"].sort());
+    expect(sel.selected.get(SQRT)!.keys[0]!.origin.path).toBe("crates/s/src/alloc.rs");
+  });
 });
