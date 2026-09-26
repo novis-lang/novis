@@ -2,8 +2,8 @@
 //! drain period as durations — refusing the magnitudes that would leave a connection unbounded —
 //! and `listen` as the sockets to bind.
 //!
-//! Those, along with `max_in_flight`, `workers`, `socket_mode`, `health_path` and the
-//! `[server.connection]` bounds, are the only parts of `[server]`
+//! Those, along with `max_in_flight`, `workers`, `socket_mode`, `health_path`, `dispatch`, `static`
+//! and the `[server.connection]` bounds, are the only parts of `[server]`
 //! that resolve to something other than what was written *here*, so this module is small on purpose:
 //! everything else in the block is a path or a word read directly off [`crate::tree::Server`]. The
 //! mount table resolves as well, and it is [`mod@crate::mount`]'s because it needs a disk to
@@ -78,6 +78,11 @@
 //! or a fragment, a literal space — is refused under `E0623` rather than reserved and then never
 //! reached: a probe that never matches leaves the server looking configured while nothing answers.
 //! `/` on its own is refused from the other side, because it reserves every mount's own entry.
+//!
+//! **`dispatch` and `static` are the two keys here whose default the mode chooses**
+//! (`rule:config/a-startup-default-is-never-flipped`). [`switches_for`] is the one place their two
+//! rows are written: a written value wins, and an unwritten one is development's `"path"` and on or
+//! production's `"entry"` and off, by the mode the published configuration names.
 //!
 //! Cost: one pass over one optional block at boot and at reload, and a `Duration` per wait plus
 //! one address per written `listen` entry held per configuration generation. Nothing here runs on
@@ -690,6 +695,60 @@ pub fn health_path(
         "write the one absolute path the probe asks for, as `/healthz`, or leave \
          `server.health_path` out to keep `rule:http-server/the-server-block-is-boot-class`'s own off",
     ))
+}
+
+/// Which of `rule:http-server/a-request-resolves-in-five-steps`'s two dispatch readings is in
+/// force.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Dispatch {
+    /// `dispatch = "entry"` — step 4 does not run, and every request the mount matched runs its
+    /// entry. Production's row.
+    Entry,
+    /// `dispatch = "path"` — an existing `.nvs` file under the mount root runs itself, which is the
+    /// `try_files $uri /index.nvs` every PHP application already deploys under. Development's row.
+    Path,
+}
+
+/// `[server] dispatch` and `[server] static`, the two switches a mount table is built with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Switches {
+    /// Step 4's switch.
+    pub dispatch: Dispatch,
+    /// Step 3's switch, spelled `static` in the file.
+    pub serve_static: bool,
+}
+
+/// The two switches as `rule:config/a-startup-default-is-never-flipped` resolves them: what
+/// `[server]` wrote, and otherwise the row of the mode `[mode] default` names — `"path"` and on in
+/// development, `"entry"` and off in production and where no mode is written.
+///
+/// The mode is read the way [`crate::cache::Revalidation::from_config`] reads it for `settle`, each
+/// time a configuration is published and never from a runtime flip, which only a request makes and
+/// which comes after the request was dispatched. An `[[app]]` block is not consulted: both are
+/// `[server]` keys and one server holds one mount table. A written `dispatch` other than `"path"` is
+/// [`Dispatch::Entry`], because nothing refuses another spelling at load and the closed reading is
+/// the one that runs no file nobody enumerated.
+#[must_use]
+pub fn switches_for(config: &Config) -> Switches {
+    let development = config
+        .mode
+        .as_ref()
+        .and_then(|mode| mode.default.as_deref())
+        == Some(crate::mode::DEVELOPMENT);
+    let server = config.server.as_ref();
+    let dispatch = match server.and_then(|server| server.dispatch.as_deref()) {
+        Some("path") => Dispatch::Path,
+        Some(_) => Dispatch::Entry,
+        None if development => Dispatch::Path,
+        None => Dispatch::Entry,
+    };
+    let serve_static = server
+        .and_then(|server| server.serve_static)
+        .unwrap_or(development);
+    Switches {
+        dispatch,
+        serve_static,
+    }
 }
 
 /// § 5's own number, transcribed rather than chosen — the ADR writes it out.
