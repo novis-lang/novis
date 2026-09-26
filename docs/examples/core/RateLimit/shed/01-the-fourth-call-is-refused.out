@@ -1,0 +1,4 @@
+call 1: allowed, remaining 2
+call 2: allowed, remaining 1
+call 3: allowed, remaining 0
+call 4: refused, remaining 0

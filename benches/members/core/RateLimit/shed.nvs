@@ -1,0 +1,19 @@
+<?nvs
+// Checks one key against a per-core limit, as a server does before it runs a slow page.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $keys = ["ip:203.0.113.5", "ip:198.51.100.20", "ip:192.0.2.44"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $decision = Core\RateLimit::shed($keys[($total % 3) as int], 1000000, 1s);
+            $total = $total + $decision->limit() % 7 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

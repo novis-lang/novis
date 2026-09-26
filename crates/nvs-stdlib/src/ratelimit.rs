@@ -853,7 +853,9 @@ mod tests {
 
     use super::{
         ALLOWED_SLOT, CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, SHED_DOC, Value, Window,
-        decoded, nvs_core_ratelimit_consume, nvs_core_ratelimit_shed, step, window,
+        decoded, nvs_core_ratelimit_consume, nvs_core_ratelimit_decision_allowed,
+        nvs_core_ratelimit_decision_limit, nvs_core_ratelimit_decision_remaining,
+        nvs_core_ratelimit_decision_retry_after, nvs_core_ratelimit_shed, step, window,
     };
     use crate::cache::redis::Connection;
     use crate::cache::{Dial, Target};
@@ -1102,6 +1104,7 @@ mod tests {
     /// decoder. GCRA is asserted as behaviour over a sequence — two arrivals
     /// inside a burst of two, the third refused with the exact wait until the
     /// next unit drains, and that arrival admitted once it has.
+    // covers: Core\RateLimit::shed
     #[test]
     fn shed_is_the_same_gcra_over_the_cores_own_memory() {
         let [consume, shed] = CLASS.methods else {
@@ -1166,6 +1169,7 @@ mod tests {
     /// forgets the arrival, and the key then admits a burst GCRA alone would
     /// have refused. And [`SHED_DOC`] states both, plus the absence of the
     /// `IOError` its coherent twin documents.
+    // covers: Core\RateLimit::shed
     #[test]
     fn shed_is_per_core_and_approximate_and_says_so() {
         let mut ctx = Ctx::buffered();
@@ -1274,6 +1278,54 @@ mod tests {
             crate::instance::slot(object, super::RETRY_AFTER_SLOT).tag() == Some(Tag::Null),
             "`retryAfter` is `null` exactly when the arrival was allowed"
         );
+    }
+
+    /// `rule:core-classes/ratelimit-gcra`: the four readers a program calls
+    /// answer the decision's own slots, through the symbols a call site reaches
+    /// rather than the slot reads the cases above make.
+    ///
+    /// One allowed decision and one refused, since each reader's answer differs
+    /// between them in a way a reader that read the wrong slot would not match.
+    // covers: Core\RateLimit\Decision::allowed, Core\RateLimit\Decision::limit
+    // covers: Core\RateLimit\Decision::remaining, Core\RateLimit\Decision::retryAfter
+    #[test]
+    fn the_four_readers_answer_the_decisions_own_slots() {
+        let mut ctx = Ctx::buffered();
+        let allowed = decoded(&[1, 0, 4], 5).expect("an allowance is a decision");
+        let refused = decoded(&[0, 1_234_567, 0], 5).expect("a refusal is a decision");
+
+        for (decision, admitted, left) in [(allowed, true, 4), (refused, false, 0)] {
+            let receiver = [decision];
+            let read = |reader: nvs_runtime::NvsFn, ctx: &mut Ctx| {
+                nvs_runtime::call(reader, ctx, &receiver).expect("a reader cannot fail")
+            };
+            assert_eq!(
+                read(nvs_core_ratelimit_decision_allowed, &mut ctx).as_bool(),
+                Some(admitted)
+            );
+            assert_eq!(
+                read(nvs_core_ratelimit_decision_limit, &mut ctx).as_uint(),
+                Some(5),
+                "`limit` is the limit the decision was made against, allowed or not"
+            );
+            assert_eq!(
+                read(nvs_core_ratelimit_decision_remaining, &mut ctx).as_uint(),
+                Some(left)
+            );
+            let wait = read(nvs_core_ratelimit_decision_retry_after, &mut ctx);
+            if admitted {
+                assert!(
+                    wait.tag() == Some(Tag::Null),
+                    "an allowed decision has no wait"
+                );
+            } else {
+                assert_eq!(
+                    crate::time::nanos_of(&[wait], 0, "retryAfter").expect("a `Duration`"),
+                    1_234_567_000,
+                    "a refused decision's wait is the exact figure it was decoded from"
+                );
+            }
+        }
     }
 
     /// `rule:core-classes/ratelimit-unreachable-store-throws`: an unreachable store throws, and never decides *allowed*.

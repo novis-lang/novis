@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a caller sends limits at the far ends of their range, then a flood of
+// new keys. Each bad call should throw an error, and memory should stay bounded.
+
+class Attempt
+{
+    public static function run(string $key, uint $limit, Core\Time\Duration $per, uint $burst, uint $cost): string
+    {
+        try {
+            var $decision = Core\RateLimit::shed($key, $limit, $per, { burst: $burst, cost: $cost });
+            return $decision->allowed() ? 'allowed' : 'refused';
+        } catch (RuntimeError $error) {
+            return 'error';
+        }
+    }
+}
+
+uint $most = 18446744073709551615;
+
+// 1. The largest limit per second. Each unit would be shorter than a microsecond.
+echo Attempt::run('ip:1', $most, 1s, 1, 1), "\n";
+
+// 2. The largest burst. The wait it allows is too long to count exactly.
+echo Attempt::run('ip:1', 1, 1h, $most, 1), "\n";
+
+// 3. A period of zero seconds.
+echo Attempt::run('ip:1', 5, 0s, 5, 1), "\n";
+
+// 4. The largest cost a call can have.
+echo Attempt::run('ip:1', 5, 1m, 5, $most), "\n";
+
+// 5. A key of 16 million characters, sent twice.
+string $huge = Core\Str::repeat('k', 16777216);
+echo Attempt::run($huge, 5, 1m, 5, 1), "\n";
+echo Attempt::run($huge, 5, 1m, 5, 1), "\n";
+
+// 6. 200000 new keys, one call each. Every key is stored on this core.
+uint $allowed = 0;
+uint $i = 0;
+while ($i < 200000) {
+    if (Attempt::run('ip:' . $i, 1, 1h, 1, 1) == 'allowed') {
+        $allowed = $allowed + 1;
+    }
+    $i = $i + 1;
+}
+echo $allowed, "\n";
+
+// 7. One key, called 200000 times. Only the first call is allowed.
+uint $refused = 0;
+$i = 0;
+while ($i < 200000) {
+    if (Attempt::run('ip:hot', 1, 1h, 1, 1) == 'refused') {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
