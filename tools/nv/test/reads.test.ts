@@ -1,11 +1,9 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { commandModules } from "../keys/modules.ts";
-import { Tree } from "../keys/tree.ts";
 import { CACHE, ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
-import { ENV, readLog } from "../lib/reads.ts";
+import { ENV, readLog, readModules } from "../lib/reads.ts";
 
 const LOG = join(CACHE, `reads-${process.pid}.ndjson`);
 afterAll(() => rmSync(LOG, { force: true }));
@@ -27,14 +25,14 @@ describe("what a `bun nv` process reads", () => {
     expect(readLog(LOG)).toBeNull();
   });
 
-  test("a command loads main.ts, its imports and its own module's closure, and no other command", async () => {
-    const tree = await Tree.read();
-    const mods = commandModules(tree, "why")!;
+  test("a recorded run names the modules its process loaded: main.ts, its command's, and no other command's", async () => {
+    rmSync(LOG, { force: true });
+    const r = await run([process.execPath, join(ROOT, "tools", "nv", "main.ts"), "peek", "package.json"], { env: { [ENV]: LOG } });
+    expect(r.code).toBe(0);
+    const mods = readModules(LOG);
     expect(mods).toContain("tools/nv/main.ts");
     expect(mods).toContain("tools/nv/lib/reads.ts");
-    expect(mods).toContain("tools/nv/cmd/why.ts");
-    expect(mods).toContain("tools/nv/keys/checks.ts");
+    expect(mods).toContain("tools/nv/cmd/peek.ts");
     expect(mods).not.toContain("tools/nv/cmd/verify.ts");
-    expect(commandModules(tree, "no-such-command")).toBeNull();
   });
 });

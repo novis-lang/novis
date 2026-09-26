@@ -3,8 +3,8 @@
 // runs with the console held in the modes `lib/tty.ts` names, whatever the programs it starts do to it.
 //
 // A command's module is loaded only when it runs, so what `bun nv <command>` loads is this file, its
-// three imports and that module's own imports: `tools/nv/keys/modules.ts` keys a check on exactly those.
-// When `NV_READS_LOG` names a file, `lib/reads.ts` records what the command reads before it is loaded.
+// three imports and that module's own imports. When `NV_READS_LOG` names a file, `lib/reads.ts` records
+// what the command reads before it is loaded, and the modules Bun's registry holds when it exits.
 // Every command's children inherit `LLVM_PROFILE_FILE`, set to `DISCARD_PROFILE` when it is unset, so an
 // instrumented `nvs` that no run records writes its counters under `.agent-tmp/`.
 
@@ -40,7 +40,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   goal: () => import("./cmd/goal.ts"),
   guard: () => import("./cmd/guard.ts"),
   holes: () => import("./cmd/holes.ts"),
-  impact: () => import("./cmd/impact.ts"),
+
   import: () => import("./cmd/import.ts"),
   layout: () => import("./cmd/layout.ts"),
   links: () => import("./cmd/links.ts"),
@@ -70,7 +70,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   try: () => import("./cmd/try.ts"),
   verify: () => import("./cmd/verify.ts"),
   "webcrypto-vectors": () => import("./cmd/webcrypto-vectors.ts"),
-  why: () => import("./cmd/why.ts"),
+
 };
 
 async function usage(): Promise<void> {

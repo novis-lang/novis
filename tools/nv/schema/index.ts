@@ -15,7 +15,6 @@ import { handoff, sideHandoff } from "./handoff.ts";
 import { milestone } from "./milestone.ts";
 import { planStatus } from "./plan-status.ts";
 import { playbookBullet, playbookSection } from "./playbook.ts";
-import { impactProbes } from "./impact-probes.ts";
 import { helpBacklog, proofPolicy } from "./proofs.ts";
 import { referenceChapter } from "./reference.ts";
 import { rule } from "./rule.ts";
@@ -41,5 +40,4 @@ export const RECORDS: RecordType<any>[] = [
   specPhpMigration,
   proofPolicy,
   helpBacklog,
-  impactProbes,
 ];

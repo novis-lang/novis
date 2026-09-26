@@ -1,6 +1,5 @@
 // What `nv proofs` reads out of a test file: each `covers:` marker, and each `Class::member(` call a
-// case makes. `collect.ts` builds a feature's tests from these, and `keys/checks.ts` keys a proofs
-// group on them, so one scanner answers both and a key never sees less than the proofs tool reads.
+// case makes. `collect.ts` builds a feature's tests from these.
 
 /** Each tree whose files are scanned for markers, with the file ending scanned there. The example,
  * attack and bench trees are attributed by path, so a marker in one is never read. */

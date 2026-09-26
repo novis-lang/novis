@@ -1,5 +1,6 @@
-// What a `bun nv` process reads of the tree, recorded so the key of the check that ran it names what it
-// read. `tools/nv/keys/checks.ts` builds the key of every `bun nv` check from its last record.
+// What a `bun nv` process reads of the tree, recorded so the footprint of the atom that ran it names what
+// it read: `select/seed.ts` `nvKeys` turns a log into keys for a `bun nv` check, a verify step and a
+// tools test file.
 //
 // When `NV_READS_LOG` names a file, `main.ts` calls `install` before it loads the command. From then on
 // every tools module that imports `node:fs` or `node:fs/promises` gets `reads-fs.ts` or

@@ -7,8 +7,8 @@
 // (`lib/covws.ts`), so a proof program is recorded on the binary it is judged on. Coverage counters are
 // placed before inlining, so optimized code maps to the same items a debug build does. `proofBinary`
 // runs cargo every time, and cargo rebuilds what changed. `releaseBinary` is `target/release/`, which
-// the perf ledger measures on, uninstrumented: it is built when the Stage 6 key of what it is compiled
-// from has moved since it was last built.
+// the perf ledger measures on, uninstrumented, and it too is cargo's to bring up to date: a build that
+// has nothing to do costs cargo's own look at its fingerprints.
 //
 // Which programs run is the selection's (`tools/nv/select/`), and `cmd/proofs.ts` makes it; this file
 // runs every program it is handed. With `NV_PROOF_RECORD=<dir>` in the environment each run is recorded
@@ -17,15 +17,12 @@
 // the working directory.
 //
 // A run over whole groups records each group's example and attack directories and bench file in the
-// selection store (`proofReadsSlot`), which is what `tools/nv/keys/checks.ts` keys a `proofs: <group>`
-// unit on.
+// selection store (`proofReadsSlot`), which is how `select/checks.ts` knows which proof programs a
+// `bun nv proofs --group <group>` check is made of.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { metadata } from "../keys/graph.ts";
-import { builtFrom, keyOf } from "../keys/key.ts";
 import { digest } from "../keys/scan.ts";
-import { Tree } from "../keys/tree.ts";
 import { COVWS_TARGET, covwsCargo, hostTriple } from "../lib/covws.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
 import { killTree, reapOrphans, run as runProc } from "../lib/proc.ts";
@@ -40,9 +37,9 @@ export type Verdict = "ok" | "skip" | "known" | "fail";
 
 export interface Binary {
   path: string;
-  /** What the binary was built at: the Stage 6 key at `shipped`, or the bytes of a binary named by hand. */
+  /** Which build the binary is, or the bytes of a binary named by hand. */
   key: string;
-  /** The same key at `card`, since no program prints a card, or the bytes of a binary named by hand. */
+  /** The same, for what a run of it depends on. */
   runs: string;
   /** The proof binary the selection store records on; a binary named by hand is not. */
   recorded?: boolean;
@@ -54,8 +51,8 @@ export const proofBinaryPath = () => `${COVWS_TARGET}/${hostTriple()}/proof/${EX
 export const RELEASE_BINARY = `target/release/${EXE}`;
 
 /** The release build, the argv `bun nv loop`'s acceptance sweep runs, so both share one set of
- * artefacts under `target/release/`. It writes the key it was built at to `key` beside it. */
-const RELEASE = { name: "release binary", path: RELEASE_BINARY, key: "target/release/nvs.key", argv: ["cargo", "build", "--release", "-p", "nvs-cli"] };
+ * artefacts under `target/release/`. */
+const RELEASE = { name: "release binary", path: RELEASE_BINARY, argv: ["cargo", "build", "--release", "-p", "nvs-cli"] };
 
 /** `// requires: unimplemented`, the website's own skip marker. */
 const UNIMPL_RE = /^(?:\/\/|#)\s*requires:\s*unimplemented/m;
@@ -113,26 +110,16 @@ export const releaseBinary = () => builtBinary();
 
 async function builtBinary(): Promise<Binary | string> {
   const build = RELEASE;
-  progress(`proofs: checking whether the ${build.name} is current`);
-  const graph = await metadata();
-  if (!graph) return `\`cargo metadata\` failed, and the ${build.name}'s key needs the graph`;
-  const tree = await Tree.read();
-  const key = keyOf(build.name, builtFrom(tree, graph, { own: ["nvs-cli"], ownTier: "shipped", depTier: "shipped", test: false }));
-  const runs = keyOf(build.name, builtFrom(tree, graph, { own: ["nvs-cli"], ownTier: "card", depTier: "card", test: false }));
-  tree.save();
+  progress(`proofs: bringing the ${build.name} up to date`);
   const path = abs(build.path);
-  const stamp = existsSync(abs(build.key)) ? readFileSync(abs(build.key), "utf8").trim() : "";
-  if (existsSync(path) && stamp === key) return { path, key, runs };
   const command = build.argv.join(" ");
-  console.error(`nv proofs: building the ${build.name} (\`${command}\`)`);
   const onLine = cargoLines(`proofs: building the ${build.name}`);
   const built = await linked(path, () => runProc(build.argv, { timeoutMs: 60 * 60 * 1000, onLine }), (r) => r.stderr);
   if (built.code !== 0 || !existsSync(path)) {
     const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
     return `\`${command}\` failed (exit ${built.code}):\n${tail}`;
   }
-  writeFileSync(abs(build.key), `${key}\n`);
-  return { path, key, runs };
+  return { path, key: "release", runs: "release" };
 }
 
 /** A binary named with `--nvs`, taken as it is and remembered by its bytes. */
