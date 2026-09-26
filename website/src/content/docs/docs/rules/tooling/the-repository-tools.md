@@ -16,9 +16,9 @@ next:
 
 <p class="nv-section-lead">One Bun program, one JSON record per fact under <code>data/</code>, and generated files that are committed and never edited.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">4</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">4</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">5</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">5</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#the-repository-tools-are-one-bun-program">The repository's tools are one Bun + TypeScript program, <code>bun nv</code>, and <code>smol-toml</code> is its only runtime dependency</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-repository-fact-is-one-json-record">A fact a repository tool reads is one JSON record under <code>data/</code>, its type declared once and its text written by one writer</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-rendered-file-is-committed-and-never-edited">A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-chain-names-its-live-goal">The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#the-repository-tools-are-one-bun-program">The repository's tools are one Bun + TypeScript program, <code>bun nv</code>, and <code>smol-toml</code> is its only runtime dependency</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-repository-fact-is-one-json-record">A fact a repository tool reads is one JSON record under <code>data/</code>, its type declared once and its text written by one writer</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-rendered-file-is-committed-and-never-edited">A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-chain-names-its-live-goal">The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-check-runs-only-when-the-change-reaches-its-footprint">A check runs only when the change reaches what its green runs were observed to use, and the pipeline runs and records on the one <code>covws</code> debug build</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="the-repository-tools-are-one-bun-program">
 
@@ -33,16 +33,17 @@ Every tool that builds, checks, renders or drives this repository is a subcomman
 `bun nv <command>`, written in TypeScript and run by Bun at the version `package.json` pins. Its one
 runtime dependency is `smol-toml`, which reads the TOML files the tree still has; `Bun.TOML` is never
 used, so one parser reads all of them. The dev dependencies are `typescript` and `@types/bun`, and any
-other dependency is a new decision. One part is Rust: `tools/nv-scan`, which the build keys read Rust
-source with, because only a parser reads Rust exactly. It is a crate outside the workspace, which
-`bun nv` builds and runs, and its dependencies are `syn`, `proc-macro2`, `quote` and `sha2` at the
-versions the workspace already locks. `bun nv audit python` fails on a tracked Python file it does not
+other dependency is a new decision. Two parts are Rust, each a crate outside the workspace that
+`bun nv` builds and runs. `tools/nv-scan` is what the check selection and the perf ledger read Rust
+source with, because only a parser reads Rust exactly; its dependencies are `syn`, `proc-macro2`,
+`quote` and `sha2` at the versions the workspace already locks. `tools/covwrap` is the compiler wrapper
+of the `covws` build, and it has no dependencies. `bun nv audit python` fails on a tracked Python file it does not
 name as allowed, and on a document that tells a reader to run a Python tool.
 
 This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
 program or a request.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#a-repository-fact-is-one-json-record" title="A fact a repository tool reads is one JSON record under data/, its type declared once and its text written by one writer"><code>tooling/a-repository-fact-is-one-json-record</code></a> <a href="/docs/rules/tooling/the-repository-tools/#a-rendered-file-is-committed-and-never-edited" title="A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again"><code>tooling/a-rendered-file-is-committed-and-never-edited</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0221.md">record 0221</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0224.md">record 0224</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/audit.ts"><code>tools/nv/cmd/audit.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/package.json"><code>package.json</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/scan-tiers.test.ts"><code>tools/nv/test/scan-tiers.test.ts</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#a-repository-fact-is-one-json-record" title="A fact a repository tool reads is one JSON record under data/, its type declared once and its text written by one writer"><code>tooling/a-repository-fact-is-one-json-record</code></a> <a href="/docs/rules/tooling/the-repository-tools/#a-rendered-file-is-committed-and-never-edited" title="A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again"><code>tooling/a-rendered-file-is-committed-and-never-edited</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0221.md">record 0221</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0224.md">record 0224</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0226.md">record 0226</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/audit.ts"><code>tools/nv/cmd/audit.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/package.json"><code>package.json</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/scan-tiers.test.ts"><code>tools/nv/test/scan-tiers.test.ts</code></a></dd></div></dl>
 
 </div>
 
@@ -118,9 +119,61 @@ once. A goal that has walked keeps its checks for this reason, and a switch copi
 A walked test check that the permanent suite already runs graduates: a plain `cargo test -p <crate>` or
 an `nvs test` over the conformance or differential tree is carried as its crate's or its tree's whole
 run, once, and `bun nv chain --check` fails when a test or case such a check names is gone.
-The runtime state under `.loop/` — the memo, the run's counts, the gate verdicts — stays git-ignored,
-because it is per machine and a fresh clone owes nothing it holds.
+The runtime state stays git-ignored: the selection store in `.cache/select.sqlite`, and the run's
+counts and the gate verdicts under `.loop/`. It is per machine, and a fresh clone owes nothing it holds.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#a-repository-fact-is-one-json-record" title="A fact a repository tool reads is one JSON record under data/, its type declared once and its text written by one writer"><code>tooling/a-repository-fact-is-one-json-record</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0222.md">record 0222</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0225.md">record 0225</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/lib/chain.ts"><code>tools/nv/lib/chain.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/chain.test.ts"><code>tools/nv/test/chain.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/loop.ts"><code>tools/nv/cmd/loop.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/chain.ts"><code>tools/nv/cmd/chain.ts</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#a-repository-fact-is-one-json-record" title="A fact a repository tool reads is one JSON record under data/, its type declared once and its text written by one writer"><code>tooling/a-repository-fact-is-one-json-record</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0222.md">record 0222</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0225.md">record 0225</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0226.md">record 0226</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/lib/chain.ts"><code>tools/nv/lib/chain.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/chain.test.ts"><code>tools/nv/test/chain.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/loop.ts"><code>tools/nv/cmd/loop.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/chain.ts"><code>tools/nv/cmd/chain.ts</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-check-runs-only-when-the-change-reaches-its-footprint">
+
+## A check runs only when the change reaches what its green runs were observed to use, and the pipeline runs and records on the one `covws` debug build
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-check-runs-only-when-the-change-reaches-its-footprint"><code>tooling/a-check-runs-only-when-the-change-reaches-its-footprint</code></a>
+</div>
+
+The acceptance sweep, `bun nv verify`, `bun nv affected` and `bun nv proofs` start only the atoms a
+change reaches, read from what each atom's green runs were observed to use. An atom is the smallest
+thing that runs on its own: one `.nvst` case, one proof program, one Rust test binary, one `bun nv`
+command, one tools test file, one other plan check. Every run of one records its footprint in
+`.cache/select.sqlite`: the Rust items that ran, from coverage, and the `Core` classes, cards, files,
+directories and paths it looked up, from the log `nvs` and the test binaries write. A selection turns
+the change since the recorded tree into keys and looks the atoms up under them. An atom that is new,
+last red, owed or diverged runs too, and so does every atom when a global file changes. Nothing else
+starts. `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
+`keys.ts` the keys, and `bun nv select --explain <atom>` says why one atom was chosen or not.
+
+What coverage cannot see is closed over the reference graph `tools/nv-scan --items` reads: a const, a
+static, a type or a table moves every item that names it, a `macro_rules!` every item that invokes it,
+a class table's changed row that row's class, and a card only what prints it. A doc-comment edit moves
+nothing. **Anything that cannot be attributed widens**: an unparseable file, an unmapped function or an
+unreadable record selects more, never less.
+
+The pipeline's one debug build is `covws` (`target/covws`, built by `tools/nv/lib/covws.ts` through
+`tools/covwrap`), which instruments the workspace's own crates and nothing else. Every debug `nvs` and
+test binary the sweep, verify, `bun nv try` and `bun nv reference` run is that build, handed to checks
+as `NVS_BIN`; `target/debug` is what a person builds by hand. A recorded run starts with an empty compile
+cache. A proof program is judged on the uninstrumented `target/proof` build and recorded in a second run
+on `covws`, which is never a verdict; when the two runs end differently, the program always runs until
+they agree.
+
+The heavy checks, which build the release profile, fuzz, TSan, the database matrix or run a Linux leg,
+record nothing of what they compile. They are keyed on their observed reads plus every item and
+directory of the crates they build, and wait for the floor gate. That is the one predicted key left. A
+check with `memoize = false` is never answered from the store, and `bun nv loop --goal-only --full`
+runs every atom of every check.
+
+**The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
+heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there
+that the selection since the store's tree did not pick is a selection miss: it is printed, kept in the
+store until a full run finds the atom green again, and fails the run. `bun nv select --mutate tools/data/select-mutations.json` is the proof that the keys lose
+nothing: it applies one batch of breaking edits at a time, runs every atom that is not heavy against a
+copy of the store named by `NV_SELECT_STORE`, requires every red atom to have been selected, and
+reverts the edits.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#the-chain-names-its-live-goal" title="The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated"><code>tooling/the-chain-names-its-live-goal</code></a> <a href="/docs/rules/tooling/the-repository-tools/#the-repository-tools-are-one-bun-program" title="The repository's tools are one Bun + TypeScript program, bun nv, and smol-toml is its only runtime dependency"><code>tooling/the-repository-tools-are-one-bun-program</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0226.md">record 0226</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-store.test.ts"><code>tools/nv/test/select-store.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-items.test.ts"><code>tools/nv/test/select-items.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-extract.test.ts"><code>tools/nv/test/select-extract.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-query.test.ts"><code>tools/nv/test/select-query.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-record.test.ts"><code>tools/nv/test/select-record.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-checks.test.ts"><code>tools/nv/test/select-checks.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/footprint.rs"><code>crates/nvs-cli/tests/footprint.rs</code></a></dd></div></dl>
 
 </div>

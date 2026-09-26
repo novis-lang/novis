@@ -1,7 +1,7 @@
 {
   "totals": {
-    "total": 1015,
-    "shipped": 778,
+    "total": 1016,
+    "shipped": 779,
     "designed": 237,
     "diverging": 589
   },
@@ -2252,8 +2252,8 @@
       "url": "/docs/rules/tooling/",
       "single": false,
       "counts": {
-        "total": 66,
-        "shipped": 42,
+        "total": 67,
+        "shipped": 43,
         "designed": 24,
         "diverging": 40
       },
@@ -2844,8 +2844,8 @@
           "blurb": "One Bun program, one JSON record per fact under `data/`, and generated files that are committed and never edited.",
           "url": "/docs/rules/tooling/the-repository-tools/",
           "counts": {
-            "total": 4,
-            "shipped": 4,
+            "total": 5,
+            "shipped": 5,
             "designed": 0,
             "diverging": 0
           },
@@ -2880,6 +2880,14 @@
               "title": "The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated",
               "status": "shipped",
               "href": "/docs/rules/tooling/the-repository-tools/#the-chain-names-its-live-goal",
+              "diverges": null
+            },
+            {
+              "id": "tooling/a-check-runs-only-when-the-change-reaches-its-footprint",
+              "slug": "a-check-runs-only-when-the-change-reaches-its-footprint",
+              "title": "A check runs only when the change reaches what its green runs were observed to use, and the pipeline runs and records on the one `covws` debug build",
+              "status": "shipped",
+              "href": "/docs/rules/tooling/the-repository-tools/#a-check-runs-only-when-the-change-reaches-its-footprint",
               "diverges": null
             }
           ]
