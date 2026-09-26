@@ -23480,7 +23480,7 @@ Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in the s
 
 **Returns** `Core\RateLimit\Decision` — A `Core\RateLimit\Decision`. Its `retryAfter` is `null` exactly when it is allowed, and is the exact wait until the arrival would be admitted otherwise — never an estimate, and never rounded up to the next window.
 
-**Throws** `IOError` — The shared store cannot be reached or refused the command. It is never answered as `allowed`: whether this limiter fails open or closed is knowledge only the call site has, so the decision is thrown to it.; `RuntimeError` — No `[cache.shared] url` is configured, or `cache.shared` is not granted — a deployment mistake rather than the world saying no, and deliberately not the class the fail-open `catch` around this member holds. Also `$limit`, `$per` or `$burst` at zero, and a period too short to divide into `$limit` units.
+**Throws** `IOError` — The shared store cannot be reached or refused the command. It is never answered as `allowed`: whether this limiter fails open or closed is knowledge only the call site has, so the decision is thrown to it.; `RuntimeError` — No `[cache.shared] url` is configured, or `cache.shared` is not granted — a deployment mistake rather than the world saying no, and deliberately not the class the fail-open `catch` around this member holds. Also `$limit`, `$per` or `$burst` at zero, a period too short to divide into `$limit` units, and a `$cost` larger than `$burst`, which no wait could admit.
 
 <a id="core-core-ratelimit-shed"></a>
 #### `Core\RateLimit::shed`
@@ -23501,7 +23501,7 @@ Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in this 
 
 **Returns** `Core\RateLimit\Decision` — A `Core\RateLimit\Decision`, answered from this core's memory and so reaching no store: there is nothing to be unreachable, and this member does not throw for one. Its arrivals are held in `Core\Cache`'s local tier, which may forget an entry at any time — a forgotten key admits a burst, which is the approximation the tier is chosen for.
 
-**Throws** `RuntimeError` — `$limit`, `$per` or `$burst` at zero, and a period too short to divide into `$limit` units — the same refusals `consume` makes, since both derive one window.
+**Throws** `RuntimeError` — `$limit`, `$per` or `$burst` at zero, a period too short to divide into `$limit` units, and a `$cost` larger than `$burst`, which no wait could admit — the same refusals `consume` makes, since both derive one window.
 
 <a id="core-core-ratelimit-decision"></a>
 ### `Core\RateLimit\Decision`

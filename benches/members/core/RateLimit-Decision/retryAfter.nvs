@@ -1,0 +1,30 @@
+<?nvs
+// Reads how long a refused call must wait, as a handler does to write a `Retry-After` header.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The first decision is allowed and has no wait. The second is refused.
+        array<Core\RateLimit\Decision> $decisions = [
+            Core\RateLimit::shed("bench:retry", 1, 1h),
+            Core\RateLimit::shed("bench:retry", 1, 1h),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which decision is read comes from last round's total,
+            // so no round can be reused.
+            Core\RateLimit\Decision $decision = $decisions[($total % 2) as int];
+            if ($decision->retryAfter() == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
