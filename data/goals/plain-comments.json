@@ -23,7 +23,7 @@
     "playbook": [
       "Tooling > the end",
       "Tooling > one call reads",
-      "Tooling > a commit",
+      "Tooling > a commit message",
       "Tooling > a [context]*",
       "Tooling > another agent",
       "Running things > target/release/nvs.exe is"
