@@ -211,16 +211,17 @@ cargo test --release -p nvs-cli --bin nvs by_the_margin         # the CLI's two 
 cargo test --release -p nvs-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
 
-**`bun nv affected` is the one thing that chooses what to run.** It takes a change — the uncommitted
-paths, in a loop session every commit since the session began, `--since <rev>` or `--paths` — builds the
-tree as it was before it, and keys every `nv verify` step, test binary, acceptance check and leg over
-both trees with the keys the memos use. A unit whose key moved is reached, and each is printed with the
-changed paths that moved it. A reached unit already green over the tree is not run, and neither is a
-`cargo test -p` check whose binaries `nv verify` just ran green with its tests in them. A heavy check —
-the release profile, fuzz, TSan, the database matrix, the Linux legs — is named and left to the floor
-gate. A carried check that was owed before the change is counted and left to the floor gate or to
-`bun nv loop --settle` at a push. `--run` runs the rest: `nv verify` first, then the sweep over exactly
-the checks it named.
+**`bun nv affected` is the one thing that chooses what to run.** It prints the change — the uncommitted
+paths, in a loop session every commit since the session began, `--since <rev>` or `--paths` — and then
+what the selection store says differs from the tree it last recorded, which is what runs
+(`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`). Its verify half is each step,
+test binary and case whose footprint holds a key the change moved, or that is new, red or owed, with
+the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
+check — the release profile, fuzz, TSan, the database matrix, the Linux legs — is named and left to the
+floor gate. A carried check reached only because its atoms were owed before the change is counted and
+left to the floor gate or to `bun nv loop --settle` at a push. `--run` runs the rest: `nv verify` first,
+then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
+twice.
 
 **`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
 and no filter, `bun nv loop --settle`, `bun nv loop --goal-only` or `--run` over the whole plan, `bun nv
@@ -246,7 +247,7 @@ bun nv verify --wait
 bun nv session --wrap .agent-tmp/wrap.md
 ```
 
-It is the same verification: the same steps in the same order, the same green cache, the same exit status.
+It is the same verification: the same steps in the same order, the same selection, the same exit status.
 Nothing is traded for the overlap, which is why this is the shape to use for step 3 whenever the wrap is
 the next thing you were going to do anyway.
 
@@ -327,10 +328,16 @@ fail over it.
 ## What is owed, and where it is collected
 
 ```sh
-bun nv loop --owed                # the carried checks no memo answers for this tree; runs nothing
+bun nv loop --owed                # the carried checks the store does not answer for this tree; runs nothing
 bun nv loop --settle              # run those, and only those; by hand, since the guard refuses it to an agent
-bun nv why "<check name>"         # what one check's key is read from
 bun nv affected                   # which of them a change reaches, and the paths that reach each
+bun nv select                     # the atoms the change since the recorded tree selects, and why
+bun nv select --since <rev>       # the same, against <rev> instead of the recorded tree
+bun nv select --since A --until B # replay the change from commit A to commit B, to count what it would run
+bun nv select --explain <atom>    # why one atom was selected or not: the key, the path, the item
+bun nv select --explain <check>   # what a plan check is made of, and why each of its atoms was selected or not
+bun nv select --stats             # counts only: atoms per kind and per reason, and the divergences
+bun nv select --seed              # record every atom from nothing, for a new platform or a lost store; long
 ```
 
 **Verification runs what a change can reach, and the checks that cost minutes wait.** `nv verify`
@@ -338,9 +345,8 @@ runs the test binaries a change reaches and every `.nvst` case, and the loop's s
 runs every acceptance check the change reached, carried or not. The heavy ones — the fuzz run, the
 valgrind sweep and the WSL leg, the release-profile guards, the database matrix, the checks never
 memoized — wait for the floor gate (`tools/nv/cmd/loop.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
-goal is reached on. Nothing is dropped: a carried check is remembered against a hash of what it
-reads, so a change stales exactly the checks that read what it touched, and they stay stale until
-something runs them.
+goal is reached on. Nothing is dropped: an atom the change reached that a run did not start is `owed`
+in the store, and stays selected until a run of it is green.
 
 **Every sweep names every red check, not the first.** It runs past a red check, so a carried check
 that went red never keeps the goal's own checks from being judged, and the ledger's `goal check:` line is
@@ -349,19 +355,18 @@ stops it, since nothing behind a build can run. The goal-end gates (`nv verify -
 --closes`) run after the sweep that would reach the goal, whether it is red or green.
 
 **A change made by hand has no gate, so the debt is collected where the work leaves the machine.**
-`--owed` reads it off the same memo and the same keys a sweep uses, and exits non-zero while there is
+`--owed` reads it off the same store and the same selection a sweep uses, and exits non-zero while there is
 any; `tools/git-hooks/pre-push` asks it and refuses the push. `--settle` is `--goal-only` over the
 carried floor alone. The goal's own checks are never counted — they are red until the goal is reached
 — and neither is a check that says `memoize = false`. A worktree's merge into `main` settles first for
 the same reason.
 
-**What a key holds is decided by what the check is, and every doubt falls back to the whole tree.**
-`tools/nv/keys/checks.ts`'s module doc is the table: a test check is keyed on the test binaries it
-runs, a check that builds or runs a program on what that program is built from and opens, a proofs
-group on what `bun nv proofs` last recorded for it, and a check whose reads are directories it names on
-those. A binary that leaves its package without `nvs_repo` and a check in a form nothing recognises
-keep the whole-tree key. `bun nv why "<check name>"` prints what one key is read from, and
-`bun nv impact --probe` holds every key to the synthetic edits in `data/impact-probes.json`.
+**What a check is made of is decided by what the check is, and every doubt widens.**
+`tools/nv/select/checks.ts`'s module doc is the table: a fixture is one atom, a suite its cases, a
+cargo check its test binaries, a proofs group its programs, a `bun nv` command one atom whose reads
+are recorded. An atom whose run could not be attributed, and a test binary that can leave its package
+without `nvs_repo`, hold `*`, which every change moves. `bun nv select --explain <check>` prints what one
+check is made of and why each atom was selected or not.
 
 ## The user-facing reference
 
@@ -620,8 +625,10 @@ workspace was ~6 GB when this was found, and nine of them were on disk at once.
 
 `--clean` never deletes a `deps/` file for being *old*, the way `cargo-sweep` does — cargo never rewrites
 an artifact it considers fresh, so a superseded generation and a live one can carry the same date. It asks
-cargo instead: warm `--message-format=json` runs of the commands `nv verify` builds with name every file
-the current graph uses. Age only ever *keeps*: anything written in the last `GRACE_HOURS` survives
+cargo instead: warm `--message-format=json` runs over `target/covws`, which the pipeline builds, and over
+`target/debug`, which a person builds by hand, name every file the current graphs use. It also deletes
+what nothing reads any more: a stray `default_*.profraw` and the memo files the selection store
+replaced. Age only ever *keeps*: anything written in the last `GRACE_HOURS` survives
 whatever cargo said — a build still in flight, and the `--test <name>` shape the rule above leaves open.
 That grace was a day once, every `-p` copy a session minted was younger than that, and the sweep freed
 nothing; `release/deps` is never swept. Nothing it does can produce a wrong build —

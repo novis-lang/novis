@@ -328,66 +328,48 @@ fixture — twenty-three fixtures is twenty-three workspace fingerprint scans to
 and on the WSL leg every one of them would cross the `/mnt` mount. The `nvs-suite` checks run through the
 same binary for the same reason.
 
-Two things are remembered. Within one run, an identical `args` list runs
-cargo once — the list names `nvs-runtime` twice on purpose, for different guard tests, and the second
-run cannot answer differently. Across runs, **every check's green verdict** is remembered in
-`.loop/accept-green.json` against a content hash of **the partitions of the tree its kind reads** and
-of its own spec. A partition is a set of paths cut by what reads them, not by directory: `crates` is
-what the binary is built from — the sources, build scripts and manifests, plus the files they embed
-from elsewhere, the two license texts, `tools/data/php-builtins.txt`, `docs/reference/`, one spec
-page and one test-vector directory — while a crate's `tests/` and `benches/` are `crate-tests`;
-`docs/` is `docs` (`docs/reference/` and `docs/spec/`, embedded and read by four tests), `goals`
-(`docs/agent/goals/`, walked by one) and `prose` (everything else there, which nothing under
-`crates/` opens); `tests/` is its four case trees — `conformance`, `differential`, `hostile`,
-`lsp-cases` — and `tests` for what is left, and `benches/members/` is `bench-members`; then
-`examples/`, `tools/`, `editors/`, everything else. The sets are supersets on purpose: a fixture
-and both whole-leg memos key on `crates-code` — `crates` with each `.rs` file as the binary reads
-it, its comments, its layout and the body of each inline `#[cfg(test)]` module removed — `docs`,
-the fixtures and `tests`; a `.nvst` suite on that
-plus the case tree its directory is in; an `{nvs}` command on that plus every case tree; a crate's
-tests, which read source as text, walk `tests/` whole and read the goals and the editor's manifest
-at run time, key on `crates` as bytes plus all of those, `crate-tests`, `goals` and `editors`; a
-`bun nv` tool command, which may read anything, keys on the whole tree. The few checks that cost minutes and
-read a short, known list — the fuzz run, the ThreadSanitizer run, the database matrix, the release
-cost guards — are named one by one with the set each was read to have. So a session that edits the
-plan, a rule, the playbook or a decision stales no cargo check, one that edits a crate's test
-fixture stales no fixture or leg, one that edits a comment or adds a `#[test]` to a source file's
-test module stales no fixture, suite or leg, and one
-that adds a conformance case, an attack, an example and a bench stales the conformance suite, the
-crates' tests and the tool gates, and no fixture, leg, valgrind sweep, fuzz run, matrix or cost
-guard. Identical inputs into a deterministic check cannot come out a different verdict,
-which is the same argument `bun nv verify` makes for its own green cache. `PARTITIONS` and `SPLITS`
-in `tools/nv/keys/partition.ts` are the one home of which paths a partition holds, and
-`tools/nv/keys/checks.ts` of which set a check gets. Narrowing one is
-a claim to be shown, never a tuning knob. What no partition holds is a service's state — the
-database a `queue migrate` check reaches — which is not something a session changes in the tree,
-and which `bun nv loop --goal-only --full` always runs against.
+Within one run, an identical `args` list runs once — the list names `nvs-runtime` twice on purpose,
+for different guard tests, and the second run cannot answer differently. Across runs, **a check is
+started only when the change reaches it**
+(`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`). A check is a group of atoms:
+a fixture, a suite's cases, a cargo check's test binaries, a proofs group's programs, a `bun nv`
+command. Every run of an atom records in `.cache/select.sqlite` what it was observed to use: the Rust
+items that ran, the `Core` classes and cards it looked up, the files and directories it read. The
+change since the tree the store last recorded moves keys, a check with an atom under a moved key
+runs, and it runs only its selected atoms. `tools/nv/select/checks.ts` is the table of what each shape
+of check is made of. So a session that edits the plan, a rule, the playbook or a decision starts no
+cargo check, and one that edits one function body starts the cases, programs and test binaries that
+ran it. What no footprint holds is a service's state — the database a `queue migrate` check reaches —
+which is not something a session changes in the tree, and which `bun nv loop --goal-only --full`
+always runs against.
 
 The file the wrap rewrites every session — the live goal's handoff record under `data/goals/` — is
-in no partition but `other`, which only the whole-tree set holds. That is what lets a session that
-wrote nothing but its handoff skip the floor, and it is why a tool command is re-run every session:
-`bun nv chain --check`, `bun nv plan` and `bun nv playbook` read the handoff.
+read by `bun nv chain --check`, `bun nv plan` and `bun nv playbook`, so those tool checks run after a
+session that wrote nothing but its handoff, and nothing else does.
 
-**The memo is what scopes the sweep a goal is reached on.** A verdict is filed under the check's own
-spec — less its `stage`, which the fold relabels — and the bytes it read, and the file outlives the
-session, the run and the goal switch. So a verdict stands for as long as no session changes a byte
-the check reads, however many sessions or goals ago it was filed, and a check runs again the first
-time one does. The sweep that declares a goal done consults it like any other: it pays for the
-checks whose inputs the goal's sessions changed, and for nothing else. `bun nv loop --goal-only
---full` consults nothing and runs every check, by hand.
+**The store is what scopes the sweep a goal is reached on.** A check's own atom is defined by the
+check as the plan writes it, less its name and `stage`, which the fold relabels, and the store outlives
+the session, the run and the goal switch. So a green run stands for as long as no change moves a key
+its atom holds, however many sessions or goals ago it ran, and the atom runs again the first time one
+does. A red atom stays selected until it passes, and an atom the change reached that a run did not
+start is owed. The sweep that declares a goal done consults the store like any other: it pays for what
+the goal's sessions changed, and for nothing else. `bun nv loop --goal-only --full` consults nothing
+and runs every atom of every check, by hand.
 
 **Every check a change reached runs in the sweep after it, and only the heavy ones wait.** The floor is
 every check of every walked goal, each once, under a stage titled `floor` — some thousand checks against
 the dozen the goal is working on — carried into the goal's plan as a view (`goalPlan` in
-`tools/nv/lib/chain.ts`), so a walked goal keeps its checks and a goal switch copies nothing. The memo
-answers each check whose key did not move, so a sweep over the whole plan runs what the session's change
+`tools/nv/lib/chain.ts`), so a walked goal keeps its checks and a goal switch copies nothing. A check
+the change did not reach is not started, so a sweep over the whole plan runs what the session's change
 reached, carried or the goal's own, and a floor regression is named in the session that caused it. The
 driver holds only the heavy checks (`isHeavy` in `tools/nv/driver/accept.ts`: the release profile and
 its cost guards, fuzz, TSan, the database matrix, and the checks never memoized) with the WSL leg and
 the valgrind sweep, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/loop.ts` is
-that number's only home. A held check is not a memo hit: a sweep that held anything reports `held` on
-its cost line, and a green one is run again, gate open, before the goal is declared reached — where each
-held check is answered from the memo or runs, by the rule above. `--goal-only` runs with the gate open.
+that number's only home. They build what no recorded run builds, so each is keyed on its observed reads
+plus every item of the crates it builds (`heavyKeys` in `tools/nv/select/checks.ts`), the one predicted
+key left. A held check is not a green one: a sweep that held anything reports `held` on its cost line,
+and a green one is run again, gate open, before the goal is declared reached — where each held check is
+answered from the store or runs, by the rule above. `--goal-only` runs with the gate open.
 
 The sweep runs several fixtures at once, and **how many is the machine's answer, not this repo's** —
 `tools/nv/lib/machine.ts` holds that policy and nothing else does: half the cores the work will actually see,
@@ -427,7 +409,7 @@ uses the model's own default, which is `high` on opus-5 — the run's setting go
 `--max-limit-wait` (how long a closed usage window may be waited out before the run stops instead; 6h),
 `--min-free-gb` (the free disk below which a run refuses to start; `bun nv disk`'s policy by default),
 `--no-hold` (end the run wherever it would hold), `--full-output` (echo every tool call's full input
-and result, no truncation anywhere), `--goal-only` (with `--full`, consulting no memo), `--list`,
+and result, no truncation anywhere), `--goal-only` (with `--full`, consulting no store), `--list`,
 `--no-status`.
 
 A **side goal** runs in a worktree of its own under `bun nv loop --side <slug>`, started by hand, and
@@ -442,8 +424,8 @@ then the loop goal the run is driving toward. Longer than a terminal, it scrolls
 **The window title carries the same fields**, so a run behind another window still says where it is from
 a taskbar button or a tab. The acceptance sweep is
 the one phase that also carries `31/94 33%`, because it is the only one whose size is known before it
-starts — the goal's checks are a fixed list, the legs are known, and the two memos say up front what will
-be skipped. A session shows a running tool-call count and no percentage rather than a number that
+starts — the goal's checks are a fixed list, the legs are known, and the selection says up front what
+will run. A session shows a running tool-call count and no percentage rather than a number that
 pretends to be one. Under it sits one more row naming the keys that do something at that moment — `[s]`
 always, `[r]` only while a usage limit is being waited out — which is where those two are documented at
 the point of use rather than here. The block paints only on a terminal, so a redirected run, `nohup` or

@@ -117,8 +117,8 @@ which are whole where they stand.
    for every agent and every session, and a file outside the tree is one they cannot see, review or
    clean up. **Whoever writes a scratch file deletes it when the work it served is done** — a session
    before it stops, a subagent before it reports, a test in its own `afterAll` or `finally` — and leaves
-   only what a tool reads back on its next run (the `verify-*` caches and logs, `nv-key-tiers.json`,
-   `peek-ledger.json`, `impact-reads.json`, `bg/`). Delete only the files you wrote yourself: another
+   only what a tool reads back on its next run (the `verify-*` logs and timings, `peek-ledger.json`,
+   `select-rec/discard/`, `bg/`). Delete only the files you wrote yourself: another
    agent may be working in the tree at the same time. A git worktree is scratch too: it goes under
    `.agent-tmp/worktrees/<branch>`, and the agent that made it removes it and deletes its branch the
    moment that branch is merged into `main`, with `git worktree remove` and `git branch -d`, never a

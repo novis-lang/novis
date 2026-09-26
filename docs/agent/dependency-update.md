@@ -84,7 +84,7 @@ cargo test --release -p nvs-abi-probe --features wasm-probe    # wasmtime moved
 pushing runs them by hand:
 
 ```sh
-bun nv loop --settle                      # every carried check the memo does not answer; `--owed` names them first
+bun nv loop --settle                      # every carried check the store does not answer; `--owed` names them first
 ```
 
 The Linux leg and the leak sweep have no `bun nv` command yet: `tools/nv/driver/accept.ts`'s "Not here

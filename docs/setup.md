@@ -184,9 +184,9 @@ side's, above.
 
 ## What does not travel, and should not
 
-`.loop/`, `.agent-tmp/`, `target/` and `.nvs-cache/` are gitignored, and copying one to the new machine is
-worse than leaving it: `.loop/accept-green.json` remembers which expensive checks were green *for a given
-tree and toolchain fingerprint*, and it re-earns itself on the first run. `.agent-tmp/` is scratch. A stale
+`.loop/`, `.agent-tmp/`, `.cache/`, `target/` and `.nvs-cache/` are gitignored, and copying one to the new
+machine is worse than leaving it: `.cache/select.sqlite` holds what every check was observed to use and
+whether it was green *on this machine's build and platform*, and `bun nv select --seed` records it again. `.agent-tmp/` is scratch. A stale
 green is what costs a debugging session, so do not archive them "just in case".
 
 ## Proving the machine is set up
