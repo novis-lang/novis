@@ -22,8 +22,8 @@ const STATE_WORD: Record<State, string> = {
   walked: "walked",
   live: "**live**",
   ahead: "ahead",
-  retired: "retired: its record keeps no checks",
-  side: "side goal, off the chain",
+  retired: "retired",
+  side: "side",
 };
 
 function stateOf(g: ChainGoal, live: ChainGoal | null): State {
@@ -32,19 +32,15 @@ function stateOf(g: ChainGoal, live: ChainGoal | null): State {
   return g.num < live.num ? "walked" : g.num === live.num ? "live" : "ahead";
 }
 
-/** One goal's heading, its line of facts and its stages. */
-function section(heading: string, record: Goal | undefined, state: State, prose: string | null): string[] {
-  const facts = [STATE_WORD[state]];
-  if (record?.milestone) facts.push(`milestone ${record.milestone}`);
-  if (record?.position === "last") facts.push("pinned last");
-  if (prose !== null) facts.push(`[prose](${prose})`);
-  const out = ["", heading, "", facts.join(" · ")];
-  const stages = [...(record?.stages ?? [])].sort((a, b) => a.number - b.number);
-  if (stages.length > 0) {
-    out.push("");
-    for (const s of stages) out.push(`- **${s.number} · ${s.title}** — ${s.summary ?? "no summary yet"}`);
-  }
-  return out;
+/** `text` safe inside one table cell. */
+const cell = (text: string) => text.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ");
+
+/** One goal's table cells after its position: the slug linked to its prose, title, state, milestone and stage titles. */
+function row(slug: string, record: Goal | undefined, state: State, prose: string | null): string {
+  const name = prose === null ? `\`${slug}\`` : `[\`${slug}\`](${prose})`;
+  const stages = [...(record?.stages ?? [])].sort((a, b) => a.number - b.number).map((s) => `**${s.number}** ${cell(s.title)}`);
+  const pinned = record?.position === "last" ? ", pinned last" : "";
+  return `${name} | ${cell(record?.title ?? "no record on disk")} | ${STATE_WORD[state]}${pinned} | ${record?.milestone ?? ""} | ${stages.join(" · ")} |`;
 }
 
 export function renderGoalPlan(root: string = ROOT): Output {
@@ -66,19 +62,23 @@ export function renderGoalPlan(root: string = ROOT): Output {
     `The chain holds ${goals.length} goals. ${count("walked") + count("retired")} are walked (${count("retired")} of them retired), ${where}, and ${count("ahead")} are ahead.`,
     "",
     "A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does",
-    "not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal.",
+    "not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A",
+    "retired goal's record keeps no checks and no stages, so its prose is where to read it.",
+    "",
+    "| # | Goal | What it builds | State | Milestone | Stages |",
+    "|--:|---|---|---|---|---|",
   ];
   goals.forEach((g, i) => {
-    const record = records.get(g.slug);
     const prose = g.md === null ? null : `${PROSE_FROM_PLAN}/${g.md.split("/").pop()}`;
-    lines.push(...section(`## ${g.num}. \`${g.slug}\` — ${record?.title ?? "no record on disk"}`, record, states[i]!, prose));
+    lines.push(`| ${g.num} | ${row(g.slug, records.get(g.slug), states[i]!, prose)}`);
   });
   if (sides.length > 0) {
-    lines.push("", "# Side goals", "", "Run by hand in a worktree of their own, never by the loop.");
+    lines.push("", "## Side goals", "", "Run by hand in a worktree of their own, never by the loop.", "");
+    lines.push("| Goal | What it builds | State | Milestone | Stages |", "|---|---|---|---|---|");
     for (const side of sides) {
       const rel = `${PROSE_FROM_PLAN}/side/${side.id}.md`;
       const prose = existsSync(join(root, "docs/agent", rel)) ? rel : null;
-      lines.push(...section(`## \`${side.id}\` — ${side.value.title}`, side.value, "side", prose));
+      lines.push(`| ${row(side.id, side.value, "side", prose)}`);
     }
   }
   return { path: GOAL_PLAN, text: markdown(lines.join("\n")) };

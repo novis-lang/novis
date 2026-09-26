@@ -99,8 +99,8 @@ describe("render", () => {
     const plan = renderGoalPlan(ROOT);
     expect(plan.path).toBe(GOAL_PLAN);
     expect(plan.text.split("\n", 1)[0]).toBe(`<!-- ${MARKER} -->`);
-    const headings = [...plan.text.matchAll(/^## (\d+)\. `([^`]+)`/gm)].map((m) => [Number(m[1]), m[2]]);
-    expect(headings).toEqual(goals.map((g) => [g.num, g.slug]));
+    const rows = [...plan.text.matchAll(/^\| (\d+) \| \[?`([^`]+)`/gm)].map((m) => [Number(m[1]), m[2]]);
+    expect(rows).toEqual(goals.map((g) => [g.num, g.slug]));
     if (live) expect(plan.text).toContain(`\`${live.slug}\` is live at ${live.num} of ${goals.length}`);
     expect(plan.text.match(NUMBER_CITE)).toBeNull();
   });
