@@ -1,32 +1,30 @@
-// How much of a `.rs` file a reader reads. Each tier is a digest over less of the file than the one
-// before it, and a key takes the narrowest tier its check can be shown to read:
+// What `tools/nv-scan` reads off a `.rs` file, in two modes.
 //
-// - `raw`: the bytes. `fmt` reads these, and so does every test binary built from the file's own
-//   package, because a policy test reads source as text and a comment is then an input.
-// - `docs`: the tokens, doc comments among them. `clippy`, rustdoc and a doc-test read this.
+// `analyse` digests a file at five tiers, each over less of the file than the one before it. The perf
+// ledger's `implHash` (`proofs/collect.ts`) takes the `card` tier, so a perf figure stays current over
+// an edit to a comment, a test or a reference card:
+//
+// - `raw`: the bytes.
+// - `docs`: the tokens, doc comments among them.
 // - `code`: the tokens, with each run of doc comments as one placeholder. Layout and plain comments
-//   are not tokens. `rustc` reads nothing else. A file with a bidirectional-text character is its
-//   text in every tier, because `rustc` then denies a comment.
+//   are not tokens. A file with a bidirectional-text character is its text in every tier, because
+//   `rustc` then denies a comment.
 // - `shipped`: the code without any item, impl or trait member or statement that its `#[cfg(...)]`
 //   shuts off when `test` is not set. A binary built without `cfg(test)` cannot reach a token in one.
 // - `card`: the shipped code without the registry's reference cards. Every `const` or `static` of a
 //   card type is left out, a field `doc: Some(&CARD)` naming one of them reads as `doc: None`, and a
-//   card type is left out of a `use` list. Only what prints a card reads any of that, so a check that
-//   only runs programs keys here.
+//   card type is left out of a `use` list.
 //
 // Every tier but `raw` is read off the syntax tree by `tools/nv-scan`, a Rust program that parses the
 // file with `syn`, which this module builds on first use and runs once for a batch of files. A file
-// `syn` cannot parse is its text in every tier. No tier sees a line number, so a check that pins one
-// in its expected output must key on `raw`.
-//
-// `includes` lists every `include_str!`/`include_bytes!` site with a literal path, and whether the
-// site is in code a build without `cfg(test)` leaves out. A file embedded from shipped code is data,
-// and is raw in every key that holds the embedding file. One embedded from test code is an input of
-// that package's test binaries alone.
+// `syn` cannot parse is its text in every tier. No tier sees a line number. `includes` lists every
+// `include_str!`/`include_bytes!` site with a literal path, and whether the site is in code a build
+// without `cfg(test)` leaves out.
 //
 // `scanItems` runs the scanner's other mode, `--items`: every item of each file, with a stable id,
 // its line span, a digest without doc comments, the names it refers to and binds, and which `Core`
-// class a registry row or card belongs to. Observed selection maps coverage and changes onto these.
+// class a registry row or card belongs to. Observed selection (`tools/nv/select/`) maps coverage and
+// changes onto these.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { abs } from "../lib/paths.ts";
@@ -34,7 +32,7 @@ import { abs } from "../lib/paths.ts";
 const HELPER = "tools/nv-scan";
 const SOURCES = ["Cargo.toml", "Cargo.lock", "src/main.rs", "src/items.rs"].map((f) => `${HELPER}/${f}`);
 
-/** Folded into every tiered digest, so a change to the scanner is a change to every key. */
+/** Folded into every tiered digest, so a change to the scanner changes every digest it gives. */
 export const SCANNER = digest("nv-scan", ...SOURCES.map((f) => readFileSync(abs(f))));
 
 export type Tier = "raw" | "docs" | "code" | "shipped" | "card";

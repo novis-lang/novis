@@ -585,9 +585,9 @@ jobs:
       - name: Every playbook bullet names a file and expires by a condition the tree decides
         run: bun nv playbook --check
       # The workspace version, the `[workspace.dependencies]` pins that restate it and the newest
-      # release tag all agree, and a released version has a changelog section. It belongs here
-      # rather than in `nv verify` because that command's green cache does not hash `docs/`, and
-      # this reads CHANGELOG.md.
+      # release tag all agree, and a released version has a changelog section. It runs here
+      # because no `nv verify` step runs it: verify runs the steps whose footprint in the
+      # selection store a change reaches, and this check is not one of its steps.
       - name: The version is consistent across the manifest, the tags and the changelog
         run: bun nv release --check
 

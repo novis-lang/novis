@@ -5,7 +5,9 @@
 // (`record.ts`):
 //
 // - the case trees, a batch of cases at a time through `recordCases`;
-// - every proof program of the roster, through `runPrograms` with `NV_PROOF_RECORD` set;
+// - every proof program of the roster, judged by `runPrograms` on the uninstrumented proof binary
+//   (`target/proof`), then run once more on the covws debug `nvs` by `recordingRun` for its footprint;
+//   a recording run that ends differently from the judged run marks the program diverged;
 // - every Rust test executable of the build, one process each in its package directory, with
 //   `LLVM_PROFILE_FILE` and `NVS_FOOTPRINT_LOG` inherited by every `nvs` it starts, and a compile cache
 //   of its own that starts empty;
@@ -25,7 +27,7 @@ import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { readLog, readModules } from "../lib/reads.ts";
 import type { TestExe } from "../driver/accept.ts";
-import { namedBinary, RECORD_ENV, recordName, runPrograms } from "../proofs/run.ts";
+import { divergence, proofBinary, recordingRun, recordName, runPrograms } from "../proofs/run.ts";
 import { caseFiles, caseId, nvDef, nvId, proofDef, proofId, proofPrograms, testId } from "./atoms.ts";
 import { type Extracted, recordedIn } from "./extract.ts";
 import { allowedWide } from "../keys/escape.ts";
@@ -146,36 +148,40 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
 }
 
 async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; path: string }[]): Promise<void> {
+  if (programs.length === 0) return;
+  const bin = await proofBinary();
+  if (typeof bin === "string") throw new Error(`select: no proof binary to judge the proof programs on: ${bin}`);
   const dir = join(ctx.r.dir, "proofs");
-  const was = process.env[RECORD_ENV];
-  const tmp = { TMP: process.env.TMP, TEMP: process.env.TEMP, TMPDIR: process.env.TMPDIR };
-  process.env[RECORD_ENV] = dir;
-  Object.assign(process.env, ctx.r.tmpEnv);
   let done = 0;
-  try {
-    for (const batch of chunks(programs, 96)) {
-      rmSync(dir, { recursive: true, force: true });
-      mkdirSync(dir, { recursive: true });
-      const pass = await runPrograms(namedBinary(ctx.nvs), batch, { valgrind: false, strict: false });
-      const recorded = recordedIn(dir);
-      await pool(batch, ctx.jobs, async ({ what, path }) => {
-        const got = recorded.get(recordName(path));
-        const ext = got ? await ctx.r.extract(got, [ctx.nvs]) : null;
-        const result = pass.results.get(`${what}:${path}`);
-        const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
-        ctx.r.record(proofId(path), proofDef(path, ctx.root), verdict, ext?.keys ?? new Map());
-        ctx.tally("proof", verdict, ext);
-      });
-      done += batch.length;
-      ctx.say(`select: proof programs ${done}/${programs.length}`);
-    }
-  } finally {
-    if (was === undefined) delete process.env[RECORD_ENV];
-    else process.env[RECORD_ENV] = was;
-    for (const [k, v] of Object.entries(tmp)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
+  for (const batch of chunks(programs, 96)) {
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    // Every program of the batch is judged before any is recorded, so a judged run never shares the
+    // machine with the slower recording runs.
+    const pass = await runPrograms(bin, batch, { valgrind: false, strict: false });
+    await pool(batch, ctx.jobs, async ({ what, path }) => {
+      const id = proofId(path);
+      const result = pass.results.get(`${what}:${path}`);
+      const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
+      // A program skipped on this host ran nothing; it is selected again when its own file changes.
+      if (!result?.ran) {
+        ctx.r.record(id, proofDef(path, ctx.root), verdict, new Map([[`file:${path}`, ""]]));
+        ctx.tally("proof", verdict, null);
+        return;
+      }
+      const recorded = await recordingRun(ctx.nvs, what, path, dir, ctx.r.tmpEnv, result.ran);
+      const got = recordedIn(dir).get(recordName(path));
+      const ext = got ? await ctx.r.extract(got, [ctx.nvs]) : null;
+      const keys: Keyed = ext?.keys ?? new Map();
+      if (keys.size === 0) keys.set(`file:${path}`, "");
+      ctx.r.record(id, proofDef(path, ctx.root), verdict, keys);
+      ctx.tally("proof", verdict, ext);
+      const why = divergence(result.ran, recorded);
+      if (why === null) ctx.r.store.clearDiverged(id);
+      else ctx.r.store.markDiverged(id, why);
+    });
+    done += batch.length;
+    ctx.say(`select: proof programs ${done}/${programs.length}`);
   }
 }
 
