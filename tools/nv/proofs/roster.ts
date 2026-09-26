@@ -12,6 +12,7 @@ import { classConsts, filesUnder, phpTwins, registry, specRows } from "../cmd/ga
 import { abs } from "../lib/paths.ts";
 import { comparePaths } from "../lib/py.ts";
 import { run as runProc } from "../lib/proc.ts";
+import { progress } from "../lib/progress.ts";
 
 export const EXAMPLES = "docs/examples";
 export const HOSTILE = "tests/hostile";
@@ -197,6 +198,7 @@ interface Meta {
 
 /** What `nvs meta --json` prints. A binary that cannot print it ends the command. */
 async function metaJson(nvs: string): Promise<Meta> {
+  progress("proofs: reading the roster (`nvs meta --json`)");
   const out = await runProc([nvs, "meta", "--json"], { timeoutMs: 120_000 });
   if (out.code !== 0) throw new RosterError(`\`${nvs} meta --json\` failed:\n${out.stderr.trim()}`);
   return JSON.parse(out.stdout) as Meta;

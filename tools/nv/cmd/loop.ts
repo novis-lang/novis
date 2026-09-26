@@ -109,6 +109,7 @@ import { insideWorktree, landing, launchSide } from "../driver/side.ts";
 import { bringUp, docGate, enoughDisk, ownerGate, preflight, sweepDisk } from "../driver/gates.ts";
 import { chainGoals, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
+import { ENV as PROGRESS_ENV, readProgress } from "../lib/progress.ts";
 import { goal as goalType } from "../schema/goal.ts";
 import { goalTable, Session, statusRow, type Results } from "../driver/status.ts";
 import {
@@ -976,10 +977,17 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   const results = memoGreen();
 
   const session = new Session(plan, results);
-  // The status line is the goal's row. Between sessions its last field is the driver's phase.
+  // The status line is the goal's row. Between sessions its last field is the driver's phase. The
+  // progress directory is read at most twice a second, since the row is asked for more often.
+  let working: string[] = [];
+  let workingAt = 0;
   TICKER.row = (width) => {
     if (ctx.live === null) session.phase(TICKER.phase());
-    return statusRow(plan, results, session, width);
+    if (performance.now() - workingAt > 500) {
+      working = readProgress(PROGRESS_DIR);
+      workingAt = performance.now();
+    }
+    return statusRow(plan, results, session, width, working);
   };
   CONTROL.onGoal = () => {
     for (const row of goalTable({ plan, results, session, position: live.num, total, commits: SLICES.subjects(), width: TICKER.width() - 1, utf8: TICKER.utf8 })) say(row);
@@ -1354,7 +1362,11 @@ function sweepProgress(labelOf: (n: number) => string, begun: number): Progress 
   };
 }
 
+/** Where every `nv` command a session or a check starts writes what it is doing; the status row reads it. */
+const PROGRESS_DIR = join(ROOT, RUNDIR, "progress");
+
 export async function run(args: string[]): Promise<number> {
+  process.env[PROGRESS_ENV] = PROGRESS_DIR;
   // `--side <slug>` goes first and says which goal every mode below works on, through the variable the
   // turns and their sessions inherit.
   let side = "";

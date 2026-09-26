@@ -75,6 +75,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { subsetRun } from "../driver/accept.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
+import { cargoStatus, progress as showProgress } from "../lib/progress.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
 import { type Unit, isWide, loadRecords, testTargets, units } from "../keys/checks.ts";
 import { findings } from "../keys/escape.ts";
@@ -233,9 +234,28 @@ function writeQuiet(path: string, text: string): void {
 
 // ---- running ---------------------------------------------------------------------------------------
 
-async function spawnOut(argv: string[], cwd: string, env?: Record<string, string>): Promise<[number, string]> {
+/** Each running step's name and what it is doing now; `lib/progress.ts` shows them while they run. */
+const running = new Map<string, string>();
+
+/** Sets what the step `name` is doing now, while it runs. */
+function stepDetail(name: string, detail: string): void {
+  if (!running.has(name)) return;
+  running.set(name, detail);
+  showProgress(`verify: ${[...running].map(([n, d]) => (d ? `${n} (${d})` : n)).join(", ")}`);
+}
+
+/** A `proc.run` `onLine` that shows cargo's status lines as the step's detail. */
+function cargoDetail(name: string): (line: string) => void {
+  const status = cargoStatus();
+  return (line) => {
+    const said = status(line);
+    if (said !== null) stepDetail(name, said);
+  };
+}
+
+async function spawnOut(argv: string[], cwd: string, env?: Record<string, string>, onLine?: (line: string) => void): Promise<[number, string]> {
   try {
-    const p = await proc(argv, { cwd, timeoutMs: STEP_TIMEOUT_MS, ...(env ? { env } : {}) });
+    const p = await proc(argv, { cwd, timeoutMs: STEP_TIMEOUT_MS, ...(env ? { env } : {}), ...(onLine ? { onLine } : {}) });
     return [p.code, p.stdout + p.stderr + (p.timedOut ? `\nkilled after ${STEP_TIMEOUT_MS / 60000} minutes\n` : "")];
   } catch (e) {
     return [-1, `could not run \`${argv.join(" ")}\`: ${(e as Error).message}`];
@@ -244,7 +264,14 @@ async function spawnOut(argv: string[], cwd: string, env?: Record<string, string
 
 async function runStep(s: Step): Promise<boolean> {
   const started = performance.now();
-  [s.code, s.out] = s.runner ? await s.runner(s) : await spawnOut([s.exe, ...s.args], s.cwd, s.env);
+  running.set(s.name, "");
+  stepDetail(s.name, "");
+  const onLine = s.exe === "cargo" ? cargoDetail(s.name) : undefined;
+  try {
+    [s.code, s.out] = s.runner ? await s.runner(s) : await spawnOut([s.exe, ...s.args], s.cwd, s.env, onLine);
+  } finally {
+    running.delete(s.name);
+  }
   s.seconds = (performance.now() - started) / 1000;
   writeQuiet(join(TMP, `verify-${s.name}.log`), s.out);
   return s.code === 0;
@@ -276,7 +303,7 @@ const FLAGS: Record<string, string> = { lib: "--lib", bin: "--bin", test: "--tes
 async function buildTestJobs(binaryKey: string | null | undefined): Promise<[Job[] | null, string]> {
   let p;
   try {
-    p = await proc(["cargo", "test", "--no-run", "--message-format=json-render-diagnostics"], { timeoutMs: STEP_TIMEOUT_MS });
+    p = await proc(["cargo", "test", "--no-run", "--message-format=json-render-diagnostics"], { timeoutMs: STEP_TIMEOUT_MS, onLine: cargoDetail("test") });
   } catch (e) {
     return [null, `could not run \`cargo test --no-run\`: ${(e as Error).message}`];
   }
@@ -461,6 +488,8 @@ async function runTests(s: Step, pkg: string | undefined): Promise<[number, stri
   let left = jobs.length;
   let red = false;
   let next = 0;
+  const count = () => stepDetail(s.name, `${jobs.length - left}/${jobs.length} test binaries${red ? ", one failed" : ""}`);
+  count();
   const worker = async () => {
     while (next < jobs.length) {
       const j = jobs[next++]!;
@@ -468,6 +497,7 @@ async function runTests(s: Step, pkg: string | undefined): Promise<[number, stri
       results.set(j.name, got);
       left--;
       red ||= got[1] !== 0;
+      count();
       if (s.onTail && !red && left <= Math.floor(workers / 2)) s.onTail();
     }
   };

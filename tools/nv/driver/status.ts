@@ -10,7 +10,8 @@
 //     and `{out}` is what the session has written, summed over its messages; a subagent's turns are
 //     skipped, because the session's window holds only that call's one result;
 //   - `{doing}` is the latest tool call's `description` for a shell tool, `<tool> <path>` for a file
-//     tool and the tool's name otherwise, or the driver's own phase between sessions.
+//     tool and the tool's name otherwise, or the driver's own phase between sessions. After it, behind
+//     ` > `, comes what each running `nv` command says it is doing (`lib/progress.ts`).
 // A shell call whose command is a check's `argv` sets that check green when it exits 0 and red when it
 // does not, until the next acceptance sweep sets every check. A row wider than the terminal is cut at
 // its end, and the window title is the same row.
@@ -159,8 +160,9 @@ export function cut(text: string, width: number): string {
   return chars.length <= width ? text : chars.slice(0, Math.max(0, width - 1)).join("") + "…";
 }
 
-/** The status row, cut to the terminal's width. */
-export function statusRow(plan: Plan, results: Results, s: Session, width: number): string {
+/** The status row, cut to the terminal's width. `working` is what each running `nv` command says it is
+ * doing, the one started first first. */
+export function statusRow(plan: Plan, results: Results, s: Session, width: number, working: string[] = []): string {
   const stage = currentStage(plan, results);
   const row = [
     `goal ${plan.slug}/${stage ?? "done"}`,
@@ -168,7 +170,7 @@ export function statusRow(plan: Plan, results: Results, s: Session, width: numbe
     `${ktok(s.context)}in/${ktok(s.out)}out`,
     `${s.calls} tool calls`,
     `session ${s.number}`,
-    s.doing,
+    [s.doing, ...working].filter(Boolean).join(" > "),
   ].join(" | ");
   return cut(row, width);
 }

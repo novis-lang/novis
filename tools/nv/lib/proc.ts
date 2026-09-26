@@ -3,6 +3,7 @@
 // is killed and reported as timed out.
 
 import { ROOT } from "./paths.ts";
+import { erase } from "./progress.ts";
 
 export interface RunOptions {
   cwd?: string;
@@ -11,6 +12,8 @@ export interface RunOptions {
   env?: Record<string, string>;
   /** Text written to the program's standard input. */
   input?: string;
+  /** Called with each line the program prints, as it prints it, without its line ending. */
+  onLine?: (line: string, stream: "stdout" | "stderr") => void;
 }
 
 export interface RunResult {
@@ -54,8 +57,8 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
   }, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   try {
     const [stdout, stderr, code] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
+      opts.onLine ? drain(child.stdout, (l) => opts.onLine!(l, "stdout")) : new Response(child.stdout).text(),
+      opts.onLine ? drain(child.stderr, (l) => opts.onLine!(l, "stderr")) : new Response(child.stderr).text(),
       child.exited,
     ]);
     return { argv, code: timedOut ? 124 : code, stdout, stderr, timedOut };
@@ -64,8 +67,34 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
   }
 }
 
-/** Runs `argv` with its output going straight to this process's own, and returns its exit status. */
-export async function passthrough(argv: string[], opts: Omit<RunOptions, "input"> = {}): Promise<number> {
+/** All of `stream` as text, with `onLine` called on each line as it arrives. A line ends at LF, and a
+ * CR before it is dropped; a last line with no LF is passed as well. */
+async function drain(stream: ReadableStream<Uint8Array>, onLine: (line: string) => void): Promise<string> {
+  const decoder = new TextDecoder();
+  let all = "";
+  let pending = "";
+  for await (const chunk of stream) {
+    const text = decoder.decode(chunk, { stream: true });
+    all += text;
+    pending += text;
+    let nl = pending.indexOf("\n");
+    while (nl >= 0) {
+      onLine(pending.slice(0, nl).replace(/\r$/, ""));
+      pending = pending.slice(nl + 1);
+      nl = pending.indexOf("\n");
+    }
+  }
+  const tail = decoder.decode();
+  all += tail;
+  pending += tail;
+  if (pending) onLine(pending.replace(/\r$/, ""));
+  return all;
+}
+
+/** Runs `argv` with its output going straight to this process's own, and returns its exit status. The
+ * progress line, when one is shown, is erased first. */
+export async function passthrough(argv: string[], opts: Omit<RunOptions, "input" | "onLine"> = {}): Promise<number> {
+  erase();
   const env = opts.env ? { ...process.env, ...opts.env } : process.env;
   const child = Bun.spawn(resolved(argv, env), {
     cwd: opts.cwd ?? ROOT,

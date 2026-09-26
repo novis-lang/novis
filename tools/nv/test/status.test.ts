@@ -75,6 +75,10 @@ describe("the status row", () => {
     expect(session.out).toBe(6100);
     expect(session.calls).toBe(3);
     expect(statusRow(plan, results, session, 200)).toBe("goal demo/2 | 25% | 84.2kin/6.1kout | 3 tool calls | session 14 | Edit tools/nv/cmd/loop.ts");
+    // What each running `nv` command says it is doing follows the tool call, the one started first first.
+    expect(statusRow(plan, results, session, 200, ["verify: test (3/40 test binaries)", "proofs: 7/12 programs run"])).toEndWith(
+      "| Edit tools/nv/cmd/loop.ts > verify: test (3/40 test binaries) > proofs: 7/12 programs run",
+    );
   });
 
   test("the floor is left out of the percentage, and counts toward the stage", () => {

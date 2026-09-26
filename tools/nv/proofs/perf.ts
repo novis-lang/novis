@@ -17,6 +17,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname } from "node:path";
 import { dirty, head, lastCommit } from "../lib/git.ts";
 import { abs } from "../lib/paths.ts";
+import { progress } from "../lib/progress.ts";
 import { fixed, general } from "../lib/py.ts";
 import { fingerprint, implHash, knownGap, LEDGER, ledgerRecords, owed, type Policy, type Proofs, type Skips } from "./collect.ts";
 import { benchFile, implFile, read, type Entry } from "./roster.ts";
@@ -55,11 +56,15 @@ class PerfError extends Error {}
 
 const firstLine = (text: string) => text.trim().split(/\r?\n/)[0] ?? "";
 
+/** What `recordPerf` is measuring now, which the progress text starts with: `calibrating`, `feature 3/12`. */
+let measuring = "";
+
 /** (the fastest, the median) of `reps` runs, in nanoseconds. The fastest is the figure, and the median
  * rides beside it so a later delta can be read against the spread it was taken in. */
 async function timeProgram(nvs: string, path: string, reps: number): Promise<[number, number]> {
   const spent: number[] = [];
   for (let i = 0; i < reps; i++) {
+    progress(`proofs perf: ${measuring}, ${path}, run ${i + 1}/${reps}`);
     const out = await spawnProof([nvs, "run", path], path, TIMEOUT_MS);
     spent.push(out.ms * 1e6);
     if (out.timedOut) throw new PerfError(`${path} timed out after ${TIMEOUT_MS / 1000}s`);
@@ -210,6 +215,7 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
   let unitNs: number;
   let base: Record<string, number>;
   try {
+    measuring = "calibrating";
     [floor, unitNs] = await calibrate(nvs, opts.reps);
     base = await countProgram(nvs, `${CALIBRATION}/baseline.nvs`);
   } catch (e) {
@@ -222,8 +228,9 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
   print(`  ${ljust("feature", 44)} ${rjust("ns/op", 10)} ${rjust("units", 9)}  ${rjust("stmts", 7)} ${rjust("calls", 7)} ${rjust("allocs", 7)} ${rjust("bytes", 9)}`);
   const lines: string[] = [];
   let failed = 0;
-  for (const e of [...todo].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+  for (const [i, e] of [...todo].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).entries()) {
     const bench = benchFile(e);
+    measuring = `feature ${i + 1}/${todo.length}`;
     let fig: Rec;
     let findings: string[];
     try {

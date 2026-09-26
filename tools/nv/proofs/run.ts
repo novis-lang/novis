@@ -26,6 +26,7 @@ import { digest } from "../keys/scan.ts";
 import { Tree } from "../keys/tree.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
+import { cargoLines, progress } from "../lib/progress.ts";
 import { linked } from "../lib/relink.ts";
 import { gapTitle, knownGap } from "./collect.ts";
 import { read } from "./roster.ts";
@@ -98,6 +99,7 @@ export const releaseBinary = () => builtBinary("release");
 
 async function builtBinary(profile: keyof typeof BUILDS): Promise<Binary | string> {
   const build = BUILDS[profile];
+  progress(`proofs: checking whether the ${build.name} is current`);
   const graph = await metadata();
   if (!graph) return `\`cargo metadata\` failed, and the ${build.name}'s key needs the graph`;
   const tree = await Tree.read();
@@ -109,7 +111,8 @@ async function builtBinary(profile: keyof typeof BUILDS): Promise<Binary | strin
   if (existsSync(path) && stamp === key) return { path, key, runs };
   const command = build.argv.join(" ");
   console.error(`nv proofs: building the ${build.name} (\`${command}\`)`);
-  const built = await linked(path, () => runProc(build.argv, { timeoutMs: 60 * 60 * 1000 }), (r) => r.stderr);
+  const onLine = cargoLines(`proofs: building the ${build.name}`);
+  const built = await linked(path, () => runProc(build.argv, { timeoutMs: 60 * 60 * 1000, onLine }), (r) => r.stderr);
   if (built.code !== 0 || !existsSync(path)) {
     const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
     return `\`${command}\` failed (exit ${built.code}):\n${tail}`;
@@ -392,13 +395,21 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
   }
   const width = jobsFor(todo.length);
   const started = performance.now();
+  const cached = results.size;
   let next = 0;
+  let ran = 0;
+  let failed = 0;
+  const say = () => progress(`proofs: ${ran}/${todo.length} programs run${cached ? ` (${cached} more unchanged)` : ""}${failed ? `, ${failed} failed` : ""}`);
+  if (todo.length > 0) say();
   const worker = async () => {
     while (next < todo.length) {
       const t = todo[next++]!;
       const [raw, rawWhy] = t.what === "examples" ? await runExample(bin.path, t.path) : await runHostile(bin.path, t.path, opts.valgrind);
       const [verdict, why] = judgeGap(t.path, raw, rawWhy);
       results.set(`${t.what}:${t.path}`, { verdict, why, cached: false });
+      ran++;
+      if (verdict === "fail") failed++;
+      say();
       if (verdict === "ok") green[t.slot] = [t.digest, bin.runs];
       else delete green[t.slot];
     }
