@@ -264,6 +264,37 @@ export function proofGroups(c: Check): string[] | null {
 }
 
 /**
+ * The most groups one batched `nv proofs --verify` process runs. A batch is one process under one
+ * check's time limit, so a batch of every group a goal names, after a change that reaches all their
+ * programs, outlives that limit and is killed, and every group in it is then red. A process that dies
+ * takes only its own batch's groups with it.
+ */
+export const PROOF_BATCH_GROUPS = 12;
+
+/**
+ * The batches the `nv proofs --verify --group` checks among `checks` run in, in check order: a check's
+ * groups in one batch, at most `size` groups to a batch unless one check names more, and each group in
+ * the first batch that names it. A batch of one group is none: its check runs alone.
+ */
+export function proofBatches(checks: Check[], size: number = PROOF_BATCH_GROUPS): string[][] {
+  const batches: string[][] = [];
+  const placed = new Set<string>();
+  let current: string[] = [];
+  for (const c of checks) {
+    const fresh = [...new Set(proofGroups(c) ?? [])].filter((g) => !placed.has(g));
+    if (fresh.length === 0) continue;
+    if (current.length > 0 && current.length + fresh.length > size) {
+      batches.push(current);
+      current = [];
+    }
+    for (const g of fresh) placed.add(g);
+    current.push(...fresh);
+  }
+  if (current.length > 0) batches.push(current);
+  return batches.filter((b) => b.length > 1);
+}
+
+/**
  * Each group's section of a batched `nv proofs --verify` run's stdout, from its `== G` line to its
  * `-- G: passed` or `-- G: failed` line, with both kept, and whether it passed.
  */

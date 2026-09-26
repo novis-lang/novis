@@ -56,13 +56,19 @@ export function hostTriple(): string {
   return (triple = host[1]!);
 }
 
-/** The path of one of the toolchain's LLVM tools. */
+const tools = new Map<string, string>();
+
+/** The path of one of the toolchain's LLVM tools, found once per process: the lookup starts `rustc`
+ * and waits for it, and a recorded run asks for a tool twice for every atom it extracts. */
 export function llvmTool(name: "llvm-profdata" | "llvm-cov"): string {
+  const held = tools.get(name);
+  if (held !== undefined) return held;
   const r = Bun.spawnSync(["rustc", "--print", "sysroot"], { cwd: abs("."), stdout: "pipe", stderr: "pipe" });
   const sysroot = r.stdout.toString().trim();
   if (r.exitCode !== 0 || !sysroot) throw new Error(`rustc --print sysroot failed:\n${r.stderr.toString()}`);
   const tool = `${sysroot}/lib/rustlib/${hostTriple()}/bin/${name}${EXE}`;
   if (!existsSync(tool)) throw new Error(`${tool} is missing: the toolchain needs its \`llvm-tools\` component`);
+  tools.set(name, tool);
   return tool;
 }
 

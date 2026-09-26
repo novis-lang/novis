@@ -57,6 +57,7 @@ import {
   measuresReleaseCli,
   type Outcome,
   PROGRAM_KINDS,
+  proofBatches,
   proofGroups,
   proofOutcome,
   type TestExe,
@@ -104,7 +105,7 @@ export class PlanSweep {
   private readonly casesDone = new Set<string>();
   private readonly exeShown = new Map<string, string>();
   private caseOut = "";
-  private proofs: { groups: string[]; run?: Promise<{ o: Outcome; keys: Keyed }> } | undefined;
+  private proofs: { groups: string[]; run?: Promise<{ o: Outcome; keys: Keyed }> }[] = [];
   private runs = 0;
 
   private constructor(
@@ -287,11 +288,10 @@ export class PlanSweep {
 
   // ---- the checks --------------------------------------------------------------------------------
 
-  /** Names the checks the sweep is about to reach, so the first `nv proofs --verify --group` check among
-   * them runs every group they name in one process. Fewer than two groups is no batch. */
+  /** Names the checks the sweep is about to reach, so the first `nv proofs --verify --group` check of
+   * each batch `proofBatches` cuts runs every group of that batch in one process. */
   batch(checks: Check[]): void {
-    const groups = [...new Set(checks.flatMap((c) => proofGroups(c) ?? []))];
-    this.proofs = groups.length > 1 ? { groups } : undefined;
+    this.proofs = proofBatches(checks).map((groups) => ({ groups }));
   }
 
   /** Runs the picked atoms of `c`, records each, and judges it. */
@@ -536,10 +536,10 @@ export class PlanSweep {
 
   private async proofsCheck(c: Check, g: Grouped, label: string): Promise<Verdict> {
     const groups = proofGroups(c);
-    const batch = this.proofs;
+    const batch = groups === null ? undefined : this.proofs.find((b) => groups.every((x) => b.groups.includes(x)));
     let o: Outcome;
     let keys: Keyed;
-    if (groups !== null && batch !== undefined && groups.every((x) => batch.groups.includes(x))) {
+    if (groups !== null && batch !== undefined) {
       batch.run ??= this.recorded(["bun", "nv", "proofs", "--verify", ...batch.groups.flatMap((x) => ["--group", x])], ".", `bun nv proofs --verify over ${batch.groups.length} groups`);
       const got = await batch.run;
       o = proofOutcome(groups, got.o);

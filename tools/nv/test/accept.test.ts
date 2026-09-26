@@ -13,6 +13,7 @@ import {
   owedChecks,
   plainCrateTest,
   programFailLine,
+  proofBatches,
   proofGroups,
   proofOutcome,
   proofSections,
@@ -107,6 +108,19 @@ describe("the batched proofs run", () => {
     expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--run", "--group", "Core\\Str"] }))).toBeNull();
     expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Str"], cwd: "tools" }))).toBeNull();
     expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--verify"] }))).toBeNull();
+  });
+
+  test("proofBatches cuts the groups into batches of a bounded size, a check's groups kept together", () => {
+    const group = (...gs: string[]) => check({ argv: ["bun", "nv", "proofs", "--verify", ...gs.flatMap((g) => ["--group", g])] });
+    const many = Array.from({ length: 30 }, (_, i) => group(`G${i}`));
+    const batches = proofBatches(many, 12);
+    expect(batches.map((b) => b.length)).toEqual([12, 12, 6]);
+    expect(batches.flat()).toEqual(many.map((_, i) => `G${i}`));
+    // A check's two groups do not straddle a batch, and a group already placed is not placed again.
+    expect(proofBatches([group("A"), group("B"), group("C", "D"), group("A"), group("E")], 3)).toEqual([["A", "B"], ["C", "D", "E"]]);
+    // A lone group, and a check that is no proofs-group check, make no batch.
+    expect(proofBatches([group("A"), check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "x"] })], 12)).toEqual([]);
+    expect(proofBatches([group("A"), group("B"), group("C")], 2)).toEqual([["A", "B"]]);
   });
 
   const out = [
