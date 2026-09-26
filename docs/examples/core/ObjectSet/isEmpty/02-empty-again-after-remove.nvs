@@ -1,0 +1,25 @@
+<?nvs
+// Shows that a set is empty again when its last value is removed.
+
+final class Download {
+    public string $url;
+
+    public function constructor(string $url) {
+        $this->url = $url;
+    }
+}
+
+Download $first = new Download("https://example.com/a.zip");
+Download $second = new Download("https://example.com/b.zip");
+
+Core\ObjectSet<Download> $running = new Core\ObjectSet<Download>();
+$running->add($first);
+$running->add($second);
+
+$running->remove($first);
+// One download is still running. This prints "false".
+echo $running->isEmpty() ? "true" : "false", "\n";
+
+$running->remove($second);
+// This prints "true".
+echo $running->isEmpty() ? "true" : "false", "\n";

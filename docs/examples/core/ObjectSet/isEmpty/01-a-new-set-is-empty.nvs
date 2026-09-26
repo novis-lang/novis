@@ -1,0 +1,18 @@
+<?nvs
+// Shows how `isEmpty` checks if a set has any values.
+
+final class Photo {
+    public string $file;
+
+    public function constructor(string $file) {
+        $this->file = $file;
+    }
+}
+
+Core\ObjectSet<Photo> $selected = new Core\ObjectSet<Photo>();
+// A new set is empty. This prints "empty".
+echo $selected->isEmpty() ? "empty" : "not empty", "\n";
+
+$selected->add(new Photo("beach.jpg"));
+// This prints "not empty".
+echo $selected->isEmpty() ? "empty" : "not empty", "\n";

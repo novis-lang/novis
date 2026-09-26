@@ -589,18 +589,31 @@ mod tests {
     }
 
     /// `add` of a value the set holds changes nothing, `clear` empties the set
-    /// and keeps it usable, and a value added after `clear` is counted afresh.
-    // covers: Core\ObjectSet::add, Core\ObjectSet::count, Core\ObjectSet::clear
+    /// and keeps it usable, a value added after `clear` is counted afresh, and
+    /// `isEmpty` agrees with a count of `0` at each step.
+    // covers: Core\ObjectSet::add, Core\ObjectSet::count, Core\ObjectSet::isEmpty, Core\ObjectSet::clear
     #[test]
     fn clear_empties_a_set_that_add_can_fill_again() {
         let set = empty();
+        assert_eq!(
+            on(set, nvs_core_object_set_is_empty, &[]).as_bool(),
+            Some(true)
+        );
         for n in [1, 2, 3, 2, 1] {
             on(set, nvs_core_object_set_add, &[Value::int(n)]);
         }
         assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(3));
+        assert_eq!(
+            on(set, nvs_core_object_set_is_empty, &[]).as_bool(),
+            Some(false)
+        );
 
         on(set, nvs_core_object_set_clear, &[]);
         assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(0));
+        assert_eq!(
+            on(set, nvs_core_object_set_is_empty, &[]).as_bool(),
+            Some(true)
+        );
         assert_eq!(
             on(set, nvs_core_object_set_has, &[Value::int(1)]).as_bool(),
             Some(false)

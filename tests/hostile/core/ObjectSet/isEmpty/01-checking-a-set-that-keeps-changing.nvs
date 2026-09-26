@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a program checks if a set is empty while it fills it, empties it and adds it to itself many
+// times. Each `isEmpty` should give the right answer, and the program must not crash or leak.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+Core\ObjectSet<mixed> $set = new Core\ObjectSet<mixed>();
+
+// 1. An object is added and removed 1 million times, and the set is checked after each step.
+Node $one = new Node(1);
+int $i = 0;
+uint $wrong = 0;
+while ($i < 1000000) {
+    $set->add($one);
+    if ($set->isEmpty()) {
+        $wrong = $wrong + 1;
+    }
+    $set->remove($one);
+    if (!$set->isEmpty()) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo '1: ', $wrong, "\n";
+
+// 2. 100000 objects are added, then removed one by one. The set is checked before the last removal.
+array<Node> $nodes = [];
+$i = 0;
+while ($i < 100000) {
+    Node $node = new Node($i);
+    $nodes[] = $node;
+    $set->add($node);
+    $i = $i + 1;
+}
+$wrong = 0;
+foreach ($nodes as Node $node) {
+    if ($set->isEmpty()) {
+        $wrong = $wrong + 1;
+    }
+    $set->remove($node);
+}
+echo '2: ', $wrong, ' ', $set->isEmpty() ? 'y' : 'n', "\n";
+
+// 3. The set is added to itself, checked, and cleared 100000 times.
+$wrong = 0;
+$i = 0;
+while ($i < 100000) {
+    $set->add($set);
+    if ($set->isEmpty()) {
+        $wrong = $wrong + 1;
+    }
+    $set->clear();
+    if (!$set->isEmpty()) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo '3: ', $wrong, "\n";
+
+// 4. New objects are added and the set is checked until the memory limit stops the program.
+while (true) {
+    $set->add(new Node(0));
+    $set->isEmpty();
+}

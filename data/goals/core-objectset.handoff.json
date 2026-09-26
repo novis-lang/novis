@@ -1,28 +1,27 @@
 {
-  "state": "Goal `core-objectset`: `Core\\ObjectSet::add`, `count` and `clear` have all their feature proofs.\n`Core\\ObjectSet` has its class card (`crates/nvs-stdlib/src/objset.rs`'s `CARD`), and the class is\ngone from `CLASSES_STILL_OWING_A_CARD`, so the help proof is met for every member of the class.\nThe Rust side covers `add`, `has`, `remove`, `count` and `clear` through the two tests in\n`crates/nvs-stdlib/src/objset.rs`, and `tests/conformance/core/object-set-holds-each-value-once.nvst`\ncarries a `covers:` marker for `add`, `count` and `clear`. No proof found a bug.",
+  "state": "Goal `core-objectset`: six of `Core\\ObjectSet`'s nine members have all their feature proofs —\n`add`, `has`, `remove`, `count`, `isEmpty` and `clear`. The class card is in\n`crates/nvs-stdlib/src/objset.rs`'s `CARD`. What still owes is the algebra: `union`, `intersect` and\n`diff` owe about, examples, hostile, perf and a test from each side. The Rust test\n`clear_empties_a_set_that_add_can_fill_again` now also covers `isEmpty`.\nReading `identity_store::vacate` found a reorder under a hash collision. It is recorded as\n`data/gaps/nvs-stdlib/a-removal-inside-a-hash-chain-reorders-the-collection.json` (M12), and the\n`remove` about page does not promise the order after a removal. No proof failed.\nA member bench must not index an array in its loop: `$keys[$total % 3]` costs 2 allocations per\nround, so the three new benches pick with a ternary between two variables.",
   "next": {
-    "stage": 1,
-    "title": "the membership members",
+    "stage": 2,
+    "title": "the dossier, the algebra members",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/objset.rs` and the `object-set-*.nvst` cases under `tests/conformance/core/`:",
+    "note": "one file set: `crates/nvs-stdlib/src/objset.rs` and the `object-set-algebra-*.nvst` cases under `tests/conformance/core/`:",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\ObjectSet::has`** — owes about, examples, hostile, perf and a Novis `covers:` marker (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/objset.rs:62`"
+        "text": "**`Core\\ObjectSet::union`** — owes about, examples, hostile, perf, a Novis `covers:` marker and a Rust `#[test]` with a marker (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/objset.rs:462`"
       },
       {
         "done": false,
-        "text": "**`Core\\ObjectSet::remove`** — the same, and `tests/conformance/core/object-set-stays-whole-through-a-sweep-of-removals.nvst` is the case to mark. `crates/nvs-stdlib/src/objset.rs:71`"
+        "text": "**`Core\\ObjectSet::intersect`** — the same; `tests/conformance/core/object-set-algebra-builds-a-new-set.nvst` is a case to mark. `crates/nvs-stdlib/src/objset.rs:474`"
       },
       {
         "done": false,
-        "text": "**`Core\\ObjectSet::isEmpty`** — the same; `tests/conformance/core/object-set-holds-each-value-once.nvst` already calls it. `crates/nvs-stdlib/src/objset.rs:89`"
+        "text": "**`Core\\ObjectSet::diff`** — the same; one Rust test can cover all three members. `crates/nvs-stdlib/src/objset.rs:488`"
       }
-    ],
-    "after": "The proofs of `add`, `count` and `clear` under `docs/examples/core/ObjectSet/`, `tests/hostile/core/ObjectSet/` and `benches/members/core/ObjectSet/` are the shape to copy. `bun nv proofs --id '<member>'` names what each one still owes."
+    ]
   },
   "backlog": [
-    "`union`, `intersect` and `diff` — the algebra group, after the membership group; the three `object-set-algebra-*.nvst` cases are the ones to mark (`rule:testing/feature-proofs`).",
-    "`foreach ([$a, $b] as Guest $g)` types the literal as `mixed` and does not compile (E0401); an example assigns the list to an `array<Guest>` variable first. Not checked whether a gap record owns it."
+    "The chain reorder on removal is a gap record, `data/gaps/nvs-stdlib/a-removal-inside-a-hash-chain-reorders-the-collection.json`, owned by M12; a Rust test planting a collision can pin it when it is fixed.",
+    "The `remove` bench does 1 allocation of 50 bytes a round. It belongs to the `add` that re-inserts, the same owned-key copy as `data/gaps/nvs-stdlib/an-objectmap-overwrite-allocates-its-chain-key.json`."
   ]
 }
