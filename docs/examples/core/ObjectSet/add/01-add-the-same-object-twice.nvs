@@ -1,0 +1,25 @@
+<?nvs
+// Shows that `add` puts each value into the set once.
+
+final class Task {
+    public string $title;
+
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+}
+
+Task $write = new Task("Write report");
+Task $send = new Task("Send report");
+
+Core\ObjectSet<Task> $done = new Core\ObjectSet<Task>();
+$done->add($write);
+// `$write` is already in the set, so this second `add` does nothing.
+$done->add($write);
+
+// This prints 1.
+echo $done->count(), "\n";
+
+// `has` checks if a value is in the set. This prints "yes", then "no".
+echo $done->has($write) ? "yes" : "no", "\n";
+echo $done->has($send) ? "yes" : "no", "\n";

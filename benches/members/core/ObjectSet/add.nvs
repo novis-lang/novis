@@ -1,0 +1,29 @@
+<?nvs
+// Adds an object that is already in a set, as a program does when it records each object it has seen.
+// bench: iterations 1000000
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Key> $keys = [new Key(1), new Key(2), new Key(3)];
+        Core\ObjectSet<Key> $seen = new Core\ObjectSet<Key>();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: which key is added depends on last round's total
+            $seen->add($keys[($total % 3) as int]);
+            $total = $total + 1 + ($total % 7);
+            $i = $i + 1;
+        }
+        return $total + $seen->count();
+    }
+}
+
+echo Bench::run(1000000), "\n";

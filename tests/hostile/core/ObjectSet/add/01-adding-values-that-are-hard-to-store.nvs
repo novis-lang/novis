@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a program adds the same value many times, huge and deeply nested values, and new values
+// without end. Each `add` should store the value or stop at the memory limit, and must not crash or leak.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectSet<mixed> $set = new Core\ObjectSet<mixed>();
+
+// 1. One object is added 1 million times. The set still has one member.
+Node $one = new Node();
+int $i = 0;
+while ($i < 1000000) {
+    $set->add($one);
+    $i = $i + 1;
+}
+echo '1: ', $set->count(), "\n";
+
+// 2. A new string of 1 million characters is added 100 times. Equal strings are one member.
+$i = 0;
+while ($i < 100) {
+    $set->add(Core\Str::repeat('v', 1000000));
+    $i = $i + 1;
+}
+echo '2: ', $set->count(), "\n";
+
+// 3. An array nested 10000 levels deep is added.
+mixed $deep = [];
+int $d = 0;
+while ($d < 10000) {
+    $deep = [$deep];
+    $d = $d + 1;
+}
+$set->add($deep);
+echo '3: ', $set->has($deep) ? 'y' : 'n', "\n";
+
+// 4. The set is added to itself.
+$set->add($set);
+echo '4: ', $set->count(), "\n";
+
+// 5. A chain of 100000 objects is added. `clear` frees the whole chain.
+Node $head = new Node();
+Node $tail = $head;
+int $n = 0;
+while ($n < 100000) {
+    Node $link = new Node();
+    $tail->next = $link;
+    $tail = $link;
+    $n = $n + 1;
+}
+$set->add($head);
+$set->clear();
+echo '5: ', $set->count(), "\n";
+
+// 6. New objects are added until the memory limit stops the program.
+while (true) {
+    $set->add(new Node());
+}

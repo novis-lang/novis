@@ -2,6 +2,7 @@
 `Core\ObjectSet<T>` holds each value once by strict identity, and `add`/`has`/`count`/`isEmpty`/`clear` answer over it — docs/spec/01-core-library.md § 9, `rule:types/grammar`
 --FILE--
 <?nvs
+// covers: Core\ObjectSet::add, Core\ObjectSet::count, Core\ObjectSet::clear
 // § 9's second row: an identity-keyed set, constructed with a written type
 // argument. `rule:types/grammar` makes a `new` target's `<...>` legal only on a
 // compiler-owned generic class, which this is.

@@ -9,7 +9,7 @@
 use nvs_runtime::{Fault, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\ObjectSet";
@@ -47,7 +47,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// snapshot spends.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -134,6 +134,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     ],
     slots: &["entries"],
     constants: &[],
+};
+
+/// `Core\ObjectSet`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A set of objects or other values of any type, each one at most once. A value is \
+            matched by identity: the same object, not an equal one. Build one with `new \
+            Core\\ObjectSet<T>()`. A `foreach` over the set gives its values in insertion order.",
 };
 
 /// `new Core\ObjectSet`'s reference card — `rule:core-api/reference-card`.
@@ -550,6 +557,7 @@ mod tests {
     /// next ordinal, and `remove` still finds it — the property the chain
     /// exists for, pinned by planting the collision rather than by hoping to
     /// find one.
+    // covers: Core\ObjectSet::add, Core\ObjectSet::has, Core\ObjectSet::remove, Core\ObjectSet::count
     #[test]
     fn a_hash_collision_takes_the_next_ordinal_in_the_chain() {
         let set = empty();
@@ -576,6 +584,30 @@ mod tests {
             on(set, nvs_core_object_set_has, &[Value::int(2)]).as_bool(),
             Some(false)
         );
+        assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(1));
+        drop_set(set);
+    }
+
+    /// `add` of a value the set holds changes nothing, `clear` empties the set
+    /// and keeps it usable, and a value added after `clear` is counted afresh.
+    // covers: Core\ObjectSet::add, Core\ObjectSet::count, Core\ObjectSet::clear
+    #[test]
+    fn clear_empties_a_set_that_add_can_fill_again() {
+        let set = empty();
+        for n in [1, 2, 3, 2, 1] {
+            on(set, nvs_core_object_set_add, &[Value::int(n)]);
+        }
+        assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(3));
+
+        on(set, nvs_core_object_set_clear, &[]);
+        assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(0));
+        assert_eq!(
+            on(set, nvs_core_object_set_has, &[Value::int(1)]).as_bool(),
+            Some(false)
+        );
+
+        on(set, nvs_core_object_set_add, &[Value::int(1)]);
+        on(set, nvs_core_object_set_add, &[Value::int(1)]);
         assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(1));
         drop_set(set);
     }
