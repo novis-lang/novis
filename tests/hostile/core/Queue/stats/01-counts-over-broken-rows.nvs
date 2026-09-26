@@ -1,0 +1,108 @@
+<?nvs
+// Attack: SQL writes text, huge numbers and negative numbers into the rows that `stats` counts.
+// Each call should return numbers or throw an error. The program must not crash.
+use Core\Queue;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push('jobs/a.nvs', { queue: 'q' });
+Queue::push('jobs/a.nvs', { queue: 'q' });
+
+// 1. The attempts column has text in place of a number.
+$db->execute("update nvs_jobs set attempts = 'many'", []);
+try {
+    echo '1: ', Queue::stats('q')->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "1: error\n";
+}
+
+// 2. Each row has the largest 64-bit number, so the sum is too large.
+$db->execute('update nvs_jobs set attempts = 9223372036854775807', []);
+try {
+    echo '2: ', Queue::stats('q')->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "2: error\n";
+}
+
+// 3. The attempts are negative, and `attempts()` returns a `uint`.
+$db->execute('update nvs_jobs set attempts = -5', []);
+try {
+    echo '3: ', Queue::stats('q')->attempts(), "\n";
+} catch (Throwable $e) {
+    echo "3: error\n";
+}
+
+// 4. The dead-letter table has a row with text in its attempts column.
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (90, 'q', 'jobs/a.nvs', 'lost', 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+try {
+    var $four = Queue::stats('q');
+    echo '4: ', $four->deadLettered(), ' ', $four->deadAttempts(), "\n";
+} catch (Throwable $e) {
+    echo "4: error\n";
+}
+$db->execute('delete from nvs_dead_jobs', []);
+
+// 5. The state column has text, so no row is waiting or running.
+$db->execute("update nvs_jobs set state = 'lost'", []);
+try {
+    var $five = Queue::stats('q');
+    echo '5: ', $five->pending(), ' ', $five->claimed(), "\n";
+} catch (Throwable $e) {
+    echo "5: error\n";
+}
+
+// 6. The queue name is one million characters long.
+try {
+    echo '6: ', Queue::stats(Core\Str::repeat('q', 1000000))->pending(), "\n";
+} catch (Throwable $e) {
+    echo "6: error\n";
+}
+
+// 7. `stats` is called 20000 times, and each result is freed.
+uint $total = 0;
+int $i = 0;
+while ($i < 20000) {
+    try {
+        $total = $total + Queue::stats('q')->deadLettered();
+    } catch (Throwable $e) {
+        $total = $total + 1;
+    }
+    $i = $i + 1;
+}
+echo '7: ', $total, "\n";
+
+// 8. The tables are gone, and `stats` is called 20000 times.
+$db->execute('drop table nvs_jobs', []);
+$db->execute('drop table nvs_dead_jobs', []);
+int $errors = 0;
+$i = 0;
+while ($i < 20000) {
+    try {
+        Queue::stats('q');
+    } catch (Throwable $e) {
+        $errors = $errors + 1;
+    }
+    $i = $i + 1;
+}
+echo '8: ', $errors, "\n";

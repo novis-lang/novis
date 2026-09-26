@@ -5050,19 +5050,25 @@ nvs_runtime::nvs_helper! {
                  with no `group by` answers exactly one however empty the table is"
             ))
         })?;
+        // An `IOError` and not a fatal, for `status`'s reason: `attempts` is a column a program
+        // can overwrite with text, and SQLite then sums it to a `real` its cast does not turn
+        // back into an integer, so this is the database's data rather than this crate's bug.
         let mut counted = [0i64; 5];
         for (at, held) in counted.iter_mut().enumerate() {
             *held = row.get(at).copied().flatten().ok_or_else(|| {
-                Fault::fatal(format!(
-                    "{STATS_OF}: the `{}` counter came back as something other than an integer, \
-                     and every dialect declares every column of this statement a `bigint`",
-                    STATS.slots[at]
-                ))
+                Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!(
+                        "{STATS_OF}: the `{}` counter of the `{queue}` queue on `[db.{block}]` is \
+                         not a whole number, so a row in `{JOBS_TABLE}` or `{DEAD_TABLE}` has a \
+                         value in `attempts` that is not a number",
+                        STATS.slots[at]
+                    ),
+                )
             })?;
         }
-        // Saturating at zero rather than refusing: a negative count is not something the server
-        // can produce from a `count` or from a sum of non-negative attempts, so the alternative is
-        // a refusal nothing can reach.
+        // Saturating at zero: a negative count comes only from an `attempts` column a program
+        // overwrote with a negative number, and a counter of work done has no reading below zero.
         Ok(crate::instance::build(
             &STATS,
             counted.map(|one| Value::uint(u64::try_from(one).unwrap_or(0))),
