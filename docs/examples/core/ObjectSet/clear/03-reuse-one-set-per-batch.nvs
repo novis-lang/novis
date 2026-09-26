@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to use one set for many batches of work, and empty it before each batch.
+
+final class Mail {
+    public string $to;
+
+    public function constructor(string $to) {
+        $this->to = $to;
+    }
+}
+
+final class Sender {
+    public Core\ObjectSet<Mail> $sent;
+
+    public function constructor() {
+        $this->sent = new Core\ObjectSet<Mail>();
+    }
+
+    // Sends each mail in the batch once, even if the batch lists it twice.
+    public function send(array<Mail> $batch): uint {
+        $this->sent->clear();
+        foreach ($batch as Mail $mail) {
+            $this->sent->add($mail);
+        }
+        return $this->sent->count();
+    }
+}
+
+Mail $a = new Mail("ana@example.com");
+Mail $b = new Mail("li@example.com");
+Mail $c = new Mail("sam@example.com");
+
+array<Mail> $first = [$a, $b, $a];
+array<Mail> $second = [$c];
+
+Sender $sender = new Sender();
+// `clear` empties the set before each batch. This prints 2, then 1.
+echo $sender->send($first), "\n";
+echo $sender->send($second), "\n";

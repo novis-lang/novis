@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a program clears sets that are large, that contain themselves, or that are being walked.
+// Each `clear` should free every value, and the program must not crash or leak.
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectSet<mixed> $set = new Core\ObjectSet<mixed>();
+
+// 1. An empty set is cleared 1 million times.
+int $i = 0;
+while ($i < 1000000) {
+    $set->clear();
+    $i = $i + 1;
+}
+echo '1: ', $set->count(), "\n";
+
+// 2. 100000 objects are added and cleared, 10 times.
+int $round = 0;
+while ($round < 10) {
+    $i = 0;
+    while ($i < 100000) {
+        $set->add(new Node());
+        $i = $i + 1;
+    }
+    $set->clear();
+    $round = $round + 1;
+}
+echo '2: ', $set->count(), "\n";
+
+// 3. A chain of 100000 objects is the one member. `clear` frees the whole chain.
+Node $head = new Node();
+Node $tail = $head;
+int $n = 0;
+while ($n < 100000) {
+    Node $link = new Node();
+    $tail->next = $link;
+    $tail = $link;
+    $n = $n + 1;
+}
+$set->add($head);
+$head = new Node();
+$tail = $head;
+$set->clear();
+echo '3: ', $set->count(), "\n";
+
+// 4. The set contains itself, and is cleared.
+$set->add($set);
+$set->add(new Node());
+$set->clear();
+echo '4: ', $set->count(), "\n";
+
+// 5. The set is cleared while a `foreach` walks it.
+$set->add(new Node());
+$set->add(new Node());
+int $seen = 0;
+foreach ($set as mixed $member) {
+    $set->clear();
+    $seen = $seen + 1;
+}
+echo '5: ', $seen, ' ', $set->count(), "\n";

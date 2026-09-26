@@ -1,26 +1,28 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\ObjectSet has been taken yet.",
+  "state": "Goal `core-objectset`: `Core\\ObjectSet::add`, `count` and `clear` have all their feature proofs.\n`Core\\ObjectSet` has its class card (`crates/nvs-stdlib/src/objset.rs`'s `CARD`), and the class is\ngone from `CLASSES_STILL_OWING_A_CARD`, so the help proof is met for every member of the class.\nThe Rust side covers `add`, `has`, `remove`, `count` and `clear` through the two tests in\n`crates/nvs-stdlib/src/objset.rs`, and `tests/conformance/core/object-set-holds-each-value-once.nvst`\ncarries a `covers:` marker for `add`, `count` and `clear`. No proof found a bug.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "the membership members",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/objset.rs` and the `object-set-*.nvst` cases under `tests/conformance/core/`:",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\ObjectSet::add`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:53`"
+        "text": "**`Core\\ObjectSet::has`** — owes about, examples, hostile, perf and a Novis `covers:` marker (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/objset.rs:62`"
       },
       {
         "done": false,
-        "text": "**`Core\\ObjectSet::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:125`"
+        "text": "**`Core\\ObjectSet::remove`** — the same, and `tests/conformance/core/object-set-stays-whole-through-a-sweep-of-removals.nvst` is the case to mark. `crates/nvs-stdlib/src/objset.rs:71`"
       },
       {
         "done": false,
-        "text": "**`Core\\ObjectSet::count`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/objset.rs:80`"
+        "text": "**`Core\\ObjectSet::isEmpty`** — the same; `tests/conformance/core/object-set-holds-each-value-once.nvst` already calls it. `crates/nvs-stdlib/src/objset.rs:89`"
       }
     ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    "after": "The proofs of `add`, `count` and `clear` under `docs/examples/core/ObjectSet/`, `tests/hostile/core/ObjectSet/` and `benches/members/core/ObjectSet/` are the shape to copy. `bun nv proofs --id '<member>'` names what each one still owes."
   },
   "backlog": [
-    "(nothing yet)"
+    "`union`, `intersect` and `diff` — the algebra group, after the membership group; the three `object-set-algebra-*.nvst` cases are the ones to mark (`rule:testing/feature-proofs`).",
+    "`foreach ([$a, $b] as Guest $g)` types the literal as `mixed` and does not compile (E0401); an example assigns the list to an `array<Guest>` variable first. Not checked whether a gap record owns it."
   ]
 }
