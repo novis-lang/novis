@@ -14,6 +14,7 @@
 // not this platform's has nothing at its path, so the operating system answers
 // `IOError` and that block starts nothing.
 // covers: Core\Process\Handle::readStdout
+// covers: Core\Process\Handle::readStderr
 
 int $started = 0;
 int $absent = 0;
@@ -40,8 +41,10 @@ try {
     // The streamed half. This child writes and exits, so the reads end at a
     // point the operating system chooses and not at one this case guessed: a
     // `readStdout` that answered `null` once rather than at the end of the
-    // stream would lose the second line.
-    Core\Process\Handle $talker = Core\Process::spawn("/bin/sh", ["-c", "echo one; echo two"]);
+    // stream would lose the second line. The third line goes to standard
+    // error, so a member reading both streams through one pipe answers it in
+    // the wrong place.
+    Core\Process\Handle $talker = Core\Process::spawn("/bin/sh", ["-c", "echo one; echo two; echo oops >&2"]);
     string $out = "";
     ?bytes $chunk = $talker->readStdout();
     while ($chunk != null) {
@@ -75,7 +78,7 @@ try {
     $echoed = $backOnWindows->stdout() as string;
     $echoStatus = $backOnWindows->exitCode();
 
-    Core\Process\Handle $talkerOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo one&echo two"]);
+    Core\Process\Handle $talkerOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo one&echo two&echo oops 1>&2"]);
     string $outOnWindows = "";
     ?bytes $chunkOnWindows = $talkerOnWindows->readStdout();
     while ($chunkOnWindows != null) {
@@ -110,7 +113,9 @@ echo "echoed=|", Core\Str::contains($echoed, "payload") as string, "|\n";
 echo "echo status=", $echoStatus, "\n";
 echo "one=|", Core\Str::contains($seen, "one") as string, "|\n";
 echo "two=|", Core\Str::contains($seen, "two") as string, "|\n";
-echo "stderr empty=|", ($seenErr == "") as string, "|\n";
+echo "oops in stdout=|", Core\Str::contains($seen, "oops") as string, "|\n";
+echo "oops in stderr=|", Core\Str::contains($seenErr, "oops") as string, "|\n";
+echo "one in stderr=|", Core\Str::contains($seenErr, "one") as string, "|\n";
 echo "talk status=", $talkStatus, "\n";
 --FILE nvs.toml--
 # `true`, not a list of roots: what this case asserts is what a handle does once
@@ -125,5 +130,7 @@ echoed=|1|
 echo status=0
 one=|1|
 two=|1|
-stderr empty=|1|
+oops in stdout=||
+oops in stderr=|1|
+one in stderr=||
 talk status=0

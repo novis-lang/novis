@@ -389,13 +389,17 @@ const READ_STDOUT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Process\Handle::readStderr`'s reference card — `rule:core-api/reference-card`.
 const READ_STDERR_DOC: MethodDoc = MethodDoc {
-    short: "`readStdout` on the other stream, kept separate from it exactly as a completed run's \
-            two captures are.",
+    short: "Waits until the program writes to its standard error, and returns what it wrote. \
+            Programs write their error messages and warnings there. It works like `readStdout`, \
+            and the two outputs are never mixed.",
     params: &[],
-    ret: "The octets the child wrote to its standard error, or `null` once that stream has ended.",
+    ret: "The next part of the error output, as `bytes`, up to 64 KiB. At the end of the error \
+          output the result is `null`, and every later call also returns `null`. Use `as string` \
+          to convert a part to text.",
     errors: &[ErrorDoc {
         error: "IOError",
-        desc: "The operating system failed the read, on `readStdout`'s terms.",
+        desc: "The operating system could not read the error output. The error output is then \
+               closed, so the next call returns `null`.",
     }],
 };
 
@@ -1364,6 +1368,81 @@ mod tests {
             pool_size().0 >= 1,
             "the read ran on the worker: this thread's blocking pool never started a thread"
         );
+    }
+
+    /// `rule:core-classes/process-spawn`'s two output streams, read apart: what a child writes to
+    /// its standard error comes out of `readStderr` and never out of `readStdout`, and the stream
+    /// answers `null` at its end and on every read after it.
+    ///
+    /// The child is this test binary handed a flag it does not know, which the test harness answers
+    /// with a complaint on standard error, nothing on standard output, and a failing status — on
+    /// every platform the suite runs on. Reading the empty stream to its end first is what makes the
+    /// separation an assertion: a member that read both through one pipe would answer the complaint
+    /// there.
+    // covers: Core\Process\Handle::readStderr
+    #[test]
+    fn a_spawned_childs_error_output_is_read_apart_from_its_output() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+        let handle = spawn_on(&mut ctx, &["--no-such-flag-for-this-case"]);
+
+        let read_all = |ctx: &mut Ctx, member: nvs_runtime::NvsFn| -> Vec<u8> {
+            let mut octets = Vec::new();
+            loop {
+                let chunk = nvs_runtime::call(member, ctx, &[handle])
+                    .expect("a child's stream is readable");
+                let Some(part) = chunk.as_bytes().map(<[u8]>::to_vec) else {
+                    break;
+                };
+                #[expect(
+                    unsafe_code,
+                    reason = "the member hands back a reference of its own for each chunk"
+                )]
+                unsafe {
+                    chunk.release();
+                }
+                octets.extend(part);
+            }
+            octets
+        };
+        let out = read_all(&mut ctx, super::nvs_core_process_handle_read_stdout);
+        let err = read_all(&mut ctx, super::nvs_core_process_handle_read_stderr);
+        assert!(
+            out.is_empty(),
+            "the complaint came out of `readStdout`: {:?}",
+            String::from_utf8_lossy(&out)
+        );
+        assert!(
+            String::from_utf8_lossy(&err).contains("no-such-flag-for-this-case"),
+            "`readStderr` did not answer the complaint naming the flag: {:?}",
+            String::from_utf8_lossy(&err)
+        );
+        let after = nvs_runtime::call(
+            super::nvs_core_process_handle_read_stderr,
+            &mut ctx,
+            &[handle],
+        )
+        .expect("a read after the end answers rather than throwing");
+        assert!(
+            after.as_bytes().is_none(),
+            "a read after the end answered a chunk"
+        );
+
+        let result = nvs_runtime::call(super::nvs_core_process_handle_wait, &mut ctx, &[handle])
+            .expect("a child that ended is one to be waited for");
+        assert_ne!(
+            status_of(result),
+            0,
+            "the child accepted a flag it cannot know"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this scope owns the handle `spawn` built and the result `wait` answered with"
+        )]
+        unsafe {
+            result.release();
+            handle.release();
+        }
     }
 
     /// `rule:core-classes/process-spawn`'s `kill` and `wait`, asserted together because neither is

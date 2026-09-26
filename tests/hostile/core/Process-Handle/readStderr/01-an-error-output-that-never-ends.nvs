@@ -1,0 +1,85 @@
+<?nvs
+// Attack: a program writes to its error output without end, and the reader keeps every part of it.
+// The memory limit should stop the program with an error. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+class Attack
+{
+    // A program that writes the same line to its error output again and again, and never stops
+    // by itself. On Windows, `cmd.exe` runs a loop.
+    public static function endless(): Core\Process\Handle
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return Core\Process::spawn(
+                "C:\\Windows\\System32\\cmd.exe",
+                ['/c', 'for /l %i in (0,0,1) do @echo a line that repeats and repeats and repeats 1>&2'],
+            );
+        }
+        return Core\Process::spawn('/bin/sh', ['-c', 'exec yes "a line that repeats and repeats and repeats" >&2']);
+    }
+
+    // A program that writes one word to its error output and ends at once.
+    public static function short(): Core\Process\Handle
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo short 1>&2']);
+        }
+        return Core\Process::spawn('/bin/sh', ['-c', 'echo short >&2']);
+    }
+
+    // Calls `readStderr()` and returns one word: what happened.
+    public static function read(Core\Process\Handle $program): string
+    {
+        try {
+            return $program->readStderr() == null ? 'null' : 'data';
+        } catch (IOError $failed) {
+            return 'IOError';
+        }
+    }
+}
+
+// 1. 1000 parts are read from a program that never ends. Only their total size is kept.
+var $endless = Attack::endless();
+uint $size = 0;
+int $reads = 0;
+while ($reads < 1000) {
+    ?bytes $part = $endless->readStderr();
+    if ($part != null) {
+        $size = $size + Core\Bytes::length($part);
+    }
+    $reads = $reads + 1;
+}
+echo 'read ', $size > 0 ? 'some' : 'no', " error output in 1000 parts\n";
+
+// 2. The same program is read after `kill()`, and again after `wait()`.
+$endless->kill();
+echo 'read after kill: ', Attack::read($endless), "\n";
+$endless->wait();
+echo 'read after wait: ', Attack::read($endless), "\n";
+
+// 3. A short program is read to its end. Then it is read 1000 more times.
+var $short = Attack::short();
+while (Attack::read($short) == 'data') {
+}
+int $nulls = 0;
+int $more = 0;
+while ($more < 1000) {
+    if (Attack::read($short) == 'null') {
+        $nulls = $nulls + 1;
+    }
+    $more = $more + 1;
+}
+echo $nulls, " of 1000 reads after the end returned null\n";
+$short->wait();
+
+// 4. Every part of an error output that never ends is kept in an array. The memory limit stops
+// the program here.
+var $flood = Attack::endless();
+array<bytes> $kept = [];
+?bytes $next = $flood->readStderr();
+while ($next != null) {
+    $kept[] = $next;
+    $next = $flood->readStderr();
+}
+echo "the error output ended, which a program that never stops should not do\n";

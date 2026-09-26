@@ -1,0 +1,7 @@
+# The attack starts `/bin/sh` on Linux and macOS, and `cmd.exe` on Windows.
+[capabilities.process]
+exec = true
+
+# A low memory limit, so the last step reaches it quickly.
+[limits]
+memory = "16M"
