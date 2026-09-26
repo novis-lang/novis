@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program writes huge payloads, writes to a peer that never reads, and writes after the peer closed.
+// Each write should return a count, throw a `TimeoutError` or throw an `IOError`, and the request should end cleanly.
+// hostile: timeout-ms 30000
+
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+Core\Net\Stream $client = Core\Net::connect('127.0.0.1', $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// 1. Write an empty payload one thousand times.
+uint $i = 0;
+uint $sent = 0;
+while ($i < 1000) {
+    $sent = $sent + $client->write('' as bytes, 1s);
+    $i = $i + 1;
+}
+echo '1: ', $sent, "\n";
+
+// 2. Write with no time to wait.
+try {
+    $client->write('x' as bytes, 0ms);
+} catch (RuntimeError $e) {
+    echo "2 ok\n";
+}
+
+// 3. Write 64 megabytes in one call to a peer that never reads.
+bytes $huge = Core\Str::repeat('h', 67108864) as bytes;
+try {
+    echo '3: ', $client->write($huge, 1s) <= 67108864 ? 'partial or whole' : 'too many', "\n";
+} catch (TimeoutError $late) {
+    echo "3 timeout\n";
+}
+
+// 4. Keep writing to that peer until the connection is full, and then one thousand more times.
+bool $full = false;
+$i = 0;
+while (!$full && $i < 100000) {
+    try {
+        $client->write($huge, 50ms);
+    } catch (TimeoutError $late) {
+        $full = true;
+    }
+    $i = $i + 1;
+}
+$i = 0;
+while ($i < 1000) {
+    try {
+        $client->write('y' as bytes, 1ms);
+    } catch (TimeoutError $late) {
+    }
+    $i = $i + 1;
+}
+echo "4 ok\n";
+
+// 5. Write after the other side has closed, many times over.
+$connection->close();
+$i = 0;
+while ($i < 1000) {
+    try {
+        $client->write('after close' as bytes, 100ms);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "5 ok\n";
+
+// 6. A connection left full and never closed. The request closes it when it ends.
+Core\Net\Stream $sender = Core\Net::connect('127.0.0.1', $server->port(), 5s);
+Core\Net\Stream $silent = $server->accept(5s);
+try {
+    $sender->write($huge, 500ms);
+} catch (TimeoutError $late) {
+}
+echo "6 ok\n";

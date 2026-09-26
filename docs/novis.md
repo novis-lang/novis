@@ -22947,7 +22947,7 @@ Reads whatever has arrived, up to `$max` octets, waiting no longer than `$within
 
 **Returns** `tainted bytes` — The octets that arrived, as `tainted bytes`, or an empty `bytes` once the peer has closed its half — which is how the end of a stream is spelled.
 
-**Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — Nothing arrived within `$within`.; `IOError` — The connection failed — reset by the peer, or dropped by the network.
+**Throws** `RuntimeError` — This handle is closed, or `$within` is not a positive length of time.; `TimeoutError` — Nothing arrived within `$within`.; `IOError` — The connection failed — reset by the peer, or dropped by the network.
 
 <a id="core-core-net-stream-write"></a>
 #### `Core\Net\Stream->write`
@@ -22965,7 +22965,7 @@ Writes `$payload` to the peer, waiting no longer than `$within`, and answers how
 
 **Returns** `uint` — How many octets of `$payload` were written, which is between `0` and its length.
 
-**Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — The socket took nothing within `$within`.; `IOError` — The connection failed — reset by the peer, or its reading half closed.
+**Throws** `RuntimeError` — This handle is closed, or `$within` is not a positive length of time.; `TimeoutError` — The socket took nothing within `$within`.; `IOError` — The connection failed — reset by the peer, or its reading half closed.
 
 <a id="core-core-net-stream-close"></a>
 #### `Core\Net\Stream->close`

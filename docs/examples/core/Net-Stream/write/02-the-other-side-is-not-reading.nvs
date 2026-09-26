@@ -1,0 +1,26 @@
+<?nvs
+// Shows what happens when the other side stops reading and `write` cannot send more in time.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// The server never reads, so the connection fills up.
+// When `write` cannot send anything for 100 milliseconds, it throws a `TimeoutError`.
+bytes $block = Core\Str::repeat("x", 65536) as bytes;
+bool $sending = true;
+uint $rounds = 0;
+while ($sending && $rounds < 100000) {
+    try {
+        $client->write($block, 100ms);
+    } catch (TimeoutError $late) {
+        $sending = false;
+    }
+    $rounds = $rounds + 1;
+}
+// This prints `the server is not reading`.
+echo $sending ? "everything was sent" : "the server is not reading", "\n";
+
+$connection->close();
+$client->close();
+$server->close();

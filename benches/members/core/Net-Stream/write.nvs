@@ -1,0 +1,33 @@
+<?nvs
+// Writes a small part of a message to a TCP connection, as a server does while it sends a reply.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+        Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+        Core\Net\Stream $connection = $server->accept(5s);
+
+        bytes $part = "0123456789abcdef" as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds to a total, so no round can be skipped.
+            $total = $total + $client->write($part, 5s);
+            $i = $i + 1;
+            // After every 1000 rounds the server reads what was sent, so the connection never fills up.
+            if ($i % 1000 == 0) {
+                uint $got = 0;
+                while ($got < 16000) {
+                    $got = $got + Core\Bytes::length($connection->read(65536, 5s));
+                }
+            }
+        }
+        $connection->close();
+        $client->close();
+        $server->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200000) == 3200000 ? "done" : "wrong", "\n";

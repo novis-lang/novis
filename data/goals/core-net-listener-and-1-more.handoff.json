@@ -1,26 +1,12 @@
 {
-  "state": "Goal `core-net-listener-and-1-more`. The whole `Core\\Net\\Listener` group owes nothing: `bun nv proofs --verify --group 'Core\\Net\\Listener'` passes.\n`Core\\Net\\Stream` has its class card (`STREAM_CARD` in `crates/nvs-stdlib/src/net.rs`) and is off `CLASSES_STILL_OWING_A_CARD`.\n`Core\\Net\\Stream::close` owes nothing. Its tests, and the tests of `read` and `write`, are credited by `covers:` markers on the Rust test `a_listener_times_out_takes_a_waiting_connection_and_refuses_once_closed` and on the two `net-*` conformance cases that call them.\n`Core\\Net\\Stream::read` and `Core\\Net\\Stream::write` still owe examples, hostile and perf, and nothing else.\nNothing is blocked. `bun nv verify` was green at the end of this session.",
+  "state": "Goal `core-net-listener-and-1-more` is reached. Both of its checks pass: `bun nv proofs --verify --group 'Core\\Net\\Listener'` and `--group 'Core\\Net\\Stream'` owe nothing, with 9 examples and 3 attacks each.\n`Core\\Net\\Stream::read` and `Core\\Net\\Stream::write` have their examples, `about.md`, attacks and benches, and their perf figures are recorded.\nThe `read` and `write` cards now list the `RuntimeError` for a `$within` that is not a positive length of time. The attack for `read` found that this error was missing from the card.\n`docs/perf/members.ndjson` has two `Core\\Net\\Stream::read` records with `ns_per_op` 0.0, from a first bench that ran too few rounds to rise above the start-up floor. The last record, at 200000 rounds, is the figure.\nThe floor check `proofs: config:directives (3/3)` that the driver saw fail after the previous session passes when rerun, and it printed no reason. Treat it as a flake unless it fails again.\nNothing is blocked. The next goal on the chain is `core-objectmap`.",
   "next": {
-    "stage": 2,
-    "title": "the dossier",
-    "files": [
-      "docs/examples/core/Net-Stream/",
-      "tests/hostile/core/Net-Stream/",
-      "benches/members/core/Net-Stream/"
-    ],
-    "note": "`docs/examples/core/Net-Stream/close/nvs.toml` and `tests/hostile/core/Net-Stream/close/nvs.toml` are the grants to copy; `benches/members/core/Net-Stream/nvs.toml` already exists. A connect+accept pair costs about 15 ms on Windows, so a bench or attack loop that opens connections stays near 200 rounds.",
-    "items": [
-      {
-        "done": false,
-        "text": "**`Core\\Net\\Stream::read`** — `rule:testing/feature-proofs`: three examples, `about.md`, one attack, one bench. Examples: a read returns at most `$max` bytes; a read past the end returns no bytes; a `TimeoutError` when nothing arrives. Attack: a huge `$max`, `$max` of 0, a read that waits on a peer that never writes. `crates/nvs-stdlib/src/net.rs:1567`, card at `crates/nvs-stdlib/src/net.rs:520`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Net\\Stream::write`** — the same proofs, then `bun nv proofs --record-perf --group 'Core\\Net\\Stream'`. Examples: `write` returns the count written; a write to a closed peer throws `IOError`; a small line protocol. Attack: one very large payload, an empty payload, writes to a peer that never reads. `crates/nvs-stdlib/src/net.rs:1600`, card at `crates/nvs-stdlib/src/net.rs:556`"
-      }
-    ]
+    "stage": null,
+    "files": [],
+    "note": "None in this goal. The next session starts on goal `core-objectmap`, from that goal's own handoff record.",
+    "items": []
   },
   "backlog": [
-    "A connect plus accept over loopback costs about 15 ms per pair on Windows (`Core\\Net\\Listener::accept`'s recorded figure is about 30 ms for two). That is one timer tick, and it looks like a wait in `crates/nvs-stdlib/src/net.rs` or the reactor. Not checked where. Owner: whoever next touches the reactor's wait; `docs/perf/members.ndjson` has the figure."
+    "`Core\\Net::connect` and `Core\\Net\\Listener::accept` cards list no `RuntimeError` for a `$within` that is not positive; `crates/nvs-stdlib/src/net.rs` owns both cards."
   ]
 }
