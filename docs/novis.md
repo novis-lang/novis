@@ -27286,8 +27286,8 @@ replaces the port; the two are not combined. `--config` reads a configuration fi
 root               = "/srv/app"           # every mount path resolves inside this; required with a mount table
 listen             = ["127.0.0.1:8000"]   # "host:port" entries, or an absolute path for a Unix socket
 socket_mode        = "0660"               # Unix-socket entries only
-dispatch           = "entry"              # "entry" or "path"; unset is "entry" in both modes
-static             = false                # serve files under the mount root; unset is false in both modes
+dispatch           = "entry"              # "entry" or "path"; unset is "entry", or "path" in development
+static             = false                # serve files under the mount root; unset is false, or true in development
 trusted_proxies    = []                   # empty: forwarding headers are never read
 health_path        = ""                   # "" is off
 max_in_flight      = 10000                # requests in flight before a 503
@@ -27305,7 +27305,10 @@ server*). `listen` is one flat list. An entry that begins with a path separator 
 Unix-only and is the transport to prefer behind a proxy; `socket_mode` is who may connect to it.
 On Windows the server listens on TCP.
 
-`dispatch` and `static` are the two keys the mode selects a default for, and no request may
+`dispatch` and `static` are the two keys the mode selects a default for. Left unwritten, they take
+the value of the `[mode] default` the file names, each time the configuration is loaded or
+reloaded: a development server dispatches by path and serves static files, and a production server
+does neither. A mode switch made while the server runs changes neither key, and no request may
 change either. `workers` is how many cores accept; every core holds its own handle on every
 listener. `max_in_flight` answers a fixed `503` with `Retry-After` before any program runs. The
 four waits are idle waits, never a total, and none can be turned off. `[server.connection]`
@@ -27359,8 +27362,9 @@ entry  = "Shop/public/index.nvs"
 ```
 
 In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip,
-entry. With `dispatch = "path"` and `static = true` the sequence is `try_files $uri /index.nvs`,
-the shape a PHP application already deploys under. A prefix is matched exactly, and in steps 3 and 4 a name that differs from
+entry. With `dispatch = "path"` and `static = true`, which is what development gives when neither
+key is written, the sequence is `try_files $uri /index.nvs`, the shape a PHP application already
+deploys under. A prefix is matched exactly, and in steps 3 and 4 a name that differs from
 the file on disk only in case is a file that is not there, on every platform. A trailing slash is
 never added or removed: `/users` and `/users/` are two URLs. `HEAD` runs as `GET` with the body
 discarded.

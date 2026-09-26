@@ -45,7 +45,9 @@
 [mode]
 # `production` or `development`, which is also the mode a host with no file at all starts in. The
 # mode selects the default of five other directives, and each of the three that are keys in this
-# file names both values where it appears below.
+# file names both values where it appears below. When they are unwritten it also chooses
+# `[server] dispatch`, `[server] static` and `[opcache] settle`, once when the file is loaded, so
+# development dispatches by path and serves static files; a runtime mode flip changes none of them.
 #default = "production"               # default
 # The most permissive mode any code may select. With nothing written here a production host is
 # unreachable from code.
@@ -444,11 +446,12 @@
 # account and the socket's group, and adding a tenant to that group grants them that address.
 #socket_mode = "0660"                 # default; restart required
 
-# How a request finds its entry file: `entry` or `path`
+# How a request finds its entry file: `entry` or `path`. Unwritten, both this and `static` take the
+# value of the mode the file names when it is loaded, and a runtime mode flip changes neither
 # (`rule:config/a-startup-default-is-never-flipped`).
-#dispatch = "entry"                   # default
+#dispatch = "entry"                   # default: "entry" in production, "path" in development
 # Static file serving. Spelled `static`, which is a Rust keyword but not a TOML one.
-#static = false                       # default
+#static = false                       # default: false in production, true in development
 # Fail-closed: with nothing here, no forwarding header is believed, and a proxy's `X-Forwarded-For`
 # is read as the untrusted text it is.
 #trusted_proxies = ["10.0.0.1"]       # example

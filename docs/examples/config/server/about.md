@@ -9,6 +9,11 @@ of workers, four idle timeouts, and how long the server keeps serving while it s
 **In plain words:** this is the front door of your application. When nothing is set, the server
 listens on `127.0.0.1`, port `8000`.
 
+When `[mode] default` is `development`, the server also runs the `.nvs` file at the path in the URL,
+and it serves static files. This is only the default. If you set `dispatch` or `static`, your value
+is used. In production mode, every request runs the mount's entry file, and no static file is
+served.
+
 The server applies a change to this block while it runs. Three settings need a restart: `listen`,
 `socket_mode` and `workers`. A program cannot change any setting in this block.
 
