@@ -4270,15 +4270,21 @@ mod tests {
     }
 
     /// An entry declaring one route and linking to it with `member`, in a
-    /// scratch directory of its own so that [`one_mount`] resolves a row off a
-    /// real file rather than a struct literal pointing at nothing.
+    /// scratch directory of `case`'s own so that [`one_mount`] resolves a row
+    /// off a real file rather than a struct literal pointing at nothing.
+    ///
+    /// The directory is named for the case as well as the member because the
+    /// cases run in parallel: two sharing one path write the file while the
+    /// other compiles it, and the compile reads it half-written.
     ///
     /// The link is a *route's*, because that is the only kind there is: a name
     /// is resolved against the unit's own table while it compiles, so the entry
     /// has to declare the route it links to.
-    fn an_entry_linking_with(member: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("nvs-serve-origin-{}-{member}", std::process::id()));
+    fn an_entry_linking_with(case: &str, member: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "nvs-serve-origin-{}-{case}-{member}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&dir).expect("a directory to write the entry in");
         let path = dir.join("app.nvs");
         std::fs::write(
@@ -4346,7 +4352,7 @@ echo Core\Router::{member}("Docs::here", []);
     /// somebody guessed, and nothing is written at all.
     #[test]
     fn a_served_request_receives_its_mounts_resolved_origin() {
-        let entry = an_entry_linking_with("urlAbsolute");
+        let entry = an_entry_linking_with("served", "urlAbsolute");
         let compiler = Compiler::default();
         let mut mount =
             one_mount(&entry).expect("the entry this case wrote is a file in a directory");
@@ -4391,7 +4397,7 @@ echo Core\Router::{member}("Docs::here", []);
     #[test]
     fn a_mount_whose_unit_calls_url_absolute_and_resolves_no_origin_refuses_the_boot() {
         let compiler = Compiler::default();
-        let absolute = an_entry_linking_with("urlAbsolute");
+        let absolute = an_entry_linking_with("boot", "urlAbsolute");
         let mut mount =
             one_mount(&absolute).expect("the entry this case wrote is a file in a directory");
         mount.prefix = "/tenant".to_string();
@@ -4410,7 +4416,7 @@ echo Core\Router::{member}("Docs::here", []);
             "the mount resolved an origin, so there is nothing left for the check to refuse"
         );
 
-        let relative = an_entry_linking_with("url");
+        let relative = an_entry_linking_with("boot", "url");
         let mut linking_relatively =
             one_mount(&relative).expect("the entry this case wrote is a file in a directory");
         linking_relatively.prefix = "/tenant".to_string();
@@ -4431,7 +4437,7 @@ echo Core\Router::{member}("Docs::here", []);
     /// stop.
     #[test]
     fn an_app_origin_is_the_fallback_for_a_mount_that_wrote_none() {
-        let entry = an_entry_linking_with("urlAbsolute");
+        let entry = an_entry_linking_with("fallback", "urlAbsolute");
         let compiler = Compiler::default();
         let mut mounts = vec![
             one_mount(&entry).expect("the entry this case wrote is a file in a directory"),
