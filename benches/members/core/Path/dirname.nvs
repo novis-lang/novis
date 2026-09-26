@@ -1,0 +1,23 @@
+<?nvs
+// Measures getting the folder of a short path, as a program does before it creates or lists that folder.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = [
+            "/srv/shop/invoices/invoice-1042.pdf",
+            "C:\\Users\\sam\\notes.txt",
+            "uploads/2026/09/holiday.jpg",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The path read next depends on the last result, so no round can be skipped.
+            $total = $total + Core\Str::length(Core\Path::dirname($paths[$total % 3]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

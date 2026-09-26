@@ -1,0 +1,21 @@
+<?nvs
+// Attack: `Core\Path::dirname` is given the largest possible `levels` and very long paths.
+// Each call should return a folder, and the program must not crash.
+
+// 1. `levels` is the largest `uint`. The result is the root.
+echo Core\Str::length(Core\Path::dirname('/a/b/c', { levels: 18446744073709551615 })), "\n";
+
+// 2. The path is 8 MiB of separators. The result is the root.
+echo Core\Str::length(Core\Path::dirname(Core\Str::repeat("\\/", 4194304))), "\n";
+
+// 3. The path has four million levels, and `levels` removes all but one.
+echo Core\Str::length(Core\Path::dirname(Core\Str::repeat('a/', 4194304), { levels: 4194303 })), "\n";
+
+// 4. `levels: 0` rewrites a path of four million levels with repeated separators.
+echo Core\Str::length(Core\Path::dirname(Core\Str::repeat('a//', 4194304), { levels: 0 })), "\n";
+
+// 5. Network share paths with no share, and with nothing after the share.
+echo Core\Str::length(Core\Path::dirname("\\\\server")), ' ', Core\Str::length(Core\Path::dirname("\\\\server\\share\\")), "\n";
+
+// 6. A path of 100000 levels of `..` goes up once more.
+echo Core\Str::length(Core\Path::dirname(Core\Str::repeat('../', 100000))), "\n";

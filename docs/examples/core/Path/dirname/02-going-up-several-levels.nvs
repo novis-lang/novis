@@ -1,0 +1,12 @@
+<?nvs
+// Shows how the `levels` option goes up more than one folder.
+
+string $path = "/srv/shop/public/images/logo.png";
+
+// `levels` is the number of parts removed from the end. The result stops at the root.
+// This prints `/srv/shop/public/images`, `/srv/shop/public`, `/srv/shop` and `/`.
+array<uint> $counts = [1, 2, 3, 9];
+foreach ($counts as uint $levels) {
+    string $folder = Core\Path::dirname($path, {levels: $levels});
+    echo Core\Str::replace($folder, Core\Path::SEPARATOR, "/"), "\n";
+}
