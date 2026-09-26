@@ -328,6 +328,16 @@ pub fn pool_size() -> (usize, usize) {
 /// Off a core the function is simply called on this thread: there is no core to
 /// protect and nothing to hand back.
 ///
+/// **What the job leaves allocated is charged to the caller.** The answer is
+/// allocated on a pool thread and freed on the core, and
+/// [`nvs_runtime::budget`]'s per-thread balances would otherwise leave the
+/// charge on the pool and a credit on the request — a credit a request that
+/// keeps each answer can spend past `[limits] memory`. So the pool thread's
+/// balance before and after the job is compared, and the difference is moved
+/// from that thread to this one with [`nvs_runtime::budget::carry`]. It is
+/// negative when the job freed more than it kept, as a write does with the
+/// buffer it was handed, and moving it takes that buffer off the request too.
+///
 /// # Panics
 ///
 /// If `f` panics, the panic is carried back and resumed on the task's own
@@ -346,12 +356,16 @@ where
         return f();
     };
 
-    let slot: Arc<Mutex<Option<std::thread::Result<T>>>> = Arc::new(Mutex::new(None));
+    type Slot<T> = Option<(std::thread::Result<T>, isize)>;
+    let slot: Arc<Mutex<Slot<T>>> = Arc::new(Mutex::new(None));
     let answer = Arc::clone(&slot);
     with_pool(|pool| {
         pool.submit(move || {
+            let before = nvs_runtime::budget::live_bytes();
             let outcome = std::panic::catch_unwind(AssertUnwindSafe(f));
-            *lock(&answer) = Some(outcome);
+            let kept = nvs_runtime::budget::live_bytes().wrapping_sub(before);
+            nvs_runtime::budget::carry(kept.wrapping_neg());
+            *lock(&answer) = Some((outcome, kept));
             // Explicit rather than left to the end of the closure: the answer is
             // in the slot *before* the wake goes out, so the task cannot be
             // resumed to find it missing. The drop would deliver anyway, which
@@ -361,7 +375,8 @@ where
     });
 
     loop {
-        if let Some(outcome) = lock(&slot).take() {
+        if let Some((outcome, kept)) = lock(&slot).take() {
+            nvs_runtime::budget::carry(kept);
             return match outcome {
                 Ok(value) => value,
                 Err(panic) => std::panic::resume_unwind(panic),
@@ -391,7 +406,10 @@ where
 /// slot before dropping its handle.
 pub struct Request<Q, A> {
     question: Q,
-    reply: mpsc::Sender<A>,
+    /// The pinned thread's balance when [`Asked::next_question`] handed this
+    /// out, so [`Request::answer`] can move what the answer holds to the asker.
+    asked_at: isize,
+    reply: mpsc::Sender<(A, isize)>,
     #[expect(
         dead_code,
         reason = "held for its `Drop`, which is what ends the asker's park — \
@@ -422,8 +440,19 @@ impl<Q, A> Request<Q, A> {
     /// fires. A request dropped without one is not an error here: the asker
     /// reads the closed channel as [`Pinned::ask`]'s `None`, which is what a
     /// thread that ended mid-walk looks like from the core.
+    ///
+    /// What this thread allocated since the question arrived and still holds is
+    /// moved to the asker's balance with the answer, for [`run`]'s reason. That
+    /// is the answer and whatever the walk grew while building it; the second
+    /// is charged to the request until the walk ends, which errs toward the
+    /// ceiling rather than away from it.
     pub fn answer(self, answer: A) {
-        let _ = self.reply.send(answer);
+        let kept = nvs_runtime::budget::live_bytes().wrapping_sub(self.asked_at);
+        nvs_runtime::budget::carry(kept.wrapping_neg());
+        if self.reply.send((answer, kept)).is_err() {
+            // Nobody took it, so it is freed here and its charge stays here.
+            nvs_runtime::budget::carry(kept);
+        }
     }
 }
 
@@ -450,7 +479,9 @@ impl<Q, A> Asked<Q, A> {
     /// the handle died, its connection was dropped, and the closure returns —
     /// releasing whatever it was holding and giving the thread back to the pool.
     pub fn next_question(&mut self) -> Option<Request<Q, A>> {
-        self.asked.recv().ok()
+        let mut request = self.asked.recv().ok()?;
+        request.asked_at = nvs_runtime::budget::live_bytes();
+        Some(request)
     }
 }
 
@@ -495,18 +526,24 @@ impl<Q, A> Pinned<Q, A> {
         self.asking
             .send(Request {
                 question,
+                asked_at: 0,
                 reply,
                 wake,
             })
             .ok()?;
 
+        // The charge [`Request::answer`] moved off the pinned thread lands here.
+        let landed = |(answer, kept): (A, isize)| {
+            nvs_runtime::budget::carry(kept);
+            answer
+        };
         if !parked {
-            return answer.recv().ok();
+            return answer.recv().ok().map(landed);
         }
 
         loop {
             match answer.try_recv() {
-                Ok(answer) => return Some(answer),
+                Ok(answered) => return Some(landed(answered)),
                 Err(mpsc::TryRecvError::Disconnected) => return None,
                 // A wake is always a hint, so the channel is what is read and
                 // the park is what is repeated — [`run`]'s loop exactly.
@@ -678,6 +715,78 @@ mod tests {
             *order.borrow(),
             ["neighbour", "blocked"],
             "the call blocked the core instead of parking"
+        );
+    }
+
+    /// `run`'s charge: the answer is on the caller's balance from the moment
+    /// it arrives, and off it once it is dropped. Left on the pool thread's
+    /// balance, the drop would take a mebibyte the request was never charged
+    /// off the request's reading, and a program keeping one answer per call
+    /// would hold as much as it liked under any `[limits] memory`.
+    #[test]
+    fn a_blocking_calls_answer_is_charged_to_the_caller_and_released_with_it() {
+        const ANSWER: isize = 1 << 20;
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let seen = Rc::new(Cell::new((0_isize, 0_isize)));
+        let into = Rc::clone(&seen);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let before = nvs_runtime::budget::live_bytes();
+            let answer = run(|| vec![7_u8; 1 << 20]);
+            let holding = nvs_runtime::budget::live_bytes() - before;
+            drop(answer);
+            let after = nvs_runtime::budget::live_bytes() - before;
+            into.set((holding, after));
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        let (holding, after) = seen.get();
+        assert!(
+            holding >= ANSWER,
+            "the caller holds a mebibyte its balance shows only {holding} bytes of"
+        );
+        assert!(
+            after.abs() < ANSWER / 16,
+            "dropping the answer left the caller's balance {after} bytes from where it began"
+        );
+    }
+
+    /// The same charge for a pinned thread's answer, which crosses back one
+    /// question at a time rather than once when the job ends.
+    #[test]
+    fn a_pinned_threads_answer_is_charged_to_the_asker_and_released_with_it() {
+        const ANSWER: isize = 1 << 20;
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let seen = Rc::new(Cell::new((0_isize, 0_isize)));
+        let into = Rc::clone(&seen);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let walk = pin(|mut asked: Asked<u8, Vec<u8>>| {
+                while let Some(request) = asked.next_question() {
+                    let fill = *request.question();
+                    request.answer(vec![fill; 1 << 20]);
+                }
+            });
+            let before = nvs_runtime::budget::live_bytes();
+            let answer = walk.ask(7).expect("the pinned thread answered");
+            let holding = nvs_runtime::budget::live_bytes() - before;
+            drop(answer);
+            let after = nvs_runtime::budget::live_bytes() - before;
+            drop(walk);
+            into.set((holding, after));
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        let (holding, after) = seen.get();
+        assert!(
+            holding >= ANSWER,
+            "the asker holds a mebibyte its balance shows only {holding} bytes of"
+        );
+        assert!(
+            after.abs() < ANSWER / 16,
+            "dropping the answer left the asker's balance {after} bytes from where it began"
         );
     }
 

@@ -1,0 +1,46 @@
+--TEST--
+A program that keeps every part `Core\Process\Handle::readStdout` returns is stopped by `[limits] memory`, because what a blocking-pool job hands back is charged to the request that takes it — `rule:programs/memory-priority`, `rule:errors/on-limit`
+--FILE--
+<?nvs
+// covers: Core\Process\Handle::readStdout
+// Each part is read on a pool thread and freed on the core. The balance is per
+// thread, so without `nvs_host::blocking::run` moving the charge across, every
+// read gave the request a credit of the whole read buffer and this loop ran past
+// any ceiling. The loop stops by itself at 64 MB kept, four times the ceiling,
+// so a red case fails with a line of output rather than taking the host with it.
+
+string $path = "/usr/bin/yes";
+array<string> $arguments = ["a line that repeats and repeats"];
+if (Core\Path::SEPARATOR == "\\") {
+    $path = "C:\\Windows\\System32\\cmd.exe";
+    $arguments = ["/c", "for /l %i in (0,0,1) do @echo a line that repeats and repeats"];
+}
+Core\Process\Handle $program = Core\Process::spawn($path, $arguments);
+
+// `--EXPECT--` is exact, so this line being the whole of stdout is what asserts
+// the loop was stopped while it kept parts.
+echo "before\n";
+array<bytes> $kept = [];
+uint $size = 0;
+bool $ended = false;
+while (!$ended && $size < 67108864) {
+    ?bytes $part = $program->readStdout();
+    if ($part != null) {
+        $kept[] = $part;
+        $size = $size + Core\Bytes::length($part);
+    } else {
+        $ended = true;
+    }
+}
+echo "kept ", $size, " bytes\n";
+--FILE nvs.toml--
+# The child is named absolutely, and the ceiling is the one the loop above crosses.
+[capabilities.process]
+exec = true
+
+[limits]
+memory = "16M"
+--EXPECT--
+before
+--EXPECTF-ERROR--
+FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler

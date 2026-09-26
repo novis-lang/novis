@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `readStdout()` returns when a program prints nothing.
+// requires: unix
+
+// `/bin/true` prints nothing and ends at once.
+var $program = Core\Process::spawn("/bin/true", []);
+
+// The output has ended, so the result is `null`.
+?bytes $first = $program->readStdout();
+echo "first read: ", $first == null ? "null" : "data", "\n";
+
+// A second call also returns `null`. It does not throw an error.
+?bytes $second = $program->readStdout();
+echo "second read: ", $second == null ? "null" : "data", "\n";
+
+// This prints `exit code 0`.
+echo "exit code ", $program->wait()->exitCode(), "\n";

@@ -372,18 +372,18 @@ const HANDLE_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Process\Handle::readStdout`'s reference card — `rule:core-api/reference-card`.
 const READ_STDOUT_DOC: MethodDoc = MethodDoc {
-    short: "Waits for the child to write something to its standard output and answers it — the \
-            read half of `proc_open`'s pipes, and the whole of `passthru` when what a program does \
-            with each chunk is write it to the response. The wait suspends this coroutine and \
-            hands the core back, so other requests on it keep running.",
+    short: "Waits until the program writes to its standard output, and returns what it wrote. \
+            Call it in a loop to read the output one part at a time while the program runs. \
+            Other requests keep running while this one waits.",
     params: &[],
-    ret: "The octets the child wrote, as `bytes` for the reason `Core\\Process\\Result::stdout` \
-          states, or `null` once the stream has ended. A chunk is whatever had arrived, never a \
-          line and never the whole output: a program that wants all of it calls `run` instead.",
+    ret: "The next part of the output, as `bytes`, up to 64 KiB. A part is whatever has arrived: \
+          it can be less than one line or several lines. At the end of the output the result is \
+          `null`, and every later call also returns `null`. Use `as string` to convert a part \
+          to text.",
     errors: &[ErrorDoc {
         error: "IOError",
-        desc: "The operating system failed the read. The stream is closed afterwards, so a \
-               later call answers `null` rather than failing again.",
+        desc: "The operating system could not read the output. The output is then closed, so \
+               the next call returns `null`.",
     }],
 };
 
@@ -1313,6 +1313,7 @@ mod tests {
     /// tells the two apart. The child is this test binary asked to list its cases — a real process
     /// writing several kilobytes on every platform the suite runs on, with nothing to build first.
     // covers: Core\Process::spawn
+    // covers: Core\Process\Handle::readStdout
     #[test]
     fn a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core() {
         let mut sched = Scheduler::new();

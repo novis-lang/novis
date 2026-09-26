@@ -1,0 +1,36 @@
+<?nvs
+// Measures reading the output of a running program part by part, as a server does to show the log of a long job.
+// bench: iterations 2000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // `/usr/bin/yes` on Linux and macOS, and a `cmd.exe` loop on Windows. Neither stops by itself.
+        string $path = "/usr/bin/yes";
+        array<string> $arguments = ["a line of output"];
+        if (Core\Path::SEPARATOR == "\\") {
+            $path = "C:\\Windows\\System32\\cmd.exe";
+            $arguments = ["/c", "for /l %i in (0,0,1) do @echo a line of output"];
+        }
+        var $program = Core\Process::spawn($path, $arguments);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?bytes $part = $program->readStdout();
+            // The total depends on every part, so no read can be skipped.
+            if ($part != null) {
+                $total = $total + Core\Bytes::length($part);
+            }
+            $i = $i + 1;
+        }
+        $program->kill();
+        $program->wait();
+        // This is the number of parts read, when the program printed something.
+        if ($total == 0) {
+            return 0;
+        }
+        return $i;
+    }
+}
+
+echo Bench::run(2000), "\n";

@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-process-and-4-more`. `Core\\Process` is green: `run` and `spawn` have all their feature proofs, and the group's dossier check passes. `Core\\Process\\Handle` has its class card and `kill` has all its proofs. `readStdout`, `readStderr`, `writeStdin` and `wait` still owe everything but their cards, and those cards are still in the old voice. `Core\\Process\\Result`, `Core\\Program` and `Core\\Queue` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\nA Unix-only example is run by hand under WSL: rebuild with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build` from `/mnt/d/mwl`, then `/var/tmp/nvs-target-wsl/debug/nvs run --config <dir>/nvs.toml <file>`, each through a script under `.agent-tmp/` because `wsl.exe -- bash -lc` mangles nested quotes. Write the `.out` from that run and `cmp` it. The attacks and benches run on both platforms: they pick `/bin/echo` / `/usr/bin/yes` or `cmd.exe` by `Core\\Path::SEPARATOR`. `benches/members/core/Process/nvs.toml` and `benches/members/core/Process-Handle/nvs.toml` are shared by every bench in their class. `false as string` prints nothing, so an attack prints a word for a boolean.\n\n`?bytes as string` used to throw on well-formed text. It now validates UTF-8 the way `bytes as string` does (`Helper::TaggedAsString`). So a chunk from `readStdout` converts without a `!= null` narrowing first.",
+  "state": "Goal `core-process-and-4-more`. `Core\\Process` is green. `Core\\Process\\Handle` has its class card, and `kill` and `readStdout` have all their feature proofs. `readStderr`, `writeStdin` and `wait` still owe everything but their cards, and those cards are still in the old voice. `Core\\Process\\Result`, `Core\\Program` and `Core\\Queue` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\nThe `readStdout` attack found a memory-limit bypass, fixed in the same slice. A `nvs_host::blocking::run` or `pin` answer was allocated on a pool thread and freed on the core, so the request's balance went negative and a program keeping every answer ran past `[limits] memory`. `nvs_runtime::budget::carry` now moves the charge across (the `budget` module doc's *Per thread* section and `run`'s doc own it). The `bg.test.ts` floor check was flaky under load, not broken. Its listing test now waits for a release file, and `job.json`'s second write is atomic.\n\nA Unix-only example is run by hand under WSL. Put the commands in a script under `.agent-tmp/` and start it with `wsl.exe -- bash -lc \"bash <script>\"`: a plain `bash <script>` has no `cargo` on its PATH, and `bash -lc` with the commands inline mangles nested quotes. In the script, build with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build` from `/mnt/d/mwl`, run `/var/tmp/nvs-target-wsl/debug/nvs run --config <dir>/nvs.toml <file>`, write the `.out` from that run and `cmp` it. The attacks and benches run on both platforms: they pick `/bin/echo` / `/usr/bin/yes` or `cmd.exe` by `Core\\Path::SEPARATOR`. `benches/members/core/Process-Handle/nvs.toml` is shared by every bench in its class. `?bytes` narrows through `!= null` in a `while` or `if` head, not through `&&`.",
   "next": {
     "stage": 1,
     "title": "one feature per slice",
@@ -8,25 +8,21 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Process\\Handle::readStdout`** — about, examples, attack, bench, and two tests carrying `// covers: Core\\Process\\Handle::readStdout`: add it to `tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst` and above the Rust test `a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core`. Rewrite `READ_STDOUT_DOC` in the plain voice. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/process.rs:374`, `crates/nvs-stdlib/src/process.rs:1317`"
+        "text": "**`Core\\Process\\Handle::readStderr`** — about, examples, attack, bench, and two tests carrying `// covers: Core\\Process\\Handle::readStderr`: add it to `tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst`, and write a Rust test beside `a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core`. Rewrite `READ_STDERR_DOC` in the plain voice, the way `READ_STDOUT_DOC` now reads. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/process.rs:392`"
       },
       {
         "done": false,
-        "text": "**`Core\\Process\\Handle::readStderr`** — the same; rewrite `READ_STDERR_DOC`. `crates/nvs-stdlib/src/process.rs:391`"
+        "text": "**`Core\\Process\\Handle::writeStdin`** — the same; rewrite `WRITE_STDIN_DOC`. `crates/nvs-stdlib/src/process.rs:404`"
       },
       {
         "done": false,
-        "text": "**`Core\\Process\\Handle::writeStdin`** — the same; rewrite `WRITE_STDIN_DOC`. `crates/nvs-stdlib/src/process.rs:403`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Process\\Handle::wait`** — the same; rewrite `HANDLE_WAIT_DOC`. `crates/nvs-stdlib/src/process.rs:423`"
+        "text": "**`Core\\Process\\Handle::wait`** — the same; rewrite `HANDLE_WAIT_DOC`. `crates/nvs-stdlib/src/process.rs:424`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Process\\Result` (`stdout`, `stderr`, `exitCode`): the proofs, its class card, and its line out of `CLASSES_STILL_OWING_A_CARD` — `crates/nvs-stdlib/src/process.rs`.",
-    "`Core\\Program` and `Core\\Queue`: the proofs and class cards — `crates/nvs-stdlib/src/program.rs`, `crates/nvs-stdlib/src/queue.rs`.",
-    "`nvs agent show '<Class>'` prints the member list but not the class card's `short`, for every class — not checked whether that is by design; the renderer is in `crates/nvs-cli`."
+    "`Core\\Process\\Result`: class card, then `stdout`, `stderr`, `exitCode` proofs — `crates/nvs-stdlib/src/process.rs`, `rule:testing/feature-proofs`.",
+    "`Core\\Program` and `Core\\Queue`: class cards and every member's proofs — `crates/nvs-stdlib/src/program.rs`, `crates/nvs-stdlib/src/queue.rs`.",
+    "A child blocked on a full standard-error pipe while the program waits in `readStdout` never returns. PHP's `proc_open` behaves the same; not checked whether a request's time limit ends that wait — `rule:core-classes/process-spawn`."
   ]
 }

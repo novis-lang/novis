@@ -39,7 +39,10 @@
 //! A block allocated on one thread and freed on another makes the freeing
 //! thread's balance go negative, which is why the counter is signed: it stays a
 //! readable number rather than a huge one, and a request's *used* figure
-//! saturates at zero rather than wrapping.
+//! saturates at zero rather than wrapping. A negative balance is also a credit
+//! the freeing request could spend past its ceiling, so a block that crosses
+//! threads on purpose — the answer of a job on the blocking pool — is moved
+//! from one balance to the other with [`carry`].
 //!
 //! [`written_bytes`] is that same arrangement for `[limits] max_output`, and it
 //! is here rather than as a field on [`Ctx`](crate::Ctx) for the one property a
@@ -715,11 +718,28 @@ fn record(bytes: isize) {
 /// instead, and every question this asks of the request — its mark, its
 /// ceiling — is one the bytes are not the request's to answer.
 pub(crate) fn add(bytes: isize) {
+    if bytes > 0 {
+        record(bytes);
+    }
+    carry(bytes);
+}
+
+/// Moves `bytes` onto this thread's balance without counting an allocation —
+/// negative to move them off it.
+///
+/// For a block that crosses threads while it is alive. The module doc's
+/// *Per thread* section says what a cross-thread free does to two balances
+/// left alone: the allocating thread keeps a charge nobody frees and the
+/// freeing thread goes negative, which is a credit its request can spend past
+/// its own ceiling. The thread that hands a block over moves its size off
+/// with a negative delta, and the thread that takes it moves the same size on,
+/// so each block is charged to the thread that will free it. A positive delta
+/// raises the mark and meets the ceiling exactly as an allocation does,
+/// because the bytes are this thread's to hold from here on;
+/// `nvs_host::blocking::run` is the caller.
+pub fn carry(bytes: isize) {
     if DETACHING.with(Cell::get) {
         DETACHED.with(|held| held.set(held.get().wrapping_add(bytes)));
-        if bytes > 0 {
-            record(bytes);
-        }
         return;
     }
     let live = LIVE.with(|live| {
@@ -733,7 +753,6 @@ pub(crate) fn add(bytes: isize) {
                 peak.set(live);
             }
         });
-        record(bytes);
         // `rule:errors/on-limit`'s memory ceiling, asked here because this is
         // the one place a growing allocation passes: a loop growing a string
         // through the ctx-less primitives reaches no other question until it

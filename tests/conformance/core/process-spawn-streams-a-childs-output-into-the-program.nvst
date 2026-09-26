@@ -13,6 +13,7 @@
 // The two candidates are the two families this suite runs on; the one that is
 // not this platform's has nothing at its path, so the operating system answers
 // `IOError` and that block starts nothing.
+// covers: Core\Process\Handle::readStdout
 
 int $started = 0;
 int $absent = 0;
