@@ -4711,6 +4711,49 @@ fn read_erased_property(ctx: &mut Ctx, receiver: Value, name: &str) -> crate::He
     read_erased_property_hinted(ctx, receiver, name, 0, AbsentField::Throws)
 }
 
+/// [`read_erased_property`] answering a reference the caller owns, whichever
+/// route the read took — the form a native member needs to hand the value on,
+/// and [`write_erased_property`]'s counterpart for `nvs_stdlib::reflect`'s
+/// `Core\Reflect\ClassInfo::get`, for that function's reason: a reflective read
+/// is the ordinary erased read, so a `get` hook runs and a slot never written
+/// throws, rather than a second copy of those rules reading the slot itself.
+///
+/// The two routes hand back different ownership: a slot is borrowed and a
+/// `get` hook's return is a fresh reference. This retains the first and passes
+/// the second through, so neither leaks nor is released twice.
+///
+/// # Errors
+///
+/// [`read_erased_property`]'s.
+pub fn read_erased_property_owned(
+    ctx: &mut Ctx,
+    receiver: Value,
+    name: &str,
+) -> crate::HelperResult {
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns the receiver, so a non-null object pointer is a \
+                  live allocation and its descriptor is too"
+    )]
+    let hooked = receiver
+        .obj_ptr()
+        .filter(|ptr| !ptr.is_null())
+        .is_some_and(|ptr| unsafe { (*NvsObj::class_of(ptr)).hook_row(name, false).is_some() });
+    let read = read_erased_property(ctx, receiver, name)?;
+    if !hooked {
+        #[expect(
+            unsafe_code,
+            reason = "the slot's reference belongs to the receiver, which the caller \
+                      keeps live for this call, and the value is being handed on — \
+                      which is exactly `Value::retain`'s obligation"
+        )]
+        unsafe {
+            read.retain();
+        }
+    }
+    Ok(read)
+}
+
 /// What a read answers for a name the receiver's concrete class does not
 /// carry, which is the one thing [`nvs_object_slot_get`] and
 /// [`nvs_object_slot_optional_get`] disagree about.

@@ -1,0 +1,51 @@
+--TEST--
+`Core\Reflect\ClassInfo::get` is the ordinary erased read: a `get` hook runs once per read, and a `lateinit` property never written throws — `rule:security/reflection-enforces-visibility`, `rule:classes/property-hooks`, `rule:classes/an-unwritten-property-read-throws`
+--FILE--
+<?nvs
+// covers: Core\Reflect\ClassInfo::get
+// A reflective read answers what `$value->name` on a `mixed` answers. Reading
+// the slot directly would give the hook's empty backing store, which is not
+// an `int`, and an unwritten slot's storage state instead of a throw.
+class Counter {
+    public int $hits = 0;
+
+    public int $value {
+        get {
+            $this->hits = $this->hits + 1;
+            return 10;
+        }
+    }
+
+    public function constructor() {
+    }
+}
+
+var $counter = new Counter();
+var $described = Core\Reflect::forObject($counter);
+echo $counter->value, "\n";
+echo $described->get($counter, "value") as int, "\n";
+// Two reads, two runs of the hook.
+echo $counter->hits, "\n";
+
+class Ring {
+    public lateinit Ring $next;
+    public function constructor(public string $name) {}
+}
+
+var $ring = new Ring("a");
+var $ringInfo = Core\Reflect::forObject($ring);
+try {
+    var $next = $ringInfo->get($ring, "next");
+    echo "unwritten read", "\n";
+} catch (RuntimeError $unwritten) {
+    echo $unwritten->message, "\n";
+}
+// Once written, the same read answers the value.
+$ring->next = new Ring("b");
+echo ($ringInfo->get($ring, "next") as Ring)->name, "\n";
+--EXPECT--
+10
+10
+2
+`Ring`'s property `$next` is read before it is written
+b

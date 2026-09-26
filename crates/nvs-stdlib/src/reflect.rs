@@ -874,17 +874,27 @@ const SET_DOC: MethodDoc = MethodDoc {
 /// that is not an object at all is a `RuntimeError`, and one that is an object
 /// of the wrong class is a `LogicError`, so a misspelling and a mis-typed
 /// argument never arrive as the same refusal.
+///
+/// The class's name is compared in place and copied out only by
+/// [`class_name_of`], on a refusal's path: a read that succeeds allocates
+/// nothing for a sentence it never prints.
 fn subject_of(
     receiver: *mut nvs_runtime::ObjHeader,
     subject: Value,
     member: &str,
-) -> Result<(*mut nvs_runtime::ObjHeader, String), Fault> {
+) -> Result<*mut nvs_runtime::ObjHeader, Fault> {
     let ptr = subject.obj_ptr().ok_or_else(|| {
         Fault::thrown(format!(
             "{CLASS_INFO_NAME}::{member}() expected an object, got tag {}",
             subject.tag_byte()
         ))
     })?;
+    // `as_text` rather than the bytes: the slot was written by `forObject`
+    // from a `Tag::Str`, and `rule:types/conversion` makes that tag the UTF-8 guarantee —
+    // see `crate::str`'s `text` on why re-deriving it costs an O(n) pass for
+    // nothing.
+    let described = crate::instance::slot(receiver, NAME_SLOT);
+    let described = described.as_text().unwrap_or_default();
     #[expect(
         unsafe_code,
         reason = "the argument owns a reference to a live allocation, so it is \
@@ -893,26 +903,36 @@ fn subject_of(
                   by the unit's class table, which outlives every instance of \
                   the class it describes"
     )]
-    let class = unsafe {
+    let same = unsafe {
         let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(ptr));
-        (*object.class()).name().to_owned()
+        (*object.class()).name() == described
     };
-    // `as_text` rather than the bytes: the slot was written by `forObject`
-    // from a `Tag::Str`, and `rule:types/conversion` makes that tag the UTF-8 guarantee —
-    // see `crate::str`'s `text` on why re-deriving it costs an O(n) pass for
-    // nothing.
-    let described = crate::instance::slot(receiver, NAME_SLOT);
-    let described = described.as_text().unwrap_or_default();
-    if described != class {
+    if !same {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
                 "{CLASS_INFO_NAME}::{member}(): this describes `{described}`, and the value is a \
-                 `{class}`"
+                 `{}`",
+                class_name_of(ptr)
             ),
         ));
     }
-    Ok((ptr, class))
+    Ok(ptr)
+}
+
+/// The name of the class of the object at `ptr`, copied out for a refusal's
+/// sentence — [`subject_of`] has already checked that `ptr` is a live object.
+fn class_name_of(ptr: *mut nvs_runtime::ObjHeader) -> String {
+    #[expect(
+        unsafe_code,
+        reason = "the caller's argument owns a reference to this live allocation; \
+                  the handle is never dropped, so that reference is not released \
+                  twice, and the descriptor outlives every instance it describes"
+    )]
+    unsafe {
+        let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(ptr));
+        (*object.class()).name().to_owned()
+    }
 }
 
 /// The class an acting member's call site is written inside, or `None` for a
@@ -2680,11 +2700,18 @@ nvs_runtime::nvs_helper! {
     /// `private` property from the declaring class's own bodies and a
     /// `protected` one from every class in that hierarchy declaring it, which
     /// is what an ordinary read at each of those sites does.
+    ///
+    /// Past the four refusals the read itself is
+    /// [`nvs_runtime::read_erased_property_owned`], the ordinary erased read,
+    /// for [`nvs_core_reflect_class_info_set`]'s reason in the other direction:
+    /// a `get` hook runs and a `lateinit` slot never written throws, exactly as
+    /// `$value->name` on a `mixed` does. Reading the slot here would hand back a
+    /// hooked property's backing store and an unwritten slot's storage state.
     fn nvs_core_reflect_class_info_get(ctx, args: [4]) {
         let member = "get";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::get")?;
-        let (subject, class) = subject_of(receiver, args[1], member)?;
+        let subject = subject_of(receiver, args[1], member)?;
         let site = site_class(args[3]);
         #[expect(
             unsafe_code,
@@ -2702,30 +2729,23 @@ nvs_runtime::nvs_helper! {
                 ctx.field_is_visible_from(desc, name, site),
             )
         };
-        let Some(slot) = slot else {
+        if slot.is_none() {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
-                format!("{CLASS_INFO_NAME}::get(): `{class}` has no property named `{name}`"),
+                format!(
+                    "{CLASS_INFO_NAME}::get(): `{}` has no property named `{name}`",
+                    class_name_of(subject)
+                ),
             ));
-        };
+        }
         if !visible {
             return Err(Fault::thrown(format!(
-                "{CLASS_INFO_NAME}::get(): `{class}::{name}` is not readable from outside the \
-                 class, and reflection does not lift that"
+                "{CLASS_INFO_NAME}::get(): `{}::{name}` is not readable from outside the \
+                 class, and reflection does not lift that",
+                class_name_of(subject)
             )));
         }
-        let held = crate::instance::slot(subject, slot);
-        #[expect(
-            unsafe_code,
-            reason = "the slot's reference belongs to the subject, which its argument \
-                      keeps live for the length of the call, and this value is being \
-                      handed to the caller — which is exactly `Value::retain`'s \
-                      obligation"
-        )]
-        unsafe {
-            held.retain();
-        }
-        Ok(held)
+        nvs_runtime::read_erased_property_owned(ctx, args[1], name)
     }
 }
 
@@ -2756,7 +2776,7 @@ nvs_runtime::nvs_helper! {
         let member = "set";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::set")?;
-        let (subject, class) = subject_of(receiver, args[1], member)?;
+        let subject = subject_of(receiver, args[1], member)?;
         let site = site_class(args[4]);
         #[expect(
             unsafe_code,
@@ -2777,13 +2797,17 @@ nvs_runtime::nvs_helper! {
         if slot.is_none() {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
-                format!("{CLASS_INFO_NAME}::set(): `{class}` has no property named `{name}`"),
+                format!(
+                    "{CLASS_INFO_NAME}::set(): `{}` has no property named `{name}`",
+                    class_name_of(subject)
+                ),
             ));
         }
         if !visible {
             return Err(Fault::thrown(format!(
-                "{CLASS_INFO_NAME}::set(): `{class}::{name}` is not writable from outside the \
-                 class, and reflection does not lift that"
+                "{CLASS_INFO_NAME}::set(): `{}::{name}` is not writable from outside the \
+                 class, and reflection does not lift that",
+                class_name_of(subject)
             )));
         }
         nvs_runtime::write_erased_property(ctx, args[1], name, 0, args[3])
@@ -3327,6 +3351,209 @@ mod tests {
             subject.release();
             plain_info.release();
             plain.release();
+        }
+    }
+
+    // How many times `gauge_reading` has run, so a read that answered from the
+    // backing slot instead reads as a count that did not move.
+    thread_local! {
+        static READINGS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    }
+
+    /// `Gauge::$reading`'s `get` hook, as `nvs-codegen` would have compiled it:
+    /// slot 0 is the receiver, which `call_at` retained, and the answer is a
+    /// fresh array — one reference, owned by whoever the read hands it to.
+    #[expect(
+        unsafe_code,
+        reason = "compiled code's own signature, which `call_at` calls through: \
+                  one live value and the address of a live `Value` for the \
+                  result, neither expressible in the type"
+    )]
+    unsafe extern "C" fn gauge_reading(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        READINGS.set(READINGS.get() + 1);
+        unsafe {
+            (*args).release();
+            *out = Value::array(NvsArray::new());
+        }
+        OK
+    }
+
+    /// A `Gauge` with three `public` properties, one per route a read can
+    /// take: `tags` is a plain slot holding an array, `reading` has a `get`
+    /// hook ([`gauge_reading`]) over a slot nothing writes, and `late` is a
+    /// `lateinit` slot never written. The array in `tags` is returned too, so
+    /// the test can count its owners.
+    fn gauge() -> (Ctx, Value, Value) {
+        let mut classes = ClassTable::new();
+        let id = classes.define("Gauge", &["tags", "reading", "late"], &[]);
+        classes.set_public_fields(id, vec![true, true, true]);
+        classes.set_defaults(id, vec![(2, nvs_runtime::FieldDefault::Unset)]);
+        classes.set_hooks(
+            id,
+            vec![nvs_runtime::HookRow {
+                property: "reading".to_owned(),
+                set: false,
+                code: (gauge_reading as NvsFn) as *const u8,
+                param_tags: 0,
+            }],
+        );
+        let classes = std::sync::Arc::new(classes);
+        let desc = classes.desc(id);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, id));
+        let tags = Value::array(NvsArray::new());
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor belongs to the table the context above now \
+                      holds for its whole life, and `NvsObj::new` writes every \
+                      slot before it hands the allocation back; the slot takes \
+                      over the one reference `tags` was built with"
+        )]
+        let subject = unsafe {
+            let object = NvsObj::new(desc);
+            object.set_field(0, tags);
+            Value::object(object)
+        };
+        (ctx, subject, tags)
+    }
+
+    /// `$gauge->name` through an erased receiver — the read compiled code
+    /// reaches, called exactly as `nvs-codegen` emits it. The status and the
+    /// borrowed answer come back together.
+    #[expect(
+        unsafe_code,
+        reason = "`nvs_object_slot_get` is compiled code's own entry point: a \
+                  context, a value by address and a static byte range, none of \
+                  which its signature can bound"
+    )]
+    fn ordinary_read(ctx: &mut Ctx, subject: Value, name: &str) -> (i32, Value) {
+        let mut out = Value::null();
+        let status = unsafe {
+            nvs_runtime::nvs_object_slot_get(
+                std::ptr::from_mut(ctx),
+                std::ptr::from_ref(&subject),
+                name.as_ptr(),
+                name.len(),
+                0,
+                std::ptr::from_mut(&mut out),
+            )
+        };
+        (status, out)
+    }
+
+    /// How many owners the array `value` points at has.
+    #[expect(
+        unsafe_code,
+        reason = "the caller holds a reference to the array, and the handle is \
+                  never dropped, so nothing is released"
+    )]
+    fn owners(value: Value) -> usize {
+        let array = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(value.array_ptr().expect("an array"))
+        });
+        array.refcount()
+    }
+
+    /// `rule:security/reflection-enforces-visibility`'s read, asked as an
+    /// **agreement** with the ordinary read through a `mixed`, over each route
+    /// a read can take. A `get` that read the slot itself would still answer
+    /// `tags` correctly — and would answer `reading` with its empty backing
+    /// slot and `late` with its storage state, which is what this test is for.
+    ///
+    /// Ownership is asserted beside each answer, because the two routes hand
+    /// back different ones: a slot is borrowed and a hook's return is fresh.
+    /// The caller of `get` owns exactly one new reference either way.
+    // covers: Core\Reflect\ClassInfo::get
+    #[test]
+    fn a_reflective_property_read_takes_the_route_an_ordinary_read_takes() {
+        READINGS.set(0);
+        let (mut ctx, subject, tags) = gauge();
+        let info = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+            .expect("every object has a description");
+        let name = |text: &str| Value::str(NvsStr::new(text.as_bytes()));
+
+        // A plain slot: the same array, with one more owner — the caller.
+        let tags_name = name("tags");
+        let read = call(
+            super::nvs_core_reflect_class_info_get,
+            &mut ctx,
+            &[info, subject, tags_name, OUTSIDE],
+        )
+        .expect("`tags` is public");
+        assert_eq!(read.array_ptr(), tags.array_ptr(), "the value in the slot");
+        assert_eq!(owners(tags), 2, "the object's reference and the caller's");
+        #[expect(unsafe_code, reason = "`get` handed back a reference this frame owns")]
+        unsafe {
+            read.release();
+        }
+        assert_eq!(
+            owners(tags),
+            1,
+            "and releasing it leaves the object's alone"
+        );
+
+        // A hooked property: both reads run the hook, once each.
+        let (status, ordinary) = ordinary_read(&mut ctx, subject, "reading");
+        assert_eq!(status, OK);
+        assert_eq!(READINGS.get(), 1, "the ordinary read runs the `get` hook");
+        let reading_name = name("reading");
+        let read = call(
+            super::nvs_core_reflect_class_info_get,
+            &mut ctx,
+            &[info, subject, reading_name, OUTSIDE],
+        )
+        .expect("`reading` is public");
+        assert_eq!(READINGS.get(), 2, "and so does the reflective one");
+        assert_eq!(
+            owners(read),
+            1,
+            "the hook's fresh array, handed on without a second retain"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "each read handed back the hook's fresh reference, and this \
+                      frame is the one owner of both"
+        )]
+        unsafe {
+            read.release();
+            ordinary.release();
+        }
+
+        // A `lateinit` slot never written: both reads throw the same sentence.
+        let (status, _) = ordinary_read(&mut ctx, subject, "late");
+        assert_eq!(status, nvs_runtime::THROWN);
+        let ordinary_said = ctx.take_pending();
+        let late_name = name("late");
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_get,
+                &mut ctx,
+                &[info, subject, late_name, OUTSIDE],
+            )
+            .err(),
+            Some(nvs_runtime::THROWN),
+            "an unwritten slot is a throw, never its storage state"
+        );
+        assert_eq!(
+            ctx.take_pending(),
+            ordinary_said,
+            "the same sentence, because it is the same read"
+        );
+        assert!(ordinary_said.is_some_and(|said| said.contains("read before it is written")));
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each — `forObject` handed \
+                      back `info`, `gauge` built the subject and this frame made \
+                      the names — and every call above borrowed rather than \
+                      consumed them"
+        )]
+        unsafe {
+            tags_name.release();
+            reading_name.release();
+            late_name.release();
+            info.release();
+            subject.release();
         }
     }
 
