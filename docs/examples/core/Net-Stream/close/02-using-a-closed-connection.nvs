@@ -1,0 +1,29 @@
+<?nvs
+// Shows that a closed connection throws a `RuntimeError` when you use it again.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+$client->close();
+
+// `write` on a closed connection throws.
+try {
+    $client->write("hello" as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// `read` on a closed connection throws.
+try {
+    $client->read(64, 1s);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// A second `close` also throws.
+try {
+    $client->close();
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+$server->close();

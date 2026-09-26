@@ -2,7 +2,7 @@
 a closed `Core\Net` handle refuses every member of its class, and closing twice is refused rather than ignored — `rule:core-classes/net-one-api-three-transports` and `rule:errors/on-uncaught-throw`
 --FILE--
 <?nvs
-// covers: Core\Net\Listener::accept, Core\Net\Listener::port, Core\Net\Listener::close
+// covers: Core\Net\Listener::accept, Core\Net\Listener::port, Core\Net\Listener::close, Core\Net\Stream::read, Core\Net\Stream::write, Core\Net\Stream::close
 // The boundary the happy path never reaches. A socket closes with the request
 // that opened it, and a program may close one earlier — after which the key
 // its handle carries names an empty slot. Every member of both classes then

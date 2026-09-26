@@ -471,7 +471,7 @@ const LISTEN_LOCAL_DOC: MethodDoc = MethodDoc {
 /// over a descriptor and landed first.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
-    doc: None,
+    doc: Some(&STREAM_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -507,6 +507,13 @@ pub(crate) const STREAM: CoreClass = CoreClass {
     ],
     slots: &["socket"],
     constants: &[],
+};
+
+/// `Core\Net\Stream`'s class card — `rule:core-api/reference-card`.
+const STREAM_CARD: ClassDoc = ClassDoc {
+    short: "A connection to one client or server, returned by `Core\\Net::connect`, \
+            `Core\\Net::connectLocal` and `Core\\Net\\Listener::accept`. `read` and `write` \
+            move bytes, and each waits no longer than its `$within`.",
 };
 
 /// `Core\Net\Stream::read`'s reference card — `rule:core-api/reference-card`.
@@ -2194,7 +2201,7 @@ mod tests {
     /// one call and clears it after, so a listener that ran out of time once
     /// must still take the next connection — a deadline left behind would make
     /// the second accept fail at once.
-    // covers: Core\Net\Listener::accept, Core\Net\Listener::port, Core\Net\Listener::close
+    // covers: Core\Net\Listener::accept, Core\Net\Listener::port, Core\Net\Listener::close, Core\Net\Stream::read, Core\Net\Stream::write, Core\Net\Stream::close
     #[test]
     fn a_listener_times_out_takes_a_waiting_connection_and_refuses_once_closed() {
         let mut ctx = Ctx::buffered();

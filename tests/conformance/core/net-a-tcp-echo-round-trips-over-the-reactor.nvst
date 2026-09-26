@@ -2,7 +2,7 @@
 a bound listener, an accepted connection and a byte for byte round trip, all in one task — `rule:core-classes/net-one-api-three-transports` and `rule:security/net-listen-is-a-separate-grant-from-net-connect`
 --FILE--
 <?nvs
-// covers: Core\Net\Listener::accept, Core\Net\Listener::port, Core\Net\Listener::close
+// covers: Core\Net\Listener::accept, Core\Net\Listener::port, Core\Net\Listener::close, Core\Net\Stream::read, Core\Net\Stream::write, Core\Net\Stream::close
 // The whole of `Core\Net`'s TCP half, in the order a program meets it. One
 // task and no deadlock, which is a property of TCP rather than of luck: a
 // connect completes into the listener's backlog, so `connect` returns before

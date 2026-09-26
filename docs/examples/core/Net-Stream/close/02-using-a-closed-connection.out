@@ -1,0 +1,3 @@
+Core\Net\Stream::write: this handle is closed
+Core\Net\Stream::read: this handle is closed
+Core\Net\Stream::close: this handle is closed
