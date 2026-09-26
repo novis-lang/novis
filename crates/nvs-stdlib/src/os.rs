@@ -43,7 +43,7 @@
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -52,7 +52,7 @@ pub(crate) const NAME: &str = "Core\\Os";
 /// `Core\Os`'s registry rows — the spec's § 16 row, whole and in its order.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "pid",
@@ -105,6 +105,14 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Os`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Facts about the machine your program runs on and about the program itself. `pid` \
+            returns the process number, `hostname` the machine's name and `cpuCount` how many \
+            cores the program may use. `residentBytes` returns the memory of the whole process, \
+            and `loadAverage` how busy the machine is. No grant is needed.",
+};
+
 /// `Core\Os::pid`'s reference card — `rule:core-api/reference-card`.
 const PID_DOC: MethodDoc = MethodDoc {
     short: "This process's identifier, as the operating system numbers it — `getmypid`. It is the \
@@ -117,27 +125,27 @@ const PID_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Os::hostname`'s reference card — `rule:core-api/reference-card`.
 const HOSTNAME_DOC: MethodDoc = MethodDoc {
-    short: "The name of the host this process runs on — `gethostname`, and the one field of \
-            `php_uname` a program usually wanted. Nothing is resolved and no network is reached: \
-            this is the name the host holds for itself.",
+    short: "Returns the name of the machine this program runs on. This replaces PHP's \
+            `gethostname`. It reads the name the machine has for itself, and it does not use the \
+            network.",
     params: &[],
-    ret: "The host's own name.",
+    ret: "The machine's name.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The operating system would not answer, or answered a name that is not UTF-8.",
+        desc: "The operating system did not return a name, or the name is not valid UTF-8.",
     }],
 };
 
 /// `Core\Os::cpuCount`'s reference card — `rule:core-api/reference-card`.
 const CPU_COUNT_DOC: MethodDoc = MethodDoc {
-    short: "How many cores this process may actually run on, which is the number the server fans \
-            its workers out over. An affinity mask or a container quota narrows it, so a program \
-            in a two-CPU cgroup on a 96-core host reads 2.",
+    short: "Returns how many CPU cores this program may use. A server or a container can limit a \
+            program to some of its cores. A program in a container with 2 cores on a machine with \
+            96 cores gets 2. The web server starts this same number of workers.",
     params: &[],
-    ret: "The core count, at least 1.",
+    ret: "The number of cores. It is always 1 or more.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The operating system would not say how many cores this process may use.",
+        desc: "The operating system did not say how many cores this program may use.",
     }],
 };
 
@@ -157,15 +165,16 @@ const RESIDENT_BYTES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Os::loadAverage`'s reference card — `rule:core-api/reference-card`.
 const LOAD_AVERAGE_DOC: MethodDoc = MethodDoc {
-    short: "The kernel's load average over one, five and fifteen minutes — `sys_getloadavg`. The \
-            three figures count runnable processes rather than a percentage, so a number above \
-            `cpuCount()` is a queue and not an error.",
+    short: "Returns how busy the machine is, as three numbers: the averages over the last 1, 5 \
+            and 15 minutes. This replaces PHP's `sys_getloadavg`. Each number counts the \
+            processes that are running or waiting to run. A number larger than `cpuCount()` \
+            means some processes are waiting.",
     params: &[],
-    ret: "Three floats, in the order one, five, fifteen.",
+    ret: "Three floats: the averages over 1, 5 and 15 minutes, in that order.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "This platform keeps no load average. Windows is the one that does not, and the \
-               message names it.",
+        desc: "Windows does not keep a load average, so this method throws there. The message \
+               names the platform.",
     }],
 };
 
@@ -309,6 +318,7 @@ mod tests {
     /// set differ on every run, and what could go wrong at this layer is a
     /// member wired to the wrong primitive, which shows up as a zero, an empty
     /// string or a throw rather than as a wrong-looking number.
+    // covers: Core\Os::hostname
     #[test]
     fn pid_hostname_cpu_count_resident_bytes_and_load_average_all_answer() {
         assert!(
@@ -348,6 +358,7 @@ mod tests {
     /// which is the whole reason the member is worth having: a program sizing a
     /// pool of its own agrees with the runtime instead of reading the machine's
     /// physical cores and oversubscribing a container.
+    // covers: Core\Os::cpuCount
     #[test]
     fn cpu_count_answers_the_number_serve_fans_out_over() {
         let fanout = std::thread::available_parallelism().expect("a host reports its parallelism");
@@ -366,6 +377,7 @@ mod tests {
     /// Both arms are asserted here rather than in a `#[cfg(windows)]` test,
     /// because the claim is a *difference* between the platforms and a test
     /// compiled on one of them states only half of it.
+    // covers: Core\Os::loadAverage
     #[test]
     fn load_average_throws_on_windows_with_a_message_naming_the_platform() {
         // Bound rather than written into the assertions, because `assert!(cfg!(…))`

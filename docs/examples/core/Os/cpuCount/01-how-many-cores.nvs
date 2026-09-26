@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to read the number of CPU cores your program may use.
+
+uint $cores = Core\Os::cpuCount();
+
+// The number is different on every machine, so this example only checks it.
+// `Core\Os::cpuCount` always returns 1 or more. This prints `yes`.
+echo $cores >= 1 ? "yes" : "no", "\n";
