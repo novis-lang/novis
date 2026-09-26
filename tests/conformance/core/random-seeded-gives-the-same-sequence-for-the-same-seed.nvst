@@ -2,7 +2,7 @@
 A `Core\Random\Seeded` generator draws the same sequence for the same seed, member for member, and a different one for a different seed — spec § 11, `rule:testing/determinism-declared-on-the-test`
 --FILE--
 <?nvs
-// covers: Core\Random\Seeded::int, Core\Random\Seeded::float, Core\Random\Seeded::bytes
+// covers: Core\Random\Seeded::int, Core\Random\Seeded::float, Core\Random\Seeded::bytes, Core\Random\Seeded::token, Core\Random\Seeded::pick, Core\Random\Seeded::sample, Core\Random\Seeded::shuffle
 // Spec § 11 makes reproducibility a *type* rather than a mode `Core\Random`
 // can be put into, so what this case pins is the one thing that type promises:
 // the seed decides the sequence and nothing else does. Every row compares two

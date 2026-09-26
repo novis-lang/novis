@@ -2,7 +2,7 @@
 `Core\Random\Seeded` refuses what `Core\Random` refuses, names itself in every sentence, and leaves its sequence where it was when it does — spec § 11, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
-// covers: Core\Random\Seeded::int, Core\Random\Seeded::bytes
+// covers: Core\Random\Seeded::int, Core\Random\Seeded::bytes, Core\Random\Seeded::token, Core\Random\Seeded::pick, Core\Random\Seeded::sample, Core\Random\Seeded::shuffle
 // `rule:core-api/shape-rules` R4 read at the mirror class: a call with no
 // answer to invent throws rather than inventing one. What each message says is
 // this class's own name and not the one it mirrors — two members sharing one

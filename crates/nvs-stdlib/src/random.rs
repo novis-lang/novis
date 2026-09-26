@@ -1906,4 +1906,144 @@ mod tests {
         release(left);
         release(right);
     }
+
+    /// Two generators at one seed render the same token, two lower-case hex
+    /// digits per byte drawn, and a token of zero bytes throws.
+    // covers: Core\Random\Seeded::token
+    #[test]
+    fn a_seeded_token_repeats_for_its_seed_as_two_hex_digits_per_byte() {
+        let left = seeded(-1);
+        let right = seeded(-1);
+
+        let first = taken(
+            run(
+                super::nvs_core_random_seeded_token,
+                &[left, Value::uint(16)],
+            )
+            .expect("16 bytes is drawable"),
+        );
+        let replayed = taken(
+            run(
+                super::nvs_core_random_seeded_token,
+                &[right, Value::uint(16)],
+            )
+            .expect("16 bytes is drawable"),
+        );
+        assert_eq!(first.len(), 32);
+        assert!(
+            first.bytes().all(|b| super::HEX_DIGITS.contains(&b)),
+            "{first}"
+        );
+        assert_eq!(first, replayed);
+
+        let status = run(super::nvs_core_random_seeded_token, &[left, Value::uint(0)])
+            .expect_err("a token of zero bytes is no token");
+        assert_eq!(status, nvs_runtime::THROWN);
+
+        release(left);
+        release(right);
+    }
+
+    /// Two generators at one seed pick the same elements in the same order,
+    /// every one of them from the subject, and an empty subject is `null`.
+    // covers: Core\Random\Seeded::pick
+    #[test]
+    fn a_seeded_pick_repeats_for_its_seed_and_stays_inside_the_subject() {
+        let left = seeded(3);
+        let right = seeded(3);
+        let subject = ints(10);
+
+        let picks = |generator: Value| -> Vec<i64> {
+            (0..32)
+                .map(|_| {
+                    run(super::nvs_core_random_seeded_pick, &[generator, subject])
+                        .expect("a non-empty array always has an element")
+                        .as_int()
+                        .expect("the subject held `int`s")
+                })
+                .collect()
+        };
+        let replayed = picks(left);
+        assert_eq!(replayed, picks(right));
+        assert!(replayed.iter().all(|n| (0..10).contains(n)), "{replayed:?}");
+
+        let empty = ints(0);
+        let answer = run(super::nvs_core_random_seeded_pick, &[left, empty])
+            .expect("an empty array is `null`");
+        assert_eq!(answer.tag(), Some(nvs_runtime::Tag::Null));
+
+        release(empty);
+        release(subject);
+        release(left);
+        release(right);
+    }
+
+    /// Two generators at one seed sample the same distinct elements in the
+    /// same order, and one more than the subject has throws.
+    // covers: Core\Random\Seeded::sample
+    #[test]
+    fn a_seeded_sample_repeats_for_its_seed_and_never_draws_an_element_twice() {
+        let left = seeded(9);
+        let right = seeded(9);
+        let subject = ints(12);
+
+        let first = taken_ints(
+            run(
+                super::nvs_core_random_seeded_sample,
+                &[left, subject, Value::uint(5)],
+            )
+            .expect("5 of 12 is drawable"),
+        );
+        let replayed = taken_ints(
+            run(
+                super::nvs_core_random_seeded_sample,
+                &[right, subject, Value::uint(5)],
+            )
+            .expect("5 of 12 is drawable"),
+        );
+        assert_eq!(first, replayed);
+        let mut distinct = first.clone();
+        distinct.sort_unstable();
+        distinct.dedup();
+        assert_eq!(distinct.len(), 5, "an element repeated: {first:?}");
+        assert!(first.iter().all(|n| (0..12).contains(n)), "{first:?}");
+
+        let status = run(
+            super::nvs_core_random_seeded_sample,
+            &[left, subject, Value::uint(13)],
+        )
+        .expect_err("12 elements hold no 13 distinct ones");
+        assert_eq!(status, nvs_runtime::THROWN);
+
+        release(subject);
+        release(left);
+        release(right);
+    }
+
+    /// Two generators at one seed shuffle a subject into the same order, and
+    /// that order holds every element exactly once.
+    // covers: Core\Random\Seeded::shuffle
+    #[test]
+    fn a_seeded_shuffle_repeats_for_its_seed_and_keeps_every_element() {
+        let left = seeded(i64::MAX);
+        let right = seeded(i64::MAX);
+        let subject = ints(20);
+
+        let first = taken_ints(
+            run(super::nvs_core_random_seeded_shuffle, &[left, subject])
+                .expect("every array can be shuffled"),
+        );
+        let replayed = taken_ints(
+            run(super::nvs_core_random_seeded_shuffle, &[right, subject])
+                .expect("every array can be shuffled"),
+        );
+        assert_eq!(first, replayed);
+        let mut sorted = first.clone();
+        sorted.sort_unstable();
+        assert_eq!(sorted, (0..20).collect::<Vec<_>>());
+
+        release(subject);
+        release(left);
+        release(right);
+    }
 }
