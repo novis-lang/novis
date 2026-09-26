@@ -1,5 +1,5 @@
 {
-  "live": "core-objectmap",
+  "live": "core-objectset",
   "goals": [
     "core-depth",
     "concurrency",
