@@ -273,9 +273,10 @@ export class PlanSweep {
     this.ran.add(g.own.id);
   }
 
-  /** The `argv` of a command check with `{nvs}` as the covws binary, or the build's failure. */
+  /** The `argv` a check runs, with `{nvs}` as the covws binary, or the build's failure: a command's own,
+   * `nvs <args>` for a suite, `cargo <args>` for any other. */
   private async argvOf(c: Check): Promise<string[] | { fail: string }> {
-    const argv = c.argv ?? [];
+    const argv = c.kind === "command" ? (c.argv ?? []) : c.kind === "nvs-suite" ? ["{nvs}", ...(c.args ?? [])] : ["cargo", ...(c.args ?? [])];
     if (!argv.includes("{nvs}")) return argv;
     const exe = await this.binary();
     if (typeof exe !== "string") return exe;
@@ -341,9 +342,11 @@ export class PlanSweep {
       if (built.code !== 0) return none(`the release build failed -- ${label}: ${firstErrLine(built)}`);
     }
     const cwd = c.cwd ?? ".";
-    const { o, keys } = await this.recorded(argv, cwd, (c.argv ?? []).join(" "), argv.includes(covwsNvs()) ? { NOVIS_NO_FILE_CACHE: "1" } : {});
+    const { o, keys } = await this.recorded(argv, cwd, argv.join(" "), argv.includes(covwsNvs()) ? { NOVIS_NO_FILE_CACHE: "1" } : {});
     const own: Keyed = new Map(keys);
-    if (!(argv[0] === "bun" && argv[1] === "nv")) for (const [k, d] of heavy ? [] : commandKeys(c)) own.set(k, d);
+    // What records nothing of its reads: a command's `commandKeys`, and any `cargo` run everything.
+    if (!heavy && c.kind === "command" && !(argv[0] === "bun" && argv[1] === "nv")) for (const [k, d] of commandKeys(c)) own.set(k, d);
+    if (!heavy && c.kind === "cargo-named") own.set("*", "");
     if (heavy && this.graph) for (const [k, d] of heavyKeys(c, this.graph, await this.rustFiles())) own.set(k, d);
     else if (heavy) own.set("*", "");
     const fail = c.kind === "command" ? judgeCommand(c, o, label) : judgeTests(c, o, label, onDisk).fail;
