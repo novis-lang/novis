@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { liveKey, liveSet, strayProfiles } from "../cmd/disk.ts";
+import { liveKey, liveSet, retiredCovwsProof, strayProfiles } from "../cmd/disk.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -17,6 +17,13 @@ describe("leftovers", () => {
     tmp.put("benches/abi-probe/default_1_0_1.profraw", "x");
     const got = strayProfiles(tmp.root).map((p) => p.slice(tmp.root.length + 1).replace(/\\/g, "/"));
     expect(got).toEqual(["benches/abi-probe/default_1_0_1.profraw", "crates/nvs-cli/default_9_0_1.profraw", "default_123_0_456.profraw"]);
+  });
+
+  test("the covws build's proof profile is retired whole, and its debug build and the plain proof build are kept", () => {
+    tmp = scratch();
+    for (const f of ["covws/proof/deps/a", "covws/x86_64-pc-windows-msvc/proof/nvs.exe", "covws/x86_64-pc-windows-msvc/debug/nvs.exe", "covws/debug/deps/b", "proof/nvs.exe"]) tmp.put(f, "x");
+    const got = retiredCovwsProof(tmp.root).map((p) => p.slice(tmp.root.length + 1).replace(/\\/g, "/"));
+    expect(got.sort()).toEqual(["covws/proof", "covws/x86_64-pc-windows-msvc/proof"]);
   });
 });
 

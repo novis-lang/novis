@@ -24,12 +24,12 @@
 // written in the last `GRACE_HOURS` is swept whatever the list says, which covers a build still under
 // way and a `--test <name>` run that resolves a dev-dependency its own way. `incremental/` has no
 // artifact list to ask, so there age and the newest `KEEP_INCREMENTAL` per crate are the whole rule,
-// under `target/` and under `target/covws` alike. `release/deps` is never swept: its live set can only
-// be asked for with a release build.
+// under `target/` and under `target/covws` alike. `release/deps` and `proof/deps` are never swept: their
+// live set can only be asked for with an optimized build.
 //
 // `--clean` also deletes what nothing reads any more: a `default_*.profraw` an instrumented binary left
-// at the root or in a package directory (`strayProfiles`), and the memo files the selection store
-// replaced (`RETIRED_MEMOS`).
+// at the root or in a package directory (`strayProfiles`), the memo files the selection store replaced
+// (`RETIRED_MEMOS`), and the covws build's `proof` profile (`retiredCovwsProof`).
 //
 // Those cargo runs are nearly all of a sweep's time, so their answer is remembered in
 // `.cache/nv-disk-live.json` under `liveKey`, a hash of everything that decides an artifact's name, and
@@ -66,7 +66,7 @@ import { pyInt } from "../lib/py.ts";
 export const summary = "what the tree costs on disk, and the sweep: nv disk [--clean [-n]] [--deep]";
 
 const TARGET = join(ROOT, "target");
-/** The cargo profile the feature proofs run on, built into `target/covws` (`tools/nv/proofs/run.ts`). */
+/** `target/proof/`: the cargo profile the feature proofs run on (`tools/nv/proofs/run.ts`). */
 const PROOF_PROFILE = "proof";
 const LOGDIR = join(ROOT, ".loop", "logs");
 const SCRATCH = join(ROOT, ".agent-tmp");
@@ -400,16 +400,26 @@ const LIVE_QUERIES = [
 
 /**
  * What the pipeline builds in `target/covws` (`lib/covws.ts`): `verify`'s build, test and clippy steps,
- * which go to `<triple>/debug`, with the build scripts and proc-macros in `debug`, and the proof
- * binary's profile. `wrapped` is whether the query goes through `covwrap`, as it does in the pipeline:
- * `clippy` shares the directory without it.
+ * which go to `<triple>/debug`, with the build scripts and proc-macros in `debug`. `wrapped` is whether
+ * the query goes through `covwrap`, as it does in the pipeline: `clippy` shares the directory without it.
  */
 const COVWS_QUERIES: { args: string[]; wrapped: boolean }[] = [
   { args: ["build"], wrapped: true },
   { args: ["test", "--no-run"], wrapped: true },
-  { args: ["build", "--profile", "proof", "--bin", "nvs"], wrapped: true },
   { args: ["clippy", "--all-targets", "--", "-D", "warnings"], wrapped: false },
 ];
+
+/**
+ * The covws build's `proof` profile directories: `target/covws/<triple>/proof`, and `target/covws/proof`
+ * for what that profile built for the host. The feature proofs are judged on the uninstrumented
+ * `target/proof` build, so nothing builds or reads these any more, and `clean` deletes them whole.
+ */
+export function retiredCovwsProof(target: string = TARGET): string[] {
+  const cov = join(target, "covws");
+  const out = [join(cov, PROOF_PROFILE)];
+  for (const name of listDir(cov)) if (name !== PROOF_PROFILE && name !== "debug") out.push(join(cov, name, PROOF_PROFILE));
+  return out.filter(isDir);
+}
 
 /** The environment and the arguments of one query: `LIVE_QUERIES` as they are, a covws one on covws. */
 function queryArgv(query: string[], covws: { wrapped: boolean } | null): { argv: string[]; env?: Record<string, string> } {
@@ -562,8 +572,8 @@ function covwsTriple(): string | null {
 }
 
 /**
- * The files in `target/debug/{deps,examples}`, and in the covws build's debug and proof directories and
- * its host `debug/deps`, that no live unit claims and nothing has written for `graceHours`. Only the
+ * The files in `target/debug/{deps,examples}`, and in the covws build's debug directories and its host
+ * `debug/deps`, that no live unit claims and nothing has written for `graceHours`. Only the
  * profiles the live set is asked of: under any other profile every file would read as dead.
  */
 function deadDeps(live: Set<string>, graceHours: number = GRACE_HOURS): string[] {
@@ -571,7 +581,7 @@ function deadDeps(live: Set<string>, graceHours: number = GRACE_HOURS): string[]
   const doomed: string[] = [];
   const cov = covwsTriple();
   const dirs = [join(TARGET, "debug", "deps"), join(TARGET, "debug", "examples"), join(TARGET, "covws", "debug", "deps")];
-  if (cov !== null) dirs.push(join(cov, "debug", "deps"), join(cov, "debug", "examples"), join(cov, PROOF_PROFILE, "deps"));
+  if (cov !== null) dirs.push(join(cov, "debug", "deps"), join(cov, "debug", "examples"));
   for (const dir of dirs) {
     if (!isDir(dir)) continue;
     for (const name of listDir(dir)) {
@@ -664,9 +674,10 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
     deps = 0;
     for (const p of deadDeps(live, grace)) deps += await rm(p, dryRun);
   }
+  let leftovers = 0;
+  for (const p of retiredCovwsProof()) leftovers += await rm(p, dryRun);
   let incremental = 0;
   for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
-  let leftovers = 0;
   for (const p of strayProfiles()) leftovers += await rm(p, dryRun);
   for (const p of RETIRED_MEMOS) if (existsSync(join(ROOT, p))) leftovers += await rm(join(ROOT, p), dryRun);
   return { ".loop/logs": logs, ".agent-tmp": scratch, "target/deps": deps, "target/incremental": incremental, "leftovers": leftovers };
@@ -699,15 +710,14 @@ async function report(deep: boolean): Promise<void> {
   // Both incremental figures come from the one walk of `target/`: under it, a cache file's path is
   // `<profile>/incremental/<cache directory>/...`. Every path `walk` returns starts with its root and a
   // separator, so cutting that off is the relative path; `path.relative` costs far more per file.
-  // The proof profile's total comes from the same walk: under the covws build its path is
-  // `covws/<triple>/proof/...`, with what it builds for the host under `covws/proof/...`.
+  // The proof profile's total comes from the same walk: its first path part is `proof`.
   const stale = new Set(staleIncremental());
   let inc = 0;
   let staleInc = 0;
   let proof = 0;
   for (const f of target.files) {
     const parts = f.path.slice(TARGET.length + 1).split(sep);
-    if (parts[0] === "covws" && (parts[1] === PROOF_PROFILE || parts[2] === PROOF_PROFILE)) proof += f.size;
+    if (parts[0] === PROOF_PROFILE) proof += f.size;
     const at = parts.indexOf("incremental");
     if (at < 1 || at > 3 || parts.length < at + 2) continue;
     inc += f.size;
@@ -725,12 +735,12 @@ async function report(deep: boolean): Promise<void> {
       `is past the newest ${KEEP_INCREMENTAL} per crate and idle ${GRACE_HOURS}h`,
   );
   console.log(
-    `${blank}\`--clean\` keeps what verify and the proof binary build and anything written in the ` +
-      `last ${GRACE_HOURS}h; release/deps is never swept`,
+    `${blank}\`--clean\` keeps what verify builds and anything written in the ` +
+      `last ${GRACE_HOURS}h; release/deps and proof/deps are never swept`,
   );
   console.log(
-    `  covws/${PROOF_PROFILE}/ ${human(proof).padStart(8)}   ` +
-      `the proof binary's build in target/covws, which nv proofs runs -- counted in target/ above`,
+    `  target/${PROOF_PROFILE}/ ${human(proof).padStart(8)}   ` +
+      `the proof binary's build, which nv proofs runs -- counted in target/ above`,
   );
   console.log(`  .loop/logs    ${human(logs.total).padStart(8)}   kept: newest ${KEEP_RUNS} runs -- swept after every loop session`);
   console.log(
