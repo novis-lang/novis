@@ -37,6 +37,15 @@ export const SCHEMA = "1";
 /** The store's file. */
 export const STORE = join(CACHE, "select.sqlite");
 
+/** Names another store file for this process and every process it starts: the mutation harness points
+ * it at a copy, so a run over a mutated tree records nothing into the real store. */
+export const STORE_ENV = "NV_SELECT_STORE";
+
+/** The file a store opened without one is: `STORE_ENV`'s, else `STORE`. */
+export function storeFile(): string {
+  return process.env[STORE_ENV] || STORE;
+}
+
 export type AtomKind = "case" | "proof" | "test" | "nv" | "nvtest" | "step" | "check" | "heavy";
 export const ATOM_KINDS: AtomKind[] = ["case", "proof", "test", "nv", "nvtest", "step", "check", "heavy"];
 
@@ -101,7 +110,7 @@ export class SelectStore {
   private keyDigests = new Map<string, string>();
 
   constructor(
-    readonly file: string = STORE,
+    readonly file: string = storeFile(),
     platform: string = currentPlatform(),
   ) {
     this.platform = platform;
@@ -172,8 +181,20 @@ export class SelectStore {
     }
   }
 
+  /** Runs `body` in one transaction; inside another, as part of that one. `bun:sqlite`'s own
+   * `transaction` keeps statements it never finalizes, so a closed store's file would stay held, and on
+   * Windows could not be deleted, until the process ends. */
   transaction<T>(body: () => T): T {
-    return this.db.transaction(body)();
+    if (this.db.inTransaction) return body();
+    this.db.exec("BEGIN");
+    try {
+      const out = body();
+      this.db.exec("COMMIT");
+      return out;
+    } catch (e) {
+      if (this.db.inTransaction) this.db.exec("ROLLBACK");
+      throw e;
+    }
   }
 
   // ---- keys ----------------------------------------------------------------------------------------
