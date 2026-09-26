@@ -22,7 +22,8 @@
 // line the ledger would quote, or `SHORT` for a suite below its `minPassing`, then `run: N green, M red`.
 // What each process is doing goes to stderr as it starts. A session proves its own check this way, one
 // command at a time, rather than by starting a sweep. It and every sweep below hold `driver/origin.ts`'s
-// listener up while their checks run, since `examples/http.nvs` talks to it.
+// listener up while their checks run, since `examples/http.nvs` talks to it. Every sweep below first takes
+// `driver/sweep-lock.ts`'s lock, so one tree on this machine sweeps at a time; `--run` does not take it.
 //
 // `bun nv loop --goal-only` is the acceptance sweep, `driver/accept.ts`'s `acceptance`: every check in
 // the tiers' order, the memo `.loop/accept-green.json` answering each check still green over its inputs,
@@ -137,7 +138,8 @@ import { C, CONSOLE, CONTROL, HALT, clock, LiveSession, PAUSE, RETRY, SAY, SLICE
 import { Tree as ProcTree } from "../driver/proctree.ts";
 import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
-import { holdOrigin } from "../driver/origin.ts";
+import { holdOrigin, type Origin } from "../driver/origin.ts";
+import { takeSweepLock } from "../driver/sweep-lock.ts";
 import { type AcceptanceResult, type Check, GreenMemo, PROGRAM_KINDS, Sweep, acceptance, allReds, isCarried, isHeavy, owedChecks, tiers } from "../driver/accept.ts";
 import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
@@ -485,14 +487,20 @@ async function sweepOver(
     onPlan: p.plan,
     onStep: p.step,
   };
-  if (o.legs) {
-    p.count(legSteps(legs));
-    startWslBuild(legs);
-  }
+  // Another tree's sweep would share the origin, the distro and the cores with this one. The time spent
+  // waiting for it is not this sweep's cost.
+  const asked = Date.now();
+  const lock = await takeSweepLock({ note: p.note });
+  const waited = Date.now() - asked;
   let result: AcceptanceResult;
-  const origin = await holdOrigin();
-  p.note(origin.line);
+  let origin: Origin | null = null;
   try {
+    if (o.legs) {
+      p.count(legSteps(legs));
+      startWslBuild(legs);
+    }
+    origin = await holdOrigin();
+    p.note(origin.line);
     result = await acceptance(checks, {
       label: labelOf,
       sweep,
@@ -508,12 +516,13 @@ async function sweepOver(
       if (red) result = { ...result, fail: result.fail ? allReds([result.fail, red]) : red };
     }
   } finally {
-    origin.close();
+    origin?.close();
+    lock.release();
     memo.save(join(ROOT, GREEN), new Set([...(goal.checks as Check[]).map((c) => c.id), ...LEGS]));
     keyed.tree.save();
   }
   for (const c of checks) o.onDone?.(c, memo.answers(c, key(c)));
-  return { result, secs: Math.round((Date.now() - started) / 1000) };
+  return { result, secs: Math.round((Date.now() - started - waited) / 1000) };
 }
 
 /** The acceptance sweep over the checks the filters select, or over the whole plan. */

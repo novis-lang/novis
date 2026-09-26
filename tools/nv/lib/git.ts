@@ -1,5 +1,6 @@
 // The few questions the tools ask git. Each is one `git` run through `proc`.
 
+import { dirname, resolve } from "node:path";
 import { run } from "./proc.ts";
 import { ROOT } from "./paths.ts";
 
@@ -12,6 +13,11 @@ async function git(args: string[], cwd: string = ROOT): Promise<string> {
 /** The commit `HEAD` names. */
 export async function head(cwd: string = ROOT): Promise<string> {
   return (await git(["rev-parse", "HEAD"], cwd)).trim();
+}
+
+/** The main worktree of this repository: the directory that holds the shared `.git`. */
+export async function mainRoot(cwd: string = ROOT): Promise<string> {
+  return dirname(resolve((await git(["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd)).trim()));
 }
 
 /** The commit that last touched `path`, or "" when none has. */

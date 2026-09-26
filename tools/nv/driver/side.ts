@@ -3,7 +3,8 @@
 // `.agent-tmp/worktrees/side/<slug>` under the main tree when either is missing, installs the tools'
 // packages there, copies in the git-ignored files a sweep reads, and starts the worktree's own `bun nv
 // loop --side <slug>` inside it. Every turn then roots itself at the worktree, its `.loop/`, its `target/`
-// and its `.agent-tmp/`, so a side run and the chain run share no state file, no build and no working tree.
+// and its `.agent-tmp/`, so a side run and the chain run share no build and no working tree. The one file
+// they share is `driver/sweep-lock.ts`'s lock, which lets one of them sweep at a time.
 //
 // The copies come from the main tree and are never links, and a file already in the worktree is kept.
 // The memos are keyed by content, so a verdict the chain run filed answers for the same bytes in the
@@ -18,6 +19,7 @@
 
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { mainRoot } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { SIDE_ENV } from "../lib/chain.ts";
@@ -46,13 +48,6 @@ export function sideBranch(slug: string): string {
 /** Repo-relative to the main tree, where side goal `slug`'s worktree is. */
 export function sideDir(slug: string): string {
   return `.agent-tmp/worktrees/side/${slug}`;
-}
-
-/** The main worktree of this repository: the directory that holds the shared `.git`. */
-async function mainRoot(): Promise<string> {
-  const r = await run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: ROOT, timeoutMs: 60_000 });
-  if (r.code !== 0) throw new Error(`git rev-parse --git-common-dir: exit ${r.code}\n${r.stderr.trim()}`);
-  return dirname(resolve(r.stdout.trim()));
 }
 
 function samePath(a: string, b: string): boolean {
