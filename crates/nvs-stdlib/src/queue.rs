@@ -70,8 +70,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// `Core\Queue`'s fully-qualified name.
@@ -1898,7 +1898,7 @@ const DEFAULT_PURGE_LIMIT: u64 = 1_000;
 /// `rule:concurrency/queue-four-members`'s `Core\Queue` — all four of `push`, `status`, `cancel` and `stats`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&QUEUE_CARD),
     methods: &[
         CoreMethod {
             name: "push",
@@ -2143,380 +2143,373 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Queue`'s class card — `rule:core-api/reference-card`.
+const QUEUE_CARD: ClassDoc = ClassDoc {
+    short: "Runs work in the background. `push` saves a job as a row in the database set by \
+            `[queue] connection`, and a worker runs the job later. Inside a transaction on that \
+            connection, the job is saved only when the transaction commits. `status`, `cancel` and \
+            `delete` work on one job. `stats` and `purge` work on a whole queue.",
+};
+
 /// `Core\Queue::push`'s reference card — `rule:core-api/reference-card`.
 const PUSH_DOC: MethodDoc = MethodDoc {
-    short: "Enqueues `$script` to run in the background, as a row in the database `[queue] \
-            connection` names. Inside a transaction on that same connection the enqueue commits \
-            with the write that caused it, or with neither — which is the whole reason a job is a \
-            table row and not a message to a broker.",
+    short: "Adds a job that runs `$script` in the background. The job is a row in the database set \
+            by `[queue] connection`. Inside a transaction on that connection, the job is saved only \
+            when the transaction commits. If the transaction rolls back, the job is not saved.",
     params: &[
         ParamDoc {
             name: "script",
-            desc: "The file a worker runs, as `spawn script` names one. A path and not a class or \
-                   a closure, so the job carries no captured state across the boundary.",
+            desc: "The path of the file a worker runs, written the way `spawn script` writes one. \
+                   It is a file, not a class or a closure, so the job has no captured variables.",
             shape: &[],
         },
         ParamDoc {
             name: "args",
-            desc: "The payload, copied by value into the row and decoded on the other side into \
-                   the job's declared types. A reference is never carried, because the worker is \
-                   a separate isolate and usually a separate process.",
+            desc: "The data the job receives. It is copied into the row and decoded into the types \
+                   the job declares. It is never passed by reference, because the worker usually \
+                   runs in another process.",
             shape: &[],
         },
         ParamDoc {
             name: "queue",
-            desc: "The named queue the job goes in. Workers claim from the queues they are \
-                   configured for, so this is how work is separated by rate rather than by kind.",
+            desc: "The name of the queue the job goes in. Each worker takes jobs from the queues it \
+                   is configured for, so you can keep slow work and fast work apart.",
             shape: &[],
         },
         ParamDoc {
             name: "runAt",
-            desc: "The earliest moment a worker may claim it. Left out, that moment is now.",
+            desc: "The earliest time a worker may start the job. The default is now.",
             shape: &[],
         },
         ParamDoc {
             name: "maxAttempts",
-            desc: "How many attempts this job gets before it is dead-lettered. Left out, `[queue] \
-                   max_attempts`. Always finite: there is no spelling that retries forever.",
+            desc: "How many times the job may run before it moves to the dead-letter table (the \
+                   table of jobs that failed too often). The default is `[queue] max_attempts`. \
+                   The number is always finite, so a job cannot retry forever.",
             shape: &[],
         },
         ParamDoc {
             name: "backoff",
-            desc: "The base delay for the exponential backoff between attempts, jittered by the \
-                   worker. Left out, one second — the row records a delay either way, since there \
-                   is no spelling of a job that retries at once.",
+            desc: "The base wait between two attempts. The wait grows after each failed attempt, \
+                   and the worker adds a small random amount. The default is one second.",
             shape: &[],
         },
         ParamDoc {
             name: "key",
-            desc: "A dedupe key: while a job with this key is still pending, a second push with it \
-                   enqueues nothing and answers the pending job's own id.",
+            desc: "A key that stops duplicate jobs. While a job with this key is still pending, a \
+                   second `push` with the same key adds nothing. It returns the id of the pending \
+                   job.",
             shape: &[],
         },
         ParamDoc {
             name: "tag",
-            desc: "A group name: any number of jobs may carry one, nothing dedupes on it, and \
-                   `purge` is the only thing that reads it. Grouping is decided here, at the \
-                   enqueue, because nothing can later group rows that were never grouped.",
+            desc: "A group name for the job. Many jobs can have the same tag. Only `purge` reads it, \
+                   to delete one group of jobs. You cannot add a tag after the `push`.",
             shape: &[],
         },
         ParamDoc {
             name: "grants",
-            desc: "The capabilities the job's isolate may ask for, named as `nvs.toml` grants \
-                   them. Narrowed from what this request holds and never widened, so a name this \
-                   request does not hold itself is refused at the call site. Left out, the job \
-                   inherits whatever narrowing this request is already under; `[]` is a job that \
-                   may ask for nothing.",
+            desc: "The capabilities the job may use, written the way `nvs.toml` grants them. The \
+                   list may only contain capabilities this request has. The default is what this \
+                   request has. `[]` gives the job no capabilities.",
             shape: &[],
         },
         ParamDoc {
             name: "memory",
-            desc: "The memory ceiling the job's isolate runs under, written as `[limits] memory` \
-                   is written and bounded by `[limits.hard]` like every ceiling a request sets. \
-                   Left out, the one this request is under.",
+            desc: "The memory limit for the job, written like `[limits] memory`. `[limits.hard]` \
+                   sets the highest value allowed. The default is the limit of this request.",
             shape: &[],
         },
         ParamDoc {
             name: "cpuTime",
-            desc: "The CPU ceiling, `[limits] cpu_time`'s, on `memory`'s terms.",
+            desc: "The CPU time limit for the job, written like `[limits] cpu_time`. It follows the \
+                   same rules as `memory`.",
             shape: &[],
         },
         ParamDoc {
             name: "wallTime",
-            desc: "The wall-clock ceiling, `[limits] wall_time`'s, on `memory`'s terms.",
+            desc: "The real time limit for the job, written like `[limits] wall_time`. It follows \
+                   the same rules as `memory`.",
             shape: &[],
         },
         ParamDoc {
             name: "maxOutput",
-            desc: "The captured-output ceiling, `[limits] max_output`'s, on `memory`'s terms.",
+            desc: "The limit on the output the job may print, written like `[limits] max_output`. \
+                   It follows the same rules as `memory`.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Queue\\Id` naming the row, which `cancel` and `status` are asked about. For a \
-          push deduped by `key`, the id of the job already pending under it.",
+    ret: "A `Core\\Queue\\Id` for the new job. You pass it to `status`, `cancel` and `delete`. When \
+          `key` finds a pending job, it is the id of that job.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This deployment writes no `[queue]` block, so nothing says which database a job \
-                   would live in; the queue's connection names a driver that cannot yet run a \
-                   statement; or `grants` names a capability this request does not hold, which is \
-                   a job asking for more authority than the request that enqueued it.",
+            desc: "The configuration has no `[queue]` block, or the database driver of the queue's \
+                   connection cannot run statements yet. It is also thrown when `grants` contains a \
+                   capability this request does not have.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`maxAttempts` is `0`, which asks for a job that is dead-lettered by the enqueue \
-                   that created it; `backoff` is negative; `grants` names something that is no \
-                   capability at all; or a written ceiling is not one this request may set.",
+            desc: "`maxAttempts` is `0`, or `backoff` is negative. It is also thrown when `grants` \
+                   contains a name that is not a capability, or a limit is one this request may not \
+                   set.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The queue's connection did not open, or the insert was refused by the server — \
-                   most often because `nvs queue migrate` has not created the table.",
+            desc: "The connection to the database failed, or the database rejected the insert. The \
+                   most common cause is that `nvs queue migrate` has not created the table yet.",
         },
     ],
 };
 
 /// `Core\Queue::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
-    short: "Reports what has become of one job, as a `Core\\Queue\\State` case. Delivery is \
-            at-least-once, which is why this is a state a program reads rather than a completion it \
-            is handed: a job may run twice, so \"it ran\" is a fact about the row.",
+    short: "Returns the current state of one job, as a `Core\\Queue\\State` case. Every call reads \
+            the state from the database.",
     params: &[ParamDoc {
         name: "job",
-        desc: "The receipt `push` answered with, which names both the row and the queue it is in.",
+        desc: "The `Core\\Queue\\Id` that `push` returned. It identifies the job and its queue.",
         shape: &[],
     }],
-    ret: "`Pending` while it waits — including while a `runAt` or a retry's backoff has not \
-          elapsed — `Claimed` while a worker holds it, `Succeeded` once it has run, and `Dead` once \
-          it has exhausted its attempts.",
+    ret: "`Pending` while the job waits, also while its `runAt` time or its backoff has not passed. \
+          `Claimed` while a worker runs it, `Succeeded` after it ran, `Dead` after it used all its \
+          attempts, and `Cancelled` after `cancel` stopped it.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This deployment writes no `[queue]` block, so nothing says which database the \
-                   job would be in; or the queue's connection names a driver that cannot yet run a \
-                   statement; or neither table holds the job, which means it was enqueued by \
-                   another deployment or removed by hand.",
+            desc: "The configuration has no `[queue]` block, or the database driver of the queue's \
+                   connection cannot run statements yet. It is also thrown when neither table has \
+                   the job, for example because `delete` deleted it.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The queue's connection did not open, or the query was refused by the server — \
-                   most often because `nvs queue migrate` has not created the tables.",
+            desc: "The connection to the database failed, or the database rejected the query. The \
+                   most common cause is that `nvs queue migrate` has not created the tables yet.",
         },
     ],
 };
 
 /// `Core\Queue::cancel`'s reference card — `rule:core-api/reference-card`.
 const CANCEL_DOC: MethodDoc = MethodDoc {
-    short: "Takes one job out of the queue, if it is still waiting. A job a worker has already \
-            claimed is running now and is not stopped: cancelling is a change to a row, and there \
-            is no protocol for interrupting work in flight.",
+    short: "Removes one job from the queue if it is still waiting. A job that a worker already \
+            started keeps running, because `cancel` does not stop work in progress.",
     params: &[ParamDoc {
         name: "job",
-        desc: "The receipt `push` answered with, which names both the row and the queue it is in.",
+        desc: "The `Core\\Queue\\Id` that `push` returned. It identifies the job and its queue.",
         shape: &[],
     }],
-    ret: "`true` if this call is what took the job out of the queue, and `false` if there was \
-          nothing pending left to take — because a worker claimed it first, because it has already \
-          run, or because an earlier `cancel` got there. `status` then answers `Cancelled`.",
+    ret: "`true` if this call cancelled the job. `false` if the job was no longer waiting: a worker \
+          took it, it already ran, or an earlier `cancel` removed it. After `true`, `status` returns \
+          `Cancelled`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This deployment writes no `[queue]` block, so nothing says which database the \
-                   job would be in; or the queue's connection names a driver that cannot yet run a \
-                   statement.",
+            desc: "The configuration has no `[queue]` block, or the database driver of the queue's \
+                   connection cannot run statements yet.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The queue's connection did not open, or the update was refused by the server — \
-                   most often because `nvs queue migrate` has not created the table.",
+            desc: "The connection to the database failed, or the database rejected the update. The \
+                   most common cause is that `nvs queue migrate` has not created the table yet.",
         },
     ],
 };
 
 /// `Core\Queue::stats`'s reference card — `rule:core-api/reference-card`.
 const STATS_DOC: MethodDoc = MethodDoc {
-    short: "Counts one named queue: what is waiting, what a worker holds, how many attempts the \
-            queue's jobs have used, how deep its dead-letter table is, and how many attempts the \
-            jobs in it used before they got there. The five are read together, so they describe \
-            one instant rather than five.",
+    short: "Counts the jobs of one queue. The result has five numbers: waiting jobs, running jobs, \
+            attempts used, jobs in the dead-letter table, and the attempts those jobs used. All \
+            five are read at the same moment.",
     params: &[ParamDoc {
         name: "queue",
-        desc: "The queue to count, as `push`'s own `queue` option names one. Queues are separate \
-               populations by design, so there is no spelling that totals them.",
+        desc: "The name of the queue, the same name `push` used in its `queue` option. Each call \
+               counts one queue.",
         shape: &[],
     }],
-    ret: "A `Core\\Queue\\Stats`, whose five counters are members — `$stats->pending()` and not \
-          `$stats->pending`, because a `Core`-owned instance has no property a program can reach.",
+    ret: "A `Core\\Queue\\Stats`. Each number is a method, so you write `$stats->pending()`, not \
+          `$stats->pending`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This deployment writes no `[queue]` block, so nothing says which database the \
-                   jobs would be in; or the queue's connection names a driver that cannot yet run \
-                   a statement.",
+            desc: "The configuration has no `[queue]` block, or the database driver of the queue's \
+                   connection cannot run statements yet.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The queue's connection did not open, or the query was refused by the server — \
-                   most often because `nvs queue migrate` has not created the tables.",
+            desc: "The connection to the database failed, or the database rejected the query. The \
+                   most common cause is that `nvs queue migrate` has not created the tables yet.",
         },
     ],
 };
 
 /// `Core\Queue::delete`'s reference card — `rule:core-api/reference-card`.
 const DELETE_DOC: MethodDoc = MethodDoc {
-    short: "Removes one job's row, wherever the receipt finds it — the jobs table, or the \
-            dead-letter table a job moved to when it exhausted its attempts. A job a worker is \
-            running now is left alone: there is no protocol for interrupting work in flight, and \
-            removing the row under it would let the job run to completion reporting into nothing. \
-            Needs the `queue.purge` capability for the queue the receipt names.",
+    short: "Deletes the row of one job. The row can be in the jobs table or in the dead-letter \
+            table. A job that a worker is running is not deleted. You need the `queue.purge` \
+            capability for the queue of the job.",
     params: &[ParamDoc {
         name: "job",
-        desc: "The receipt `push` answered with, which names both the row and the queue it is in. \
-               It keeps naming the job across the move to the dead-letter table, so a receipt does \
-               not expire when a job fails for the last time.",
+        desc: "The `Core\\Queue\\Id` that `push` returned. It still works after the job moves to \
+               the dead-letter table.",
         shape: &[],
     }],
-    ret: "`true` if this call is what removed the row, and `false` if there was nothing to \
-          remove — because a worker is holding it, or because it was never in this queue, or \
-          because an earlier `delete` got there. Unlike `cancel`, nothing is left for `status` to \
-          answer about afterwards: the row is gone, not changed.",
+    ret: "`true` if this call deleted the row. `false` if there was nothing to delete: a worker is \
+          running the job, the job is not in this queue, or an earlier `delete` deleted it. After \
+          `true`, the row is gone, so `status` throws an error for this job.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This deployment grants no `queue.purge` for the queue the receipt names, which \
-                   is the answer until an operator writes one; or it writes no `[queue]` block, so \
-                   nothing says which database the job would be in; or the queue's connection \
-                   names a driver that cannot yet run a statement.",
+            desc: "The configuration grants no `queue.purge` for the queue of the job. A server has \
+                   no such grant until the person who runs it adds one. It is also thrown when \
+                   there is no `[queue]` block, or the database driver cannot run statements yet.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The queue's connection did not open, or the delete was refused by the server — \
-                   most often because `nvs queue migrate` has not created the tables.",
+            desc: "The connection to the database failed, or the database rejected the delete. The \
+                   most common cause is that `nvs queue migrate` has not created the tables yet.",
         },
     ],
 };
 
 /// `Core\Queue::purge`'s reference card — `rule:core-api/reference-card`.
 const PURGE_DOC: MethodDoc = MethodDoc {
-    short: "Removes a queue's finished jobs — `Core\\Queue\\State::Succeeded` and \
-            `Core\\Queue\\State::Cancelled`, which is the set a call naming no state selects — and \
-            answers how many rows went. `Core\\Queue\\State::Dead` and \
-            `Core\\Queue\\State::Pending` are reached only by a call that names one of them, \
-            because each is a record something else would otherwise lose silently, and \
-            `Core\\Queue\\State::Claimed` is not reachable at all. Bounded with nothing written, \
-            so a table that has been growing since the deployment is drained by calling this until \
-            it answers `0`. Needs the `queue.purge` capability for the queue it names.",
+    short: "Deletes the finished jobs of a queue and returns how many rows it deleted. Without \
+            `state`, it deletes the `Succeeded` and `Cancelled` jobs. `Dead` and `Pending` jobs are \
+            deleted only when you pass that state. `Claimed` jobs are never deleted. One call \
+            deletes at most `limit` rows, so you call it again until it returns `0`. You need the \
+            `queue.purge` capability for the queue.",
     params: &[
         ParamDoc {
             name: "queue",
-            desc: "The queue to sweep, matched exactly: the name `push` wrote in its `{queue: …}` \
-                   option, and the name the grant is scoped on.",
+            desc: "The name of the queue. It must match the name `push` used exactly. The \
+                   `queue.purge` capability is checked for this name.",
             shape: &[],
         },
         ParamDoc {
             name: "state",
-            desc: "One state to remove in place of the default set. `Dead` reads the dead-letter \
-                   table instead of the jobs table, `Pending` removes work that has not run yet, \
-                   and `Claimed` throws — a worker is running that job, and there is no protocol \
-                   for interrupting work in flight.",
+            desc: "One `Core\\Queue\\State` to delete in place of the default ones. `Dead` deletes \
+                   from the dead-letter table. `Pending` deletes jobs that have not run yet. \
+                   `Claimed` throws an error, because a worker is running those jobs.",
             shape: &[],
         },
         ParamDoc {
             name: "tag",
-            desc: "Only the jobs `push` tagged with this group name. Grouping is decided at the \
-                   enqueue, so nothing written here can group rows that were never grouped.",
+            desc: "Deletes only the jobs that `push` gave this tag.",
             shape: &[],
         },
         ParamDoc {
             name: "before",
-            desc: "Only the jobs enqueued before this instant, which is a job's age rather than \
-                   its next attempt: the retry ladder moves `runAt` and never the row's age.",
+            desc: "Deletes only the jobs added before this time. This is the time of the `push`, \
+                   not the time of the next attempt.",
             shape: &[],
         },
         ParamDoc {
             name: "limit",
-            desc: "How many rows at most, oldest first. It is finite with nothing written, \
-                   because an unbounded delete over the one table that grows without bound holds \
-                   a lock on the connection the application enqueues through for as long as it \
-                   takes.",
+            desc: "The most rows one call deletes, oldest first. The default is `1000`. A delete \
+                   without a limit can lock the table for a long time, and every `push` waits \
+                   for it.",
             shape: &[],
         },
     ],
-    ret: "How many rows this call removed, and `0` when nothing matched — so \
-          `while (Core\\Queue::purge('email') > 0) {}` is the loop that drains a large table, and \
-          a count rather than a `bool` is what lets it terminate.",
+    ret: "The number of rows this call deleted, and `0` when nothing matched. \
+          `while (Core\\Queue::purge('email') > 0) {}` deletes all of them, one batch at a time.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The call named `Core\\Queue\\State::Claimed`, which is work a worker holds: \
-                   removing that row would leave the job running to completion with nothing to \
-                   report into.",
+            desc: "`state` is `Core\\Queue\\State::Claimed`. A worker is running those jobs, so \
+                   their rows cannot be deleted.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This deployment grants no `queue.purge` for the queue named, which is the \
-                   answer until an operator writes one; or it writes no `[queue]` block, so \
-                   nothing says which database the jobs would be in; or the queue's connection \
-                   names a driver that cannot yet run a statement.",
+            desc: "The configuration grants no `queue.purge` for this queue. A server has no such \
+                   grant until the person who runs it adds one. It is also thrown when there is no \
+                   `[queue]` block, or the database driver cannot run statements yet.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The queue's connection did not open, or the delete was refused by the server — \
-                   most often because `nvs queue migrate` has not created the tables.",
+            desc: "The connection to the database failed, or the database rejected the delete. The \
+                   most common cause is that `nvs queue migrate` has not created the tables yet.",
         },
     ],
 };
 
+/// `Core\Queue\Stats`'s class card — `rule:core-api/reference-card`.
+const STATS_CARD: ClassDoc = ClassDoc {
+    short: "The numbers that `Core\\Queue::stats` returns for one queue. All five are read at the \
+            same moment. Each number is a method, so you write `$stats->pending()`, not \
+            `$stats->pending`.",
+};
+
 /// `Core\Queue\Stats::pending`'s reference card — `rule:core-api/reference-card`.
 const STATS_PENDING_DOC: MethodDoc = MethodDoc {
-    short: "How many of the queue's jobs are waiting for a worker — including those whose `runAt` \
-            is still in the future and those between attempts with a backoff still to elapse, \
-            because `Core\\Queue\\State::Pending` is one state and not three.",
+    short: "The number of jobs that wait for a worker. This includes jobs whose `runAt` time is \
+            still in the future, and jobs that wait between two attempts.",
     params: &[],
-    ret: "A `uint`, and `0` both for a queue nothing was ever pushed to and for one that has \
-          drained.",
+    ret: "A `uint`. It is `0` for a new queue and for a queue with no work left.",
     errors: &[],
 };
 
 /// `Core\Queue\Stats::claimed`'s reference card — `rule:core-api/reference-card`.
 const STATS_CLAIMED_DOC: MethodDoc = MethodDoc {
-    short: "How many of the queue's jobs a worker currently holds. Work in flight rather than work \
-            committed to: a worker that dies returns its job to `Pending` when the visibility \
-            timeout expires.",
+    short: "The number of jobs that a worker is running now. If a worker stops, its job returns to \
+            `Pending` after a timeout.",
     params: &[],
-    ret: "A `uint`, read against the fleet's configured concurrency — a queue sitting at that \
-          ceiling is saturated rather than stuck.",
+    ret: "A `uint`. When it equals the number of jobs your workers can run at once, the queue is \
+          busy but not stuck.",
     errors: &[],
 };
 
 /// `Core\Queue\Stats::attempts`'s reference card — `rule:core-api/reference-card`.
 const STATS_ATTEMPTS_DOC: MethodDoc = MethodDoc {
-    short: "How many attempts the queue's jobs have used between them. Climbing while `pending` \
-            does not is what a queue whose jobs keep failing and being retried looks like.",
+    short: "The total number of attempts the jobs of this queue have used. If this number grows and \
+            `pending` does not, jobs are failing and running again.",
     params: &[],
-    ret: "A `uint`, summed over the jobs table alone: a job that exhausted its attempts has moved \
-          to the dead-letter table, `deadLettered` is what counts it there, and `deadAttempts` is \
-          what its attempts are summed into.",
+    ret: "A `uint` for the jobs table only. The jobs in the dead-letter table are counted by \
+          `deadLettered` and `deadAttempts`.",
     errors: &[],
 };
 
 /// `Core\Queue\Stats::deadLettered`'s reference card — `rule:core-api/reference-card`.
 const STATS_DEAD_LETTERED_DOC: MethodDoc = MethodDoc {
-    short: "How many of the queue's jobs exhausted their attempts and are in the dead-letter \
-            table. The counter worth alerting on: an unwatched dead-letter table is the classic \
-            way a queue silently loses work.",
+    short: "The number of jobs that used all their attempts and are now in the dead-letter table. \
+            These jobs did not finish, so this is a good number to alert on.",
     params: &[],
-    ret: "A `uint` that only rises, since nothing the runtime does ever removes a dead-lettered \
-          job — emptying that table is an operator's act.",
+    ret: "A `uint`. It goes down only when `purge` or `delete` deletes a job from the dead-letter \
+          table.",
     errors: &[],
 };
 
 /// `Core\Queue\Stats::deadAttempts`'s reference card — `rule:core-api/reference-card`.
 const STATS_DEAD_ATTEMPTS_DOC: MethodDoc = MethodDoc {
-    short: "How many attempts the dead-lettered jobs used between them before they were buried. \
-            Divided by `deadLettered` it is what a job costs the fleet before it is given up on, \
-            which is the figure that says whether the attempt ceiling is set where it earns its \
-            retries.",
+    short: "The total number of attempts the jobs in the dead-letter table used. Divide it by \
+            `deadLettered` to see how many attempts a job uses before it fails for good.",
     params: &[],
-    ret: "A `uint`, summed over the dead-letter table alone. Every attempt the queue has made is \
-          in exactly one of this and `attempts`: the move takes a job's attempts out of the jobs \
-          table with the row, so a caller wanting the total adds the two.",
+    ret: "A `uint` for the dead-letter table only. Every attempt is counted in this number or in \
+          `attempts`, never in both. Add the two to get the total.",
     errors: &[],
 };
 
 /// § 1's receipt: the row `push` wrote, and the queue it is in.
 ///
-/// A class rather than a bare `uint` because the two members that take one — `cancel` and `status` —
-/// have to know the queue as well, and a caller holding an integer would have to carry it beside.
+/// A class rather than a bare `uint` because the three members that take one — `cancel`, `delete`
+/// and `status` — have to know the queue as well, and a caller holding an integer would have to
+/// carry it beside.
 /// It has no members of its own; it is a name for a pair, which is what `rule:core-api/shape-rules` gives an opaque
 /// handle.
 pub(crate) const ID: CoreClass = CoreClass {
     name: ID_NAME,
-    doc: None,
+    doc: Some(&ID_CARD),
     methods: &[],
     instance: &[],
     slots: &[ID_SLOT, ID_QUEUE_SLOT],
     constants: &[],
+};
+
+/// `Core\Queue\Id`'s class card — `rule:core-api/reference-card`.
+const ID_CARD: ClassDoc = ClassDoc {
+    short: "The id of one background job, as `Core\\Queue::push` returns it. It identifies the job \
+            and the queue the job is in. You pass it to `status`, `cancel` and `delete`. It has no \
+            methods of its own.",
 };
 
 /// § 1's `stats`, as the record it answers with — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
@@ -2539,7 +2532,7 @@ pub(crate) const ID: CoreClass = CoreClass {
 /// whole reason a member answers a record instead of answering a number five times.
 pub(crate) const STATS: CoreClass = CoreClass {
     name: STATS_NAME,
-    doc: None,
+    doc: Some(&STATS_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -2651,7 +2644,7 @@ const STATE_DOC: EnumDoc = EnumDoc {
         CaseDoc {
             name: "Dead",
             desc: "It exhausted its attempts and is in the dead-letter table, with its payload and \
-                   every attempt's error. Nothing the runtime does ever removes it from there.",
+                   every attempt's error. Only `purge` and `delete` remove it from there.",
         },
         CaseDoc {
             name: "Cancelled",
@@ -4511,18 +4504,23 @@ nvs_runtime::nvs_helper! {
                     "{STATUS_OF}: no job {id} is in the `{queue}` queue on `[db.{block}]`, in \
                      either `{JOBS_TABLE}` or `{DEAD_TABLE}` — a receipt this deployment issued \
                      names a row in one of them, so this one was issued by another deployment or \
-                     the row was removed by hand"
+                     its row was deleted"
                 ))
             })?
             .ok_or_else(|| {
-                Fault::fatal(format!(
-                    "{STATUS_OF}: `{JOBS_TABLE}`.`state` came back as something other than an \
-                     integer, and this module's own schema is what declares it one"
-                ))
+                Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!(
+                        "{STATUS_OF}: job {id} has a `state` in `{JOBS_TABLE}` that is not a \
+                         whole number — the table was changed by something other than \
+                         `nvs queue migrate` and the workers"
+                    ),
+                )
             })?;
-        // Matched against the enum rather than cast to it, because the column is written by a
-        // worker and read here: a number no case names is a table this build does not understand,
-        // which is a deployment running two versions of the schema and not a program's error.
+        // Both refusals of what the column holds are thrown rather than fatal, because the column
+        // is written by a worker and read here, and a program holding the connection can write it
+        // too: a value no case names is a table this build does not understand, which is a
+        // deployment's problem the program may catch and not an invariant of this module.
         let (_, case) = STATE
             .cases
             .iter()
@@ -6114,7 +6112,7 @@ mod tests {
             desc("tag")
         );
         assert!(
-            desc("key").contains("dedupe"),
+            desc("key").contains("duplicate"),
             "and which admits one pending job: {}",
             desc("key")
         );
@@ -6149,7 +6147,7 @@ mod tests {
             state.desc
         );
         assert!(
-            PURGE_DOC.ret.contains("removed") && PURGE_DOC.ret.contains('0'),
+            PURGE_DOC.ret.contains("deleted") && PURGE_DOC.ret.contains('0'),
             "the answer is the count, and the `0` is what ends the loop: {}",
             PURGE_DOC.ret
         );

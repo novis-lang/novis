@@ -1,0 +1,60 @@
+--TEST--
+A `state` cell a program overwrote with text is a thrown `IOError` the program catches, the same as a number no case names, and never a fatal that ends the request — `rule:testing/a-failing-proof-is-fixed-or-recorded`
+--FILE--
+<?nvs
+use Core\Queue;
+
+// The connection a queue writes through is one the program can open too, so
+// what `status` reads back is data, not an invariant: both shapes of a bad
+// cell must reach the `catch`, and the line after each must run.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+var $job = Queue::push("jobs/a.nvs", {queue: "q"});
+
+$db->execute("update nvs_jobs set state = 'lost'", []);
+try {
+    Queue::status($job);
+    echo "text: answered\n";
+} catch (IOError $e) {
+    echo "text: IOError\n";
+}
+
+$db->execute("update nvs_jobs set state = 99", []);
+try {
+    Queue::status($job);
+    echo "99: answered\n";
+} catch (IOError $e) {
+    echo "99: IOError\n";
+}
+echo "still running\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs"]
+
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+text: IOError
+99: IOError
+still running

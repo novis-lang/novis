@@ -132,4 +132,4 @@ swept 1
 swept 1
 empty 0
 pending=0
-Core\Queue::status: no job 3 is in the `receipts` queue on `[db.jobs]`, in either `nvs_jobs` or `nvs_dead_jobs` — a receipt this deployment issued names a row in one of them, so this one was issued by another deployment or the row was removed by hand
+Core\Queue::status: no job 3 is in the `receipts` queue on `[db.jobs]`, in either `nvs_jobs` or `nvs_dead_jobs` — a receipt this deployment issued names a row in one of them, so this one was issued by another deployment or its row was deleted
