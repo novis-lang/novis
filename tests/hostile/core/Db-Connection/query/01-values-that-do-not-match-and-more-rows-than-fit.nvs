@@ -5,7 +5,6 @@
 // Nothing here may crash.
 // hostile: timeout-ms 60000
 // hostile: ends-early
-// proof: gap nvs-stdlib/buffered-read-is-not-held-to
 
 var $db = Core\Db::connect('notes');
 $db->execute('create table notes (id integer primary key, text text not null)', []);
