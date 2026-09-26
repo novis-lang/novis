@@ -2,7 +2,7 @@
 # Pinned so every developer and CI runner compiles Novis identically.
 # Bump deliberately, in its own commit, with CI green on all three platforms.
 channel = "1.97.1"
-components = ["rustfmt", "clippy", "rust-src"]
+components = ["rustfmt", "clippy", "rust-src", "llvm-tools"]
 targets = [
     "x86_64-pc-windows-msvc",
     "x86_64-unknown-linux-gnu",

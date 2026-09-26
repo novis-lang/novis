@@ -1,0 +1,11 @@
+[package]
+name = "covwrap"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "The `RUSTC_WORKSPACE_WRAPPER` of the `covws` build: `-C instrument-coverage` on workspace crates compiled for the target, and on nothing else."
+
+# Not a member of the root workspace: `tools/nv/lib/covws.ts` builds and runs it by itself.
+[workspace]
+
+[dependencies]
