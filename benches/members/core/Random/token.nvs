@@ -1,0 +1,24 @@
+<?nvs
+// Measures making a 32-byte session ID, as a program does when a user logs in.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $previous = Core\Random::token();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round compares its token with the token of the round before it,
+            // so no round can be left out.
+            string $token = Core\Random::token();
+            $total = $total + (($token != $previous ? 1 : 0) as uint);
+            $previous = $token;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

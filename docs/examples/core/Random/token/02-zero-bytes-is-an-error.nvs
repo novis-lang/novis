@@ -1,0 +1,13 @@
+<?nvs
+// Shows what happens when a program asks for a token of zero bytes.
+
+// The size here comes from a setting that was left empty.
+uint $size = 0;
+
+// `Core\Random::token(0)` throws an error. An empty token would protect nothing.
+try {
+    string $token = Core\Random::token($size);
+    echo $token, "\n";
+} catch (Throwable $e) {
+    echo "Error: ", $e->message, "\n";
+}
