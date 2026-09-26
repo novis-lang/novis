@@ -1,22 +1,22 @@
 {
-  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle`, `Core\\Process\\Result` and `Core\\Program` are green. `Core\\Queue`, `Core\\Queue\\Id` and `Core\\Queue\\Stats` have class cards (`crates/nvs-stdlib/src/queue.rs`), and every member card of the three is in the plain voice. `Core\\Queue::push`, `status`, `cancel` and `delete` have all their feature proofs, with perf recorded. Each of the six `Core\\Queue` members has a Rust `covers:` marker in `crates/nvs-stdlib/tests/queue_sqlite.rs`.\n\n`stats` and `purge` still owe about, three examples, an attack and a bench each. `Core\\Queue\\Stats`'s five members owe every proof, tests included (`bun nv proofs --group 'Core\\Queue\\Stats'`).\n\nThe floor regression after the previous session (`worker::tests::a_job_pushed_to_a_server_with_one_worker_reaches_succeeded`) was two runs of the `nvs` test binary sharing one SQLite file under `temp_dir()`. Both fixture paths in `crates/nvs-cli/src/worker.rs` now carry the process id.\n\nThe shape every `Core\\Queue` proof uses (an in-memory SQLite block, tables created by the program) is a playbook bullet under *Writing a test case*. Copy `docs/examples/core/Queue/status/nvs.toml` into each new member directory and into `tests/hostile/core/Queue/<member>/`. A member needing `queue.purge` adds `[capabilities.queue] purge = [...]`, as `docs/examples/core/Queue/delete/nvs.toml` does. The benches share `benches/members/core/Queue/nvs.toml`, which grants `purge` on `exports`. `bun nv proofs --record-perf` takes one `--id`; a second one replaces the first.",
+  "state": "Goal `core-process-and-4-more`. `Core\\Process`, `Core\\Process\\Handle`, `Core\\Process\\Result`, `Core\\Program` and `Core\\Queue` are green: `bun nv proofs --verify --group 'Core\\Queue'` says nothing owed, and 18 examples and 6 attacks pass. All six `Core\\Queue` perf figures were re-recorded after the `stats` fix below.\n\nThe `stats` attack found a fatal: text in `attempts` made SQLite sum to a `real`, and the decode ended the request. It now throws an `IOError`, as `status` does for a bad `state`, and a negative sum still counts as `0`. `tests/conformance/core/queue-stats-throws-for-attempts-that-are-not-a-number.nvst` pins both.\n\n`Core\\Queue\\Stats`'s five members (`pending`, `claimed`, `attempts`, `deadLettered`, `deadAttempts`) owe tests, examples, perf and an attack each. Their help is in the binary. No policy entry excuses them.\n\nThe shape every `Core\\Queue` proof uses (an in-memory SQLite block, tables created by the program) is a playbook bullet under *Writing a test case*. Copy `docs/examples/core/Queue/status/nvs.toml` into each new directory. `bun nv proofs --record-perf` takes one `--id`; a second one replaces the first. `bun nv try` cannot run a `.nvst` case with a `--FILE nvs.toml--` section: use `target/debug/nvs.exe test <case>`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/queue.rs` and the proof trees under `core/Queue/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/queue.rs` and the proof trees under `core/Queue-Stats/` (check the path with `bun nv proofs --id 'Core\\Queue\\Stats::pending'`).",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Queue::stats` and `Core\\Queue::purge`** — about, three examples, attack and bench each. `purge` needs the `queue.purge` grant for the queue it names, and `nvs check` reads a literal queue name against it. The `stats` attack should overwrite `attempts` with text, to test whether the count throws or crashes. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2319` `crates/nvs-stdlib/src/queue.rs:2375`"
+        "text": "**`Core\\Queue\\Stats::pending` and `claimed`** — tests from Novis and Rust are a `// covers:` marker each on `tests/conformance/core/queue-stats-counters-agree-on-what-a-count-is.nvst` and on `sqlite_stats_answer_five_integers_over_an_empty_queue_and_a_worked_one` in `crates/nvs-stdlib/tests/queue_sqlite.rs`. Then about, three examples, attack and bench each; the bench can reuse `benches/members/core/Queue/stats.nvs`'s shape. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:5103` `crates/nvs-stdlib/src/queue.rs:2437`"
       },
       {
         "done": false,
-        "text": "**`Core\\Queue\\Stats`'s five members** — each owes tests from Novis and Rust, examples, perf and an attack, unless a policy entry credits them to `stats`. Read `data/proofs/policy.json` for how another value class's methods were handled first. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:2539`"
+        "text": "**`Core\\Queue\\Stats::attempts`, `deadLettered` and `deadAttempts`** — the same proofs. A dead-letter row is inserted by SQL, as `docs/examples/core/Queue/stats/03-a-health-check-for-a-queue.nvs` does. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/queue.rs:5103`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Queue::delete` deletes a row whose `state` cell has text, because only a claimed row is protected. It is not a crash; if that is wrong, `docs/decisions/0153.md` owns the answer."
+    "Once `Core\\Queue\\Stats` is green, run `bun nv verify --doc`, `bun nv owners --closes core-process-and-4-more` and `bun nv playbook --closes core-process-and-4-more`, then report `DONE` if every stage-2 check passes (`data/goals/core-process-and-4-more.json`)."
   ]
 }

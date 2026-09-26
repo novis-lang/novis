@@ -1,0 +1,12 @@
+{
+  "lead": "A fix to a `Core` module's Rust file makes every member bench in that file stale, and the dossier check then fails on perf alone.",
+  "body": "The perf ledger keys each record on its implementing file, so one changed line in `crates/nvs-stdlib/src/queue.rs` marks all six `Core\\Queue` figures stale at once. After a fix that a proof found, re-run `bun nv proofs --record-perf --id '<member>'` for every member of that file, one `--id` per call, before the group's `--verify`.",
+  "files": [
+    "crates/nvs-stdlib/src/queue.rs",
+    "tools/nv/proofs/collect.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/collect.ts:changed since it was last measured"
+  }
+}
