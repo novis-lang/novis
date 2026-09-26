@@ -1,26 +1,28 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Reflect\\ClassInfo and 1 more has been taken yet.",
+  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2. `ClassInfo::attributes`, `::call` and\n`::constant` are complete: tests from both sides, three examples, `about.md`, one attack and one\nrecorded bench each. `Core\\Reflect\\ClassInfo` has its class card and is off\n`CLASSES_STILL_OWING_A_CARD`. The `constant` bench found 3 allocations per read. The cause was the\nreflective call site being decoded into owned strings, and it is fixed:\n`nvs_runtime::source::member_of_operand` borrows the label, and `reflect.rs`'s `site_class` uses it\nfor `get`, `set`, `call`, `construct` and `constant`. Items 4 to 16 of the goal prose remain, and\nevery one owes an `about.md` too (goal prose § *The target*), which the check does not count.\nNo proof found a behaviour bug.",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs`, its `mod tests`, and the `docs/examples`, `tests/hostile`, `benches/members` trees under `core/Reflect-ClassInfo/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::attributes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:587`"
+        "text": "**`Core\\Reflect\\ClassInfo::constants`** — about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/reflect.rs:2242`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::call`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:620`"
+        "text": "**`Core\\Reflect\\ClassInfo::get`** — about, examples, hostile, perf, tests. The existing `.nvst` cases that call it need a `covers:` marker. `crates/nvs-stdlib/src/reflect.rs:2683`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::constant`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:566`"
+        "text": "**`Core\\Reflect\\ClassInfo::construct`** — about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:2882`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "Items 7 to 16 of `docs/agent/goals/core-reflect-classinfo-and-1-more.md` § *The item list*: `hasMethod`, `hasProperty`, `methods`, `name`, `properties`, `readableProperties`, `set`, and `ConstantInfo`'s three members.",
+    "`Core\\Reflect\\AttributeInfo`'s five members have no `about.md` (goal `core-ratelimit-and-3-more` did not write them); the check does not count it yet.",
+    "`ClassInfo::call` makes 8 allocations per call, with the argument list and the erased call's frame (not checked which). The bench declares no count."
   ]
 }

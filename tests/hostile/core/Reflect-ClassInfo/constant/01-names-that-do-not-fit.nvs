@@ -1,0 +1,72 @@
+<?nvs
+// Attack: `constant` gets names that are not constants, and constants it may not
+// read, many times. Each read should return a value or throw an error, and every
+// error should be freed.
+
+interface Floors
+{
+    public const int FLOOR = 0;
+}
+
+class Base implements Floors
+{
+    protected const string TAG = 'base';
+    private const string KEY = 'private';
+    private const secret string TOKEN = 's3cr3t';
+    public const array<int> LIST = [1, 2, 3];
+    public const int MAX = 10;
+
+    public function token(): mixed
+    {
+        return Core\Reflect::forObject($this)->constant('TOKEN');
+    }
+}
+
+class Child extends Base
+{
+    public const int MAX = 3;
+}
+
+var $info = Core\Reflect::forObject(new Child());
+
+// 1. Names that are not constants: empty, a zero byte, a very long name, `::` and `class`.
+array<string> $names = ['', "MAX\0", Core\Str::repeat('M', 1000000), 'Base::MAX', 'class', 'max'];
+foreach ($names as string $name) {
+    try {
+        $info->constant($name);
+    } catch (Throwable $error) {
+        echo 'refused ', Core\Str::length($name), "\n";
+    }
+}
+
+// 2. Constants this code may not read: protected, private, secret, and one with no simple value.
+array<string> $closed = ['TAG', 'KEY', 'TOKEN', 'LIST'];
+foreach ($closed as string $name) {
+    try {
+        $info->constant($name);
+    } catch (Throwable $error) {
+        echo $name, " refused\n";
+    }
+}
+
+// 3. A secret constant, read from inside its own class.
+try {
+    (new Base())->token();
+} catch (Throwable $error) {
+    echo "secret refused inside\n";
+}
+
+// 4. Good reads and refused reads, 100000 times each.
+int $sum = 0;
+uint $refused = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $sum = $sum + ($info->constant('MAX') as int) + ($info->constant('FLOOR') as int);
+    try {
+        $info->constant('KEY');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $sum, ' ', $refused, "\n";

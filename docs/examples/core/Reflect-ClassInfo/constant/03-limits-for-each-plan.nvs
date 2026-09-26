@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a web shop reads the limit of a customer's plan from a class
+// constant, when the plan name is stored with the customer.
+
+class PlanLimits {
+    public const int FREE = 3;
+    public const int TEAM = 25;
+    public const int BUSINESS = 200;
+}
+
+class Plans {
+    // Returns the number of projects a plan allows, or 0 for an unknown plan.
+    public static function projects(string $plan): int {
+        var $info = Core\Reflect::forObject(new PlanLimits());
+        try {
+            return $info->constant($plan) as int;
+        } catch (LogicError $unknown) {
+            return 0;
+        }
+    }
+}
+
+// These plan names come from the customer records.
+// This prints "FREE: 3", "TEAM: 25" and "GOLD: 0".
+array<string> $plans = ["FREE", "TEAM", "GOLD"];
+foreach ($plans as string $plan) {
+    echo $plan, ": ", Plans::projects($plan), "\n";
+}

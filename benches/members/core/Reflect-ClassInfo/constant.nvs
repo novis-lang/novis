@@ -1,0 +1,26 @@
+<?nvs
+// Reads a class constant by its name, as a program does when the name comes from a setting.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Limits {
+    public const int SMALL = 1;
+    public const int LARGE = 2;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $info = Core\Reflect::forObject(new Limits());
+        array<string> $names = ["SMALL", "LARGE"];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which constant is read comes from last round's total, so no round can be reused.
+            $total = $total + ($info->constant($names[$total % 2]) as int);
+            $i = $i + 1;
+        }
+        return $total as uint;
+    }
+}
+
+echo Bench::run(400000), "\n";
