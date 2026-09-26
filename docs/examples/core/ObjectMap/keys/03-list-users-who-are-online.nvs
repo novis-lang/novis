@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to print the names of the users who are online.
+
+final class User {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+// The map stores the time of each user's last action.
+Core\ObjectMap<User, string> $online = new Core\ObjectMap<User, string>();
+$online->set(new User("ana"), "10:02");
+$online->set(new User("li"), "10:04");
+$online->set(new User("sam"), "10:05");
+
+// `keys` gives the users as a list, and `Core\Arr::map` turns each one into its name.
+array<string> $names = Core\Arr::map($online->keys(), fn(User $user): string => $user->name);
+
+// This prints "online: ana, li, sam".
+echo "online: ", Core\Str::join($names, ", "), "\n";

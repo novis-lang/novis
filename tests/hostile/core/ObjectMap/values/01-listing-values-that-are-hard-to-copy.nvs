@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a program lists values that are huge, deeply nested or the map itself. It keeps a list
+// after the map is cleared, and lists values until memory runs out. Each `values` should work or
+// stop at the memory limit, and must not crash or leak.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectMap<mixed, mixed> $map = new Core\ObjectMap<mixed, mixed>();
+
+// 1. Ten values of 1 million characters each are listed 100 times.
+int $i = 0;
+while ($i < 10) {
+    $map->set(new Node(), Core\Str::repeat('v', 1000000));
+    $i = $i + 1;
+}
+uint $seen = 0;
+$i = 0;
+while ($i < 100) {
+    $seen = Core\Arr::count($map->values());
+    $i = $i + 1;
+}
+echo '1: ', $seen, "\n";
+
+// 2. A value is an array nested 10000 levels deep, and another value is the map itself.
+mixed $deep = [];
+int $d = 0;
+while ($d < 10000) {
+    $deep = [$deep];
+    $d = $d + 1;
+}
+$map->set(new Node(), $deep);
+$map->set(new Node(), $map);
+echo '2: ', Core\Arr::count($map->values()), "\n";
+
+// 3. The list is kept after `clear`. The values stay alive until the list is freed.
+array<mixed> $kept = $map->values();
+$map->clear();
+echo '3: ', $map->count(), ' ', Core\Arr::count($kept), "\n";
+$kept = [];
+$deep = [];
+
+// 4. A chain of 100000 objects is a value, and the list is dropped after the map is cleared.
+Node $head = new Node();
+Node $tail = $head;
+int $n = 0;
+while ($n < 100000) {
+    Node $link = new Node();
+    $tail->next = $link;
+    $tail = $link;
+    $n = $n + 1;
+}
+$map->set(new Node(), $head);
+$head = new Node();
+$tail = $head;
+array<mixed> $chain = $map->values();
+$map->clear();
+$chain = [];
+echo '4: ', $map->count(), "\n";
+
+// 5. The value list of a large map is kept again and again until the memory limit stops the program.
+$i = 0;
+while ($i < 100000) {
+    $map->set(new Node(), $i);
+    $i = $i + 1;
+}
+array<mixed> $lists = [];
+while (true) {
+    $lists[] = $map->values();
+}

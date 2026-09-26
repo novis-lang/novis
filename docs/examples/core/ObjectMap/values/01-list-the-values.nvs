@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to get all the values of a map as a list.
+
+final class Sensor {
+    public string $room;
+
+    public function constructor(string $room) {
+        $this->room = $room;
+    }
+}
+
+Core\ObjectMap<Sensor, float> $temperature = new Core\ObjectMap<Sensor, float>();
+$temperature->set(new Sensor("hall"), 19.5);
+$temperature->set(new Sensor("office"), 22.0);
+$temperature->set(new Sensor("attic"), 15.25);
+
+// `values` returns the three readings in the order their sensors were added.
+array<float> $readings = $temperature->values();
+
+// This prints 19.5, 22 and 15.25.
+foreach ($readings as float $reading) {
+    echo $reading, "\n";
+}

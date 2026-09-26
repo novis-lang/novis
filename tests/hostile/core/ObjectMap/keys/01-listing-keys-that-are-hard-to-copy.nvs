@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a program lists the keys of a large map many times and keeps a list after the map is
+// gone. Then it lists keys until memory runs out. Each `keys` should work or stop at the memory
+// limit, and must not crash or leak.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectMap<mixed, mixed> $map = new Core\ObjectMap<mixed, mixed>();
+
+// 1. A map with 100000 keys is listed 50 times. Each list is freed before the next one.
+int $i = 0;
+while ($i < 100000) {
+    $map->set(new Node(), $i);
+    $i = $i + 1;
+}
+uint $seen = 0;
+$i = 0;
+while ($i < 50) {
+    $seen = Core\Arr::count($map->keys());
+    $i = $i + 1;
+}
+echo '1: ', $seen, "\n";
+
+// 2. The list lives longer than the map. The keys are still usable.
+array<mixed> $kept = $map->keys();
+$map = new Core\ObjectMap<mixed, mixed>();
+echo '2: ', Core\Arr::count($kept), "\n";
+$kept = [];
+
+// 3. The map is one of its own keys, and the list has the map in it.
+$map->set($map, 1);
+$map->set([[[1]]], 2);
+array<mixed> $self = $map->keys();
+echo '3: ', Core\Arr::count($self), "\n";
+$map->clear();
+$self = [];
+
+// 4. Adding to the list does not change the map.
+$map->set(new Node(), 1);
+array<mixed> $grown = $map->keys();
+$grown[] = new Node();
+echo '4: ', $map->count(), ' ', Core\Arr::count($grown), "\n";
+
+// 5. The key list of a large map is kept again and again until the memory limit stops the program.
+$i = 0;
+while ($i < 100000) {
+    $map->set(new Node(), $i);
+    $i = $i + 1;
+}
+array<mixed> $lists = [];
+while (true) {
+    $lists[] = $map->keys();
+}

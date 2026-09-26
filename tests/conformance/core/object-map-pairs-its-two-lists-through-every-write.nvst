@@ -2,7 +2,7 @@
 `Core\ObjectMap`'s `keys` and `values` stay positionally paired through a sweep of writes — a re-`set` replaces in place, a removal closes the same gap in both lists, and a re-added key lands at the end — docs/spec/01-core-library.md § 9
 --FILE--
 <?nvs
-// covers: Core\ObjectMap::set
+// covers: Core\ObjectMap::set, Core\ObjectMap::keys, Core\ObjectMap::values
 final class Tag {
     public string $name;
 

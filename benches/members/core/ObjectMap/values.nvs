@@ -1,0 +1,31 @@
+<?nvs
+// Lists the values of a small map, as a program does before it adds them up.
+// bench: iterations 400000
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\ObjectMap<Key, uint> $map = new Core\ObjectMap<Key, uint>();
+        $map->set(new Key(1), 1);
+        $map->set(new Key(2), 2);
+        $map->set(new Key(3), 3);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: which value is read depends on last round's total
+            array<uint> $values = $map->values();
+            $total = $total + 1 + $values[($total % 3) as int];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to add up the values of a map, here the totals of all open shopping carts.
+
+final class Cart {
+    public string $id;
+
+    public function constructor(string $id) {
+        $this->id = $id;
+    }
+}
+
+// The map stores the total of each open cart, in cents.
+Core\ObjectMap<Cart, int> $totals = new Core\ObjectMap<Cart, int>();
+$totals->set(new Cart("c-1"), 1999);
+$totals->set(new Cart("c-2"), 450);
+$totals->set(new Cart("c-3"), 12000);
+
+// `values` gives the totals as a list, and `Core\Arr::sum` adds them up.
+// This prints 14449.
+echo Core\Arr::sum($totals->values()), "\n";
