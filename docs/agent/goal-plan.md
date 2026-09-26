@@ -192,11 +192,3 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 177 | [`plain-comments`](goals/plain-comments.md) | every landed comment reads plainly | ahead, pinned last |  | **2** the sweep · **3** the gate |
 | 178 | [`foreach-var`](goals/foreach-var.md) | `var` is a `foreach` binding's type wherever a local allows it | ahead, pinned last |  | **2** the binding · **3** lowering and the editor · **4** the proofs |
 | 179 | [`ci-green`](goals/ci-green.md) | CI is green on `main`, for the commit the run stands on | ahead, pinned last |  | **2** ci is green |
-
-## Side goals
-
-Each runs in a worktree of its own, started by hand with `bun nv loop --side <slug>`.
-
-| Goal | What it builds | State | Milestone | Stages |
-|---|---|---|---|---|
-| [`mode-startup-switches`](goals/side/mode-startup-switches.md) | an unwritten `dispatch` and `static` follow the mode a configuration names | side |  | **2** the switches · **3** the template and the reference |
