@@ -1,24 +1,24 @@
 {
-  "state": "Goal `core-process-and-4-more`. `Core\\Process` is green. `Core\\Process\\Handle` has its class card, and `kill`, `readStdout`, `readStderr` and `writeStdin` have all their feature proofs. `wait` still owes everything but its card, and `HANDLE_WAIT_DOC` is still in the old voice. `Core\\Process\\Result`, `Core\\Program` and `Core\\Queue` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\nThe chain floor checks are green again: 59 goal records named the playbook selector `Tooling > a commit`, which opened two bullets once \"A commit that narrows …\" landed. They now name `Tooling > a commit message`.\n\n`writeStdin` takes `bytes` only; a `string` does not compile (`E0401`), so its card and examples say `as bytes`. The Rust tests start this suite's own binary as the child: `SLEEPER` runs until killed, `ECHOER` copies its input to its error output until the input ends.\n\nA Unix-only example is run by hand under WSL. Put the commands in a script under `.agent-tmp/` and start it with `wsl.exe -- bash -lc \"bash <script>\"`. In the script, build with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build` from `/mnt/d/mwl`, run `/var/tmp/nvs-target-wsl/debug/nvs run --config <dir>/nvs.toml <file>`, and write the `.out` with Write from what it printed. The attacks and benches run on both platforms: they pick `/bin/sh` or `cmd.exe` by `Core\\Path::SEPARATOR`; a Windows child that reads and discards its input is `cmd.exe /c \"findstr /v zzzz >nul\"`. `bytes` has no `.` operator: `Core\\Bytes::repeat` builds a large value. A perf figure goes stale whenever `process.rs` changes: `bun nv proofs --record-perf --only '<member>'` re-measures one.",
+  "state": "Goal `core-process-and-4-more`. `Core\\Process` and `Core\\Process\\Handle` are green: all five `Handle` members have their feature proofs, `wait` included. `HANDLE_WAIT_DOC` is in the plain voice. `Core\\Process\\Result`, `Core\\Program` and `Core\\Queue` are untouched and still in `CLASSES_STILL_OWING_A_CARD`.\n\n`wait` now stops the child when either pipe reaches `[limits] max_output`. It shares `read_bounded`'s `stop` with `run`. A child that ignored `SIGPIPE` made it hang before. `tests/conformance/core/process-handle-wait-stops-a-child-that-writes-past-max-output.nvst` pins that.\n\nA Unix-only example is run by hand under WSL. Put the commands in a script under `.agent-tmp/` and start it with `wsl.exe -- bash -lc \"bash <script>\"`. In the script, build with `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build` from `/mnt/d/mwl`, run `/var/tmp/nvs-target-wsl/debug/nvs run --config <dir>/nvs.toml <file>`, and write the `.out` with Write from what it printed. The attacks and benches run on both platforms: they pick `/bin/sh` or `cmd.exe` by `Core\\Path::SEPARATOR`. A `.nvst` with a `--FILE nvs.toml--` section runs with `target/debug/nvs.exe test <file>`, not `bun nv try`. Any change to `process.rs` makes every `Core\\Process*` perf figure stale: `bun nv proofs --record-perf --group 'Core\\Process\\Handle'` (and `'Core\\Process'`) re-measures them, uncommitted tree included.",
   "next": {
-    "stage": 1,
-    "title": "one feature per slice",
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/process.rs` and the proof trees under `core/Process-Handle/` and `core/Process-Result/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/process.rs`, `crates/nvs-stdlib/src/registry.rs` and the proof trees under `core/Process-Result/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Process\\Handle::wait`** — about, examples, attack, bench, and two tests carrying `// covers: Core\\Process\\Handle::wait`: add it to `tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst`, and to `two_writes_reach_a_spawned_child_and_wait_closes_its_input` (it already pins that `wait` closes the input). Rewrite `HANDLE_WAIT_DOC` in the plain voice, the way `WRITE_STDIN_DOC` now reads. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/process.rs:427`"
+        "text": "**`Core\\Process\\Result`'s class card** — add its `ClassDoc` above the class's `CLASS` row, the way `HANDLE_CARD` sits above `HANDLE`, and delete it from `CLASSES_STILL_OWING_A_CARD`. Read the three member cards' voice while there. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/process.rs:489` `crates/nvs-stdlib/src/registry.rs:5189`"
       },
       {
         "done": false,
-        "text": "**`Core\\Process\\Result`'s class card** — add its `ClassDoc` above the class's `CLASS` row and delete it from `CLASSES_STILL_OWING_A_CARD`, then the proofs of `exitCode`, `stdout` and `stderr`, one slice each. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/process.rs:468`"
+        "text": "**`Core\\Process\\Result::exitCode`, `stdout`, `stderr`** — about, three examples, attack, bench and two tests each carrying `// covers:`. The `.nvst` cases that call `wait()->stdout()` and `->exitCode()` are the Novis side; `two_writes_reach_a_spawned_child_and_wait_closes_its_input` reads the stderr slot from Rust. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/process.rs:790`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Program` — class card and the proofs of `id`, `list`. `crates/nvs-stdlib/src/program.rs`",
-    "`Core\\Queue` — class card and the proofs of every member. `crates/nvs-stdlib/src/queue.rs`",
-    "`nvs-stdlib/buffered-read-is-not-held-to` stays open: the host still peaks near a gigabyte under a 256M limit before the `FATAL`. Its gap record owns it."
+    "`Core\\Program` — class card, then `id` and its other members' proofs. `crates/nvs-stdlib/src/program.rs`.",
+    "`Core\\Queue` — class card, then `purge` and the rest. `crates/nvs-stdlib/src/queue.rs`.",
+    "Possible: a grandchild that keeps the pipes open after `wait` or `run` stops the child may keep the drain waiting (not checked). If an attack shows it, the owner is `crates/nvs-stdlib/src/process.rs`'s module doc."
   ]
 }

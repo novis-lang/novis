@@ -12275,11 +12275,11 @@ Sends `$data` to the program's standard input. The call waits until the program 
 $handle->wait(): Core\Process\Result
 ```
 
-Closes the child's standard input, waits for it to exit, and answers what it did — `proc_close`, without the caller having to remember that closing the pipes comes first. The wait suspends this coroutine exactly as `run`'s does.
+Closes the program's standard input, waits until the program ends, and returns its result. While it waits, the server keeps handling other requests.
 
-**Returns** `Core\Process\Result` — A `Core\Process\Result` carrying the exit status and whatever neither `readStdout` nor `readStderr` had already taken. A program that streamed the whole output gets two empty captures, which is the answer and not a loss.
+**Returns** `Core\Process\Result` — A `Core\Process\Result` with the exit code, and the output and error output that `readStdout` and `readStderr` did not read yet. If you already read all of the output, both are empty. A second call returns the same exit code and empty output.
 
-**Throws** `RuntimeError` — What the child had left to write is more than `[limits] max_output`, on `Core\Process::run`'s terms — the ceiling on a response is the ceiling on one capture too.; `IOError` — The operating system failed to drain a pipe or to reap the child.
+**Throws** `RuntimeError` — The output that was not read yet is larger than `[limits] max_output`. The program is then stopped.; `IOError` — The operating system could not read the output or get the exit code.
 
 <a id="core-core-process-handle-kill"></a>
 #### `Core\Process\Handle->kill`

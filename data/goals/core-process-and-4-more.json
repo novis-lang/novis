@@ -32,6 +32,7 @@
       "Tooling > a commit message",
       "Tooling > a [context]*",
       "Tooling > another agent",
+      "Tooling > bun nv try runs",
       "Writing a test case > a rule*",
       "Writing a test case > a -p*",
       "Writing a test case > an array literal*",
