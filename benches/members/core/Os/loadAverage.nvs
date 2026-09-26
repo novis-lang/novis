@@ -1,0 +1,24 @@
+<?nvs
+// Measures reading the load average. A program does this before it starts a
+// large job, to see if the machine is busy.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each reading adds its count of numbers to the total, so no round
+            // can be left out. On Windows the reading throws, and adds 0.
+            try {
+                $total = $total + Core\Arr::count(Core\Os::loadAverage());
+            } catch (RuntimeError $e) {
+                $total = $total + 0;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

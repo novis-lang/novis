@@ -190,6 +190,7 @@ against a designed surface ahead of its implementation. Remove the line when the
 ## `// requires: unix`
 
 An example that opens a Unix-domain socket carries that line, and on Windows the runner skips it,
-because this build has no such transport there. It runs everywhere else, and `--bless` refuses it
+because this build has no such transport there. So does an example that reads a figure Windows does
+not keep, such as `Core\Os::loadAverage`'s. It runs everywhere else, and `--bless` refuses it
 on a host that skips it: its `.out` is written on Linux, where it runs. An example that only shows
 the grant being refused prints the same on both, so it carries no such line and runs everywhere.

@@ -52,7 +52,7 @@ const BUILDS = {
 
 /** `// requires: unimplemented`, the website's own skip marker. */
 const UNIMPL_RE = /^(?:\/\/|#)\s*requires:\s*unimplemented/m;
-/** `// requires: unix`: the program opens a Unix-domain socket, and this build has that transport only on Unix. */
+/** `// requires: unix`: the program needs what this build has only on Unix — a Unix-domain socket, or a load average. */
 const UNIX_RE = /^(?:\/\/|#)\s*requires:\s*unix\b/m;
 
 /** Why a program is not run on this host, or null when it is. A skip is never remembered as green. */
