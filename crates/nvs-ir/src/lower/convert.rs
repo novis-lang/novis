@@ -232,14 +232,15 @@ impl<'a> Lowering<'a> {
                 }
             },
             // The same rows again, from a union operand — one fallible helper
-            // picking by runtime tag, shared verbatim with `.` and `echo`
-            // (`Self::concat_operand`). See `Helper::TaggedToString`.
+            // picking by runtime tag. It is not `.` and `echo`'s helper
+            // (`Self::concat_operand`): a `bytes` tag converts here, checked,
+            // and is refused there. See `Helper::TaggedAsString`.
             (Ty::Tagged, Ty::Str) => {
                 let out = self.emit_fallible(
                     cur,
                     Ty::Str,
                     InstKind::HelperCall {
-                        helper: Helper::TaggedToString,
+                        helper: Helper::TaggedAsString,
                         args: vec![v],
                     },
                     env,

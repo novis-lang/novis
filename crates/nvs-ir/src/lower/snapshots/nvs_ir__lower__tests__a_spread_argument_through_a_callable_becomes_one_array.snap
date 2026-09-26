@@ -14,14 +14,14 @@ fn m(object, object, array) -> void {
     v5 = array.spread v4, v2 ! bb1  ; array
     v6 = helper.call_closure_array v1, v5 ! bb2  ; tagged
     release v5
-    v7 = helper.tagged_to_string v6 ! bb3  ; string
+    v7 = helper.tagged_as_string v6 ! bb3  ; string
     release v6
     helper.echo_str v7 ! bb4
     release v7
     ; stmt s1 @5:5-5:26
     v8 = const.int 1  ; int
     v9 = helper.call_closure v1, v8 ! bb5  ; tagged
-    v10 = helper.tagged_to_string v9 ! bb6  ; string
+    v10 = helper.tagged_as_string v9 ! bb6  ; string
     release v9
     helper.echo_str v10 ! bb7
     release v10

@@ -1,0 +1,54 @@
+--TEST--
+`as string` over a `?bytes` or a `mixed` holding `bytes` validates UTF-8 exactly as `bytes as string` does, agrees with `as ?string`, and `.` still refuses the same value — `rule:types/conversion`, `rule:expressions/nullable-conversion`
+--FILE--
+<?nvs
+// The static `bytes as string` is the checked row. A union only knows its tag
+// at run time, and the written conversion must take the same row from there:
+// a `?bytes` read off a stream is the ordinary way a program meets this.
+bytes $plain = "text" as bytes;
+?bytes $maybe = "text" as bytes;
+mixed $any = "text" as bytes;
+?bytes $broken = "\u{e9}" as bytes;
+$broken = Core\Bytes::slice($broken as bytes, 0, 1);
+
+echo $plain as string, "\n";
+echo $maybe as string, "\n";
+echo $any as string, "\n";
+
+// Agreement, counted: the three spellings of the checked row, and the
+// nullable twin, answer one string for one value.
+int $agree = 0;
+if (($maybe as string) == ($plain as string)) { $agree = $agree + 1; }
+if (($any as string) == ($plain as string)) { $agree = $agree + 1; }
+if (($maybe as ?string ?? "<null>") == ($maybe as string)) { $agree = $agree + 1; }
+if (($any as ?string ?? "<null>") == ($any as string)) { $agree = $agree + 1; }
+echo $agree, "\n";
+
+// The failing side of the same row: one byte of a two-byte sequence is not
+// UTF-8. The checked spelling throws where the nullable one answers `null`.
+echo $broken as ?string ?? "<null>", "\n";
+try {
+    echo $broken as string, "\n";
+} catch (RuntimeError $e) {
+    echo "caught: ", $e->message, "\n";
+}
+
+// A `null` operand renders as the empty string, as it does from every `?T`.
+?bytes $none = null;
+echo "[", $none as string, "]\n";
+
+// `.` converts nothing it was not asked to, so the same union is refused there.
+try {
+    echo "joined: " . $any, "\n";
+} catch (RuntimeError $e) {
+    echo "caught: ", $e->message, "\n";
+}
+--EXPECT--
+text
+text
+text
+4
+<null>
+caught: cannot convert `bytes` to `string`: not well-formed UTF-8 at byte 0
+[]
+caught: cannot convert a `bytes` value to `string`

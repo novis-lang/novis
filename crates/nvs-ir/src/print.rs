@@ -568,6 +568,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::DecimalToFloat => "decimal_to_float",
         Helper::DecimalToString => "decimal_to_string",
         Helper::TaggedToString => "tagged_to_string",
+        Helper::TaggedAsString => "tagged_as_string",
         Helper::TaggedToInt => "tagged_to_int",
         Helper::TaggedToUint => "tagged_to_uint",
         Helper::TaggedToFloat => "tagged_to_float",

@@ -2229,16 +2229,14 @@ pub enum Helper {
     ToUintOrNull,
     /// `$x as ?float` — [`Self::ToIntOrNull`]'s row set, landing on `float`.
     ToFloatOrNull,
-    /// `$x as ?string` — [`Self::TaggedToString`]'s rows in `rule:expressions/nullable-conversion`'s
+    /// `$x as ?string` — [`Self::TaggedAsString`]'s rows in `rule:expressions/nullable-conversion`'s
     /// non-throwing form, and the one `?` twin whose result is refcounted.
     ///
     /// `rule:expressions/nullable-conversion` makes the two spellings differ only in what they do with a
     /// miss, so this shares that helper's implementation rather than carrying a
-    /// second copy of `rule:types/conversion`'s table: an operand that renders renders the
-    /// same, and one whose *conversion* fails answers `null` instead of
-    /// throwing. A `bytes` operand joins them here rather than at
-    /// [`Self::BytesToString`], because `rule:types/conversion`'s UTF-8 validation is a
-    /// row that can fail and so has a `null` answer of its own.
+    /// second copy of `rule:types/conversion`'s table: an operand that converts
+    /// converts the same, `bytes` included, and one whose *conversion* fails
+    /// answers `null` instead of throwing.
     ///
     /// **A `toString()` body that throws still throws.** `rule:expressions/nullable-conversion`'s `null`
     /// stands for "this conversion had no answer", not for "swallow whatever
@@ -2283,11 +2281,13 @@ pub enum Helper {
     /// rather than by a static type, since a `mixed`, a `?T` or any other
     /// union has none to choose by.
     ///
-    /// One helper, reached from both spellings that render a value: `.`
-    /// concatenation and `echo` (`crate::lower::Lowering::concat_operand`),
-    /// and `expr as string` (`crate::lower::Lowering::convert`). That is the
-    /// same "one tag per target" arrangement [`Self::ToIntOrNull`] describes,
-    /// so `mixed` needs no lowering branch of its own in either place.
+    /// Reached from the two spellings that render a value without converting
+    /// it: `.` concatenation and `echo`
+    /// (`crate::lower::Lowering::concat_operand`). That is the same "one tag
+    /// per target" arrangement [`Self::ToIntOrNull`] describes, so `mixed` needs
+    /// no lowering branch of its own there. A written `expr as string` is
+    /// [`Self::TaggedAsString`] instead, because a `bytes` operand converts
+    /// there and is refused here.
     ///
     /// **An object operand is a `toString` call, not a tag row.** Both
     /// spellings above also land here for an object whose *static* type named
@@ -2305,6 +2305,14 @@ pub enum Helper {
     /// object whose class declares no `toString` have no row, and
     /// `nvs_runtime::value_to_string` owns what each throws and why.
     TaggedToString,
+    /// `expr as string` over a [`crate::ty::Ty::Tagged`] operand
+    /// (`crate::lower::Lowering::convert`): [`Self::TaggedToString`]'s rows,
+    /// plus [`Self::BytesToString`]'s checked UTF-8 row for a `bytes` tag, so
+    /// `$maybe as string` over a `?bytes` answers what `$b as string` over a
+    /// `bytes` does. [`Self::ToStringOrNull`] is its non-throwing twin over the
+    /// same implementation. Fallible, with `rule:errors/propagation`'s error
+    /// edge.
+    TaggedAsString,
     /// A [`crate::ty::Ty::Tagged`] operand to `int` — `rule:types/conversion`'s `→ int`
     /// rows chosen by the operand's **runtime** tag, which is the only thing
     /// that names a row when the static type is a `mixed`, a `?T` or any other

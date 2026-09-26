@@ -1977,17 +1977,41 @@ crate::nvs_helper! {
     }
 }
 
+/// `rule:types/conversion`'s explicit `as string` over a tagged operand — a
+/// `mixed`, a `?T`, any other union.
+///
+/// [`fn@stringify`]'s rows plus the one row an explicit conversion has and an
+/// implicit one does not: a [`Tag::Bytes`] operand is [`bytes_to_string`]'s
+/// checked UTF-8 validation, exactly as the statically typed `bytes as string`
+/// is. `.` and `echo` stay on [`fn@stringify`], which refuses `bytes` because a
+/// conversion nobody wrote must not validate anything.
+///
+/// # Errors
+///
+/// [`fn@stringify`]'s and [`bytes_to_string`]'s, unchanged.
+pub fn convert_to_string(ctx: &mut crate::Ctx, value: Value) -> Result<Value, Fault> {
+    if value.tag() == Some(Tag::Bytes) {
+        bytes_to_string(value)
+    } else {
+        stringify(ctx, value)
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::TaggedAsString` — see [`convert_to_string`].
+    fn nvs_tagged_as_string(ctx, args: [1]) {
+        convert_to_string(ctx, args[0])
+    }
+}
+
 /// `rule:expressions/nullable-conversion`'s
-/// `as ?string`: [`fn@stringify`]'s answer, with `null` exactly where that one
-/// throws.
+/// `as ?string`: [`convert_to_string`]'s answer, with `null` exactly where that
+/// one throws.
 ///
 /// One implementation of `rule:types/conversion`'s `→ string` rows and not a second copy
 /// of them, which is the whole point of § 1's "yields `null` exactly where
 /// `expr as T` would throw" — a twin that decided any row for itself could
-/// disagree with the checked spelling on that row. A `bytes` operand is here
-/// rather than at [`bytes_to_string`] for the same reason: `rule:types/conversion`'s
-/// UTF-8 validation is a row that can fail, so it has a `null` answer, and the
-/// tag it is chosen by is the operand's own.
+/// disagree with the checked spelling on that row.
 ///
 /// **Only the conversion's own failure becomes `null`.** A [`Fault::Thrown`]
 /// raised here means this function had no answer; every other fault is
@@ -2000,12 +2024,7 @@ crate::nvs_helper! {
 ///
 /// Every fault but [`Fault::Thrown`], unchanged.
 pub fn stringify_or_null(ctx: &mut crate::Ctx, value: Value) -> Result<Value, Fault> {
-    let converted = if value.tag() == Some(Tag::Bytes) {
-        bytes_to_string(value)
-    } else {
-        stringify(ctx, value)
-    };
-    match converted {
+    match convert_to_string(ctx, value) {
         Ok(text) => Ok(text),
         Err(Fault::Thrown(..)) => Ok(Value::null()),
         Err(other) => Err(other),
@@ -2966,6 +2985,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_to_float_or_null", address(nvs_to_float_or_null)),
         ("nvs_to_string_or_null", address(nvs_to_string_or_null)),
         ("nvs_tagged_to_string", address(nvs_tagged_to_string)),
+        ("nvs_tagged_as_string", address(nvs_tagged_as_string)),
         ("nvs_bytes_to_string", address(nvs_bytes_to_string)),
         ("nvs_tagged_to_bytes", address(nvs_tagged_to_bytes)),
         ("nvs_to_array_of", address(nvs_to_array_of)),
@@ -3750,6 +3770,30 @@ mod tests {
         )]
         unsafe {
             value.release();
+        }
+    }
+
+    /// A tagged `bytes` operand, asked both ways: the explicit `as string`
+    /// validates it the way the statically typed `bytes as string` does, and the
+    /// implicit rendering `.` and `echo` share refuses it. A `?bytes as string`
+    /// that shared the implicit helper threw on well-formed text while
+    /// `as ?string` answered it, which is the disagreement this pins.
+    #[test]
+    fn a_tagged_bytes_converts_only_when_the_conversion_is_written() {
+        let text = Value::bytes(NvsStr::new(b"text"));
+        let broken = Value::bytes(NvsStr::new(b"\xff"));
+        assert_eq!(string_result(nvs_tagged_as_string, text), "text");
+        refused(nvs_tagged_as_string, broken);
+        refused(nvs_tagged_to_string, text);
+        assert_eq!(string_result(nvs_tagged_as_string, Value::int(7)), "7");
+        #[expect(
+            unsafe_code,
+            reason = "every helper above borrowed its operand; this test still \
+                      owns the one reference each buffer was built with"
+        )]
+        unsafe {
+            text.release();
+            broken.release();
         }
     }
 

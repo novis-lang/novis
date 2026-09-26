@@ -259,11 +259,9 @@
 //!    [`ir::Helper::ToArrayOfOrNull`], the same element walk the checked
 //!    spelling runs, answering `null` where that one throws. The text
 //!    targets have theirs:
-//!    [`ir::Helper::ToStringOrNull`] is [`ir::Helper::TaggedToString`]'s twin
-//!    over one implementation of `rule:types/conversion`'s rows, answering `null` where
-//!    that one throws, and it takes `$b as ?string` with it — `rule:types/conversion`'s
-//!    UTF-8 validation is a row that can fail, so the `bytes` source has a
-//!    `null` answer of its own rather than a second helper — and
+//!    [`ir::Helper::ToStringOrNull`] is [`ir::Helper::TaggedAsString`]'s twin
+//!    over one implementation of `rule:types/conversion`'s rows, `bytes`
+//!    source included, answering `null` where that one throws — and
 //!    [`ir::Helper::ToBytesOrNull`] is [`ir::Helper::TaggedToBytes`]'s twin
 //!    over that pair's other direction, the two rows a tag can take into a
 //!    `bytes` being the `string` and the `bytes` itself. The **class-target** refusal is
@@ -499,7 +497,7 @@
 //!
 //!     A [`ty::Ty::Tagged`] source is one
 //!     helper per *target*, chosen by the operand's runtime tag because
-//!     nothing static names a row — [`ir::Helper::TaggedToString`],
+//!     nothing static names a row — [`ir::Helper::TaggedAsString`],
 //!     [`ir::Helper::ToDecimal`], and [`ir::Helper::TaggedToInt`] with its
 //!     unsigned and `float` twins, each throwing exactly where `rule:expressions/nullable-conversion`'s
 //!     [`ir::Helper::ToIntOrNull`] answers `null` over the same rows in
