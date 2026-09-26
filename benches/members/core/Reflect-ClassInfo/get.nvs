@@ -1,0 +1,27 @@
+<?nvs
+// Reads a property by its name, as a report or an export does when the column name comes from input.
+// bench: iterations 200000
+// bench: allocations 0
+
+class Size {
+    public int $small = 1;
+    public int $large = 2;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $size = new Size();
+        var $info = Core\Reflect::forObject($size);
+        array<string> $names = ["small", "large"];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which property is read comes from last round's total, so no round can be reused.
+            $total = $total + ($info->get($size, $names[$total % 2]) as int);
+            $i = $i + 1;
+        }
+        return $total as uint;
+    }
+}
+
+echo Bench::run(200000), "\n";

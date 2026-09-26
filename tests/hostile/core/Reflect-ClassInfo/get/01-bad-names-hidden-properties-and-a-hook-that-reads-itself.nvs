@@ -1,0 +1,87 @@
+<?nvs
+// Attack: `get` gets names that are not properties, hidden properties and wrong
+// objects, and a `get` hook reads itself through `get` until the stack is full.
+// Each step should throw an error or stop the program cleanly, and must not crash.
+// hostile: ends-early
+
+class Target
+{
+    public string $text = '';
+    protected int $guarded = 1;
+    private int $hidden = 2;
+    public lateinit Target $next;
+
+    public int $loop {
+        get {
+        return Core\Reflect::forObject($this)->get($this, 'loop') as int;
+        }
+    }
+
+    public function constructor()
+    {
+    }
+}
+
+class Other
+{
+    public string $text = 'other';
+}
+
+var $target = new Target();
+var $info = Core\Reflect::forObject($target);
+
+// 1. Names that are not properties: empty, a zero byte, a very long name, a `$`, and `::`.
+array<string> $names = ['', "text\0", Core\Str::repeat('a', 1000000), '$text', 'Target::text'];
+foreach ($names as string $name) {
+    try {
+        $info->get($target, $name);
+    } catch (Throwable $error) {
+        echo 'refused ', Core\Str::length($name), "\n";
+    }
+}
+
+// 2. A protected property, a private one, and a lateinit property that was never written.
+array<string> $hiddenNames = ['guarded', 'hidden', 'next'];
+foreach ($hiddenNames as string $name) {
+    try {
+        $info->get($target, $name);
+    } catch (Throwable $error) {
+        echo 'refused ', $name, "\n";
+    }
+}
+
+// 3. A value that is not an instance of the described class, and values that are not objects.
+array<mixed> $values = [new Other(), 42, null, 'text'];
+foreach ($values as mixed $wrong) {
+    try {
+        $info->get($wrong, 'text');
+    } catch (Throwable $error) {
+        echo "wrong object refused\n";
+    }
+}
+
+// 4. A large text is read 100000 times. Each copy the program gets should be freed.
+$target->text = Core\Str::repeat('x', 1000000);
+uint $length = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $length = $length + Core\Str::length($info->get($target, 'text') as string) % 7;
+    $i = $i + 1;
+}
+echo $length, "\n";
+
+// 5. The same refused read 100000 times. Each error should be freed.
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $info->get($target, 'hidden');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
+
+// 6. A `get` hook that reads its own property through `get`, with no end.
+echo $target->loop, "\n";

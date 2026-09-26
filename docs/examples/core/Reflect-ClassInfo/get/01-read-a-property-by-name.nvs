@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read a property when its name is in a string.
+
+class Book {
+    public string $title = "The Hobbit";
+    public int $pages = 310;
+}
+
+var $book = new Book();
+var $info = Core\Reflect::forObject($book);
+
+// `get` reads the property "title" of `$book`. This prints "The Hobbit".
+echo $info->get($book, "title") as string, "\n";
+
+// The result has the type `mixed`. `as int` converts it back. This prints 320.
+echo ($info->get($book, "pages") as int) + 10, "\n";

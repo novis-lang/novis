@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a report writes only the columns a user chose, one line per order.
+
+class Order {
+    public function constructor(
+        public int $id,
+        public string $customer,
+        public string $total,
+    ) {}
+}
+
+array<Order> $orders = [new Order(1042, "Ana", "19.90"), new Order(1043, "Ben", "5.00")];
+
+// These are the column names the user chose, for example in a form.
+array<string> $columns = ["id", "total"];
+
+// `get` reads each chosen property. This prints "id,total", then "1042,19.90" and "1043,5.00".
+echo Core\Str::join($columns, ","), "\n";
+foreach ($orders as Order $order) {
+    var $info = Core\Reflect::forObject($order);
+    array<string> $cells = [];
+    foreach ($columns as string $column) {
+        $cells[] = $info->get($order, $column) as string;
+    }
+    echo Core\Str::join($cells, ","), "\n";
+}
