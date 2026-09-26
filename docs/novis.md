@@ -14120,13 +14120,13 @@ Whether the set holds nothing.
 $objectSet->union(Core\ObjectSet $other): Core\ObjectSet
 ```
 
-Builds a new set holding every value this set or `$other` holds.
+Builds a new set with every value that is in this set, in `$other`, or in both.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$other` | `Core\ObjectSet` | The set to combine with. |
 
-**Returns** `Core\ObjectSet` — A fresh `Core\ObjectSet<T>` — this set's members first, in their order, then `$other`'s newcomers; neither operand is changed.
+**Returns** `Core\ObjectSet` — A new `Core\ObjectSet<T>`. The values of this set come first, in their order. Then the values of `$other` that are not in this set follow. Neither set is changed.
 
 <a id="core-core-objectset-intersect"></a>
 #### `Core\ObjectSet->intersect`
@@ -14135,13 +14135,13 @@ Builds a new set holding every value this set or `$other` holds.
 $objectSet->intersect(Core\ObjectSet $other): Core\ObjectSet
 ```
 
-Builds a new set holding the values both this set and `$other` hold.
+Builds a new set with only the values that are in this set and also in `$other`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$other` | `Core\ObjectSet` | The set to intersect with. |
 
-**Returns** `Core\ObjectSet` — A fresh `Core\ObjectSet<T>` in this set's order, empty when the two share nothing; neither operand is changed.
+**Returns** `Core\ObjectSet` — A new `Core\ObjectSet<T>`, in the order of this set. It is empty when the two sets have no value in common. Neither set is changed.
 
 <a id="core-core-objectset-diff"></a>
 #### `Core\ObjectSet->diff`
@@ -14150,13 +14150,13 @@ Builds a new set holding the values both this set and `$other` hold.
 $objectSet->diff(Core\ObjectSet $other): Core\ObjectSet
 ```
 
-Builds a new set holding the values this set holds and `$other` does not — spelled `diff` as `Core\Arr::diff` is, because one operation gets one name.
+Builds a new set with the values that are in this set and not in `$other`. The name is `diff`, the same as `Core\Arr::diff`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$other` | `Core\ObjectSet` | The set whose members are left out. |
+| `$other` | `Core\ObjectSet` | The set whose values are left out. |
 
-**Returns** `Core\ObjectSet` — A fresh `Core\ObjectSet<T>` in this set's order, empty when `$other` holds everything this set does; neither operand is changed.
+**Returns** `Core\ObjectSet` — A new `Core\ObjectSet<T>`, in the order of this set. It is empty when `$other` has every value of this set. Neither set is changed.
 
 <a id="core-core-objectset-clear"></a>
 #### `Core\ObjectSet->clear`

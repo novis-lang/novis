@@ -1,0 +1,53 @@
+<?nvs
+// Shows how to find the guests who have not answered an invitation, to send them a reminder.
+
+final class Guest {
+    public string $email;
+
+    public function constructor(string $email) {
+        $this->email = $email;
+    }
+}
+
+final class Invitation {
+    public Core\ObjectSet<Guest> $invited;
+    public Core\ObjectSet<Guest> $answered;
+
+    public function constructor() {
+        $this->invited = new Core\ObjectSet<Guest>();
+        $this->answered = new Core\ObjectSet<Guest>();
+    }
+
+    public function invite(Guest $guest): void {
+        $this->invited->add($guest);
+    }
+
+    public function answer(Guest $guest): void {
+        $this->answered->add($guest);
+    }
+
+    // The guests who were invited and have not answered yet.
+    public function waiting(): Core\ObjectSet<Guest> {
+        return $this->invited->diff($this->answered);
+    }
+}
+
+Guest $ana = new Guest("ana@example.com");
+Guest $li = new Guest("li@example.com");
+Guest $sam = new Guest("sam@example.com");
+
+Invitation $party = new Invitation();
+$party->invite($ana);
+$party->invite($li);
+$party->invite($sam);
+$party->answer($li);
+
+// This prints two lines, for Ana and Sam.
+foreach ($party->waiting() as Guest $guest) {
+    echo "Remind ", $guest->email, "\n";
+}
+
+$party->answer($ana);
+$party->answer($sam);
+// Everybody has answered, so the result is empty. This prints 0.
+echo $party->waiting()->count(), "\n";

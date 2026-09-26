@@ -1,27 +1,18 @@
 {
-  "state": "Goal `core-objectset`: six of `Core\\ObjectSet`'s nine members have all their feature proofs —\n`add`, `has`, `remove`, `count`, `isEmpty` and `clear`. The class card is in\n`crates/nvs-stdlib/src/objset.rs`'s `CARD`. What still owes is the algebra: `union`, `intersect` and\n`diff` owe about, examples, hostile, perf and a test from each side. The Rust test\n`clear_empties_a_set_that_add_can_fill_again` now also covers `isEmpty`.\nReading `identity_store::vacate` found a reorder under a hash collision. It is recorded as\n`data/gaps/nvs-stdlib/a-removal-inside-a-hash-chain-reorders-the-collection.json` (M12), and the\n`remove` about page does not promise the order after a removal. No proof failed.\nA member bench must not index an array in its loop: `$keys[$total % 3]` costs 2 allocations per\nround, so the three new benches pick with a ternary between two variables.",
+  "state": "Goal `core-objectset` is reached: all nine members of `Core\\ObjectSet` have every feature proof,\nand `bun nv proofs --verify --group 'Core\\ObjectSet'` reports nothing owed, 27 examples and 9\nattacks passing. The class card and the member cards are in `crates/nvs-stdlib/src/objset.rs`.\nOne Rust test, `the_algebra_builds_new_sets_and_leaves_both_operands_alone`, covers `union`,\n`intersect` and `diff`, and the three `object-set-algebra-*.nvst` cases carry `covers:` markers.\nThe one gap this goal found, a reorder after a removal under a hash collision, is\n`data/gaps/nvs-stdlib/a-removal-inside-a-hash-chain-reorders-the-collection.json`, owned by M12.\n`bun nv owners --closes core-objectset` and `bun nv playbook --closes core-objectset` are clear,\nand `bun nv verify --doc` is green.",
   "next": {
-    "stage": 2,
-    "title": "the dossier, the algebra members",
+    "stage": null,
+    "title": "Goal reached",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/objset.rs` and the `object-set-algebra-*.nvst` cases under `tests/conformance/core/`:",
+    "note": "the next goal on the chain starts from its own handoff record.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\ObjectSet::union`** — owes about, examples, hostile, perf, a Novis `covers:` marker and a Rust `#[test]` with a marker (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/objset.rs:462`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\ObjectSet::intersect`** — the same; `tests/conformance/core/object-set-algebra-builds-a-new-set.nvst` is a case to mark. `crates/nvs-stdlib/src/objset.rs:474`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\ObjectSet::diff`** — the same; one Rust test can cover all three members. `crates/nvs-stdlib/src/objset.rs:488`"
+        "done": true,
+        "text": "**`Core\\ObjectSet::union`, `intersect` and `diff`** — all proofs landed (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/objset.rs:462`"
       }
     ]
   },
   "backlog": [
-    "The chain reorder on removal is a gap record, `data/gaps/nvs-stdlib/a-removal-inside-a-hash-chain-reorders-the-collection.json`, owned by M12; a Rust test planting a collision can pin it when it is fixed.",
-    "The `remove` bench does 1 allocation of 50 bytes a round. It belongs to the `add` that re-inserts, the same owned-key copy as `data/gaps/nvs-stdlib/an-objectmap-overwrite-allocates-its-chain-key.json`."
+    "The cards of `add`, `has`, `remove`, `count`, `isEmpty` and `clear` still use \"holds\" and \"drops\"; goal `plain-comments` owns that sweep (AGENTS.md § *Text an end user reads*)."
   ]
 }

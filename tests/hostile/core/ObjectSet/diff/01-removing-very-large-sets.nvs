@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a program takes very large sets away from each other, and a set away from itself.
+// It keeps every result until memory runs out. The program should stop at its memory limit and must not crash.
+// hostile: ends-early
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+// 1. Two sets of 100000 objects each share half of their objects. `diff` is called both ways.
+Core\ObjectSet<Node> $left = new Core\ObjectSet<Node>();
+Core\ObjectSet<Node> $right = new Core\ObjectSet<Node>();
+int $i = 0;
+while ($i < 150000) {
+    Node $node = new Node($i);
+    if ($i < 100000) {
+        $left->add($node);
+    }
+    if ($i >= 50000) {
+        $right->add($node);
+    }
+    $i = $i + 1;
+}
+echo '1: ', $left->diff($right)->count(), ' ', $right->diff($left)->count(), "\n";
+
+// 2. A large set is taken away from itself, and an empty set from it, 10 times each.
+Core\ObjectSet<Node> $none = new Core\ObjectSet<Node>();
+uint $total = 0;
+$i = 0;
+while ($i < 10) {
+    $total = $total + $left->diff($left)->count() + $none->diff($left)->count();
+    $total = $total + $left->diff($none)->count();
+    $i = $i + 1;
+}
+echo '2: ', $total, "\n";
+
+// 3. The result of the last round is taken away from a set of 1000 objects, 1000 times.
+Core\ObjectSet<Node> $small = new Core\ObjectSet<Node>();
+$i = 0;
+while ($i < 1000) {
+    $small->add(new Node($i));
+    $i = $i + 1;
+}
+Core\ObjectSet<Node> $swap = $small->diff($none);
+$i = 0;
+while ($i < 1000) {
+    $swap = $small->diff($swap);
+    $i = $i + 1;
+}
+echo '3: ', $swap->count(), "\n";
+
+// 4. A set contains itself and other values, and `diff` removes a set that contains only itself.
+Core\ObjectSet<mixed> $self = new Core\ObjectSet<mixed>();
+$self->add($self);
+$self->add(Core\Str::repeat('v', 1000000));
+$self->add(null);
+Core\ObjectSet<mixed> $only = new Core\ObjectSet<mixed>();
+$only->add($self);
+Core\ObjectSet<mixed> $rest = $self->diff($only);
+$self->remove($self);
+echo '4: ', $rest->count(), ' ', $rest->has($self) ? 'y' : 'n', "\n";
+
+// 5. Every result of a large `diff` is kept, until the memory limit stops the program.
+array<Core\ObjectSet<Node>> $kept = [];
+while (true) {
+    $kept[] = $left->diff($none);
+}
