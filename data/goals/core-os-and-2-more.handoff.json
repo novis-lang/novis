@@ -1,26 +1,22 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Os and 2 more has been taken yet.",
+  "state": "Goal `core-os-and-2-more`: `Core\\Os::cpuCount` and `Core\\Os::hostname` have all their feature proofs on disk: about, three examples each, an attack, a bench and a Rust `covers:` marker.\n`Core\\Os` now has its class card, and it is off `CLASSES_STILL_OWING_A_CARD`. The member cards of `cpuCount`, `hostname` and `loadAverage` were rewritten in the plain voice.\n`loadAverage` already carries its Rust `covers:` marker on `load_average_throws_on_windows_with_a_message_naming_the_platform`. It still owes about, examples, hostile and perf.\nEvery value in `Core\\Os` differs per machine, so each example prints a check (`yes`, `100`) and never the value itself.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "the last member's proofs",
+    "files": [
+      "crates/nvs-stdlib/src/os.rs",
+      "docs/examples/core/Os/",
+      "tests/hostile/core/Os/",
+      "benches/members/core/Os/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Os::cpuCount`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:75`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Os::hostname`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:66`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Os::loadAverage`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/os.rs:93`"
+        "text": "**`Core\\Os::loadAverage`** — owes about, examples, hostile, perf (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/os.rs:93`. It throws a `RuntimeError` on Windows. An example that reads the figures needs `// requires: unix` and is blessed on Linux (`docs/examples/README.md` § *`// requires: unix`*). An example that catches the throw and prints the same line on both platforms runs everywhere. The attack and the bench must survive both platforms: catch the throw in each step, and let the bench total count a throw as 0."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "Uint division: `uint / uint` is typed `uint|float` and `Core\\Math::intDiv` takes `int` only, so an example dividing a `uint` count uses `%` or a loop. No doc owns this yet."
   ]
 }

@@ -1,0 +1,42 @@
+<?nvs
+// Attack: the machine's name is read many times, joined into a very long text
+// and cut into pieces. The name must never change and no step may crash. The
+// program should run to its last line.
+
+string $host = Core\Os::hostname();
+
+// 1. The name is read 20000 times, and every copy is kept. Every reading must
+//    be the same. This prints 1.
+array<string> $copies = [];
+uint $same = 0;
+uint $i = 0;
+while ($i < 20000) {
+    string $again = Core\Os::hostname();
+    $copies[] = $again;
+    if ($again == $host) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo $same == 20000 ? 1 : 0, "\n";
+
+// 2. All the copies are joined into one text. Its length must be exactly
+//    20000 times the length of the name. This prints 1.
+string $joined = Core\Str::join($copies, '');
+echo Core\Str::length($joined) == Core\Str::length($host) * 20000 ? 1 : 0, "\n";
+
+// 3. The copies are freed, and the name is read again. It must not have
+//    changed. This prints 1.
+$copies = [];
+$joined = '';
+echo Core\Os::hostname() == $host ? 1 : 0, "\n";
+
+// 4. The name is used as a key in a map, 20000 times. The map must still have
+//    one entry. This prints 1.
+array<uint> $seen = [];
+$i = 0;
+while ($i < 20000) {
+    $seen[Core\Os::hostname()] = $i;
+    $i = $i + 1;
+}
+echo Core\Arr::count($seen) == 1 ? 1 : 0, "\n";

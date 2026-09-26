@@ -23185,11 +23185,11 @@ This process's identifier, as the operating system numbers it — `getmypid`. It
 Core\Os::hostname(): string
 ```
 
-The name of the host this process runs on — `gethostname`, and the one field of `php_uname` a program usually wanted. Nothing is resolved and no network is reached: this is the name the host holds for itself.
+Returns the name of the machine this program runs on. This replaces PHP's `gethostname`. It reads the name the machine has for itself, and it does not use the network.
 
-**Returns** `string` — The host's own name.
+**Returns** `string` — The machine's name.
 
-**Throws** `RuntimeError` — The operating system would not answer, or answered a name that is not UTF-8.
+**Throws** `RuntimeError` — The operating system did not return a name, or the name is not valid UTF-8.
 
 <a id="core-core-os-cpucount"></a>
 #### `Core\Os::cpuCount`
@@ -23198,11 +23198,11 @@ The name of the host this process runs on — `gethostname`, and the one field o
 Core\Os::cpuCount(): uint
 ```
 
-How many cores this process may actually run on, which is the number the server fans its workers out over. An affinity mask or a container quota narrows it, so a program in a two-CPU cgroup on a 96-core host reads 2.
+Returns how many CPU cores this program may use. A server or a container can limit a program to some of its cores. A program in a container with 2 cores on a machine with 96 cores gets 2. The web server starts this same number of workers.
 
-**Returns** `uint` — The core count, at least 1.
+**Returns** `uint` — The number of cores. It is always 1 or more.
 
-**Throws** `RuntimeError` — The operating system would not say how many cores this process may use.
+**Throws** `RuntimeError` — The operating system did not say how many cores this program may use.
 
 <a id="core-core-os-residentbytes"></a>
 #### `Core\Os::residentBytes`
@@ -23224,11 +23224,11 @@ The bytes of this **process's** resident set at its high-water mark — `getrusa
 Core\Os::loadAverage(): array<float>
 ```
 
-The kernel's load average over one, five and fifteen minutes — `sys_getloadavg`. The three figures count runnable processes rather than a percentage, so a number above `cpuCount()` is a queue and not an error.
+Returns how busy the machine is, as three numbers: the averages over the last 1, 5 and 15 minutes. This replaces PHP's `sys_getloadavg`. Each number counts the processes that are running or waiting to run. A number larger than `cpuCount()` means some processes are waiting.
 
-**Returns** `array<float>` — Three floats, in the order one, five, fifteen.
+**Returns** `array<float>` — Three floats: the averages over 1, 5 and 15 minutes, in that order.
 
-**Throws** `RuntimeError` — This platform keeps no load average. Windows is the one that does not, and the message names it.
+**Throws** `RuntimeError` — Windows does not keep a load average, so this method throws there. The message names the platform.
 
 <a id="core-core-cache"></a>
 ### `Core\Cache`
