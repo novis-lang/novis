@@ -11338,13 +11338,13 @@ Splits `$path` into its parts: the folders and the file name, in order. This rep
 Core\Path::normalize(string $path): string
 ```
 
-Resolves `.` and `..` in `$path` lexically and re-renders it with `Path::SEPARATOR` — the half of `realpath` that does not touch the disk. Not a launder: removing `../` is not path-traversal safety, which is `Core\IO::within`.
+Removes the `.` and `..` parts from `$path` and writes it with `Core\Path::SEPARATOR`. The method works on the text only and never looks at the disk. The result can still point outside a folder, so it does not make a path safe. `Core\IO::within` checks that.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` | The path, with `/` and `\` both read as separators. |
+| `$path` | `string` | The path. `/` and `\` are both separators on every platform. |
 
-**Returns** `string` — The normal form; a `..` that cannot be cancelled is kept on a relative path and dropped on an absolute one, and a repeated or trailing separator goes. Every path has one, so this never fails.
+**Returns** `string` — The same path without `.` parts, and with each `..` removing the folder before it. A `..` at the start of a relative path stays. A `..` that would go above a root is removed, because a root has no parent. A repeated separator or one at the end is removed. The empty path gives `.`.
 
 <a id="core-core-path-isabsolute"></a>
 #### `Core\Path::isAbsolute`
@@ -11353,13 +11353,13 @@ Resolves `.` and `..` in `$path` lexically and re-renders it with `Path::SEPARAT
 Core\Path::isAbsolute(string $path): bool
 ```
 
-Answers whether `$path` begins at a root — a separator, a drive letter followed by a separator, or a UNC server — replacing the manual checks PHP leaves this to.
+Checks whether `$path` starts at a root. A root is a separator, a drive followed by a separator, or a network share. The check is the same on every platform.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (neutral) | The path, with `/` and `\` both read as separators. |
+| `$path` | `string` (neutral) | The path. `/` and `\` are both separators on every platform. |
 
-**Returns** `bool` — `true` for `/tmp`, `\tmp`, `C:/log` and `\\server\share` on every platform — the grammar is the same everywhere, only the rendered separator differs — and `false` otherwise, `''` included.
+**Returns** `bool` — `true` for `/tmp`, `\tmp`, `C:/log` and `\\server\share`. `false` for a relative path such as `logs/app.log`, for `C:log`, and for the empty string.
 
 <a id="core-core-path-relativeto"></a>
 #### `Core\Path::relativeTo`
@@ -11368,14 +11368,14 @@ Answers whether `$path` begins at a root — a separator, a drive letter followe
 Core\Path::relativeTo(string $path, string $base): ?string
 ```
 
-Answers the relative path that leads from `$base` to `$path`, both resolved lexically first — a member PHP has no equivalent of.
+Returns the path that leads from the folder `$base` to `$path`. The `.` and `..` parts of both paths are removed first, as `Core\Path::normalize` does. PHP has no function for this.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` | The destination. |
-| `$base` | `string` | The directory the answer is relative to; one `..` is emitted per component of it that the two do not share. |
+| `$path` | `string` | The place the result leads to. |
+| `$base` | `string` | The folder the result starts from. The result has one `..` for each folder of `$base` that `$path` does not share. |
 
-**Returns** `?string` — The relative path, rendered with `Path::SEPARATOR` and never carrying a root; `.` when both name the same place; `null` when no relative path exists — one side is absolute and the other is not, the two begin at different roots, or `$base` still holds a `..` the answer would have to walk back into. Components compare byte for byte, except a drive letter and a UNC server, which ignore ASCII case.
+**Returns** `?string` — A relative path, written with `Core\Path::SEPARATOR`. It is `.` when both paths name the same place. It is `null` when no relative path exists: one path is absolute and the other is not, the paths start at different roots, or `$base` starts with more `..` parts than `$path` does. Folder names are compared byte for byte. A drive letter and a server name ignore upper and lower case.
 
 <a id="core-core-io"></a>
 ### `Core\IO`

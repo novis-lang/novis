@@ -335,57 +335,59 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Path::normalize`'s reference card — `rule:core-api/reference-card`.
 const NORMALIZE_DOC: MethodDoc = MethodDoc {
-    short: "Resolves `.` and `..` in `$path` lexically and re-renders it with \
-            `Path::SEPARATOR` — the half of `realpath` that does not touch the disk. Not a \
-            launder: removing `../` is not path-traversal safety, which is `Core\\IO::within`.",
+    short: "Removes the `.` and `..` parts from `$path` and writes it with \
+            `Core\\Path::SEPARATOR`. The method works on the text only and never looks at the \
+            disk. The result can still point outside a folder, so it does not make a path \
+            safe. `Core\\IO::within` checks that.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The path, with `/` and `\\` both read as separators.",
+        desc: "The path. `/` and `\\` are both separators on every platform.",
         shape: &[],
     }],
-    ret: "The normal form; a `..` that cannot be cancelled is kept on a relative path and \
-          dropped on an absolute one, and a repeated or trailing separator goes. Every path \
-          has one, so this never fails.",
+    ret: "The same path without `.` parts, and with each `..` removing the folder before it. \
+          A `..` at the start of a relative path stays. A `..` that would go above a root is \
+          removed, because a root has no parent. A repeated separator or one at the end is \
+          removed. The empty path gives `.`.",
     errors: &[],
 };
 
 /// `Core\Path::isAbsolute`'s reference card — `rule:core-api/reference-card`.
 const IS_ABSOLUTE_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$path` begins at a root — a separator, a drive letter followed by \
-            a separator, or a UNC server — replacing the manual checks PHP leaves this to.",
+    short: "Checks whether `$path` starts at a root. A root is a separator, a drive followed \
+            by a separator, or a network share. The check is the same on every platform.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The path, with `/` and `\\` both read as separators.",
+        desc: "The path. `/` and `\\` are both separators on every platform.",
         shape: &[],
     }],
-    ret: "`true` for `/tmp`, `\\tmp`, `C:/log` and `\\\\server\\share` on every platform — the \
-          grammar is the same everywhere, only the rendered separator differs — and `false` \
-          otherwise, `''` included.",
+    ret: "`true` for `/tmp`, `\\tmp`, `C:/log` and `\\\\server\\share`. `false` for a \
+          relative path such as `logs/app.log`, for `C:log`, and for the empty string.",
     errors: &[],
 };
 
 /// `Core\Path::relativeTo`'s reference card — `rule:core-api/reference-card`.
 const RELATIVE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Answers the relative path that leads from `$base` to `$path`, both resolved \
-            lexically first — a member PHP has no equivalent of.",
+    short: "Returns the path that leads from the folder `$base` to `$path`. The `.` and `..` \
+            parts of both paths are removed first, as `Core\\Path::normalize` does. PHP has \
+            no function for this.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The destination.",
+            desc: "The place the result leads to.",
             shape: &[],
         },
         ParamDoc {
             name: "base",
-            desc: "The directory the answer is relative to; one `..` is emitted per component \
-                   of it that the two do not share.",
+            desc: "The folder the result starts from. The result has one `..` for each folder \
+                   of `$base` that `$path` does not share.",
             shape: &[],
         },
     ],
-    ret: "The relative path, rendered with `Path::SEPARATOR` and never carrying a root; `.` \
-          when both name the same place; `null` when no relative path exists — one side is \
-          absolute and the other is not, the two begin at different roots, or `$base` still \
-          holds a `..` the answer would have to walk back into. Components compare byte for \
-          byte, except a drive letter and a UNC server, which ignore ASCII case.",
+    ret: "A relative path, written with `Core\\Path::SEPARATOR`. It is `.` when both paths \
+          name the same place. It is `null` when no relative path exists: one path is \
+          absolute and the other is not, the paths start at different roots, or `$base` \
+          starts with more `..` parts than `$path` does. Folder names are compared byte for \
+          byte. A drive letter and a server name ignore upper and lower case.",
     errors: &[],
 };
 
@@ -508,6 +510,15 @@ fn split_drive(path: &str) -> Option<(&str, &str)> {
         return Some(path.split_at(2));
     }
     None
+}
+
+/// Whether `path` begins at a root, read from its first three bytes — the
+/// answer [`parse`]'s `absolute` gives, without walking the components.
+///
+/// Every root begins with a separator, except a drive, and [`split_drive`]
+/// recognizes a drive only when a separator follows it.
+fn begins_at_root(path: &str) -> bool {
+    path.starts_with(is_separator) || split_drive(path).is_some()
 }
 
 /// `path` split into the server and share of its UNC root and the rest that
@@ -1004,7 +1015,7 @@ nvs_runtime::nvs_helper! {
     /// string is exactly why.
     fn nvs_core_path_is_absolute(_ctx, args: [1]) {
         let path = text(&args[0], "isAbsolute", "the path")?;
-        Ok(Value::bool(parse(path).absolute))
+        Ok(Value::bool(begins_at_root(path)))
     }
 }
 
@@ -1360,6 +1371,7 @@ mod tests {
         }
     }
 
+    // covers: Core\Path::normalize
     #[test]
     fn normalize_resolves_dots_by_counting_components() {
         assert_eq!(normalize("/var/www/../log/./app.log"), "/var/log/app.log");
@@ -1374,6 +1386,7 @@ mod tests {
         assert_eq!(normalize("."), ".");
     }
 
+    // covers: Core\Path::relativeTo
     #[test]
     fn relative_to_walks_up_and_then_down() {
         assert_eq!(
@@ -1391,6 +1404,7 @@ mod tests {
         assert_eq!(relative_to(r"C:\x\y", r"c:\x").as_deref(), Some("y"));
     }
 
+    // covers: Core\Path::relativeTo
     #[test]
     fn relative_to_answers_null_where_no_relative_path_exists() {
         // Different starting points, different roots, and a base this cannot
@@ -1400,6 +1414,7 @@ mod tests {
         assert_eq!(relative_to("a", ".."), None);
     }
 
+    // covers: Core\Path::isAbsolute
     #[test]
     fn is_absolute_reads_one_grammar_on_every_platform() {
         for absolute in ["/a", r"\a", "C:/log", r"C:\log", "/"] {
@@ -1407,6 +1422,42 @@ mod tests {
         }
         for relative in ["a", "a/b", "", "C:log", "a:b"] {
             assert!(!is_absolute(relative), "{relative}");
+        }
+    }
+
+    /// `isAbsolute` reads three bytes rather than parsing the whole path, so
+    /// a long path costs the same as a short one; this pins that the short
+    /// read agrees with the full parse every other member reads.
+    // covers: Core\Path::isAbsolute
+    #[test]
+    fn is_absolute_agrees_with_the_full_parse() {
+        for path in [
+            "",
+            "/",
+            "\\",
+            "a",
+            "/a",
+            r"\a",
+            "C:",
+            "C:/",
+            r"C:\a",
+            "C:a",
+            "1:/a",
+            "a:b",
+            r"\\",
+            r"\\\a",
+            r"\\server",
+            r"\\server\share\f",
+            "//server/",
+            ":",
+            "é:/a",
+        ] {
+            assert_eq!(
+                super::begins_at_root(path),
+                super::parse(path).absolute,
+                "{path}"
+            );
+            assert_eq!(is_absolute(path), super::parse(path).absolute, "{path}");
         }
     }
 
