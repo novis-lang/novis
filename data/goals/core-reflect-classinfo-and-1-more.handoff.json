@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2. `ClassInfo::attributes`, `::call` and\n`::constant` are complete: tests from both sides, three examples, `about.md`, one attack and one\nrecorded bench each. `Core\\Reflect\\ClassInfo` has its class card and is off\n`CLASSES_STILL_OWING_A_CARD`. The `constant` bench found 3 allocations per read. The cause was the\nreflective call site being decoded into owned strings, and it is fixed:\n`nvs_runtime::source::member_of_operand` borrows the label, and `reflect.rs`'s `site_class` uses it\nfor `get`, `set`, `call`, `construct` and `constant`. Items 4 to 16 of the goal prose remain, and\nevery one owes an `about.md` too (goal prose § *The target*), which the check does not count.\nNo proof found a behaviour bug.",
+  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2. `ClassInfo::attributes`, `::call`,\n`::constant` and `::constants` are complete: tests from both sides, three examples, `about.md`,\none attack and one recorded bench each. `Core\\Reflect\\ClassInfo` has its class card.\n`ClassInfo::get` has its Novis test marked (`covers:` on\n`tests/conformance/core/reflect-get-refuses-a-private-read-and-tells-it-from-a-misspelling.nvst`)\nand owes the rest. Items 5 to 16 of the goal prose remain, and every one owes an `about.md` too\n(goal prose § *The target*), which the check does not count. No proof found a behaviour bug in\n`Core\\Reflect`; the `constants` bench found a codegen cost in its own scaffolding (Backlog).",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -8,21 +8,21 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::constants`** — about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/reflect.rs:2242`"
+        "text": "**`Core\\Reflect\\ClassInfo::get`** — Rust test, about, examples, hostile, perf (`rule:testing/feature-proofs`, `rule:security/reflection-enforces-visibility`). The `.nvst` half is marked; the Rust test at the `set` observer's tail calls `get` only in passing and is not one. `crates/nvs-stdlib/src/reflect.rs:604`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::get`** — about, examples, hostile, perf, tests. The existing `.nvst` cases that call it need a `covers:` marker. `crates/nvs-stdlib/src/reflect.rs:2683`"
+        "text": "**`Core\\Reflect\\ClassInfo::construct`** — about, examples, hostile, perf, tests. The two `reflect-construct-*.nvst` cases under `tests/conformance/core/` need a `covers:` marker. `crates/nvs-stdlib/src/reflect.rs:2882`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::construct`** — about, examples, hostile, perf, tests. `crates/nvs-stdlib/src/reflect.rs:2882`"
+        "text": "**`Core\\Reflect\\ConstantInfo::name`** — then `isPublic` and `hasValue`, and the class card for `Core\\Reflect\\ConstantInfo` (remove it from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`). `crates/nvs-stdlib/src/reflect.rs:1400`"
       }
     ]
   },
   "backlog": [
-    "Items 7 to 16 of `docs/agent/goals/core-reflect-classinfo-and-1-more.md` § *The item list*: `hasMethod`, `hasProperty`, `methods`, `name`, `properties`, `readableProperties`, `set`, and `ConstantInfo`'s three members.",
-    "`Core\\Reflect\\AttributeInfo`'s five members have no `about.md` (goal `core-ratelimit-and-3-more` did not write them); the check does not count it yet.",
-    "`ClassInfo::call` makes 8 allocations per call, with the argument list and the erased call's frame (not checked which). The bench declares no count."
+    "An array read with a computed `uint` index allocates on every read; the same index `as int` does not (measured with `nvs run --count`, allocating site not checked). Owner not chosen: codegen's array-read lowering is the likely home.",
+    "`constants` on a subclass lists the parent's `private` constants (`KEY` on `Child extends Base`). The card says \"every inherited one\"; whether a `private` one is inherited is not stated in `rule:core-classes/reflect` (not checked against ADR 0019).",
+    "`ClassInfo::set`, `::methods`, `::properties` and the rest of goal prose items 5 to 16 — goal prose § *The target*."
   ]
 }
