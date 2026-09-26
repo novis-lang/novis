@@ -5,6 +5,7 @@ import {
   acceptance,
   allReds,
   firstErrLine,
+  heldByGate,
   judgeCommand,
   judgeProgram,
   judgeTests,
@@ -21,6 +22,7 @@ import {
   subsetRun,
   testExecutables,
   tiers,
+  withSetups,
 } from "../driver/accept.ts";
 
 const check = (over: Partial<Check>): Check => ({ id: "c", kind: "command", stage: 1, ...over });
@@ -307,6 +309,34 @@ describe("the whole sweep", () => {
     const owed = owedChecks([...plan, live], label, (c: Check) => reached.has(c.id));
     expect(owed.map((c) => c.id)).toEqual(["floor-fix", "setup"]);
     expect(owedChecks(plan, label, everything).map((c) => c.id)).toEqual(["over", "floor-fix", "setup"]);
+  });
+
+  describe("a setup command with the floor gate shut", () => {
+    // The shape of the queue fixture's pair: a migration never memoized, and the fixture that reads its tables.
+    const migrate = check({ id: "migrate", argv: ["{nvs}", "queue", "migrate"], setup: true, memoize: false });
+    const fixture = check({ id: "queue-fix", kind: "exact", file: "q.nvs", want: [] });
+    const bench = check({ id: "bench", argv: ["bun", "nv", "bench", "--guard"] });
+    const live = check({ id: "live", argv: ["e"], memoize: false });
+    const whole = [bench, fixture, live, migrate];
+
+    test("is never held, while every other heavy check is", () => {
+      expect(heldByGate(migrate)).toBe(false);
+      expect([bench, live].map(heldByGate)).toEqual([true, true]);
+      expect(whole.filter((c) => !heldByGate(c)).map((c) => c.id)).toEqual(["queue-fix", "migrate"]);
+    });
+
+    test("rides along with a filter that selects a fixture, and with no other one", () => {
+      expect(withSetups([fixture], whole).map((c) => c.id)).toEqual(["queue-fix", "migrate"]);
+      expect(withSetups([fixture, migrate], whole).map((c) => c.id)).toEqual(["queue-fix", "migrate"]);
+      expect(withSetups([live], whole).map((c) => c.id)).toEqual(["live"]);
+    });
+
+    test("runs before the fixture that reads what it writes", async () => {
+      const s = fake([]);
+      const shown = withSetups(whole.filter((c) => c.id === "queue-fix" && !heldByGate(c)), whole);
+      await acceptance(shown, opts(s));
+      expect(s.ran).toEqual(["migrate", "queue-fix"]);
+    });
   });
 });
 

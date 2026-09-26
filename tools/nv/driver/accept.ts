@@ -397,6 +397,25 @@ export function isHeavy(c: Check): boolean {
   return c.memoize === false || isRelease(c) || heavyRole(c) !== null;
 }
 
+/**
+ * Whether a shut floor gate holds `c` back: it is heavy and not a `setup` command. A setup is heavy only
+ * because it is never memoized, and it writes what the fixtures read, such as the tables a migration
+ * creates, so it runs before them whatever the gate.
+ */
+export function heldByGate(c: Check): boolean {
+  return isHeavy(c) && c.setup !== true;
+}
+
+/**
+ * `shown` with the plan's `setup` commands added when it holds a fixture, so a sweep narrowed by a filter
+ * runs a fixture after its setup, as the whole plan does. `tiers` puts them in front.
+ */
+export function withSetups(shown: Check[], plan: Check[]): Check[] {
+  if (!shown.some((c) => PROGRAM_KINDS.has(c.kind))) return shown;
+  const ids = new Set(shown.map((c) => c.id));
+  return [...shown, ...plan.filter((c) => c.setup === true && !ids.has(c.id))];
+}
+
 /** Every check in the tiers the sweep runs, each tier by stage and in the plan's order within one. */
 export function tiers(checks: Check[], label: (n: number) => string): Tier[] {
   const byStage = (list: Check[]) => list.map((c, i) => ({ c, i })).sort((a, b) => a.c.stage - b.c.stage || a.i - b.i).map((x) => x.c);

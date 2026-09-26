@@ -84,9 +84,9 @@
 // is rejoined with `claude --resume`: `driver/sweep.ts` says how and how often.
 //
 // The acceptance sweep behind it is every check in the plan, carried or the goal's own, and what starts
-// is what the session's change reached. The heavy checks (`accept.ts`'s `isHeavy`: the release profile,
-// fuzz, TSan, the database matrix and the checks never memoized) and the Linux legs are held in nine
-// turns of ten (`FLOOR_GATE_EVERY`, counted in the store as `floor-gate:since`), and a heavy check a held
+// is what the session's change reached. The heavy checks (`accept.ts`'s `heldByGate`: the release
+// profile, fuzz, TSan, the database matrix and the checks never memoized, but never a setup command,
+// which the fixtures behind it need) and the Linux legs are held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in the store as `floor-gate:since`), and a heavy check a held
 // sweep reached is owed until the gate opens. A scoped sweep that is green with checks held runs again over the whole
 // plan, collecting every red, since a goal is never reached on a held check. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
 // would reach the goal also runs the goal-end gates, rustdoc and owner, and a goal is reached only when
@@ -146,7 +146,7 @@ import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin, type Origin } from "../driver/origin.ts";
 import { takeSweepLock } from "../driver/sweep-lock.ts";
-import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, isCarried, isHeavy, owedChecks, tiers } from "../driver/accept.ts";
+import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, heldByGate, isCarried, owedChecks, tiers, withSetups } from "../driver/accept.ts";
 import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
 import { lastGreen, PlanSweep } from "../driver/runner.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
@@ -488,9 +488,11 @@ async function goalOnly(filters: Filters): Promise<number> {
   if (found === null) return 2;
   const { goal, labelOf } = found;
   const narrowed = filters.stage !== undefined || filters.name !== undefined || filters.feature !== undefined;
-  // `--gate-shut` is a turn's sweep in nine of ten: the heavy checks and the legs are held, and owed.
-  const shown = filters.shut ? found.shown.filter((c) => !isHeavy(c)) : found.shown;
-  const held = found.shown.length - shown.length;
+  // `--gate-shut` is a turn's sweep in nine of ten: the heavy checks and the legs are held, and owed. A
+  // setup command is never held, and a filter that selects a fixture runs the setups with it.
+  const kept = filters.shut ? found.shown.filter((c) => !heldByGate(c)) : found.shown;
+  const held = found.shown.length - kept.length;
+  const shown = withSetups(kept, goal.checks as Check[]);
   console.log(`running the acceptance sweep over ${shown.length} ${shown.length === 1 ? "check" : "checks"}${filters.full ? " (full: every atom)" : ""}${filters.collect ? " (collecting every red)" : ""}${filters.shut ? ` (floor gate shut: ${held} heavy check(s) and the Linux legs held)` : ""}`);
   // The whole plan is a sweep with the floor gate open, and it runs both legs; a narrowed one runs neither.
   const open = !narrowed && !filters.shut;
@@ -1190,8 +1192,9 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   const since = floorSince() + 1;
   let open = since >= FLOOR_GATE_EVERY;
   // Every check but a heavy one: what starts is what this session's change reached, carried or the
-  // goal's own, and what was owed before it.
-  const heldBack = open ? [] : all.filter(isHeavy);
+  // goal's own, and what was owed before it. A setup command is never held, since the fixtures read
+  // what it writes.
+  const heldBack = open ? [] : all.filter(heldByGate);
   const scoped = all.filter((c) => !heldBack.includes(c));
   step(`acceptance check: every check a change reached${open ? ", the heavy ones and the Linux legs with them" : ` (heavy checks and the Linux legs held, 1 session in ${FLOOR_GATE_EVERY})`}`, C.CYAN);
   const checkedAt = performance.now();
