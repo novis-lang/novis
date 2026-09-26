@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to keep a list of the jobs that are still running, with the time each one started.
+
+final class Job {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Job $backup = new Job("backup");
+Job $report = new Job("report");
+Job $email = new Job("email");
+
+// The map stores the start time of each running job.
+Core\ObjectMap<Job, string> $running = new Core\ObjectMap<Job, string>();
+$running->set($backup, "09:00");
+$running->set($report, "09:05");
+$running->set($email, "09:07");
+
+// When a job finishes, `remove` deletes it from the map.
+array<Job> $finished = [$report, $backup];
+foreach ($finished as Job $job) {
+    echo $job->name, " finished\n";
+    $running->remove($job);
+}
+
+// Only the email job is still running. This prints "email since 09:07".
+foreach ($running as Job $job) {
+    echo $job->name, " since ", $running->get($job) ?? "-", "\n";
+}

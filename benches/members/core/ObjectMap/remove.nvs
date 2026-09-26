@@ -1,0 +1,34 @@
+<?nvs
+// Removes an object that is not in a map, as a program does when it cleans up an object that may never have been stored.
+// bench: iterations 1000000
+// bench: allocations 0
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Key> $stored = [new Key(1), new Key(2), new Key(3)];
+        array<Key> $others = [new Key(4), new Key(5), new Key(6)];
+        Core\ObjectMap<Key, int> $map = new Core\ObjectMap<Key, int>();
+        $map->set($stored[0], 1);
+        $map->set($stored[1], 2);
+        $map->set($stored[2], 3);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: which key is removed depends on last round's total
+            $map->remove($others[($total % 3) as int]);
+            $total = $total + 1 + ($map->count() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000000), "\n";
