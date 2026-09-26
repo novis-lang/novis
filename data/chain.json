@@ -1,5 +1,5 @@
 {
-  "live": "core-queue-stats",
+  "live": "core-random-and-1-more",
   "goals": [
     "core-depth",
     "concurrency",
