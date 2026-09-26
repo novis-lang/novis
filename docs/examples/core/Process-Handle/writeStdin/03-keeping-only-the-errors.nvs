@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to pass the lines of a log to `grep`, and keep only the lines with errors.
+// requires: unix
+
+// `grep ERROR` prints only the lines of its input that contain `ERROR`.
+var $filter = Core\Process::spawn("/bin/grep", ["ERROR"]);
+
+// The log is sent one line at a time, as a program does while it reads a large file.
+array<string> $log = [
+    "10:00 INFO server started",
+    "10:02 ERROR cannot connect to the database",
+    "10:03 INFO request finished",
+    "10:05 ERROR disk is full",
+];
+foreach ($log as string $entry) {
+    $filter->writeStdin(($entry . "\n") as bytes);
+}
+
+// This prints the two lines that contain `ERROR`.
+echo $filter->wait()->stdout() as string;

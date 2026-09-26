@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program sends a lot of input to another program, sends it after that program has
+// stopped, and sends more than its memory limit allows. Each wrong write should throw `IOError`,
+// and the memory limit should stop the program at the end. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+class Attack
+{
+    // A program that reads its input and throws it away. On Windows, `cmd.exe` runs `findstr`.
+    public static function discarding(): Core\Process\Handle
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', 'findstr /v zzzz >nul']);
+        }
+        return Core\Process::spawn('/bin/sh', ['-c', 'exec cat >/dev/null']);
+    }
+
+    // A program that never reads its input, and ends after about one second.
+    public static function notReading(): Core\Process\Handle
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', 'ping -n 2 127.0.0.1 >nul']);
+        }
+        return Core\Process::spawn('/bin/sh', ['-c', 'exec sleep 1']);
+    }
+
+    // Calls `writeStdin()` and returns one word: what happened.
+    public static function write(Core\Process\Handle $program, bytes $data): string
+    {
+        try {
+            $program->writeStdin($data);
+            return 'written';
+        } catch (IOError $failed) {
+            return 'IOError';
+        }
+    }
+}
+
+// 1. 10000 short lines are sent, one call each. Memory should not grow with the count.
+var $sink = Attack::discarding();
+int $sent = 0;
+while ($sent < 10000) {
+    $sink->writeStdin("a short line of input\n" as bytes);
+    $sent = $sent + 1;
+}
+echo 'sent ', $sent, " lines\n";
+
+// 2. An empty write, and then one write of 2 MiB.
+echo 'empty write: ', Attack::write($sink, '' as bytes), "\n";
+echo 'large write: ', Attack::write($sink, Core\Bytes::repeat("line of input\n" as bytes, 150000)), "\n";
+
+// 3. A write after `wait()`. The input is closed, so this throws `IOError`.
+$sink->wait();
+echo 'write after wait: ', Attack::write($sink, "late\n" as bytes), "\n";
+
+// 4. A write after `kill()`. The program is gone, so a large write throws `IOError`.
+var $killed = Attack::discarding();
+$killed->kill();
+echo 'write after kill: ', Attack::write($killed, Core\Bytes::repeat('x' as bytes, 1048576)), "\n";
+$killed->wait();
+
+// 5. A large write to a program that never reads. The write waits until the program ends,
+// and then throws `IOError`.
+var $deaf = Attack::notReading();
+echo 'write to a program that does not read: ', Attack::write($deaf, Core\Bytes::repeat('x' as bytes, 1048576)), "\n";
+$deaf->wait();
+
+// 6. The data doubles in size before each write. The memory limit stops the program here.
+var $flood = Attack::discarding();
+bytes $data = "start of a large input\n" as bytes;
+while (true) {
+    $flood->writeStdin($data);
+    $data = Core\Bytes::repeat($data, 2);
+}

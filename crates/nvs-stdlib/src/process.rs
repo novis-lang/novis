@@ -405,21 +405,21 @@ const READ_STDERR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Process\Handle::writeStdin`'s reference card — `rule:core-api/reference-card`.
 const WRITE_STDIN_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$data` to the child's standard input, suspending this coroutine until the \
-            child has taken it. A `tainted` value is accepted here and nowhere else in this \
-            class: standard input is data the child reads, where a path and an argument are a \
-            command this process builds.",
+    short: "Sends `$data` to the program's standard input. The call waits until the program has \
+            taken all of it. A `tainted` value is allowed here, because the program reads it as \
+            data and does not run it as a command.",
     params: &[ParamDoc {
         name: "data",
-        desc: "The octets to write, whole. A `string` converts on the way in.",
+        desc: "The data to send, as `bytes`. All of it is sent. Use `as bytes` to convert a \
+               `string`.",
         shape: &[],
     }],
-    ret: "Nothing. The child's input stays open for the next write and is closed by `wait`, which \
-          is what lets a child reading to the end of its input ever see one.",
+    ret: "Nothing. The input stays open, so you can call `writeStdin` again. `wait` closes the \
+          input, and then the program sees the end of it.",
     errors: &[ErrorDoc {
         error: "IOError",
-        desc: "The operating system failed the write — most often a child that has already \
-               exited, which closes the pipe this end was writing into.",
+        desc: "The operating system could not send the data. This happens most often when the \
+               program has already ended, or after `wait`.",
     }],
 };
 
@@ -1128,7 +1128,7 @@ mod tests {
 
     use super::{
         CLASS, CoreTy, EXIT_CODE_SLOT, HANDLE, HANDLE_NAME, Path, RESULT, RESULT_NAME, RUN_MEMBER,
-        Read, wait_off_core,
+        Read, STDERR_SLOT, wait_off_core,
     };
 
     /// The five spellings a port of PHP's shell family would reach for. None of them is a member
@@ -1440,6 +1440,91 @@ mod tests {
             reason = "this scope owns the handle `spawn` built and the result `wait` answered with"
         )]
         unsafe {
+            result.release();
+            handle.release();
+        }
+    }
+
+    /// Not a case. It is the **child** [`ECHOER`] starts: it copies its standard input to its
+    /// standard error until the input ends, and `#[ignore]` keeps an ordinary run from waiting
+    /// here on an input nobody closes. Standard error rather than output, because the test
+    /// harness writes its own lines to output and `rule:ide/stdout-belongs-to-the-protocol`
+    /// allows no crate under the language server to write there.
+    #[test]
+    #[ignore = "started by name as the child a case needs, never run alone"]
+    fn a_child_that_echoes_its_input() {
+        std::io::copy(&mut std::io::stdin().lock(), &mut std::io::stderr().lock())
+            .expect("the parent's pipe is readable and writable");
+    }
+
+    /// The argv that makes this suite's own binary run [`a_child_that_echoes_its_input`], for
+    /// [`SLEEPER`]'s reason.
+    const ECHOER: &[&str] = &[
+        "--exact",
+        "process::tests::a_child_that_echoes_its_input",
+        "--ignored",
+        "--nocapture",
+    ];
+
+    /// `rule:core-classes/process-spawn`'s `writeStdin`: two writes reach the child in order, the
+    /// input stays open between them, and `wait` is what closes it. The child copies its input to
+    /// its error output until the input ends, so a `wait` that did not close the input would hang
+    /// here, and a write that replaced the one before it would lose the first word.
+    ///
+    /// A write after `wait` is the other half: the input is closed by then, so the write throws
+    /// rather than answering as though the child had taken it.
+    // covers: Core\Process\Handle::writeStdin
+    #[test]
+    fn two_writes_reach_a_spawned_child_and_wait_closes_its_input() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+        let handle = spawn_on(&mut ctx, ECHOER);
+
+        for word in ["first-word-of-this-case ", "second-word-of-this-case"] {
+            let data = Value::bytes(NvsStr::new(word.as_bytes()));
+            nvs_runtime::call(
+                super::nvs_core_process_handle_write_stdin,
+                &mut ctx,
+                &[handle, data],
+            )
+            .expect("a child reading its input takes a write");
+            #[expect(unsafe_code, reason = "this scope built the argument and owns it")]
+            unsafe {
+                data.release();
+            }
+        }
+        let result = nvs_runtime::call(super::nvs_core_process_handle_wait, &mut ctx, &[handle])
+            .expect("a child whose input ended is one to be waited for");
+        let object = crate::instance::receiver(result, &RESULT, "stderr")
+            .expect("a `wait` answers a result and nothing else");
+        let out = crate::instance::slot(object, STDERR_SLOT)
+            .as_bytes()
+            .map(|octets| String::from_utf8_lossy(octets).into_owned())
+            .expect("a result's third slot is its captured error output");
+        assert!(
+            out.contains("first-word-of-this-case second-word-of-this-case"),
+            "the child did not echo both writes, in order: {out:?}"
+        );
+        assert_eq!(status_of(result), 0, "the echoing child failed");
+
+        let late = Value::bytes(NvsStr::new(b"too late"));
+        let refused = nvs_runtime::call(
+            super::nvs_core_process_handle_write_stdin,
+            &mut ctx,
+            &[handle, late],
+        );
+        assert!(
+            refused.is_err(),
+            "a write after `wait` answered as though a closed input took it"
+        );
+        let _ = ctx.take_pending();
+        #[expect(
+            unsafe_code,
+            reason = "this scope owns the argument, the handle `spawn` built and the result `wait` \
+                      answered with"
+        )]
+        unsafe {
+            late.release();
             result.release();
             handle.release();
         }

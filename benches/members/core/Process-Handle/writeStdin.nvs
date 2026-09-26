@@ -1,0 +1,31 @@
+<?nvs
+// Measures sending a running program its input one line at a time, as a server does when it passes a file to a converter.
+// bench: iterations 2000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // `/bin/sh` runs `cat` on Linux and macOS, and `cmd.exe` runs `findstr` on Windows. Both read the input and throw it away.
+        string $path = "/bin/sh";
+        array<string> $arguments = ["-c", "exec cat >/dev/null"];
+        if (Core\Path::SEPARATOR == "\\") {
+            $path = "C:\\Windows\\System32\\cmd.exe";
+            $arguments = ["/c", "findstr /v zzzz >nul"];
+        }
+        var $program = Core\Process::spawn($path, $arguments);
+        array<bytes> $lines = ["a line of input\n" as bytes, "a longer line of input\n" as bytes, "short\n" as bytes];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The line depends on the total so far, so no write can be skipped.
+            bytes $line = $lines[$total % 3];
+            $program->writeStdin($line);
+            $total = $total + Core\Bytes::length($line);
+            $i = $i + 1;
+        }
+        $program->wait();
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";
