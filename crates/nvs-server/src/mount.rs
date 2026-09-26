@@ -955,7 +955,7 @@ mod tests {
     /// with neither switch written, the table runs path dispatch and serves
     /// static files.
     #[test]
-    fn development_with_both_switches_unwritten_dispatches_by_path_and_serves_static() {
+    fn an_unwritten_switch_follows_the_development_mode() {
         assert_eq!(
             switches_of("[mode]\ndefault = \"development\"\n"),
             (Dispatch::Path, true)
@@ -965,7 +965,7 @@ mod tests {
     /// A written switch wins over development's row, each one alone, so a
     /// reading that took one key's absence as the other's cannot pass.
     #[test]
-    fn a_written_switch_wins_over_developments_row() {
+    fn a_written_switch_wins_over_the_mode() {
         assert_eq!(
             switches_of("[mode]\ndefault = \"development\"\n[server]\ndispatch = \"entry\"\n"),
             (Dispatch::Entry, true)
@@ -979,7 +979,7 @@ mod tests {
     /// Production's row, and a configuration that names no mode reads as
     /// production: entry dispatch and no static files.
     #[test]
-    fn production_and_no_mode_dispatch_to_the_entry_and_serve_no_static() {
+    fn production_and_no_mode_keep_the_closed_switches() {
         for text in ["[mode]\ndefault = \"production\"\n", "[mode]\n", ""] {
             assert_eq!(switches_of(text), (Dispatch::Entry, false), "for {text:?}");
         }

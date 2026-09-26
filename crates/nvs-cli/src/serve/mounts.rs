@@ -521,7 +521,7 @@ mod tests {
     /// the core builds a new table. A new snapshot with the same mode keeps
     /// the table the core holds.
     #[test]
-    fn a_reload_that_changes_only_the_mode_builds_a_new_table() {
+    fn a_snapshot_that_differs_only_in_its_mode_rebuilds_the_table() {
         let local = Local::new(
             Arc::new(Mounts::new(Vec::new())),
             snapshot("[mode]\ndefault = \"production\"\n"),
