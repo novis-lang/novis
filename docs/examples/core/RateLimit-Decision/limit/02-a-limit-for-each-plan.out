@@ -1,0 +1,2 @@
+limit: 100 calls per hour
+limit: 5000 calls per hour

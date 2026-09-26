@@ -1,0 +1,18 @@
+<?nvs
+// Shows how an API writes the `RateLimit-Limit` and `RateLimit-Remaining`
+// headers of a response from one decision.
+
+class Headers {
+    public static function of(Core\RateLimit\Decision $decision): string {
+        return "RateLimit-Limit: " . $decision->limit() . "\n"
+            . "RateLimit-Remaining: " . $decision->remaining() . "\n";
+    }
+}
+
+// Each API key may make 3 calls per minute. The limit is 3 on every call.
+// The remaining count goes down by one each time.
+uint $call = 0;
+while ($call < 3) {
+    echo Headers::of(Core\RateLimit::shed("key:alpha", 3, 1m));
+    $call = $call + 1;
+}

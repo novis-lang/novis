@@ -1,0 +1,25 @@
+<?nvs
+// Reads the limit a decision was made against, as a handler does to write a `RateLimit-Limit` header.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\RateLimit\Decision> $decisions = [
+            Core\RateLimit::shed("bench:limit:small", 11, 1h),
+            Core\RateLimit::shed("bench:limit:large", 5001, 1h),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which decision is read comes from last round's total,
+            // so no round can be reused.
+            Core\RateLimit\Decision $decision = $decisions[($total % 2) as int];
+            $total = $total + $decision->limit();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
