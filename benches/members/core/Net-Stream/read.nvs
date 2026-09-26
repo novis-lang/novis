@@ -1,0 +1,33 @@
+<?nvs
+// Reads a small part of a message from a TCP connection, as a server does while it reads a request.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+        Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+        Core\Net\Stream $connection = $server->accept(5s);
+
+        // The client sends 16 bytes for each of the next 1000 rounds, and the server reads them.
+        bytes $batch = Core\Str::repeat("0123456789abcdef", 1000) as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($i % 1000 == 0) {
+                uint $sent = 0;
+                while ($sent < Core\Bytes::length($batch)) {
+                    $sent = $sent + $client->write(Core\Bytes::slice($batch, $sent as int), 5s);
+                }
+            }
+            // Each round adds to a total, so no round can be skipped.
+            $total = $total + Core\Bytes::length($connection->read(16, 5s));
+            $i = $i + 1;
+        }
+        $connection->close();
+        $client->close();
+        $server->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200000) <= 3200000 ? "done" : "wrong", "\n";

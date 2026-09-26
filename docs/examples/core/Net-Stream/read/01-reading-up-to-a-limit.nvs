@@ -1,0 +1,19 @@
+<?nvs
+// Shows that `read` returns at most `$max` bytes, and that the next `read` returns the rest.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// The client sends 11 bytes.
+$client->write("hello world" as bytes, 5s);
+
+// The server asks for 5 bytes, so it gets 5. This prints `first: hello`.
+echo "first: ", $connection->read(5, 5s) as string, "\n";
+
+// The other 6 bytes are still waiting. This prints `second: " world"`.
+echo "second: \"", $connection->read(64, 5s) as string, "\"\n";
+
+$connection->close();
+$client->close();
+$server->close();

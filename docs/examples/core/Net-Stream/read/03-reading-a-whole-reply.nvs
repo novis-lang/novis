@@ -1,0 +1,31 @@
+<?nvs
+// Shows how a client reads a whole reply, in small parts, until the server closes the connection.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// The server sends a reply of three lines and then closes its side.
+$connection->write("status: ok\n" as bytes, 5s);
+$connection->write("items: 3\n" as bytes, 5s);
+$connection->write("total: 42.50\n" as bytes, 5s);
+$connection->close();
+
+// The client reads at most 8 bytes at a time and adds each part to `$reply`.
+// An empty result means the server closed the connection, so the loop stops.
+tainted string $reply = "";
+bool $open = true;
+while ($open) {
+    tainted bytes $part = $client->read(8, 5s);
+    if (Core\Bytes::length($part) == 0) {
+        $open = false;
+    } else {
+        $reply = $reply . ($part as string);
+    }
+}
+
+// This prints the three lines of the reply.
+echo $reply;
+
+$client->close();
+$server->close();

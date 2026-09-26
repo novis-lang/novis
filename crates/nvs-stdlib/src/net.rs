@@ -539,7 +539,7 @@ const STREAM_READ_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This handle is closed.",
+            desc: "This handle is closed, or `$within` is not a positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
@@ -573,7 +573,7 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This handle is closed.",
+            desc: "This handle is closed, or `$within` is not a positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
