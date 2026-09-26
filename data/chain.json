@@ -1,5 +1,5 @@
 {
-  "live": "core-process-and-4-more",
+  "live": "core-queue-stats",
   "goals": [
     "core-depth",
     "concurrency",

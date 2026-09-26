@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 179 goals. 131 are walked (120 of them retired), `core-process-and-4-more` is live at 132 of 179, and 47 are ahead.
+The chain holds 179 goals. 132 are walked (120 of them retired), `core-queue-stats` is live at 133 of 179, and 46 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -144,8 +144,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 129 | [`core-objectset`](goals/core-objectset.md) | Core\ObjectSet | walked |  | **2** the dossier |
 | 130 | [`core-os-and-2-more`](goals/core-os-and-2-more.md) | Core\Os and 2 more | walked |  | **2** the dossier |
 | 131 | [`core-path`](goals/core-path.md) | Core\Path | walked |  | **2** the dossier |
-| 132 | [`core-process-and-4-more`](goals/core-process-and-4-more.md) | Core\Process and 4 more | **live** |  | **2** the dossier |
-| 133 | [`core-queue-stats`](goals/core-queue-stats.md) | Core\Queue\Stats | ahead |  | **2** the dossier |
+| 132 | [`core-process-and-4-more`](goals/core-process-and-4-more.md) | Core\Process and 4 more | walked |  | **2** the dossier |
+| 133 | [`core-queue-stats`](goals/core-queue-stats.md) | Core\Queue\Stats | **live** |  | **2** the dossier |
 | 134 | [`core-random-and-1-more`](goals/core-random-and-1-more.md) | Core\Random and 1 more | ahead |  | **2** the dossier |
 | 135 | [`core-ratelimit-and-3-more`](goals/core-ratelimit-and-3-more.md) | Core\RateLimit and 3 more | ahead |  | **2** the dossier |
 | 136 | [`core-reflect-classinfo-and-1-more`](goals/core-reflect-classinfo-and-1-more.md) | Core\Reflect\ClassInfo and 1 more | ahead |  | **2** the dossier |
