@@ -1,0 +1,29 @@
+<?nvs
+// Accepts clients that are already waiting, as a server does when several connect at once.
+// bench: iterations 200
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+        uint $port = $server->port();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round connects two clients first, so both are waiting when `accept` runs.
+            Core\Net\Stream $first = Core\Net::connect("127.0.0.1", $port + $total % 1, 5s);
+            Core\Net\Stream $second = Core\Net::connect("127.0.0.1", $port, 5s);
+            Core\Net\Stream $one = $server->accept(5s);
+            Core\Net\Stream $two = $server->accept(5s);
+            $one->close();
+            $two->close();
+            $first->close();
+            $second->close();
+            $total = $total + 2;
+            $i = $i + 1;
+        }
+        $server->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200), "\n";

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a server waits for one client and reads what the client sends.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+
+// A client connects to the server's port and sends one line.
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+$client->write("hello\n" as bytes, 5s);
+
+// `accept` waits up to 5 seconds for a client. It returns a `Core\Net\Stream`.
+// The server uses that stream to read from this client and to write to it.
+Core\Net\Stream $connection = $server->accept(5s);
+
+// This prints `server got: hello`.
+echo "server got: ", Core\Str::trim($connection->read(64, 5s) as string), "\n";
+
+$connection->close();
+$client->close();
+$server->close();

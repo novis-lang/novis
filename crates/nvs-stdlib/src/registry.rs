@@ -5245,7 +5245,6 @@ mod tests {
         r"Core\Http\Target",
         r"Core\IO\Lines",
         r"Core\IO\Walk",
-        r"Core\Net\Listener",
         r"Core\Net\Stream",
         r"Core\ObjectMap",
         r"Core\ObjectSet",

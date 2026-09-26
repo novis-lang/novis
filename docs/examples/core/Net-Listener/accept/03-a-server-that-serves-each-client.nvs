@@ -1,0 +1,39 @@
+<?nvs
+// Shows a small server that answers each waiting client and stops when no more clients come.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+
+// Three clients connect. Each one asks for the stock of one product.
+array<string> $products = ["apple", "pear", "plum"];
+array<Core\Net\Stream> $clients = [];
+foreach ($products as string $product) {
+    Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+    $client->write(("STOCK " . $product . "\n") as bytes, 5s);
+    $clients[] = $client;
+}
+
+// The server takes one client at a time and sends one reply.
+// When no client arrives within 200 milliseconds, `accept` throws a `TimeoutError` and the loop stops.
+uint $served = 0;
+bool $running = true;
+while ($running) {
+    try {
+        Core\Net\Stream $connection = $server->accept(200ms);
+        tainted string $request = Core\Str::trim($connection->read(64, 5s) as string);
+        $connection->write(("OK " . $request . "\n") as bytes, 5s);
+        $connection->close();
+        $served = $served + 1;
+    } catch (TimeoutError $late) {
+        $running = false;
+    }
+}
+// This prints `served: 3`.
+echo "served: ", $served, "\n";
+
+// Each client reads the reply to its own request.
+// This prints `OK STOCK apple`, then `OK STOCK pear`, then `OK STOCK plum`.
+foreach ($clients as Core\Net\Stream $client) {
+    echo Core\Str::trim($client->read(64, 5s) as string), "\n";
+    $client->close();
+}
+$server->close();

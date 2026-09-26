@@ -596,7 +596,7 @@ const STREAM_CLOSE_DOC: MethodDoc = MethodDoc {
 /// on `Core\Net`.
 pub(crate) const LISTENER: CoreClass = CoreClass {
     name: LISTENER_NAME,
-    doc: None,
+    doc: Some(&LISTENER_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -631,18 +631,24 @@ pub(crate) const LISTENER: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Net\Listener`'s class card — `rule:core-api/reference-card`.
+const LISTENER_CARD: ClassDoc = ClassDoc {
+    short: "A TCP server socket, returned by `Core\\Net::listen` and `Core\\Net::listenLocal`. \
+            `accept` waits for the next client and returns a `Core\\Net\\Stream` for it.",
+};
+
 /// `Core\Net\Listener::accept`'s reference card — `rule:core-api/reference-card`.
 const LISTENER_ACCEPT_DOC: MethodDoc = MethodDoc {
-    short: "Takes the next connection off this listener, waiting no longer than `$within`, and \
-            answers it as a stream. It asks no capability: the bind was granted when \
-            `Core\\Net::listen` opened this socket.",
+    short: "Waits for the next client to connect, for no longer than `$within`, and returns a \
+            `Core\\Net\\Stream` for that client. It needs no setting of its own: `nvs.toml` was \
+            checked when `Core\\Net::listen` opened this socket.",
     params: &[ParamDoc {
         name: "within",
-        desc: "How long to wait for a connection. It bounds this call alone.",
+        desc: "How long to wait for a client. It is the limit for this call only.",
         shape: &[],
     }],
-    ret: "The accepted connection, closed with this request if the program does not close it \
-          first.",
+    ret: "The connection to the client. The request closes it when it ends, if the program has \
+          not closed it before.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1910,8 +1916,10 @@ mod tests {
         STREAM, STREAM_NAME, nvs_core_net_bind_datagram, nvs_core_net_connect,
         nvs_core_net_connect_local, nvs_core_net_datagram_close, nvs_core_net_datagram_port,
         nvs_core_net_datagram_receive, nvs_core_net_datagram_send, nvs_core_net_listen,
-        nvs_core_net_listen_local, nvs_core_net_message_host, nvs_core_net_message_payload,
-        nvs_core_net_message_port,
+        nvs_core_net_listen_local, nvs_core_net_listener_accept, nvs_core_net_listener_close,
+        nvs_core_net_listener_port, nvs_core_net_message_host, nvs_core_net_message_payload,
+        nvs_core_net_message_port, nvs_core_net_stream_close, nvs_core_net_stream_read,
+        nvs_core_net_stream_write,
     };
     use nvs_runtime::{Ctx, NvsStr, Value};
 
@@ -2175,6 +2183,116 @@ mod tests {
 
         released([within, loopback, ping, pong, heard, from, echoed]);
         released([message, back, alpha, beta]);
+    }
+
+    /// `Core\Net\Listener`'s three members over one socket, end to end: an
+    /// accept with nobody connecting stops at its bound, the next one takes the
+    /// connection that is waiting, and a closed listener answers nothing while
+    /// the connection it accepted still carries bytes.
+    ///
+    /// The timeout comes first on purpose. `accept` sets the deadline for its
+    /// one call and clears it after, so a listener that ran out of time once
+    /// must still take the next connection — a deadline left behind would make
+    /// the second accept fail at once.
+    // covers: Core\Net\Listener::accept, Core\Net\Listener::port, Core\Net\Listener::close
+    #[test]
+    fn a_listener_times_out_takes_a_waiting_connection_and_refuses_once_closed() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(
+            "[capabilities.net]\nlisten = true\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n",
+        ));
+        let within = crate::time::duration_of(5_000_000_000);
+        let briefly = crate::time::duration_of(50_000_000);
+        let loopback = Value::str(NvsStr::new(b"127.0.0.1"));
+
+        let door = nvs_runtime::call(nvs_core_net_listen, &mut ctx, &[loopback, Value::uint(0)])
+            .expect("a granted bind on an ephemeral port");
+        let port = nvs_runtime::call(nvs_core_net_listener_port, &mut ctx, &[door])
+            .expect("a TCP listener answers its port")
+            .as_uint()
+            .expect("a port is a uint");
+        assert!(
+            (1..=65535).contains(&port),
+            "port `0` asks the operating system to pick: {port}"
+        );
+
+        nvs_runtime::call(nvs_core_net_listener_accept, &mut ctx, &[door, briefly])
+            .expect_err("nobody has connected yet");
+        let waited = ctx.take_pending().expect("a message").into_owned();
+        assert!(
+            waited.contains(r"Core\Net\Listener::accept ran out of time"),
+            "an empty backlog is a timeout, not an I/O failure: {waited}"
+        );
+
+        let client = nvs_runtime::call(
+            nvs_core_net_connect,
+            &mut ctx,
+            &[loopback, Value::uint(port), within],
+        )
+        .expect("a granted connect to the listener's own port");
+        let accepted = nvs_runtime::call(nvs_core_net_listener_accept, &mut ctx, &[door, within])
+            .expect("the connection that is waiting");
+
+        // The accepted handle is the server's end of the client's connection.
+        let hello = Value::bytes(NvsStr::new(b"hello"));
+        nvs_runtime::call(
+            nvs_core_net_stream_write,
+            &mut ctx,
+            &[client, hello, within],
+        )
+        .expect("the client writes");
+        let heard = nvs_runtime::call(
+            nvs_core_net_stream_read,
+            &mut ctx,
+            &[accepted, Value::uint(64), within],
+        )
+        .expect("the server reads");
+        assert_eq!(heard.as_bytes(), Some(&b"hello"[..]));
+
+        // Closing the listener takes it out of the request's table, so each of
+        // its members now finds nothing, and a second close is not quiet.
+        nvs_runtime::call(nvs_core_net_listener_close, &mut ctx, &[door])
+            .expect("an open listener closes");
+        for (member, args) in [
+            ("accept", &[door, within][..]),
+            ("port", &[door][..]),
+            ("close", &[door][..]),
+        ] {
+            let body = match member {
+                "accept" => nvs_core_net_listener_accept,
+                "port" => nvs_core_net_listener_port,
+                _ => nvs_core_net_listener_close,
+            };
+            nvs_runtime::call(body, &mut ctx, args).expect_err("the listener is closed");
+            let refused = ctx.take_pending().expect("a message").into_owned();
+            assert_eq!(
+                refused,
+                format!(r"Core\Net\Listener::{member}: this handle is closed")
+            );
+        }
+
+        // What came through the door is its own socket and outlives it.
+        let reply = Value::bytes(NvsStr::new(b"bye"));
+        nvs_runtime::call(
+            nvs_core_net_stream_write,
+            &mut ctx,
+            &[accepted, reply, within],
+        )
+        .expect("an accepted connection outlives its listener");
+        let back = nvs_runtime::call(
+            nvs_core_net_stream_read,
+            &mut ctx,
+            &[client, Value::uint(64), within],
+        )
+        .expect("the client reads the reply");
+        assert_eq!(back.as_bytes(), Some(&b"bye"[..]));
+
+        nvs_runtime::call(nvs_core_net_stream_close, &mut ctx, &[accepted])
+            .expect("an open connection closes");
+        nvs_runtime::call(nvs_core_net_stream_close, &mut ctx, &[client])
+            .expect("an open connection closes");
+        released([within, briefly, loopback, hello, heard, reply, back]);
+        released([door, client, accepted]);
     }
 
     /// The layout each handle class declares and the index its bodies read by
