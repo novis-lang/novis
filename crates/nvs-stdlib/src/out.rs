@@ -35,7 +35,7 @@
 use nvs_runtime::{Fault, NvsObj, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
 };
 
 /// The class's fully-qualified name.
@@ -57,7 +57,7 @@ const CAPTURE_OPTIONS: &[CoreOption] = &[CoreOption {
 /// Spec § 12's `Core\Out`, which has exactly this one member.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "capture",
         names: &["fn"],
@@ -75,34 +75,39 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Out`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Collects what a piece of code prints, so your program can use it as a value. \
+            `capture` runs a function and returns everything it printed. This replaces PHP's \
+            `ob_start` and `ob_get_clean`.",
+};
+
 /// `Core\Out::capture`'s reference card — `rule:core-api/reference-card`.
 const CAPTURE_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$fn` with this request's output sink redirected into a buffer and answers \
-            what it wrote, as the carrier of the sink in force — `ob_start`/`ob_get_clean` and \
-            `ob_start($callback)`, scoped to one closure so it nests by call nesting and \
-            always swallows.",
+    short: "Runs `$fn` and returns everything it printed with `echo`. This replaces PHP's \
+            `ob_start` and `ob_get_clean`. The printed text does not reach the output. You can \
+            call `capture` inside another `capture`, and each call collects only what its own \
+            function printed.",
     params: &[
         ParamDoc {
             name: "fn",
-            desc: "The closure to run; its own return value is discarded, since the capture \
-                   answers what was written rather than what was computed.",
+            desc: "The function to run. Its return value is not used.",
             shape: &[],
         },
         ParamDoc {
             name: "through",
-            desc: "A `callable(Core\\Cli\\Text): Core\\Cli\\Text` applied to the captured \
-                   carrier before it is answered; the default answers it as captured.",
+            desc: "A function that takes the collected `Core\\Cli\\Text` and returns a new \
+                   `Core\\Cli\\Text`. `capture` returns that new text. Without it, `capture` \
+                   returns the text as it was printed.",
             shape: &[],
         },
     ],
-    ret: "The captured output as a `Core\\Cli\\Text` — never a plain `string`, since those \
-          bytes have already been through the sink — and an empty carrier when `$fn` wrote \
-          nothing. Nothing `$fn` echoed reaches the sink below; re-emitting is a \
-          visible `echo Core\\Out::capture(…)`, and a `Core\\Debug::dump` inside `$fn` is not \
-          captured.",
+    ret: "What `$fn` printed, as a `Core\\Cli\\Text`. It is empty when `$fn` printed nothing. \
+          Use `echo` to print it, or its `text` method to get a `string`. Output from \
+          `Core\\Debug::dump` is not collected.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`through` answered something other than a `Core\\Cli\\Text`.",
+        desc: "The `through` function returned something that is not a `Core\\Cli\\Text`.",
     }],
 };
 
@@ -212,7 +217,139 @@ fn not_the_carrier(value: Value) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::{
+        CARRIER_TEXT_SLOT, CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAGS_SLOT, ClassTable,
+        Ctx, MethodRow, NvsFn, OK, THROWN, call,
+    };
+
     use super::*;
+
+    /// A closure value of no parameters whose `invoke` is a plain Rust
+    /// function — `crates/nvs-stdlib/tests/allocation_policy.rs`'s
+    /// `closure_of`, whose doc comment says why this is a whole closure.
+    ///
+    /// The table is leaked because a descriptor's *address* is its identity and
+    /// it must outlive every instance made from it.
+    fn closure_of(invoke: NvsFn) -> Value {
+        let mut table = ClassTable::new();
+        let id = table.define("{closure}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![MethodRow {
+                name: CLOSURE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }],
+        );
+        table.set_closure(id);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { NvsObj::new(table.desc(id)) };
+        object.set_field(CLOSURE_ARITY_SLOT, Value::int(0));
+        object.set_field(CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        Value::object(object)
+    }
+
+    /// `fn (): void => { echo "inside"; }`: write through the context the way
+    /// a compiled `echo` does, release the receiver `call_closure` retained,
+    /// and answer `null`.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes a live context and exactly one retained \
+                  value, the receiver, and `abi::call` passes the address of a \
+                  live `Value` for the result"
+    )]
+    unsafe extern "C" fn echoes(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        let ctx = unsafe { &mut *ctx };
+        ctx.write_output(b"inside").expect("a buffered sink");
+        unsafe {
+            (*args).release();
+            *out = Value::null();
+        }
+        OK
+    }
+
+    /// `fn (): void => { echo "lost"; throw … }`: the same write, then a throw.
+    #[expect(
+        unsafe_code,
+        reason = "the same contract as `echoes`, answering a throw instead"
+    )]
+    unsafe extern "C" fn echoes_then_throws(
+        ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        let ctx = unsafe { &mut *ctx };
+        ctx.write_output(b"lost").expect("a buffered sink");
+        ctx.set_pending("the body threw");
+        unsafe {
+            (*args).release();
+            *out = Value::null();
+        }
+        THROWN
+    }
+
+    /// `rule:security/capture-answers-the-carrier` driven through the member
+    /// itself: what the closure wrote comes back as a `Core\Cli\Text`, the sink
+    /// below sees none of it, and a closure that throws still leaves the
+    /// capture closed, so the rest of the request's output is not swallowed.
+    // covers: Core\Out::capture
+    #[test]
+    fn capture_answers_the_carrier_swallows_and_closes_on_a_throw() {
+        let mut ctx = Ctx::buffered();
+        ctx.write_output(b"before<").expect("a buffered sink");
+
+        let body = closure_of(echoes);
+        let captured = call(nvs_core_out_capture, &mut ctx, &[body, Value::null()])
+            .expect("a body that returns is captured");
+        assert!(
+            not_the_carrier(captured).is_none(),
+            "the carrier, not a string"
+        );
+        let ptr = captured.obj_ptr().expect("an object");
+        assert_eq!(
+            crate::instance::slot(ptr, CARRIER_TEXT_SLOT).as_text(),
+            Some("inside")
+        );
+        assert_eq!(ctx.capture_depth(), 0);
+
+        let thrower = closure_of(echoes_then_throws);
+        assert!(call(nvs_core_out_capture, &mut ctx, &[thrower, Value::null()]).is_err());
+        assert_eq!(
+            ctx.capture_depth(),
+            0,
+            "the throwing edge closes the level too"
+        );
+        assert_eq!(ctx.take_pending().as_deref(), Some("the body threw"));
+
+        ctx.write_output(b">after").expect("a buffered sink");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(&b"before<>after"[..]),
+            "nothing either body wrote reached the sink below"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "each value is one this test built or was handed, and owns \
+                      exactly one reference to"
+        )]
+        unsafe {
+            captured.release();
+            body.release();
+            thrower.release();
+        }
+    }
 
     /// The registered row is what `nvs-types` seeds and what
     /// `nvs_ir::lower_call_args` flattens against, so its shape is worth

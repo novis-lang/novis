@@ -1,26 +1,22 @@
 {
-  "state": "Goal `core-os-and-2-more`: every `Core\\Os` member has all its feature proofs, and `bun nv proofs --verify --group 'Core\\Os'` passes (check `dossier-core-os`).\n`loadAverage`'s first example carries `// requires: unix`. Its `.out` was written from a run of the WSL binary (`/var/tmp/nvs-target-wsl/debug/nvs`), because `--bless` refuses a skipped example on Windows. Examples 2 and 3, the attack and the bench catch the Windows `RuntimeError` and run everywhere.\n`pid` and `residentBytes` are credited to the Rust test `pid_hostname_cpu_count_resident_bytes_and_load_average_all_answer` by one comma-separated `covers:` line. Their cards were rewritten in the plain voice.\nStill red: `dossier-core-out` and `dossier-core-password`. Neither class has a card, and none of their members has an example, an attack, a bench or a Rust `covers:` marker.",
+  "state": "Goal `core-os-and-2-more`: `Core\\Os` and `Core\\Out` are green (`dossier-core-os`, `dossier-core-out`). Only `dossier-core-password` is still red.\n`Core\\Out` has its class card, a plain-voice `capture` card, `about.md`, three examples, one attack, one bench, a recorded figure, and the Rust test `capture_answers_the_carrier_swallows_and_closes_on_a_throw` in `crates/nvs-stdlib/src/out.rs`. That test drives the member with a native closure (`closure_of` in the same module).\nThe call-depth limit is measured in stack bytes, so a debug build reaches `RecursionError` far sooner than the proof build. The attack's successful nesting steps stay at 50 levels for that reason.\n`Core\\Password` has no card, and none of `hash`, `verify` and `needsRehash` has an example, an attack, a bench or a Rust `covers:` marker.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/out.rs`, `crates/nvs-stdlib/src/password.rs`, `crates/nvs-stdlib/src/registry.rs`, and their trees under `docs/examples/core/`, `tests/hostile/core/`, `benches/members/core/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/password.rs`, `crates/nvs-stdlib/src/registry.rs`, and the `core/Password/` trees under `docs/examples/`, `tests/hostile/`, `benches/members/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Out::capture`** — owes about, examples, hostile, perf, a Rust `covers:` marker and the `Core\\Out` class card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/out.rs:62`. The card goes above the class's `CLASS` row, and `Core\\Out` leaves `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5189`. `rule:security/capture-answers-the-carrier` says what the capture returns."
+        "text": "**`Core\\Password::hash`, `verify` and `needsRehash`** — each owes about, examples, hostile, perf and a Rust `covers:` marker, and the class owes its card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/password.rs:202`. The card goes on that `CLASS` row, and `Core\\Password` leaves `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5248`. Existing Rust tests in `password.rs` may only need a `// covers:` line each."
       },
       {
         "done": false,
-        "text": "**`Core\\Password::hash`, `verify` and `needsRehash`** — each owes about, examples, hostile, perf and a Rust `covers:` marker, and the class owes its card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/password.rs:207`, `crates/nvs-stdlib/src/password.rs:216`, `crates/nvs-stdlib/src/password.rs:225`. A hash is different on every run, so an example prints a check and never the hash. A hash is slow on purpose, so the bench's iterations stay small."
-      },
-      {
-        "done": false,
-        "text": "**Record the figures** — `bun nv proofs --record-perf --group 'Core\\Out'` and the same for `Core\\Password`, after the benches exist (`rule:testing/member-perf-ledger`). `benches/members/core/Os/loadAverage.nvs:1` is a finished bench to compare with."
+        "text": "**Record the figures** — `bun nv proofs --record-perf --group 'Core\\Password'` after the benches exist (`rule:testing/member-perf-ledger`). `crates/nvs-stdlib/src/password.rs:207`. Then `bun nv proofs --verify --group 'Core\\Password'`, and close the goal with `DONE` if all three dossier checks pass."
       }
     ]
   },
   "backlog": [
-    "`Core\\Os::pid`'s figure recorded 0.0 ns/op. The call may be answered from a cached value, so a later remeasure is not a regression (`docs/perf/members.ndjson`)."
+    "An arrow closure whose body is a `throw` expression does not compile: `fn (): int => throw new RuntimeError(\"x\")` gives E0401 \"expected `int`, found `never`\", and `return throw …` gives E0403. PHP 8 accepts both. Owner: the type checker's assignability of `never` (`rule:types/grammar`); not this goal's to fix."
   ]
 }

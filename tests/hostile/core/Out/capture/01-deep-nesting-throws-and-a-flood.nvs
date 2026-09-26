@@ -1,0 +1,72 @@
+<?nvs
+// Attack: captures are nested very deep, their functions throw, and one capture
+// collects output until the memory limit stops it. Nothing collected should leak
+// into the output, and the program should stop with an error, not crash.
+// hostile: ends-early
+
+final class Nest
+{
+    public static function down(uint $depth): void
+    {
+        if ($depth == 0) {
+            echo 'x';
+            return;
+        }
+        echo Core\Out::capture(fn (): void => { Nest::down($depth - 1); });
+    }
+
+    public static function fail(uint $depth): void
+    {
+        echo 'lost';
+        if ($depth == 0) {
+            throw new RuntimeError('the bottom threw');
+        }
+        echo Core\Out::capture(fn (): void => { Nest::fail($depth - 1); });
+    }
+}
+
+// 1. Captures are nested 100000 deep, which is past the stack limit. This
+//    throws a `RecursionError`, and every open capture is closed.
+try {
+    echo Core\Out::capture(fn (): void => { Nest::down(100000); }), "\n";
+} catch (RecursionError $deep) {
+    echo 'caught: ', $deep->message, "\n";
+}
+
+// 2. Captures are nested 50 deep. The text comes up through every level.
+//    This prints `x`.
+echo Core\Out::capture(fn (): void => { Nest::down(50); }), "\n";
+
+// 3. The deepest of 50 nested captures throws. Every level closes, so none
+//    of the `lost` text is printed. This prints `caught: the bottom threw`.
+try {
+    echo Core\Out::capture(fn (): void => { Nest::fail(50); });
+} catch (RuntimeError $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 4. The `through` function throws. The capture is already closed, so the
+//    next line is printed as usual. This prints `caught: through threw`.
+try {
+    echo Core\Out::capture(
+        fn (): void => { echo 'lost'; },
+        { through: fn (Core\Cli\Text $t): Core\Cli\Text => { throw new RuntimeError('through threw'); } },
+    );
+} catch (RuntimeError $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 5. The `through` function starts a capture of its own. This prints `inner`.
+echo Core\Out::capture(
+    fn (): void => { echo 'outer'; },
+    { through: fn (Core\Cli\Text $t): Core\Cli\Text => Core\Out::capture(fn (): void => { echo 'inner'; }) },
+), "\n";
+
+// 6. A capture collects 1 MB at a time and never stops. The collected text is
+//    charged to the request, so the memory limit stops the program here.
+string $block = Core\Str::repeat('a', 1048576);
+echo Core\Out::capture(fn (): void => {
+    while (true) {
+        echo $block;
+    }
+});

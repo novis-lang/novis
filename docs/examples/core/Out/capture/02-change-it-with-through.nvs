@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to change the collected text before you get it.
+
+// The `through` function gets the collected text. `$t->text()` returns it as
+// a `string`, and `Core\Cli\Text::plain` turns the new string back into text.
+Core\Cli\Text $title = Core\Out::capture(
+    fn (): void => { echo "monthly report"; },
+    {through: fn (Core\Cli\Text $t): Core\Cli\Text => Core\Cli\Text::plain(Core\Str::upper($t->text()))}
+);
+
+// This prints `MONTHLY REPORT`.
+echo $title, "\n";

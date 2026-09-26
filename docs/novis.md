@@ -16051,16 +16051,16 @@ threw: stop
 Core\Out::capture(callable(): mixed $fn, {through?: callable}): Core\Cli\Text
 ```
 
-Runs `$fn` with this request's output sink redirected into a buffer and answers what it wrote, as the carrier of the sink in force — `ob_start`/`ob_get_clean` and `ob_start($callback)`, scoped to one closure so it nests by call nesting and always swallows.
+Runs `$fn` and returns everything it printed with `echo`. This replaces PHP's `ob_start` and `ob_get_clean`. The printed text does not reach the output. You can call `capture` inside another `capture`, and each call collects only what its own function printed.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable(): mixed` | The closure to run; its own return value is discarded, since the capture answers what was written rather than what was computed. |
-| `{through: …}` | `callable` (default `null`) | A `callable(Core\Cli\Text): Core\Cli\Text` applied to the captured carrier before it is answered; the default answers it as captured. |
+| `$fn` | `callable(): mixed` | The function to run. Its return value is not used. |
+| `{through: …}` | `callable` (default `null`) | A function that takes the collected `Core\Cli\Text` and returns a new `Core\Cli\Text`. `capture` returns that new text. Without it, `capture` returns the text as it was printed. |
 
-**Returns** `Core\Cli\Text` — The captured output as a `Core\Cli\Text` — never a plain `string`, since those bytes have already been through the sink — and an empty carrier when `$fn` wrote nothing. Nothing `$fn` echoed reaches the sink below; re-emitting is a visible `echo Core\Out::capture(…)`, and a `Core\Debug::dump` inside `$fn` is not captured.
+**Returns** `Core\Cli\Text` — What `$fn` printed, as a `Core\Cli\Text`. It is empty when `$fn` printed nothing. Use `echo` to print it, or its `text` method to get a `string`. Output from `Core\Debug::dump` is not collected.
 
-**Throws** `RuntimeError` — `through` answered something other than a `Core\Cli\Text`.
+**Throws** `RuntimeError` — The `through` function returned something that is not a `Core\Cli\Text`.
 
 <a id="core-core-debug"></a>
 ### `Core\Debug`

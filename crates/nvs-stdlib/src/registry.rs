@@ -5245,7 +5245,6 @@ mod tests {
         r"Core\Http\Target",
         r"Core\IO\Lines",
         r"Core\IO\Walk",
-        r"Core\Out",
         r"Core\Password",
         r"Core\Path",
         r"Core\Process",

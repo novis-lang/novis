@@ -1,0 +1,19 @@
+<?nvs
+// Measures collecting one short line of output, as a test does when it checks what a function prints.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The length of every collected line is added to the total, so no
+            // round can be left out.
+            $total = $total + Core\Str::length(Core\Out::capture(fn (): void => { echo "row"; })->text());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

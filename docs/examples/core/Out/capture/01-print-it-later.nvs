@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to collect what a function prints and print it later.
+
+// `Core\Out::capture` runs the function. The two `echo` lines print nothing yet.
+Core\Cli\Text $greeting = Core\Out::capture(fn (): void => {
+    echo "Hello, ";
+    echo "world";
+});
+
+// This prints `Before` first, then `Hello, world`.
+echo "Before\n";
+echo $greeting, "\n";
