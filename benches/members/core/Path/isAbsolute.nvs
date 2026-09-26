@@ -1,0 +1,28 @@
+<?nvs
+// Measures checking whether a path starts at a root, as a program does before it joins a configured folder to its own.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = [
+            "/srv/shop/invoices",
+            "storage/logs",
+            "C:\\Users\\shop\\uploads",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The path checked next depends on the last result, so no round can be skipped.
+            if (Core\Path::isAbsolute($paths[($total % 3) as int])) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 4;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,49 @@
+<?nvs
+// Attack: `Core\Path::isAbsolute` is given very long paths, broken roots and strange bytes.
+// Each call should return `true` or `false`, and the program must not crash.
+// hostile: timeout-ms 60000
+
+class Show
+{
+    public static function check(string $path): void
+    {
+        echo Core\Path::isAbsolute($path) ? 'absolute' : 'relative', "\n";
+    }
+}
+
+// 1. The path is 8 MiB of separators.
+Show::check(Core\Str::repeat("/\\", 4194304));
+
+// 2. The path is 8 MiB with no separator at all.
+Show::check(Core\Str::repeat('x', 8388608));
+
+// 3. A drive letter, a colon and 8 MiB of colons.
+Show::check('C' . Core\Str::repeat(':', 8388608));
+
+// 4. Roots cut short: a drive alone, a colon alone, two separators, a share with no name.
+Show::check('C:');
+Show::check(':');
+Show::check("\\\\");
+Show::check("\\\\\\");
+
+// 5. A drive that is not a letter, and a drive letter from another script.
+Show::check('1:/x');
+Show::check('é:/x');
+
+// 6. A null byte before and after the root.
+Show::check("\u{0}/x");
+Show::check("/\u{0}");
+
+// 7. The same long path is checked one million times.
+string $long = Core\Str::repeat('dir/', 50000);
+uint $seen = 0;
+int $r = 0;
+while ($r < 1000000) {
+    if (!Core\Path::isAbsolute($long)) {
+        $seen = $seen + 1;
+    }
+    $r = $r + 1;
+}
+echo $seen, "\n";
+
+echo 'the runtime is still standing', "\n";
