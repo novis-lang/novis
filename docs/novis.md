@@ -12157,16 +12157,16 @@ Runs the program at `$path` with the arguments in `$argv`, and waits until it en
 Core\Process::spawn(string $path, array<string> $argv): Core\Process\Handle
 ```
 
-Starts `$path` with `$argv` and answers a handle instead of waiting — PHP's `proc_open` and `passthru`, which differ only in which members their caller happens to use. The child's three streams are pipes the handle reads and writes; there is no command-line form of this member either. Needs the `process.exec` capability for the target.
+Starts the program at `$path` with the arguments in `$argv`, and returns at once while the program runs. The handle it returns reads the program's output and writes to its input. The program is started directly, never through a shell. Needs the `process.exec` capability for the program. This replaces PHP's `proc_open`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The program to start, on `run`'s terms: directly, never through a shell, so a `PATH` lookup is the caller's own to make. |
-| `$argv` | `array<string>` | The arguments, one element each, on `run`'s terms. |
+| `$path` | `string` (sink) | The program to start, as an absolute path or a path relative to the working directory. `PATH` is not searched. |
+| `$argv` | `array<string>` | The arguments, one in each element. An element with a space, a quote or a `;` in it is still one argument, on every platform. |
 
-**Returns** `Core\Process\Handle` — A `Core\Process\Handle` whose reads and writes suspend the calling coroutine. The child is killed when the task that spawned it ends, so nothing it started outlives the request that asked for it.
+**Returns** `Core\Process\Handle` — A `Core\Process\Handle` for the running program. Other requests keep running while this one waits on the handle. The program is stopped when the request that started it ends.
 
-**Throws** `RuntimeError` — The configuration does not grant `process.exec` for this target, or the target is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform because starting one hands the argv it just built to a second parser.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, or it is not executable.
+**Throws** `RuntimeError` — `process.exec` does not allow this program, or it is a `.bat`, `.cmd` or `.ps1` file. Those are not allowed on any platform, because Windows starts them through a shell.; `IOError` — The program could not be started. For example, nothing is at the path, or the file is not a program.
 
 <a id="core-core-process-result"></a>
 ### `Core\Process\Result`
@@ -12288,11 +12288,11 @@ Closes the child's standard input, waits for it to exit, and answers what it did
 $handle->kill(): void
 ```
 
-Ends the child now, whatever it was doing. Answers without complaint for a child that has already exited, so a program that kills what it no longer needs does not have to ask first — and a child nobody kills is ended anyway when the task that spawned it does.
+Stops the program at once, whatever it is doing. If the program has already ended, `kill` does nothing and throws no error. A program that nobody stops is stopped when the request that started it ends.
 
-**Returns** `void` — Nothing. `wait` is still how the status is collected, and it answers the kill's own.
+**Returns** `void` — Nothing. Call `wait` afterwards to get the exit code. It is not `0` for a program that was stopped.
 
-**Throws** `IOError` — The operating system refused the signal.
+**Throws** `IOError` — The operating system could not stop the program.
 
 <a id="core-core-time"></a>
 ### `Core\Time`

@@ -1,0 +1,28 @@
+<?nvs
+// Measures stopping a running program and waiting for it to end, as a server does when a job runs too long.
+// bench: iterations 100
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // `/usr/bin/yes` on Linux and macOS, and a `cmd.exe` loop on Windows. Neither stops by itself.
+        string $path = "/usr/bin/yes";
+        array<array<string>> $lists = [["y"], ["a longer line"]];
+        if (Core\Path::SEPARATOR == "\\") {
+            $path = "C:\\Windows\\System32\\cmd.exe";
+            $lists = [["/c", "for /l %i in (0,0,1) do @echo y"], ["/c", "for /l %i in (0,0,1) do @echo a longer line"]];
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The arguments of the next program depend on the last exit code, so no round can be skipped.
+            var $program = Core\Process::spawn($path, $lists[($total % 2) as int]);
+            $program->kill();
+            $total = $total + (($program->wait()->exitCode() + 2) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100), "\n";

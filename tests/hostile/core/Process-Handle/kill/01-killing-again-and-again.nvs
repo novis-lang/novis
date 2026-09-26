@@ -1,0 +1,92 @@
+<?nvs
+// Attack: `kill()` is called many times on the same program, before and after `wait()`, and then
+// the handle is used again. Each call should return or throw an error. The runtime must not crash.
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    // A program that prints the same line again and again, and never stops by itself.
+    // `/usr/bin/yes` does not exist on Windows, so `cmd.exe` runs a loop there.
+    public static function endless(): Core\Process\Handle
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return Core\Process::spawn(
+                "C:\\Windows\\System32\\cmd.exe",
+                ['/c', 'for /l %i in (0,0,1) do @echo a line that repeats'],
+            );
+        }
+        return Core\Process::spawn('/usr/bin/yes', ['a line that repeats']);
+    }
+
+    // A program that prints one word and ends at once.
+    public static function short(): Core\Process\Handle
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo', 'short']);
+        }
+        return Core\Process::spawn('/bin/echo', ['short']);
+    }
+
+    // Calls `kill()` and returns one word: what happened.
+    public static function kill(Core\Process\Handle $program): string
+    {
+        try {
+            $program->kill();
+            return 'killed';
+        } catch (IOError $failed) {
+            return 'IOError';
+        }
+    }
+}
+
+// 1. `kill()` 1000 times on one program that never ends, then `wait()` twice.
+var $endless = Attack::endless();
+int $calls = 0;
+while ($calls < 1000) {
+    Attack::kill($endless);
+    $calls = $calls + 1;
+}
+echo 'exit code ', $endless->wait()->exitCode(), "\n";
+try {
+    echo 'second wait: exit code ', $endless->wait()->exitCode(), "\n";
+} catch (IOError $waited) {
+    echo "second wait: IOError\n";
+}
+
+// 2. After `kill()` and `wait()`, the handle is read, written and killed again.
+?bytes $late = $endless->readStdout();
+echo 'read after the end: ', $late == null ? 'nothing' : 'data', "\n";
+try {
+    $endless->writeStdin('too late' as bytes);
+    echo "write after the end: accepted\n";
+} catch (IOError $closed) {
+    echo "write after the end: IOError\n";
+}
+echo 'kill after the end: ', Attack::kill($endless), "\n";
+
+// 3. A program that has already ended is killed before anybody waits for it.
+var $short = Attack::short();
+$short->readStdout();
+echo 'kill an ended program: ', Attack::kill($short), "\n";
+$short->wait();
+
+// 4. A program is killed before it has printed anything, 100 times in a row.
+int $round = 0;
+int $stopped = 0;
+while ($round < 100) {
+    var $program = Attack::endless();
+    Attack::kill($program);
+    if ($program->wait()->exitCode() != 0) {
+        $stopped = $stopped + 1;
+    }
+    $round = $round + 1;
+}
+echo $stopped, " of 100 programs were stopped\n";
+
+// 5. The output pipe is full, because nobody reads it. Then the program is killed.
+var $full = Attack::endless();
+$full->readStdout();
+Attack::kill($full);
+echo 'full pipe: ', $full->wait()->exitCode() == 0 ? 'not stopped' : 'stopped', "\n";
+
+echo "the runtime is still standing\n";
