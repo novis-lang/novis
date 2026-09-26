@@ -55,6 +55,13 @@
 // The first turn of a run refuses a disk with less than `--min-free-gb` free, then preflights the live
 // goal's Docker daemon and brings up its `env.docker` services (`driver/gates.ts`).
 //
+// `--side <slug>`, ahead of every other argument, puts any mode above on side goal `slug` instead of the
+// live goal: it sets `NOVIS_SIDE_GOAL`, which `nv orient`, `nv session` and every turn and session of the run
+// inherit, and the plan is `lib/chain.ts`'s `sidePlan`. The run it starts outside the side goal's worktree
+// is `driver/side.ts`'s launcher, which readies the worktree and runs the worktree's own driver there. A side
+// run is the chain run with one difference: a green sweep with both goal-end gates green ends the run on
+// `SIDE GOAL GREEN` and the landing steps, and nothing is switched.
+//
 // The console is `driver/console.ts`'s: the session's transcript through `driver/transcript.ts`, the
 // driver's stamped steps, and the live block, whose status line is `driver/status.ts`'s one-row
 // `statusRow`, with the `g`, `r`, `s`, `p`, `h` and `i` keys under it. `--max-result-lines` (60),
@@ -98,8 +105,9 @@ import { head } from "../lib/git.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, driverChanged, driverFiles, launch, ledger, loadRun, openingLine, pendingJudge, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
 import { respawn } from "../driver/respawn.ts";
+import { insideWorktree, landing, launchSide } from "../driver/side.ts";
 import { bringUp, docGate, enoughDisk, ownerGate, preflight, sweepDisk } from "../driver/gates.ts";
-import { chainGoals, type Goal, goalPlan, liveGoal, setLive } from "../lib/chain.ts";
+import { chainGoals, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { goal as goalType } from "../schema/goal.ts";
 import { goalTable, Session, statusRow, type Results } from "../driver/status.ts";
@@ -138,14 +146,14 @@ import { keyOf } from "../keys/key.ts";
 import { Tree } from "../keys/tree.ts";
 import { verifiedByRecord } from "./verify.ts";
 
-export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
+export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
 const RUN = ".loop/run.json";
 /** The memo of green verdicts every sweep reads and writes. */
 const GREEN = ".loop/accept-green.json";
 
 const USAGE =
-  "bun nv loop [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
+  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
@@ -219,12 +227,37 @@ function line(c: Check, label: string): string {
   return `${head} ${nameOf(c)}: ${driver} ${(c.args ?? []).join(" ")}`;
 }
 
+/** The goal a run works on: the live goal and its place on the chain, or a side goal, whose place is null. */
+interface Current {
+  slug: string;
+  num: number | null;
+}
+
+/** Where `live` stands, as the driver prints it: `12 of 179`, or `a side goal, off the chain`. */
+function placeOf(live: Current, total: number): string {
+  return live.num === null ? "a side goal, off the chain" : `${live.num} of ${total}`;
+}
+
 /**
- * The live goal, its plan and the chain's length, or null once the reason it has none is printed. The plan
- * is `goalPlan`'s: the goal's record with every walked goal's checks carried in as its floor.
+ * The goal this process works on, its plan and the chain's length, or null once the reason it has none is
+ * printed. It is the side goal `SIDE_ENV` names, with `sidePlan`'s plan, or else the live goal, with
+ * `goalPlan`'s: the goal's record with every walked goal's checks carried in as its floor.
  */
-function livePlan(): { live: NonNullable<ReturnType<typeof liveGoal>>; goal: Goal; total: number } | null {
+function livePlan(): { live: Current; goal: Goal; total: number } | null {
   const goals = chainGoals();
+  const side = sideGoal();
+  if (side !== null) {
+    const goal = sidePlan(side);
+    if (goal === null) {
+      console.error(`nv loop: the side goal \`${side}\` has no record at data/goals/side/${side}.json`);
+      return null;
+    }
+    return { live: { slug: side, num: null }, goal, total: goals.length };
+  }
+  if (process.env[SIDE_ENV]) {
+    console.error(`nv loop: ${SIDE_ENV} names \`${process.env[SIDE_ENV]}\`, and there is no docs/agent/goals/side/<slug>.md by that name`);
+    return null;
+  }
   const live = liveGoal(goals);
   if (live === null) {
     console.error("nv loop: data/chain.json names no live goal on the chain, so there is no plan to read");
@@ -272,7 +305,7 @@ function goalView(): number {
 }
 
 /** The live goal's checks that match every filter given, with its stage labels, or null once the reason is printed. */
-function selected(filters: Filters): { live: NonNullable<ReturnType<typeof liveGoal>>; goal: Goal; total: number; shown: Check[]; labelOf: (n: number) => string } | null {
+function selected(filters: Filters): { live: Current; goal: Goal; total: number; shown: Check[]; labelOf: (n: number) => string } | null {
   const found = livePlan();
   if (found === null) return null;
   const { live, goal } = found;
@@ -295,10 +328,10 @@ function list(filters: Filters): number {
   const found = selected(filters);
   if (found === null) return 2;
   const { live, goal, total, shown, labelOf } = found;
-  const path = `data/goals/${live.slug}.json`;
+  const path = `data/goals/${live.num === null ? "side/" : ""}${live.slug}.json`;
   const checks = goal.checks as Check[];
 
-  console.log(`${path}: ${checks.length} checks, ${goal.files.length} fixtures, goal \`${live.slug}\` (${live.num} of ${total})`);
+  console.log(`${path}: ${checks.length} checks, ${goal.files.length} fixtures, goal \`${live.slug}\` (${placeOf(live, total)})`);
   for (const c of shown) {
     console.log(line(c, labelOf(c.stage)));
     // Named cases are the half of a suite check a session acts on: the ones not yet on disk are the worklist.
@@ -673,10 +706,11 @@ function finish(state: RunState, reason: string, done = false): number {
 }
 
 /**
- * How a turn ended when the run does not simply go on. `budget` and `chain-complete` are a run that ended as
- * asked; `asked` is a stop someone pressed or wrote; the rest are verdicts a person may need to answer.
+ * How a turn ended when the run does not simply go on. `budget`, `chain-complete` and `side-green` are a run
+ * that ended as asked; `asked` is a stop someone pressed or wrote; the rest are verdicts a person may need to
+ * answer.
  */
-type Kind = "asked" | "budget" | "chain-complete" | "blocked" | "stalled" | "done-claim" | "cli-failed" | "chain-error" | "wall" | "wall-timeout";
+type Kind = "asked" | "budget" | "chain-complete" | "side-green" | "blocked" | "stalled" | "done-claim" | "cli-failed" | "chain-error" | "wall" | "wall-timeout";
 
 interface Ended {
   kind: Kind;
@@ -748,7 +782,7 @@ export function checkOf(fail: string): string {
  */
 async function afterTurn(state: RunState, f: TurnFlags, out: Ended): Promise<number> {
   const { kind, reason } = out;
-  if (kind === "budget" || kind === "chain-complete") return finish(state, reason, true);
+  if (kind === "budget" || kind === "chain-complete" || kind === "side-green") return finish(state, reason, true);
   const c = carried(state);
   if (REPAIR_KINDS.has(kind) && !c.repair && c.repairs < REPAIRS_PER_GOAL) {
     carry(state, { repairs: c.repairs + 1, repair: `${kind}: ${reason}` });
@@ -933,7 +967,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   const { live, goal, labelOf, total } = found;
   if (fresh) {
     // Once per run, and again at every goal switch: a daemon and its containers outlive the turn that asked for them.
-    step(`chain: resuming at goal \`${live.slug}\`, ${live.num} of ${total}`, C.CYAN);
+    step(live.num === null ? `side run: goal \`${live.slug}\`, ${placeOf(live, total)}` : `chain: resuming at goal \`${live.slug}\`, ${placeOf(live, total)}`, C.CYAN);
     const down = (await preflight(goal.env.docker, (l) => say(`   ${l}`, C.GRAY))) || (await bringUp(goal.env.docker, (l) => step(l, C.CYAN)));
     if (down) return finish(state, `chain: ${down}`);
   }
@@ -1221,6 +1255,8 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   if (result.fail === "" && !docsRed && !ownerRed) {
     ledger(`## goal reached: ${live.slug} -- every check in its acceptance list passes`);
     say(`GOAL REACHED: ${live.slug}`, C.GREEN);
+    // A side goal is never switched from: its run ends, and a person lands the branch.
+    if (live.num === null) return end("side-green", landing(live.slug, goal.env.wsl?.targetDir ?? null));
     const switched = await advance(state, live.slug);
     if (switched !== null) return switched;
     verdict(false, `goal reached -- the run carries on with \`${liveGoal()?.slug ?? "?"}\``);
@@ -1319,6 +1355,18 @@ function sweepProgress(labelOf: (n: number) => string, begun: number): Progress 
 }
 
 export async function run(args: string[]): Promise<number> {
+  // `--side <slug>` goes first and says which goal every mode below works on, through the variable the
+  // turns and their sessions inherit.
+  let side = "";
+  if (args[0] === "--side") {
+    side = args[1] ?? "";
+    process.env[SIDE_ENV] = side;
+    if (sideGoal() === null) {
+      console.error(side ? `nv loop --side: there is no side goal \`${side}\` at docs/agent/goals/side/${side}.md` : `usage: ${USAGE}`);
+      return 2;
+    }
+    args = args.slice(2);
+  }
   if (args.length === 1 && args[0] === "--goal") return goalView();
   if (args.length === 1 && args[0] === "--owed") return owed();
   if (args.length === 1 && args[0] === "--settle") return settle();
@@ -1329,8 +1377,11 @@ export async function run(args: string[]): Promise<number> {
       console.error(`usage: ${USAGE}`);
       return 2;
     }
-    // Started by hand, this process is the run and every turn is a child of it; `driver/respawn.ts`.
-    return process.env[RUN_ENV] ? turn(flags) : respawn(args);
+    // Started by hand, this process is the run and every turn is a child of it; `driver/respawn.ts`. A
+    // side run started outside its worktree is handed over to the driver inside it; `driver/side.ts`.
+    if (process.env[RUN_ENV]) return turn(flags);
+    if (side && !(await insideWorktree(side))) return launchSide(side, args, flags.minFreeGb, (l) => console.log(l));
+    return respawn(args);
   }
   const filters = mode === "--list" || mode === "--run" || mode === "--goal-only" ? parse(args) : null;
   if (filters === null) {

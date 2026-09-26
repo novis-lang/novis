@@ -114,9 +114,9 @@ and the pre-push hook see the same live goal; the switch rewrites that one field
 nothing, because a walked goal keeps its checks and the next goal's plan carries them in as its floor.
 `bun nv chain --new`, `--move` and `--remove` edit `goals` and never `live`.
 
-The driver does not run an optimization pass, does not run side goals, and does not copy a session's
-subagent transcripts anywhere: a pass is [optimization-prompt.md](optimization-prompt.md) run by a
-person, and a side goal is run by hand in its own worktree.
+The driver does not run an optimization pass, never picks a side goal on its own, and does not copy a
+session's subagent transcripts anywhere: a pass is [optimization-prompt.md](optimization-prompt.md) run
+by a person, and a side goal's run is started by hand with `bun nv loop --side <slug>`.
 
 **Every phase of that names itself on the console, stamped with the clock.** A session prints itself as
 it happens, and the driver's own half between two sessions — the acceptance sweep (build, fixtures, both
@@ -430,8 +430,8 @@ uses the model's own default, which is `high` on opus-5 — the run's setting go
 and result, no truncation anywhere), `--goal-only` (with `--full`, consulting no memo), `--list`,
 `--no-status`.
 
-A **side goal** is run by hand, in a worktree of its own, and lands on `main` when green;
-[goals/README.md](goals/README.md) § *Side goals* is what one is. `bun nv loop` has no side mode.
+A **side goal** runs in a worktree of its own under `bun nv loop --side <slug>`, started by hand, and
+lands on `main` when green; [goals/README.md](goals/README.md) § *Side goals* is what one is.
 
 A status line holds the bottom row for as long as the driver is up, under everything that scrolls past
 it: the spinner, where the run is (`session 3/12`), what it is doing (`orienting`, `working`,
@@ -561,9 +561,9 @@ that made it impossible: a new `Core` class is one line in `nvs_stdlib::registry
 `symbols`, and its own new module, so two sessions adding two domains no longer touch the same lines — and
 the same is true of the checker and end-to-end tests, now one file per rule area and per feature area.
 The chain run itself is still **one working tree and one handoff record**. A second lane is a **side
-goal**: one goal in a git worktree of its own, with its own handoff record, run by hand and landed on
-`main` once it is green ([goals/README.md](goals/README.md) § *Side goals* is the contract). `bun nv
-loop` has no side mode. What a side goal does not do is split the chain: it is written by hand for work
+goal**: one goal in a git worktree of its own, with its own handoff record, run by `bun nv loop --side
+<slug>` and landed on `main` by hand once it is green ([goals/README.md](goals/README.md) § *Side
+goals* is the contract). What a side goal does not do is split the chain: it is written by hand for work
 that can run beside the chain, and the chain still walks one goal at a time.
 
 **Neither is the lever right now, and that is a measured claim rather than an opinion.** Over half of a
@@ -586,6 +586,6 @@ why the script exists and the sentence does not.
 [loop-authoring.md](loop-authoring.md) § *Measure first* makes running it step zero of any new goal.
 
 Parallel lanes are the *second* lever, and side goals are their form: a worktree and a handoff record
-per lane, each run by hand and merged when green. They do not care about the context ceiling, since
+per lane, each started by hand and merged when green. They do not care about the context ceiling, since
 each lane is its own session; what they spend is a second checkout and a second `target/` for as long
 as the side goal's worktree lives.

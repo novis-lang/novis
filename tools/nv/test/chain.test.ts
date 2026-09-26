@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { type Goal, goalPlan, graduatesTo, liveGoal, setLive, withFloor } from "../lib/chain.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { type Goal, goalPlan, graduatesTo, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan, withFloor } from "../lib/chain.ts";
 import { load, write } from "../lib/store.ts";
 import { chain } from "../schema/chain.ts";
-import { goal } from "../schema/goal.ts";
+import { goal, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch | undefined;
@@ -133,5 +135,38 @@ describe("the chain's live goal", () => {
     expect(setLive("c", tmp.root)).toBe("data/chain.json");
     expect(load(chain, tmp.root)[0]!.value).toEqual({ live: "c", goals: ["a", "b", "c"] });
     expect(() => setLive("gone", tmp!.root)).toThrow("not on the chain");
+  });
+
+  test("a side goal's plan carries every goal in front of the live one, not the live goal's own checks", () => {
+    tmp = seed();
+    write(sideGoalType, "s", g([{ number: 2, title: "w", summary: "s" }], [cmd("ts", 2, ["s"])]), tmp.root);
+    expect(sidePlan("s", tmp.root)!.checks.map((c) => [c.id, c.stage])).toEqual([
+      ["ts", 2],
+      ["ta", 1],
+    ]);
+    expect(sidePlan("gone", tmp.root)).toBeNull();
+  });
+
+  test("a side goal's WSL leg builds into a target of its own", () => {
+    tmp = seed();
+    write(sideGoalType, "s", { ...g([{ number: 2, title: "w", summary: "s" }], [cmd("ts", 2, ["s"])]), env: { wsl: { targetDir: "/var/tmp/t" } } }, tmp.root);
+    expect(sidePlan("s", tmp.root)!.env.wsl?.targetDir).toBe("/var/tmp/t-side-s");
+  });
+
+  test("a process runs a side goal only when the variable names one whose prose is on disk", () => {
+    tmp = seed();
+    const before = process.env[SIDE_ENV];
+    try {
+      process.env[SIDE_ENV] = "s";
+      expect(sideGoal(tmp.root)).toBeNull();
+      mkdirSync(join(tmp.root, "docs/agent/goals/side"), { recursive: true });
+      writeFileSync(join(tmp.root, "docs/agent/goals/side/s.md"), "# Side goal — s\n");
+      expect(sideGoal(tmp.root)).toBe("s");
+      process.env[SIDE_ENV] = "../s";
+      expect(sideGoal(tmp.root)).toBeNull();
+    } finally {
+      if (before === undefined) delete process.env[SIDE_ENV];
+      else process.env[SIDE_ENV] = before;
+    }
   });
 });

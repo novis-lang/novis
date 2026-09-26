@@ -193,8 +193,8 @@ export interface TableInput {
   plan: Plan;
   results: Results;
   session: Session;
-  /** The goal's place on the chain, printed as `N of M`. */
-  position: number;
+  /** The goal's place on the chain, printed as `N of M`, or null for a side goal, printed as `side goal`. */
+  position: number | null;
   total: number;
   /** The subjects of the session's commits, oldest first. */
   commits: string[];
@@ -225,7 +225,7 @@ export function goalTable(t: TableInput): string[] {
   const room = Math.max(10, t.width - lead.length);
 
   const out = [
-    cut(`goal ${plan.slug}${dot}${t.position} of ${t.total}${dot}${percent(plan, results)}%${dot}session ${session.number}`, t.width),
+    cut(`goal ${plan.slug}${dot}${t.position === null ? "side goal" : `${t.position} of ${t.total}`}${dot}${percent(plan, results)}%${dot}session ${session.number}`, t.width),
     `${"#".padStart(nw + 1)}  ${"stage".padEnd(sw)}  ${"state".padEnd(5)}  ${"checks".padEnd(cw)}  what it does`,
   ];
   out.push((t.utf8 ? "─" : "-").repeat(Math.min(t.width, lead.length + room)));

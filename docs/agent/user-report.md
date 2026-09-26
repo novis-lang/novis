@@ -117,8 +117,8 @@ Otherwise it is a goal, written with [loop-authoring.md](loop-authoring.md):
 
 - **A side goal** when it depends on no unfinished chain goal and shares no file set with the goals
   ahead of it ([goals/README.md](goals/README.md) § *Side goals*). This is the default for a report,
-  because it lands without waiting for the chain. The driver does not run side goals: a person runs
-  one by hand in its own worktree, so say that the report waits for that run.
+  because it lands without waiting for the chain. The driver never picks one on its own: a person
+  starts its run with `bun nv loop --side <slug>`, so say that the report waits for that run.
 - **A chain goal** when it depends on a chain goal, blocks one, or changes the same files, placed with
   `bun nv chain --new <slug> --after <goal>` right behind the goal it depends on.
 

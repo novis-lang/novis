@@ -195,7 +195,7 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 
 ## Side goals
 
-Run by hand in a worktree of their own, never by the loop.
+Each runs in a worktree of its own, started by hand with `bun nv loop --side <slug>`.
 
 | Goal | What it builds | State | Milestone | Stages |
 |---|---|---|---|---|

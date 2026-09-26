@@ -73,7 +73,7 @@ export function renderGoalPlan(root: string = ROOT): Output {
     lines.push(`| ${g.num} | ${row(g.slug, records.get(g.slug), states[i]!, prose)}`);
   });
   if (sides.length > 0) {
-    lines.push("", "## Side goals", "", "Run by hand in a worktree of their own, never by the loop.", "");
+    lines.push("", "## Side goals", "", "Each runs in a worktree of its own, started by hand with `bun nv loop --side <slug>`.", "");
     lines.push("| Goal | What it builds | State | Milestone | Stages |", "|---|---|---|---|---|");
     for (const side of sides) {
       const rel = `${PROSE_FROM_PLAN}/side/${side.id}.md`;

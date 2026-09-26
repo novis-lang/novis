@@ -23,7 +23,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statS
 import { dirname, join, posix, relative, sep } from "node:path";
 import { handoffValue } from "../import/goals.ts";
 import type { Unread } from "../import/lib.ts";
-import { chainGoals, liveGoal } from "../lib/chain.ts";
+import { chainGoals, liveGoal, sideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
@@ -47,8 +47,6 @@ const PLAN = "docs/implementation-plan.md";
 const PLAYBOOK_DIR = "docs/agent/playbook";
 /** Where the driver leaves the commit the running session opened on. Absent outside the loop. */
 const SESSION_BASE = ".loop/session-start.json";
-/** Set to a side goal's slug in every process of a side run, which is started by hand. */
-const SIDE_ENV = "NOVIS_SIDE_GOAL";
 const HANDOFF_REQUIRED = ["## State", "## Next group", "## Backlog"];
 const HANDOFF_TARGET_LINES = 60;
 /** How far a `--- old` quote may be widened before it is given up on as un-quotable. */
@@ -200,13 +198,6 @@ export function parseEdits(body: string): { pairs: [string, string][]; errors: s
 }
 
 // ------------------------------------------------------------------------------ the tree
-
-/** The side goal this process belongs to, or null in a chain run. */
-function sideGoal(): string | null {
-  const slug = (process.env[SIDE_ENV] ?? "").trim();
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return null;
-  return existsSync(join(ROOT, "docs", "agent", "goals", "side", `${slug}.md`)) ? slug : null;
-}
 
 /**
  * Where a handoff's links resolve from. The handoff is a record, and its Markdown body is written as if it

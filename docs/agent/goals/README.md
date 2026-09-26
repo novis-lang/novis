@@ -173,15 +173,18 @@ and the same rules as a chain goal, with three differences.
 - **No place in the chain.** Nothing walks to it, so `data/chain.json` does not name it: its `.md`
   opens `# Side goal — <title>`, and prose names it by its slug as it names any goal. `bun nv chain
   --check` refuses a side goal with checks that has no prose, no such H1 or no handoff record.
-- **A person runs it by hand**, in a worktree of its own at `.agent-tmp/worktrees/side/<slug>` on
-  branch `side/<slug>`, and it runs that goal and nothing else. The driver has no side mode and never
-  runs one. A side goal and the chain run may run at once.
-- **It lands instead of switching.** When its list is green, the person running it rebases the branch
-  onto `main`, runs `nv verify` and the whole list again, and fast-forwards `main` while the chain run
-  holds between two sessions. **Then the goal is deleted**: one commit on `main` removes its prose, its
-  record and its handoff, and the worktree and branch are removed with it. A side goal is never retired, because no plan
-  section or milestone cites it and `git log` already keeps what it was. `bun nv chain --check` refuses
-  a side goal with no checks, which is one that landed and was kept.
+- **A person starts its run by hand**, with `bun nv loop --side <slug>` typed in the main tree. It
+  makes branch `side/<slug>` and its worktree at `.agent-tmp/worktrees/side/<slug>` when they are
+  missing, and runs sessions there on that goal and nothing else. The driver never picks a side goal on
+  its own. A side run and the chain run may run at once, because they share no tree, no build and no
+  state file.
+- **It lands instead of switching.** When its list is green the run ends on `SIDE GOAL GREEN` and
+  prints the landing steps. The person rebases the branch onto `main`, runs `nv verify` and the whole
+  list again, and fast-forwards `main` while the chain run holds between two sessions. **The goal is
+  deleted as it lands**: one commit removes its prose, its record and its handoff, and the worktree and
+  branch are removed after it. A side goal is never retired, because no plan section or milestone
+  cites it and `git log` already keeps what it was. `bun nv chain --check` refuses a side goal with no
+  checks, which is one that landed and was kept.
 
 Its list is checked over **main's carried floor** as well as its own checks, so a side branch cannot
 land anything that breaks a walked goal. The live chain goal's own checks are not part of it. A side

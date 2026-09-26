@@ -28,7 +28,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { chainGoals, goalPlan, liveGoal } from "../lib/chain.ts";
+import { chainGoals, goalPlan, liveGoal, sideGoal } from "../lib/chain.ts";
 import { tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
@@ -46,7 +46,6 @@ import { bodyOf, leadParagraph, milestones, verifyParagraph } from "./plan.ts";
 
 export const summary = "the loop session's orientation pack, narrowed to the live goal: nv orient [--audit] [--item N] [--stage N] [--full] [--goal SLUG] | --traps <path>...";
 
-const SIDE_ENV = "NOVIS_SIDE_GOAL";
 const PLAYBOOK = "docs/agent/playbook";
 const CONVENTIONS = "docs/agent/conventions.md";
 const RUNNING = ".loop/running";
@@ -302,8 +301,8 @@ function stripFrontmatter(text: string): string {
 // ------------------------------------------------------------------------ the goal
 
 function sources(goalFlag: string | null): Sources | null {
-  const side = (process.env[SIDE_ENV] ?? "").trim();
-  if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(side) && existsSync(join(ROOT, "docs/agent/goals/side", `${side}.md`))) {
+  const side = sideGoal();
+  if (side !== null) {
     return { slug: side, md: `docs/agent/goals/side/${side}.md`, record: `data/goals/side/${side}.json`, handoff: `data/goals/side/${side}.handoff.json`, side: true, position: null };
   }
   const goals = chainGoals();

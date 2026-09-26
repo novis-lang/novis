@@ -14,6 +14,10 @@
 // `bun nv chain --check` holds every test and case it named to still being there. The fixtures a walked
 // goal's checks run and its valgrind skips come with them, because a floor whose fixtures are missing
 // fails before anything is built.
+//
+// **A side goal's plan is its record with main's carried floor**: the checks of every goal in front of
+// the live one, and never the live goal's own, which are that goal's unfinished work. A process belongs to
+// a side run when `SIDE_ENV` names a side goal whose prose is on disk.
 
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -21,9 +25,15 @@ import { ROOT } from "./paths.ts";
 import type { RecordType } from "./schema.ts";
 import { load, write } from "./store.ts";
 import { chain as chainType } from "../schema/chain.ts";
-import { goal as goalType } from "../schema/goal.ts";
+import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 
 const GOALS = "docs/agent/goals";
+
+/** Set to a side goal's slug in every process of a side run: the driver, its turns and their sessions. */
+export const SIDE_ENV = "NOVIS_SIDE_GOAL";
+
+/** A slug as a goal file names it. */
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** A goal's record, as `data/goals/<slug>.json` holds it. */
 export type Goal = typeof goalType extends RecordType<infer T> ? T : never;
@@ -206,4 +216,31 @@ export function goalPlan(slug: string, root: string = ROOT): Goal | null {
     return goal === undefined ? [] : [{ slug: s, goal }];
   });
   return withFloor(own, walked);
+}
+
+/** The side goal this process runs, or null in a chain run: `SIDE_ENV`'s slug, when a side goal's prose has it. */
+export function sideGoal(root: string = ROOT): string | null {
+  const slug = (process.env[SIDE_ENV] ?? "").trim();
+  return SLUG.test(slug) && existsSync(join(root, GOALS, "side", `${slug}.md`)) ? slug : null;
+}
+
+/**
+ * The plan a side run is checked against: side goal `slug`'s record with the floor carried in from every
+ * goal in front of the live one. Its WSL leg builds into a target of its own, `<targetDir>-side-<slug>`,
+ * because two runs sharing one would wait on each other's lock and rebuild each other's crates. Null when
+ * the side goal has no record.
+ */
+export function sidePlan(slug: string, root: string = ROOT): Goal | null {
+  const own = load(sideGoalType, root).find((g) => g.id === slug)?.value;
+  if (own === undefined) return null;
+  const records = new Map(load(goalType, root).map((g) => [g.id, g.value]));
+  const { live, goals } = chainRecord(root);
+  const at = live === null ? -1 : goals.indexOf(live);
+  const walked = (at < 0 ? [] : goals.slice(0, at)).flatMap((s) => {
+    const goal = records.get(s);
+    return goal === undefined ? [] : [{ slug: s, goal }];
+  });
+  const plan = withFloor(own, walked);
+  const wsl = plan.env.wsl;
+  return wsl?.targetDir ? { ...plan, env: { ...plan.env, wsl: { ...wsl, targetDir: `${wsl.targetDir}-side-${slug}` } } } : plan;
 }
