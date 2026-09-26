@@ -1,31 +1,26 @@
 {
-  "state": "Goal `core-random-and-1-more`: `Core\\Random` and `Core\\Random\\Seeded` owe their feature proofs.\n`Core\\Random::bytes`, `::float`, `::int`, `::token` and `::pick` are complete (`bun nv proofs --id`\nsays so), with figures in `docs/perf/members.ndjson`. `sample` and `shuffle` already carry their Rust\n`covers:` markers and owe only their description, examples, attack and bench. `pick` no longer builds\na list of every slot per call: `pick_from` in `crates/nvs-stdlib/src/random.rs` draws a slot in\n`0..NvsArray::slot_end()` and draws again on a hole. `Core\\Random\\Seeded` is still in\n`CLASSES_STILL_OWING_A_CARD`. Nothing is blocked.",
+  "state": "Goal `core-random-and-1-more`: `Core\\Random` is done. `bun nv proofs --verify --group 'Core\\Random'`\npasses with all seven members complete and their figures in `docs/perf/members.ndjson`. `sample_from`\nin `crates/nvs-stdlib/src/random.rs` now costs O(count). Up to half the subject, it draws slots and\ndraws again on a hole or on a repeat. Past half, it walks the slots. `Core\\Random\\Seeded` has its class\ncard and is no longer in `CLASSES_STILL_OWING_A_CARD`. All seven of its instance members still owe\nexamples, hostile, perf and tests (each needs a `covers:` marker, because an instance member gets no\ncredit from a plain call), and possibly help. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [
-      "crates/nvs-stdlib/src/random.rs",
-      "docs/examples/core/Random/",
-      "tests/hostile/core/Random/",
-      "benches/members/core/Random/"
+      "docs/examples/core/Random-Seeded/",
+      "tests/hostile/core/Random-Seeded/",
+      "benches/members/core/Random-Seeded/",
+      "tests/conformance/core/random-seeded-*.nvst"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Random::sample`** — about, examples, hostile, perf; the `covers:` marker is on. `sample_from` still builds `slots(subject)`, a `Vec` as long as the array, for every call: an attack drawing 1 of a million entries in a loop is linear per call. Decide whether that is the member's cost or a finding, as `pick` was. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:646`"
+        "text": "**`Core\\Random\\Seeded::int`, `::float`, `::bytes`** — examples, hostile, perf, and two test cases each. Add `// covers: Core\\Random\\Seeded::<member>` to the existing `random-seeded-*.nvst` cases that already call the member; a Rust `covers:` goes above a seeded `#[test]`. First run `bun nv proofs --id 'Core\\Random\\Seeded::int'`: it shows what \"help\" still owes now that the class card has landed. An example can print the seeded values themselves, because the same seed gives the same output. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:1250`"
       },
       {
         "done": false,
-        "text": "**`Core\\Random::shuffle`** — about, examples, hostile, perf; the `covers:` marker is on. Linear in the array is its inherent cost. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:181`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Random\\Seeded`'s class card** — a `ClassDoc` above its `CLASS` row, and its name struck from `CLASSES_STILL_OWING_A_CARD`. `rule:core-api/reference-card`. `crates/nvs-stdlib/src/registry.rs:5189`"
+        "text": "**`Core\\Random\\Seeded::token`, `::pick`, `::sample`, `::shuffle`** — the same four proofs. `sample` shares `sample_from` with its twin, so the seeded `sample` stream now differs between the small-count path and the large-count path. Any blessed `.out` pins whichever path its count takes. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:347`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Random\\Seeded`'s seven members owe every proof (`bun nv proofs --group 'Core\\Random\\Seeded'`). `docs/examples/README.md`.",
-    "`wsl examples/cache.nvs` exits 45 on the floor sweep; not looked at. `bun nv orient` § RUN."
+    "`Core\\Random::shuffle`'s card still says it replaces `str_shuffle`, but the member takes only an array (`crates/nvs-stdlib/src/random.rs` `SHUFFLE_DOC`). Its owner is this goal."
   ]
 }

@@ -1,0 +1,20 @@
+<?nvs
+// Measures putting the four answers of a quiz question in a random order, as a quiz page does.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<int> $answers = [1, 2, 3, 4];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds the answer it put first, so no round can be left out.
+            array<int> $shown = Core\Random::shuffle($answers);
+            $total = $total + $shown[0];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to shuffle a small deck of cards.
+
+array<string> $deck = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+// `Core\Random::shuffle` returns a new list with the same cards in a random order.
+array<string> $shuffled = Core\Random::shuffle($deck);
+
+// The order changes on every run. The cards stay the same, so this prints 13 and `yes`.
+echo Core\Arr::count($shuffled), "\n";
+echo Core\Json::encode(Core\Arr::sort($shuffled)) == Core\Json::encode(Core\Arr::sort($deck)) ? "yes" : "no", "\n";
+
+// The first deck does not change. This prints `A`.
+echo $deck[0], "\n";

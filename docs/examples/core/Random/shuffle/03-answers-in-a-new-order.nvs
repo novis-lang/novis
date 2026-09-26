@@ -1,0 +1,22 @@
+<?nvs
+// Shows the answers of a quiz question in a new order for each student. Then nobody
+// can copy the letter of the right answer from a neighbor.
+
+array<string> $answers = ["Paris", "Rome", "Madrid", "Berlin"];
+string $correct = "Paris";
+
+// Each student gets the answers in a random order, marked A to D.
+array<string> $letters = ["A", "B", "C", "D"];
+array<string> $shown = Core\Random::shuffle($answers);
+
+// The letter of the right answer changes on every run. It is always one of A to D,
+// so this prints `yes`.
+string $letter = "";
+int $i = 0;
+foreach ($shown as string $answer) {
+    if ($answer == $correct) {
+        $letter = $letters[$i];
+    }
+    $i = $i + 1;
+}
+echo Core\Arr::contains($letters, $letter) ? "yes" : "no", "\n";
