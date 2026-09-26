@@ -84,6 +84,30 @@ fn length(bytes: &[u8]) -> u32 {
     reason = "the blob's liveness is the caller's obligation to state — it is a compiled unit's own data section"
 )]
 pub unsafe fn decode(blob: *const u8) -> Option<Source> {
+    // SAFETY: forwarding the caller's own contract, which is `parts`' whole one.
+    let (line, file, member) = unsafe { parts(blob) }?;
+    Some(Source {
+        file: String::from_utf8_lossy(file).into_owned(),
+        line,
+        member: member.map(|bytes| String::from_utf8_lossy(bytes).into_owned()),
+    })
+}
+
+/// A blob read in place: the line, the file's bytes, and the member's bytes or
+/// `None` for a producer at file scope.
+type Parts<'a> = (u32, &'a [u8], Option<&'a [u8]>);
+
+/// The line, the file's bytes and the member's bytes `blob` carries, borrowed
+/// in place, or `None` for the zero word.
+///
+/// # Safety
+///
+/// [`decode`]'s, and the caller picks `'a` no longer than the blob lives.
+#[expect(
+    unsafe_code,
+    reason = "the blob's liveness is the caller's obligation to state — it is a compiled unit's own data section"
+)]
+unsafe fn parts<'a>(blob: *const u8) -> Option<Parts<'a>> {
     if blob.is_null() {
         return None;
     }
@@ -107,14 +131,9 @@ pub unsafe fn decode(blob: *const u8) -> Option<Source> {
         let len = usize::try_from(member_len).ok()?;
         // SAFETY: and the member's bytes follow the file's, by the same
         // contract and the same header.
-        let bytes = unsafe { slice::from_raw_parts(blob.add(HEADER + file_len), len) };
-        Some(String::from_utf8_lossy(bytes).into_owned())
+        Some(unsafe { slice::from_raw_parts(blob.add(HEADER + file_len), len) })
     };
-    Some(Source {
-        file: String::from_utf8_lossy(file).into_owned(),
-        line,
-        member,
-    })
+    Some((line, file, member))
 }
 
 /// The [`Source`] a producer's argument 0 carries, or `None` where that slot
@@ -142,6 +161,30 @@ pub unsafe fn of_operand(operand: Value) -> Option<Source> {
     unsafe { decode(operand.as_source_const()?) }
 }
 
+/// The member label a producer's argument 0 carries, borrowed from the blob:
+/// [`of_operand`]'s `member` with no copy of it and none of the file.
+///
+/// The reader a visibility check wants. `nvs_stdlib::reflect` asks it on every
+/// reflective read and call and keeps nothing, so a copy per call would be an
+/// allocation on the request path that buys nothing. `None` for the zero word,
+/// for a producer at file scope, and for a label that is not UTF-8, which
+/// `encode` never writes; each of the three reads as a site outside every class.
+///
+/// # Safety
+///
+/// [`of_operand`]'s, and the caller picks `'a` no longer than the compiled unit
+/// that baked the blob lives.
+#[must_use]
+#[expect(
+    unsafe_code,
+    reason = "the blob's liveness is the caller's obligation to state, and `parts`' contract is the whole of it"
+)]
+pub unsafe fn member_of_operand<'a>(operand: Value) -> Option<&'a str> {
+    // SAFETY: forwarding the caller's own contract, narrowed by the tag check.
+    let (_, _, member) = unsafe { parts(operand.as_source_const()?) }?;
+    std::str::from_utf8(member?).ok()
+}
+
 /// The `Throwable::$location` spelling of a [`Source`]: the file as the program
 /// named it and its one-based line, `file:line`.
 ///
@@ -158,7 +201,7 @@ pub fn location(source: &Source) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, encode};
+    use super::{decode, encode, member_of_operand, of_operand};
 
     use nvs_render::Source;
 
@@ -198,6 +241,26 @@ mod tests {
             unsafe { (decode(baked_scope.as_ptr()), decode(baked_empty.as_ptr())) };
         assert_eq!(read_scope, Some(scope));
         assert_eq!(read_empty, Some(empty));
+    }
+
+    /// The borrowed reader and the copying one agree on the member, including
+    /// the file-scope producer that has none.
+    #[test]
+    fn the_borrowed_member_is_the_decoded_one() {
+        for member in [Some("Handler::respond"), Some(""), None] {
+            let source = Source {
+                file: "app/Handler.nvs".to_owned(),
+                line: 7,
+                member: member.map(str::to_owned),
+            };
+            let bytes = encode(&source);
+            let operand = crate::Value::source_const(bytes.as_ptr());
+            #[expect(unsafe_code, reason = "reading back what this test just baked")]
+            // SAFETY: the blob is this frame's own, and outlives both calls.
+            let (borrowed, decoded) = unsafe { (member_of_operand(operand), of_operand(operand)) };
+            assert_eq!(borrowed, member);
+            assert_eq!(decoded.and_then(|source| source.member).as_deref(), member);
+        }
     }
 
     /// The zero word is the producer that was handed no call site at all, and

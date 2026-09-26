@@ -514,7 +514,7 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
 /// `Core\Reflect\ClassInfo` — what [`CLASS`]'s member answers with.
 pub(crate) const CLASS_INFO: CoreClass = CoreClass {
     name: CLASS_INFO_NAME,
-    doc: None,
+    doc: Some(&CLASS_INFO_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -929,15 +929,17 @@ fn subject_of(
 /// reference's thunk, and a carrier that is the zero word for any other reason.
 /// Every one of them is refused what a `private` member would refuse, which is
 /// the direction `docs/agent/goals/m8-stdlib-depth.md` § *Standing decisions* fixes.
-fn site_class(operand: Value) -> Option<String> {
+///
+/// The name is borrowed from the carrier rather than copied, so asking costs no
+/// allocation: every reflective read, write and call asks once.
+fn site_class(operand: Value) -> Option<&'static str> {
     #[expect(
         unsafe_code,
         reason = "the carrier came out of a `SourceConst` the compiled unit baked into its own data section, which outlives every request served from it"
     )]
-    let source = unsafe { nvs_runtime::source::of_operand(operand) }?;
-    let member = source.member?;
+    let member = unsafe { nvs_runtime::source::member_of_operand(operand) }?;
     let (class, _) = member.split_once("::")?;
-    Some(class.to_owned())
+    Some(class)
 }
 
 /// `Core\Reflect\ClassInfo::call`'s reference card — `rule:core-api/reference-card`.
@@ -1535,6 +1537,13 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
     ],
     slots: &["name", "target", "parameter", "fields", "values"],
     constants: &[],
+};
+
+/// `Core\Reflect\ClassInfo`'s class card — `rule:core-api/reference-card`.
+const CLASS_INFO_CARD: ClassDoc = ClassDoc {
+    short: "One class, as `Core\\Reflect::forClass` and `Core\\Reflect::forObject` return it. \
+            `properties`, `methods`, `constants` and `attributes` list what the class declares. \
+            `get`, `set`, `call` and `construct` use a class whose name is only known at run time.",
 };
 
 /// `Core\Reflect\ClassInfo::attributes`'s reference card — `rule:core-api/reference-card`.
@@ -2150,7 +2159,7 @@ nvs_runtime::nvs_helper! {
         let described = crate::instance::slot(receiver, NAME_SLOT);
         let described = described.as_text();
         let site = site_class(args[1]);
-        let inside = site.as_ref().is_some_and(|site| described == Some(site.as_str()));
+        let inside = site.is_some_and(|site| described == Some(site));
         #[expect(
             unsafe_code,
             reason = "`class_desc` answers with a pointer into the compiled unit's class table, \
@@ -2171,7 +2180,7 @@ nvs_runtime::nvs_helper! {
                 continue;
             };
             let visible = if let Some(desc) = desc {
-                ctx.field_is_visible_from(desc, name, site.as_deref())
+                ctx.field_is_visible_from(desc, name, site)
             } else {
                 inside || crate::instance::slot(row, PROPERTY_PUBLIC_SLOT).as_bool() == Some(true)
             };
@@ -2280,7 +2289,7 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         };
-        if !desc.is_some_and(|desc| ctx.constant_is_visible_from(desc, name, site.as_deref())) {
+        if !desc.is_some_and(|desc| ctx.constant_is_visible_from(desc, name, site)) {
             return Err(Fault::thrown(format!(
                 "{CLASS_INFO_NAME}::constant(): `{described}::{name}` is not readable from \
                  outside the class, and reflection does not lift that"
@@ -2690,7 +2699,7 @@ nvs_runtime::nvs_helper! {
             let desc = &*object.class();
             (
                 desc.field_slot(name, 0),
-                ctx.field_is_visible_from(desc, name, site.as_deref()),
+                ctx.field_is_visible_from(desc, name, site),
             )
         };
         let Some(slot) = slot else {
@@ -2762,7 +2771,7 @@ nvs_runtime::nvs_helper! {
             let desc = &*object.class();
             (
                 desc.field_slot(name, 0),
-                ctx.field_is_visible_from(desc, name, site.as_deref()),
+                ctx.field_is_visible_from(desc, name, site),
             )
         };
         if slot.is_none() {
@@ -2841,7 +2850,7 @@ nvs_runtime::nvs_helper! {
             slot = live + 1;
             passed.push(list.value_at(live).expect("a live slot has a value"));
         }
-        nvs_runtime::call_erased_method_from(ctx, args[1], name, &passed, site.as_deref())
+        nvs_runtime::call_erased_method_from(ctx, args[1], name, &passed, site)
     }
 }
 
@@ -2916,7 +2925,7 @@ nvs_runtime::nvs_helper! {
             reason = "`class_desc` answers with a pointer into the compiled unit's class table, which outlives this context and is never rewritten while a member of it is running"
         )]
         let built = unsafe {
-            nvs_runtime::construct_erased_from(ctx, desc, &passed, site.as_deref())
+            nvs_runtime::construct_erased_from(ctx, desc, &passed, site)
         };
         built
     }
@@ -2925,8 +2934,8 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{
-        ClassTable, Ctx, ErrorClass, MethodRow, NvsArray, NvsFn, NvsObj, NvsStr, OK, OutputSink,
-        Tag, Value, call,
+        AttributeDesc, ClassTable, ConstantValue, Ctx, ErrorClass, MethodRow, NvsArray, NvsFn,
+        NvsObj, NvsStr, OK, OutputSink, Tag, Value, call,
     };
 
     use super::{TYPE_KIND, kind_of};
@@ -3026,6 +3035,7 @@ mod tests {
     /// is asserted in the same test so that "they agree" cannot be satisfied by
     /// a member that refuses everything.
     // covers: Core\Reflect::forObject
+    // covers: Core\Reflect\ClassInfo::call
     #[test]
     fn a_reflective_call_to_a_private_method_from_outside_fails_like_the_ordinary_call() {
         let (mut ctx, subject) = vault();
@@ -3524,6 +3534,193 @@ mod tests {
             for (_, value) in read {
                 value.release();
             }
+            info.release();
+        }
+    }
+
+    /// `attributes` answers one `AttributeInfo` per row the descriptor carries,
+    /// in the descriptor's order, and each row reads back the site it was built
+    /// from — a roster that sorted, deduplicated or dropped the parameter's row
+    /// would still answer a plausible array and fail here on the pairing. A
+    /// class that declares no attribute answers an **empty** array, never
+    /// `null`, so a caller's `foreach` needs no guard. Which sites a descriptor
+    /// carries (own-only) is `nvs_types::layout`'s, and the `.nvst` case that
+    /// extends a class pins it end to end.
+    // covers: Core\Reflect\ClassInfo::attributes
+    #[test]
+    fn class_info_attributes_is_one_row_per_attach_site_in_the_descriptors_order() {
+        let mut classes = ClassTable::new();
+        let page = classes.define("Page", &[] as &[&str], &[]);
+        let plain = classes.define("Plain", &[] as &[&str], &[]);
+        let sites = [
+            ("", "", "Route"),
+            ("", "", ""),
+            ("title", "", ""),
+            ("show", "", "Route"),
+            ("show", "id", ""),
+        ];
+        classes.set_class_attributes(
+            page,
+            sites
+                .iter()
+                .map(|&(member, parameter, name)| AttributeDesc {
+                    member: member.to_owned(),
+                    parameter: parameter.to_owned(),
+                    name: name.to_owned(),
+                    fields: vec![("path".to_owned(), ConstantValue::Str("/".to_owned()))],
+                })
+                .collect(),
+        );
+        let mut ctx = Ctx::buffered();
+
+        let roster_of = |ctx: &mut Ctx, id| {
+            #[expect(
+                unsafe_code,
+                reason = "`classes` outlives this closure's every call, and the table never \
+                          moves a descriptor it handed out"
+            )]
+            let info = super::describe(unsafe { &*classes.desc(id) });
+            let roster = call(super::nvs_core_reflect_class_info_attributes, ctx, &[info])
+                .expect("the roster always answers");
+            #[expect(
+                unsafe_code,
+                reason = "the description is this frame's alone, and the roster `attributes` \
+                          handed back holds its own reference to the array"
+            )]
+            unsafe {
+                info.release();
+            }
+            roster
+        };
+
+        let listed = roster_of(&mut ctx, page);
+        #[expect(
+            unsafe_code,
+            reason = "`attributes` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let rows = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`attributes` answers an array"))
+        });
+        let mut read = Vec::new();
+        for at in 0..rows.count() {
+            let row = rows.value_at(at).expect("every position holds a row");
+            read.push((
+                attribute_text(&mut ctx, super::nvs_core_reflect_attribute_info_target, row),
+                attribute_text(
+                    &mut ctx,
+                    super::nvs_core_reflect_attribute_info_parameter,
+                    row,
+                ),
+                attribute_text(&mut ctx, super::nvs_core_reflect_attribute_info_name, row),
+            ));
+        }
+        let expected: Vec<(String, String, String)> = sites
+            .iter()
+            .map(|&(m, p, n)| (m.to_owned(), p.to_owned(), n.to_owned()))
+            .collect();
+        assert_eq!(
+            read, expected,
+            "one row per site, in the descriptor's order"
+        );
+
+        let empty = roster_of(&mut ctx, plain);
+        assert_eq!(
+            empty.tag(),
+            Some(Tag::Array),
+            "no attribute is an empty roster"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "`attributes` answered an array this frame owns one reference to"
+        )]
+        let none = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(empty.array_ptr().expect("an array"))
+        });
+        assert_eq!(none.count(), 0);
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each roster `attributes` handed back"
+        )]
+        unsafe {
+            listed.release();
+            empty.release();
+        }
+    }
+
+    /// `constant`'s four refusals come in one order, and each pair of adjacent
+    /// ones is asked here with a name that could fail both: a name the class
+    /// has nothing of is the misspelling's refusal and never visibility's, a
+    /// `private secret` constant read from outside is visibility's and never
+    /// the qualifier's, and only a site that reaches it hears about `secret`.
+    /// The happy half is asserted from both sites so "refuses everything"
+    /// cannot pass, and the unfolded value is the last refusal in the chain.
+    // covers: Core\Reflect\ClassInfo::constant
+    #[test]
+    fn class_info_constant_refuses_in_one_order_and_reads_what_the_site_reaches() {
+        let mut classes = ClassTable::new();
+        let id = classes.define("Vault", &[] as &[&str], &[]);
+        let constant = |name: &str, public: bool, secret: bool, value| nvs_runtime::ConstantDesc {
+            name: name.to_owned(),
+            public,
+            protected: false,
+            secret,
+            value,
+        };
+        classes.set_class_constants(
+            id,
+            vec![
+                constant("LIMIT", true, false, ConstantValue::Int(3)),
+                constant("HIDDEN", false, false, ConstantValue::Int(7)),
+                constant("KEY", false, true, ConstantValue::Str("k".to_owned())),
+                constant("BLOB", true, false, ConstantValue::Opaque),
+            ],
+        );
+        let classes = std::sync::Arc::new(classes);
+        #[expect(
+            unsafe_code,
+            reason = "the table is held by the context below for the rest of the test, and never \
+                      moves a descriptor it handed out"
+        )]
+        let info = super::describe(unsafe { &*classes.desc(id) });
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, id));
+        let (_blob, within) = inside("Vault::open");
+
+        let mut ask = |name: &str, site: Value| -> Result<Value, String> {
+            let asked = Value::str(NvsStr::new(name.as_bytes()));
+            let answer = call(
+                super::nvs_core_reflect_class_info_constant,
+                &mut ctx,
+                &[info, asked, site],
+            );
+            #[expect(unsafe_code, reason = "the member borrowed the name this frame built")]
+            unsafe {
+                asked.release();
+            }
+            answer.map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+
+        assert_eq!(ask("LIMIT", OUTSIDE).ok().and_then(|v| v.as_int()), Some(3));
+        assert_eq!(ask("HIDDEN", within).ok().and_then(|v| v.as_int()), Some(7));
+
+        let said = ask("NOPE", OUTSIDE).expect_err("no such constant");
+        assert!(said.contains("has no constant named `NOPE`"), "{said:?}");
+        let said = ask("HIDDEN", OUTSIDE).expect_err("private, read from outside");
+        assert!(said.contains("is not readable from outside"), "{said:?}");
+        let said = ask("KEY", OUTSIDE).expect_err("private and secret, read from outside");
+        assert!(
+            said.contains("is not readable from outside"),
+            "visibility is judged before the qualifier: {said:?}"
+        );
+        let said = ask("KEY", within).expect_err("secret, read from its own class");
+        assert!(said.contains("is declared `secret`"), "{said:?}");
+        let said = ask("BLOB", OUTSIDE).expect_err("no folded value");
+        assert!(said.contains("does not fold"), "{said:?}");
+
+        #[expect(unsafe_code, reason = "this frame owns the description it built")]
+        unsafe {
             info.release();
         }
     }
