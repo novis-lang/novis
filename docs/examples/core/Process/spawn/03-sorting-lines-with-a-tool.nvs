@@ -1,0 +1,24 @@
+<?nvs
+// Shows a small method that sends text to a tool's input and returns what the tool prints.
+// requires: unix
+
+class Tools {
+    public static function filter(string $path, array<string> $arguments, string $input): string {
+        var $tool = Core\Process::spawn($path, $arguments);
+        // `writeStdin` sends the text to the tool. A `string` converts to `bytes` here.
+        $tool->writeStdin($input as bytes);
+        // `wait()` closes the tool's input, so the tool knows the text is complete.
+        // Then it waits for the tool to end, and returns its exit code and output.
+        var $result = $tool->wait();
+        if ($result->exitCode() != 0) {
+            throw new RuntimeError("the tool failed with exit code " . $result->exitCode());
+        }
+        return $result->stdout() as string;
+    }
+}
+
+// `sort` prints the lines in order. This prints apple, fig and pear.
+echo Tools::filter("/usr/bin/sort", [], "pear\napple\nfig\n");
+
+// `-r` sorts in reverse order. This prints pear, fig and apple.
+echo Tools::filter("/usr/bin/sort", ["-r"], "pear\napple\nfig\n");

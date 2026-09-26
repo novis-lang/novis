@@ -226,37 +226,37 @@ const RUN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Process::spawn`'s reference card — `rule:core-api/reference-card`.
 const SPAWN_DOC: MethodDoc = MethodDoc {
-    short: "Starts `$path` with `$argv` and answers a handle instead of waiting — PHP's `proc_open` \
-            and `passthru`, which differ only in which members their caller happens to use. The \
-            child's three streams are pipes the handle reads and writes; there is no command-line \
-            form of this member either. Needs the `process.exec` capability for the target.",
+    short: "Starts the program at `$path` with the arguments in `$argv`, and returns at once while \
+            the program runs. The handle it returns reads the program's output and writes to its \
+            input. The program is started directly, never through a shell. Needs the \
+            `process.exec` capability for the program. This replaces PHP's `proc_open`.",
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The program to start, on `run`'s terms: directly, never through a shell, so a \
-                   `PATH` lookup is the caller's own to make.",
+            desc: "The program to start, as an absolute path or a path relative to the working \
+                   directory. `PATH` is not searched.",
             shape: &[],
         },
         ParamDoc {
             name: "argv",
-            desc: "The arguments, one element each, on `run`'s terms.",
+            desc: "The arguments, one in each element. An element with a space, a quote or a `;` \
+                   in it is still one argument, on every platform.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Process\\Handle` whose reads and writes suspend the calling coroutine. The child \
-          is killed when the task that spawned it ends, so nothing it started outlives the request \
-          that asked for it.",
+    ret: "A `Core\\Process\\Handle` for the running program. Other requests keep running while this \
+          one waits on the handle. The program is stopped when the request that started it ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `process.exec` for this target, or the target \
-                   is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform \
-                   because starting one hands the argv it just built to a second parser.",
+            desc: "`process.exec` does not allow this program, or it is a `.bat`, `.cmd` or `.ps1` \
+                   file. Those are not allowed on any platform, because Windows starts them \
+                   through a shell.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed it and the operating system did not — nothing is at the \
-                   path, or it is not executable.",
+            desc: "The program could not be started. For example, nothing is at the path, or the \
+                   file is not a program.",
         },
     ],
 };
@@ -300,7 +300,7 @@ const HANDLE_PATH_SLOT: usize = 1;
 /// O(children in flight), charged to the task that spawned them.
 pub(crate) const HANDLE: CoreClass = CoreClass {
     name: HANDLE_NAME,
-    doc: None,
+    doc: Some(&HANDLE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -359,6 +359,15 @@ pub(crate) const HANDLE: CoreClass = CoreClass {
     ],
     slots: &["child", "path"],
     constants: &[],
+};
+
+/// `Core\Process\Handle`'s class card — `rule:core-api/reference-card`.
+const HANDLE_CARD: ClassDoc = ClassDoc {
+    short: "A program that `Core\\Process::spawn` started and that may still be running. \
+            `readStdout` and `readStderr` read its output a part at a time, and `writeStdin` \
+            writes to its input. `wait` waits for the end and returns a `Core\\Process\\Result`, \
+            and `kill` stops the program at once. A program that is still running when the \
+            request ends is stopped.",
 };
 
 /// `Core\Process\Handle::readStdout`'s reference card — `rule:core-api/reference-card`.
@@ -435,15 +444,15 @@ const HANDLE_WAIT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Process\Handle::kill`'s reference card — `rule:core-api/reference-card`.
 const HANDLE_KILL_DOC: MethodDoc = MethodDoc {
-    short: "Ends the child now, whatever it was doing. Answers without complaint for a child that \
-            has already exited, so a program that kills what it no longer needs does not have to \
-            ask first — and a child nobody kills is ended anyway when the task that spawned it \
-            does.",
+    short: "Stops the program at once, whatever it is doing. If the program has already ended, \
+            `kill` does nothing and throws no error. A program that nobody stops is stopped when \
+            the request that started it ends.",
     params: &[],
-    ret: "Nothing. `wait` is still how the status is collected, and it answers the kill's own.",
+    ret: "Nothing. Call `wait` afterwards to get the exit code. It is not `0` for a program that \
+          was stopped.",
     errors: &[ErrorDoc {
         error: "IOError",
-        desc: "The operating system refused the signal.",
+        desc: "The operating system could not stop the program.",
     }],
 };
 
@@ -1303,6 +1312,7 @@ mod tests {
     /// held the core would answer the same octets and finish both tasks, and only the *order*
     /// tells the two apart. The child is this test binary asked to list its cases — a real process
     /// writing several kilobytes on every platform the suite runs on, with nothing to build first.
+    // covers: Core\Process::spawn
     #[test]
     fn a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core() {
         let mut sched = Scheduler::new();
@@ -1363,6 +1373,7 @@ mod tests {
     /// platforms that have signals, so [`SIGNALLED`] is the answer there and the number the system
     /// chose is the answer elsewhere; what is common to both — and what a caller asks — is that a
     /// child somebody ended is not one that finished its work.
+    // covers: Core\Process\Handle::kill
     #[test]
     fn killing_a_spawned_child_ends_it_and_wait_answers_its_status() {
         let mut ctx = Ctx::buffered();

@@ -1,0 +1,32 @@
+<?nvs
+// Measures starting a small program, reading its output as it arrives and waiting for it to end, as a job runner does for each step.
+// bench: iterations 100
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // `/bin/echo` on Linux and macOS, and `cmd.exe` with `echo` on Windows.
+        string $path = "/bin/echo";
+        array<array<string>> $lists = [["short"], ["a longer line"]];
+        if (Core\Path::SEPARATOR == "\\") {
+            $path = "C:\\Windows\\System32\\cmd.exe";
+            $lists = [["/c", "echo", "short"], ["/c", "echo", "a longer line"]];
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The arguments of the next program depend on the last output, so no round can be skipped.
+            var $child = Core\Process::spawn($path, $lists[($total % 2) as int]);
+            ?bytes $part = $child->readStdout();
+            while ($part != null) {
+                $total = $total + Core\Bytes::length($part);
+                $part = $child->readStdout();
+            }
+            $total = $total + ($child->wait()->exitCode() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100), "\n";

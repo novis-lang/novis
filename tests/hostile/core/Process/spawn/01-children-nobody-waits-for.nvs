@@ -1,0 +1,96 @@
+<?nvs
+// Attack: `Core\Process::spawn` starts many programs that the script never waits for, and feeds a
+// large input to programs that have already ended. The runtime should stop every program and must not crash.
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    // `/bin/echo` does not exist on Windows, and `cmd.exe` does not exist on Linux or macOS.
+    // So one of the two paths throws an `IOError`, and the other one starts a program.
+    public static function echoPath(): string
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return "C:\\Windows\\System32\\cmd.exe";
+        }
+        return '/bin/echo';
+    }
+
+    public static function echoArguments(string $word): array<string>
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return ['/c', 'echo', $word];
+        }
+        return [$word];
+    }
+
+    // A program that prints the same line again and again, and never stops by itself.
+    public static function endless(): Core\Process\Handle
+    {
+        if (Core\Path::SEPARATOR == "\\") {
+            return Core\Process::spawn(
+                "C:\\Windows\\System32\\cmd.exe",
+                ['/c', 'for /l %i in (0,0,1) do @echo a line that repeats'],
+            );
+        }
+        return Core\Process::spawn('/usr/bin/yes', ['a line that repeats']);
+    }
+
+    // Starts the program and returns one word: what happened.
+    public static function attempt(string $path, array<string> $arguments): string
+    {
+        try {
+            var $child = Core\Process::spawn($path, $arguments);
+            return 'started, exit code ' . $child->wait()->exitCode();
+        } catch (IOError $failed) {
+            return 'IOError';
+        } catch (RuntimeError $refused) {
+            return 'RuntimeError';
+        }
+    }
+}
+
+// 1. A null byte in the path and in an argument. No operating system can pass that to a program.
+echo Attack::attempt("/bin/echo\u{0}/../../sh", []), "\n";
+echo Attack::attempt(Attack::echoPath(), Attack::echoArguments("before\u{0}after")), "\n";
+
+// 2. An empty path, a folder, and a path that is only separators.
+echo Attack::attempt('', []), "\n";
+echo Attack::attempt('.', []), "\n";
+echo Attack::attempt('////', []), "\n";
+
+// 3. 50 programs that never stop printing. The script never reads their output and never waits.
+int $started = 0;
+while ($started < 50) {
+    var $ignored = Attack::endless();
+    $started = $started + 1;
+}
+echo $started, " endless programs started\n";
+
+// 4. 4 MiB is written to programs that end at once and read nothing. Each write throws an `IOError` or succeeds.
+bytes $large = Core\Str::repeat('x', 4194304) as bytes;
+int $round = 0;
+int $refused = 0;
+while ($round < 10) {
+    var $short = Core\Process::spawn(Attack::echoPath(), Attack::echoArguments('short'));
+    try {
+        $short->writeStdin($large);
+    } catch (IOError $closed) {
+        $refused = $refused + 1;
+    }
+    $short->wait();
+    $round = $round + 1;
+}
+echo $refused, " of 10 writes were refused\n";
+
+// 5. The same small program starts and ends 200 times, and every handle is freed.
+int $ran = 0;
+while ($ran < 200) {
+    Core\Process::spawn(Attack::echoPath(), Attack::echoArguments('round'))->wait();
+    $ran = $ran + 1;
+}
+echo $ran, " programs ran\n";
+
+// 6. The script ends while one more endless program is running and has printed one part.
+var $last = Attack::endless();
+$last->readStdout();
+echo "the runtime is still standing\n";
