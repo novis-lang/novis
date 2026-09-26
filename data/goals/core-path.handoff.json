@@ -1,26 +1,21 @@
 {
-  "state": "Goal `core-path`: `basename`, `dirname`, `extension`, `withExtension`, `join` and `split` are complete. Each has its about, three examples, an attack, a bench, a recorded figure in `docs/perf/members.ndjson`, `covers:` markers in `crates/nvs-stdlib/src/path.rs`'s `mod tests`, and a card in the plain voice.\n`normalize`, `isAbsolute` and `relativeTo` still owe about, examples, hostile and perf (`bun nv proofs --group 'Core\\Path' --owed`). Their Rust tests exist in `path.rs`'s `mod tests` and need only a `covers:` marker. Their cards are still in the old voice.\nThe floor's `nvs-cli` checks were red on a test race in `crates/nvs-cli/src/serve.rs` (three cases wrote one fixture file); each case now writes its own directory. Nothing is blocked.",
+  "state": "Goal `core-path` is reached: all nine `Core\\Path` members have their about, three examples, an attack, a bench, a recorded figure in `docs/perf/members.ndjson`, `covers:` markers in `crates/nvs-stdlib/src/path.rs`'s `mod tests`, and a card in the plain voice.\n`bun nv proofs --verify --group 'Core\\Path'` prints `nothing owed` and `0 failed` twice. `bun nv owners --closes core-path`, `bun nv playbook --closes core-path` and `bun nv verify --doc` are green.\nThe `isAbsolute` attack found a real cost: the member parsed every component of the path to read its root. It now reads three bytes (`begins_at_root`), pinned against the full parse by `is_absolute_agrees_with_the_full_parse`.\nNothing is blocked.",
   "next": {
-    "stage": 1,
-    "title": "the last three members' proofs",
-    "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/path.rs` (cards and `mod tests`), `docs/examples/core/Path/`, `tests/hostile/core/Path/`, `benches/members/core/Path/`. `rule:testing/feature-proofs`.",
+    "stage": 2,
+    "title": "the goal is reached",
+    "files": [
+      "crates/nvs-stdlib/src/path.rs"
+    ],
+    "note": "The next goal on the chain starts from its own handoff.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Path::normalize`** — about, 3 examples, attack, bench, `covers:` on `normalize_resolves_dots_by_counting_components`, plain-voice card. Its output has separators, so print it through `Core\\Str::replace($p, Core\\Path::SEPARATOR, \"/\")`, as `docs/examples/core/Path/join/01-a-folder-and-a-file.nvs` does. `crates/nvs-stdlib/src/path.rs:337`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Path::isAbsolute`** — same set; it returns a `bool`, so its bench declares `// bench: allocations 0`. `crates/nvs-stdlib/src/path.rs:353`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Path::relativeTo`** — same set; it returns `?string`, and `null` is a case its examples show. `crates/nvs-stdlib/src/path.rs:368`"
+        "done": true,
+        "text": "**`Core\\Path` owes nothing** — `rule:testing/feature-proofs`; `crates/nvs-stdlib/src/path.rs:1005`"
       }
     ]
   },
   "backlog": [
-    "`withExtension`, `join` and `split` each count 10 to 13 allocations per call in their figures. That is a perf question for `crates/nvs-stdlib/src/path.rs`, not a proof gap."
+    "Indexing an `array<string>` with a `uint` allocates twice per read, and an `int` index allocates nothing (`benches/members/core/Path/isAbsolute.nvs` measured both). It is a latency cost on every such loop. It needs a gap record under `data/gaps/` naming the codegen owner; where array indexing is lowered is *not checked*.",
+    "The other eight `Core\\Path` benches index with a `uint`, so their recorded allocation counts include those two; re-record them once the indexing cost is fixed (`benches/members/README.md`)."
   ]
 }

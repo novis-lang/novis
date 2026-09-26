@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to find the path that leads from a folder to a file.
+
+// On Windows, the result is written with `\`. This example replaces it with `/`,
+// so the output is the same on every platform.
+class Show {
+    public static function way(string $path, string $base): void {
+        string $way = Core\Path::relativeTo($path, $base) ?? "null";
+        echo Core\Str::replace($way, Core\Path::SEPARATOR, "/"), "\n";
+    }
+}
+
+// The file is in the folder. This prints `index.nvs`.
+Show::way("/srv/shop/index.nvs", "/srv/shop");
+
+// The result goes up twice and then down. This prints `../../log/app.log`.
+Show::way("/var/log/app.log", "/var/www/html");
+
+// Both paths name the same folder. This prints `.`.
+Show::way("/srv/shop", "/srv/shop/");
+
+// Relative paths work too. This prints `images/logo.png`.
+Show::way("shop/images/logo.png", "shop");
