@@ -2,6 +2,8 @@
 `Core\Reflect\AttributeInfo::field` hands back the four literals a payload folds to and refuses the two ways it can have none, while `Core\Attributes::get` reads the one it cannot — `rule:attributes/payload-is-a-compile-time-constant` and `rule:core-classes/reflect`
 --FILE--
 <?nvs
+// covers: Core\Reflect\AttributeInfo::fields
+// covers: Core\Reflect\AttributeInfo::field
 // `rule:attributes/payload-is-a-compile-time-constant` admits three *named*
 // constants beside the literals, and each resolves through the namespace the
 // attribute was **written** in. A reflective description carries no such scope —

@@ -3365,6 +3365,169 @@ mod tests {
         assert_eq!(absent.tag(), Some(Tag::Null));
     }
 
+    /// One text-returning `AttributeInfo` member's answer, as an owned string,
+    /// with the reference it handed back released.
+    fn attribute_text(ctx: &mut Ctx, member: NvsFn, info: Value) -> String {
+        let answer = call(member, ctx, &[info]).expect("a text slot always answers");
+        let text = answer.as_text().expect("the slot holds text").to_owned();
+        #[expect(
+            unsafe_code,
+            reason = "the member handed back a fresh reference, and this frame is its only owner"
+        )]
+        unsafe {
+            answer.release();
+        }
+        text
+    }
+
+    /// The five `AttributeInfo` members **agree** on one row, built the way
+    /// `describe` builds it for `#[Route(path: "/show", limit: 3, cap:
+    /// Limits::MAX)]` before a parameter `$id` of `show`: the three site slots
+    /// read back as written, and every name `fields` lists is one `field`
+    /// recognises. That last half is what tells the two refusals apart — `cap`
+    /// is listed and has no folded value, so it must fail with the fold's
+    /// sentence, and a name the roster never listed must fail with the
+    /// misspelling's. A `field` that searched the values first would pass the
+    /// happy rows and swap the two sentences.
+    // covers: Core\Reflect\AttributeInfo::name
+    // covers: Core\Reflect\AttributeInfo::target
+    // covers: Core\Reflect\AttributeInfo::parameter
+    // covers: Core\Reflect\AttributeInfo::fields
+    // covers: Core\Reflect\AttributeInfo::field
+    #[test]
+    fn attribute_info_reads_its_site_and_every_listed_field_is_one_field_recognises() {
+        let mut ctx = Ctx::buffered();
+        let mut names = NvsArray::new();
+        let mut values = NvsArray::new();
+        for (name, value) in [
+            ("path", Value::str(NvsStr::new(b"/show"))),
+            ("limit", Value::int(3)),
+            ("cap", Value::null()),
+        ] {
+            names.append(Value::str(NvsStr::new(name.as_bytes())));
+            values.append(value);
+        }
+        let info = crate::instance::build(
+            &super::ATTRIBUTE_INFO,
+            [
+                Value::str(NvsStr::new(b"Route")),
+                Value::str(NvsStr::new(b"show")),
+                Value::str(NvsStr::new(b"id")),
+                Value::array(names),
+                Value::array(values),
+            ],
+        );
+
+        let name = attribute_text(&mut ctx, super::nvs_core_reflect_attribute_info_name, info);
+        let target = attribute_text(
+            &mut ctx,
+            super::nvs_core_reflect_attribute_info_target,
+            info,
+        );
+        let parameter = attribute_text(
+            &mut ctx,
+            super::nvs_core_reflect_attribute_info_parameter,
+            info,
+        );
+        assert_eq!(
+            (name.as_str(), target.as_str(), parameter.as_str()),
+            ("Route", "show", "id")
+        );
+
+        let listed = call(
+            super::nvs_core_reflect_attribute_info_fields,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        #[expect(
+            unsafe_code,
+            reason = "`fields` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`fields` answers an array"))
+        });
+        let fields: Vec<String> = (0..roster.count())
+            .map(|at| {
+                roster
+                    .value_at(at)
+                    .and_then(|held| held.as_text().map(str::to_owned))
+                    .expect("every field name is text")
+            })
+            .collect();
+        assert_eq!(
+            fields,
+            ["path", "limit", "cap"],
+            "source order, the unfolded one kept"
+        );
+
+        let mut read = Vec::new();
+        for field in &fields {
+            let asked = Value::str(NvsStr::new(field.as_bytes()));
+            match call(
+                super::nvs_core_reflect_attribute_info_field,
+                &mut ctx,
+                &[info, asked],
+            ) {
+                Ok(value) => read.push((field.clone(), value)),
+                Err(_) => {
+                    let said = ctx.take_pending().unwrap_or_default();
+                    assert!(
+                        said.contains("does not fold"),
+                        "a listed field is never refused as a misspelling: `{field}` said {said:?}"
+                    );
+                    read.push((field.clone(), Value::null()));
+                }
+            }
+            #[expect(unsafe_code, reason = "the member borrowed the name this frame built")]
+            unsafe {
+                asked.release();
+            }
+        }
+        assert_eq!(read[0].1.as_text(), Some("/show"));
+        assert_eq!(
+            read[1].1.as_int(),
+            Some(3),
+            "an `int` reads back as an `int`"
+        );
+        assert_eq!(
+            read[2].1.tag(),
+            Some(Tag::Null),
+            "`cap` has no folded value"
+        );
+
+        let misspelt = Value::str(NvsStr::new(b"paths"));
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_attribute_info_field,
+                &mut ctx,
+                &[info, misspelt]
+            )
+            .err(),
+            Some(nvs_runtime::THROWN)
+        );
+        let said = ctx.take_pending().unwrap_or_default();
+        assert!(
+            said.contains("no field named `paths`"),
+            "a name the roster never listed is the misspelling's refusal, not the fold's: {said:?}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each: the row it built, the name it \
+                      built, the roster `fields` handed back and every value `field` handed back"
+        )]
+        unsafe {
+            misspelt.release();
+            listed.release();
+            for (_, value) in read {
+                value.release();
+            }
+            info.release();
+        }
+    }
+
     /// The member is one call where PHP had fifteen, and that rests on two
     /// properties of the roster rather than on any one answer: every
     /// representation a value can be in has a case, and no two share one. The
