@@ -1,34 +1,33 @@
 {
-  "state": "**Side goal `mode-startup-switches` — an unwritten `dispatch` and `static` follow the mode a\nconfiguration names — has just started; nothing of it has landed yet.** A person runs it by hand in its own\nworktree, over main's carried floor, and it lands on `main` when it is green.\n\nThe design is the user's and the rule's. The goal file's § *Standing decisions* answers every call a\nsession meets, and no session re-decides one. § *What is on disk today, measured* is the starting\npoint.",
+  "state": "**Side goal `mode-startup-switches` — stage 2 has landed; stage 3 is next.** An unwritten\n`[server] dispatch` and `static` now follow `[mode] default` when a configuration is published:\n`nvs_config::server::switches_for` holds the two rows, `Table::from_config` calls it, and a\ncore's `switches` compares its result, so a reload that changes only the mode builds a new table.\n`Dispatch` moved to `nvs_config::server` and `nvs_server::mount` re-exports it.\n\nThe template, the server chapter and the rule's *What is on disk* paragraph still say the old\nthing, which is stage 0's catch-up list and stage 3's work. The goal file's § *Standing decisions*\nanswers every call; no session re-decides one.",
   "next": {
-    "stage": 2,
-    "title": "the switches follow the mode",
+    "stage": 3,
+    "title": "the template and the reference say it, and the proofs exist",
     "files": [
-      "crates/nvs-config/src/server.rs",
-      "crates/nvs-server/src/mount.rs",
-      "crates/nvs-cli/src/serve/mounts.rs"
+      "crates/nvs-config/src/default.toml",
+      "docs/reference/tools/25-server.md",
+      "docs/rules/config/a-startup-default-is-never-flipped.md"
     ],
     "items": [
       {
         "done": false,
-        "text": "**One resolving function in `nvs-config`**, reading the mode as `Revalidation::from_config` does (`crates/nvs-config/src/cache.rs:517`)."
+        "text": "**The template's two lines and the mode line** (`rule:config/a-startup-default-is-never-flipped`): `crates/nvs-config/src/default.toml:449` and `crates/nvs-config/src/default.toml:451` end `# default: \"entry\"; \"path\" in development` and `# default: false; true in development`, and the `[mode] default` comment at `crates/nvs-config/src/default.toml:49` says development also turns on path dispatch and static files when those two are unwritten. `bun nv directives --check-template` stays green."
       },
       {
         "done": false,
-        "text": "**`Table::from_config` calls it** (`crates/nvs-server/src/mount.rs:176`), and § *Decision* (`mount.rs:35`) is rewritten whole."
+        "text": "**The server chapter** (`rule:config/a-startup-default-is-never-flipped`): the two comments at `docs/reference/tools/25-server.md:43` and `docs/reference/tools/25-server.md:44`, and the sentence at `docs/reference/tools/25-server.md:118` names the development mode again."
       },
       {
         "done": false,
-        "text": "**`switches` compares its result** (`crates/nvs-cli/src/serve/mounts.rs:125`)."
+        "text": "**The rule's *What is on disk*** (`rule:config/a-startup-default-is-never-flipped`) at `docs/rules/config/a-startup-default-is-never-flipped.md:23` names `switches_for` and drops the sentence saying the two rows are not derived; `bun nv rules --render` regenerates the chapter."
       },
       {
         "done": false,
-        "text": "**The four named tests** in the goal's `.toml`."
+        "text": "**The proofs** (`rule:testing/feature-proofs`): `bun nv proofs --id` for the server chapter's sections and the two keys, each paid; `docs/novis.md` regenerated with `bun nv reference --no-examples` (goal file § *Stage 0*, `docs/agent/goals/side/mode-startup-switches.md:38`)."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the template, the server chapter and the rule say it**, and `bun nv proofs --id` names any proof still owed.",
-    "When the last check goes green the side run lands itself on `main`."
+    "After stage 3, the goal is met: run the `DONE` gates the loop prompt names and land the branch on `main`."
   ]
 }

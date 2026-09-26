@@ -44,10 +44,12 @@
 //! that removes the last block leaves that row. Boot's check that a named
 //! file is one of the table's entries is not asked again.
 //!
-//! **The table's three switches follow a reload.** `[server] dispatch`,
-//! `static` and `health_path` are read from the snapshot the request cloned
-//! ([`Local::table`]). A core builds a new table when one of them differs from
-//! the table it holds, and otherwise keeps it.
+//! **The table's three switches follow a reload.** `[server] dispatch` and
+//! `static`, resolved against the mode by
+//! `nvs_config::server::switches_for`, and `health_path` are read from the
+//! snapshot the request cloned ([`Local::table`]). A core builds a new table
+//! when one of them differs from the table it holds, and otherwise keeps it,
+//! so a reload that changes only `[mode] default` builds a new one too.
 //!
 //! **What it spends:** one `stat` per directory the expansion looked in, per
 //! `revalidate_freq`, off the request path. Two sets of rows live during a
@@ -121,16 +123,18 @@ struct Built {
     table: Rc<Table>,
 }
 
-/// The three `[server]` keys a table is built with: the dispatch, the
-/// static-file switch and the health path.
-fn switches(config: &nvs_config::Config) -> (Option<&str>, Option<bool>, Option<&str>) {
-    config.server.as_ref().map_or((None, None, None), |server| {
-        (
-            server.dispatch.as_deref(),
-            server.serve_static,
-            server.health_path.as_deref(),
-        )
-    })
+/// What a table is built with besides its rows: the dispatch and the
+/// static-file switch as the mode resolves them, and the health path. The
+/// switches are compared resolved, so a reload that changes only the mode
+/// builds a new table.
+fn switches(config: &nvs_config::Config) -> (nvs_config::server::Switches, Option<&str>) {
+    (
+        nvs_config::server::switches_for(config),
+        config
+            .server
+            .as_ref()
+            .and_then(|server| server.health_path.as_deref()),
+    )
 }
 
 impl Local {
@@ -497,5 +501,41 @@ impl Rescan {
             crate::render_diagnostics(&mut diags, &self.sources);
         }
         self.refused = said;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A published snapshot over the configuration file `text`.
+    fn snapshot(text: &str) -> Arc<nvs_config::Snapshot> {
+        Arc::new(nvs_config::Snapshot {
+            config: toml::from_str(text).expect("the fixture did not deserialize"),
+            ..nvs_config::Snapshot::default()
+        })
+    }
+
+    /// `rule:config/a-startup-default-is-never-flipped` at a reload: a snapshot
+    /// that differs only in `[mode] default` resolves different switches, so
+    /// the core builds a new table. A new snapshot with the same mode keeps
+    /// the table the core holds.
+    #[test]
+    fn a_reload_that_changes_only_the_mode_builds_a_new_table() {
+        let local = Local::new(
+            Arc::new(Mounts::new(Vec::new())),
+            snapshot("[mode]\ndefault = \"production\"\n"),
+        );
+        let first = local.table(&snapshot("[mode]\ndefault = \"production\"\n"));
+        let same = local.table(&snapshot("[mode]\ndefault = \"production\"\n"));
+        assert!(
+            Rc::ptr_eq(&first, &same),
+            "a snapshot with the same switches rebuilt the table"
+        );
+        let development = local.table(&snapshot("[mode]\ndefault = \"development\"\n"));
+        assert!(
+            !Rc::ptr_eq(&first, &development),
+            "a snapshot that changed only the mode kept the old table"
+        );
     }
 }

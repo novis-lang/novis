@@ -1,0 +1,12 @@
+{
+  "lead": "A fresh worktree's first `bun nv verify` fails at `nv` with `nv-scan did not build:` or `nv-scan failed:` and an empty stderr, and at `extension` with `Cannot find name 'node:fs'`.",
+  "body": "The key tests build `tools/nv-scan` and scan the tree on first use, past a test's 5-second timeout, and a worktree has no `editors/vscode/node_modules`. Build the helper with `CARGO_TARGET_DIR=tools/nv-scan/target cargo build --release --manifest-path tools/nv-scan/Cargo.toml`, run `npm.cmd ci --prefix editors/vscode`, and rerun the gate until the scan cache is warm.",
+  "files": [
+    "tools/nv-scan",
+    "tools/nv/keys/scan.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/keys/scan.ts:CARGO_TARGET_DIR"
+  }
+}
