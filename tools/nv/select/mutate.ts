@@ -15,6 +15,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
+import { selectionMisses } from "./full.ts";
 import type { Selection } from "./select.ts";
 import { type AtomKind, kindOfAtom, SelectStore, STORE_ENV, storeFile, type Verdict } from "./store.ts";
 
@@ -171,9 +172,10 @@ export function gitStatus(root: string = ROOT): string {
   return p.stdout.toString();
 }
 
-/** The red atoms of `ran` that `selected` does not hold, sorted. */
+/** The red atoms of `ran` that `selected` does not hold, sorted: the selection misses `--full` reports
+ * (`full.ts` `selectionMisses`). */
 export function unselectedReds(ran: Map<string, Verdict>, selected: Set<string>): string[] {
-  return [...ran].filter(([id, v]) => v === "red" && !selected.has(id)).map(([id]) => id).sort();
+  return selectionMisses(new Map(), selected, ran).map((m) => m.id);
 }
 
 /** The errors Windows gives while another handle still has a file of the directory open. */

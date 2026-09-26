@@ -169,7 +169,7 @@ describe("the mutation harness", () => {
 });
 
 describe("the full run's selection misses", () => {
-  test("a miss is red now, green before, and not selected", () => {
+  test("a miss is red now and not selected, whatever it was before, and --full and --mutate count the same misses", () => {
     const before = new Map([
       ["case:tests/a.nvst", { verdict: "green" as Verdict, lastRun: 5 }],
       ["case:tests/b.nvst", { verdict: "green" as Verdict, lastRun: 6 }],
@@ -183,7 +183,15 @@ describe("the full run's selection misses", () => {
       ["case:tests/d.nvst", "red"],
       ["case:tests/new.nvst", "red"],
     ]);
-    expect(selectionMisses(before, new Set(["case:tests/b.nvst"]), ran)).toEqual([{ id: "case:tests/a.nvst", lastGreen: 5 }]);
+    const selected = new Set(["case:tests/b.nvst"]);
+    const misses = selectionMisses(before, selected, ran);
+    expect(misses).toEqual([
+      { id: "case:tests/a.nvst", lastGreen: 5 },
+      { id: "case:tests/c.nvst", lastGreen: 0 },
+      { id: "case:tests/d.nvst", lastGreen: 0 },
+      { id: "case:tests/new.nvst", lastGreen: 0 },
+    ]);
+    expect(unselectedReds(ran, selected)).toEqual(misses.map((m) => m.id));
   });
 
   test("a kept miss stays until a full run finds its atom green", () => {

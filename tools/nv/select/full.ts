@@ -14,11 +14,11 @@
 // The heavy checks keep the floor gate's own cadence and are not run here. The store's tree then moves
 // past the change, as after any sweep.
 //
-// A selection miss is an atom red in this run whose last verdict before it was green and which that
-// selection did not pick. A green verdict that stayed green means no run since it was recorded was
-// reached by a change the selection tied to the atom: a change it did tie would have run the atom or
-// marked it owed. Each miss is printed, kept in the store under `select-miss:<platform>:<atom>` until a
-// full run finds the atom green again, and makes the command exit 1.
+// A selection miss is an atom red in this run that the selection did not pick. The selection picks every
+// atom last red, owed or never recorded, and every atom the tree names that the store does not know, so
+// a miss is almost always one whose green verdict stayed green through a change the selection did not
+// tie to it. Each miss is printed, kept in the store under `select-miss:<platform>:<atom>` until a full
+// run finds the atom green again, and makes the command exit 1.
 
 import { cpus } from "node:os";
 import type { Check } from "../driver/accept.ts";
@@ -68,15 +68,17 @@ export interface FullReport {
 export const missSlot = (platform: string, id: string) => `select-miss:${platform}:${id}`;
 
 /**
- * The atoms red in `ran` that were green in `before` and that `selected` does not hold. An atom that was
- * red, owed or never recorded before is no miss: the selection picks it by its verdict.
+ * The atoms red in `ran` that `selected` does not hold, with when `before` last recorded each green (0
+ * for one that was never green). An atom that was red, owed or never recorded is picked by its verdict
+ * or as new, so one of those that the selection did not pick is a miss too. `mutate.ts` judges a batch
+ * by the same function.
  */
 export function selectionMisses(before: Map<string, Pick<AtomRow, "verdict" | "lastRun">>, selected: Set<string>, ran: Map<string, Verdict>): Miss[] {
   const out: Miss[] = [];
   for (const [id, v] of ran) {
     if (v !== "red" || selected.has(id)) continue;
     const was = before.get(id);
-    if (was?.verdict === "green") out.push({ id, lastGreen: was.lastRun });
+    out.push({ id, lastGreen: was?.verdict === "green" ? was.lastRun : 0 });
   }
   return out.sort((a, b) => (a.id < b.id ? -1 : 1));
 }
@@ -197,8 +199,8 @@ export function describeFull(rep: FullReport): string[] {
   if (rep.owed > 0) lines.push(`  ${rep.owed} atom(s) the change reached did not run here, and are owed`);
   if (rep.misses.length === 0) lines.push("select: no selection miss");
   else {
-    lines.push(`select: ${rep.misses.length} selection miss(es): red now, green before, and not picked by the selection`);
-    for (const m of rep.misses) lines.push(`  miss  ${m.id}  (green at ${m.lastGreen ? new Date(m.lastGreen).toISOString() : "?"})`);
+    lines.push(`select: ${rep.misses.length} selection miss(es): red now, and not picked by the selection`);
+    for (const m of rep.misses) lines.push(`  miss  ${m.id}  (${m.lastGreen ? `green at ${new Date(m.lastGreen).toISOString()}` : "never recorded green"})`);
   }
   return lines;
 }
