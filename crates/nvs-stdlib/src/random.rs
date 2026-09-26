@@ -639,10 +639,9 @@ fn subject(
 
 /// Every live slot of a borrowed subject, in insertion order.
 ///
-/// The three members below draw over *slots* rather than over values, so a
-/// value is copied out only for the entries that end up in the answer — an
-/// `array<T>` of a million entries picked from once retains one reference, not
-/// a million.
+/// `sample` and `shuffle` draw over *slots* rather than over values, so a
+/// value is retained only for the entries that end up in the answer. `pick`
+/// needs one entry and does not build this list at all — `pick_from`.
 fn slots(subject: &NvsArray) -> Vec<usize> {
     let mut out = Vec::new();
     let mut from = 0_usize;
@@ -777,11 +776,21 @@ fn hex_from(
 }
 
 /// `pick`'s draw: one entry's value, or `null` over an empty subject.
+///
+/// It draws a slot and draws again when the slot is a hole, so every live
+/// entry is equally likely and one pick costs the same over a million entries
+/// as over three. [`NvsArray::slot_end`] states why that ends quickly. Over an
+/// array with no holes it draws exactly once.
 fn pick_from(rng: &mut Generator<'_>, subject: &NvsArray) -> Value {
-    let slots = slots(subject);
-    match slots.len() {
-        0 => Value::null(),
-        len => owned_value_at(subject, slots[rng.random_range(0..len)]),
+    if subject.count() == 0 {
+        return Value::null();
+    }
+    let end = subject.slot_end();
+    loop {
+        let slot = rng.random_range(0..end);
+        if subject.value_at(slot).is_some() {
+            return owned_value_at(subject, slot);
+        }
     }
 }
 
@@ -1468,6 +1477,7 @@ mod tests {
         }
     }
 
+    // covers: Core\Random::token
     #[test]
     fn a_token_is_twice_its_byte_count_in_lower_case_hex() {
         let token = taken(
@@ -1579,6 +1589,7 @@ mod tests {
         release(subject);
     }
 
+    // covers: Core\Random::pick
     #[test]
     fn every_pick_is_an_element_of_the_subject() {
         let subject = ints(6);
@@ -1592,6 +1603,7 @@ mod tests {
         release(subject);
     }
 
+    // covers: Core\Random::sample
     #[test]
     fn a_sample_is_that_many_distinct_entries() {
         let subject = ints(10);
@@ -1631,6 +1643,7 @@ mod tests {
         release(subject);
     }
 
+    // covers: Core\Random::shuffle
     #[test]
     fn a_shuffle_keeps_every_element_and_renumbers() {
         let subject = ints(16);

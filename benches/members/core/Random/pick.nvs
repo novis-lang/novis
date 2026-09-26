@@ -1,0 +1,22 @@
+<?nvs
+// Measures choosing one of eight servers, as a program does when it spreads its requests.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<int> $servers = [1, 2, 3, 4, 5, 6, 7, 8];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds the server it chose, so no round can be left out.
+            ?int $server = Core\Random::pick($servers);
+            $total = $total + ($server ?? 0);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

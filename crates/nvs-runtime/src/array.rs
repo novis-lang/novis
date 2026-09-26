@@ -585,6 +585,15 @@ impl Table {
         self.hashed_mut().remove(key)
     }
 
+    /// One past the last slot, holes included — the range [`Table::next_slot`]
+    /// walks.
+    fn slot_end(&self) -> usize {
+        match &self.shape {
+            Shape::Packed(values) => values.len(),
+            Shape::Hashed(hashed) => hashed.entries.len(),
+        }
+    }
+
     /// The position of the first live entry at or after `from`, or `None` when
     /// there is none — one `foreach` step.
     fn next_slot(&self, from: usize) -> Option<usize> {
@@ -1072,6 +1081,15 @@ impl NvsArray {
                 crate::release::release_value(value);
             }
         }
+    }
+
+    /// One past the last slot, holes included. Once it passes eight, at least
+    /// half of the slots below it are live — the compaction this module's docs
+    /// describe — so a uniform draw over `0..slot_end()` that draws again on a
+    /// hole takes two tries on average and never walks the array.
+    #[must_use]
+    pub fn slot_end(&self) -> usize {
+        self.header().table.borrow().slot_end()
     }
 
     /// The position of the first live entry at or after `from` — the cursor
@@ -2784,6 +2802,25 @@ mod tests {
         assert_eq!(text.refcount(), 2);
         drop(original);
         assert_eq!(text.refcount(), 1);
+    }
+
+    /// `slot_end` counts holes until compaction sweeps them, and at least half
+    /// of the slots below it are live either way — the bound `Core\Random::pick`
+    /// draws inside.
+    #[test]
+    fn slot_end_counts_holes_and_stays_under_twice_the_live_entries() {
+        let mut array = NvsArray::new();
+        for index in 0..20 {
+            array.append(Value::int(index));
+        }
+        assert_eq!(array.slot_end(), 20);
+        for index in 0..9 {
+            array.unset(index.to_string().as_bytes());
+        }
+        assert_eq!((array.count(), array.slot_end()), (11, 20));
+        assert!(array.value_at(0).is_none());
+        array.unset(b"9");
+        assert_eq!((array.count(), array.slot_end()), (10, 10));
     }
 
     #[test]
