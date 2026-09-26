@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to count the entries of a map with `count`.
+
+final class Task {
+    public string $title;
+
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+}
+
+Task $write = new Task("Write the report");
+Task $send = new Task("Send the report");
+
+Core\ObjectMap<Task, string> $owner = new Core\ObjectMap<Task, string>();
+// A new map is empty. This prints 0.
+echo $owner->count(), "\n";
+
+$owner->set($write, "Lea");
+$owner->set($send, "Sam");
+// This prints 2.
+echo $owner->count(), "\n";
+
+// `set` with a key that is already in the map replaces its value.
+// The map still has 2 entries, so this prints 2 again.
+$owner->set($send, "Lea");
+echo $owner->count(), "\n";

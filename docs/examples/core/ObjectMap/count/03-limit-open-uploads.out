@@ -1,0 +1,4 @@
+a.jpg: started, 1 running
+b.jpg: started, 2 running
+c.jpg: wait
+c.jpg: started, 2 running

@@ -1,0 +1,35 @@
+<?nvs
+// Counts the entries of a map, as a program does before it adds a task to a list of running tasks.
+// bench: iterations 1000000
+// bench: allocations 0
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\ObjectMap<Key, int>> $maps = [
+            new Core\ObjectMap<Key, int>(),
+            new Core\ObjectMap<Key, int>(),
+            new Core\ObjectMap<Key, int>(),
+        ];
+        $maps[1]->set(new Key(1), 1);
+        $maps[2]->set(new Key(1), 1);
+        $maps[2]->set(new Key(2), 2);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: which map is counted depends on last round's total
+            $total = $total + 1 + $maps[($total % 3) as int]->count();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000000), "\n";

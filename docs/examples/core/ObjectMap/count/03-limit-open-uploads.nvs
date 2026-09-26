@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to limit the number of uploads that run at the same time.
+
+final class Upload {
+    public string $file;
+
+    public function constructor(string $file) {
+        $this->file = $file;
+    }
+}
+
+final class Uploads {
+    public static function start(Core\ObjectMap<Upload, int> $running, Upload $u, int $limit): void {
+        // `count` is the number of uploads that run now. At the limit, the new one waits.
+        if ($running->count() >= ($limit as uint)) {
+            echo $u->file, ": wait\n";
+            return;
+        }
+        $running->set($u, 0);
+        echo $u->file, ": started, ", $running->count(), " running\n";
+    }
+}
+
+Core\ObjectMap<Upload, int> $running = new Core\ObjectMap<Upload, int>();
+Upload $a = new Upload("a.jpg");
+Upload $b = new Upload("b.jpg");
+Upload $c = new Upload("c.jpg");
+
+Uploads::start($running, $a, 2);
+Uploads::start($running, $b, 2);
+Uploads::start($running, $c, 2);
+
+// When an upload finishes, `remove` takes it out, and the next one can start.
+$running->remove($a);
+Uploads::start($running, $c, 2);

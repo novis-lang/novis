@@ -1,0 +1,25 @@
+<?nvs
+// Shows that `count` counts objects, not their contents. Two objects with the same data are two keys.
+
+final class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+}
+
+Point $first = new Point(1, 2);
+Point $second = new Point(1, 2);
+
+Core\ObjectMap<Point, string> $labels = new Core\ObjectMap<Point, string>();
+$labels->set($first, "start");
+$labels->set($second, "end");
+// `$first` and `$second` have the same fields, but they are different objects. This prints 2.
+echo $labels->count(), "\n";
+
+// `$first` is the same object as before, so this replaces its value. This prints 2 again.
+$labels->set($first, "begin");
+echo $labels->count(), "\n";
