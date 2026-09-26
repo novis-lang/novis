@@ -1,22 +1,18 @@
 {
-  "state": "Goal `core-random-and-1-more`: `Core\\Random` is done and its group check passes. `Core\\Random\\Seeded`\nhas its class card, and `::int`, `::float` and `::bytes` are complete: `about.md`, three examples, an\nattack, a bench with its figure in `docs/perf/members.ndjson`, `covers:` markers on the three\n`tests/conformance/core/random-seeded-*.nvst` cases, and one seeded Rust test each in\n`crates/nvs-stdlib/src/random.rs`. `::token`, `::pick`, `::sample` and `::shuffle` still owe\neverything except help. Nothing is blocked.",
+  "state": "Goal `core-random-and-1-more` is reached. `Core\\Random` and `Core\\Random\\Seeded` both pass\n`bun nv proofs --verify --group`: all seven members of each class have `about.md`, three examples,\nan attack, a bench with its figure in `docs/perf/members.ndjson`, tests from Novis and from Rust,\nand help. The three `tests/conformance/core/random-seeded-*.nvst` cases carry `covers:` for every\nseeded member they call. `bun nv owners --closes` and `bun nv playbook --closes` name no gap for\nthis goal. Nothing is blocked. The next goal on the chain is `core-ratelimit-and-3-more`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `docs/examples/core/Random-Seeded/`, `tests/hostile/core/Random-Seeded/`, `benches/members/core/Random-Seeded/`, `tests/conformance/core/random-seeded-*.nvst`, the tests module of `crates/nvs-stdlib/src/random.rs`.",
+    "note": "one file set: `docs/examples/core/Random-Seeded/`, `tests/hostile/core/Random-Seeded/`, `benches/members/core/Random-Seeded/`, the tests module of `crates/nvs-stdlib/src/random.rs`.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Random\\Seeded::token`, `::pick`, `::sample`, `::shuffle`** — `about.md`, three examples, one attack, one bench, and tests. Add their names to the `// covers:` line at the top of each `random-seeded-*.nvst` case that calls them (all three cases call all four members). Add one seeded Rust `#[test]` each, with `// covers:`, beside `a_seeded_float_repeats_for_its_seed_and_stays_below_one`, reusing `seeded`, `taken`, `ints`, `taken_ints` and `release`. The `Core\\Random` twins' proofs under `docs/examples/core/Random/` are the model, and `bytes`/`int` under `Random-Seeded/` show the seeded shape. Then `bun nv proofs --record-perf --only` the four. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:1314`, `crates/nvs-stdlib/src/random.rs:1340`, `crates/nvs-stdlib/src/random.rs:1351`, `crates/nvs-stdlib/src/random.rs:1369`"
-      },
-      {
-        "done": false,
-        "text": "**Close the goal** — `bun nv proofs --verify --group 'Core\\Random\\Seeded'` and `--group 'Core\\Random'` both pass, then the `DONE` gates in the session prompt. `rule:testing/feature-proofs`. `tools/nv/cmd/proofs.ts:62`"
+        "done": true,
+        "text": "**Close the goal** — both group sweeps pass and the `DONE` gates are clean. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/random.rs:1380`"
       }
     ]
   },
   "backlog": [
-    "`foreach ([$a, $b] as Core\\Random\\Seeded $g)` does not compile (`E0401`, the literal is `mixed`); the example avoids it. Owner: the types chapter, not checked whether a gap record exists."
+    "`Core\\Arr::keys` on a list encodes its keys as `[\"0\",\"1\",\"2\"]` through `Core\\Json::encode`, in both shuffle examples. The examples say what is printed; whether an `int` key should encode as a number is `Core\\Arr`'s question, not checked here."
   ]
 }
