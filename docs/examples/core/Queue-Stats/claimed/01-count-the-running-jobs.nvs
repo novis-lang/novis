@@ -1,0 +1,45 @@
+<?nvs
+// Shows how to count the jobs of a queue that a worker is running now.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push("jobs/resize-image.nvs", {queue: "images"});
+Queue::push("jobs/resize-image.nvs", {queue: "images"});
+Queue::push("jobs/resize-image.nvs", {queue: "images"});
+
+// No worker has started a job yet. This prints `claimed: 0, pending: 3`.
+var $stats = Queue::stats("images");
+echo "claimed: ", $stats->claimed(), ", pending: ", $stats->pending(), "\n";
+
+// On a real server, workers start the jobs. No worker runs here, so SQL changes the rows.
+// Two workers start a job each.
+$db->execute("update nvs_jobs set state = 1, attempts = 1, claimed_at = 1 where id <= 2", []);
+
+// This prints `claimed: 2, pending: 1`.
+$stats = Queue::stats("images");
+echo "claimed: ", $stats->claimed(), ", pending: ", $stats->pending(), "\n";
+
+// The first job finishes. This prints `claimed: 1, pending: 1`.
+$db->execute("update nvs_jobs set state = 2 where id = 1", []);
+$stats = Queue::stats("images");
+echo "claimed: ", $stats->claimed(), ", pending: ", $stats->pending(), "\n";

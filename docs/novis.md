@@ -25558,7 +25558,7 @@ The number of jobs that wait for a worker. This includes jobs whose `runAt` time
 $stats->claimed(): uint
 ```
 
-The number of jobs that a worker is running now. If a worker stops, its job returns to `Pending` after a timeout.
+The number of jobs that a worker is running now. A job whose worker stopped is still counted here. After the `[queue] visibility` time, another worker can start it again.
 
 **Returns** `uint` — A `uint`. When it equals the number of jobs your workers can run at once, the queue is busy but not stuck.
 

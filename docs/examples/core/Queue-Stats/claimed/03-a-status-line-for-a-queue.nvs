@@ -1,0 +1,45 @@
+<?nvs
+// Shows a status line for a queue, as an admin page or a health check prints it.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+int $n = 0;
+while ($n < 6) {
+    Queue::push("jobs/export.nvs", {queue: "exports", args: ["n" => $n]});
+    $n = $n + 1;
+}
+
+// On a real server, workers start the jobs. No worker runs here, so SQL changes the rows.
+// Four workers start a job each.
+$db->execute("update nvs_jobs set state = 1, attempts = 1, claimed_at = 1 where id <= 4", []);
+
+// Your server runs 4 workers for this queue.
+uint $workers = 4;
+var $stats = Queue::stats("exports");
+
+// This prints `exports: 4 of 4 workers busy, 2 jobs waiting`, and then a note.
+echo "exports: ", $stats->claimed(), " of ", $workers, " workers busy, ";
+echo $stats->pending(), " jobs waiting\n";
+if ($stats->claimed() >= $workers && $stats->pending() > 0) {
+    echo "note: every worker is busy, so new jobs wait\n";
+}

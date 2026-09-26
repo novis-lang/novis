@@ -2451,8 +2451,8 @@ const STATS_PENDING_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Queue\Stats::claimed`'s reference card — `rule:core-api/reference-card`.
 const STATS_CLAIMED_DOC: MethodDoc = MethodDoc {
-    short: "The number of jobs that a worker is running now. If a worker stops, its job returns to \
-            `Pending` after a timeout.",
+    short: "The number of jobs that a worker is running now. A job whose worker stopped is still \
+            counted here. After the `[queue] visibility` time, another worker can start it again.",
     params: &[],
     ret: "A `uint`. When it equals the number of jobs your workers can run at once, the queue is \
           busy but not stuck.",

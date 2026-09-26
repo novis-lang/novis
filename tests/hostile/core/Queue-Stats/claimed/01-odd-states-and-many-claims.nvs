@@ -1,0 +1,98 @@
+<?nvs
+// Attack: the `state` of the jobs is text, a fraction or bytes, and 200000 jobs are claimed
+// at once. `claimed()` should return a number or throw an error. The program must not crash.
+use Core\Queue;
+
+var $db = Core\Db::connect('jobs');
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+Queue::push('jobs/a.nvs', { queue: 'q' });
+Queue::push('jobs/a.nvs', { queue: 'q' });
+Queue::push('jobs/a.nvs', { queue: 'other' });
+$db->execute('update nvs_jobs set state = 1, attempts = 1, claimed_at = 0', []);
+
+// 1. The queue name is SQL that tries to count the claimed jobs of every queue.
+try {
+    echo '1: ', Queue::stats("q' or '1'='1")->claimed(), "\n";
+} catch (Throwable $e) {
+    echo "1: error\n";
+}
+
+// 2. The state is the text '1'.
+$db->execute("update nvs_jobs set state = '1' where queue = 'q'", []);
+try {
+    echo '2: ', Queue::stats('q')->claimed(), "\n";
+} catch (Throwable $e) {
+    echo "2: error\n";
+}
+
+// 3. The state is a number with a fraction, a little more than 1.
+$db->execute("update nvs_jobs set state = 1.0000001 where queue = 'q'", []);
+try {
+    echo '3: ', Queue::stats('q')->claimed(), "\n";
+} catch (Throwable $e) {
+    echo "3: error\n";
+}
+
+// 4. The state is bytes.
+$db->execute("update nvs_jobs set state = x'01' where queue = 'q'", []);
+try {
+    echo '4: ', Queue::stats('q')->claimed(), "\n";
+} catch (Throwable $e) {
+    echo "4: error\n";
+}
+
+// 5. The state is the smallest 64-bit number.
+$db->execute("update nvs_jobs set state = -9223372036854775808 where queue = 'q'", []);
+try {
+    echo '5: ', Queue::stats('q')->claimed(), "\n";
+} catch (Throwable $e) {
+    echo "5: error\n";
+}
+
+// 6. The queue name has 100000 characters.
+try {
+    echo '6: ', Queue::stats(Core\Str::repeat('q', 100000))->claimed(), "\n";
+} catch (Throwable $e) {
+    echo "6: error\n";
+}
+
+// 7. 200000 jobs of the queue are claimed at once.
+$db->execute('delete from nvs_jobs', []);
+$db->execute(<<<'SQL'
+with recursive n(i) as (select 1 union all select i + 1 from n where i < 200000)
+insert into nvs_jobs (queue, script, state, attempts, max_attempts, backoff_ms, run_at,
+    created_at, claimed_at)
+select 'q', 'jobs/a.nvs', 1, 1, 5, 1000, 0, 0, 0 from n
+SQL, []);
+try {
+    echo '7: ', Queue::stats('q')->claimed(), "\n";
+} catch (Throwable $e) {
+    echo "7: error\n";
+}
+
+// 8. `claimed()` is called 1000000 times on one result.
+var $stats = Queue::stats('q');
+uint $total = 0;
+int $i = 0;
+while ($i < 1000000) {
+    $total = ($total + $stats->claimed()) % 1000003;
+    $i = $i + 1;
+}
+echo '8: ', $total, "\n";
