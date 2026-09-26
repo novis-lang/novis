@@ -1,5 +1,5 @@
 {
-  "live": "core-net-listener-and-1-more",
+  "live": "core-objectmap",
   "goals": [
     "core-depth",
     "concurrency",
