@@ -73,10 +73,10 @@
       },
       "rerun": [
         "^binary: nvs-stdlib lib nvs_stdlib$",
-        "^nvs: ",
         "^binary: nvs-lsp "
       ],
       "keep": [
+        "^nvs: ",
         "^leg: ",
         "^program: ",
         "^suite: ",
