@@ -250,8 +250,9 @@ const CONSUME_DOC: MethodDoc = MethodDoc {
             desc: "No `[cache.shared] url` is configured, or `cache.shared` is not granted — a \
                    deployment mistake rather than the world saying no, and \
                    deliberately not the class the fail-open `catch` around this member holds. \
-                   Also `$limit`, `$per` or `$burst` at zero, and a period too short to divide \
-                   into `$limit` units.",
+                   Also `$limit`, `$per` or `$burst` at zero, a period too short to divide \
+                   into `$limit` units, and a `$cost` larger than `$burst`, which no wait could \
+                   admit.",
         },
     ],
 };
@@ -297,8 +298,9 @@ const SHED_DOC: MethodDoc = MethodDoc {
           — a forgotten key admits a burst, which is the approximation the tier is chosen for.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$limit`, `$per` or `$burst` at zero, and a period too short to divide into \
-               `$limit` units — the same refusals `consume` makes, since both derive one window.",
+        desc: "`$limit`, `$per` or `$burst` at zero, a period too short to divide into \
+               `$limit` units, and a `$cost` larger than `$burst`, which no wait could admit — \
+               the same refusals `consume` makes, since both derive one window.",
     }],
 };
 
@@ -539,6 +541,27 @@ fn window(limit: u64, per: i64, burst: u64, member: &str) -> Result<Window, Faul
     Ok(Window { interval, tau })
 }
 
+/// Refuses a `cost` the window could never admit, for whichever of § 1's two
+/// members asked.
+///
+/// A cost past `burst` puts the arrival past the tolerance even on a key with
+/// no history, so [`step`] would refuse it forever and report a wait after
+/// which it is refused again. `retryAfter` is exact or it is nothing, so this
+/// is the same refusal `window` makes for a burst of zero.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` when `cost` is larger than `burst`.
+fn admissible(cost: u64, burst: u64, member: &str) -> Result<(), Fault> {
+    if cost > burst {
+        return Err(Fault::thrown(format!(
+            "{NAME}::{member}(): a `$cost` of {cost} is more than the `$burst` of {burst}, so the \
+             arrival would be refused however long it waited"
+        )));
+    }
+    Ok(())
+}
+
 /// [`SCRIPT`]'s five lines, in this process, for the tier that has no store to
 /// run them in — `rule:core-classes/ratelimit-gcra`'s "both tiers run the identical algorithm" as one
 /// function rather than as a promise.
@@ -724,6 +747,7 @@ nvs_runtime::nvs_helper! {
         // Before the door, so a limit that could never be enforced is a
         // refusal rather than a round trip that answers one.
         let window = window(limit, per, burst, "consume")?;
+        admissible(cost, burst, "consume")?;
 
         let member = format!("{NAME}::consume");
         crate::cache::open_configured(
@@ -778,6 +802,7 @@ nvs_runtime::nvs_helper! {
         let cost = uint_of(args, 4, "shed")?.unwrap_or(1);
 
         let window = window(limit, per, burst, "shed")?;
+        admissible(cost, burst, "shed")?;
 
         // The same namespacing as the coherent tier, for the same reason: the
         // store this writes to is the one `Core\Cache::local()` hands out, and
@@ -853,7 +878,7 @@ mod tests {
 
     use super::{
         ALLOWED_SLOT, CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, SHED_DOC, Value, Window,
-        decoded, nvs_core_ratelimit_consume, nvs_core_ratelimit_decision_allowed,
+        admissible, decoded, nvs_core_ratelimit_consume, nvs_core_ratelimit_decision_allowed,
         nvs_core_ratelimit_decision_limit, nvs_core_ratelimit_decision_remaining,
         nvs_core_ratelimit_decision_retry_after, nvs_core_ratelimit_shed, step, window,
     };
@@ -1151,6 +1176,40 @@ mod tests {
         assert_eq!(
             crate::time::nanos_of(&[wait], 0, "retryAfter").expect("a `Duration`"),
             500_000_000,
+        );
+    }
+
+    /// `rule:core-classes/ratelimit-gcra`: a cost past the burst is past the
+    /// tolerance even on a key with no history, so [`step`] refuses it with a
+    /// wait after which it is refused again. [`admissible`] is what keeps that
+    /// wait from reaching a `retryAfter`, for both members, and a cost equal to
+    /// the burst is still admitted in one arrival.
+    // covers: Core\RateLimit::shed, Core\RateLimit::consume
+    #[test]
+    fn a_cost_past_the_burst_is_refused_rather_than_given_a_wait() {
+        // 1 per hour with a burst of 5: a 3600-second interval.
+        let derived = window(1, 3_600_000_000_000, 5, "shed").expect("1 per hour");
+        let (refused, _) = step(None, 0, derived, 6);
+        assert_eq!(
+            refused,
+            [0, 3_600_000_000, 5],
+            "the step reports an hour's wait"
+        );
+        let (again, _) = step(None, 3_600_000_000, derived, 6);
+        assert_eq!(
+            again[0], 0,
+            "and an hour later the same arrival is refused again"
+        );
+
+        assert!(admissible(6, 5, "shed").is_err());
+        assert!(admissible(6, 5, "consume").is_err());
+        assert!(admissible(u64::MAX, 5, "shed").is_err());
+        assert!(admissible(5, 5, "shed").is_ok());
+        let (whole, _) = step(None, 0, derived, 5);
+        assert_eq!(
+            whole,
+            [1, 0, 0],
+            "a cost equal to the burst is admitted at once"
         );
     }
 
