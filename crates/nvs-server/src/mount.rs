@@ -554,8 +554,9 @@ mod tests {
 
     #[test]
     fn the_disk_records_each_path_it_tests() {
-        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
-        let missing = Path::new(env!("CARGO_MANIFEST_DIR")).join("no-such-file");
+        // The test binary itself, which is certainly there, and a name beside it that is not.
+        let manifest = std::env::current_exe().expect("the test binary's path");
+        let missing = manifest.with_extension("no-such-file");
         let (found, lines) =
             nvs_footprint::capture(|| (OnDisk.file(&manifest), OnDisk.file(&missing)));
         assert!(found.0.is_some() && found.1.is_none());

@@ -377,7 +377,8 @@ mod tests {
 
     #[test]
     fn the_disk_records_each_stat_and_read() {
-        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        // The test binary itself: a file that is certainly there, inside this package's build.
+        let manifest = std::env::current_exe().expect("the test binary's path");
         let (bytes, lines) = nvs_footprint::capture(|| {
             let stat = OnDisk.stat(&manifest).expect("the manifest is a file");
             OnDisk.read(&manifest, 0, stat.len.min(4))
