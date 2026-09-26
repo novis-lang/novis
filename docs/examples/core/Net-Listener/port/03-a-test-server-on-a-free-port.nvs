@@ -1,0 +1,21 @@
+<?nvs
+// Shows a test that starts a server on a free port and gives that port to the client.
+
+// Port `0` is useful in tests. Two tests that run at the same time never ask for the same port.
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+
+// The client needs to know where the server is. `port()` gives the number to connect to.
+string $address = "127.0.0.1:" . ($server->port() as string);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+$client->write("PING\n" as bytes, 5s);
+$connection->write("PONG\n" as bytes, 5s);
+
+// This prints `the client reached the server at 127.0.0.1` and then `reply: PONG`.
+echo "the client reached the server at ", Core\Str::before($address, ":"), "\n";
+echo "reply: ", Core\Str::trim($client->read(64, 5s) as string), "\n";
+
+$connection->close();
+$client->close();
+$server->close();

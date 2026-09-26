@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a server finds out which port the operating system gave it.
+
+// Port `0` means "pick any free port".
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+
+// `port()` returns the port that was picked. It is a number from 1 to 65535.
+// The number is different on every run, so this prints `a real port: yes` and not the number.
+uint $port = $server->port();
+echo "a real port: ", $port >= 1 && $port <= 65535 ? "yes" : "no", "\n";
+
+// The port stays the same for as long as the server is open. This prints `same port: yes`.
+echo "same port: ", $server->port() == $port ? "yes" : "no", "\n";
+
+$server->close();

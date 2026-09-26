@@ -22998,13 +22998,13 @@ Keywords: accept, port, close
 $listener->accept(Core\Time\Duration $within): Core\Net\Stream
 ```
 
-Takes the next connection off this listener, waiting no longer than `$within`, and answers it as a stream. It asks no capability: the bind was granted when `Core\Net::listen` opened this socket.
+Waits for the next client to connect, for no longer than `$within`, and returns a `Core\Net\Stream` for that client. It needs no setting of its own: `nvs.toml` was checked when `Core\Net::listen` opened this socket.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$within` | `Core\Time\Duration` | How long to wait for a connection. It bounds this call alone. |
+| `$within` | `Core\Time\Duration` | How long to wait for a client. It is the limit for this call only. |
 
-**Returns** `Core\Net\Stream` — The accepted connection, closed with this request if the program does not close it first.
+**Returns** `Core\Net\Stream` — The connection to the client. The request closes it when it ends, if the program has not closed it before.
 
 **Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — No connection arrived within `$within`.; `IOError` — The operating system failed the accept.
 

@@ -1,0 +1,21 @@
+<?nvs
+// Reads the port of an open server, as a program does before it tells a client where to connect.
+// bench: iterations 200000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds the port to a total that the next round depends on.
+            $total = ($total + $server->port()) % 1000003;
+            $i = $i + 1;
+        }
+        $server->close();
+        return $total;
+    }
+}
+
+echo Bench::run(200000) > 0 ? "measured" : "zero", "\n";

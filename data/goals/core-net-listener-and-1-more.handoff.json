@@ -1,26 +1,23 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Net\\Listener and 1 more has been taken yet.",
+  "state": "Goal `core-net-listener-and-1-more`. `Core\\Net\\Listener::accept` and `Core\\Net\\Listener::port` owe nothing: `bun nv proofs --id` says so for both.\n`Core\\Net\\Listener` has its class card (`LISTENER_CARD` in `crates/nvs-stdlib/src/net.rs`) and is off `CLASSES_STILL_OWING_A_CARD`.\n`Core\\Net\\Listener::close` owes only examples, hostile and perf: its tests are already credited by the Rust test `a_listener_times_out_takes_a_waiting_connection_and_refuses_once_closed` and the `covers:` markers on the two `net-*` conformance cases.\nNothing is blocked. `bun nv verify` was green at the end of this session.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "feature proofs, one member at a time",
+    "files": [
+      "docs/examples/core/Net-Listener/",
+      "tests/hostile/core/Net-Listener/",
+      "benches/members/core/Net-Listener/"
+    ],
+    "note": "Each folder already has its `nvs.toml`; copy none, add a `close/` folder beside `accept/` and `port/` with the same grants.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Net\\Listener::accept`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:593`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Net\\Listener::close`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:611`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Net\\Listener::port`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/net.rs:602`"
+        "text": "**`Core\\Net\\Listener::close`** — `rule:testing/feature-proofs`: three examples, `about.md`, one attack, one bench, then `bun nv proofs --record-perf --group 'Core\\Net\\Listener'`. Examples: a closed server gives its port back; accepted clients keep working after `close` (the card says so); a second `close` throws. Attack: close twice, close many never-used listeners, accept and port after close. `crates/nvs-stdlib/src/net.rs:1701`, card at `crates/nvs-stdlib/src/net.rs:688`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Net\\Stream` still owes its class card — `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`, goal `core-class-cards`.",
+    "The `Core\\Net\\Listener::port` and `close` reference cards still use \"answers\" and \"gives the port back\"; bring them to AGENTS.md § *Text an end user reads* when `close` lands."
   ]
 }
