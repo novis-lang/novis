@@ -1,26 +1,28 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Path has been taken yet.",
+  "state": "Goal `core-path`: `Core\\Path::basename`, `dirname` and `extension` are complete (`bun nv proofs --id` says `complete.` for each).\n`Core\\Path` has its class card, and the three member cards are rewritten in the plain voice.\nThe six Rust tests for those three members carry `covers:` markers in `crates/nvs-stdlib/src/path.rs`.\nFigures for the three are in `docs/perf/members.ndjson`. Nothing is blocked.\n`withExtension`, `join`, `split`, `normalize`, `isAbsolute` and `relativeTo` still owe about, examples, hostile and perf. Their Rust tests already exist in `path.rs`'s `mod tests` and only need a `covers:` marker. Their cards are still in the old voice.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "the next three members' proofs",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/path.rs` (cards and `mod tests`), `docs/examples/core/Path/`, `tests/hostile/core/Path/`, `benches/members/core/Path/`. `rule:testing/feature-proofs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Path::basename`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:96`"
+        "text": "**`Core\\Path::withExtension`** — about, 3 examples, attack, bench, `covers:` on `with_extension_is_extensions_inverse`, plain-voice card. It throws `RuntimeError`, so the attack catches it. `crates/nvs-stdlib/src/path.rs:129`"
       },
       {
         "done": false,
-        "text": "**`Core\\Path::dirname`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:108`"
+        "text": "**`Core\\Path::join`** — same set. Its output has separators, so print it through `Core\\Str::replace($p, Core\\Path::SEPARATOR, \"/\")` as `docs/examples/core/Path/dirname/01-the-folder-of-a-file.nvs` does. `crates/nvs-stdlib/src/path.rs:141`"
       },
       {
         "done": false,
-        "text": "**`Core\\Path::extension`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/path.rs:120`"
+        "text": "**`Core\\Path::split`** — same set; same separator note for the root element. `crates/nvs-stdlib/src/path.rs:153`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Path::normalize`, `isAbsolute`, `relativeTo` — the group after this one, anchors `crates/nvs-stdlib/src/path.rs:162`, `:171`, `:180`.",
+    "`bun nv proofs --record-perf` takes only the last of several `--id` flags; run it once per member.",
+    "`nvs agent show 'Core\\Path'` prints the member list and not the class card text; the same holds for `Core\\Password`, so this is how the view works now, not a gap in this goal."
   ]
 }

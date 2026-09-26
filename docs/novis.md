@@ -11242,14 +11242,14 @@ none
 Core\Path::basename(string $path, {withoutExtension?: bool}): string
 ```
 
-Answers the name of `$path`'s last component, as `basename` and `pathinfo(…, PATHINFO_BASENAME)` do; a trailing separator is ignored, so `/a/b/` is `b`.
+Returns the last part of `$path`: the file name, or the name of the last folder. A separator at the end is ignored, so `/srv/shop/` gives `shop`. This replaces PHP's `basename`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` | The path, with `/` and `\` both read as separators. |
-| `{withoutExtension: …}` | `bool` (default `false`) | Drop the extension from the name — `pathinfo`'s `PATHINFO_FILENAME`; the default keeps it. |
+| `$path` | `string` | The path. `/` and `\` are both separators on every platform. |
+| `{withoutExtension: …}` | `bool` (default `false`) | When `true`, the extension is removed, so `report.pdf` gives `report`. The default is `false`. |
 
-**Returns** `string` — The last component's name; the empty string for a path that is nothing but a root, such as `/`.
+**Returns** `string` — The name. For a path that is only a root, such as `/` or `C:\`, the result is the empty string.
 
 <a id="core-core-path-dirname"></a>
 #### `Core\Path::dirname`
@@ -11258,14 +11258,14 @@ Answers the name of `$path`'s last component, as `basename` and `pathinfo(…, P
 Core\Path::dirname(string $path, {levels?: uint}): string
 ```
 
-Answers `$path` with `levels` components dropped from the end, as `dirname` does; the answer is always a usable directory.
+Returns the folder that contains `$path`. The option `levels` goes up more than one folder. This replaces PHP's `dirname`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` | The path, with `/` and `\` both read as separators. |
-| `{levels: …}` | `uint` (default `1`) | How many components to drop; the default is one, `0` is the path itself with its separators normalized rather than PHP's `ValueError`, and more than there are stops at the root. |
+| `$path` | `string` | The path. `/` and `\` are both separators on every platform. |
+| `{levels: …}` | `uint` (default `1`) | How many parts to remove from the end. The default is `1`. With `0`, the result is the path with its separators cleaned up. A number larger than the path stops at the root. |
 
-**Returns** `string` — The parent path, rendered with `Path::SEPARATOR`; the root for an absolute path and `.` for a relative one — including `''`, which is `.` here and `''` in PHP — once nothing is left.
+**Returns** `string` — The folder, written with `Path::SEPARATOR`. When nothing is left, the result is the root for an absolute path and `.` for a relative one. `dirname('')` is `.`, and PHP returns `''`.
 
 <a id="core-core-path-extension"></a>
 #### `Core\Path::extension`
@@ -11274,13 +11274,13 @@ Answers `$path` with `levels` components dropped from the end, as `dirname` does
 Core\Path::extension(string $path): ?string
 ```
 
-Answers the text after the last `.` of `$path`'s last component, without the dot, as `pathinfo(…, PATHINFO_EXTENSION)` does.
+Returns the extension of the last part of `$path`: the text after the last `.`, without the dot. This replaces PHP's `pathinfo($path, PATHINFO_EXTENSION)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` | The path, with `/` and `\` both read as separators. |
+| `$path` | `string` | The path. `/` and `\` are both separators on every platform. |
 
-**Returns** `?string` — The extension, or `null` where there is none — a dotfile such as `.gitignore` and a trailing dot such as `report.` both have none, where PHP answers `gitignore` and `''`.
+**Returns** `?string` — The extension, or `null` when there is none. A name that starts with a dot, such as `.gitignore`, has none. A name that ends with a dot, such as `report.`, has none too. PHP returns `gitignore` and `''` for these two.
 
 <a id="core-core-path-withextension"></a>
 #### `Core\Path::withExtension`

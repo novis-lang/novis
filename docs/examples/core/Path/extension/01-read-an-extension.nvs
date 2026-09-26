@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read the extension of a file with `Core\Path::extension`.
+
+// The dot is not part of the result. This prints `pdf`.
+echo Core\Path::extension("/srv/shop/invoices/invoice-1042.pdf"), "\n";
+
+// Only the text after the last dot is the extension. This prints `gz`.
+echo Core\Path::extension("backups/database.tar.gz"), "\n";
+
+// The letter case stays as it is. This prints `JPG`.
+echo Core\Path::extension("C:\\Photos\\IMG_0042.JPG"), "\n";

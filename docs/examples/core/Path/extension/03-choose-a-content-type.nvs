@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to choose the content type of a file from its extension, before the file is sent.
+
+class Download {
+    public static function contentType(string $path): string {
+        // `Core\Str::lower` makes `PDF` and `pdf` the same.
+        // A file with no extension gets the general type for bytes.
+        ?string $extension = Core\Path::extension($path);
+        if ($extension == null) {
+            return "application/octet-stream";
+        }
+        return match (Core\Str::lower($extension)) {
+            "pdf" => "application/pdf",
+            "jpg", "jpeg" => "image/jpeg",
+            "png" => "image/png",
+            "csv" => "text/csv",
+            default => "application/octet-stream",
+        };
+    }
+}
+
+// This prints `application/pdf`, `image/jpeg`, `text/csv` and `application/octet-stream`.
+echo Download::contentType("invoices/invoice-1042.PDF"), "\n";
+echo Download::contentType("uploads/holiday.jpeg"), "\n";
+echo Download::contentType("exports/orders-2026-09.csv"), "\n";
+echo Download::contentType("bin/backup"), "\n";

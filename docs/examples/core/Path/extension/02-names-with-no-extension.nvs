@@ -1,0 +1,14 @@
+<?nvs
+// Shows the names that have no extension. For each of them, the result is `null`.
+
+array<string> $paths = [
+    "/usr/bin/php",
+    "/home/sam/.gitignore",
+    "drafts/report.",
+    "/srv/shop/",
+];
+
+// `??` replaces `null` with the text after it. This prints `(none)` four times.
+foreach ($paths as string $path) {
+    echo Core\Path::extension($path) ?? "(none)", "\n";
+}
