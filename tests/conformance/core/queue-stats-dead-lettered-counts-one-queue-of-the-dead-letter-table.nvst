@@ -1,0 +1,82 @@
+--TEST--
+`Core\Queue\Stats::deadLettered` counts the rows of one queue in `nvs_dead_jobs`, counts no live row in any state and no other queue, goes down only when `Core\Queue::purge` deletes a buried row, and keeps the number it read when the rows change after — `rule:concurrency/enqueue-commits-with-your-write`
+--FILE--
+<?nvs
+// covers: Core\Queue\Stats::deadLettered
+use Core\Queue;
+use Core\Queue\State;
+
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+echo "empty: ", Queue::stats("q")->deadLettered(), "\n";
+
+// One live row of `q` in each of the five states, none of them buried.
+int $n = 0;
+while ($n < 5) {
+    Queue::push("jobs/a.nvs", {queue: "q", args: ["n" => $n]});
+    $n = $n + 1;
+}
+$db->execute("update nvs_jobs set state = 1, attempts = 5, claimed_at = 0 where id = 2", []);
+$db->execute("update nvs_jobs set state = 2, attempts = 5 where id = 3", []);
+$db->execute("update nvs_jobs set state = 3, attempts = 5 where id = 4", []);
+$db->execute("update nvs_jobs set state = 4 where id = 5", []);
+echo "live only: ", Queue::stats("q")->deadLettered(), "\n";
+
+// Three buried rows on `q` and one on another queue.
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (90, 'q', 'jobs/a.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (91, 'q', 'jobs/a.nvs', 1, 1, 1000, 0, 0, 0, '[]'),
+       (92, 'q', 'jobs/a.nvs', 0, 3, 1000, 0, 0, 0, '[]'),
+       (93, 'other', 'jobs/a.nvs', 5, 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+var $stats = Queue::stats("q");
+echo "dead: ", $stats->deadLettered(), "\n";
+echo "other: ", Queue::stats("other")->deadLettered(), "\n";
+
+// The result is read once, so a later purge does not change it.
+echo "purged: ", Queue::purge("q", {state: State::Dead}), "\n";
+echo "kept: ", $stats->deadLettered(), "\n";
+echo "read again: ", Queue::stats("q")->deadLettered(), "\n";
+echo "other after: ", Queue::stats("other")->deadLettered(), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs"]
+
+[capabilities.queue]
+purge = ["q"]
+
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+empty: 0
+live only: 0
+dead: 3
+other: 1
+purged: 3
+kept: 3
+read again: 0
+other after: 1

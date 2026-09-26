@@ -1,22 +1,22 @@
 {
-  "state": "Goal `core-queue-stats`: `attempts`, `claimed` and `deadAttempts` of `Core\\Queue\\Stats` are finished. Their figures are in `docs/perf/members.ndjson`.\n`bun nv proofs --verify --group 'Core\\Queue\\Stats'` still owes all of `pending` and `deadLettered`. Those two are the last members of the goal.\nShared fixtures: `benches/members/core/Queue-Stats/nvs.toml` serves every bench of the class. An example or an attack needs its own copy of `docs/examples/core/Queue-Stats/attempts/nvs.toml` in its member directory.\nThe Rust half goes in `crates/nvs-stdlib/tests/queue_sqlite.rs` after `sqlite_dead_attempts_sum_the_buried_rows_of_one_queue_and_nothing_live`. It reads its column with `counts(&reader)[i]` in the order pending, claimed, attempts, deadLettered, deadAttempts. `dead_letter(conn, id, lease)` needs the lease to equal the row's `claimed_at`.\nA new bench is measured with `bun nv proofs --record-perf --only '<id>'`. Until then the gate reports `perf: stale`.\nThe `claimed` card said a stopped worker's job \"returns to `Pending`\". The count is `state = 1` and ignores `claimed_at`, so the card now says the job stays claimed until another worker takes it after `[queue] visibility`.",
+  "state": "Goal `core-queue-stats` is met. All five members of `Core\\Queue\\Stats` (`pending`, `claimed`, `attempts`, `deadLettered`, `deadAttempts`) have their description, three examples, an attack, a bench with a recorded figure, a `.nvst` case and a SQLite `#[test]`.\n`bun nv proofs --verify --group 'Core\\Queue\\Stats'` prints nothing owed, 15 examples and 5 attacks ok.\n`bun nv owners --closes core-queue-stats` and `bun nv playbook --closes core-queue-stats` name nothing, and `bun nv verify --doc` is green.\nThe next goal on the chain starts from its own handoff record.",
   "next": {
-    "stage": 1,
-    "title": "the last two `Core\\Queue\\Stats` counters",
+    "stage": 2,
+    "title": "goal reached",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/queue.rs` (the cards at 2443-2490), `crates/nvs-stdlib/tests/queue_sqlite.rs`, and the `Queue-Stats` directories under `docs/examples/core/`, `tests/hostile/core/` and `benches/members/core/`. Copy the shape from `claimed` and `deadAttempts`: three examples, one attack, one bench declaring `allocations 0` and `calls 0`, a `.nvst` case and a SQLite `#[test]`, each with `covers:`, then `--record-perf`.",
+    "note": "nothing left in this goal's file set: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/tests/queue_sqlite.rs`.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Queue\\Stats::pending`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). The card says it includes jobs whose `runAt` is in the future; pin that and a job waiting between attempts. `crates/nvs-stdlib/src/queue.rs:2444`"
+        "done": true,
+        "text": "**`Core\\Queue\\Stats::pending`** — proofs landed (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/queue.rs:2444`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Queue\\Stats::deadLettered`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/queue.rs:2473`"
+        "done": true,
+        "text": "**`Core\\Queue\\Stats::deadLettered`** — proofs landed (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/queue.rs:2473`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Queue::stats` turns a negative counter into `0` (`crates/nvs-stdlib/src/queue.rs:5070`), but throws an `IOError` for a counter that is not a whole number. `tests/hostile/core/Queue-Stats/deadAttempts/01-dead-sums-that-do-not-fit.nvs` step 4 shows it. Throwing for both would be consistent; decide under `rule:concurrency/enqueue-commits-with-your-write` — owner: `crates/nvs-stdlib/src/queue.rs` module doc."
+    "The attack for `pending` shows that `state = '0'` (text) counts as pending, because SQLite converts it to a number in a `smallint` column. `state = x'00'` (bytes) does not count. Neither is a bug; `crates/nvs-stdlib/src/queue.rs` owns the counts SQL."
   ]
 }

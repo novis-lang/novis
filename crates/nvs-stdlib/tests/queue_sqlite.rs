@@ -788,6 +788,67 @@ fn sqlite_dead_attempts_sum_the_buried_rows_of_one_queue_and_nothing_live() {
     );
 }
 
+/// `pending` is the rows of the queue whose `state` is `0`, and nothing about
+/// `run_at` enters it: a job pushed for later and a job a retry put back to wait
+/// out its backoff are pending exactly like one due now, although no claim can
+/// take either yet. A waiting row on another queue adds nothing.
+// covers: Core\Queue\Stats::pending
+#[test]
+fn sqlite_pending_counts_state_zero_of_one_queue_whatever_its_run_at() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-stats-pending");
+    push_on(&worker, "another-queue", NOW, 0, 0, None);
+    assert_eq!(
+        counts(&reader)[0],
+        0,
+        "the other queue's waiting job is not this queue's"
+    );
+
+    push(&worker, NOW, 0, 0, None);
+    push(&worker, i64::MAX, 0, 0, None);
+    push(&worker, NOW + 60_000, 0, 2, None);
+    for state in 1..5 {
+        let claimed_at = (state == 1).then_some(NOW);
+        push(&worker, NOW, state, 1, claimed_at);
+    }
+    assert_eq!(
+        counts(&reader)[..2],
+        [3, 1],
+        "the job due now, the one due at the end of time and the one between two attempts all \
+         wait, and no other state does"
+    );
+}
+
+/// `deadLettered` is the queue's rows of `nvs_dead_jobs`, counted by a subquery
+/// with its own `where queue = ?`: a live row in any state adds nothing however
+/// many attempts it has used, a buried row of another queue adds nothing, and
+/// the dead-letter move takes a row out of the live counters as it adds it here.
+// covers: Core\Queue\Stats::deadLettered
+#[test]
+fn sqlite_dead_lettered_counts_the_buried_rows_of_one_queue_and_nothing_live() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-stats-dead-lettered");
+    let elsewhere = push_on(&worker, "another-queue", NOW, 1, 5, Some(NOW));
+    dead_letter(&worker, elsewhere, NOW);
+    for state in 0..5 {
+        let claimed_at = (state == 1).then_some(NOW);
+        push(&worker, NOW, state, 5, claimed_at);
+    }
+    assert_eq!(
+        counts(&reader)[3],
+        0,
+        "the other queue's buried job and this queue's live ones are not this counter's"
+    );
+
+    for _ in 0..3 {
+        let id = push(&worker, NOW, 1, 5, Some(NOW));
+        dead_letter(&worker, id, NOW);
+    }
+    assert_eq!(
+        counts(&reader)[..4],
+        [1, 1, 25, 3],
+        "the three buried jobs are counted here and left the claimed count with their rows"
+    );
+}
+
 /// `DELETE_SQLITE`'s pair, taken whole: both arms inside one immediate
 /// transaction, and the member's `bool` is either of them having removed a row.
 ///

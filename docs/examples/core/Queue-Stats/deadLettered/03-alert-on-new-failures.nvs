@@ -1,0 +1,60 @@
+<?nvs
+// Shows a check that sends an alert when more jobs of a queue failed since the last check.
+use Core\Queue;
+
+// On a real server, `nvs queue migrate` creates the queue tables.
+// This database is in memory, so the example creates them itself.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+class FailureCheck {
+    // Returns an alert text, or an empty string when no new job failed.
+    public static function run(string $queue, uint $before): string {
+        uint $now = Queue::stats($queue)->deadLettered();
+        if ($now <= $before) {
+            return "";
+        }
+        return $queue . ": " . ($now - $before) . " new failed jobs, " . $now . " in total";
+    }
+}
+
+// One job failed yesterday. Your check saved the count `1` then.
+// No worker runs here, so SQL adds the rows.
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (1, 'webhooks', 'jobs/call-webhook.nvs', 5, 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+uint $saved = 1;
+
+// Nothing new failed. This prints `no alert`.
+string $alert = FailureCheck::run("webhooks", $saved);
+echo $alert == "" ? "no alert" : $alert, "\n";
+
+// Two more jobs fail for good.
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (2, 'webhooks', 'jobs/call-webhook.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (3, 'webhooks', 'jobs/call-webhook.nvs', 5, 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+
+// This prints `webhooks: 2 new failed jobs, 3 in total`.
+$alert = FailureCheck::run("webhooks", $saved);
+echo $alert == "" ? "no alert" : $alert, "\n";

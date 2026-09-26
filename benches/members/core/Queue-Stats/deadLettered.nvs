@@ -1,0 +1,53 @@
+<?nvs
+// Reads how many jobs of a queue failed for good, as an alert check or a status page does.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+use Core\Queue;
+
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null,
+    script text not null, args text, attempts integer not null, max_attempts integer not null,
+    backoff_ms bigint not null, run_at bigint not null, tag varchar(255),
+    dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null,
+    errors text not null, primary key (id))
+SQL;
+$db->execute($jobs, []);
+$db->execute($dead, []);
+
+class Bench {
+    public static function run(array<Core\Queue\Stats> $all, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The next result depends on the failed jobs counted so far.
+            $total = $total + $all[($total % 2) as int]->deadLettered();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// 3 jobs of `mail` and 2 jobs of `exports` failed for good.
+$db->execute(<<<'SQL'
+insert into nvs_dead_jobs (id, queue, script, attempts, max_attempts, backoff_ms,
+    run_at, created_at, failed_at, errors)
+values (1, 'mail', 'jobs/send-mail.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (2, 'mail', 'jobs/send-mail.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (3, 'mail', 'jobs/send-mail.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (4, 'exports', 'jobs/export.nvs', 5, 5, 1000, 0, 0, 0, '[]'),
+       (5, 'exports', 'jobs/export.nvs', 5, 5, 1000, 0, 0, 0, '[]')
+SQL, []);
+
+// The first round reads `mail`. The total is then odd, so every later round reads `exports`.
+// The program prints `800001`.
+echo Bench::run([Queue::stats("mail"), Queue::stats("exports")], 400000), "\n";
