@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a program closes a server many times, uses it after close, and opens thousands of servers.
+// Every extra close and every use after close should throw, and the request should end cleanly.
+
+// 1. Close the same server three times.
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+$server->close();
+try {
+    $server->close();
+} catch (RuntimeError $e) {
+    echo "1a ok\n";
+}
+try {
+    $server->close();
+} catch (RuntimeError $e) {
+    echo "1b ok\n";
+}
+
+// 2. `accept` and `port` after close.
+try {
+    $server->accept(1s);
+} catch (RuntimeError $e) {
+    echo "2a ok\n";
+}
+try {
+    $server->port();
+} catch (RuntimeError $e) {
+    echo "2b ok\n";
+}
+
+// 3. Open and close five thousand servers that never take a client.
+uint $i = 0;
+while ($i < 5000) {
+    try {
+        Core\Net::listen('127.0.0.1', 0)->close();
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "3 ok\n";
+
+// 4. Close a server while fifty clients still wait to be accepted.
+Core\Net\Listener $busy = Core\Net::listen('127.0.0.1', 0);
+array<Core\Net\Stream> $waiting = [];
+$i = 0;
+while ($i < 50) {
+    try {
+        $waiting[] = Core\Net::connect('127.0.0.1', $busy->port(), 1s);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+$busy->close();
+echo "4 ok\n";
+
+// 5. A client accepted before close, written to and read from after it.
+Core\Net\Listener $door = Core\Net::listen('127.0.0.1', 0);
+Core\Net\Stream $client = Core\Net::connect('127.0.0.1', $door->port(), 5s);
+Core\Net\Stream $inside = $door->accept(5s);
+$door->close();
+$client->write(Core\Str::repeat('x', 10000) as bytes, 5s);
+try {
+    $inside->read(100000, 1s);
+    echo "5 ok\n";
+} catch (TimeoutError $late) {
+    echo "5 slow\n";
+}
+
+// 6. Two hundred servers that are never closed. The request closes them when it ends.
+array<Core\Net\Listener> $leftOpen = [];
+$i = 0;
+while ($i < 200) {
+    try {
+        $leftOpen[] = Core\Net::listen('127.0.0.1', 0);
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "6 ok\n";

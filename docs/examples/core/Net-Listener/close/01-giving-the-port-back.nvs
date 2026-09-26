@@ -1,0 +1,20 @@
+<?nvs
+// Shows that `close` frees the port of a server, so a new server can listen on the same port.
+
+// This server listens on port 47123. The port is allowed in `nvs.toml` beside this file.
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 47123);
+$server->close();
+
+// The port is free again, so the server can start again on the same port.
+// This prints `listening again on 47123`.
+Core\Net\Listener $restarted = Core\Net::listen("127.0.0.1", 47123);
+echo "listening again on ", $restarted->port(), "\n";
+$restarted->close();
+
+// A second `close` on the first server throws a `RuntimeError`.
+// This prints `Core\Net\Listener::close: this handle is closed`.
+try {
+    $server->close();
+} catch (RuntimeError $closed) {
+    echo $closed->message, "\n";
+}
