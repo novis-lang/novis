@@ -18960,15 +18960,15 @@ Sends the HTML page `$body` and adds the header `Content-Type: text/html; charse
 Core\Response::json(mixed $value): void
 ```
 
-Answers with `$value` serialized as JSON, declaring `application/json` — the same encoder `Core\Json::encode` uses, on one line.
+Converts `$value` to JSON, sends it, and adds the header `Content-Type: application/json`. It uses the same encoder as `Core\Json::encode`, and the JSON is on one line.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `mixed` | The value to serialize, in every shape `Core\Json::encode` accepts. A `tainted` value anywhere inside it is safe: the framing belongs to the serializer, so a tainted string becomes a JSON string and cannot escape it. |
+| `$value` | `mixed` | The value to send, of any type `Core\Json::encode` accepts. A `tainted` value is allowed anywhere inside it. Each string is written as a JSON string, so its quotes are escaped and it cannot change the JSON around it. |
 
-**Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
+**Returns** `void` — Nothing. Using this and `echo` in one response does not compile.
 
-**Throws** `LogicError` — `$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value of a type with no JSON encoding, an instance of a class without `#[Json\Derive]`, or nesting past 1024 levels.
+**Throws** `LogicError` — `$value` contains something JSON cannot write: a `float` that is NaN or infinite, a value of a type JSON has no form for, an object of a class without `#[Core\Json\Derive]`, an object that points to itself, or nesting deeper than 1024 levels. Nothing is sent.
 
 <a id="core-core-response-text"></a>
 #### `Core\Response::text`
@@ -18977,13 +18977,13 @@ Answers with `$value` serialized as JSON, declaring `application/json` — the s
 Core\Response::text(string $body): void
 ```
 
-Answers with `$body` as the response body, declaring `text/plain; charset=utf-8` — one of the five body members that replace a single `write`, each owning one shape.
+Sends `$body` as plain text and adds the header `Content-Type: text/plain; charset=utf-8`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `string` (neutral) | The text to send. A `tainted` value is accepted: `nosniff` is on by default, so a `text/plain` body is never re-parsed as HTML. |
+| `$body` | `string` (neutral) | The text to send. It is sent exactly as it is. A `tainted` value is allowed: the server also sends `X-Content-Type-Options: nosniff`, so a browser never reads the text as HTML. |
 
-**Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
+**Returns** `void` — Nothing. Using this and `echo` in one response does not compile.
 
 <a id="core-core-response-bytes"></a>
 #### `Core\Response::bytes`

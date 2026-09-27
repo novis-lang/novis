@@ -1,23 +1,27 @@
 {
-  "state": "Goal `core-response-and-1-more`: `Core\\Response::addCookie`, `bytes` and `html` have every feature\nproof — `about.md`, three examples with `.nvsr` requests, the attack, the bench record in\n`docs/perf/members.ndjson`, and a Rust `#[test]` carrying `covers:` in\n`crates/nvs-stdlib/src/response.rs`. The `BYTES_DOC` and `HTML_DOC` cards are rewritten to\nAGENTS.md § *Text an end user reads*; the other `Core\\Response` cards are not yet.\n`Core\\Response\\Stream` is still in `CLASSES_STILL_OWING_A_CARD` in\n`crates/nvs-stdlib/src/registry.rs`, and `Core\\Response\\Stream::write` owes it. Nothing is blocked.\n\n`nvs run --request` prints the response body alone, never the status line or the headers. A body\nmember's bench must write bodies with no newline in them: a newline flushes the terminal on every\ncall, and the figure then measures the flush (a `bytes` bench with a CSV body read ~1.1 µs/op, the\nsame bench without newlines ~110 ns/op).",
+  "state": "Goal `core-response-and-1-more`: every body member of `Core\\Response` — `addCookie`, `bytes`,\n`html`, `text` and `json` — has every feature proof: `about.md`, three examples with `.nvsr`\nrequests, the attack, the bench record in `docs/perf/members.ndjson`, and a `covers:` line on\n`each_body_member_sets_its_own_content_type` in `crates/nvs-stdlib/src/response.rs`. The\n`BYTES_DOC`, `HTML_DOC`, `TEXT_DOC` and `JSON_DOC` cards follow AGENTS.md § *Text an end user\nreads*. The cards of `setStatus`, `setHeader`, `redirect` and `sendFile` do not yet.\n`Core\\Response\\Stream` is still in `CLASSES_STILL_OWING_A_CARD` in\n`crates/nvs-stdlib/src/registry.rs`, and `Core\\Response\\Stream::write` owes every proof. Nothing is\nblocked.\n\n`nvs run --request` prints the response body alone, never the status line or the headers, so an\nexample about a status or a header shows it through the body it writes. A body member's bench\nwrites bodies with no newline in them, because a newline flushes the terminal on every call. The\nwall-clock of these benches is noisy: compare the allocation and byte counts.",
   "next": {
-    "stage": 1,
-    "title": "body members",
+    "stage": 2,
+    "title": "the members that shape a response",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/response.rs` (the body members, their cards and the `tests` module), `docs/examples/core/Response/`, `tests/hostile/core/Response/`, `benches/members/core/Response/`. Each example gets a `.nvsr` request beside it, as the `bytes` and `html` ones have, and each card touched is brought up to AGENTS.md § *Text an end user reads*.",
+    "note": "one file set: `crates/nvs-stdlib/src/response.rs` (the members, their cards and the `tests` module), `docs/examples/core/Response/`, `tests/hostile/core/Response/`, `benches/members/core/Response/`. Each example gets a `.nvsr` request beside it, and each card touched is brought up to AGENTS.md § *Text an end user reads*.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Response::text`** — owes examples, hostile, perf, Rust `covers:` (`rule:security/response-body-is-one-typed-member`). Member at `crates/nvs-stdlib/src/response.rs:1094`, card at `crates/nvs-stdlib/src/response.rs:704`; the Rust half is one more `// covers:` line on `each_body_member_sets_its_own_content_type` at `crates/nvs-stdlib/src/response.rs:1996`."
+        "text": "**`Core\\Response::setStatus`** — owes examples, hostile, perf, Rust `covers:` (`rule:security/response-body-is-one-typed-member`). Member at `crates/nvs-stdlib/src/response.rs:1134`, card at `crates/nvs-stdlib/src/response.rs:721`. The body is all an example can show, so each one writes a body saying what status it chose."
       },
       {
         "done": false,
-        "text": "**`Core\\Response::json`** — the same owed set; member at `crates/nvs-stdlib/src/response.rs:1648`, and the same test takes its `covers:` line. An attack can aim at the `LogicError` it throws for `NaN`, a class without `#[Json\\Derive]` and nesting past 1024 levels."
+        "text": "**`Core\\Response::setHeader`** — the same owed set. Member at `crates/nvs-stdlib/src/response.rs:1175`, card at `crates/nvs-stdlib/src/response.rs:740`. The attack is header injection through the name and the value, and `Content-Type` in any case."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Response::redirect`** — the same owed set. Member at `crates/nvs-stdlib/src/response.rs:1244`, card at `crates/nvs-stdlib/src/response.rs:769`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Response::setStatus`, `setHeader`, `redirect`, `sendFile`, `stream` — each owes the full set (`bun nv proofs --id`); `sendFile` needs an `fs.read` grant for its examples.",
-    "`Core\\Response\\Stream::write` — owes examples, hostile, perf, two tests and the class card (`crates/nvs-stdlib/src/registry.rs`, `CLASSES_STILL_OWING_A_CARD`)."
+    "`Core\\Response\\Stream::write` owes every proof and its class a card — `crates/nvs-stdlib/src/registry.rs` `CLASSES_STILL_OWING_A_CARD`; acceptance check `dossier-core-response-stream`.",
+    "The `SEND_FILE_DOC` card in `crates/nvs-stdlib/src/response.rs` is not yet plain."
   ]
 }

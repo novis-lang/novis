@@ -1,0 +1,1 @@
+{"error":"Core\\Response::json(): `NAN` has no JSON spelling — JSON has no `NaN` and no `Infinity`"}

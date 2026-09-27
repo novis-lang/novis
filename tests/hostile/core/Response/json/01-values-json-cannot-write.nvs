@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a program sends values that JSON cannot write and a value nested very deep, and
+// then sends JSON without end. Each bad value should throw an error, and the program
+// should stop at its memory limit without crashing.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+#[Core\Json\Derive]
+class Node
+{
+    public string $name;
+    public ?Node $next;
+
+    public function constructor(string $name, ?Node $next)
+    {
+        $this->name = $name;
+        $this->next = $next;
+    }
+}
+
+// 1. NaN, infinity and minus infinity. Each call should throw a `LogicError`.
+array<float> $floats = [
+    Core\Math::fdiv(0.0, 0.0),
+    Core\Math::fdiv(1.0, 0.0),
+    Core\Math::fdiv(-1.0, 0.0),
+];
+foreach ($floats as float $bad) {
+    try {
+        Core\Response::json([1.5, $bad]);
+        throw new RuntimeError('a float with no JSON form was sent');
+    } catch (LogicError $noForm) {
+    }
+}
+
+// 2. An object that points to itself. It should throw a `LogicError`.
+Node $alone = new Node('a', null);
+$alone->next = $alone;
+try {
+    Core\Response::json($alone);
+    throw new RuntimeError('an object that points to itself was sent');
+} catch (LogicError $cycle) {
+}
+
+// 3. A chain of one hundred thousand objects, which is deeper than 1024 levels.
+// It should throw a `LogicError`, and must not run out of stack.
+?Node $chain = null;
+uint $n = 0;
+while ($n < 100000) {
+    $chain = new Node('n', $chain);
+    $n = $n + 1;
+}
+try {
+    Core\Response::json($chain);
+    throw new RuntimeError('a value deeper than 1024 levels was sent');
+} catch (LogicError $tooDeep) {
+}
+
+// 4. The visitor's text tries to end the string, add a key and close a script tag.
+Core\Response::json({ name: Core\Request::query('name') as string });
+
+// 5. The value is kept in memory and sent again and again until the memory limit
+// stops the program.
+array<int> $chunk = Core\Arr::fill(8192, 7);
+var $kept = Core\Out::capture(fn (): void => {
+    uint $written = 0;
+    while ($written < 1000000) {
+        Core\Response::json($chunk);
+        $written = $written + 1;
+    }
+});
+Core\Response::text("done\n");
