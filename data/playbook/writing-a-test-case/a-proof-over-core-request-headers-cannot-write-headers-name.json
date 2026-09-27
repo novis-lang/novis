@@ -1,0 +1,11 @@
+{
+  "lead": "A proof over `Core\\Request::headers()` cannot write `$headers[$name] ?? []` or `Core\\Str::join($values, \", \")`.",
+  "body": "The empty literal on the right of `??` is typed `array<mixed>`, so the declared `array<tainted string>` does not compile (`E0401`), and `Core\\Str::join` takes `array<string>` only, so a list of tainted values does not compile there either. Guard the key with `Core\\Arr::hasKey` and echo each value in an inner `foreach`, the way `docs/examples/core/Request/headers/02-a-header-on-two-lines.nvs` does.",
+  "files": [
+    "docs/examples/core/Request/headers/02-a-header-on-two-lines.nvs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "docs/examples/core/Request/headers/02-a-header-on-two-lines.nvs:Arr::hasKey"
+  }
+}

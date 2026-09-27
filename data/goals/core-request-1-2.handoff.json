@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-request-1-2`: `Core\\Request::body`, `bytes`, `bodyStream`, `clientIp`, `cookie` and `files`\nhave all their feature proofs. `bun nv proofs --verify --only` over those six says nothing owed.\nA proof program answers a request through the `<name>.nvsr` beside it (`docs/examples/README.md` §\n*A request for the program*, and `crates/nvs-test/src/request.rs`'s module doc for every section).\nA multipart body is written under `--BODY_CRLF--`. A new bench is measured with `bun nv proofs\n--record-perf --only <members>`. `bun nv verify` regenerates `docs/novis.md` from the rewritten\ncards. Five members of `Core\\Request (1/2)` still owe their proofs, in the order the check lists them.",
+  "state": "Goal `core-request-1-2`: `Core\\Request::body`, `bytes`, `bodyStream`, `clientIp`, `cookie`, `files`,\n`header` and `headers` have all their feature proofs. `bun nv proofs --verify --only` over those eight\nsays nothing owed. A proof program answers a request through the `<name>.nvsr` beside it\n(`docs/examples/README.md` § *A request for the program*, and `crates/nvs-test/src/request.rs`'s module\ndoc for every section). A new bench is measured with `bun nv proofs --record-perf --only <members>`.\n`bun nv verify` regenerates `docs/novis.md` from the rewritten cards. Three members of\n`Core\\Request (1/2)` still owe their proofs: `host`, `isHead` and `json`, in that order.",
   "next": {
     "stage": 1,
     "title": "member proofs, one file set",
@@ -8,20 +8,20 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::header`** — owes about, examples, hostile, perf, a Rust `covers:` marker (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Request::header'`). Card at `crates/nvs-stdlib/src/request.rs:538`, member at `crates/nvs-stdlib/src/request.rs:2407`. Rewrite the card the way `COOKIE_DOC` and `FILES_DOC` now read."
+        "text": "**`Core\\Request::host`** — owes examples, hostile, perf, a Rust `covers:` marker (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Request::host'`). Card at `crates/nvs-stdlib/src/request.rs:884`, member at `crates/nvs-stdlib/src/request.rs:2522`, normaliser at `crates/nvs-stdlib/src/request.rs:2458` (lower case, port and one trailing dot removed, `[v6]` kept whole). Rewrite the card the way `HEADER_DOC` and `COOKIE_DOC` now read. A Rust test of `host_named` may already exist and only lack the marker."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::headers`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:556`, member at `crates/nvs-stdlib/src/request.rs:2537`."
+        "text": "**`Core\\Request::isHead`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:445`, member at `crates/nvs-stdlib/src/request.rs:2094`."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::host`** — owes the same set (`bun nv proofs --id 'Core\\Request::host'`). Card at `crates/nvs-stdlib/src/request.rs:882`, member at `crates/nvs-stdlib/src/request.rs:2520`."
+        "text": "**`Core\\Request::json`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:648`, member at `crates/nvs-stdlib/src/request.rs:2736`. It closes the check `dossier-core-request-1-2`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Request::isHead` and `json` owe their proofs after this group (`bun nv proofs --id`).",
-    "Many Rust tests in `crates/nvs-stdlib/src/request.rs` say \"No case can reach this: a `.nvst` program answers no request\". A `.nvst` case can describe a request now, but a multipart one still cannot, because a case file is checked out with LF line endings. Owned by `crates/nvs-test/src/request.rs`'s module doc."
+    "`Core\\Str::join` does not compile over an `array<tainted string>`, so a program cannot join the values `Core\\Request::headers()` returns; whether `join` should carry the taint through is `crates/nvs-stdlib/src/str.rs`'s question.",
+    "`$map[$key] ?? []` types the empty literal `array<mixed>` rather than from the declared type; the playbook bullet under *Writing a test case* is the workaround."
   ]
 }
