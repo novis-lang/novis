@@ -1,0 +1,11 @@
+<?nvs
+// Shows the reason after the last line of the script runs.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // The reason is `Normal`, so this prints "normal end".
+    if ($report->reason() == Core\Script\ExitReason::Normal) {
+        echo "normal end\n";
+    }
+});
+
+echo "the script runs\n";

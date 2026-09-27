@@ -1,0 +1,38 @@
+<?nvs
+// Attack: exit functions save the report in a static array and read it many
+// times. Every read should give the same reason, and the runtime must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+final class Kept
+{
+    public static array<Core\Script\ExitReport> $reports = [];
+    public static int $same = 0;
+}
+
+// 1. 1000 exit functions each save the report they receive.
+int $i = 0;
+while ($i < 1000) {
+    Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+        Kept::$reports[] = $report;
+    });
+    $i = $i + 1;
+}
+
+// 2. A later function reads the reason of every saved report 1000 times.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    foreach (Kept::$reports as Core\Script\ExitReport $kept) {
+        int $n = 0;
+        while ($n < 1000) {
+            if ($kept->reason() == $report->reason()) {
+                Kept::$same = Kept::$same + 1;
+            }
+            $n = $n + 1;
+        }
+    }
+    echo 'same reason: ', Kept::$same, "\n";
+});
+
+// 3. The script ends with an error that nothing catches. The saved reports
+// also keep that error, and all of them are freed when the script ends.
+throw new RuntimeError('the job failed');

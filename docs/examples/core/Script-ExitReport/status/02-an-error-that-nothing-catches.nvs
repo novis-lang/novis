@@ -1,0 +1,11 @@
+<?nvs
+// Shows the exit status after an error that nothing catches.
+// proof: exit 1
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // This prints "status 1".
+    echo "status ", $report->status(), "\n";
+});
+
+echo "reading the price list\n";
+throw new RuntimeError("the price list is empty");

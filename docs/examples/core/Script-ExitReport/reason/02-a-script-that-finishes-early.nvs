@@ -1,0 +1,18 @@
+<?nvs
+// Shows the reason when a script ends early with `Core\Script::finish()`.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // The reason is `Finish`, so this prints "finished early".
+    if ($report->reason() == Core\Script\ExitReason::Finish) {
+        echo "finished early\n";
+    }
+});
+
+int $waiting = 0;
+if ($waiting == 0) {
+    echo "no orders are waiting\n";
+    Core\Script::finish();
+}
+
+// This line does not print.
+echo "sending the orders\n";

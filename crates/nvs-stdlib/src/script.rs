@@ -1420,6 +1420,35 @@ mod tests {
         release(hook);
     }
 
+    /// `rule:observability/a-hook-observes-and-never-steers`: an `exit` inside a
+    /// hook is refused, and the process still exits with the status the report
+    /// named. The hook's `exit` wrote its own status before it unwound, so the
+    /// hook behind it and the process would otherwise disagree.
+    // covers: Core\Script\ExitReport::status
+    #[test]
+    fn an_exit_inside_a_hook_leaves_the_process_status_the_report_named() {
+        let mut ctx = Ctx::buffered();
+        let first = register(&mut ctx, 1, exits);
+        let second = register(&mut ctx, 1, records_second);
+        ctx.set_exit_code(3);
+
+        SEEN.with(|seen| seen.borrow_mut().clear());
+        super::run_exit_hooks(&mut ctx, Err(nvs_runtime::EXITED), None);
+
+        assert_eq!(
+            SEEN.with(|seen| seen
+                .borrow()
+                .iter()
+                .map(|saw| (saw.who, saw.status))
+                .collect::<Vec<_>>()),
+            [("exits", 3), ("second", 3)],
+            "both hooks read the status the ending was fixed with"
+        );
+        assert_eq!(ctx.exit_code(), 3, "the process exits with it too");
+        release(first);
+        release(second);
+    }
+
     /// `rule:observability/three-endings-fire-the-exit-queue`'s third row, asked as an **identity** exactly as `rule:errors/on-uncaught-throw`'s tier-2 handler is: the report carries the very allocation the
     /// program threw, so a hook can read its class, message and backtrace back
     /// through the ordinary members rather than a copy of what it said.
@@ -1717,6 +1746,16 @@ mod tests {
         }
     }
 
+    /// A hook that records that it ran and then exits with status 7, the way
+    /// compiled `exit(7)` does: the status is written first, then the unwind.
+    #[expect(unsafe_code, reason = "[`throws`]'s reason, on its twin")]
+    unsafe extern "C" fn exits(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        unsafe { record("exits", args, out) };
+        let ctx = unsafe { &mut *ctx };
+        ctx.set_exit_code(7);
+        nvs_runtime::EXITED
+    }
+
     /// A hook that records that it ran and then finishes, for § 5's second
     /// refusal.
     #[expect(unsafe_code, reason = "[`throws`]'s reason, on its twin")]
@@ -1865,6 +1904,107 @@ mod tests {
         unsafe {
             nvs_runtime::nvs_value_release(u64::from(value.tag_byte()), value.bits());
         }
+    }
+
+    /// `reason` answers the ending the report was built for, as the enum's
+    /// case index, and the same answer on every read.
+    // covers: Core\Script\ExitReport::reason
+    #[test]
+    fn reason_answers_the_ending_the_report_was_built_for_on_every_read() {
+        let mut ctx = Ctx::buffered();
+        for reason in [
+            super::NORMAL,
+            super::EXIT_CALL,
+            super::UNCAUGHT_THROW,
+            super::FINISH,
+        ] {
+            let report = super::report_of(reason, 0, None);
+            for read in 1..=2 {
+                let answer = call(
+                    super::nvs_core_script_exit_report_reason,
+                    &mut ctx,
+                    &[report],
+                )
+                .expect("`reason` cannot fail");
+                assert_eq!(answer.as_int(), Some(reason), "read {read}");
+            }
+            release(report);
+        }
+    }
+
+    /// `status` answers the number the report was built with, unchanged, at
+    /// both far ends of the range as well as the ones `exit` usually names.
+    // covers: Core\Script\ExitReport::status
+    #[test]
+    fn status_answers_the_number_it_was_built_with_unchanged() {
+        let mut ctx = Ctx::buffered();
+        for status in [0, 1, 42, 255, -1, i64::MIN, i64::MAX] {
+            let report = super::report_of(super::EXIT_CALL, status, None);
+            let answer = call(
+                super::nvs_core_script_exit_report_status,
+                &mut ctx,
+                &[report],
+            )
+            .expect("`status` cannot fail");
+            assert_eq!(answer.as_int(), Some(status));
+            release(report);
+        }
+    }
+
+    /// `error` answers `null` for a report with no exception, and for an
+    /// uncaught throw the very object the program threw, as a reference of its
+    /// own: the report and the `Thrown` each keep theirs, and giving the answer
+    /// back leaves both.
+    // covers: Core\Script\ExitReport::error
+    #[test]
+    fn error_answers_the_thrown_object_itself_as_a_reference_of_its_own() {
+        let mut ctx = Ctx::buffered();
+        let none = super::report_of(super::EXIT_CALL, 2, None);
+        let answer = call(super::nvs_core_script_exit_report_error, &mut ctx, &[none])
+            .expect("`error` cannot fail");
+        assert_eq!(
+            answer.bits(),
+            Value::null().bits(),
+            "no exception, no error"
+        );
+        release(none);
+
+        const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut classes = ClassTable::new();
+        let root = classes.define("RuntimeError", &SLOTS, &[]);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), root));
+        ctx.set_pending("the store said no");
+        ctx.push_frame("Main::main");
+        let thrown = ctx.take_thrown();
+        let object = thrown
+            .as_value()
+            .obj_ptr()
+            .expect("an installed class promotes the failure to an object");
+        let report = super::report_of(super::UNCAUGHT_THROW, 1, Some(&thrown));
+        let answer = call(
+            super::nvs_core_script_exit_report_error,
+            &mut ctx,
+            &[report],
+        )
+        .expect("`error` cannot fail");
+        assert_eq!(answer.bits(), thrown.as_value().bits(), "the object itself");
+        #[expect(
+            unsafe_code,
+            reason = "`thrown` owns a reference for the whole test, so the object \
+                      is live at every read"
+        )]
+        // SAFETY: `thrown` keeps the object alive until the end of the test.
+        unsafe {
+            assert_eq!(
+                NvsObj::refcount_of(object),
+                3,
+                "the throw, the report, the answer"
+            );
+            answer.release();
+            release(report);
+            assert_eq!(NvsObj::refcount_of(object), 1, "the throw's own is left");
+        }
+        assert_eq!(thrown.message(), "the store said no");
     }
 
     /// The layout the report is built against is the one its accessors read —

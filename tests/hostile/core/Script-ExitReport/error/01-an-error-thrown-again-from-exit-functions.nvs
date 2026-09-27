@@ -1,0 +1,53 @@
+<?nvs
+// Attack: the error that ends the script has a very long message and a chain of
+// 1000 earlier errors. Exit functions throw it again. Each throw should be logged,
+// the next function should still run, and the runtime must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+final class Seen
+{
+    public static int $reads = 0;
+
+    // Returns how many errors the chain has, from `$link` to the first cause.
+    public static function depth(?Throwable $link): int
+    {
+        if ($link == null) {
+            return 0;
+        }
+        return 1 + Seen::depth($link->previous);
+    }
+}
+
+// 1. 100 exit functions each throw the error they receive again.
+int $i = 0;
+while ($i < 100) {
+    Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+        ?Throwable $error = $report->error();
+        if ($error != null) {
+            throw $error;
+        }
+    });
+    $i = $i + 1;
+}
+
+// 2. The last function reads the error 100000 times and walks its whole chain.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    int $n = 0;
+    while ($n < 100000) {
+        if ($report->error() != null) {
+            Seen::$reads = Seen::$reads + 1;
+        }
+        $n = $n + 1;
+    }
+    echo 'reads: ', Seen::$reads, ', chain: ', Seen::depth($report->error()), "\n";
+});
+
+// 3. The error is built from 1000 earlier errors and a message of one million letters.
+RuntimeError $cause = new RuntimeError('the first cause');
+int $k = 0;
+while ($k < 1000) {
+    $cause = new RuntimeError('cause ' . $k, { previous: $cause });
+    $k = $k + 1;
+}
+throw new RuntimeError(Core\Str::repeat('x', 1000000), { previous: $cause });

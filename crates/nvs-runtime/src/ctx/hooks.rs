@@ -237,6 +237,7 @@ impl Ctx {
             return;
         }
         self.exit_hooks_drained = true;
+        let ending_status = self.exit_code();
         let mut index = 0;
         while index < self.exit_hooks.len() {
             let hook = self.exit_hooks[index];
@@ -246,6 +247,12 @@ impl Ctx {
                 // releasing the `null` a `void` closure answers is a no-op.
                 Ok(answer) => unsafe { answer.release() },
                 Err(fault) => {
+                    // An `exit` writes the status it names before it unwinds,
+                    // so the refusal puts back the one the ending was fixed
+                    // with; otherwise the process would exit with the hook's.
+                    if matches!(fault, crate::Fault::Pending(status) if status == crate::EXITED) {
+                        self.set_exit_code(ending_status);
+                    }
                     if !self.abandon_exit_hook(&fault) {
                         break;
                     }

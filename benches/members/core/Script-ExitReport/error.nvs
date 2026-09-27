@@ -1,0 +1,24 @@
+<?nvs
+// Reads the error that ended the script, as an exit function does before it writes an alert.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(Core\Script\ExitReport $report, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the next step depends on the result of this read.
+            if ($report->error() == null) {
+                $total = $total + 1 + $total % 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// A report exists only inside an exit function, so the loop runs there.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo Bench::run($report, 400000), "\n";
+});

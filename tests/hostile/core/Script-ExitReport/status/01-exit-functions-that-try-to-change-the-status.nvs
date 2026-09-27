@@ -1,0 +1,41 @@
+<?nvs
+// Attack: exit functions call `exit` with other numbers to change the status,
+// and the script exits with the largest number there is. Every function should
+// read the same status, and the process should exit with it.
+// hostile: ends-early
+
+final class Seen
+{
+    public static int $first = 0;
+    public static int $changed = 0;
+}
+
+// 1. The first function saves the status it reads.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    Seen::$first = $report->status();
+});
+
+// 2. 1000 functions each call `exit` with a different number.
+int $i = 0;
+while ($i < 1000) {
+    int $n = $i;
+    Core\Script::onExit(fn (): void => {
+        exit($n);
+    });
+    $i = $i + 1;
+}
+
+// 3. The last function counts every read that differs from the first one.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    int $n = 0;
+    while ($n < 1000) {
+        if ($report->status() != Seen::$first) {
+            Seen::$changed = Seen::$changed + 1;
+        }
+        $n = $n + 1;
+    }
+    echo 'changed: ', Seen::$changed, "\n";
+});
+
+// 4. The script exits with the largest whole number.
+exit(9223372036854775807);

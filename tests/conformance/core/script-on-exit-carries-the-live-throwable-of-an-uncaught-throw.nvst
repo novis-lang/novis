@@ -2,6 +2,8 @@
 An uncaught throw drains the `Core\Script::onExit` queue with the live `Throwable` on the report, at status 1 — `rule:observability/three-endings-fire-the-exit-queue` and `rule:observability/exit-hooks-run-after-the-ladder-before-teardown`
 --FILE--
 <?nvs
+// covers: Core\Script\ExitReport::reason
+// covers: Core\Script\ExitReport::error
 // The third ending, and the only one whose report carries an error. What the
 // hook is handed is the object the program threw — not a record built from it
 // — so its own `message` reads back through the ordinary property.

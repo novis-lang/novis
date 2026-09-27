@@ -2,6 +2,9 @@
 Every `Core\Script\ExitReport` member answers the same thing on a second call, and both hooks of one queue are handed the one report object with the one live error on it — `rule:observability/script-on-exit` and `rule:observability/three-endings-fire-the-exit-queue`
 --FILE--
 <?nvs
+// covers: Core\Script\ExitReport::reason
+// covers: Core\Script\ExitReport::status
+// covers: Core\Script\ExitReport::error
 // The *agreement* shape, over the rule `rule:observability/script-on-exit` states once for the whole
 // class: the report **observes** the ending rather than changing it, and the
 // ending is one fact fixed before the first hook ran. So each of the three
