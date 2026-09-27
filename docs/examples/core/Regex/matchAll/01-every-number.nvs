@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to find every number in a text, with the position of each one.
+
+string $text = "Rooms 12, 7 and 104 are free.";
+
+// `matchAll` returns one `Core\Regex\Match` for each number, from left to right.
+// This prints "12 at 6", then "7 at 10", then "104 at 16".
+foreach (Core\Regex::matchAll($text, '\d+') as Core\Regex\Match $number) {
+    echo $number->text(), " at ", $number->offset(), "\n";
+}

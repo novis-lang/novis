@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program asks for every match in texts built to give very many matches,
+// and with a pattern of many groups. Each search should return its matches or throw
+// an error. The last one should stop at the memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+class Search
+{
+    public static function count(string $subject, string $pattern): string
+    {
+        try {
+            return Core\Arr::count(Core\Regex::matchAll($subject, $pattern)) as string;
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. An empty pattern matches at every position of the text, and once at the end.
+// This prints 4.
+echo Search::count('abc', ''), "\n";
+
+// 2. A text of 200000 characters where every character is a match.
+// Every `Match` is created and then freed. This prints 200000.
+echo Search::count(Core\Str::repeat('é', 200000), '.'), "\n";
+
+// 3. 20000 searches over a short text, and every array of matches is freed.
+// This prints 60000.
+uint $total = 0;
+uint $i = 0;
+while ($i < 20000) {
+    $total = $total + Core\Arr::count(Core\Regex::matchAll('a1 b22 c333', '\d+')) as uint;
+    $i = $i + 1;
+}
+echo $total, "\n";
+
+// 4. A pattern that needs very many steps to fail on the long run of `a`.
+// The first two matches are found, then the search throws an error.
+echo Search::count('aa; aa; ' . Core\Str::repeat('a', 40) . 'b', '(a|a?)+\1;'), "\n";
+
+// 5. A pattern with 5000 groups. Searching with it needs more memory than the
+// program may use, so the program stops here with a memory limit error.
+echo Search::count(Core\Str::repeat('a', 5000), Core\Str::repeat('(a)', 5000)), "\n";

@@ -264,8 +264,8 @@ const COMPILE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Regex::matches`'s reference card — `rule:core-api/reference-card`.
 const MATCHES_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$pattern` matches anywhere in `$subject` — `preg_match` used as a \
-            predicate. The pattern is unanchored, so `^` and `$` are how a call asks for more.",
+    short: "Checks whether `$pattern` matches anywhere in `$subject`. The match can be at any \
+            position. Write `^` and `$` in the pattern to match the whole text.",
     params: &[
         ParamDoc {
             name: "subject",
@@ -274,24 +274,24 @@ const MATCHES_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "pattern",
-            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
+            desc: "A `Core\\Regex\\Pattern` from `Core\\Regex::compile`, or a pattern string with \
+                   no options. A `tainted` string does not compile here.",
             shape: &[],
         },
     ],
-    ret: "`true` when the subject contains at least one match, `false` otherwise.",
+    ret: "`true` if the text contains at least one match, and `false` if it does not.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
-               the backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` is not a valid regular expression, or matching it against `$subject` \
+               needs more steps than the limit allows.",
     }],
 };
 
 /// `Core\Regex::matchAll`'s reference card — `rule:core-api/reference-card`.
 const MATCH_ALL_DOC: MethodDoc = MethodDoc {
-    short: "Finds every non-overlapping match of `$pattern` in `$subject`, one `Match` each in \
-            the order they occur — `preg_match_all` in `PREG_SET_ORDER`'s shape, with each \
-            match's groups and offset on it.",
+    short: "Finds every match of `$pattern` in `$subject` and returns them as an array of \
+            `Core\\Regex\\Match`. The matches do not overlap, and they are in the order they \
+            appear in the text.",
     params: &[
         ParamDoc {
             name: "subject",
@@ -300,16 +300,17 @@ const MATCH_ALL_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "pattern",
-            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
+            desc: "A `Core\\Regex\\Pattern` from `Core\\Regex::compile`, or a pattern string with \
+                   no options. A `tainted` string does not compile here.",
             shape: &[],
         },
     ],
-    ret: "The matches in subject order; an empty array when the pattern matches nowhere.",
+    ret: "One `Core\\Regex\\Match` for each match, from left to right. The array is empty if \
+          there is no match.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
-               the backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` is not a valid regular expression, or matching it against `$subject` \
+               needs more steps than the limit allows.",
     }],
 };
 
@@ -2400,6 +2401,88 @@ mod tests {
         unsafe {
             subject.release();
             digits.release();
+        }
+    }
+
+    /// `Core\Regex::matches` is unanchored on both engines, so only `^` and
+    /// `$` make it ask about the whole subject, and a backtracking pattern
+    /// that exhausts its step budget throws rather than answering `false`: a
+    /// search that gave up has not shown the subject holds no match.
+    // covers: Core\Regex::matches
+    #[test]
+    fn matches_is_unanchored_on_both_engines_and_throws_when_the_budget_runs_out() {
+        let mut ctx = Ctx::buffered();
+        let mut ask = |subject: &str, pattern: &str| {
+            let subject = Value::str(NvsStr::new(subject.as_bytes()));
+            let pattern = Value::str(NvsStr::new(pattern.as_bytes()));
+            let answer = nvs_runtime::call(nvs_core_regex_matches, &mut ctx, &[subject, pattern]);
+            #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
+            unsafe {
+                subject.release();
+                pattern.release();
+            }
+            answer.ok().map(|found| found.as_bool().expect("a bool"))
+        };
+        assert_eq!(ask("AB-1234 extra", r"[A-Z]{2}-\d{4}"), Some(true));
+        assert_eq!(ask("AB-1234 extra", r"^[A-Z]{2}-\d{4}$"), Some(false));
+        assert_eq!(ask("x 11 y", r"(\d)\1"), Some(true));
+        assert_eq!(ask("x 12 y", r"^(\d)\1$"), Some(false));
+        let slow = format!("{}b", "a".repeat(40));
+        assert_eq!(ask(&slow, r"^(a|a?)+\1$"), None);
+    }
+
+    /// `Core\Regex::matchAll` answers every match in subject order, with the
+    /// grapheme offsets its one [`Cursor`] converts, and the two engines agree:
+    /// `(\d)\1*` needs a backreference, so it runs on the backtracking engine
+    /// and must report the same runs at the same offsets as the linear `\d+`
+    /// over a subject whose runs are each one repeated digit. A pattern that
+    /// matches nowhere answers an empty array rather than `null`.
+    // covers: Core\Regex::matchAll
+    #[test]
+    fn match_all_answers_every_match_at_its_grapheme_offset_on_both_engines() {
+        let mut ctx = Ctx::buffered();
+        let subject = Value::str(NvsStr::new("é1 é22 x é333".as_bytes()));
+        let mut answers = Vec::new();
+        for pattern in [r"\d+", r"(\d)\1*", "z"] {
+            let pattern = Value::str(NvsStr::new(pattern.as_bytes()));
+            let args = [subject, pattern];
+            let answer =
+                nvs_runtime::call(nvs_core_regex_match_all, &mut ctx, &args).expect("answers");
+            let list = crate::arr::borrowed(answer.array_ptr().expect("an array"));
+            let found: Vec<_> = (0..list.count())
+                .map(|nth| {
+                    let object = list
+                        .get(nth.to_string().as_bytes())
+                        .and_then(|one| one.obj_ptr())
+                        .expect("a `Match`");
+                    let groups = crate::instance::slot(object, GROUPS_SLOT);
+                    let whole = crate::arr::borrowed(groups.array_ptr().expect("an array"))
+                        .get(b"0")
+                        .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec))
+                        .expect("group 0 is the whole match");
+                    let offset = crate::instance::slot(object, OFFSET_SLOT).as_int();
+                    (whole, offset.expect("an offset"))
+                })
+                .collect();
+            answers.push(found);
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the array `matchAll` returned and the pattern it built"
+            )]
+            unsafe {
+                answer.release();
+                pattern.release();
+            }
+        }
+        let runs = vec![
+            (b"1".to_vec(), 1),
+            (b"22".to_vec(), 4),
+            (b"333".to_vec(), 10),
+        ];
+        assert_eq!(answers, [runs.clone(), runs, Vec::new()]);
+        #[expect(unsafe_code, reason = "this frame owns the subject it built")]
+        unsafe {
+            subject.release();
         }
     }
 
