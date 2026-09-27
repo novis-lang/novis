@@ -32,7 +32,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Check, isHeavy, PROGRAM_KINDS, proofGroups, subsetRun } from "../driver/accept.ts";
-import { closure, type Graph, testBinaries } from "../keys/graph.ts";
+import { allTestBinaries, closure, type Graph, testBinaries } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { caseFiles, caseId, nvTestFiles, nvTestId, proofFiles, proofId } from "./atoms.ts";
@@ -134,11 +134,6 @@ export function testTargets(graph: Graph, args: string[]): { pkg: string; names:
   return { pkg, names: all.map((b) => b.name) };
 }
 
-/** Every test binary of the workspace. */
-function allTests(graph: Graph | null): string[] {
-  return [...(graph?.keys() ?? [])].sort().flatMap((pkg) => testBinaries(graph!, pkg).map((b) => b.name));
-}
-
 const NVS_TEST = /^tests\/[^/]+\/?$/;
 
 /** The case trees an `nvs test` suite names, or null for a suite of another shape. */
@@ -167,7 +162,7 @@ export function grouped(c: Check, ctx: PlanContext): Grouped {
   }
   if (c.kind === "cargo-named") {
     let names: string[] | undefined;
-    if (args.length === 2 && args[0] === "test" && args[1] === "--workspace") names = allTests(ctx.graph);
+    if (args.length === 2 && args[0] === "test" && args[1] === "--workspace") names = ctx.graph ? allTestBinaries(ctx.graph) : [];
     else if (subsetRun(args) !== null && ctx.graph) names = testTargets(ctx.graph, args)?.names;
     if (!names || names.length === 0) return single("command", "check");
     return { how: "tests", atoms: names.map((n) => `test:${n}`), tests: names };

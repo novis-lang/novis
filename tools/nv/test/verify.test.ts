@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { stepNames, summaries, targetFilters } from "../cmd/verify.ts";
+import { stepNames, summaries } from "../cmd/verify.ts";
+import { targetFilters } from "../keys/graph.ts";
 import { wayOut, wideWhy } from "../keys/escape.ts";
 
 describe("wayOut", () => {

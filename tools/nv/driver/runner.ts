@@ -29,12 +29,14 @@
 // own groups' sections of what that run prints.
 //
 // One covws build serves every fixture, suite and `{nvs}` command, and one `cargo test --no-run` every
-// test binary. A check that measures the release CLI gets `cargo build --release -p nvs-cli` first,
-// since nothing else builds it.
+// test binary the sweep runs. That build names its binaries with target filters (`sweepTestFilters`),
+// never a `-p`, so a change to a library every binary links relinks only the binaries the sweep runs; a
+// sweep over every atom, or one with no workspace graph, builds every binary. A check that measures the
+// release CLI gets `cargo build --release -p nvs-cli` first, since nothing else builds it.
 
 import { cpus } from "node:os";
 import { join } from "node:path";
-import { metadata, type Graph } from "../keys/graph.ts";
+import { allTestBinaries, metadata, type Graph, targetFilters } from "../keys/graph.ts";
 import { covwsCargo, covwsNvs } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
@@ -94,6 +96,20 @@ export function commandEnv(c: Check, argv: string[], exe: string | null): Record
   return env;
 }
 
+/**
+ * The target filters the sweep's `cargo test --no-run` takes to build the test binaries `names`, or
+ * `null` for a build of every workspace test binary: a sweep over every atom, one with no workspace
+ * graph to name the binaries, and one whose `names` are every binary the graph names. A name the graph
+ * does not have is left out of the filters, and its run is red as it is off a build of every binary.
+ */
+export function sweepTestFilters(names: Iterable<string>, graph: Graph | null, full: boolean): string[] | null {
+  if (full || graph === null) return null;
+  const want = new Set(names);
+  const every = allTestBinaries(graph);
+  if (every.every((n) => want.has(n))) return null;
+  return targetFilters(every.filter((n) => want.has(n)));
+}
+
 export interface OpenOptions {
   /** Pick every atom of every check, whatever changed. */
   full: boolean;
@@ -113,6 +129,8 @@ export class PlanSweep {
   private readonly started = Date.now();
   private cli: Promise<string | { fail: string }> | undefined;
   private exes: Promise<Map<string, TestExe[]> | { fail: string }> | undefined;
+  /** The test binaries `exes` builds, or `null` when it builds every one. */
+  private exesFor: Set<string> | null = null;
   private release: Promise<Outcome> | undefined;
   private files: Promise<string[]> | undefined;
   private readonly shared = new Map<string, Promise<{ o: Outcome; keys: Keyed }>>();
@@ -229,11 +247,31 @@ export class PlanSweep {
     return this.cli;
   }
 
-  private testExes(): Promise<Map<string, TestExe[]> | { fail: string }> {
-    this.exes ??= (async () => {
-      this.say("cargo test --no-run (covws)");
+  /** Every test binary a `tests` check of the plan runs this sweep: one whose atom is picked, and one a
+   * check names a test of with no green run kept. */
+  private testsWanted(): string[] {
+    const out = new Set<string>();
+    for (const c of this.plan) {
+      const g = this.groups.get(c.id);
+      if (g?.how !== "tests") continue;
+      const want = new Set(this.lacking(c, g).map((a) => a.slice(5)));
+      for (const n of g.tests ?? []) if (this.picked(`test:${n}`) || want.has(n)) out.add(n);
+    }
+    return [...out];
+  }
+
+  /** The test executables `todo` needs, off one `cargo test --no-run` over every binary the sweep runs.
+   * A binary that build left out is built by a second one over both. */
+  private testExes(todo: string[]): Promise<Map<string, TestExe[]> | { fail: string }> {
+    if (this.exes !== undefined && (this.exesFor === null || todo.every((n) => this.exesFor!.has(n)))) return this.exes;
+    const names = new Set([...(this.exesFor ?? []), ...this.testsWanted(), ...todo]);
+    const filters = sweepTestFilters(names, this.graph, this.o.full);
+    this.exesFor = filters === null ? null : names;
+    this.exes = (async () => {
+      if (filters !== null && filters.length === 0) return new Map<string, TestExe[]>();
+      this.say(`cargo test --no-run${filters === null ? "" : ` ${filters.join(" ")}`} (covws)`);
       const { env, args } = covwsCargo();
-      const r = await capture(["cargo", "test", "--no-run", ...args, "--message-format=json"], ROOT, env);
+      const r = await capture(["cargo", "test", "--no-run", ...args, ...(filters ?? []), "--message-format=json"], ROOT, env);
       if (r.code !== 0) return { fail: `the workspace test build failed -- ${firstErrLine(r)}` };
       return testExecutables(r.out);
     })();
@@ -462,7 +500,7 @@ export class PlanSweep {
     const want = new Set(this.lacking(c, g).map((a) => a.slice(5)));
     const todo = (g.tests ?? []).filter((n) => this.picked(`test:${n}`) || want.has(n));
     if (todo.length > 0) {
-      const exes = await this.testExes();
+      const exes = await this.testExes(todo);
       if (!(exes instanceof Map)) return none(exes.fail);
       const width = Math.max(1, Math.min(todo.length, Math.floor((cpus().length || 4) / 2)));
       const threads = Math.max(1, Math.floor((cpus().length || 4) / width));

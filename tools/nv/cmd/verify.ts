@@ -100,7 +100,7 @@ import { cargoStatus, progress as showProgress } from "../lib/progress.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
 
 import { findings } from "../keys/escape.ts";
-import { type Graph, metadata } from "../keys/graph.ts";
+import { type Graph, metadata, TARGET_FLAGS, targetFilters } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseFiles, caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
@@ -362,21 +362,6 @@ async function fmtKeys(): Promise<Keyed> {
 
 // ---- the test step ---------------------------------------------------------------------------------
 
-const FLAGS: Record<string, string> = { lib: "--lib", bin: "--bin", test: "--test", example: "--example", bench: "--bench" };
-
-/** The cargo target filters that build the test binaries `names` (`<package> <kind> <target>`) and as
- * few others as a filter can: `--lib` builds every package's library tests, since a filter cannot name
- * one package, and `--test <name>` builds that target in every package that has one. */
-export function targetFilters(names: string[]): string[] {
-  const flags = new Set<string>();
-  for (const n of names) {
-    const [, kind, target] = n.split(" ");
-    if (kind === "lib") flags.add("--lib");
-    else if (kind && target && FLAGS[kind]) flags.add(`${FLAGS[kind]} ${target}`);
-  }
-  return [...flags].sort().flatMap((f) => f.split(" "));
-}
-
 /** `cargo test --no-run` on `covws`, as the job of each test binary it built, or `[null, output]` when
  * it fails. With `filters` it builds only the targets they name, and with none nothing at all; with
  * `null` it builds every workspace test binary. A `-p` never goes on the build, since it would resolve
@@ -413,10 +398,10 @@ async function buildTestJobs(filters: string[] | null): Promise<[Job[] | null, s
     const tail = hash < 0 ? id : id.slice(hash + 1);
     const owner = tail.includes("@") ? tail.split("@")[0]! : source.replace(/\/+$/, "").split("/").pop()!;
     const target = m.target.name;
-    const kind = (m.target.kind ?? []).find((k) => k in FLAGS) ?? "lib";
+    const kind = (m.target.kind ?? []).find((k) => k in TARGET_FLAGS) ?? "lib";
     const cwd = dirname(m.manifest_path);
     // The reproduction stays inside the same build: a target flag narrows the run, a `-p` would not.
-    const rerun = kind === "lib" ? `bun nv verify -p ${owner}` : `cargo test ${FLAGS[kind]} ${target}`;
+    const rerun = kind === "lib" ? `bun nv verify -p ${owner}` : `cargo test ${TARGET_FLAGS[kind]} ${target}`;
     jobs.push({ name: `${owner} ${kind} ${target}`, owner, argv: [m.executable], cwd, env: { CARGO_MANIFEST_DIR: cwd }, rerun });
   }
   return [jobs, ""];

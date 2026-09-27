@@ -111,3 +111,24 @@ export function testBinaries(graph: Graph, pkg: string): { name: string; target:
     .filter((t) => t.test && (t.kind === "lib" || t.kind === "bin" || t.kind === "test"))
     .map((t) => ({ name: `${pkg} ${t.kind} ${t.kind === "lib" ? t.name.replace(/-/g, "_") : t.name}`, target: t }));
 }
+
+/** Every test binary of the workspace, named as `testBinaries` names them. */
+export function allTestBinaries(graph: Graph): string[] {
+  return [...graph.keys()].sort().flatMap((pkg) => testBinaries(graph, pkg).map((b) => b.name));
+}
+
+/** The cargo flag that names one target of each kind. */
+export const TARGET_FLAGS: Record<string, string> = { lib: "--lib", bin: "--bin", test: "--test", example: "--example", bench: "--bench" };
+
+/** The cargo target filters that build the test binaries `names` (`<package> <kind> <target>`) and as
+ * few others as a filter can: `--lib` builds every package's library tests, since a filter cannot name
+ * one package, and `--test <name>` builds that target in every package that has one. */
+export function targetFilters(names: string[]): string[] {
+  const flags = new Set<string>();
+  for (const n of names) {
+    const [, kind, target] = n.split(" ");
+    if (kind === "lib") flags.add("--lib");
+    else if (kind && target && TARGET_FLAGS[kind]) flags.add(`${TARGET_FLAGS[kind]} ${target}`);
+  }
+  return [...flags].sort().flatMap((f) => f.split(" "));
+}
