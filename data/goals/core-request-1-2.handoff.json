@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-request-1-2` is reached. All eleven members of `Core\\Request (1/2)` have all their\nfeature proofs: `body`, `bodyStream`, `bytes`, `clientIp`, `cookie`, `files`, `header`, `headers`,\n`host`, `isHead` and `json`. The goal's check, `bun nv proofs --verify --only` over those eleven,\nsays nothing owed, 33 examples and 11 attacks green. Every card in `crates/nvs-stdlib/src/request.rs`\nfor those eleven reads as plain text. A proof program answers a request through the `<name>.nvsr`\nbeside it (`crates/nvs-test/src/request.rs`'s module doc owns every section). Nothing is blocked.",
+  "state": "Goal `core-request-1-2` is reached. All eleven members of `Core\\Request (1/2)` have all their\nfeature proofs: `body`, `bodyStream`, `bytes`, `clientIp`, `cookie`, `files`, `header`, `headers`,\n`host`, `isHead` and `json`. The goal's check, `bun nv proofs --verify --only` over those eleven,\nsays nothing owed. The floor check `nvs-cli (cost margins)` passes, both tests, and\n`bun nv verify --doc` is green. `bun nv owners --closes` and `bun nv playbook --closes` name\nnothing for this goal. Nothing is blocked.",
   "next": {
     "stage": null,
     "files": [],
@@ -7,6 +7,6 @@
     "items": []
   },
   "backlog": [
-    "`Core\\Request::host` joins two `Host` lines with `, ` before it removes the port, so an in-process carrier with two lines returns one odd name; the server answers `400` for that at the door (`crates/nvs-stdlib/src/request.rs` `host_named`'s doc). Not a bug for a served program."
+    "Nothing carried: this goal owns no module-doc gap and no carried-gaps row."
   ]
 }
