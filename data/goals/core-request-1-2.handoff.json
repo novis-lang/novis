@@ -1,27 +1,12 @@
 {
-  "state": "Goal `core-request-1-2`: `Core\\Request::body`, `bytes`, `bodyStream`, `clientIp`, `cookie`, `files`,\n`header` and `headers` have all their feature proofs. `bun nv proofs --verify --only` over those eight\nsays nothing owed. A proof program answers a request through the `<name>.nvsr` beside it\n(`docs/examples/README.md` § *A request for the program*, and `crates/nvs-test/src/request.rs`'s module\ndoc for every section). A new bench is measured with `bun nv proofs --record-perf --only <members>`.\n`bun nv verify` regenerates `docs/novis.md` from the rewritten cards. Three members of\n`Core\\Request (1/2)` still owe their proofs: `host`, `isHead` and `json`, in that order.",
+  "state": "Goal `core-request-1-2` is reached. All eleven members of `Core\\Request (1/2)` have all their\nfeature proofs: `body`, `bodyStream`, `bytes`, `clientIp`, `cookie`, `files`, `header`, `headers`,\n`host`, `isHead` and `json`. The goal's check, `bun nv proofs --verify --only` over those eleven,\nsays nothing owed, 33 examples and 11 attacks green. Every card in `crates/nvs-stdlib/src/request.rs`\nfor those eleven reads as plain text. A proof program answers a request through the `<name>.nvsr`\nbeside it (`crates/nvs-test/src/request.rs`'s module doc owns every section). Nothing is blocked.",
   "next": {
-    "stage": 1,
-    "title": "member proofs, one file set",
+    "stage": null,
     "files": [],
-    "note": "`crates/nvs-stdlib/src/request.rs`, and `docs/examples/core/Request/`, `tests/hostile/core/Request/` and `benches/members/core/Request/`, each with `.nvsr` request files beside the programs:",
-    "items": [
-      {
-        "done": false,
-        "text": "**`Core\\Request::host`** — owes examples, hostile, perf, a Rust `covers:` marker (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Request::host'`). Card at `crates/nvs-stdlib/src/request.rs:884`, member at `crates/nvs-stdlib/src/request.rs:2522`, normaliser at `crates/nvs-stdlib/src/request.rs:2458` (lower case, port and one trailing dot removed, `[v6]` kept whole). Rewrite the card the way `HEADER_DOC` and `COOKIE_DOC` now read. A Rust test of `host_named` may already exist and only lack the marker."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Request::isHead`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:445`, member at `crates/nvs-stdlib/src/request.rs:2094`."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Request::json`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:648`, member at `crates/nvs-stdlib/src/request.rs:2736`. It closes the check `dossier-core-request-1-2`."
-      }
-    ]
+    "note": "Nothing is open in this goal. The next goal on the chain starts from its own handoff record.",
+    "items": []
   },
   "backlog": [
-    "`Core\\Str::join` does not compile over an `array<tainted string>`, so a program cannot join the values `Core\\Request::headers()` returns; whether `join` should carry the taint through is `crates/nvs-stdlib/src/str.rs`'s question.",
-    "`$map[$key] ?? []` types the empty literal `array<mixed>` rather than from the declared type; the playbook bullet under *Writing a test case* is the workaround."
+    "`Core\\Request::host` joins two `Host` lines with `, ` before it removes the port, so an in-process carrier with two lines returns one odd name; the server answers `400` for that at the door (`crates/nvs-stdlib/src/request.rs` `host_named`'s doc). Not a bug for a served program."
   ]
 }

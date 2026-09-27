@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the fields of a JSON document that a client sends in the request body.
+
+// `Core\Request::json` returns the decoded body as a `mixed` value.
+// A JSON object becomes an array with string keys.
+var $user = Core\Request::json() as array<mixed>;
+
+// `as` converts each field to the type you need. Every string in it is tainted.
+tainted string $name = $user["name"] as tainted string;
+int $age = $user["age"] as int;
+
+// This prints "Ada is 36".
+echo $name, " is ", $age, "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Decodes a small JSON request body, as an API does with every order or form it receives.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The request is in the file `json.nvsr` beside this one.
+        // The first call keeps its result. A call with another `maxDepth` decodes the body again.
+        var $first = Core\Request::json();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $order = Core\Request::json({maxDepth: 64 + $total % 2}) as array<mixed>;
+            $total = $total + Core\Arr::count($order["items"] as array<mixed>);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

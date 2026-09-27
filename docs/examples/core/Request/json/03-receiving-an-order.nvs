@@ -1,0 +1,15 @@
+<?nvs
+// Shows an API that receives an order as JSON and adds up its total price.
+
+// The client sends a list of items. Each item has a price in cents and a count.
+var $order = Core\Request::json() as array<mixed>;
+var $items = $order["items"] as array<mixed>;
+
+int $total = 0;
+foreach ($items as mixed $entry) {
+    var $item = $entry as array<mixed>;
+    $total = $total + ($item["cents"] as int) * ($item["count"] as int);
+}
+
+// This prints "3 items, 3350 cents".
+echo Core\Arr::count($items), " items, ", $total, " cents\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to answer a client whose request body is not valid JSON.
+
+// The body below is missing its closing `}`. `Core\Request::json` throws a `ParseError`.
+// This prints "400: the body is not valid JSON".
+try {
+    var $data = Core\Request::json();
+    echo "200: ok\n";
+} catch (ParseError $error) {
+    echo "400: the body is not valid JSON\n";
+}

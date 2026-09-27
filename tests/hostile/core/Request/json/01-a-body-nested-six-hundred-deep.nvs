@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a client sends a JSON body of 600 lists, each inside the one before.
+// The default depth limit should throw a `ParseError`. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads the body at the default depth of 512. This throws a `ParseError`.
+try {
+    var $document = Core\Request::json();
+    echo 'default depth: decoded', "\n";
+} catch (ParseError $error) {
+    echo 'default depth: ParseError', "\n";
+}
+
+// 2. Reads the body with a depth limit one below the document. This throws a `ParseError`.
+try {
+    var $tooShallow = Core\Request::json({ maxDepth: 600 });
+    echo 'depth 600: decoded', "\n";
+} catch (ParseError $shallowError) {
+    echo 'depth 600: ParseError', "\n";
+}
+
+// 3. Asks for depth limits outside 1 to 1024. Each throws a `LogicError`.
+array<uint> $limits = [0, 1025, 18446744073709551615];
+foreach ($limits as uint $limit) {
+    try {
+        var $outside = Core\Request::json({ maxDepth: $limit });
+        echo $limit, ': decoded', "\n";
+    } catch (LogicError $limitError) {
+        echo $limit, ': LogicError', "\n";
+    }
+}
+
+// 4. Reads the body with the highest depth limit. This decodes the whole document.
+mixed $deep = Core\Request::json({ maxDepth: 1024 });
+echo 'depth 1024: decoded', "\n";
+
+// 5. Keeps every decoded copy without end. This stops at the memory limit.
+array<mixed> $kept = [];
+while (true) {
+    $kept[] = Core\Request::json({ maxDepth: 1024 });
+}
