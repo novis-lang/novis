@@ -1,0 +1,47 @@
+<?nvs
+// Shows how to choose between a `404` and a `405` status when a request matches no route.
+
+class Invoices {
+    #[Core\Route(path: "/invoices", method: Core\Http\Method::Get, name: "Invoices::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string { return "all invoices"; }
+
+    #[Core\Route(path: "/invoices", method: Core\Http\Method::Post, name: "Invoices::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "a new invoice"; }
+}
+
+class NoRoute {
+    // A server calls this when `Core\Request::route()` returns `null`.
+    public static function describe(string $path): string {
+        array<Core\Http\Method> $verbs = Core\Router::methodsFor($path);
+        // No methods means that the path does not exist, so the status is `404`.
+        if (Core\Arr::count($verbs) == 0) {
+            return "404 Not Found";
+        }
+        // The path exists for other methods, so the status is `405`.
+        // The `Allow` header lists those methods.
+        string $allow = "";
+        foreach ($verbs as Core\Http\Method $verb) {
+            if ($allow != "") {
+                $allow = $allow . ", ";
+            }
+            $allow = $allow . match ($verb) {
+                Core\Http\Method::Get => "GET",
+                Core\Http\Method::Head => "HEAD",
+                Core\Http\Method::Options => "OPTIONS",
+                Core\Http\Method::Trace => "TRACE",
+                Core\Http\Method::Post => "POST",
+                Core\Http\Method::Put => "PUT",
+                Core\Http\Method::Patch => "PATCH",
+                Core\Http\Method::Delete => "DELETE",
+            };
+        }
+        return "405 Method Not Allowed, Allow: " . $allow;
+    }
+}
+
+// A `Delete` to `/invoices` matches no route. A `Get` to `/bills` also matches no route.
+// These two lines print the status the server sends for each one.
+echo NoRoute::describe("/invoices"), "\n";
+echo NoRoute::describe("/bills"), "\n";

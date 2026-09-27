@@ -1,0 +1,30 @@
+<?nvs
+// Lists the methods of a path, as a server does to choose between a 404 and a 405.
+// bench: iterations 200000
+
+class Shop {
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Get, name: "Shop::cart")]
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Post, name: "Shop::cart")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): string { return "the cart"; }
+
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(uint $id): string { return "one product"; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["/cart", "/products/42", "/basket"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the next path depends on how many methods this one had
+            $total = $total + Core\Arr::count(Core\Router::methodsFor($paths[($total + $i) % 3])) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
