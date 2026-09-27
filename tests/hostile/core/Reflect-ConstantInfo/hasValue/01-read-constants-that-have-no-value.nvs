@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program reads constants that have no value many times, and constants
+// with extreme values. Each read of a constant with no value should throw an
+// error, and no error should leak memory.
+
+class Extremes
+{
+    public const int BIGGEST = 9223372036854775807;
+    public const int SMALLEST = -9223372036854775807;
+    public const float HUGE = 1.0e308;
+    public const string EMPTY = '';
+    public const array<int> NUMBERS = [1, 2, 3];
+    public const array<array<string>> NESTED = [['a'], ['b', 'c']];
+    private const array<int> HIDDEN = [4];
+}
+
+var $info = Core\Reflect::forObject(new Extremes());
+array<Core\Reflect\ConstantInfo> $list = $info->constants();
+
+// 1. Print what `hasValue` says for each constant.
+foreach ($list as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), ' ', $constant->hasValue() ? 1 : 0, "\n";
+}
+
+// 2. Read every constant 20000 times. A constant with no value throws a `LogicError` each time.
+uint $values = 0;
+uint $none = 0;
+uint $closed = 0;
+uint $i = 0;
+while ($i < 20000) {
+    foreach ($list as Core\Reflect\ConstantInfo $constant) {
+        try {
+            $info->constant($constant->name());
+            $values = $values + 1;
+        } catch (LogicError $missing) {
+            $none = $none + 1;
+        } catch (RuntimeError $refused) {
+            $closed = $closed + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo $values, ' ', $none, ' ', $closed, "\n";
+
+// 3. Read the extreme values back.
+echo $info->constant('BIGGEST') as int, ' ', $info->constant('SMALLEST') as int, "\n";
+echo Core\Str::length($info->constant('EMPTY') as string), "\n";

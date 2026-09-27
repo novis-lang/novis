@@ -5339,7 +5339,6 @@ mod tests {
         r"Core\Http\Target",
         r"Core\IO\Lines",
         r"Core\IO\Walk",
-        r"Core\Reflect\ConstantInfo",
         r"Core\Reflect\EnumInfo",
         r"Core\Reflect\MethodInfo",
         r"Core\Reflect\ParameterInfo",

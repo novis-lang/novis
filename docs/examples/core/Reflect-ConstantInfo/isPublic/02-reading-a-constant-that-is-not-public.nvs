@@ -1,0 +1,24 @@
+<?nvs
+// Shows what happens when you read a constant that is not public, and how `isPublic` avoids it.
+
+class Mailer {
+    public const int PORT = 587;
+    private const string PASSWORD = "letmein";
+}
+
+var $info = Core\Reflect::forObject(new Mailer());
+
+// `PASSWORD` is private, so `constant` throws a `RuntimeError` here.
+try {
+    $info->constant("PASSWORD");
+} catch (RuntimeError $closed) {
+    echo "PASSWORD cannot be read here\n";
+}
+
+// Check `isPublic` first, and the loop reads only the constants it may read.
+// This prints "PORT = 587".
+foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+    if ($constant->isPublic()) {
+        echo $constant->name(), " = ", $info->constant($constant->name()) as int, "\n";
+    }
+}

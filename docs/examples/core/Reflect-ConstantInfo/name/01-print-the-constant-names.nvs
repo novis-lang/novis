@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to print the name of every constant of a class.
+
+class Order {
+    public const int MAX_ITEMS = 50;
+    public const string CURRENCY = "EUR";
+    private const string ID_PREFIX = "ord_";
+}
+
+var $info = Core\Reflect::forObject(new Order());
+
+// `name` returns the name as the class writes it.
+// The private constant `ID_PREFIX` is in the list too.
+foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), "\n";
+}

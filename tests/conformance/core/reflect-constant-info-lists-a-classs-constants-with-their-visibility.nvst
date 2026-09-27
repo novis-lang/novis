@@ -3,6 +3,9 @@
 --FILE--
 <?nvs
 // covers: Core\Reflect\ClassInfo::constants
+// covers: Core\Reflect\ConstantInfo::name
+// covers: Core\Reflect\ConstantInfo::isPublic
+// covers: Core\Reflect\ConstantInfo::hasValue
 // `rule:core-classes/reflect`: naming a constant reads the program's *shape* and
 // is always available; reading its value is acting, and that is
 // `Core\Reflect\ClassInfo::constant`'s. So the roster is complete — the

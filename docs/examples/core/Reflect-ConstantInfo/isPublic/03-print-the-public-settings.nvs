@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to print the public limits of a class on a status page, and hide the private ones.
+
+class Limits {
+    public const int MAX_UPLOAD_MB = 20;
+    public const int MAX_USERS = 500;
+    private const int INTERNAL_QUOTA = 90000;
+}
+
+// This method prints the limits of any class it is given.
+class StatusPage {
+    public static function printLimits(Core\Reflect\ClassInfo $info): void {
+        echo "Limits of ", $info->name(), ":\n";
+        foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+            // A private limit is skipped. It does not appear on the page.
+            if (!$constant->isPublic()) {
+                continue;
+            }
+            echo "  ", $constant->name(), ": ", $info->constant($constant->name()) as int, "\n";
+        }
+    }
+}
+
+StatusPage::printLimits(Core\Reflect::forObject(new Limits()));

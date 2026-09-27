@@ -1,0 +1,30 @@
+<?nvs
+// Checks whether a class constant is public, as a program does before it reads a constant by name.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Limits {
+    public const int SMALL = 1;
+    protected const int MEDIUM = 2;
+    private const string KEY = "k";
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\ConstantInfo> $list = Core\Reflect::forObject(new Limits())->constants();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which constant is checked comes from last round's total, so no round can be reused.
+            if ($list[($total % 3) as int]->isPublic()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

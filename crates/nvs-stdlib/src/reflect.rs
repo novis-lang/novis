@@ -1402,6 +1402,13 @@ const PROPERTY_TYPE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Reflect\ConstantInfo`'s class card — `rule:core-api/reference-card`.
+const CONSTANT_INFO_CARD: ClassDoc = ClassDoc {
+    short: "One class constant, as `Core\\Reflect\\ClassInfo::constants` returns it. `name` and \
+            `isPublic` describe the declaration. `hasValue` says whether \
+            `Core\\Reflect\\ClassInfo::constant` can return its value.",
+};
+
 /// One class constant of a description's roster — `Core\Reflect\ConstantInfo`.
 ///
 /// [`PROPERTY_INFO`]'s shape for the member that is a *value*, and the third
@@ -1419,7 +1426,7 @@ const PROPERTY_TYPE_DOC: MethodDoc = MethodDoc {
 /// back — the same split `properties` and `get` already make.
 pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {
     name: CONSTANT_INFO_NAME,
-    doc: None,
+    doc: Some(&CONSTANT_INFO_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -4228,6 +4235,313 @@ mod tests {
             empty.release();
             info.release();
             bare.release();
+        }
+    }
+
+    /// `name` reads back exactly the name the declaration wrote: a name that is
+    /// another's prefix stays its own, a one-letter name and a long one arrive
+    /// whole, and a `private` constant's name is as readable as a `public`
+    /// one's. Each call hands back the row's own string with a reference of its
+    /// own, so releasing an answer leaves the row readable, and a receiver that
+    /// is not an object faults with the member's name rather than reading a slot.
+    // covers: Core\Reflect\ConstantInfo::name
+    #[test]
+    fn constant_info_name_is_the_declared_name_and_survives_its_answer_being_released() {
+        let long = "L".repeat(200);
+        let names = ["MAX", "MAX_ITEMS", "A", long.as_str()];
+        let mut classes = ClassTable::new();
+        let limits = classes.define("Limits", &[] as &[&str], &[]);
+        classes.set_class_constants(
+            limits,
+            names
+                .iter()
+                .enumerate()
+                .map(|(at, name)| nvs_runtime::ConstantDesc {
+                    name: (*name).to_owned(),
+                    public: at % 2 == 0,
+                    protected: false,
+                    secret: false,
+                    value: ConstantValue::Int(1),
+                })
+                .collect(),
+        );
+        let mut ctx = Ctx::buffered();
+
+        #[expect(
+            unsafe_code,
+            reason = "`classes` outlives every use below, and the table never moves a descriptor \
+                      it handed out"
+        )]
+        let info = super::describe(unsafe { &*classes.desc(limits) });
+        let listed = call(
+            super::nvs_core_reflect_class_info_constants,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        #[expect(
+            unsafe_code,
+            reason = "`constants` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`constants` answers an array"))
+        });
+        assert_eq!(roster.count(), names.len());
+        for (at, name) in names.iter().enumerate() {
+            let row = roster.value_at(at).expect("every position holds a row");
+            let first = call(super::nvs_core_reflect_constant_info_name, &mut ctx, &[row])
+                .expect("a text slot always answers");
+            let second = call(super::nvs_core_reflect_constant_info_name, &mut ctx, &[row])
+                .expect("a text slot always answers");
+            assert_eq!(first.as_text(), Some(*name), "row {at} reads its own name");
+            assert_eq!(
+                first.as_text().map(str::as_ptr),
+                second.as_text().map(str::as_ptr),
+                "both answers are the row's own string, not two copies"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "each call handed back a fresh reference, and this frame is its only owner"
+            )]
+            unsafe {
+                first.release();
+                second.release();
+            }
+            assert_eq!(
+                attribute_text(&mut ctx, super::nvs_core_reflect_constant_info_name, row),
+                *name,
+                "releasing both answers left the row's name in place"
+            );
+        }
+
+        let refused = call(
+            super::nvs_core_reflect_constant_info_name,
+            &mut ctx,
+            &[Value::int(7)],
+        );
+        assert!(refused.is_err(), "an integer is no receiver");
+        assert!(
+            ctx.take_pending()
+                .unwrap_or_default()
+                .contains(r"Core\Reflect\ConstantInfo::name"),
+            "the fault names the member it was raised by"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the description and one reference to the roster"
+        )]
+        unsafe {
+            listed.release();
+            info.release();
+        }
+    }
+
+    /// A `Vault` declaring `rows` as its constants: the context anchored into
+    /// its table, its description, the roster `constants` answered, and each
+    /// row of that roster beside the name it was declared under. The rows are
+    /// borrowed from the roster, so the caller releases the roster and the
+    /// description once it is done with them.
+    fn vault_of_constants(
+        rows: Vec<nvs_runtime::ConstantDesc>,
+    ) -> (Ctx, Value, Value, Vec<(String, Value)>) {
+        let mut classes = ClassTable::new();
+        let id = classes.define("Vault", &[] as &[&str], &[]);
+        let names: Vec<String> = rows.iter().map(|row| row.name.clone()).collect();
+        classes.set_class_constants(id, rows);
+        let classes = std::sync::Arc::new(classes);
+        #[expect(
+            unsafe_code,
+            reason = "the table is held by the context below for the rest of the test, and never \
+                      moves a descriptor it handed out"
+        )]
+        let info = super::describe(unsafe { &*classes.desc(id) });
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, id));
+        let listed = call(
+            super::nvs_core_reflect_class_info_constants,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        #[expect(
+            unsafe_code,
+            reason = "`constants` answered an array the caller owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`constants` answers an array"))
+        });
+        let paired = names
+            .into_iter()
+            .enumerate()
+            .map(|(at, name)| (name, roster.value_at(at).expect("one row per constant")))
+            .collect();
+        (ctx, info, listed, paired)
+    }
+
+    /// `ClassInfo::constant`'s answer for `name` at `site`, as the sentence it
+    /// threw when it refused.
+    fn read_constant(ctx: &mut Ctx, info: Value, name: &str, site: Value) -> Result<Value, String> {
+        let asked = Value::str(NvsStr::new(name.as_bytes()));
+        let answer = call(
+            super::nvs_core_reflect_class_info_constant,
+            ctx,
+            &[info, asked, site],
+        );
+        #[expect(unsafe_code, reason = "the member borrowed the name this frame built")]
+        unsafe {
+            asked.release();
+        }
+        answer.map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+    }
+
+    /// `isPublic` and `ClassInfo::constant` answer one question two ways, and
+    /// they agree on every row: `isPublic` is `true` exactly for the constants a
+    /// read from outside the class is not refused for visibility.
+    /// `rule:security/reflection-enforces-visibility` is what makes that the
+    /// promise — a row that said `true` for a constant the read then refused
+    /// would send a caller into a refusal the listing said was not there. A
+    /// `protected` constant and a `private` one both read `false`, a `public`
+    /// one whose value does not fold still reads `true`, and the bit does not
+    /// change with the site: a read from inside the class reaches every row.
+    // covers: Core\Reflect\ConstantInfo::isPublic
+    #[test]
+    fn constant_info_is_public_agrees_with_what_a_read_from_outside_reaches() {
+        let constant =
+            |name: &str, public: bool, protected: bool, value| nvs_runtime::ConstantDesc {
+                name: name.to_owned(),
+                public,
+                protected,
+                secret: false,
+                value,
+            };
+        let (mut ctx, info, listed, rows) = vault_of_constants(vec![
+            constant("OPEN", true, false, ConstantValue::Int(1)),
+            constant("SHARED", false, true, ConstantValue::Int(2)),
+            constant("HIDDEN", false, false, ConstantValue::Int(3)),
+            constant("BLOB", true, false, ConstantValue::Opaque),
+        ]);
+        let (_blob, within) = inside("Vault::open");
+        let mut bits = Vec::new();
+        for (name, row) in &rows {
+            let public = call(
+                super::nvs_core_reflect_constant_info_is_public,
+                &mut ctx,
+                &[*row],
+            )
+            .expect("a bit slot always answers")
+            .as_bool()
+            .expect("the slot holds a bool");
+            let outside = read_constant(&mut ctx, info, name, OUTSIDE);
+            let refused_for_visibility = outside
+                .as_ref()
+                .is_err_and(|said| said.contains("is not readable from outside"));
+            assert_eq!(
+                public, !refused_for_visibility,
+                "`{name}`: `isPublic` said {public}, and the read from outside answered {outside:?}"
+            );
+            let inner = read_constant(&mut ctx, info, name, within);
+            assert!(
+                !inner
+                    .as_ref()
+                    .is_err_and(|said| said.contains("is not readable")),
+                "`{name}` is reachable from its own class: {inner:?}"
+            );
+            bits.push(public);
+        }
+        assert_eq!(
+            bits,
+            [true, false, false, true],
+            "both closed kinds are `false`, and a value that does not fold is no visibility"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the description and one reference to its roster"
+        )]
+        unsafe {
+            listed.release();
+            info.release();
+        }
+    }
+
+    /// `hasValue` and `ClassInfo::constant` agree on every row a site reaches:
+    /// `hasValue` is `true` exactly for the constants the read returns a value
+    /// for, and `false` exactly for those it refuses with the fold's sentence.
+    /// Each of the four literal kinds folds, and an unfolded value is `false`
+    /// whatever its visibility. `hasValue` reports the fold and nothing else, so
+    /// a `secret` constant whose value folded reads `true` while the read
+    /// refuses it at every site — the qualifier is `constant`'s refusal, which
+    /// `rule:security/reflection-enforces-visibility` places at the read rather
+    /// than at the listing.
+    // covers: Core\Reflect\ConstantInfo::hasValue
+    #[test]
+    fn constant_info_has_value_agrees_with_what_a_read_returns() {
+        let constant = |name: &str, public: bool, secret: bool, value| nvs_runtime::ConstantDesc {
+            name: name.to_owned(),
+            public,
+            protected: false,
+            secret,
+            value,
+        };
+        let (mut ctx, info, listed, rows) = vault_of_constants(vec![
+            constant("TEXT", true, false, ConstantValue::Str("t".to_owned())),
+            constant("COUNT", true, false, ConstantValue::Int(-1)),
+            constant("ON", false, false, ConstantValue::Bool(false)),
+            constant("RATE", true, false, ConstantValue::Float(0.5)),
+            constant("ROWS", true, false, ConstantValue::Opaque),
+            constant("MAP", false, false, ConstantValue::Opaque),
+            constant("TOKEN", false, true, ConstantValue::Str("s".to_owned())),
+        ]);
+        let (_blob, within) = inside("Vault::open");
+        let mut bits = Vec::new();
+        for (name, row) in &rows {
+            let has = call(
+                super::nvs_core_reflect_constant_info_has_value,
+                &mut ctx,
+                &[*row],
+            )
+            .expect("a bit slot always answers")
+            .as_bool()
+            .expect("the slot holds a bool");
+            let read = read_constant(&mut ctx, info, name, within);
+            if name == "TOKEN" {
+                let said = read.expect_err("a `secret` constant is refused at every site");
+                assert!(said.contains("is declared `secret`"), "{said:?}");
+            } else {
+                assert_eq!(
+                    has,
+                    read.is_ok(),
+                    "`{name}`: `hasValue` said {has}, and the read answered {read:?}"
+                );
+                match read {
+                    Err(said) => assert!(said.contains("does not fold"), "`{name}`: {said:?}"),
+                    #[expect(
+                        unsafe_code,
+                        reason = "`constant` handed back a fresh value, and this frame is its only \
+                                  owner"
+                    )]
+                    Ok(value) => unsafe { value.release() },
+                }
+            }
+            bits.push(has);
+        }
+        assert_eq!(
+            bits,
+            [true, true, true, true, false, false, true],
+            "the four literal kinds fold, an unfolded value does not at any visibility, and \
+             `secret` is not the fold's question"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the description and one reference to its roster"
+        )]
+        unsafe {
+            listed.release();
+            info.release();
         }
     }
 

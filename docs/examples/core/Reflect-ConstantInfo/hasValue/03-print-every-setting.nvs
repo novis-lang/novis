@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to print every public setting of a class, when some settings are lists.
+
+class Queue {
+    public const int WORKERS = 4;
+    public const int TIMEOUT_SECONDS = 60;
+    public const array<string> PRIORITIES = ["high", "normal", "low"];
+}
+
+var $info = Core\Reflect::forObject(new Queue());
+
+// A setting with a value prints it. A list prints "(a list)", because `constant` cannot return it.
+foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+    if (!$constant->isPublic()) {
+        continue;
+    }
+    if ($constant->hasValue()) {
+        echo $constant->name(), ": ", $info->constant($constant->name()) as int, "\n";
+    } else {
+        echo $constant->name(), ": (a list)\n";
+    }
+}

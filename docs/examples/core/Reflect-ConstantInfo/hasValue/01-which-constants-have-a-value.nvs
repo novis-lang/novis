@@ -1,0 +1,18 @@
+<?nvs
+// Shows which kinds of class constant have a value that `constant` can return.
+
+class Settings {
+    public const string NAME = "shop";
+    public const int PAGE_SIZE = 25;
+    public const bool DEBUG = false;
+    public const float TAX_RATE = 0.19;
+    public const array<string> LANGUAGES = ["en", "de"];
+}
+
+var $info = Core\Reflect::forObject(new Settings());
+
+// A `string`, `int`, `bool` or `float` constant has a value.
+// `hasValue` is `false` only for the array constant `LANGUAGES`.
+foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), ": ", $constant->hasValue() ? "has a value" : "no value", "\n";
+}
