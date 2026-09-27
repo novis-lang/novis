@@ -1,22 +1,23 @@
 {
-  "state": "`Core\\Request::jsonAs` has all its proofs: `about.md`, three examples, an attack\n(`tests/hostile/core/Request/jsonAs/`), a bench, two Rust tests carrying `covers:` and the\nexisting conformance case. Its card in `crates/nvs-stdlib/src/request.rs` is in the plain voice.\n\nThe attack found a crash, which is fixed: a document that hydrates a class containing itself\nrecursed natively with no stack check, so a deep enough chain ran past the stack floor. The\nwalk in `crates/nvs-stdlib/src/json.rs`'s `decode_fields` now throws a catchable\n`RecursionError` at the soft limit (`rule:errors/on-limit`), pinned by\n`tests/conformance/core/a-json-chain-hydrated-near-the-stack-floor-throws-a-recursion-error.nvst`.",
+  "state": "`Core\\Request::method` has all its proofs: `about.md`, three examples, an attack\n(`tests/hostile/core/Request/method/`, a `CONNECT` request thrown 100000 times and then kept\nuntil the memory limit), a bench (0 allocations), and the Rust test\n`method_reports_get_for_a_head_request_and_is_head_carries_the_truth` now carries its\n`covers:` marker. Its card in `crates/nvs-stdlib/src/request.rs` is in the plain voice.\n\nThe `Core\\Json` figures went stale when `decode_fields` gained its stack check, and are\nre-measured, so `dossier-core-json` is green again.\n\n`Core\\Request::mount` cannot have examples yet: a `.nvsr` request file has no section for a\nmount (`crates/nvs-test/src/request.rs`'s module doc lists every section), so a proof run\nalways answers the door that strips nothing, `\"\"` and no captures. `nvs run --request`\nis what the proof runner calls (`tools/nv/proofs/run.ts:190`).",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs, in file order:",
+    "note": "one file set: `crates/nvs-test/src/request.rs`, the `nvs run --request` reader in `nvs-cli`, `crates/nvs-stdlib/src/request.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::method`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/request.rs:216`"
+        "text": "**A `.nvsr` file can name a mount** — a `--MOUNT--` section (prefix, then one capture per line) that `nvs run --request` carries to `Core\\Request::mount` the way the server's door does, `nvs_server::mount::carry` (`rule:routing/a-request-reads-its-mount`). The parser is `crates/nvs-test/src/request.rs:180` and the CLI's reading of it is tested at `crates/nvs-cli/src/main.rs:3359`."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::mount`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/request.rs:396`"
+        "text": "**`Core\\Request::mount`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`); the Rust test after `method_reports_get_for_a_head_request_and_is_head_carries_the_truth` asserts both sides of the mount and only needs its `covers:` marker. `crates/nvs-stdlib/src/request.rs:404`"
       }
     ]
   },
   "backlog": [
-    "Plain `Core\\Json::decode` overflows the debug build's task stack between 600 and 800 nested levels; release decodes 1000. Whether the decoder should compare the stack as `decode_fields` now does is `crates/nvs-stdlib/src/json.rs`'s question.",
-    "`Core\\Http\\Response::jsonAs` and `Core\\Arr::shapeAs` reach the same walk and can now throw `RecursionError`, and their cards do not list it (`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/arr.rs`)."
+    "The rest of the `Core\\Request` roster in `data/goals/core-request-2-2.json`'s dossier check: `path`, `post`, `postAs`, `query`, `queryAs`, `route`, `scheme` — `bun nv proofs --owed`.",
+    "`tests/hostile/core/Json/decode/01-deep-large-and-broken-documents.nvs` ended with exit 253 on the proofs' recording run and 0 on the judged run; both count as a pass, but the runner now runs it every time until they agree — `tools/nv/proofs/run.ts`."
   ]
 }
