@@ -155,7 +155,7 @@ pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, children_still_running,
     current_task, detach_current, spawn_child, suspend, suspend_current,
 };
-pub use stack::{MAX_POOLED_STACKS, TASK_STACK_SIZE};
+pub use stack::{MAX_POOLED_STACKS, SPARE_STACK_SIZE, TASK_STACK_SIZE, on_spare_stack};
 pub use timer::{DeadlineView, Timers, park_until, sleep};
 pub use watchdog::{Registration, RunningRequest, Stall, Watchdog};
 

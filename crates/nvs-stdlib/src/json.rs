@@ -524,9 +524,9 @@ pub const DEFAULT_MAX_DEPTH: u64 = 512;
 /// document's acceptance depend on a number the call site never sees.
 ///
 /// Twice [`DEFAULT_MAX_DEPTH`], which is the deepest anything real nests by
-/// four orders of magnitude, and `a_document_at_the_ceiling_decodes` is the
-/// test that holds the frame budget honest on the platform with the smallest
-/// default stack.
+/// four orders of magnitude. [`read`] parses a deep document on the thread's
+/// spare stack, and `a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has`
+/// is the test that checks this many levels fit on it.
 pub const DEPTH_CEILING: u64 = 1024;
 
 /// The default is a depth a call may actually ask for, and both fit the `u32`
@@ -1793,14 +1793,37 @@ impl<'de> Visitor<'de> for Decode {
     }
 }
 
+/// The longest text [`read`] parses on the caller's own stack.
+///
+/// Each nesting level takes at least one byte, so a text this short nests at
+/// most this deep. A helper is entered with at least `nvs_runtime`'s
+/// `STACK_RESERVE` of stack left, and
+/// `the_deepest_short_text_parses_in_the_unwinding_reserve` checks that this many
+/// levels fit in it on the debug profile.
+const IN_PLACE_BYTES: usize = 64;
+
 /// Reads one whole document, refusing anything after it.
+///
+/// The parse takes one native frame per nesting level, so a text that could
+/// nest deeper than [`IN_PLACE_BYTES`] is parsed on the thread's spare stack
+/// (`nvs_host::on_spare_stack`), which holds [`DEPTH_CEILING`] levels on every
+/// profile. The parse calls no compiled code, which is what that stack needs.
+pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
+    if text.len() <= IN_PLACE_BYTES {
+        parse(text, max)
+    } else {
+        nvs_host::on_spare_stack(|| parse(text, max))
+    }
+}
+
+/// [`read`]'s parse, on whatever stack it is called on.
 ///
 /// `disable_recursion_limit` is deliberate and is what [`DEPTH_CEILING`]
 /// exists to make safe: `serde_json`'s own limit is 128, which is below spec
 /// § 6's default of [`DEFAULT_MAX_DEPTH`], so leaving it on would make the
 /// declared default unreachable. [`Decode`]'s own counter is the bound
 /// instead, and it is checked against a ceiling the call cannot raise.
-pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
+fn parse(text: &str, max: u32) -> Result<Value, serde_json::Error> {
     let mut deserializer = serde_json::Deserializer::from_str(text);
     deserializer.disable_recursion_limit();
     let value = Decode { depth: 1, max }.deserialize(&mut deserializer)?;
@@ -3549,19 +3572,49 @@ mod tests {
         read(text, max).map_err(|why| why.to_string())
     }
 
-    /// The ceiling is a promise about *stack*, so the deepest document a call
-    /// may ask for has to actually decode — on the debug profile, whose frames
-    /// are the fattest, and on the platform with the smallest default stack.
-    #[test]
-    fn a_document_at_the_ceiling_decodes() {
-        let depth = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize");
-        let text = format!("{}1{}", "[".repeat(depth - 1), "]".repeat(depth - 1));
+    /// `levels` arrays in JSON text, the innermost holding `1`.
+    fn nested_text(levels: usize) -> String {
+        format!("{}1{}", "[".repeat(levels), "]".repeat(levels))
+    }
+
+    /// Decodes `text` at the ceiling on a thread whose own stack is `stack`
+    /// bytes, releasing the value inside that thread: a refcount is a
+    /// per-thread fact.
+    fn decoded_on_a_thread(text: String, stack: usize) -> Result<(), String> {
         let max = u32::try_from(DEPTH_CEILING).expect("the ceiling fits a u32");
-        let value = decoded(&text, max).expect("the ceiling is decodable");
-        #[expect(unsafe_code, reason = "this frame holds the only reference")]
-        unsafe {
-            value.release();
-        }
+        std::thread::Builder::new()
+            .stack_size(stack)
+            .spawn(move || {
+                let value = decoded(&text, max)?;
+                #[expect(unsafe_code, reason = "this thread holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+                Ok(())
+            })
+            .expect("a test thread is spawnable")
+            .join()
+            .expect("the decoding thread does not panic")
+    }
+
+    /// The ceiling is a promise about *stack*, so the deepest document a call
+    /// may ask for has to decode on the debug profile, whose frames are the
+    /// fattest. The calling thread's stack is far too small for that parse, so
+    /// the test also shows the parse runs on the spare stack.
+    #[test]
+    fn a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has() {
+        let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
+        decoded_on_a_thread(nested_text(levels), 64 << 10).expect("the ceiling is decodable");
+    }
+
+    /// The deepest text [`read`] parses in place fits in the stack a helper is
+    /// always entered with. That text is all opening brackets: it nests one
+    /// level per byte and fails only at its end.
+    #[test]
+    fn the_deepest_short_text_parses_in_the_unwinding_reserve() {
+        let why = decoded_on_a_thread("[".repeat(IN_PLACE_BYTES), nvs_runtime::STACK_RESERVE)
+            .expect_err("an unclosed list is not a document");
+        assert!(why.contains("EOF while parsing a list"), "{why}");
     }
 
     #[test]

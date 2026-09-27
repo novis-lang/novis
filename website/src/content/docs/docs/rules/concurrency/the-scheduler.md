@@ -342,6 +342,13 @@ Stacks are pooled per worker and bounded by that worker's in-flight cap. A stack
 back to the pool and is handed to the next task. The pool can never hold more stacks than the worker
 has admitted tasks, which is the O(in-flight) shape [`programs/memory-priority`](/docs/rules/programs/claims-and-priorities/#memory-priority "Memory buys security, correctness, latency and simplicity — bounded, attributable and stated") asks for.
 
+A parse whose native recursion depth is set by its input, such as `Core\Json::decode` at its 1024-level
+ceiling, runs on the worker thread's one **spare stack**, 8 MiB reserved, and never on the task's
+own. What is left of a task's stack depends on how deep the program already is and on the build's frame
+sizes, so the task's stack cannot promise room for such a parse. The spare stack is one reservation per
+worker thread, O(workers), and the pages the deepest parse touched stay resident for the life of the
+thread. Code on it never calls compiled Novis code, whose recursion limit is armed for the task's stack.
+
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>Concurrency costs a stack rather than a process, so one machine holds tasks in the hundred-thousands instead of workers in the hundreds</p>

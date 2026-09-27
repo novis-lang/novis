@@ -59,6 +59,22 @@
 //! touched — resident for the life of the worker. Handing a stack back to the
 //! OS past the cap is the deliberate trade: the burst pays a syscall on the way
 //! down so the steady state does not pay a footprint forever.
+//!
+//! # The spare stack
+//!
+//! A parse whose recursion depth is set by its input — `serde_json` takes one
+//! native frame per nesting level, and `Core\Json::decode` allows 1024 of them
+//! — cannot be run on the task's own stack, because what is left of that stack
+//! depends on how deep the program already is and on how fat the build's frames
+//! are. [`on_spare_stack`] runs such a parse on a second stack instead: one per
+//! thread, [`SPARE_STACK_SIZE`] reserved, taken the first time a thread needs it
+//! and kept until the thread exits.
+//!
+//! What it spends: one reservation per worker thread, O(workers) and never
+//! O(requests), plus the pages the deepest parse on that thread touched, which
+//! stay resident for the life of the thread.
+
+use std::cell::RefCell;
 
 use corosensei::stack::{DefaultStack, Stack as _};
 
@@ -79,6 +95,49 @@ pub const TASK_STACK_SIZE: usize = 1 << 20;
 /// worker, which is unremarkable, against the resident pages those stacks
 /// touched, which is what the cap actually bounds.
 pub const MAX_POOLED_STACKS: usize = 1024;
+
+/// The address space a thread's spare stack reserves, guard page excluded.
+///
+/// 8 MiB, the default Linux thread stack. It is sized for the debug profile,
+/// whose frames are several times the release profile's, and
+/// `nvs_stdlib::json`'s tests decode the deepest allowed document on it from a
+/// thread whose own stack could not hold that parse.
+pub const SPARE_STACK_SIZE: usize = 8 << 20;
+
+thread_local! {
+    /// This thread's spare stack, `None` until the first [`on_spare_stack`]
+    /// and while one is running.
+    static SPARE: RefCell<Option<DefaultStack>> = const { RefCell::new(None) };
+}
+
+/// Runs `f` on this thread's spare stack and returns what it returns.
+///
+/// `f` must not call compiled Novis code. The context's recursion limit is
+/// armed for the task's stack, so a Novis frame on this one would be checked
+/// against the wrong bounds. A call made while the spare stack is already in
+/// use reserves another one for itself, and the thread keeps one of the two
+/// when both have returned. A panic in `f` is propagated to the caller, and the
+/// stack it ran on is freed.
+///
+/// # Panics
+///
+/// If `f` panics, or if the OS refuses to reserve the stack, which is the same
+/// `expect` [`StackPool::take`] makes.
+pub fn on_spare_stack<R>(f: impl FnOnce() -> R) -> R {
+    let mut stack = SPARE
+        .with(|spare| spare.borrow_mut().take())
+        .unwrap_or_else(|| {
+            DefaultStack::new(SPARE_STACK_SIZE).expect("a thread could not reserve its spare stack")
+        });
+    let result = corosensei::on_stack(&mut stack, f);
+    SPARE.with(|spare| {
+        let mut slot = spare.borrow_mut();
+        if slot.is_none() {
+            *slot = Some(stack);
+        }
+    });
+    result
+}
 
 /// The `(base, ceiling)` pair `Ctx::arm_stack_limit` wants for a task running
 /// on `stack`.
@@ -197,6 +256,49 @@ mod tests {
             pool.give(DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"));
         }
         assert_eq!(pool.pooled(), 2);
+    }
+
+    /// Where a local of `on_spare_stack`'s closure lives.
+    fn a_local_s_address() -> usize {
+        let local = 0_u8;
+        std::ptr::from_ref(std::hint::black_box(&local)) as usize
+    }
+
+    /// The base of the spare stack this thread keeps, if it keeps one.
+    fn kept_base() -> Option<usize> {
+        SPARE.with(|spare| spare.borrow().as_ref().map(|stack| stack.base().get()))
+    }
+
+    #[test]
+    fn the_closure_runs_on_the_thread_s_spare_stack_and_the_stack_is_kept() {
+        let first = on_spare_stack(a_local_s_address);
+        let base = kept_base().expect("the thread keeps its spare stack after a call");
+        assert!(
+            first < base && first > base - SPARE_STACK_SIZE,
+            "the closure's local is inside the spare stack"
+        );
+
+        let second = on_spare_stack(a_local_s_address);
+        assert_eq!(second, first, "the second call runs on the same stack");
+        assert_eq!(kept_base(), Some(base));
+    }
+
+    #[test]
+    fn a_nested_call_gets_a_stack_of_its_own_and_one_is_kept() {
+        let (outer, inner) =
+            on_spare_stack(|| (a_local_s_address(), on_spare_stack(a_local_s_address)));
+        assert!(
+            outer.abs_diff(inner) > SPARE_STACK_SIZE / 2,
+            "the inner call is not on the outer call's stack"
+        );
+        assert!(kept_base().is_some(), "one stack is kept after both return");
+    }
+
+    #[test]
+    fn a_panic_in_the_closure_reaches_the_caller() {
+        let caught = std::panic::catch_unwind(|| on_spare_stack(|| panic!("inside")));
+        assert!(caught.is_err());
+        assert_eq!(on_spare_stack(|| 7), 7, "the next call still runs");
     }
 
     #[test]

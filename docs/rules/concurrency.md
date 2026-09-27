@@ -1700,6 +1700,13 @@ Stacks are pooled per worker and bounded by that worker's in-flight cap. A stack
 back to the pool and is handed to the next task. The pool can never hold more stacks than the worker
 has admitted tasks, which is the O(in-flight) shape [`programs/memory-priority`](programs.md#programs-memory-priority) asks for.
 
+A parse whose native recursion depth is set by its input, such as `Core\Json::decode` at its 1024-level
+ceiling, runs on the worker thread's one **spare stack**, 8 MiB reserved, and never on the task's
+own. What is left of a task's stack depends on how deep the program already is and on the build's frame
+sizes, so the task's stack cannot promise room for such a parse. The spare stack is one reservation per
+worker thread, O(workers), and the pages the deepest parse touched stay resident for the life of the
+thread. Code on it never calls compiled Novis code, whose recursion limit is armed for the task's stack.
+
 <sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md), [0116](../decisions/0116.md).</sub>
 
 <a id="concurrency-a-tasks-recursion-limit-comes-from-its-own-stack"></a>
