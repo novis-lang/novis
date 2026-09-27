@@ -41,18 +41,16 @@ foreach ($forged as string $candidate) {
 }
 echo '2 forged tokens accepted: ', $accepted, ' of ', Core\Arr::count($forged), "\n";
 
-// 3. Every one-character change of a real token. A change that leaves the
-// token as it was is not counted.
+// 3. Every one-character change of a real token, at every position. A change
+// that leaves the token as it was is not tested.
 int $length = Core\Str::length($token) as int;
 array<string> $replacements = ['-', '_', 'A'];
 uint $changedAccepted = 0;
-uint $tried = 0;
 int $at = 0;
 while ($at < $length) {
     foreach ($replacements as string $replacement) {
         string $changed = Core\Str::replaceRange($token, $at, 1, $replacement);
         if ($changed != $token) {
-            $tried = $tried + 1;
             if (Core\Csrf::verify($changed, $session, $key)) {
                 $changedAccepted = $changedAccepted + 1;
             }
@@ -60,7 +58,7 @@ while ($at < $length) {
     }
     $at = $at + 1;
 }
-echo '3 changed tokens accepted: ', $changedAccepted, ' of ', $tried, "\n";
+echo '3 changed tokens accepted: ', $changedAccepted, ' at ', $length, ' positions', "\n";
 
 // 4. A token of sixteen megabytes, which the check has to read before it can
 // refuse it.

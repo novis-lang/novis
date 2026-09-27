@@ -27,8 +27,8 @@ final class Deep
     }
 }
 
-// Step 1: a call chain deeper than the stack allows. The error that ends it
-// carries a frame for every level, and the whole list is read back.
+// Step 1: a call chain deeper than the stack allows. The error has a frame for each
+// level, and the loop reads them all. The stack size sets the count, so it is not printed.
 try {
     Deep::down(10000);
     echo "step 1: nothing was thrown\n";
@@ -37,7 +37,7 @@ try {
     foreach ($deep->backtrace as string $frame) {
         $frames = $frames + 1;
     }
-    echo 'step 1: read ', $frames, " frames\n";
+    echo 'step 1: read ', $frames > 0 ? 'the frames' : 'no frames', "\n";
 }
 
 // Step 2: one object thrown fifty thousand times, with its place read after

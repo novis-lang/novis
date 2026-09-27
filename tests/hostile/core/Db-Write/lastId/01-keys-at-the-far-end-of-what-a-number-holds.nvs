@@ -64,8 +64,8 @@ try {
     echo "5 the work gave up\n";
 }
 
-// 6. The key is read after the connection is closed. The number was read off
-// the statement when it ran, so the closed connection cannot take it away.
+// 6. The key is read after the connection is closed, and it is still there.
+// After step 2 the database picks new keys at random, so this prints only `a key`.
 var $last = $db->execute('insert into notes (text) values (?)', ['the very last one']);
 $db->close();
-echo '6 after the connection closed: ', $last->lastId() ?? 0, "\n";
+echo '6 after the connection closed: ', $last->lastId() == null ? 'no key' : 'a key', "\n";

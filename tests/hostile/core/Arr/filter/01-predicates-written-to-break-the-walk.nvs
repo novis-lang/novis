@@ -9,13 +9,11 @@
 class Attack
 {
     public static array<int> $rows = [];
-    public static uint $depth = 0;
 
     // Filters a one-entry array with a function that does the same again, until
     // the runtime stops it.
     public static function deeper(int $n): bool
     {
-        Attack::$depth = Attack::$depth + 1;
         return Core\Arr::count(Core\Arr::filter([$n], fn(int $m) => Attack::deeper($m))) > 0;
     }
 }
@@ -36,7 +34,7 @@ try {
     array<int> $nested = Core\Arr::filter([1], fn(int $n) => Attack::deeper($n));
     echo 'step 2: ', Core\Arr::count($nested), "\n";
 } catch (RecursionError $stopped) {
-    echo 'step 2: stopped after ', Attack::$depth, ' calls', "\n";
+    echo 'step 2: stopped at the recursion limit', "\n";
 }
 
 // 3. A function that keeps all 400000 entries, so the result is as large as the

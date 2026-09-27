@@ -1,6 +1,7 @@
 <?nvs
-// Attack: drive one `require` site as deep as the call stack allows, and then
-// keep running it while the file it runs hangs on to everything it builds.
+// Attack: a program runs one `require` line again and again, as deep as the call
+// stack allows. Then it runs the file 300000 times, and the file keeps every string
+// it builds. The deep calls should stop with an error, and nothing may crash.
 // hostile: timeout-ms 20000
 
 class Step
@@ -23,11 +24,13 @@ try {
     echo "deep stopped\n";
 }
 
+// The count leaves out the strings from the deep calls. Their number depends on the stack size.
 Step::$depth = 0;
+uint $before = Core\Arr::count(Step::$kept);
 uint $i = 0;
 while ($i < 300000) {
     require 'parts/step.nvs';
     $i = $i + 1;
 }
 
-echo 'kept ', Core\Arr::count(Step::$kept), "\n";
+echo 'kept ', Core\Arr::count(Step::$kept) - $before, "\n";

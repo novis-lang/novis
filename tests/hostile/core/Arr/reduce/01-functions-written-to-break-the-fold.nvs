@@ -8,8 +8,6 @@
 
 class Attack
 {
-    public static uint $depth = 0;
-
     // Throws instead of returning the next value of the fold.
     public static function refuse(string $carry): string
     {
@@ -20,7 +18,6 @@ class Attack
     // the runtime stops it.
     public static function deeper(int $n): int
     {
-        Attack::$depth = Attack::$depth + 1;
         return Core\Arr::reduce([$n], fn(int $carry, int $m) => Attack::deeper($m), 0);
     }
 }
@@ -42,7 +39,7 @@ try {
     int $nested = Core\Arr::reduce([1], fn(int $carry, int $n) => Attack::deeper($n), 0);
     echo 'step 2: ', $nested, "\n";
 } catch (RecursionError $stopped) {
-    echo 'step 2: stopped after ', Attack::$depth, ' calls', "\n";
+    echo 'step 2: stopped at the recursion limit', "\n";
 }
 
 // 3. A fold over 400000 entries. The function is called once per entry, and

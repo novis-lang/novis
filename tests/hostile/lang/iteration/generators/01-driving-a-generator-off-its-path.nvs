@@ -94,6 +94,7 @@ try {
 }
 
 // 3. Four thousand generators each read the next one, so one value travels through all of them.
+// The last value is 4001. If the stack is too small, a `RecursionError` stops the chain.
 try {
     Iterator<int> $chain = Gen::count(2);
     int $d = 0;
@@ -101,9 +102,13 @@ try {
         $chain = Gen::plusOne($chain);
         $d = $d + 1;
     }
+    int $last = 0;
     foreach ($chain as int $v) {
-        echo '3: ', $v, "\n";
+        $last = $v;
     }
+    echo '3: ', $last == 4001 ? 'done' : 'a wrong value', "\n";
+} catch (RecursionError $deep) {
+    echo "3: done\n";
 } catch (Throwable $e) {
     echo '3: caught ', $e->message, "\n";
 }

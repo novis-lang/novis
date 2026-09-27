@@ -8,8 +8,6 @@
 
 class Attack
 {
-    public static uint $depth = 0;
-
     // Throws instead of naming a key for the entry it is given.
     public static function refuse(int $n): string
     {
@@ -20,7 +18,6 @@ class Attack
     // the runtime stops it.
     public static function deeper(int $n): string
     {
-        Attack::$depth = Attack::$depth + 1;
         return Core\Str::format('%d', Core\Arr::count(
             Core\Arr::mapKeys([$n], fn(int $m) => Attack::deeper($m)),
         ));
@@ -43,7 +40,7 @@ try {
     array<int> $nested = Core\Arr::mapKeys([1], fn(int $n) => Attack::deeper($n));
     echo 'step 2: ', Core\Arr::count($nested), "\n";
 } catch (RecursionError $stopped) {
-    echo 'step 2: stopped after ', Attack::$depth, ' calls', "\n";
+    echo 'step 2: stopped at the recursion limit', "\n";
 }
 
 // 3. All 400000 entries are given one and the same key of 5000 characters. The

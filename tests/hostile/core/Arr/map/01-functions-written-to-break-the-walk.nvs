@@ -8,8 +8,6 @@
 
 class Attack
 {
-    public static uint $depth = 0;
-
     // Throws instead of answering a value for the entry it is given.
     public static function refuse(int $n): int
     {
@@ -20,7 +18,6 @@ class Attack
     // runtime stops it.
     public static function deeper(int $n): int
     {
-        Attack::$depth = Attack::$depth + 1;
         return Core\Arr::count(Core\Arr::map([$n], fn(int $m) => Attack::deeper($m))) as int;
     }
 }
@@ -41,7 +38,7 @@ try {
     array<int> $nested = Core\Arr::map([1], fn(int $n) => Attack::deeper($n));
     echo 'step 2: ', Core\Arr::count($nested), "\n";
 } catch (RecursionError $stopped) {
-    echo 'step 2: stopped after ', Attack::$depth, ' calls', "\n";
+    echo 'step 2: stopped at the recursion limit', "\n";
 }
 
 // 3. All 400000 entries are replaced by a text of 200 characters, so the result

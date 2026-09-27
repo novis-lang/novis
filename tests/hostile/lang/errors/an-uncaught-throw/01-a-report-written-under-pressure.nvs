@@ -25,7 +25,7 @@ class Deep
 try {
     echo Deep::down(0), "\n";
 } catch (RecursionError $deep) {
-    echo 'step 2: caught the depth limit with ', Core\Arr::count($deep->backtrace), " frames\n";
+    echo "step 2: caught the depth limit\n";
 }
 
 // Step 3: both hooks throw while the runtime reports the failure. Neither may
