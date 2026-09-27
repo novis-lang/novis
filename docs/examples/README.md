@@ -162,7 +162,8 @@ member throws a `LogicError` there. An example that shows reading a request puts
 beside it, under its own name with `.nvsr` in place of `.nvs`. `--bless` and the sweep then run the
 program with `nvs run --request <file>`, and the website shows the file beside the example. The
 file's sections are `nvs_test::request`'s module doc: `--METHOD--`, `--PATH--`, `--QUERY--`,
-`--HEADERS--` and `--BODY--` last, read to the end of the file byte for byte. `tests/hostile/` and
+`--HEADERS--` and `--BODY--` last, read to the end of the file byte for byte. A multipart body
+writes `--BODY_CRLF--` instead, which sends each line ending as CRLF. `tests/hostile/` and
 `benches/members/` read a `.nvsr` file the same way.
 
 ## A grant the examples need — `nvs.toml`

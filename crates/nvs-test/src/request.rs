@@ -39,6 +39,11 @@
 //! reading as a header would otherwise cut the file in half. Taking the
 //! remainder rather than a section makes that impossible rather than unlikely.
 //!
+//! `--BODY_CRLF--` is the same remainder with every line ending sent as CRLF.
+//! A multipart body's delimiters are CRLF by RFC 2046, and this repository
+//! checks every text file out with LF line endings, so a body that needs CRLF
+//! says so in its header line instead of in bytes that checkout rewrites.
+//!
 //! ## What a case does not write, and where it comes from
 //!
 //! Three facts a request has that no `.nvst` section spells, derived here and
@@ -183,11 +188,20 @@ pub fn read(text: &str) -> Result<Wire, String> {
     let mut body = None;
     let mut lines = text.split_inclusive('\n');
     for line in &mut lines {
-        if line.trim_end() == "--BODY--" {
-            body = Some(lines.collect());
-            break;
+        match line.trim_end() {
+            "--BODY--" => {
+                body = Some(lines.collect());
+                break;
+            }
+            "--BODY_CRLF--" => {
+                // Normalised to LF first, so a working copy that checked the
+                // file out with CRLF line endings sends the same octets.
+                let rest: String = lines.collect();
+                body = Some(rest.replace("\r\n", "\n").replace('\n', "\r\n"));
+                break;
+            }
+            _ => head.push_str(line),
         }
-        head.push_str(line);
     }
 
     let sections = section::lex(&head)
@@ -481,6 +495,19 @@ mod tests {
         // which is an answer rather than a pair still to be decided.
         assert_eq!(wire.client_ip, None);
         assert_eq!(wire.scheme, Scheme::Http);
+    }
+
+    #[test]
+    fn a_crlf_body_sends_every_line_ending_as_crlf_whatever_the_checkout_wrote() {
+        // A multipart body needs CRLF delimiters, and a working copy may hold
+        // the file with either line ending: both read back as the same octets.
+        let lf = "--METHOD--\nPOST\n--PATH--\n/\n--BODY_CRLF--\n--b\n\nx\n--b--\n";
+        let crlf = lf.replace('\n', "\r\n");
+        for text in [lf, crlf.as_str()] {
+            let wire = read(text).expect("it reads");
+            assert_eq!(wire.body.as_deref(), Some("--b\r\n\r\nx\r\n--b--\r\n"));
+            assert_eq!(wire.method, "POST");
+        }
     }
 
     #[test]
