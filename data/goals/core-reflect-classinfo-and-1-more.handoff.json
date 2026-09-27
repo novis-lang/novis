@@ -1,32 +1,30 @@
 {
-  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2. `ClassInfo::attributes`, `::call`,\n`::constant`, `::constants`, `::get` and `::construct` are complete: tests from both sides, three\nexamples, `about.md`, one attack and one recorded bench each. `Core\\Reflect\\ClassInfo` has its class\ncard. The stage-1 checks `Core\\Reflect` and `Core\\Reflect\\AttributeInfo` are green again: their\nbenches were re-recorded after `crates/nvs-stdlib/src/reflect.rs` changed. `construct`'s proofs found\nno bug. Still owed in `ClassInfo`: `hasMethod` and `set`. All of `Core\\Reflect\\ConstantInfo` is owed,\nits class card included. Each member owes an `about.md` too (goal prose § *The target*).",
+  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2. All of `Core\\Reflect\\ConstantInfo` is\ncomplete: `name`, `isPublic` and `hasValue` each have tests from both sides, three examples,\n`about.md`, one attack and one recorded bench, and the class has its card. In `ClassInfo`,\n`attributes`, `call`, `constant`, `constants`, `get` and `construct` are complete. Still owed in\n`ClassInfo`: `methods`, `hasMethod` and `set`, every proof of each. The ConstantInfo proofs found no\nbug. `crates/nvs-stdlib/src/reflect.rs`'s `mod tests` now has `vault_of_constants` and\n`read_constant`, a fixture and a reader any constant-roster test can reuse.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs`, its `mod tests`, `crates/nvs-stdlib/src/registry.rs`'s card list, and the `docs/examples`, `tests/hostile`, `benches/members` trees under `core/Reflect-ConstantInfo/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs`, its `mod tests`, and the `docs/examples`, `tests/hostile`, `benches/members` trees under `core/Reflect-ClassInfo/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ConstantInfo::name`** — about, examples, hostile, perf, Rust test, and the class card for `Core\\Reflect\\ConstantInfo`: add its `ClassDoc` above the class's `CLASS` row and delete it from `CLASSES_STILL_OWING_A_CARD` (`rule:testing/feature-proofs`, `rule:core-api/reference-card`). `crates/nvs-stdlib/src/reflect.rs:2451` `crates/nvs-stdlib/src/registry.rs:5283`"
+        "text": "**`Core\\Reflect\\ClassInfo::methods`** — about, examples, hostile, perf, Rust test and a `covers:` marker on a `.nvst` case that lists methods (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/reflect.rs:2255`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ConstantInfo::isPublic`** — the same proofs (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/reflect.rs:2460`"
+        "text": "**`Core\\Reflect\\ClassInfo::hasMethod`** — the same proofs; a `private` method is listed but not callable from outside, so the Rust test can make `hasMethod` and `call` agree the way the ConstantInfo tests make `isPublic` and `constant` agree (`rule:testing/feature-proofs`, `rule:security/reflection-enforces-visibility`). `crates/nvs-stdlib/src/reflect.rs:2495`"
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\ConstantInfo::hasValue`** — the same proofs (`rule:testing/feature-proofs`, `rule:security/reflection-enforces-visibility`). `crates/nvs-stdlib/src/reflect.rs:2472`"
+        "text": "**`Core\\Reflect\\ClassInfo::set`** — the same proofs (`rule:testing/feature-proofs`, `rule:security/reflection-enforces-visibility`). `crates/nvs-stdlib/src/reflect.rs:2782`"
       },
       {
         "done": false,
-        "text": "**Re-record the benches** once the group's `reflect.rs` edits are done: `bun nv proofs --record-perf --group '<class>'` for `Core\\Reflect`, `Core\\Reflect\\AttributeInfo`, `Core\\Reflect\\ClassInfo` and `Core\\Reflect\\ConstantInfo`, one class per call (`rule:testing/member-perf-ledger`). `crates/nvs-stdlib/src/reflect.rs:2451`"
+        "text": "**Re-record the benches** once the group's `reflect.rs` edits are done: `bun nv proofs --record-perf --group '<class>'` for every `Core\\Reflect*` group whose check reads a stale figure. `crates/nvs-stdlib/src/reflect.rs:2255`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Reflect\\ClassInfo::hasMethod` — all proofs owed; `crates/nvs-stdlib/src/reflect.rs:2488` (`rule:testing/feature-proofs`).",
-    "`Core\\Reflect\\ClassInfo::set` — all proofs owed; `crates/nvs-stdlib/src/reflect.rs:2775` (`rule:testing/feature-proofs`).",
-    "Goal prose items 6 to 16 — the rest of the target list (`docs/agent/goals/core-reflect-classinfo-and-1-more.md`)."
+    "Nothing outside the group."
   ]
 }
