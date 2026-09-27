@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--MOUNT--
+/shop
+--HEADERS--
+host: shop.example.com

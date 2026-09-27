@@ -1,26 +1,19 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Request\\Mount and 1 more has been taken yet.",
+  "state": "Goal `core-request-mount-and-1-more`: `Core\\Request\\Mount::captures` and `Core\\Request\\Mount::prefix` have every proof on disk. That means a description, three examples each, an attack each, a bench each at 0 allocations, a `covers:` marker on the existing Rust test and `.nvst` case, and the `Core\\Request\\Mount` class card.\nThe prefix attack carries `// proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops`. A loop whose only work is `$b = $b . $b` never stops at the memory limit. The record says what was read and what was not checked.\n`Core\\Request\\Part::content` is the one item left in this goal.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "feature proofs",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/request.rs` and the `Request-Part` trees under `docs/examples/core/`, `tests/hostile/core/` and `benches/members/core/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request\\Mount::captures`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1002`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Request\\Mount::prefix`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:993`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Request\\Part::content`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/request.rs:1243`"
+        "text": "**`Core\\Request\\Part::content`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). The row is `crates/nvs-stdlib/src/request.rs:1257` and the member is `crates/nvs-stdlib/src/request.rs:3500`. `bun nv proofs --id 'Core\\Request\\Part::content'` prints the paths. `Core\\Request\\Part` is still in `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5341`. The `Mount` card at `crates/nvs-stdlib/src/request.rs:1022` is the shape. A part comes from a multipart body, so the `.nvsr` needs `--BODY_CRLF--` (`crates/nvs-test/src/request.rs:42`)."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "The self-concatenation hang: `data/gaps/nvs-runtime/a-loop-that-only-concatenates-never-stops.json`, owner M10. Start at `budget::refuse` and the back-edge poll in `crates/nvs-codegen/src/emit.rs:166`.",
+    "`Core\\Str::length($mount->captures()[$i])` costs 2 allocations per iteration where `captures()` alone costs 0. Which of the index and `Core\\Str::length` allocates is not checked (`benches/members/README.md`)."
   ]
 }

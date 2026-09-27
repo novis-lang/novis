@@ -1,0 +1,20 @@
+<?nvs
+// Reads the prefix that the server removed, as a program does before it builds a link.
+// bench: iterations 200000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The request is in the file `prefix.nvsr` beside this one.
+        Core\Request\Mount $mount = Core\Request::mount();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($mount->prefix()) + $total % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a program at `/` builds links from its empty prefix and grows one link without end.
+// Every read should return "", and the program should stop at its memory limit.
+// hostile: ends-early
+// proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops
+
+// 1. Reads the prefix of a mount at `/`. It is "", so its length is 0.
+string $prefix = Core\Request::mount()->prefix();
+echo 'length: ', Core\Str::length($prefix), "\n";
+echo 'link: ', $prefix, '/orders', "\n";
+
+// 2. Reads the prefix 200000 times, and joins each one to a link. Every read returns "".
+uint $empty = 0;
+uint $i = 0;
+while ($i < 200000) {
+    string $link = Core\Request::mount()->prefix() . '/orders';
+    if ($link == '/orders') {
+        $empty = $empty + 1;
+    }
+    $i = $i + 1;
+}
+echo 'empty prefix: ', $empty, "\n";
+
+// 3. Doubles a link made from the prefix, without end. This stops at the memory limit.
+string $long = $prefix . '/orders';
+while (true) {
+    $long = $long . $long;
+}

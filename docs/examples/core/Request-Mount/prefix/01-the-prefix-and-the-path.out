@@ -1,0 +1,3 @@
+prefix: /shop
+path: /cart
+address: /shop/cart
