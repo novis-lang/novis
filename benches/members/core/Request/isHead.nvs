@@ -1,0 +1,23 @@
+<?nvs
+// Checks whether a request is a `HEAD` request, as a page does before it builds an expensive body.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The request is in the file `isHead.nvsr` beside this one.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Request::isHead()) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1 + $total % 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

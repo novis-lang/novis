@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a program builds a page only when the client will read it.
+
+// The server sends no body in the response to a `HEAD` request.
+// So a program can skip the work of building the page.
+if (Core\Request::isHead()) {
+    return;
+}
+
+// The request below uses `GET`, so `isHead` returns `false` and the page is built.
+// This prints three lines, one for each product.
+array<string> $products = ["Tea", "Coffee", "Cocoa"];
+foreach ($products as string $product) {
+    echo "<li>", $product, "</li>\n";
+}

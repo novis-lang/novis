@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a client sends the method `head` in lower case, with a body and a false override header.
+// `isHead` should compare the method exactly, so the result is `false`. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads `isHead` for a method that is `HEAD` only in another case.
+echo 'isHead: ', Core\Request::isHead() ? 'true' : 'false', "\n";
+
+// 2. Reads the method. `head` is not one of the known methods, so `method` throws a `LogicError`.
+// `X-HTTP-Method-Override` is only a header, and it does not change the method.
+echo 'override header: ', Core\Request::header('x-http-method-override') ?? 'null', "\n";
+try {
+    echo 'method is Get: ', Core\Request::method() == Core\Http\Method::Get ? 'yes' : 'no', "\n";
+} catch (LogicError $error) {
+    echo 'method: LogicError', "\n";
+}
+
+// 3. Reads `isHead` many times. Every call returns the same value.
+uint $same = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Request::isHead() == false) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo 'same result: ', $same, "\n";
+
+// 4. Keeps every result without end. This stops at the memory limit.
+array<bool> $kept = [];
+while (true) {
+    $kept[] = Core\Request::isHead();
+}

@@ -1,0 +1,12 @@
+--METHOD--
+head
+--PATH--
+/
+--HEADERS--
+host: example.com
+x-http-method-override: HEAD
+x-method-override: HEAD
+content-type: text/plain
+--BODY--
+HEAD / HTTP/1.1
+Host: example.com
