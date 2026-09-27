@@ -2475,13 +2475,25 @@ fn run_run(
     if let Some(origin) = snapshot.origin.clone() {
         ctx.set_origin(&origin);
     }
+    // `rule:routing/matched-once-before-the-handler`'s table, crossed into the
+    // runtime's shape once: a `--request` below is matched against it, and the
+    // context is handed it further down.
+    let routes = std::sync::Arc::new(runtime_routes(&checked.exprs));
     // `--request`: the request is read off a file rather than off a socket,
     // and that is the whole of the difference. From here down a program
     // answering one is in the state `nvs serve` puts it in, which is what lets
-    // a `.nvst` case pin what `Core\Request` answers at all.
+    // a `.nvst` case pin what `Core\Request` answers at all. That state
+    // includes the door's one match, taken here the way `runner.rs`'s
+    // `UnderTest::answer` takes it, so `Core\Request::route()` answers what a
+    // served request would. A program with no `#[Route]` claims nothing.
     if let Some(file) = request {
         match inbound_from(file) {
-            Ok(inbound) => ctx.set_inbound(inbound),
+            Ok(mut inbound) => {
+                if let Some(matched) = routes.match_request(inbound.method(), inbound.path()) {
+                    inbound.set_route(matched);
+                }
+                ctx.set_inbound(inbound);
+            }
             Err(error) => {
                 eprintln!("error: --request {}: {error}", file.display());
                 return ExitCode::FAILURE;
@@ -2512,13 +2524,12 @@ fn run_run(
     if !commands.rows().is_empty() {
         ctx.set_commands(std::sync::Arc::new(runtime_commands(commands)));
     }
-    // `rule:routing/matched-once-before-the-handler`: the same crossing one table along. A program run off the
-    // command line is matched against nothing — there is no request — but
+    // `rule:routing/matched-once-before-the-handler`: the same crossing one table along.
     // `Core\Router`'s own members read the table, so it is installed wherever a
-    // program runs rather than only where a server is answering.
-    let routes = checked.exprs.routes();
+    // program runs, with or without a request, rather than only where a server
+    // is answering.
     if !routes.rows().is_empty() {
-        ctx.set_routes(std::sync::Arc::new(runtime_routes(&checked.exprs)));
+        ctx.set_routes(routes);
     }
     // The words past the file are the program's own, and `Core\Command::run`
     // matches them against the table above. Written here rather than read from
