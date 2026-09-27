@@ -446,6 +446,11 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
             desc: "`T` has no JSON codec because it does not carry `#[Json\\Derive]`, or \
                    `maxDepth` is `0` or above `1024`.",
         },
+        ErrorDoc {
+            error: "RecursionError",
+            desc: "The call stack is full before the last object is created. This can happen \
+                   when a class contains itself and the document nests very deeply.",
+        },
     ],
 };
 
@@ -2519,6 +2524,21 @@ unsafe fn decode_fields(
     source: &NvsArray,
     prefix: &str,
 ) -> Result<Value, DecodeFailure> {
+    // `rule:errors/on-limit`'s soft address, compared once per object this walk
+    // enters. Every descent the document drives — a list element, a nested
+    // field, a class that holds itself — comes through here, and the
+    // constructors run only on the way back up, so without this compare a
+    // chain of objects inside `maxDepth` runs natively past the stack's floor
+    // and takes the process down with it. The address of a local is this
+    // frame's stack pointer to within the frame, and the reserve under the soft
+    // address is far wider than one frame.
+    let here = 0_u8;
+    if (&raw const here).addr() < ctx.stack_bounds().0 {
+        return Err(DecodeFailure::Fault(Fault::thrown_as(
+            ThrownClass::Recursion,
+            "the call stack is too deep",
+        )));
+    }
     let fields = contract.fields();
     let arity = contract.arity();
     let mut ctor_args = vec![Value::null(); arity];
