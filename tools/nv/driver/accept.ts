@@ -10,6 +10,9 @@
 // checks by stage, the goal's own fixtures, the `overlap` commands and the checks that build or measure
 // the release profile. A fixture tier runs to its end and reports its reds as one line, earliest stage
 // first. An `overlap` command starts when the setup tier ends and is judged after the goal's fixtures.
+// The release tier's builds start when the overlap tier does, beside those commands, and the release
+// checks themselves run one at a time once every build and overlap command has ended, so a perf guard
+// measures on cores nothing else of the sweep is using.
 //
 // A check is reached when the selection picks one of its atoms (`select/checks.ts`): something it was
 // seen to use changed, it is new, red or owed, or its record changed. A check with `memoize = false`
@@ -372,6 +375,20 @@ export function isRelease(c: Check): boolean {
   return (c.args ?? []).includes("--release") || measuresReleaseCli(c);
 }
 
+/**
+ * The cargo command that builds what release check `c` runs and runs nothing: its own arguments before
+ * any `--`, with `--no-run` for a test or bench. `null` for a check that is not a release cargo run.
+ */
+export function releaseBuildArgv(c: Check): string[] | null {
+  const args = c.args ?? [];
+  if (c.kind !== "cargo-named" || !args.includes("--release")) return null;
+  const sep = args.indexOf("--");
+  const head = sep < 0 ? args : args.slice(0, sep);
+  if (head[0] === "test" || head[0] === "bench") return ["cargo", ...head, "--no-run"];
+  if (head[0] === "build") return ["cargo", ...head];
+  return null;
+}
+
 /** Does this command run what `needle` names? A `git grep` that only quotes it does not. */
 function runs(argv: string[], needle: string): boolean {
   return argv.length > 0 && argv[0] !== "git" && argv.some((a) => a.includes(needle));
@@ -474,8 +491,10 @@ export function owedChecks(checks: Check[], label: (n: number) => string, reache
 export interface AcceptanceOptions {
   label: (n: number) => string;
   /** What runs and judges one check: `driver/runner.ts`'s `Runner`, or a stand-in under test. `batch` is
-   * told each tier's reached checks before the first of them runs. */
-  sweep: { check(c: Check): Promise<Verdict>; batch?(checks: Check[]): void };
+   * told each tier's reached checks before the first of them runs. `prebuild` is handed the release
+   * tier's reached checks when the overlap tier starts, and builds what they will build; its promise
+   * never rejects. */
+  sweep: { check(c: Check): Promise<Verdict>; batch?(checks: Check[]): void; prebuild?(checks: Check[]): Promise<void> };
   /** Whether the change reaches `c`. A check it does not reach is not started and prints nothing. */
   reached: (c: Check) => boolean;
   /** The verdict of a check the change does not reach, from what the store holds; green when omitted. */
@@ -505,11 +524,25 @@ export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise
   let ran = 0;
   let answered = 0;
   const pending = new Map<string, Promise<Verdict>>();
-  const done = (fail: string): AcceptanceResult => ({ fail, ran, answered, verdicts });
+  // The release builds, started beside the overlap commands. The sweep never returns while one still
+  // runs, so nothing it measures after it, and no other tree's sweep, shares the cores with a build.
+  let prebuilt: Promise<void> = Promise.resolve();
+  const done = async (fail: string): Promise<AcceptanceResult> => {
+    await prebuilt;
+    return { fail, ran, answered, verdicts };
+  };
 
-  for (const tier of tiers(checks, o.label)) {
+  const order = tiers(checks, o.label);
+  for (const tier of order) {
     const fails: { c: Check; fail: string }[] = [];
     o.sweep.batch?.(tier.checks.filter(o.reached));
+    // The overlap tier waits on commands that started with the setup tier. The release tier's builds
+    // start now, beside them, and its measurements start only once every build has finished.
+    if (tier.name === "overlap" && o.sweep.prebuild) {
+      const release = order.find((t) => t.name === "release")!.checks.filter(o.reached);
+      if (release.length > 0) prebuilt = o.sweep.prebuild(release);
+    }
+    if (tier.name === "release") await prebuilt;
     for (const c of tier.checks) {
       let v: Verdict;
       if (!o.reached(c)) {

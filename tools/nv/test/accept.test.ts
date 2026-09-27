@@ -18,6 +18,7 @@ import {
   proofGroups,
   proofOutcome,
   proofSections,
+  releaseBuildArgv,
   stdoutLines,
   subsetRun,
   testExecutables,
@@ -226,6 +227,13 @@ describe("the whole sweep", () => {
     ]);
   });
 
+  test("a release test builds early with --no-run and without its runner arguments, and anything else does not build early", () => {
+    expect(releaseBuildArgv(check({ kind: "cargo-named", args: ["test", "--release", "-p", "nvs-cli", "--bin", "nvs", "by_the_margin", "--", "--test-threads=1"] }))).toEqual(["cargo", "test", "--release", "-p", "nvs-cli", "--bin", "nvs", "by_the_margin", "--no-run"]);
+    expect(releaseBuildArgv(check({ kind: "cargo-named", args: ["build", "--release", "-p", "nvs-cli"] }))).toEqual(["cargo", "build", "--release", "-p", "nvs-cli"]);
+    expect(releaseBuildArgv(check({ kind: "cargo-named", args: ["test", "-p", "nvs-cli"] }))).toBeNull();
+    expect(releaseBuildArgv(check({ argv: ["bun", "nv", "bench", "--guard"] }))).toBeNull();
+  });
+
   test("a fixture tier's reds are one line, and a collecting sweep's are also-red lines", () => {
     const fails = ["a", "b", "b"].map((f, i) => ({ c: check({ kind: "exact", stage: i + 1, file: `${f}.nvs` }), fail: `native ${f}.nvs: exit 1\nmore` }));
     expect(programFailLine(fails.slice(0, 1), label)).toBe("native a.nvs: exit 1\nmore");
@@ -287,6 +295,61 @@ describe("the whole sweep", () => {
     const s = fake([]);
     await acceptance(plan, opts(s, { reached: (c) => c.id !== "over" }));
     expect(s.ran).not.toContain("over");
+  });
+
+  /** A sweep whose overlap command and release builds each end only when the test says so. */
+  const held = (red: string[] = []) => {
+    const log: string[] = [];
+    const end = { over: () => {}, build: () => {} };
+    const sweep = {
+      check: async (c: Check): Promise<Verdict> => {
+        log.push(`run ${c.id}`);
+        if (c.id === "over") await new Promise<void>((r) => (end.over = () => (log.push("over ends"), r())));
+        return { fail: red.includes(c.id) ? `${c.id} red` : "", short: "" };
+      },
+      prebuild: (checks: Check[]) => {
+        log.push(`build ${checks.map((c) => c.id).join(",")}`);
+        return new Promise<void>((r) => (end.build = () => (log.push("build ends"), r())));
+      },
+    };
+    return { log, end, sweep };
+  };
+  const until = async (f: () => boolean) => {
+    while (!f()) await Bun.sleep(1);
+  };
+
+  test("the release builds start beside the overlap command, and the release checks run once both end", async () => {
+    const h = held();
+    const swept = acceptance(plan, { label, sweep: h.sweep, reached: everything, collect: false });
+    await until(() => h.log.includes("build rel"));
+    h.end.over();
+    await Bun.sleep(5);
+    expect(h.log).not.toContain("run rel");
+    h.end.build();
+    expect((await swept).fail).toBe("");
+    expect(h.log).toEqual(["run catch", "run setup", "run over", "run floor-fix", "run cmd2", "run cmd3", "run goal-fix", "build rel", "over ends", "build ends", "run rel"]);
+  });
+
+  test("a sweep that stops at a red overlap command returns only once the release builds end", async () => {
+    const h = held(["over"]);
+    let returned = false;
+    const swept = acceptance(plan, { label, sweep: h.sweep, reached: everything, collect: false }).then((r) => ((returned = true), r));
+    await until(() => h.log.includes("build rel"));
+    h.end.over();
+    await Bun.sleep(5);
+    expect(returned).toBe(false);
+    h.end.build();
+    expect((await swept).fail).toBe("over red");
+    expect(h.log).not.toContain("run rel");
+  });
+
+  test("no release build starts when the change reaches no release check", async () => {
+    const h = held();
+    const swept = acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "rel", collect: false });
+    await until(() => h.log.includes("run over"));
+    h.end.over();
+    await swept;
+    expect(h.log.some((l) => l.startsWith("build"))).toBe(false);
   });
 
   test("a short suite is reported, and its verdict is not green", async () => {

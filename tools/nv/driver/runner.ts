@@ -62,6 +62,7 @@ import {
   proofBatches,
   proofGroups,
   proofOutcome,
+  releaseBuildArgv,
   type TestExe,
   testExecutables,
   type Verdict,
@@ -341,6 +342,27 @@ export class PlanSweep {
    * each batch `proofBatches` cuts runs every group of that batch in one process. */
   batch(checks: Check[]): void {
     this.proofs = proofBatches(checks).map((groups) => ({ groups }));
+  }
+
+  /**
+   * Builds what the release checks `checks` will build, one cargo run after another: the release `nvs`
+   * for a check that measures it, and each release test with `--no-run`. The sweep calls it while the
+   * overlap commands still run, so the checks later find everything built. A build that fails is left
+   * for its check to build again and report, except the release `nvs`, whose one outcome every check
+   * that measures it shares.
+   */
+  prebuild(checks: Check[]): Promise<void> {
+    return (async () => {
+      if (checks.some(measuresReleaseCli)) await this.releaseCli();
+      const seen = new Set<string>();
+      for (const c of checks) {
+        const argv = releaseBuildArgv(c);
+        if (argv === null || seen.has(argv.join("\0"))) continue;
+        seen.add(argv.join("\0"));
+        this.say(`${argv.join(" ")} (built beside the overlap commands)`);
+        await capture(argv, ROOT);
+      }
+    })().catch(() => undefined);
   }
 
   /** Runs the picked atoms of `c`, records each, and judges it. */
