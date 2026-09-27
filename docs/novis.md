@@ -15826,15 +15826,15 @@ refused
 Core\Serialize::encode(mixed $value): bytes
 ```
 
-Copies the whole value graph under `$value` into Novis's own closed byte format, as `serialize` does — the same graph copy the `spawn` boundary runs, externalized so it can be stored or sent.
+Turns a value into `bytes` that `decode()` can read back. The value can be a number, a string, an array or an object, and it can contain other arrays and objects.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `mixed` | The value to encode: scalars, arrays and class instances, however deeply nested. |
+| `$value` | `mixed` | The value to turn into bytes. Two places that point to the same object still point to one object after `decode()`. |
 
-**Returns** `bytes` — The payload; tainted whenever `$value` was, since encoding launders nothing.
+**Returns** `bytes` — The bytes. If `$value` is `tainted`, the bytes are also `tainted`.
 
-**Throws** `LogicError` — `$value` holds something that has no meaning on the other side of a copy boundary — a closure, a resource, or an instance with a `secret` property that was not revealed — or the graph nests deeper than the copy's limit.
+**Throws** `LogicError` — `$value` contains a closure, an open file or connection, or an object with a `secret` property. It is also thrown when arrays and objects are nested more than 256 levels deep.
 
 <a id="core-core-serialize-decode"></a>
 #### `Core\Serialize::decode`
@@ -15843,15 +15843,15 @@ Copies the whole value graph under `$value` into Novis's own closed byte format,
 Core\Serialize::decode(bytes $payload): mixed
 ```
 
-Rebuilds the value `encode` wrote into `$payload`, as `unserialize` does, over Novis's own format and no other. The parameter is a `tainted` sink, so bytes that arrived from outside the process are refused at compile time.
+Builds the value again from the `bytes` that `encode()` returned. It reads only this format. Bytes that came from outside the program, such as a request body, are `tainted`, and a call with them does not compile.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$payload` | `bytes` (sink) | The bytes `encode` answered. |
+| `$payload` | `bytes` (sink) | The bytes that `encode()` returned. |
 
-**Returns** `mixed` — The decoded value, every instance in it an object of the class this program declares under the name the payload records.
+**Returns** `mixed` — The value. An object in it is a new object of the class with the same name in this program, and its constructor does not run.
 
-**Throws** `ParseError` — `$payload` does not carry Novis's serialization marker, is another format version, ends in the middle of a value or carries bytes past its end, or names a class this program does not declare or whose declared properties are not the ones the payload records.
+**Throws** `ParseError` — `$payload` was not written by `encode()`, is cut short, or has extra bytes at the end. It is also thrown when it names a class this program does not have, or a class whose properties are different now.
 
 <a id="core-core-validate"></a>
 ### `Core\Validate`

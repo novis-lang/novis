@@ -5340,7 +5340,6 @@ mod tests {
         r"Core\Request\Files",
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
-        r"Core\Serialize",
         r"Core\Server",
         r"Core\Session",
         r"Core\Signal",
