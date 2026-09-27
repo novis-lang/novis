@@ -1,0 +1,11 @@
+{
+  "lead": "A `Core` member whose result an engine builds in a Rust `String` is checked against the memory limit only after the whole result exists.",
+  "body": "The global allocator notes a breach after handing the block over, so `regex`'s `replacen` grew a 400 MB result under a 256 MB ceiling before the copy into a `string` failed. Build such a result yourself and ask `nvs_runtime::affordable` before each growth; `crates/nvs-stdlib/src/regex.rs`'s `grow` is the shape, and a hostile step that repeats a long match many times is the check.",
+  "files": [
+    "crates/nvs-stdlib/src/regex.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/regex.rs:fn grow"
+  }
+}

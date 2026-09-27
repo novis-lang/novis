@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-regex-and-1-more`. `Core\\Regex::compile`, `match`, `matchAll` and `matches` owe\nnothing, and `Core\\Regex` has its class card. The cards of `matchAll` and `matches` are in the plain\nvoice. `replace`, `replaceWith`, `split` and `quote` still owe every proof, and their cards in\n`crates/nvs-stdlib/src/regex.rs` are still in the old voice. A pattern with 5000 groups stops with the\nmemory-limit `FATAL` under every member that compiles through `compiled_prepared`, including\n`matches`, which never reads a group. `Core\\Regex\\Match` and `Core\\Regex\\Pattern` are still listed in\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`.",
+  "state": "Goal `core-regex-and-1-more`. `Core\\Regex::compile`, `match`, `matchAll`, `matches` and `replace` owe\nnothing but a perf row that is current, and `Core\\Regex` has its class card. `replace` now reads its\nreplacement itself (`template` in `crates/nvs-stdlib/src/regex.rs`): a bare `$` takes at most two digits\nas PHP's does, and `grow` asks the memory budget before the result grows. `replaceWith` builds its\nresult through `grow` too. `replaceWith`, `split` and `quote` still owe every proof, and their cards are\nstill in the old voice. The perf rows for all five landed members were recorded after the last edit to\n`regex.rs`; the next edit to that file makes them stale again. `Core\\Regex\\Match` and\n`Core\\Regex\\Pattern` are still listed in `CLASSES_STILL_OWING_A_CARD` in\n`crates/nvs-stdlib/src/registry.rs`.",
   "next": {
     "stage": 2,
     "title": "the `Core\\Regex` members",
@@ -12,25 +12,23 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Regex::replace`** — owes about, examples, hostile, perf and a Rust test with `// covers: Core\\Regex::replace` (`rule:testing/feature-proofs`). Rewrite `REPLACE_DOC` in the plain voice the way `MATCH_DOC` reads. The attack can try a replacement that expands `$1` into a very large text many times. `crates/nvs-stdlib/src/regex.rs:318` `crates/nvs-stdlib/src/regex.rs:1714`"
+        "text": "**`Core\\Regex::replaceWith`** — owes about, examples, hostile, perf and a Rust test with `// covers: Core\\Regex::replaceWith` (`rule:testing/feature-proofs`). Rewrite `REPLACE_WITH_DOC` in the plain voice the way `REPLACE_DOC` reads. Its callback is a real closure: the playbook's `closure_of` bullet is how a Rust test builds one. The attack can have the callback return a long text for every match, which `grow` must stop at the limit. `crates/nvs-stdlib/src/regex.rs:358` `crates/nvs-stdlib/src/regex.rs:1969`"
       },
       {
         "done": false,
-        "text": "**`Core\\Regex::replaceWith`** — the same proofs, with `// covers: Core\\Regex::replaceWith`; its callback is a real closure, and the playbook's `closure_of` bullet is how a Rust test builds one. `crates/nvs-stdlib/src/regex.rs:1804`"
+        "text": "**`Core\\Regex::split` and `Core\\Regex::quote`** — the same proofs each; rewrite `SPLIT_DOC` and `QUOTE_DOC` the same way. `quote`'s attack feeds every special character and a very long text. `crates/nvs-stdlib/src/regex.rs:398` `crates/nvs-stdlib/src/regex.rs:437` `crates/nvs-stdlib/src/regex.rs:2068` `crates/nvs-stdlib/src/regex.rs:2121`"
       },
       {
         "done": false,
-        "text": "**`Core\\Regex::split` and `Core\\Regex::quote`** — the same proofs each; `quote`'s attack feeds every special character and a very long text. `crates/nvs-stdlib/src/regex.rs:1897` `crates/nvs-stdlib/src/regex.rs:1950`"
+        "text": "**Record the rows** — `bun nv proofs --record-perf --group 'Core\\Regex'` after the last edit to `regex.rs` (`--only 'Core\\Regex'` is refused: that is a group, not a feature). `crates/nvs-stdlib/src/regex.rs:1969`"
       },
       {
         "done": false,
-        "text": "**Record the rows** — `bun nv proofs --record-perf --only 'Core\\Regex'` after the last edit to `regex.rs`, since every member's row goes stale when that file moves; `bun nv reference --no-examples` after any card edit. `crates/nvs-stdlib/src/regex.rs:213`"
+        "text": "**`Core\\Regex\\Match`'s class card and proofs** — the `dossier-core-regex-match` check: a `ClassDoc` above the class's `CLASS` row, delete it from `CLASSES_STILL_OWING_A_CARD`, then `groups`, `offset` and `text` owe examples, hostile and perf. `crates/nvs-stdlib/src/registry.rs:5283`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Regex::matches` allocates about twice a call on a cached pattern; `data/gaps/nvs-stdlib/regex-matches-allocates-on-every-call.json` owns it, and its bench carries the gap marker.",
-    "`Core\\Regex\\Match` and `Core\\Regex\\Pattern` owe class cards and every member proof; `crates/nvs-stdlib/src/registry.rs:5283` lists them (`rule:core-api/reference-card`).",
-    "`Core\\Regex::matches` prices a capture table it never fills, so a many-groups pattern is refused there too; that is the safe side, and `crates/nvs-stdlib/src/regex.rs`'s `search_cost` owns it."
+    "`Core\\Regex::matches` allocates on every call — gap `nvs-stdlib/regex-matches-allocates-on-every-call` in `data/gaps/nvs-stdlib/`."
   ]
 }

@@ -10348,18 +10348,18 @@ Finds every match of `$pattern` in `$subject` and returns them as an array of `C
 Core\Regex::replace(string $subject, Core\Regex\Pattern|string $pattern, string $replacement, {limit?: uint}): string
 ```
 
-Replaces up to `limit` matches of `$pattern` in `$subject` with `$replacement`, as `preg_replace` does; in the replacement `$1` and `${name}` are group references and `$$` is a literal `$`.
+Replaces every match of `$pattern` in `$subject` with `$replacement`, and returns the new text. In `$replacement`, `$1` is the text of group 1 and `$0` is the whole match.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
-| `$replacement` | `string` | The template each match becomes; a reference to a group the pattern does not declare expands to the empty string, and PHP's `\1` spelling is not a reference. |
-| `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the subject; the default is every one, and `0` replaces nothing. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
+| `$replacement` | `string` | The text that replaces each match. `$1` to `$99` insert a numbered group, and `${name}` inserts a named group. Write `${1}0` when a digit follows the group. `$$` is one `$`. A group the pattern does not have inserts nothing. PHP's `\1` is not a group here. |
+| `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the text. The default is every match. `0` replaces nothing. |
 
-**Returns** `string` — The subject with its matches replaced — unchanged when the pattern matches nowhere or `limit` is `0`.
+**Returns** `string` — The text with the matches replaced. It is the same text if there is no match.
 
-**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` is not a valid regular expression, or matching it against `$subject` needs more steps than the limit allows.
 
 <a id="core-core-regex-replacewith"></a>
 #### `Core\Regex::replaceWith`
