@@ -9,7 +9,8 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { classConsts, filesUnder, nameConstsSignature, phpTwins, registry, registryNames, specRows } from "../cmd/gaps.ts";
-import { unrecorded } from "../lib/reads.ts";
+import { noteKey, unrecorded } from "../lib/reads.ts";
+import { ALL_CARDS, ALL_CLASSES, cardKey, classKey } from "../select/keys.ts";
 import { anchorKey } from "./markers.ts";
 import { abs } from "../lib/paths.ts";
 import { comparePaths } from "../lib/py.ts";
@@ -222,15 +223,39 @@ interface Meta {
   directives?: unknown[];
 }
 
-/** What `nvs meta --json` prints. A binary that cannot print it ends the command. */
+/** What `nvs meta --json` prints. A binary that cannot print it ends the command. It writes no footprint
+ * log, since it prints every class and card: `noteRoster` names the part of it a verdict read. */
 async function metaJson(nvs: string): Promise<Meta> {
   progress("proofs: reading the roster (`nvs meta --json`)");
-  const out = await runProc([nvs, "meta", "--json"], { timeoutMs: 120_000 });
+  const out = await runProc([nvs, "meta", "--json"], { timeoutMs: 120_000, env: { NVS_FOOTPRINT_LOG: "" } });
   if (out.code !== 0) throw new RosterError(`\`${nvs} meta --json\` failed:\n${out.stderr.trim()}`);
   return JSON.parse(out.stdout) as Meta;
 }
 
 export class RosterError extends Error {}
+
+/** The kinds `nvs meta --json` lists outside a class, each as one list a verdict reads whole. */
+const META_LISTS: ReadonlySet<Kind> = new Set(["exception", "enum", "interface", "directive"]);
+
+/**
+ * Notes what a verdict over `scope` read of `nvs meta --json`: the class and the card of each member's
+ * class, which a change to that class's registry row or card moves. An exception, enum, interface or
+ * directive, and the whole roster (`whole`), depend on every class and card, since the list they come
+ * from moves with any of them. A language or tool feature is read from its chapter, which is noted as
+ * a file.
+ */
+export function noteRoster(scope: Entry[], whole: boolean): void {
+  if (whole || scope.some((e) => META_LISTS.has(e.kind))) {
+    noteKey(ALL_CLASSES);
+    noteKey(ALL_CARDS);
+    return;
+  }
+  for (const e of scope) {
+    if (e.kind !== "member") continue;
+    noteKey(classKey(e.group));
+    noteKey(cardKey(e.group));
+  }
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 /** A value as Python's `str()` prints it inside an f-string. */

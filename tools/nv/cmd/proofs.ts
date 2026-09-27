@@ -43,7 +43,7 @@ import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
-import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
+import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, noteRoster, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { bless, namedBinary, type Pass, PROOF_BINARY, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 import { type Diverged, runSelected } from "../proofs/select.ts";
@@ -478,7 +478,9 @@ export async function run(args: string[]): Promise<number> {
   // that print every feature collect every feature.
   const fidEntry = entries.find((e) => e.id === values.get("--id"));
   const scoped = executes || measures || flags.has("--gate") || flags.has("--json") || flags.has("--gaps") || (flags.has("--owed") && !values.has("--id"));
-  const proofs = collect(scoped ? [...new Set([...scope, ...(fidEntry ? [fidEntry] : [])])] : entries);
+  const inScope = scoped ? [...new Set([...scope, ...(fidEntry ? [fidEntry] : [])])] : entries;
+  noteRoster(inScope, !scoped || scope === entries);
+  const proofs = collect(inScope);
 
   if (measures) {
     const fid = values.get("--id");
