@@ -1,22 +1,18 @@
 {
-  "state": "Goal `core-router-and-4-more`, stage 2 (feature proofs). `Core\\Router`, `Core\\Router\\Match`, `Core\\Script` and `Core\\Script\\ExitReport` are done: `bun nv proofs --only` with the three `ExitReport` members and `--gate` owes nothing. `bun nv check` is back to 0 findings, after moving the `Core\\Script::finish` skip in `data/proofs/policy.json` to where it sorts. The `Core\\Response::sendFile` attack now has `hostile: timeout-ms 30000`. It passes in about 7s alone, and its 100,000-call step went over the 10s default under the sweep's load.\n\nThe `ExitReport` attacks found a bug, now fixed. An `exit($n)` inside an exit function was refused and logged, but it had already written `$n` as the process status. So the process exited with the function's number, while the report showed the ending's number. `Ctx::run_exit_hooks` (`crates/nvs-runtime/src/ctx/hooks.rs`) now restores the ending's status after such a refusal. `an_exit_inside_a_hook_leaves_the_process_status_the_report_named` in `script.rs` pins it.\n\n`Core\\Secret` is the one class of this goal's five that is not started. It is the last red check on the driver's sweep.",
+  "state": "Goal `core-router-and-4-more` is reached. All five classes owe nothing: `Core\\Router`, `Core\\Router\\Match`, `Core\\Script`, `Core\\Script\\ExitReport` and `Core\\Secret`. `bun nv proofs --verify --group` for each prints `nothing owed`, `0 failed` and `0 failed`. `bun nv verify --doc` is green, and `bun nv owners --closes` and `bun nv playbook --closes` for this goal name nothing.\n\n`Core\\Secret` now has its class card, and it is off `CLASSES_STILL_OWING_A_CARD`. Its two member cards are rewritten to `AGENTS.md` § *Text an end user reads*. `reveal` and `revealBytes` each have an about, three examples, an attack, a bench with a recorded figure, and a Rust `#[test]` in `crates/nvs-stdlib/src/secret.rs`. The attacks found no bug: 10,000 kept reveals of a 16 MB secret share one allocation, and changing one copy leaves the others alone.",
   "next": {
     "stage": 2,
     "title": "feature proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/secret.rs`, `crates/nvs-stdlib/src/registry.rs` and the `Core/Secret` trees under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/secret.rs` and the `Core/Secret` proof trees. Nothing is left open in this goal; the next goal on the chain starts from its own handoff.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Secret`'s class card** — add a `ClassDoc` above the `CLASS` row at `crates/nvs-stdlib/src/secret.rs:40`, and delete `Core\\Secret` from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5279` (`rule:core-api/reference-card`). Check the `reveal` and `revealBytes` cards (rows at `crates/nvs-stdlib/src/secret.rs:45` and `:54`) against `AGENTS.md` § *Text an end user reads* in the same slice."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Secret::reveal` and `revealBytes`** — about, three examples, an attack and a bench each, plus a Rust `#[test]` with a `covers:` marker for each, above the helpers at `crates/nvs-stdlib/src/secret.rs:133` and `:152` (`rule:testing/feature-proofs`). `bun nv proofs --id 'Core\\Secret::reveal'` prints the paths."
+        "done": true,
+        "text": "**`Core\\Secret`'s class card and every feature proof** — `crates/nvs-stdlib/src/secret.rs:40` (`rule:testing/feature-proofs`, `rule:core-api/reference-card`)."
       }
     ]
   },
   "backlog": [
-    "When `Core\\Secret` passes its gate, the goal is complete: run `bun nv verify --doc`, `bun nv owners --closes core-router-and-4-more` and `bun nv playbook --closes core-router-and-4-more` before writing `DONE` (the loop prompt, step 6)."
+    "Nothing this goal owes. Older landed proofs that predate the plain-comment rule are goal `plain-comments`'s to sweep (`AGENTS.md` § *Text an end user reads*)."
   ]
 }
