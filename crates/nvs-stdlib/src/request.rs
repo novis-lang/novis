@@ -686,42 +686,45 @@ const JSON_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::jsonAs`'s reference card — `rule:core-api/reference-card`.
 const JSON_AS_DOC: MethodDoc = MethodDoc {
-    short: "The request body hydrated into an instance of `T` — `Core\\Json::decodeAs` over the \
-            octets `body` answers, carrying the same `{maxDepth?}` bag; write `array<T>` to read a \
-            JSON array as one instance per element.",
+    short: "Reads the request body as one JSON object and returns a new instance of the class \
+            `T`. The class needs `#[Core\\Json\\Derive]`. Write `array<T>` to read a JSON array \
+            with one object for each element.",
     params: &[ParamDoc {
         name: "maxDepth",
-        desc: "How deep the document may nest before it is refused, counted PHP's way: a scalar \
-               document is depth 1.",
+        desc: "How deep the document may nest. The default is 512, and the value must be from 1 \
+               to 1024. A document with no array or object in it has depth 1.",
         shape: &[],
     }],
-    ret: "A new `T` built from the document's fields, or one `T` per element for an `array<T>`. \
-          Nothing of it is kept: every call hydrates the held octets again, so two callers are \
-          never handed the same object.",
+    ret: "A new `T` with its fields read from the body, or one `T` for each element for an \
+          `array<T>`. Every call creates new objects, so two callers never get the same object.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or this request's body has already \
-                   been read by `bodyStream` or `files`, or `T` carries no `#[Json\\Derive]` \
-                   codec to decode into. A `maxDepth` outside 1..=1024 is the other one.",
+            desc: "The program is not answering a request. Or `bodyStream` or `files` already \
+                   read the body, and those two do not keep it. Or `T` has no \
+                   `#[Core\\Json\\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The body is not one whole JSON document at that depth — which includes a body \
-                   the peer never sent and an empty one — or it is not the object `T` decodes \
-                   from, or its fields are missing or of the wrong type. Every failed field is one \
-                   issue on the error, at its own path. What the request declared as its \
-                   `Content-Type` is not consulted either way.",
+            desc: "The body is not one whole JSON object, or it nests deeper than `maxDepth`. An \
+                   empty body throws this error too. It is also thrown when a field is missing \
+                   or has the wrong type. The `issues` list has one entry for each wrong field. \
+                   The `Content-Type` header is not checked.",
+        },
+        ErrorDoc {
+            error: "RecursionError",
+            desc: "The call stack is full before the last object is created. This can happen \
+                   when a class contains itself and the body nests very deeply.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The body is larger than `[limits] request_body` (8M). The bytes over the bound \
-                   are never held: the refusal happens at the chunk that would cross it.",
+            desc: "The body is larger than `[limits] request_body` (8M). The bytes past that \
+                   limit are never stored.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed under the body, or the peer stopped short of the length \
-                   it declared.",
+            desc: "The connection failed while the body arrived, or the client sent fewer bytes \
+                   than its `Content-Length` said.",
         },
     ],
 };
@@ -6432,6 +6435,7 @@ mod tests {
     /// keeps nothing and hydrates the held octets again, and what a second call
     /// answers is equal and a different allocation — which is the one thing an
     /// equality assertion could not see.
+    // covers: Core\Request::jsonAs
     #[test]
     fn json_as_hydrates_a_declared_type_and_never_shares_an_object() {
         let class = reading_class();
@@ -6455,6 +6459,41 @@ mod tests {
 
         dropped(first);
         dropped(second);
+    }
+
+    /// `jsonAs<T>()` compares the stack against the request's soft limit at the
+    /// object it enters, and throws a catchable recursion error there; the
+    /// refusal leaves the held body where it was.
+    ///
+    /// The walk is native from the first object to the deepest, so a compiled
+    /// prologue is not on the way down to compare anything: a chain of objects
+    /// inside `maxDepth` would otherwise run past the floor. Arming the soft
+    /// address above every frame of this thread is what makes the one object
+    /// here deep enough, and re-arming the original pair is what shows the
+    /// octets were not consumed by the refusal.
+    // covers: Core\Request::jsonAs
+    #[test]
+    fn json_as_throws_at_the_stack_limit_and_keeps_the_body() {
+        let class = reading_class();
+        let mut ctx = answering(Some(Chunks::of(&[&b"{\"n\":7}"[..]])));
+        let (_, floor) = ctx.stack_bounds();
+
+        ctx.arm_stack_limit(usize::MAX, nvs_runtime::STACK_RESERVE);
+        assert!(
+            read_json_as(&mut ctx, class).is_err(),
+            "an object entered below the soft address is refused"
+        );
+        assert_eq!(
+            ctx.take_pending().as_deref(),
+            Some("the call stack is too deep"),
+            "with the sentence compiled code throws at the same limit"
+        );
+
+        ctx.arm_stack_limit(floor, 0);
+        let hydrated = read_json_as(&mut ctx, class)
+            .expect("the refusal read nothing off the wire, so the body is still held");
+        assert_eq!(field_n(hydrated), 7);
+        dropped(hydrated);
     }
 
     /// One reading of one body answers both members, in either order.

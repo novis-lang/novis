@@ -1,0 +1,12 @@
+{
+  "lead": "A debug build overflows its 1 MiB task stack decoding JSON far shallower than `maxDepth` allows, and a release build does not.",
+  "body": "Plain `Core\\Json::decode` in `crates/nvs-stdlib/src/json.rs` crashes the `covws` and `target/debug` binaries on about 800 nested objects, and those are the binaries the proof sweep and `nv try` run, while `target/release/nvs.exe` decodes 1000. Keep a hostile body at 600 levels or fewer unless the attack is the depth itself, and compare against the release binary before reading a debug-only overflow as a shipped bug.",
+  "files": [
+    "crates/nvs-stdlib/src/json.rs",
+    "crates/nvs-host/src/stack.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-host/src/stack.rs:1 << 20"
+  }
+}

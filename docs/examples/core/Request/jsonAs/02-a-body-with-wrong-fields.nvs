@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to answer a client whose JSON body does not match your class.
+
+#[Core\Json\Derive]
+class NewUser {
+    public tainted string $name;
+    public int $age;
+
+    public function constructor(tainted string $name, int $age) {
+        $this->name = $name;
+        $this->age = $age;
+    }
+}
+
+// The body has no `name`, and its `age` is a string. `Core\Request::jsonAs` throws
+// one `ParseError`. Its `issues` list has one entry for each wrong field.
+try {
+    var $user = Core\Request::jsonAs<NewUser>();
+    echo "201: created\n";
+} catch (ParseError $error) {
+    // This prints "422: 2 wrong fields", and then the path of each field.
+    echo "422: ", Core\Arr::count($error->issues), " wrong fields\n";
+    foreach ($error->issues as {path: string, message: string} $issue) {
+        echo "  ", $issue->path, "\n";
+    }
+}

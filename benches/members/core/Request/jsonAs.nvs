@@ -1,0 +1,44 @@
+<?nvs
+// Reads a small JSON request body into a class, as an API does with every order it receives.
+// bench: iterations 50000
+
+#[Core\Json\Derive]
+class Line {
+    public tainted string $sku;
+    public int $cents;
+    public int $count;
+
+    public function constructor(tainted string $sku, int $cents, int $count) {
+        $this->sku = $sku;
+        $this->cents = $cents;
+        $this->count = $count;
+    }
+}
+
+#[Core\Json\Derive]
+class Order {
+    public tainted string $customer;
+    public array<Line> $items;
+
+    public function constructor(tainted string $customer, array<Line> $items) {
+        $this->customer = $customer;
+        $this->items = $items;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The request is in the file `jsonAs.nvsr` beside this one.
+        // Every call creates new objects from the body.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $order = Core\Request::jsonAs<Order>({maxDepth: 64 + $total % 2});
+            $total = $total + Core\Arr::count($order->items);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

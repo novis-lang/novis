@@ -1,0 +1,12 @@
+--METHOD--
+POST
+--PATH--
+/api/orders
+--SCHEME--
+https
+--HEADERS--
+host: shop.example.com
+content-type: application/json
+authorization: Bearer s7f3a9c2e1
+--BODY--
+{"customer":"c-1042","items":[{"sku":"TEA-01","cents":450,"count":2},{"sku":"CUP-07","cents":1200,"count":1},{"sku":"HON-02","cents":1250,"count":1}]}

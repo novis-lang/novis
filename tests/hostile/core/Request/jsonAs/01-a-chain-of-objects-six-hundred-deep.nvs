@@ -1,0 +1,100 @@
+<?nvs
+// Attack: a client sends a JSON body of 600 objects, each inside the one before.
+// The program reads it into a class that contains itself. Deep bodies should throw a `ParseError`,
+// and the program should stop at its memory limit.
+// hostile: ends-early
+
+#[Core\Json\Derive]
+class Node
+{
+    public ?Node $n;
+
+    public function constructor(?Node $n)
+    {
+        $this->n = $n;
+    }
+}
+
+#[Core\Json\Derive]
+class Flat
+{
+    public int $n;
+
+    public function constructor(int $n)
+    {
+        $this->n = $n;
+    }
+}
+
+#[Core\Json\Derive]
+class Loose
+{
+    public mixed $n;
+
+    public function constructor(mixed $n)
+    {
+        $this->n = $n;
+    }
+}
+
+// 1. Reads the body at the default depth of 512. This throws a `ParseError`.
+try {
+    var $document = Core\Request::jsonAs<Node>();
+    echo 'default depth: hydrated', "\n";
+} catch (ParseError $error) {
+    echo 'default depth: ParseError', "\n";
+}
+
+// 2. Reads the body with a depth limit one below the document. This throws a `ParseError`.
+try {
+    var $tooShallow = Core\Request::jsonAs<Node>({ maxDepth: 600 });
+    echo 'depth 600: hydrated', "\n";
+} catch (ParseError $shallowError) {
+    echo 'depth 600: ParseError', "\n";
+}
+
+// 3. Asks for depth limits outside 1 to 1024. Each throws a `LogicError`.
+array<uint> $limits = [0, 1025, 18446744073709551615];
+foreach ($limits as uint $limit) {
+    try {
+        var $outside = Core\Request::jsonAs<Node>({ maxDepth: $limit });
+        echo $limit, ': hydrated', "\n";
+    } catch (LogicError $limitError) {
+        echo $limit, ': LogicError', "\n";
+    }
+}
+
+// 4. Reads the body into classes it does not match. Each throws a `ParseError`.
+try {
+    var $flat = Core\Request::jsonAs<Flat>({ maxDepth: 1024 });
+    echo 'Flat: hydrated', "\n";
+} catch (ParseError $flatError) {
+    echo 'Flat: ParseError', "\n";
+}
+try {
+    var $list = Core\Request::jsonAs<array<Node>>({ maxDepth: 1024 });
+    echo 'array<Node>: hydrated', "\n";
+} catch (ParseError $listError) {
+    echo 'array<Node>: ParseError', "\n";
+}
+
+// 5. Reads the body with the highest depth limit. This creates 600 objects, one inside the other.
+// If the call stack is too small for that, it throws a `RecursionError`. Both results are correct.
+try {
+    Node $chain = Core\Request::jsonAs<Node>({ maxDepth: 1024 });
+    ?Node $step = $chain;
+    uint $count = 0;
+    while ($step != null) {
+        $count = $count + 1;
+        $step = $step?->n;
+    }
+} catch (RecursionError $stackError) {
+}
+echo 'depth 1024: done', "\n";
+
+// 6. Reads the body into a `mixed` field and keeps every copy without end.
+// This stops at the memory limit.
+array<Loose> $kept = [];
+while (true) {
+    $kept[] = Core\Request::jsonAs<Loose>({ maxDepth: 1024 });
+}

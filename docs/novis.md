@@ -10653,7 +10653,7 @@ Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json
 
 **Returns** `T` — A new `T` built from the document's fields, or — for an `array<C>` — one new `C` per element, in the document's own order.
 
-**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, holds an integer literal too large for `int`, is not an object at the top level (an array, for an `array<C>`), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position.; `LogicError` — `T` has no JSON codec because it does not carry `#[Json\Derive]`, or `maxDepth` is `0` or above `1024`.
+**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, holds an integer literal too large for `int`, is not an object at the top level (an array, for an `array<C>`), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position.; `LogicError` — `T` has no JSON codec because it does not carry `#[Json\Derive]`, or `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack is full before the last object is created. This can happen when a class contains itself and the document nests very deeply.
 
 <a id="core-core-json-isvalid"></a>
 #### `Core\Json::isValid`
@@ -18341,15 +18341,15 @@ Reads the request body as one JSON document and returns the decoded value. It re
 Core\Request::jsonAs<T>({maxDepth?: uint}): T
 ```
 
-The request body hydrated into an instance of `T` — `Core\Json::decodeAs` over the octets `body` answers, carrying the same `{maxDepth?}` bag; write `array<T>` to read a JSON array as one instance per element.
+Reads the request body as one JSON object and returns a new instance of the class `T`. The class needs `#[Core\Json\Derive]`. Write `array<T>` to read a JSON array with one object for each element.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest before it is refused, counted PHP's way: a scalar document is depth 1. |
+| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest. The default is 512, and the value must be from 1 to 1024. A document with no array or object in it has depth 1. |
 
-**Returns** `T` — A new `T` built from the document's fields, or one `T` per element for an `array<T>`. Nothing of it is kept: every call hydrates the held octets again, so two callers are never handed the same object.
+**Returns** `T` — A new `T` with its fields read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects, so two callers never get the same object.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files`, or `T` carries no `#[Json\Derive]` codec to decode into. A `maxDepth` outside 1..=1024 is the other one.; `ParseError` — The body is not one whole JSON document at that depth — which includes a body the peer never sent and an empty one — or it is not the object `T` decodes from, or its fields are missing or of the wrong type. Every failed field is one issue on the error, at its own path. What the request declared as its `Content-Type` is not consulted either way.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it. Or `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RecursionError` — The call stack is full before the last object is created. This can happen when a class contains itself and the body nests very deeply.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
 
 <a id="core-core-request-bodystream"></a>
 #### `Core\Request::bodyStream`
