@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to check that every link in a site menu opens a page of this program.
+
+class Shop {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    #[Core\Route(path: "/products/{slug}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(string $slug): string { return "one product"; }
+
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Get, name: "Shop::cart")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): string { return "the cart"; }
+}
+
+// The menu is often written by hand, so a link can point at a page that does not exist.
+array<string> $menu = ["/", "/products/red-shoes", "/basket", "/cart"];
+
+// A deploy script or a test runs this loop before the menu goes live.
+// Each link prints the name of its route, or `BROKEN`.
+uint $broken = 0;
+foreach ($menu as string $link) {
+    ?Core\Router\Match $page = Core\Router::match(Core\Http\Method::Get, $link);
+    if ($page == null) {
+        echo $link, " -> BROKEN", "\n";
+        $broken = $broken + 1;
+    } else {
+        echo $link, " -> ", $page->name() ?? "no name", "\n";
+    }
+}
+echo $broken, " broken link(s)", "\n";

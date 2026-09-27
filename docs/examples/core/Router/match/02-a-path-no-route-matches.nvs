@@ -1,0 +1,22 @@
+<?nvs
+// Shows what `Core\Router::match` returns when no route matches.
+
+class Contact {
+    #[Core\Route(path: "/contact", method: Core\Http\Method::Get, name: "Contact::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): string { return "the form"; }
+}
+
+// The path exists, but only for `Get`. A `Post` to it does not match,
+// so the result is `null`.
+?Core\Router\Match $sent = Core\Router::match(Core\Http\Method::Post, "/contact");
+echo $sent == null ? "post: no route" : "post: matched", "\n";
+
+// No route has this path at all, so the result is also `null`.
+?Core\Router\Match $missing = Core\Router::match(Core\Http\Method::Get, "/contact-us");
+echo $missing == null ? "get /contact-us: no route" : "get /contact-us: matched", "\n";
+
+// `Core\Router::methodsFor` tells the two cases apart.
+// This prints 1 for `/contact` and 0 for `/contact-us`.
+echo Core\Arr::count(Core\Router::methodsFor("/contact")), "\n";
+echo Core\Arr::count(Core\Router::methodsFor("/contact-us")), "\n";

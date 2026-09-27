@@ -1,0 +1,40 @@
+<?nvs
+// Matches a method and a path against a small route table, as a link checker or a test does for each link.
+// bench: iterations 200000
+
+class Shop {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(uint $id): string { return "one product"; }
+
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Post, name: "Shop::cart")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): string { return "the cart"; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["/", "/products/42", "/cart"];
+        array<Core\Http\Method> $verbs = [Core\Http\Method::Get, Core\Http\Method::Get, Core\Http\Method::Post];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $k = $total % 3;
+            ?Core\Router\Match $found = Core\Router::match($verbs[$k], $paths[$k]);
+            // chained: the next path depends on this result
+            if ($found == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

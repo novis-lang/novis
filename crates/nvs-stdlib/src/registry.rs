@@ -5339,7 +5339,6 @@ mod tests {
         r"Core\Request\BodyStream",
         r"Core\Request\Files",
         r"Core\Request\PartContent",
-        r"Core\Router",
         r"Core\Router\Match",
         r"Core\Script",
         r"Core\Script\ExitReport",

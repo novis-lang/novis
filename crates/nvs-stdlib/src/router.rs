@@ -60,8 +60,8 @@ use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::keyring::KEY;
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
-    ShapeKeyDoc,
+    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
+    ParamDoc, Qual, ShapeKeyDoc,
 };
 use crate::signature::{Confirmed, Domain};
 use crate::uri::{Form, SIG_NAME, encode};
@@ -197,6 +197,13 @@ const METHODS: CoreTy = CoreTy::Array(&CoreTy::Enum(METHOD_NAME));
 /// away, does `Core\Request::route()`.
 const MATCHED: CoreTy = CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME));
 
+/// `Core\Router`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "The routes of your program. `url()`, `urlAbsolute()` and `urlSigned()` build a link \
+            to a route from its name. `match()` and `methodsFor()` check a path against the \
+            routes, and `signedRoute()` checks the signature of a signed link.",
+};
+
 /// Spec § 15's `Core\Router`, as much of it as `rule:routing/matching-is-not-dispatching`'s link half and
 /// `rule:routing/matched-once-before-the-handler` and `rule:routing/a-refused-verb-is-not-a-missing-path`'s two answers need.
 ///
@@ -209,7 +216,7 @@ const MATCHED: CoreTy = CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME));
 /// § 1 exists to remove.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "url",
@@ -443,52 +450,46 @@ const SIGNED_ROUTE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Router::match`'s reference card — `rule:core-api/reference-card`.
 const MATCH_DOC: MethodDoc = MethodDoc {
-    short: "Matches `$method` and `$path` against this program's compiled route table, answering \
-            the same `Core\\Router\\Match` a served request carries — a question asked of the \
-            table, which dispatches nothing and never reads the request.",
+    short: "Finds the route that `$method` and `$path` belong to. It checks every `#[Route]` in \
+            the program and does not run the route's handler.",
     params: &[
         ParamDoc {
             name: "method",
-            desc: "The verb to match under. A route declared for one verb is not claimed by \
-                   another, so the same path under `Get` and `Post` are two questions.",
+            desc: "The HTTP method. A route declared for `Get` does not match a `Post`.",
             shape: &[],
         },
         ParamDoc {
             name: "path",
-            desc: "The path to match, as a URL path and with no query string; a mount's prefix is \
-                   not stripped here, because nothing about a path the caller chose says which \
-                   mount it was meant for.",
+            desc: "The path, with no query string. A mount prefix is not removed from it.",
             shape: &[],
         },
     ],
-    ret: "The match — its declared name, and the captures the path filled, each percent-decoded \
-          once and converted to the type its `#[Route]` parameter declared. `null` where no route \
-          claims that verb and path, and for a program that declares no route at all, since a \
-          table nothing built claims nothing.",
+    ret: "A `Core\\Router\\Match` with the route's name and its captures. Each capture is decoded \
+          and has the type of its handler parameter. The result is `null` when no route has this \
+          method and this path, or when the program has no routes.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A capture percent-decodes to octets that are not UTF-8, so it has no `tainted \
-               string` to bind to; the throw names the capture and the offset of the first byte a \
-               `string` cannot hold.",
+        desc: "A capture decodes to bytes that are not valid UTF-8. The message names the capture \
+               and the position of the first bad byte.",
     }],
 };
 
 /// `Core\Router::methodsFor`'s reference card — `rule:core-api/reference-card`.
 const METHODS_FOR_DOC: MethodDoc = MethodDoc {
-    short: "Every verb the route table claims `$path` under, in the order the routes were \
-            declared — the question left over once `Core\\Request::route()` has answered `null`, \
-            and the one a `404` and a `405` are told apart by.",
+    short: "Lists the HTTP methods that the routes of `$path` accept, in the order the routes are \
+            declared. Use it when `Core\\Request::route()` returns `null`, to choose between a \
+            `404` and a `405`.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The path to ask about, as a URL path and with no query string; a mount's prefix is \
-               already stripped from the one the request arrived with.",
+        desc: "The path, with no query string. The path of a request already has its mount prefix \
+               removed.",
         shape: &[],
     }],
-    ret: "The verbs, once each: an empty array where no route claims the path at all — the `404` \
-          — and otherwise the list an `Allow:` header spells for the `405`. Both forms of a \
-          terminal `{name?}` answer the same verbs, and a path whose capture will not convert is \
-          claimed by nobody — which is the conversions the matcher itself performs, since a capture \
-          typed at any other class built from text matches on shape and refuses later.",
+    ret: "The methods, each one once. An empty array means that no route has this path, so the \
+          status is `404`. Otherwise the status is `405`, and the array is the list for the \
+          `Allow` header. A path does not match when a capture is not a valid `int`, `uint`, \
+          `decimal` or `Core\\Uuid` for its handler parameter, or is not one of the values its \
+          parameter allows.",
     errors: &[],
 };
 
@@ -2056,6 +2057,170 @@ mod tests {
         let refused = crossed_slot("Brew", None, super::MATCH_METHOD)
             .expect_err("`Brew` is no case of the roster");
         assert!(refused.contains("`Brew`"), "{refused}");
+    }
+
+    /// `Core\Router::match($method, $path)` over the table `ctx` holds, `None`
+    /// for the `null` it answers when no row claims the pair, or the sentence
+    /// it threw.
+    fn asked(ctx: &mut Ctx, verb: &str, path: &[u8]) -> Result<Option<Value>, String> {
+        let method = Value::int(super::method_case(verb).expect("the case names a roster verb"));
+        let path = Value::str(nvs_runtime::NvsStr::new(path));
+        let answered = nvs_runtime::call(super::nvs_core_router_match, ctx, &[method, path]);
+        dropped(path);
+        match answered {
+            Ok(value) if value.tag() == Some(nvs_runtime::Tag::Null) => Ok(None),
+            Ok(value) => Ok(Some(value)),
+            Err(_) => Err(ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .expect("a refusal leaves its message on the context")),
+        }
+    }
+
+    /// The member reads the table the context holds and nothing else: its own
+    /// verb and path answer the named row with the capture converted, another
+    /// verb, another path and a context with no table answer `null`, and a
+    /// text capture that decodes to no `string` throws naming the capture.
+    // covers: Core\Router::match
+    #[test]
+    fn router_match_answers_the_row_for_its_verb_and_path_and_null_otherwise() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        assert_eq!(
+            asked(&mut ctx, "Get", b"/shop/7").map(|found| found.is_some()),
+            Ok(false),
+            "a program with no `#[Route]` has no table, so nothing matches"
+        );
+
+        // `shop()`'s one row, and a second whose capture is text, since only
+        // text has an escape that can decode to no `string`.
+        let row = |path: &str, name: &str, capture: &str, conv| {
+            nvs_runtime::routes::Route::new(
+                "Get",
+                path,
+                Some(name.to_owned()),
+                name,
+                None,
+                vec![nvs_runtime::routes::Capture {
+                    name: capture.to_owned(),
+                    conv,
+                }],
+            )
+        };
+        ctx.set_routes(std::sync::Arc::new(nvs_runtime::routes::Routes::new(vec![
+            row(
+                "/shop/{id}",
+                "Shop::show",
+                "id",
+                nvs_runtime::routes::CaptureConv::Int,
+            ),
+            row(
+                "/files/{name}",
+                "Files::show",
+                "name",
+                nvs_runtime::routes::CaptureConv::Text,
+            ),
+        ])));
+
+        let found = asked(&mut ctx, "Get", b"/shop/7")
+            .expect("an `int` capture refuses nothing")
+            .expect("the row claims its own verb and path");
+        let name = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[found])
+            .expect("a match answers its own name");
+        assert_eq!(name.as_str_bytes(), Some(&b"Shop::show"[..]));
+        dropped(name);
+        let key = Value::str(nvs_runtime::NvsStr::new(b"id"));
+        let id = nvs_runtime::call(super::nvs_core_router_match_param, &mut ctx, &[found, key])
+            .expect("a match answers its own capture");
+        assert_eq!(
+            id.as_int(),
+            Some(7),
+            "the capture is the number, not its text"
+        );
+        dropped(key);
+        dropped(found);
+
+        for (verb, path) in [
+            ("Post", &b"/shop/7"[..]),
+            ("Get", b"/shop"),
+            ("Get", b"/shop/x"),
+        ] {
+            assert_eq!(
+                asked(&mut ctx, verb, path).map(|found| found.is_some()),
+                Ok(false),
+                "no row claims {verb} {}",
+                String::from_utf8_lossy(path)
+            );
+        }
+
+        let refused = asked(&mut ctx, "Get", b"/files/%ff").expect_err("`%ff` is no `string`");
+        assert!(refused.contains("`name`"), "{refused}");
+    }
+
+    /// The ordinals `Core\Router::methodsFor($path)` answers over the table
+    /// `ctx` holds.
+    fn verbs_for(ctx: &mut Ctx, path: &[u8]) -> Vec<i64> {
+        let path = Value::str(nvs_runtime::NvsStr::new(path));
+        let answered = nvs_runtime::call(super::nvs_core_router_methods_for, ctx, &[path])
+            .expect("`methodsFor` throws for nothing");
+        dropped(path);
+        let array = crate::arr::borrowed(answered.array_ptr().expect("the answer is an array"));
+        let verbs = (0..array.count())
+            .map(|index| {
+                let verb = array
+                    .get_index(i64::try_from(index).expect("a short list"))
+                    .expect("a list is keyed from zero");
+                verb.as_int().expect("a case crosses as its ordinal")
+            })
+            .collect();
+        dropped(answered);
+        verbs
+    }
+
+    /// The member answers verbs rather than rows: two rows under one verb
+    /// name it once, the order is the table's, a path no row claims and a
+    /// context with no table both answer the empty array, and a capture that
+    /// will not convert is claimed by nobody.
+    // covers: Core\Router::methodsFor
+    #[test]
+    fn methods_for_answers_each_verb_once_in_table_order_and_nothing_without_a_claim() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        assert!(
+            verbs_for(&mut ctx, b"/shop/7").is_empty(),
+            "no table claims nothing"
+        );
+
+        let row = |verb: &str, name: &str| {
+            nvs_runtime::routes::Route::new(
+                verb,
+                "/shop/{id}",
+                Some(name.to_owned()),
+                name,
+                None,
+                vec![nvs_runtime::routes::Capture {
+                    name: "id".to_owned(),
+                    conv: nvs_runtime::routes::CaptureConv::Uint,
+                }],
+            )
+        };
+        ctx.set_routes(std::sync::Arc::new(nvs_runtime::routes::Routes::new(vec![
+            row("Delete", "Shop::remove"),
+            row("Get", "Shop::show"),
+            row("Delete", "Shop::purge"),
+        ])));
+
+        let case = |verb| super::method_case(verb).expect("a roster verb");
+        assert_eq!(
+            verbs_for(&mut ctx, b"/shop/7"),
+            vec![case("Delete"), case("Get")]
+        );
+        assert!(
+            verbs_for(&mut ctx, b"/shop").is_empty(),
+            "no row claims the prefix"
+        );
+        assert!(
+            verbs_for(&mut ctx, b"/shop/-7").is_empty(),
+            "a `uint` capture refuses a sign"
+        );
     }
 
     thread_local! {
