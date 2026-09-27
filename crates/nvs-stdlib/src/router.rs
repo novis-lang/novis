@@ -1339,7 +1339,8 @@ fn derived_payload(
     query: &str,
     member: &str,
 ) -> Result<Value, Fault> {
-    let mut params = crate::uri::parse_query(query, member, crate::uri::Values::Text)?;
+    let mut params =
+        crate::uri::parse_query(query, "Core\\Router", member, crate::uri::Values::Text)?;
     for (bound, capture) in matched.params() {
         if params.has_key(bound.as_bytes()) {
             return Err(unverified());
@@ -2416,6 +2417,44 @@ mod tests {
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_inbound(inbound);
         ctx
+    }
+
+    /// `Core\Request::route()` hands over the row the door matched, read here
+    /// through the name a program reads, and matches nothing itself: a request
+    /// the table claimed nothing for answers `null`, and a program answering no
+    /// request is refused.
+    // covers: Core\Request::route
+    #[test]
+    fn request_route_answers_the_door_s_match_and_null_without_one() {
+        let mut matched = serving("", "/shop/7", Some("/shop/7"), "");
+        let route = nvs_runtime::call(crate::request::nvs_core_request_route, &mut matched, &[])
+            .expect("a served request can be asked for its route");
+        let named = nvs_runtime::call(super::nvs_core_router_match_name, &mut matched, &[route])
+            .expect("a match answers its own name");
+        assert_eq!(named.as_str_bytes(), Some(&b"Shop::show"[..]));
+        dropped(named);
+        dropped(route);
+
+        // The URL would match `/shop/{id}`, but the door claimed nothing, so
+        // there is no route, and none is re-derived from the path.
+        let mut unmatched = serving("", "/shop/7", None, "");
+        let none = nvs_runtime::call(crate::request::nvs_core_request_route, &mut unmatched, &[])
+            .expect("a request with no route is still a served request");
+        assert_eq!(
+            none.tag(),
+            Some(nvs_runtime::Tag::Null),
+            "no row was matched, so the answer is `null`"
+        );
+
+        assert!(
+            nvs_runtime::call(
+                crate::request::nvs_core_request_route,
+                &mut Ctx::new(OutputSink::Sink),
+                &[]
+            )
+            .is_err(),
+            "a program answering no request has no route to read"
+        );
     }
 
     /// `Core\Router::signedRoute($ring)` over that context — the matched

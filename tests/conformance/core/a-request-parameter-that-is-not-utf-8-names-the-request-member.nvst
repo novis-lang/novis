@@ -1,0 +1,25 @@
+--TEST--
+A query string or a form whose escape decodes to bytes that are not UTF-8 makes `Core\Request::query` and `post` throw a `RuntimeError` that names the `Core\Request` member the program called — `rule:statements/no-host-populated-variables`
+--GET--
+page=2&q=%FF
+--POST--
+name=ada&bad=%FF
+--FILE--
+<?nvs
+// One broken escape refuses the whole parameter set, so even the field that
+// decodes cleanly is not read.
+try {
+    echo Core\Request::query("page") as string, "\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// The same shared parse over a form body, with the member that was called.
+try {
+    echo Core\Request::post("name") as string, "\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+Core\Request::query(): the decoded value of a parameter holds a byte a `string` cannot — byte 0 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to
+Core\Request::post(): the decoded value of a parameter holds a byte a `string` cannot — byte 0 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to

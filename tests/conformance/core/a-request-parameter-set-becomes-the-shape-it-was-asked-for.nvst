@@ -6,6 +6,8 @@ page=2&q=novis
 age=41&name=ada&csrf=t0ken
 --FILE--
 <?nvs
+// covers: Core\Request::queryAs
+// covers: Core\Request::postAs
 // `rule:types/arrays`'s type-argument door over a request: with no `name`
 // option the subject is the whole parameter set, which is the only way a
 // program reaches it — neither member opens a public `query(): array<mixed>`.

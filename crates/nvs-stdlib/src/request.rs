@@ -1732,7 +1732,7 @@ fn urlencoded_form(ctx: &mut Ctx, member: &'static str) -> Result<NvsArray, Faul
             ),
         )
     })?;
-    crate::uri::parse_query(held, member, crate::uri::Values::Text)
+    crate::uri::parse_query(held, "Core\\Request", member, crate::uri::Values::Text)
 }
 
 /// The request this context is answering, or `rule:security/request-state-throws-in-an-isolate`'s refusal.
@@ -2129,6 +2129,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let parsed = crate::uri::parse_query(
             inbound_of(ctx, "query")?.query(),
+            "Core\\Request",
             "query",
             crate::uri::Values::Text,
         )?;
@@ -2203,6 +2204,7 @@ nvs_runtime::nvs_helper! {
         }
         let parsed = crate::uri::parse_query(
             inbound_of(ctx, "queryAs")?.query(),
+            "Core\\Request",
             "queryAs",
             crate::uri::Values::Text,
         )?;
@@ -5976,6 +5978,7 @@ mod tests {
     /// nothing ahead of it, `post` builds the parse and draining to the last
     /// field is what consumed the uploads — so `files()` afterwards is refused
     /// rather than answered empty, which is all a drained walk could say.
+    // covers: Core\Request::post
     #[test]
     fn post_reads_the_fields_a_files_walk_buffered() {
         let mut walked = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
@@ -6896,6 +6899,7 @@ mod tests {
     /// `a_key_the_shape_does_not_name_is_left_behind` is where it is pinned, so
     /// what this asserts is only that reading a form through the boundary does
     /// not acquire a stricter one.
+    // covers: Core\Request::postAs
     #[test]
     fn post_as_hydrates_the_whole_form_into_the_shape_it_was_given() {
         let shape = submitted_shape();
@@ -6924,6 +6928,7 @@ mod tests {
     /// and hydrated the whole set would answer plausibly — two filled fields of
     /// the right types — so the values are what separates the two readings, and
     /// the subtree's are the ones asserted.
+    // covers: Core\Request::postAs
     #[test]
     fn post_as_with_a_name_hydrates_one_bracket_subtree() {
         let shape = submitted_shape();
@@ -6953,6 +6958,8 @@ mod tests {
     /// shape. A wrapper that grew its own parse, its own bracket walk or its
     /// own conversion fork would still look right on its own line and fail
     /// here, which is what a second copy of the first test could not see.
+    // covers: Core\Request::queryAs
+    // covers: Core\Request::postAs
     #[test]
     fn query_as_reads_the_query_string_the_same_way() {
         let shape = submitted_shape();

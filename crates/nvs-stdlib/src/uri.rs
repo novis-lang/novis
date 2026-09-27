@@ -1287,14 +1287,15 @@ fn produced(text: &str) -> HelperResult {
 ///
 /// # Errors
 ///
-/// A [`Fault::thrown`] naming the member and the offset of the first bad byte.
+/// A [`Fault::thrown`] naming the member, under the class `owner` the program
+/// called, and the offset of the first bad byte.
 /// The offset is a position in text the caller supplied, so it is safe to name
 /// and it is the one fact that makes the throw actionable — the octets
 /// themselves are not quoted, since they are by definition not text.
-fn text_from(octets: Vec<u8>, member: &str, subject: &str) -> Result<String, Fault> {
+fn text_from(octets: Vec<u8>, owner: &str, member: &str, subject: &str) -> Result<String, Fault> {
     String::from_utf8(octets).map_err(|error| {
         Fault::thrown(format!(
-            "Core\\Uri::{member}(): {subject} holds a byte a `string` cannot — byte {} begins a \
+            "{owner}::{member}(): {subject} holds a byte a `string` cannot — byte {} begins a \
              sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying \
              an escape for a non-UTF-8 byte has no `string` to decode to",
             error.utf8_error().valid_up_to()
@@ -1700,7 +1701,7 @@ fn with_parameter(
     value: Option<Value>,
 ) -> HelperResult {
     let parsed = held(slots, QUERY_SLOT, member).and_then(|query| match query {
-        Some(query) => parse_query(query, member, Values::Octets),
+        Some(query) => parse_query(query, "Core\\Uri", member, Values::Octets),
         // No `?` at all, so there is nothing to read and the answer is a
         // URI with one parameter — or, for a removal, the receiver again.
         None => Ok(NvsArray::new()),
@@ -2630,7 +2631,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let answer = match held(&slots, QUERY_SLOT, "queryParameter")? {
             Some(query) => {
-                let parsed = parse_query(query, "queryParameter", Values::Octets)?;
+                let parsed = parse_query(query, "Core\\Uri","queryParameter", Values::Octets)?;
                 let found = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
                 #[expect(
                     unsafe_code,
@@ -2877,7 +2878,7 @@ nvs_runtime::nvs_helper! {
         let until = crate::signature::until_of(args, 2, MEMBER)?;
         let form = equivalent(args, 0, MEMBER)?;
         let (_, rest) = without_signature(form.query.as_deref().unwrap_or(""));
-        let payload = payload_of(&form, parse_query(&rest, MEMBER, Values::Octets)?);
+        let payload = payload_of(&form, parse_query(&rest, "Core\\Uri",MEMBER, Values::Octets)?);
 
         // `mint` borrows the payload, so this frame still owns the one
         // reference `payload_of` built — and owns it on the refusing path too,
@@ -2931,7 +2932,7 @@ nvs_runtime::nvs_helper! {
         if tokens.len() != 1 {
             return Err(unsigned());
         }
-        let payload = payload_of(&form, parse_query(&rest, MEMBER, Values::Octets)?);
+        let payload = payload_of(&form, parse_query(&rest, "Core\\Uri",MEMBER, Values::Octets)?);
 
         let confirmed = crate::signature::confirm(
             tokens[0],
@@ -3066,12 +3067,13 @@ nvs_runtime::nvs_helper! {
     /// `array<mixed>` says and why it is not `array<bytes>`.
     fn nvs_core_uri_parse_query(_ctx, args: [1]) {
         let query = text_of(args, "parseQuery")?;
-        Ok(Value::array(parse_query(query, "parseQuery", Values::Octets)?))
+        Ok(Value::array(parse_query(query, "Core\\Uri","parseQuery", Values::Octets)?))
     }
 }
 
 /// The bracket convention itself, over a raw query string, for whichever member
-/// is asking — `$member` is only the name a refusal quotes.
+/// is asking — `owner` and `member` are only the class and the name a refusal
+/// quotes, so a `Core\Request` member's throw names `Core\Request`.
 ///
 /// A free function rather than the body of the helper above, because
 /// [`crate::request`] reads the same convention off a served request's own query
@@ -3086,14 +3088,20 @@ nvs_runtime::nvs_helper! {
 /// are not UTF-8 — a name is an array key and an array key is a `string`. A
 /// value refuses nothing under [`Values::Octets`] and refuses the same octets
 /// under [`Values::Text`].
-pub(crate) fn parse_query(query: &str, member: &str, values: Values) -> Result<NvsArray, Fault> {
+pub(crate) fn parse_query(
+    query: &str,
+    owner: &str,
+    member: &str,
+    values: Values,
+) -> Result<NvsArray, Fault> {
     let mut out = NvsArray::new();
     for pair in query.split('&') {
         let (written_name, written_value) = pair.split_once('=').unwrap_or((pair, ""));
         let name = text_from(
             decode(written_name, Form::FormValue),
+            owner,
             member,
-            "the decoded name of a query parameter",
+            "the decoded name of a parameter",
         )?;
         if name.is_empty() {
             continue;
@@ -3102,7 +3110,7 @@ pub(crate) fn parse_query(query: &str, member: &str, values: Values) -> Result<N
         let value = match values {
             Values::Octets => Value::bytes(NvsStr::new(&octets)),
             Values::Text => Value::str(NvsStr::new(
-                text_from(octets, member, "the decoded value of a query parameter")?.as_bytes(),
+                text_from(octets, owner, member, "the decoded value of a parameter")?.as_bytes(),
             )),
         };
         place(&mut out, name.as_bytes(), value);
@@ -3528,8 +3536,13 @@ mod tests {
         assert_eq!(parsed("%61+b=%61+c").expect("no throw"), "{a b:a c}");
         // The value's octets, whatever they are. `rendered` reads a leaf
         // lossily, so this asserts the bytes rather than their rendering.
-        let query = super::parse_query("n=%ff%fe%fd", "parseQuery", super::Values::Octets)
-            .expect("a value refuses nothing");
+        let query = super::parse_query(
+            "n=%ff%fe%fd",
+            "Core\\Uri",
+            "parseQuery",
+            super::Values::Octets,
+        )
+        .expect("a value refuses nothing");
         let slot = query.next_slot(0).expect("one pair");
         let value = query.value_at(slot).expect("a live slot has a value");
         assert_eq!(
@@ -3538,7 +3551,10 @@ mod tests {
         );
         // The same query read as a served request's parameters keeps § 15's
         // refusal, which is the whole of what `Values` decides.
-        assert!(super::parse_query("n=%ff%fe%fd", "query", super::Values::Text).is_err());
+        assert!(
+            super::parse_query("n=%ff%fe%fd", "Core\\Request", "query", super::Values::Text)
+                .is_err()
+        );
     }
 
     /// The amendment is the decoders' alone: an encoder still takes text and
