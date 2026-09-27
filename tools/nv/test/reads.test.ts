@@ -20,7 +20,7 @@ describe("what a `bun nv` process reads", () => {
 
   test("the log is the union of every process that wrote a line to it", () => {
     writeFileSync(LOG, `${JSON.stringify({ files: ["a"], exists: [], dirs: ["d"], spawns: [["git", "ls-files"]] })}\n${JSON.stringify({ files: ["b", "a"], exists: ["e"], dirs: [], spawns: [["git", "ls-files"]] })}\n`);
-    expect(readLog(LOG)).toEqual({ files: ["a", "b"], exists: ["e"], dirs: ["d"], spawns: [["git", "ls-files"]] });
+    expect(readLog(LOG)).toEqual({ files: ["a", "b"], exists: ["e"], dirs: ["d"], spawns: [["git", "ls-files"]], keys: [] });
     writeFileSync(LOG, "");
     expect(readLog(LOG)).toBeNull();
   });
