@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to check whether an enum has `uint` or `int` values.
+
+enum Permission: uint {
+    Read = 1,
+    Write = 2,
+    Delete = 4,
+}
+
+enum Temperature: int {
+    Freezing = -10,
+    Mild = 15,
+}
+
+array<string> $names = [Permission::class, Temperature::class];
+foreach ($names as string $name) {
+    ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($name);
+    if ($found != null) {
+        Core\Reflect\EnumInfo $info = $found;
+        // This prints `Permission: uint` and then `Temperature: int`.
+        echo $name, ": ", $info->isUnsigned() ? "uint" : "int", "\n";
+    }
+}

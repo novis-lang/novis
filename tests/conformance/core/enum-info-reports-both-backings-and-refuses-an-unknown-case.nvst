@@ -2,6 +2,7 @@
 `Core\Reflect\EnumInfo` reports a `uint` backing and an omitted one alike, reads a case whose value was counted on rather than written, and throws `LogicError` for a case the enum does not declare (`rule:enums/one-backing-type`, `rule:enums/reflection`)
 --FILE--
 <?nvs
+// covers: Core\Reflect\EnumInfo::isUnsigned
 // `rule:enums/one-backing-type`: exactly one backing per enum, `int` unless
 // `: uint` is written, and no unbacked form for `isUnsigned` to have a third
 // answer about.

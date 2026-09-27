@@ -24190,7 +24190,7 @@ $enumInfo->cases(): array<string>
 
 Every case the enum declares, by name.
 
-**Returns** `array<string>` — One string per case, ascending by the case's constant and then by name. A declaration's own order is carried by nothing below the parser, so this order is the one the runtime can state rather than an approximation of the source.
+**Returns** `array<string>` — One string per case, sorted by the value of the case from the smallest to the largest. Two cases with the same value are sorted by name. The order is not the order of the declaration. An enum with no case gives an empty list.
 
 <a id="core-core-reflect-enuminfo-valueof"></a>
 #### `Core\Reflect\EnumInfo->valueOf`
@@ -24216,9 +24216,9 @@ The constant behind one case.
 $enumInfo->isUnsigned(): bool
 ```
 
-Which of `rule:enums/one-backing-type`'s two integer types the cases are constants of.
+Checks whether the values of the enum's cases are `uint` or `int`.
 
-**Returns** `bool` — `true` for an enum written `: uint`, `false` for every other one — there is no third backing and no unbacked form.
+**Returns** `bool` — `true` for an enum declared with `: uint`. `false` for an enum declared with `: int` or with no type, because an enum with no type is an `int` enum.
 
 <a id="core-core-ast"></a>
 ### `Core\Ast`

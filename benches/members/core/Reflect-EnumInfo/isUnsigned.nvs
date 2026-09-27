@@ -1,0 +1,43 @@
+<?nvs
+// Checks the number type of an enum, as a program does before it reads the value of a case.
+// bench: iterations 400000
+// bench: allocations 0
+
+enum Permission: uint {
+    Read = 1,
+    Write = 2,
+}
+
+enum Offset: int {
+    Before = -1,
+    After = 1,
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\EnumInfo> $infos = [];
+        array<string> $names = [Permission::class, Offset::class];
+        foreach ($names as string $name) {
+            ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($name);
+            if ($found != null) {
+                Core\Reflect\EnumInfo $described = $found;
+                $infos[] = $described;
+            }
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The description read depends on last round's total, so no round can be skipped.
+            Core\Reflect\EnumInfo $info = $infos[($total % 2) as int];
+            if ($info->isUnsigned()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
