@@ -18191,11 +18191,11 @@ The verb this request carries, as one of `Core\Http\Method`'s eight cases — wi
 Core\Request::isHead(): bool
 ```
 
-Whether the peer wrote `HEAD`, which `method` reports as `Get` — the one difference between the two, for a handler that would rather not build a body nothing will read.
+Checks whether the request is a `HEAD` request. `method` returns `Get` for a `HEAD` request, so this is the only way to tell the two apart.
 
-**Returns** `bool` — `true` when the request line carried `HEAD`, `false` for every other verb.
+**Returns** `bool` — `true` when the request method is `HEAD`, and `false` for every other method. The server sends no body in the response to a `HEAD` request, so a program can skip the work of building one.
 
-**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test.
+**Throws** `LogicError` — The program is not answering a request.
 
 <a id="core-core-request-path"></a>
 #### `Core\Request::path`
@@ -18324,15 +18324,15 @@ Returns the whole request body as `bytes`. Use it for a body that is not text, s
 Core\Request::json({maxDepth?: uint}): mixed
 ```
 
-The request body read as one JSON document — `Core\Json::decode` over the octets `body` answers, carrying the same `{maxDepth?}` bag and the same default of 512.
+Reads the request body as one JSON document and returns the decoded value. It replaces PHP's `json_decode(file_get_contents('php://input'), true)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest before it is refused, counted PHP's way: a scalar document is depth 1. |
+| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest. The default is 512, and the value must be from 1 to 1024. A document with no array or object in it has depth 1. |
 
-**Returns** `mixed` — The decoded document — arrays and scalars, in the shape the peer sent, exactly as `Core\Json::decode` builds it. The strings in it are a peer's bytes, so they carry `body`'s qualifier the way `post`'s fields do.
+**Returns** `mixed` — The decoded value, the same as `Core\Json::decode` returns for the body. A JSON object becomes an array with string keys. Every string in it is `tainted`. Every call returns the same value.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files` — those two hand the octets over as they arrive and keep none of them. A `maxDepth` outside 1..=1024 is the other one.; `ParseError` — The body is not one whole JSON document at that depth — which includes a body the peer never sent and an empty one, because `mixed` cannot tell "no body" from the document `null`. What the request declared as its `Content-Type` is not consulted either way.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON document, or it nests deeper than `maxDepth`. An empty body throws this error too. The `Content-Type` header is not checked.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
 
 <a id="core-core-request-jsonas"></a>
 #### `Core\Request::jsonAs`
@@ -18444,11 +18444,11 @@ The scheme this request effectively arrived over, which only a trusted peer's `X
 Core\Request::host(): ?tainted string
 ```
 
-The authority this request named, which is what a host-mounted deployment reads to learn which tenant it is serving — the `Host` field alone, since no forwarded host header is read at all.
+Returns the host name the request was sent to, read from its `Host` header. It replaces PHP's `$_SERVER['HTTP_HOST']`.
 
-**Returns** `?tainted string` — The host part, lower-cased with any port and one trailing dot removed — the three equivalences the server itself compares a host mount by — and `tainted`. `null` where the request named no authority, which the server refuses at the door for HTTP/1.1. `header("host")` is the line as it arrived, for a program that wants the port.
+**Returns** `?tainted string` — The host name as a `tainted` string in lower case. A port and one dot at the end are removed, so `Shop.Example.com.:8443` returns `shop.example.com`. An IPv6 address keeps its brackets. The result is `null` when the request has no `Host` header. `header("host")` returns the header exactly as it arrived, with the port. Headers such as `X-Forwarded-Host` are never read.
 
-**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test.
+**Throws** `LogicError` — The program is not answering a request.
 
 <a id="core-core-request-route"></a>
 #### `Core\Request::route`
