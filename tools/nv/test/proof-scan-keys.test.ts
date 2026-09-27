@@ -56,4 +56,36 @@ describe("the keys a verdict reads of `nvs meta --json`", () => {
     expect(await noted([entry("directive:cache.local", "directive", "config:directives")], false)).toEqual(["card:*", "class:*"]);
     expect(await noted([], true)).toEqual(["card:*", "class:*"]);
   });
+
+  test("groups collected in one process each read their own classes, cards, features and files, and not another group's", async () => {
+    rmSync(LOG, { force: true });
+    const url = (p: string) => JSON.stringify(pathToFileURL(join(ROOT, "tools", "nv", ...p.split("/"))).href);
+    const scope = [
+      { ...entry("Core\\Json::decode", "member", "Core\\Json"), anchor: "crates/nvs-stdlib/src/json.rs:1" },
+      { ...entry("Core\\Str::length", "member", "Core\\Str"), anchor: "crates/nvs-stdlib/src/str.rs:1" },
+      entry("Core\\Order", "enum", "types:enum"),
+    ];
+    // `collect.ts` is loaded after `install`, so its file reads are noted as a `bun nv` command's are.
+    const script = [
+      `import { install } from ${url("lib/reads.ts")};`,
+      `install(process.env.${ENV});`,
+      `const { collectGroups } = await import(${url("proofs/collect.ts")});`,
+      `collectGroups(${JSON.stringify(scope)}, ${JSON.stringify(["Core\\Json", "Core\\Str", "types:enum"])});`,
+    ].join("\n");
+    const r = await run([process.execPath, "-e", script], { cwd: ROOT, env: { [ENV]: LOG } });
+    expect(r.stderr).toBe("");
+    const json = readLog(LOG, "Core\\Json")!;
+    expect(json.keys).toEqual(expect.arrayContaining(["class:core\\json", "card:core\\json", "covers:#Core\\Json::decode", "perf:#Core\\Json::decode"]));
+    expect(json.files).toContain("crates/nvs-stdlib/src/json.rs");
+    expect((json.keys ?? []).filter((k) => /str|\*|Order/i.test(k))).toEqual([]);
+    expect(json.files).not.toContain("crates/nvs-stdlib/src/str.rs");
+    const str = readLog(LOG, "Core\\Str")!;
+    expect(str.keys).toEqual(expect.arrayContaining(["class:core\\str", "card:core\\str", "covers:#Core\\Str::length"]));
+    expect((str.keys ?? []).filter((k) => /json|\*/i.test(k))).toEqual([]);
+    expect(str.files).not.toContain("crates/nvs-stdlib/src/json.rs");
+    // The enum's group depends on every class and card, and that stays its own.
+    expect(readLog(LOG, "types:enum")!.keys).toEqual(expect.arrayContaining(["card:*", "class:*", "covers:#Core\\Order"]));
+    // The process as a whole read all three.
+    expect(readLog(LOG)!.keys).toEqual(expect.arrayContaining(["card:*", "class:core\\json", "class:core\\str"]));
+  }, 120_000);
 });

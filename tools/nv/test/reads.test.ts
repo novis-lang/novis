@@ -54,6 +54,32 @@ describe("what a `bun nv` process reads", () => {
     expect(got.spawns).toEqual([[process.execPath, "--revision"]]);
   });
 
+  test("`inPart` notes under each part it names, across an await, and a log read for one part leaves out the others", async () => {
+    rmSync(LOG, { force: true });
+    const reads = JSON.stringify(pathToFileURL(join(ROOT, "tools", "nv", "lib", "reads.ts")).href);
+    const script = [
+      `import { install, inPart, note, noteKey, unrecorded } from ${reads};`,
+      `install(process.env.${ENV});`,
+      'note("files", "common.txt");',
+      'await inPart(["A"], async () => {',
+      "  await Promise.resolve();",
+      '  note("files", "a.txt");',
+      '  noteKey("card:*");',
+      '  unrecorded(() => note("files", "quiet.txt"));',
+      "});",
+      'inPart(["B"], () => note("dirs", "b"));',
+      'inPart(["A", "B"], () => note("exists", "both"));',
+      'inPart([], () => note("files", "empty.txt"));',
+    ].join("\n");
+    const r = await run([process.execPath, "-e", script], { cwd: ROOT, env: { [ENV]: LOG } });
+    expect(r.stderr).toBe("");
+    expect(readLog(LOG, "A")).toEqual({ files: ["a.txt", "common.txt", "empty.txt"], exists: ["both"], dirs: [], spawns: [], keys: ["card:*"] });
+    expect(readLog(LOG, "B")).toEqual({ files: ["common.txt", "empty.txt"], exists: ["both"], dirs: ["b"], spawns: [], keys: [] });
+    expect(readLog(LOG, "C")).toEqual({ files: ["common.txt", "empty.txt"], exists: [], dirs: [], spawns: [], keys: [] });
+    // Without a part the log is everything, as a check that ran the process alone reads it.
+    expect(readLog(LOG)).toEqual({ files: ["a.txt", "common.txt", "empty.txt"], exists: ["both"], dirs: ["b"], spawns: [], keys: ["card:*"] });
+  });
+
   test("a recorded run names the modules its process loaded: main.ts, its command's, and no other command's", async () => {
     rmSync(LOG, { force: true });
     const r = await run([process.execPath, join(ROOT, "tools", "nv", "main.ts"), "peek", "package.json"], { env: { [ENV]: LOG } });

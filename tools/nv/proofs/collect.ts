@@ -15,10 +15,10 @@ import { join } from "node:path";
 import { analyseAll, digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { comparePaths, splitlines } from "../lib/py.ts";
-import { noteKey, unrecorded } from "../lib/reads.ts";
+import { inPart, noteKey, unrecorded } from "../lib/reads.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerRows, perfKey } from "./ledger.ts";
 import { anchorKey, CALL_ROOTS, callsIn, callsKey, coversKey, MARKER_ROOTS, markersIn } from "./markers.ts";
-import { aboutFile, benchFile, examplesDir, hostileDir, implFile, namesIn, read, type Entry, type Kind } from "./roster.ts";
+import { aboutFile, benchFile, examplesDir, hostileDir, implFile, namesIn, noteRoster, read, type Entry, type Kind } from "./roster.ts";
 
 /** Every proof a feature can owe, in the order the audit prints them. */
 export const PROOFS = ["tests", "examples", "perf", "hostile", "about", "help"] as const;
@@ -325,10 +325,38 @@ export function fingerprint(): Record<string, string | number> {
 
 const sortedSet = (items: Iterable<string>) => [...new Set(items)].sort();
 
+/** The tree-wide scans `collect` looks every entry up in. They note nothing, so one taking serves several
+ * `collect` calls, each noting the keys of its own entries. */
+export interface Scans {
+  markers: Map<string, string[]>;
+  calls: Map<string, string[]>;
+}
+
+export function scans(): Scans {
+  return { markers: scanMarkers(), calls: scanCalls() };
+}
+
+/**
+ * `collect` over each of `groups` in turn, with what the roster and the disk give each group noted as that
+ * group's part (`inPart`), so one process that runs several groups records what each of them read apart
+ * from the others. The tree-wide scans are taken once for all of them.
+ */
+export function collectGroups(scope: Entry[], groups: Iterable<string>): Map<string, Proofs> {
+  const scanned = scans();
+  const out = new Map<string, Proofs>();
+  for (const g of new Set(groups)) {
+    const mine = scope.filter((e) => e.group === g);
+    inPart([g], () => {
+      noteRoster(mine, false);
+      for (const [id, p] of collect(mine, scanned)) out.set(id, p);
+    });
+  }
+  return out;
+}
+
 /** What every entry has on disk, by feature id. */
-export function collect(entries: Entry[]): Map<string, Proofs> {
-  const markers = scanMarkers();
-  const calls = scanCalls();
+export function collect(entries: Entry[], scanned: Scans = scans()): Map<string, Proofs> {
+  const { markers, calls } = scanned;
   const perf = ledgerRecords(true);
   const me = fingerprint().id;
   const hashes = implHashes(entries.map(implFile).filter((f) => f !== ""));

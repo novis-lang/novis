@@ -29,7 +29,7 @@ import { recordedIn } from "../select/extract.ts";
 import { advance, chunks, fullChange, pool, Recorder } from "../select/record.ts";
 import { type ChangeSet, computeChange, query, type Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
-import { type Binary, divergence, type Pass, recordingRun, recordName, type Result, type RunOptions, runPrograms, type What } from "./run.ts";
+import { type Binary, divergence, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, type What } from "./run.ts";
 
 /** How many programs one recorded batch runs. */
 const BATCH = 96;
@@ -83,7 +83,7 @@ export async function recordProgram(rec: Recorder, nvs: string, dir: string, wha
  * program's footprint is its `proof:` atom's, taken on its recording run. A judged run writes no footprint
  * log for the same reason, so the programs' reads never land in the footprint of the check that ran them.
  */
-export async function runSelected(bin: Binary, programs: { what: What; path: string }[], opts: RunOptions, all: boolean): Promise<Pass & { ran: number; diverged: Diverged[] }> {
+export async function runSelected(bin: Binary, programs: Program[], opts: RunOptions, all: boolean): Promise<Pass & { ran: number; diverged: Diverged[] }> {
   const store = new SelectStore();
   const { graph, change, sel, rec } = await unrecorded(async () => {
     const graph = await metadata();

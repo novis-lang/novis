@@ -356,6 +356,18 @@ export function proofOutcome(groups: string[], batch: Outcome): Outcome {
   return { code: mine.every((s) => s.passed) ? 0 : 1, out: `${lines.join("\n")}\n`, err: "" };
 }
 
+/**
+ * The footprint of a check over `groups`, cut from a batched run: what the run read outside every group
+ * together with what each of `groups` read, which `parts` holds by group, and not what the batch's other
+ * groups read. A group with no part of its own takes the whole batch's `keys`, which is never narrower
+ * than what it read.
+ */
+export function proofKeys(groups: string[], batch: { keys: Map<string, string>; parts: Map<string, Map<string, string>> }): Map<string, string> {
+  const own = groups.map((g) => batch.parts.get(g));
+  if (own.some((k) => k === undefined)) return new Map(batch.keys);
+  return new Map(own.flatMap((k) => [...k!]));
+}
+
 // ---- the whole sweep -------------------------------------------------------------------------------
 
 /** One tier of the sweep: its checks in run order, and whether they are fixtures, reported as one line. */

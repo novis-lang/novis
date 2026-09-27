@@ -16,6 +16,7 @@ import {
   programFailLine,
   proofBatches,
   proofGroups,
+  proofKeys,
   proofOutcome,
   proofSections,
   releaseBuildArgv,
@@ -132,6 +133,22 @@ describe("the batched proofs run", () => {
     // A lone group, and a check that is no proofs-group check, make no batch.
     expect(proofBatches([group("A"), check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "x"] })], 12)).toEqual([]);
     expect(proofBatches([group("A"), group("B"), group("C")], 2)).toEqual([["A", "B"]]);
+  });
+
+  test("proofKeys gives a check the batch's shared reads and its own groups', and no other group's", () => {
+    const keyed = (...ks: string[]) => new Map(ks.map((k) => [k, ""]));
+    const batch = {
+      keys: keyed("mod:tools/nv/cmd/proofs.ts", "class:core\\json", "class:*", "card:*"),
+      parts: new Map([
+        ["Core\\Json", keyed("mod:tools/nv/cmd/proofs.ts", "class:core\\json")],
+        ["types:exception", keyed("mod:tools/nv/cmd/proofs.ts", "class:*", "card:*")],
+        ["lang:errors", keyed("mod:tools/nv/cmd/proofs.ts")],
+      ]),
+    };
+    expect([...proofKeys(["lang:errors"], batch).keys()]).toEqual(["mod:tools/nv/cmd/proofs.ts"]);
+    expect([...proofKeys(["Core\\Json", "types:exception"], batch).keys()].sort()).toEqual(["card:*", "class:*", "class:core\\json", "mod:tools/nv/cmd/proofs.ts"]);
+    // A group the run kept no part for holds everything the batch read.
+    expect(proofKeys(["lang:errors", "lang:types"], batch)).toEqual(batch.keys);
   });
 
   const out = [

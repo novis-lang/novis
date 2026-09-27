@@ -22,7 +22,9 @@
 // `--verify` and `--record-perf`, and `--id` narrows `--run`, `--verify` and `--record-perf`. `--run`,
 // `--verify` and `--record-perf` take `--group` more than once: the roster is read once, every program
 // runs in one pool, and each group prints its own verdict lines under a `== <group>` line and closes
-// on `-- <group>: passed` or `-- <group>: failed`, which the loop driver splits on. `--no-perf`
+// on `-- <group>: passed` or `-- <group>: failed`, which the loop driver splits on. What `--run` and
+// `--verify` read for one group is recorded as that group's part of the run (`lib/reads.ts` `inPart`),
+// so the driver keys each group's check on its own reads and not the whole run's. `--no-perf`
 // stops the perf proof from being owed. `--record-perf` takes `--reps N` timed runs per program (5),
 // `--force` to re-measure what already has a current figure, `--note` to record a word with each record,
 // and `--perf-report` to write the report after it. `--nvs` names the binary to use as it is. Without it,
@@ -41,7 +43,8 @@ import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
-import { collect, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { inPart } from "../lib/reads.ts";
+import { collect, collectGroups, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, noteRoster, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
@@ -315,36 +318,52 @@ function groupReads(entries: Entry[]): string[] {
 }
 
 /** `--run`, or `--verify` when `verify`: each scope's gate first when verifying, then both suites over
- * every scope whose gate passed, in one pool. */
-async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: boolean, flags: Set<string>, proofs: Map<string, Proofs>, policy: Policy, skips: Skips): Promise<number> {
+ * every scope whose gate passed, in one pool. With `parted`, what each scope reads is noted as the part
+ * its label names (`inPart`). */
+async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: boolean, flags: Set<string>, proofs: Map<string, Proofs>, policy: Policy, skips: Skips, parted = false): Promise<number> {
   const opts = { valgrind: flags.has("--valgrind"), strict: flags.has("--strict"), quiet: flags.has("--quiet") };
+  const partOf = (scope: Scope): string[] => (parted && scope.label !== null ? [scope.label] : []);
   const heads = new Map<Scope, string[]>();
   const running: Scope[] = [];
   let rc = 0;
   for (const scope of scopes) {
     const lines: string[] = [];
     if (scopes.length > 1) lines.push(`== ${scope.label ?? "the whole roster"}`);
-    const gated = verify ? gate(lines, scope.entries, proofs, policy, skips, scope.label) : 0;
+    const gated = verify ? inPart(partOf(scope), () => gate(lines, scope.entries, proofs, policy, skips, scope.label)) : 0;
     rc |= gated;
     heads.set(scope, lines);
     if (!gated) running.push(scope);
   }
   const suites: What[] = ["examples", "hostile"];
+  const programsIn = (scope: Scope, what: What) => inPart(partOf(scope), () => programsOf(scope, what));
   if (flags.has("--show")) {
     // One program at a time, printed as it finishes, in the order examples, attacks, bench.
     for (const scope of running) {
-      for (const what of suites) for (const path of programsOf(scope, what)) process.stdout.write(await showProgram(bin.path, path, what));
-      for (const e of scope.entries) if (existsSync(abs(benchFile(e)))) process.stdout.write(await showProgram(bin.path, benchFile(e), "bench"));
+      await inPart(partOf(scope), async () => {
+        for (const what of suites) for (const path of programsOf(scope, what)) process.stdout.write(await showProgram(bin.path, path, what));
+        for (const e of scope.entries) if (existsSync(abs(benchFile(e)))) process.stdout.write(await showProgram(bin.path, benchFile(e), "bench"));
+      });
     }
   }
-  const programs = running.flatMap((s) => suites.flatMap((what) => programsOf(s, what).map((path) => ({ what, path }))));
+  // A program two scopes list is run once, and its reads are noted for both.
+  const listed = new Map<string, { what: What; path: string; parts: string[] }>();
+  for (const s of running) {
+    for (const what of suites) {
+      for (const path of programsIn(s, what)) {
+        const had = listed.get(`${what}:${path}`);
+        if (had) had.parts.push(...partOf(s));
+        else listed.set(`${what}:${path}`, { what, path, parts: partOf(s) });
+      }
+    }
+  }
+  const programs = [...listed.values()];
   // A binary named by hand is not the one the store records on: every program runs, and nothing is
   // recorded.
   const pass: Pass & { diverged?: Diverged[] } = bin.recorded ? await runSelected(bin, programs, opts, flags.has("--no-cache")) : await runPrograms(bin, programs, opts);
   for (const scope of scopes) {
     const lines = heads.get(scope)!;
     let failed = !running.includes(scope);
-    if (!failed) for (const what of suites) if (suiteLines(lines, what, programsOf(scope, what), pass, opts)) failed = true;
+    if (!failed) for (const what of suites) if (suiteLines(lines, what, programsIn(scope, what), pass, opts)) failed = true;
     // Several scopes close each section on its verdict, which is what the driver hands each check.
     if (scopes.length > 1) lines.push(`-- ${scope.label ?? "the whole roster"}: ${failed ? "failed" : "passed"}`);
     out.push(...lines);
@@ -479,8 +498,15 @@ export async function run(args: string[]): Promise<number> {
   const fidEntry = entries.find((e) => e.id === values.get("--id"));
   const scoped = executes || measures || flags.has("--gate") || flags.has("--json") || flags.has("--gaps") || (flags.has("--owed") && !values.has("--id"));
   const inScope = scoped ? [...new Set([...scope, ...(fidEntry ? [fidEntry] : [])])] : entries;
-  noteRoster(inScope, !scoped || scope === entries);
-  const proofs = collect(inScope);
+  // A run over several groups notes what each group reads as that group's part (`inPart`), so a driver
+  // that runs them in one process keys each group's check on the reads of that group and of the run.
+  const parted = executes && groups.length > 1 && !values.has("--id");
+  let proofs: Map<string, Proofs>;
+  if (parted) proofs = collectGroups(inScope, groups);
+  else {
+    noteRoster(inScope, !scoped || scope === entries);
+    proofs = collect(inScope);
+  }
 
   if (measures) {
     const fid = values.get("--id");
@@ -513,7 +539,7 @@ export async function run(args: string[]): Promise<number> {
     if (fid === undefined && only === null) {
       saveReads(scopes.filter((s) => s.label !== null && groups.includes(s.label)).map((s) => [s.label!, groupReads(s.entries)]));
     }
-    return flush(await runScopes(out, bin!, scopes, flags.has("--verify"), flags, proofs, policy, skips));
+    return flush(await runScopes(out, bin!, scopes, flags.has("--verify"), flags, proofs, policy, skips, parted));
   }
 
   if (flags.has("--gate")) return flush(gate(out, scope, proofs, policy, skips, label));

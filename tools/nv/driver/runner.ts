@@ -61,6 +61,7 @@ import {
   PROGRAM_KINDS,
   proofBatches,
   proofGroups,
+  proofKeys,
   proofOutcome,
   releaseBuildArgv,
   type TestExe,
@@ -134,13 +135,13 @@ export class PlanSweep {
   private exesFor: Set<string> | null = null;
   private release: Promise<Outcome> | undefined;
   private files: Promise<string[]> | undefined;
-  private readonly shared = new Map<string, Promise<{ o: Outcome; keys: Keyed }>>();
+  private readonly shared = new Map<string, Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }>>();
   private readonly exeRuns = new Map<string, Promise<{ o: Outcome; verdict: AtomVerdict }>>();
   private readonly toolRuns = new Map<string, Promise<ToolRun>>();
   private readonly casesDone = new Set<string>();
   private readonly exeShown = new Map<string, string>();
   private caseOut = "";
-  private proofs: { groups: string[]; run?: Promise<{ o: Outcome; keys: Keyed }> }[] = [];
+  private proofs: { groups: string[]; run?: Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }> }[] = [];
   private runs = 0;
 
   private constructor(
@@ -297,8 +298,9 @@ export class PlanSweep {
   // ---- recorded runs -----------------------------------------------------------------------------
 
   /** One recorded run of `argv` in `cwd`, shared by every check that asks for the same one: what it
-   * printed, and what it was seen to use. A `bun nv` process's reads are recorded besides. */
-  private recorded(argv: string[], cwd: string, what: string, extra: Record<string, string> = {}): Promise<{ o: Outcome; keys: Keyed }> {
+   * printed, and what it was seen to use. A `bun nv` process's reads are recorded besides, and for each of
+   * `parts` also as that part of the process read it (`readLog`), under `parts`. */
+  private recorded(argv: string[], cwd: string, what: string, extra: Record<string, string> = {}, parts: string[] = []): Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }> {
     const key = `${cwd}\0${argv.join("\0")}`;
     let p = this.shared.get(key);
     if (p === undefined) {
@@ -310,9 +312,13 @@ export class PlanSweep {
         const env: Record<string, string> = { ...this.rec.env(name), NO_COLOR: "1", ...extra };
         if (nv) Object.assign(env, { [READS_ENV]: log, [NO_ADVANCE_ENV]: "1" });
         const o = await capture(argv, join(ROOT, cwd), env);
-        const keys: Keyed = nv ? nvKeys(log) : new Map();
-        for (const [k, d] of (await this.rec.keysOf(name, [covwsNvs()]))?.keys ?? []) keys.set(k, d);
-        return { o, keys };
+        const programs = (await this.rec.keysOf(name, [covwsNvs()]))?.keys ?? new Map<string, string>();
+        const keyed = (part?: string): Keyed => {
+          const keys: Keyed = nv ? nvKeys(log, part) : new Map();
+          for (const [k, d] of programs) keys.set(k, d);
+          return keys;
+        };
+        return { o, keys: keyed(), parts: new Map(parts.map((x) => [x, keyed(x)])) };
       })();
       this.shared.set(key, p);
     }
@@ -605,10 +611,11 @@ export class PlanSweep {
     let o: Outcome;
     let keys: Keyed;
     if (groups !== null && batch !== undefined) {
-      batch.run ??= this.recorded(["bun", "nv", "proofs", "--verify", ...batch.groups.flatMap((x) => ["--group", x])], ".", `bun nv proofs --verify over ${batch.groups.length} groups`);
+      const argv = ["bun", "nv", "proofs", "--verify", ...batch.groups.flatMap((x) => ["--group", x])];
+      batch.run ??= this.recorded(argv, ".", `bun nv proofs --verify over ${batch.groups.length} groups`, {}, batch.groups);
       const got = await batch.run;
       o = proofOutcome(groups, got.o);
-      keys = new Map(got.keys);
+      keys = proofKeys(groups, got);
     } else {
       const got = await this.recorded(c.argv ?? [], c.cwd ?? ".", (c.argv ?? []).join(" "));
       o = got.o;

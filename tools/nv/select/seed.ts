@@ -238,10 +238,11 @@ export function nvChecks(root: string = ROOT): { id: string; argv: string[]; cwd
     .map((c) => ({ id: c.id, argv: c.argv!, cwd: c.cwd ?? "." }));
 }
 
-/** What a `bun nv` process's reads log says, as keys; `*` when it left no log, since a check that left no
- * record of its reads read anything it liked. */
-export function nvKeys(log: string): Keyed {
-  const reads = existsSync(log) ? readLog(log) : null;
+/** What a `bun nv` process's reads log says, as keys, with only `part` of its parts when one is named
+ * (`readLog`); `*` when it left no log, since a check that left no record of its reads read anything it
+ * liked. */
+export function nvKeys(log: string, part?: string): Keyed {
+  const reads = existsSync(log) ? readLog(log, part) : null;
   const keys: Keyed = new Map();
   if (!reads) {
     console.error(`select: ${log} holds no reads, so its check depends on everything until a run of it leaves its reads`);

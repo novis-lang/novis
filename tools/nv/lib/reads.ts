@@ -12,6 +12,11 @@
 // A module loaded before `install` is never rewritten, so this module imports `paths.ts` alone, which
 // reads nothing. A path outside the repository, or under a directory in `NOT_INPUTS`, is no input
 // and is not noted.
+//
+// One process can answer several checks at once, as a batched `nv proofs --verify` does for each of its
+// groups. What it reads inside `inPart` is noted under those parts alone, and `readLog` with a part
+// gives what everything outside any part read together with what that part read. Without a part it gives
+// the union of everything, as a check that runs the process alone reads it.
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -33,11 +38,29 @@ export interface Reads {
 
 export type Kind = "files" | "exists" | "dirs";
 
-const noted: Record<Kind, Set<string>> = { files: new Set(), exists: new Set(), dirs: new Set() };
-const spawned: string[][] = [];
-const named = new Set<string>();
+/** What one process, or one part of it, noted. */
+interface Noted {
+  files: Set<string>;
+  exists: Set<string>;
+  dirs: Set<string>;
+  spawns: string[][];
+  keys: Set<string>;
+}
+
+const fresh = (): Noted => ({ files: new Set(), exists: new Set(), dirs: new Set(), spawns: [], keys: new Set() });
+const common = fresh();
+const parts = new Map<string, Noted>();
 /** Set inside `unrecorded`, and carried across every `await` of what it runs. */
 const quiet = new AsyncLocalStorage<true>();
+/** Set inside `inPart`, and carried the same way. */
+const inside = new AsyncLocalStorage<readonly string[]>();
+
+/** Where a note made here goes: the parts of the enclosing `inPart`, or the process as a whole. */
+function targets(): Noted[] {
+  const labels = inside.getStore();
+  if (labels === undefined || labels.length === 0) return [common];
+  return labels.map((l) => parts.get(l) ?? parts.set(l, fresh()).get(l)!);
+}
 
 /** `p` as a repo-relative path, or null when it is no input. */
 function inTree(p: unknown): string | null {
@@ -57,7 +80,7 @@ function inTree(p: unknown): string | null {
 export function note(kind: Kind, p: unknown): void {
   if (quiet.getStore()) return;
   const r = inTree(p);
-  if (r !== null) noted[kind].add(r);
+  if (r !== null) for (const t of targets()) t[kind].add(r);
 }
 
 /** Runs `f` with nothing it reads, lists, tests or starts noted. The caller names what it read with
@@ -69,9 +92,16 @@ export function unrecorded<T>(f: () => T): T {
   return quiet.run(true, f);
 }
 
+/** Runs `f` with everything it reads, lists, tests, starts and names noted under each of `labels`
+ * instead of the process as a whole. The scope is asynchronous, as `unrecorded`'s is, and inside
+ * `unrecorded` nothing is noted at all. An empty `labels` notes for the process as a whole. */
+export function inPart<T>(labels: readonly string[], f: () => T): T {
+  return inside.run(labels, f);
+}
+
 /** Notes that this process depends on `key`, a key a change moves by what the text it read names. */
 export function noteKey(key: string): void {
-  named.add(key);
+  for (const t of targets()) t.keys.add(key);
 }
 
 /** Notes a program this process started. One started in a directory that is no input (a test's scratch
@@ -83,7 +113,7 @@ export function noteSpawn(cmd: unknown, opts?: unknown): void {
   const options = (Array.isArray(cmd) ? opts : cmd) as { cwd?: unknown } | undefined;
   const cwd = options && typeof options === "object" ? options.cwd : undefined;
   if (typeof cwd === "string" && inTree(cwd) === null) return;
-  if (argv) spawned.push(argv.map(String));
+  if (argv) for (const t of targets()) t.spawns.push(argv.map(String));
 }
 
 /** A wrapper of `f` that notes its first argument as `kind` before it calls `f`. */
@@ -130,9 +160,11 @@ export function install(log: string): void {
 
 let flushed = false;
 
-/** Appends this process's line to `log`, once: what it read, listed, tested and started, and every tools
- * module Bun's registry holds by then. The exit handler calls it; `bun test` fires no exit handler, so
- * `reads-preload.ts` calls it after the last test. */
+const listed = (n: Noted): Reads => ({ files: [...n.files].sort(), exists: [...n.exists].sort(), dirs: [...n.dirs].sort(), spawns: n.spawns, keys: [...n.keys].sort() });
+
+/** Appends this process's line to `log`, once: what it read, listed, tested and started, what each part
+ * read besides under `parts`, and every tools module Bun's registry holds by then. The exit handler calls
+ * it; `bun test` fires no exit handler, so `reads-preload.ts` calls it after the last test. */
 export function flush(log: string): void {
   if (flushed) return;
   flushed = true;
@@ -140,7 +172,8 @@ export function flush(log: string): void {
     .map((m) => inTree(m))
     .filter((m): m is string => m !== null && m.endsWith(".ts"))
     .sort();
-  const line = { files: [...noted.files].sort(), exists: [...noted.exists].sort(), dirs: [...noted.dirs].sort(), spawns: spawned, keys: [...named].sort(), modules };
+  const line: Reads & { modules: string[]; parts?: Record<string, Reads> } = { ...listed(common), modules };
+  if (parts.size > 0) line.parts = Object.fromEntries([...parts].map(([l, n]) => [l, listed(n)]));
   try {
     appendFileSync(log, `${JSON.stringify(line)}\n`);
   } catch {
@@ -170,8 +203,9 @@ export function readModules(path: string): string[] {
   return [...out].sort();
 }
 
-/** The union of every line in the log at `path`, or null when it holds none. */
-export function readLog(path: string): Reads | null {
+/** The union of every line in the log at `path`, or null when it holds none. With `part`, a line's parts
+ * other than `part` are left out; without it, every part is in the union. */
+export function readLog(path: string, part?: string): Reads | null {
   let text: string;
   try {
     text = readFileSync(path, "utf8");
@@ -182,15 +216,18 @@ export function readLog(path: string): Reads | null {
   let lines = 0;
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
-    let got: Partial<Reads>;
+    let got: Partial<Reads> & { parts?: Record<string, Partial<Reads>> };
     try {
       got = JSON.parse(line);
     } catch {
       return null;
     }
     lines++;
-    for (const k of ["files", "exists", "dirs", "keys"] as const) for (const p of got[k] ?? []) out[k].add(p);
-    for (const argv of got.spawns ?? []) out.spawns.set(JSON.stringify(argv), argv);
+    const parts = Object.entries(got.parts ?? {}).filter(([l]) => part === undefined || l === part);
+    for (const one of [got, ...parts.map(([, r]) => r)]) {
+      for (const k of ["files", "exists", "dirs", "keys"] as const) for (const p of one[k] ?? []) out[k].add(p);
+      for (const argv of one.spawns ?? []) out.spawns.set(JSON.stringify(argv), argv);
+    }
   }
   if (lines === 0) return null;
   return { files: [...out.files].sort(), exists: [...out.exists].sort(), dirs: [...out.dirs].sort(), spawns: [...out.spawns.values()], keys: [...out.keys].sort() };

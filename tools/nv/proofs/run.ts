@@ -26,6 +26,7 @@ import { basename, dirname, resolve } from "node:path";
 import { digest } from "../keys/scan.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
 import { killTree, reapOrphans, run as runProc } from "../lib/proc.ts";
+import { inPart } from "../lib/reads.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { cargoLines, progress } from "../lib/progress.ts";
 import { linked } from "../lib/relink.ts";
@@ -419,18 +420,26 @@ export interface Pass {
   seconds: number;
 }
 
+/** A program to run, and the parts of the process its reads are noted under (`inPart`); none notes them
+ * for the process as a whole. */
+export interface Program {
+  what: What;
+  path: string;
+  parts?: readonly string[];
+}
+
 /** Runs every program named, once each, in one pool; each of `unchanged` is reported green without a
  * run. */
-export async function runPrograms(bin: Binary, programs: { what: What; path: string }[], opts: RunOptions, unchanged: Set<string> = new Set()): Promise<Pass> {
+export async function runPrograms(bin: Binary, programs: Program[], opts: RunOptions, unchanged: Set<string> = new Set()): Promise<Pass> {
   const results = new Map<string, Result>();
-  const todo: { what: What; path: string }[] = [];
+  const todo: Program[] = [];
   const seen = new Set<string>();
-  for (const { what, path } of programs) {
-    const id = `${what}:${path}`;
+  for (const p of programs) {
+    const id = `${p.what}:${p.path}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    if (unchanged.has(path)) results.set(id, { verdict: "ok", why: "", cached: true });
-    else todo.push({ what, path });
+    if (unchanged.has(p.path)) results.set(id, { verdict: "ok", why: "", cached: true });
+    else todo.push(p);
   }
   const width = jobsFor(todo.length);
   const started = performance.now();
@@ -444,8 +453,10 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
     while (next < todo.length) {
       const t = todo[next++]!;
       const unlogged = opts.unlogged === true;
-      const [raw, rawWhy, out] = t.what === "examples" ? await runExample(bin.path, t.path, unlogged) : await runHostile(bin.path, t.path, opts.valgrind, unlogged);
-      const [verdict, why] = judgeGap(t.path, raw, rawWhy);
+      const [verdict, why, out] = await inPart(t.parts ?? [], async () => {
+        const [raw, rawWhy, ran] = t.what === "examples" ? await runExample(bin.path, t.path, unlogged) : await runHostile(bin.path, t.path, opts.valgrind, unlogged);
+        return [...judgeGap(t.path, raw, rawWhy), ran] as const;
+      });
       results.set(`${t.what}:${t.path}`, { verdict, why, cached: false, ...(out ? { ran: out } : {}) });
       ran++;
       if (verdict === "fail") failed++;
