@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program checks texts with patterns that are nested very deeply, that
+// need very many steps, or that have many groups. Each check should return `true`,
+// return `false` or throw an error. The last one should stop at the memory limit.
+// hostile: ends-early
+
+class Check
+{
+    public static function run(string $subject, string $pattern): string
+    {
+        try {
+            return Core\Regex::matches($subject, $pattern) ? 'true' : 'false';
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A pattern with 100000 nested groups, like "((((a))))". This throws an error.
+string $deep = Core\Str::repeat('(', 100000) . 'a' . Core\Str::repeat(')', 100000);
+echo Check::run('a', $deep), "\n";
+
+// 2. The same nesting with `(?:`, a group that does not capture. This throws an error.
+string $plain = Core\Str::repeat('(?:', 100000) . 'a' . Core\Str::repeat(')', 100000);
+echo Check::run('a', $plain), "\n";
+
+// 3. A text of two million characters with no match. This prints "false".
+echo Check::run(Core\Str::repeat('é', 2000000), '[0-9]'), "\n";
+
+// 4. A pattern that needs very many steps to fail. This throws an error.
+echo Check::run(Core\Str::repeat('a', 40) . 'b', '^(a|a?)+\1$'), "\n";
+
+// 5. 100000 checks with 100 different patterns. This prints 100000.
+uint $true = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Check::run('order-' . ($i % 100) as string, 'order-' . ($i % 100) as string) == 'true') {
+        $true = $true + 1;
+    }
+    $i = $i + 1;
+}
+echo $true, "\n";
+
+// 6. A pattern with 5000 groups. Checking with it needs more memory than the
+// program may use, so the program stops here with a memory limit error.
+echo Check::run(Core\Str::repeat('a', 5000), Core\Str::repeat('(a)', 5000)), "\n";

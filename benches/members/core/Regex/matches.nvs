@@ -1,0 +1,26 @@
+<?nvs
+// Checks whether a short code has the right format, as a program does when it reads a form field.
+// bench: iterations 200000
+// bench: allocations 0
+// proof: gap nvs-stdlib/regex-matches-allocates-on-every-call
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $codes = ["AB-1234", "ab-12", "XY-9876"];
+        Core\Regex\Pattern $code = Core\Regex::compile('^[A-Z]{2}-\d{4}$');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which code is checked comes from last round's total, so no round can be reused.
+            if (Core\Regex::matches($codes[($total % 3) as int], $code)) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

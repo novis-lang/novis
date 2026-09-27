@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/regex.rs",
+  "title": "`Core\\Regex::matches` allocates twice on every call, even on a cached pattern.",
+  "text": "`benches/members/core/Regex/matches.nvs` counts about 2 allocations a call against a declared `allocations 0`, for a member that returns a `bool` from a pattern already in the compile cache. The member's own path on a cache hit reads borrowed data only: `pattern_of` reads the `Pattern`'s slots, `text` borrows the string and the cache lookup clones an `Rc`. Not checked: whether the two come from `step_budget`, which reads the request configuration on every call, from the linear engine's per-search state, or from the call boundary for a `Pattern|string` parameter. Closing it starts with finding which one, and `matches`'s bench then declares the count it reaches.",
+  "milestone": "M12"
+}
