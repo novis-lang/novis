@@ -1,0 +1,8 @@
+<?nvs
+// Shows which form field each uploaded file came from.
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `name` returns the `name` attribute of the `<input>` in the form.
+    // The first file prints "cv: cv.pdf".
+    echo $part->name(), ': ', $part->filename(), "\n";
+}

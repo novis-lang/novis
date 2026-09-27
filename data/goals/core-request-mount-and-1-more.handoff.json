@@ -1,19 +1,26 @@
 {
-  "state": "Goal `core-request-mount-and-1-more`: `Core\\Request\\Mount::captures` and `Core\\Request\\Mount::prefix` have every proof on disk. That means a description, three examples each, an attack each, a bench each at 0 allocations, a `covers:` marker on the existing Rust test and `.nvst` case, and the `Core\\Request\\Mount` class card.\nThe prefix attack carries `// proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops`. A loop whose only work is `$b = $b . $b` never stops at the memory limit. The record says what was read and what was not checked.\n`Core\\Request\\Part::content` is the one item left in this goal.",
+  "state": "Goal `core-request-mount-and-1-more`: `Core\\Request\\Mount` has every proof, and its check is green.\n`Core\\Request\\Part` has its class card, and `CLASSES_STILL_OWING_A_CARD` no longer names it.\nEvery `Part` member has its `covers:` markers on a Rust test and a `.nvst` case. `name`, `filename` and `contentType` share `a_files_walk_yields_the_file_parts_and_drains_what_it_passes`, which reads all three through `parts_of`.\n`Core\\Request\\Part::content` and `Core\\Request\\Part::name` have every proof on disk and pass `bun nv proofs --verify`.\n`readAll`, `saveTo`, `filename` and `contentType` still owe examples, an attack, a bench and `about.md`. They are all that stands between the goal and `dossier-core-request-part`.\nA proof program that needs a request does not run under `bun nv try`. Run `target/covws/x86_64-pc-windows-msvc/debug/nvs.exe run --request <case>.nvsr <case>.nvs` with `LLVM_PROFILE_FILE` pointed under `.agent-tmp/`.\nA multipart part whose `Content-Disposition` names `name` twice throws a `ParseError` from the `files()` loop, so an attack that sends one catches it.",
   "next": {
-    "stage": 1,
-    "title": "feature proofs",
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
     "note": "one file set: `crates/nvs-stdlib/src/request.rs` and the `Request-Part` trees under `docs/examples/core/`, `tests/hostile/core/` and `benches/members/core/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request\\Part::content`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). The row is `crates/nvs-stdlib/src/request.rs:1257` and the member is `crates/nvs-stdlib/src/request.rs:3500`. `bun nv proofs --id 'Core\\Request\\Part::content'` prints the paths. `Core\\Request\\Part` is still in `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5341`. The `Mount` card at `crates/nvs-stdlib/src/request.rs:1022` is the shape. A part comes from a multipart body, so the `.nvsr` needs `--BODY_CRLF--` (`crates/nvs-test/src/request.rs:42`)."
+        "text": "**`Core\\Request\\Part::readAll`** — owes examples, hostile, perf, about.md (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:3643` and its card with the `max` bound is `crates/nvs-stdlib/src/request.rs:1379`. `docs/examples/core/Request-Part/content/` is the shape, and `docs/examples/core/Request/files/03-checking-an-avatar-before-it-is-stored.nvs` already shows `{max: …}`."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Request\\Part::saveTo`** — owes examples, hostile, perf, about.md. The member is `crates/nvs-stdlib/src/request.rs:3784` and its card is `crates/nvs-stdlib/src/request.rs:1417`. The path is a sink, so an example reaches it through `Core\\IO::within`, and a program writes under `.agent-tmp/` or a folder it creates and deletes."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Request\\Part::filename`** and **`Core\\Request\\Part::contentType`** — owe examples, hostile, perf, about.md. The members are `crates/nvs-stdlib/src/request.rs:3406` and `crates/nvs-stdlib/src/request.rs:3414`. `benches/members/core/Request-Part/name.nvs` is the bench shape."
       }
     ]
   },
   "backlog": [
-    "The self-concatenation hang: `data/gaps/nvs-runtime/a-loop-that-only-concatenates-never-stops.json`, owner M10. Start at `budget::refuse` and the back-edge poll in `crates/nvs-codegen/src/emit.rs:166`.",
-    "`Core\\Str::length($mount->captures()[$i])` costs 2 allocations per iteration where `captures()` alone costs 0. Which of the index and `Core\\Str::length` allocates is not checked (`benches/members/README.md`)."
+    "`Core\\Request\\Part::name`'s first measurement recorded `ns/op 0.0` beside 44 allocations. Read the row in `docs/perf/members.ndjson` before trusting the clock for a one-iteration request bench (`benches/members/README.md`)."
   ]
 }

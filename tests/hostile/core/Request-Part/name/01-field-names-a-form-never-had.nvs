@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a client sends files under field names that the form does not have. Each name
+// should arrive unchanged, and a part that names its field twice should throw an error.
+// The program then keeps a part after the loop and copies its name without end.
+// hostile: ends-early
+
+// 1. Reads the name of every file and keeps the parts.
+//    The last file names its field twice. The loop throws a `ParseError` there.
+array<Core\Request\Part> $parts = [];
+try {
+    foreach (Core\Request::files() as Core\Request\Part $part) {
+        tainted string $field = $part->name();
+        echo Core\Str::length($field), ' characters: ', Core\Str::slice($field, 0, 20), "\n";
+        $parts[] = $part;
+    }
+} catch (ParseError $twice) {
+    echo "a field named twice: ParseError\n";
+}
+
+// 2. Reads the name of the first part after the loop ended.
+echo 'first name after the loop: ', Core\Str::length($parts[0]->name()), " characters\n";
+
+// 3. Repeats the longest name and keeps every copy. This stops at the memory limit.
+array<tainted string> $copies = [];
+tainted string $long = $parts[0]->name();
+while (true) {
+    $copies[] = Core\Str::repeat($long, 100000);
+}

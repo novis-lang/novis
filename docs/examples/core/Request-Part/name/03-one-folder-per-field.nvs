@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a support form sends each uploaded file to a different place, chosen by its field.
+
+// The client can send any field name. Only the names in this list are used.
+array<string> $folders = ['screenshot' => 'images', 'log' => 'logs'];
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    string $folder = $folders[$part->name()] ?? '';
+    if ($folder == '') {
+        echo 'skipped the unknown field ', $part->name(), "\n";
+        continue;
+    }
+    tainted bytes $content = $part->readAll();
+    echo $folder, ': ', Core\Bytes::length($content), " bytes\n";
+}
