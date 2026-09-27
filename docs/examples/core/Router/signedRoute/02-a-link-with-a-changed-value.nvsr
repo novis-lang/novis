@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/reports/2025
+--QUERY--
+_sig=KB_8EVvXMeb593O513_TCCrJ5o1knMem5x31GwpANLwBAwAJAgcGcGFyYW1zCQEHBHllYXIHBDIwMjQHBXJvdXRlBxFSZXBvcnRzOjpkb3dubG9hZA
+--HEADERS--
+host: shop.example.com

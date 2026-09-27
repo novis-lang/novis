@@ -1,0 +1,27 @@
+<?nvs
+// Checks the signed download link a request arrived with, as a download handler does before it sends the file.
+// bench: iterations 20000
+
+class Files {
+    #[Core\Route(path: "/files/{id}", method: Core\Http\Method::Get, name: "Files::download")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function download(uint $id): string { return "one file"; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $raw = "example-key-for-signed-links-001" as bytes;
+        array<secret bytes> $keys = [$raw as secret bytes];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Router\Match $matched = Core\Router::signedRoute($keys);
+            // chained: the total depends on this result
+            $total = $total + ($matched->param("id") as uint) + $total % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

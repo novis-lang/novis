@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/unsubscribe/17
+--QUERY--
+_sig=xmRW8FnWbRLtN4dWj-dCgjmgBp9pVL53B1NBl8Kun5MBAwAJAgcGcGFyYW1zCQEHBnJlYWRlcgcCMTcHBXJvdXRlBxdOZXdzbGV0dGVyOjp1bnN1YnNjcmliZQ
+--HEADERS--
+host: news.example.com

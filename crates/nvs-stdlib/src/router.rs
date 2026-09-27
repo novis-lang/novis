@@ -411,38 +411,34 @@ const URL_SIGNED_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Router::signedRoute`'s reference card — `rule:core-api/reference-card`.
 const SIGNED_ROUTE_DOC: MethodDoc = MethodDoc {
-    short: "Confirms that the request this program is answering carries a signature `$keys` made \
-            for the route it matched, and answers that match — `urlSigned`'s read half, over the \
-            route's name and its parameters rather than over the path they rendered to.",
+    short: "Checks the `_sig` signature of the request that this program is answering. The \
+            signature must be one that `Core\\Router::urlSigned` made with `$keys` for the route \
+            that the request matched. The check covers the route name and its values, not the \
+            path.",
     params: &[ParamDoc {
         name: "keys",
-        desc: "The key ring, **newest first**, and the same one `urlSigned` was given: a token \
-               authenticating under any entry is authentic, which is what lets a key be retired \
-               without breaking every link already sent.",
+        desc: "The keys, newest first. Give the same keys that you give `urlSigned`. A signature \
+               made with any key in the list is accepted. So you can add a new key and keep the \
+               old one until the old links stop working.",
         shape: &[],
     }],
-    ret: "The request's own `Core\\Router\\Match`, the value `Core\\Request::route()` answers, \
-          once the signature over its name and parameters has been confirmed. A link that does \
-          not verify is a throw and never a value: nothing here renders a refusal, because the \
-          program that renders one is the program that should decide when to ask.",
+    ret: "The route that the request matched, as a `Core\\Router\\Match`. It is the same value \
+          that `Core\\Request::route()` returns. When the check fails, this method throws an \
+          error and returns nothing.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "When this request carries no signature this ring made for the route it \
-                   matched — no `_sig` parameter or two of them, an altered token, one minted at \
-                   another door or under a retired key, a parameter added, removed or edited, and \
-                   a request that matched no named route: one sentence for all of it. When the \
-                   signature has expired, which is the one failure with a sentence of its own and \
-                   is reached only after the token has been found authentic. And when a query \
-                   parameter's escapes decode to octets that are not UTF-8, which says something \
-                   about the URL that arrived and nothing about the token.",
+            desc: "When the signature is not valid: there is no `_sig` parameter or there are \
+                   two, the signature was changed, a key that is not in `$keys` made it, a value \
+                   was added, removed or changed, or the request matched no route with a name. \
+                   All of these have the same message. When the link is too old, with a message \
+                   of its own. When an escape in the query gives bytes that are not UTF-8.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "When this program is not answering a request at all — a CLI program, a \
-                   scheduled script, a job worker or a test — which is a different fact from a \
-                   request that carries no signature. Or when `$keys` is empty or its first entry \
-                   is not 32 octets long, as every door over a ring refuses.",
+            desc: "When the program is not answering a request, for example a command-line \
+                   program, a job or a test. When `$keys` is empty. When its first key is not 32 \
+                   bytes long.",
         },
     ],
 };

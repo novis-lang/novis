@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/files/7
+--QUERY--
+_sig=9Eg0r0xOl4pEUIN820AGst9X3y7lZiA8X--x-3U6WbEBAwAJAgcGcGFyYW1zCQEHAmlkBwE3BwVyb3V0ZQcPRmlsZXM6OmRvd25sb2Fk
+--HEADERS--
+host: www.example.com

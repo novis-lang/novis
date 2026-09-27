@@ -1,22 +1,23 @@
 {
-  "state": "Goal `core-router-and-4-more`, stage 2 (feature proofs). `Core\\Router::match`, `::methodsFor`, `::url`, `::urlAbsolute` and `::urlSigned` have every feature proof on disk: about, three examples, an attack, a bench, and a Rust `covers:` test in `crates/nvs-stdlib/src/router.rs`'s test module. `Core\\Router` has its class card, and the `urlAbsolute` and `urlSigned` cards are rewritten in plain words.\n\n`urlAbsolute`'s examples, attack and bench read an `[[app]] origin` from an `nvs.toml` beside them (`docs/examples/core/Router/urlAbsolute/`, `tests/hostile/core/Router/urlAbsolute/`, and `benches/members/core/Router/nvs.toml`, which every Router bench now runs under).\n\n`signedRoute` has its Rust `covers:` marker on `signed_route_verifies_against_the_match_the_server_already_made_and_reparses_nothing`, and still owes about, examples, hostile and perf. All five `Core\\Router\\Match` members owe examples, help, hostile, perf and tests. `Core\\Script`, `Core\\Script\\ExitReport` and `Core\\Secret` are not started.",
+  "state": "Goal `core-router-and-4-more`, stage 2 (feature proofs). Every `Core\\Router` member has every feature proof on disk, `signedRoute` included: about, three examples with a `.nvsr` request beside each, an attack with its own `.nvsr`, a bench with `benches/members/core/Router/signedRoute.nvsr`, a perf figure, and a Rust `covers:` test. Its card is rewritten in plain words. `bun nv proofs --verify --group 'Core\\Router'` is the check that should now pass.\n\nThe attack found a bug, fixed in the same session: `crate::keyring::borrow` now checks the newest key's length itself. Before, `signedRoute` and `$uri->verifySignature` answered the forgery sentence for a 31-byte first key whenever the request had no `_sig` or two, since they refuse that input before the ring walk. Pinned by `borrowing_a_ring_refuses_a_newest_key_of_the_wrong_length_and_nothing_older` in `crates/nvs-stdlib/src/keyring.rs` and `tests/conformance/core/keyring-a-short-first-key-is-refused-before-the-input-is-read.nvst`.\n\nA `.nvsr` request with a valid `_sig` is minted by running a throwaway program that calls `urlSigned` with the same fixed 32-byte key (`\"example-key-for-signed-links-001\" as bytes`) and `until: null`, and pasting the query into `--QUERY--`.\n\n`Core\\Router\\Match`'s class card and members, `Core\\Script`, `Core\\Script\\ExitReport` and `Core\\Secret` are not started.",
   "next": {
     "stage": 2,
     "title": "feature proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/router.rs` and the `Core/Router` and `Core/Router-Match` trees under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/router.rs`, `crates/nvs-stdlib/src/registry.rs` and the `Core/Router-Match` trees under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Router::signedRoute`** — owes about, examples, hostile, perf (`rule:testing/feature-proofs`); its Rust test is marked. It reads the match the door took, so each example is a `.nvs` with a `.nvsr` request beside it (`docs/examples/README.md` § on `.nvsr`; `docs/examples/core/Request/body/` is the shape). A request's `_sig` must be minted by a key the program also holds, so an example signs with a fixed key built as `bytes` then `as secret bytes` (32 bytes). `SIGNED_ROUTE_DOC` wants a plain rewrite. `crates/nvs-stdlib/src/router.rs:1421`"
+        "text": "**`Core\\Router\\Match`'s class card** — a `ClassDoc` above the `MATCH` row, and the class deleted from `CLASSES_STILL_OWING_A_CARD` (`rule:core-api/reference-card`). The member cards read plain already, so check them against AGENTS.md § *Text an end user reads* while there. `crates/nvs-stdlib/src/router.rs:597`, `crates/nvs-stdlib/src/registry.rs:5279`"
       },
       {
         "done": false,
-        "text": "**`Core\\Router\\Match`'s class card and its five members** — owes a `ClassDoc` above the class's `CLASS` row plus deletion from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`, then examples, hostile, perf and two `.nvst` cases each. The member cards start at `crates/nvs-stdlib/src/router.rs:660`."
+        "text": "**`Core\\Router\\Match`'s members** — each owes about, three examples, an attack, a bench and two test cases (`rule:testing/feature-proofs`); `bun nv proofs --group 'Core\\Router\\Match'` lists them. A match is read off a request, so each example is a `.nvs` with a `.nvsr` beside it, the way `docs/examples/core/Request/route/` does. Instance members need a `covers:` marker on every test. `crates/nvs-stdlib/src/router.rs:653`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Script`, `Core\\Script\\ExitReport`, `Core\\Secret` — every proof, and a class card each (`crates/nvs-stdlib/src/script.rs`, `crates/nvs-stdlib/src/secret.rs`)."
+    "`Core\\Script`, `Core\\Script\\ExitReport`: every proof and both class cards — `crates/nvs-stdlib/src/script.rs`.",
+    "`Core\\Secret`: every proof and its class card — `crates/nvs-stdlib/src/secret.rs`."
   ]
 }
