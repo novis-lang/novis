@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request changes the array that `captures()` returned, then reads the captures again.
+// The mount should still return its own captures, and the program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Changes the array it got, and adds a capture to it. A new read still returns "Acme" alone.
+Core\Request\Mount $mount = Core\Request::mount();
+array<tainted string> $mine = $mount->captures();
+$mine[0] = 'Globex';
+$mine[] = 'extra';
+array<tainted string> $again = $mount->captures();
+echo 'after the change: ', $again[0], ', ', Core\Arr::count($again), ' capture(s)', "\n";
+
+// 2. Reads index 1 and index -1. The mount has one capture, so both reads throw an error.
+try {
+    tainted string $second = $mount->captures()[1];
+    echo 'index 1: ', $second, "\n";
+} catch (Throwable $error) {
+    echo 'index 1: ', $error::class, "\n";
+}
+try {
+    tainted string $last = $mount->captures()[-1];
+    echo 'index -1: ', $last, "\n";
+} catch (Throwable $error) {
+    echo 'index -1: ', $error::class, "\n";
+}
+
+// 3. Reads the captures 200000 times and changes each copy. Every read still returns "Acme".
+uint $same = 0;
+uint $i = 0;
+while ($i < 200000) {
+    array<tainted string> $copy = $mount->captures();
+    $copy[0] = 'Initech';
+    if ($mount->captures()[0] == 'Acme') {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo 'same answer: ', $same, "\n";
+
+// 4. Keeps every array it reads, without end. This stops at the memory limit.
+array<array<tainted string>> $kept = [];
+while (true) {
+    $kept[] = $mount->captures();
+}

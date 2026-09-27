@@ -1,0 +1,10 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--MOUNT--
+/acme/eu
+Acme
+eu
+--HEADERS--
+host: shop.example.com

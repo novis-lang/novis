@@ -1,0 +1,21 @@
+<?nvs
+// Reads the parts of the prefix that a pattern matched, as a program does to find its customer.
+// The loop counts the parts, so the figure is the cost of `captures()` alone.
+// bench: iterations 200000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The request is in the file `captures.nvsr` beside this one.
+        Core\Request\Mount $mount = Core\Request::mount();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($mount->captures()) + $total % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

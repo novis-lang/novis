@@ -5338,7 +5338,6 @@ mod tests {
         r"Core\Regex\Pattern",
         r"Core\Request\BodyStream",
         r"Core\Request\Files",
-        r"Core\Request\Mount",
         r"Core\Request\Part",
         r"Core\Request\PartContent",
         r"Core\Response",

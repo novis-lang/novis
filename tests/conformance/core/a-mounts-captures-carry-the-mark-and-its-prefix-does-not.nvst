@@ -2,6 +2,7 @@
 `Core\Request::mount()` answers the prefix as the deployment's own plain text and the captures as the peer's `tainted` ones, so a grammar sink is open to one and shut to the other -- `rule:routing/a-request-reads-its-mount`, `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`, `rule:security/sink-predicate`
 --FILE--
 <?nvs
+// covers: Core\Request\Mount::captures, Core\Request\Mount::prefix
 // A bound asserted on both sides, and the only shape that can assert it: a
 // plain `string` is assignable into a `tainted` target, so a case that merely
 // declared the captures `tainted` would pass over a member that had dropped
@@ -20,6 +21,6 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0401]: expected `string`, found `tainted string`
-   --> case.nvs:14:50
+   --> case.nvs:15:50
 %A
 error: aborting due to 1 error

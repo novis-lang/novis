@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `captures()` returns when the mount has no pattern.
+
+// The server serves this program at `/shop`. That prefix has no pattern,
+// so `captures()` returns an empty array. This prints "parts: 0".
+array<tainted string> $parts = Core\Request::mount()->captures();
+echo "parts: ", Core\Arr::count($parts), "\n";
+
+// `??` gives a default value when index 0 does not exist.
+// This prints "customer: main".
+tainted string $customer = $parts[0] ?? "main";
+echo "customer: ", $customer, "\n";

@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a program reads each part of its prefix that a pattern matched.
+
+// The server serves this program at `/acme/eu`, through the pattern `/{1:lower}/{2}`.
+// `{1}` matched the folder "Acme" and `{2}` matched the folder "eu".
+Core\Request\Mount $mount = Core\Request::mount();
+array<tainted string> $parts = $mount->captures();
+
+// `{1}` is `captures()[0]`. This prints "customer: Acme".
+echo "customer: ", $parts[0], "\n";
+
+// `{2}` is `captures()[1]`. This prints "region: eu".
+echo "region: ", $parts[1], "\n";
+
+// This prints "parts: 2".
+echo "parts: ", Core\Arr::count($parts), "\n";

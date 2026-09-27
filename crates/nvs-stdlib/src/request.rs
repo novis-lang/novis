@@ -992,7 +992,7 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// same arrangement `Core\Request::route()` has with the match.
 pub(crate) const MOUNT: CoreClass = CoreClass {
     name: MOUNT_NAME,
-    doc: None,
+    doc: Some(&MOUNT_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1016,6 +1016,14 @@ pub(crate) const MOUNT: CoreClass = CoreClass {
     ],
     slots: &["prefix", "captures"],
     constants: &[],
+};
+
+/// `Core\Request\Mount`'s class card — `rule:core-api/reference-card`.
+const MOUNT_CARD: ClassDoc = ClassDoc {
+    short: "The mount that is serving this request, as `Core\\Request::mount()` returns it. \
+            `prefix()` returns the part of the path that the server removed, such as `/shop`. \
+            `captures()` returns the parts of that prefix that a pattern matched, such as a \
+            customer name. The captures are `tainted`, because the client chose the address.",
 };
 
 /// `Core\Request\Mount::prefix`'s reference card — `rule:core-api/reference-card`.
@@ -4125,7 +4133,7 @@ mod tests {
     /// `nvs-types`, so the door writes two strings with nothing to write a
     /// qualifier with, and `nvs_server::mount::carry`'s own test asserts the
     /// carrying.
-    // covers: Core\Request::mount
+    // covers: Core\Request::mount, Core\Request\Mount::captures, Core\Request\Mount::prefix
     #[test]
     fn core_request_mount_answers_the_prefix_and_its_captures_as_tainted_strings() {
         /// A context answering a request that reached the mount at `prefix`,
