@@ -220,6 +220,7 @@ export function readsKeys(reads: Reads, modules: string[] = []): Set<string> {
   for (const f of reads.exists) keys.add(`exists:${f}`);
   for (const f of reads.dirs) keys.add(`dir:${f}`);
   for (const argv of reads.spawns ?? []) for (const k of spawnKeys(argv)) keys.add(k);
+  for (const k of reads.keys ?? []) keys.add(k);
   for (const m of modules) {
     const p = repoPath(m);
     if (p !== null) keys.add(`mod:${p}`);

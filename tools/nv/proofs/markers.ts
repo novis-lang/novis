@@ -38,3 +38,41 @@ export function markersIn(path: string, text: string): [string, string][] {
 export function callsIn(text: string): string[] {
   return [...text.matchAll(CALL_RE)].map((m) => `static:${m[1]!.split("\\").pop()}::${m[2]}`);
 }
+
+// A reader of the scans records what it asked for, not every file the scan read: `covers:#<feature>`
+// for the markers naming a feature and `calls:#<call>` for the cases making a call. A change to a
+// scanned file moves the keys of what its text names before and after (`markerKeys`), and a change
+// whose earlier text is not known moves every key of both kinds (`COVERS_ANY`, `CALLS_ANY`). The
+// roster's scans of the stdlib for where a feature is declared are keyed the same way, `anchor:#<id>`
+// (`roster.ts` `anchorScan`).
+
+/** Every `covers:` key, as the prefix a selection looks up. */
+export const COVERS_ANY = "covers:#";
+/** Every `calls:` key, as the prefix a selection looks up. */
+export const CALLS_ANY = "calls:#";
+
+/** Every `anchor:` key, as the prefix a selection looks up: where the roster found a feature declared. */
+export const ANCHOR_ANY = "anchor:#";
+
+export const coversKey = (feature: string) => `${COVERS_ANY}${feature}`;
+export const callsKey = (call: string) => `${CALLS_ANY}${call}`;
+export const anchorKey = (feature: string) => `${ANCHOR_ANY}${feature}`;
+
+/** Whether the scans read `path`: for markers, and for calls. */
+export function scannedFor(path: string): { markers: boolean; calls: boolean } {
+  const under = (base: string) => path.startsWith(`${base}/`) && !path.split("/").includes("target");
+  return {
+    markers: MARKER_ROOTS.some(([base, ext]) => under(base) && path.endsWith(ext)),
+    calls: CALL_ROOTS.some((base) => under(base) && path.endsWith(".nvst")),
+  };
+}
+
+/** The keys the text of `path` holds for the scans: a `covers:` key for each feature its markers name,
+ * and a `calls:` key for each call it makes. */
+export function markerKeys(path: string, text: string): string[] {
+  const s = scannedFor(path);
+  const out = new Set<string>();
+  if (s.markers) for (const [name] of markersIn(path, text)) out.add(coversKey(name));
+  if (s.calls) for (const call of callsIn(text)) out.add(callsKey(call));
+  return [...out];
+}

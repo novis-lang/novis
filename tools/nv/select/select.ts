@@ -14,7 +14,7 @@
 // Nothing outside `run` is started. `explain` says for one atom which key selected it, the path and
 // item the key came from, and for a key reached through the reference graph the item that reached it.
 
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { type FileItems, scanItems } from "../keys/scan.ts";
 import { metadata, type Graph, closure as pkgClosure, testBinaries } from "../keys/graph.ts";
@@ -23,7 +23,9 @@ import { abs, NOT_INPUTS, ROOT } from "../lib/paths.ts";
 import { caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proofId, stillThere } from "./atoms.ts";
 import { NV_TSC } from "./nvtests.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
-import { blobAt, type Change, changedBetween, changedPaths, commitOf, namedChanges, sinceOverlay, snapshot } from "./change.ts";
+import { ANCHOR_ANY, CALLS_ANY, COVERS_ANY, markerKeys, scannedFor } from "../proofs/markers.ts";
+import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
+import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { gitTexts, profileReader } from "./profile.ts";
 import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, PROFILE_ONLY, testsKey, WILD } from "./keys.ts";
@@ -171,6 +173,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const global = changes.find((c) => isGlobal(c.path))?.path ?? null;
   for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) emit(k, { path: c.path, how: "path" });
   if (global) emit(WILD, { path: global, how: "global" });
+  for (const [k, origin] of await scanKeys(store, changes, since, until, fromBase, root)) emit(k, origin);
 
   const graph = opts.graph === undefined ? await metadata() : opts.graph;
   const scope = graphScope(graph);
@@ -275,6 +278,70 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     view,
     ...(tree ? { tree } : {}),
   };
+}
+
+/** The meta key holding, for each path of the recorded overlay the proof scans read, the keys its
+ * recorded text named (`markerKeys`). */
+const markersMeta = (platform: string) => `markers:${platform}`;
+
+/** What the proof scans read of one file's text (`text` null for a file that is not there): the
+ * `covers:`, `calls:` and `anchor:` keys it names, and the signature of its class-name consts. */
+interface Scanned {
+  keys: string[];
+  consts: string;
+}
+
+function scanned(path: string, text: string | null): Scanned {
+  const anchor = isAnchorFile(path) ? anchorScan(path, text ?? "") : { keys: [], consts: "" };
+  return { keys: [...(text === null ? [] : markerKeys(path, text)), ...(text === null ? [] : anchor.keys)], consts: anchor.consts };
+}
+
+const readByScans = (path: string) => {
+  const s = scannedFor(path);
+  return s.markers || s.calls || isAnchorFile(path);
+};
+
+/** Records, beside the overlay just recorded as the store's tree, what the proof scans read of each of
+ * its paths (`Scanned`), so the next change knows what that text named. A path whose bytes moved since
+ * the overlay was taken is left out, and its earlier text counts as unknown. */
+export function recordOverlayMarkers(store: SelectStore, overlay: Overlay, root: string = ROOT): void {
+  const out: Record<string, Scanned> = {};
+  for (const [path, digest] of Object.entries(overlay)) {
+    if (!readByScans(path)) continue;
+    if (digest === null) out[path] = scanned(path, null);
+    else if (diskDigest(path, root) === digest) out[path] = scanned(path, readFileSync(join(root, path), "utf8"));
+  }
+  store.setMeta(markersMeta(store.platform), JSON.stringify(out));
+}
+
+/** The `covers:`, `calls:` and `anchor:` keys `changes` move: what each changed file the proof scans
+ * read names in its text before and after. A file whose earlier text is not known moves every key of
+ * each kind it is scanned for, and a file whose class-name consts changed moves every `anchor:` key. */
+async function scanKeys(store: SelectStore, changes: Change[], since: string, until: string | null, fromBase: boolean, root: string): Promise<Map<string, Origin>> {
+  const out = new Map<string, Origin>();
+  const overlay = fromBase ? store.overlay() : {};
+  let recorded: Record<string, Scanned> = {};
+  try {
+    recorded = fromBase ? JSON.parse(store.meta(markersMeta(store.platform)) ?? "{}") : {};
+  } catch {
+    recorded = {};
+  }
+  const text = (b: Uint8Array | null) => (b === null ? null : new TextDecoder().decode(b));
+  for (const c of changes) {
+    if (!readByScans(c.path)) continue;
+    const s = scannedFor(c.path);
+    const origin: Origin = { path: c.path, how: "path" };
+    const before: Scanned | null = c.path in overlay ? (recorded[c.path] ?? null) : scanned(c.path, text(await blobAt(since, c.path, root)));
+    const now = until ? text(await blobAt(until, c.path, root)) : existsSync(join(root, c.path)) ? readFileSync(join(root, c.path), "utf8") : null;
+    const after = scanned(c.path, now);
+    if (before === null) {
+      if (s.markers) out.set(COVERS_ANY, origin);
+      if (s.calls) out.set(CALLS_ANY, origin);
+    }
+    if (isAnchorFile(c.path) && (before === null || before.consts !== after.consts)) out.set(ANCHOR_ANY, origin);
+    for (const k of [...(before?.keys ?? []), ...after.keys]) if (!out.has(k)) out.set(k, origin);
+  }
+  return out;
 }
 
 /** The Rust files of `files` that hold an item embedding one of `paths` with `include_str!`,

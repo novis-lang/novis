@@ -473,7 +473,12 @@ export async function run(args: string[]): Promise<number> {
     }
   }
   const label = group ?? (only !== null ? `${only.length} named feature(s)` : null);
-  const proofs = collect(entries);
+  // A run, a measurement or a report over the scope reads the proofs of the scope and of `--id` alone,
+  // so a check of a few features is not selected by an edit to any other feature's proofs. The views
+  // that print every feature collect every feature.
+  const fidEntry = entries.find((e) => e.id === values.get("--id"));
+  const scoped = executes || measures || flags.has("--gate") || flags.has("--json") || flags.has("--gaps") || (flags.has("--owed") && !values.has("--id"));
+  const proofs = collect(scoped ? [...new Set([...scope, ...(fidEntry ? [fidEntry] : [])])] : entries);
 
   if (measures) {
     const fid = values.get("--id");

@@ -227,6 +227,26 @@ function ownerAt(starts: [number, string][], offset: number): string {
   return owner;
 }
 
+/** The `Class::member` names `registry` reads out of one file's `text`. */
+export function registryNames(path: string, text: string): string[] {
+  const consts = classConsts(path, text);
+  const starts = classStarts(text, consts);
+  if (starts.length === 0) return [];
+  const out: string[] = [];
+  for (const m of text.matchAll(METHOD_RE)) {
+    const owner = ownerAt(starts, m.index!);
+    const member = m[1] || consts.get(m[2]!) || "";
+    if (owner && member) out.push(`${owner}::${member}`);
+  }
+  return out;
+}
+
+/** The class-name consts `text` declares, as one string that changes exactly when they do. Every file's
+ * owners are read through the consts of the whole tree, so a change to these can move any of them. */
+export function nameConstsSignature(text: string): string {
+  return JSON.stringify([...nameConsts(text)].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+
 /** `Class::member` -> `[file, line, symbol]`, read out of the `CoreClass` literals themselves. */
 export function registry(): Map<string, Pos> {
   const found = new Map<string, Pos>();

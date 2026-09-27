@@ -15,7 +15,8 @@ import { join } from "node:path";
 import { analyseAll, digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { comparePaths, splitlines } from "../lib/py.ts";
-import { CALL_ROOTS, callsIn, MARKER_ROOTS, markersIn } from "./markers.ts";
+import { noteKey, unrecorded } from "../lib/reads.ts";
+import { anchorKey, CALL_ROOTS, callsIn, callsKey, coversKey, MARKER_ROOTS, markersIn } from "./markers.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, implFile, namesIn, read, type Entry, type Kind } from "./roster.ts";
 
 /** Every proof a feature can owe, in the order the audit prints them. */
@@ -212,32 +213,37 @@ export function walk(dir: string, ext: string): string[] {
   return out;
 }
 
-/** Every `covers:` marker `markersIn` finds under `MARKER_ROOTS`, as feature id -> the tests carrying it. */
+/** Every `covers:` marker `markersIn` finds under `MARKER_ROOTS`, as feature id -> the tests carrying it.
+ * The files are read `unrecorded`: `collect` names the `covers:` key of each feature it asks about. */
 function scanMarkers(): Map<string, string[]> {
   const found = new Map<string, string[]>();
-  for (const [base, ext] of MARKER_ROOTS) {
-    for (const path of walk(base, ext)) {
-      for (const [name, label] of markersIn(path, read(path))) {
-        if (!found.has(name)) found.set(name, []);
-        found.get(name)!.push(label);
+  unrecorded(() => {
+    for (const [base, ext] of MARKER_ROOTS) {
+      for (const path of walk(base, ext)) {
+        for (const [name, label] of markersIn(path, read(path))) {
+          if (!found.has(name)) found.set(name, []);
+          found.get(name)!.push(label);
+        }
       }
     }
-  }
+  });
   return found;
 }
 
 /** Which cases under `CALL_ROOTS` call which member, as `callsIn` keys it. An instance member is
- * attributed by its `covers:` marker instead. */
+ * attributed by its `covers:` marker instead. Read `unrecorded`, as `scanMarkers` is. */
 function scanCalls(): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  for (const base of CALL_ROOTS) {
-    for (const path of walk(base, ".nvst")) {
-      for (const key of callsIn(read(path))) {
-        if (!out.has(key)) out.set(key, []);
-        out.get(key)!.push(path);
+  unrecorded(() => {
+    for (const base of CALL_ROOTS) {
+      for (const path of walk(base, ".nvst")) {
+        for (const key of callsIn(read(path))) {
+          if (!out.has(key)) out.set(key, []);
+          out.get(key)!.push(path);
+        }
       }
     }
-  }
+  });
   return out;
 }
 
@@ -340,6 +346,8 @@ export function collect(entries: Entry[]): Map<string, Proofs> {
   const hashOf = (path: string) => hashes.get(path) ?? "";
   const out = new Map<string, Proofs>();
   for (const e of entries) {
+    noteKey(coversKey(e.id));
+    noteKey(anchorKey(e.id));
     const marked = markers.get(e.id) ?? [];
     const p: Proofs = {
       nvst: sortedSet(marked.filter((f) => f.endsWith(".nvst"))),
@@ -357,7 +365,9 @@ export function collect(entries: Entry[]): Map<string, Proofs> {
     if (e.kind === "member") {
       const [owner, member] = [e.id.slice(0, e.id.indexOf("::")), e.id.slice(e.id.indexOf("::") + 2)];
       const have = new Set(p.nvst);
-      const fresh = sortedSet((calls.get(`static:${owner.split("\\").pop()}::${member}`) ?? []).filter((f) => !have.has(f)));
+      const call = `static:${owner.split("\\").pop()}::${member}`;
+      noteKey(callsKey(call));
+      const fresh = sortedSet((calls.get(call) ?? []).filter((f) => !have.has(f)));
       p.inferred = fresh.length;
       p.nvst = sortedSet([...p.nvst, ...fresh]);
     }

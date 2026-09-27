@@ -8,7 +8,9 @@
 // keys the perf ledger's currency, and a feature with no anchor is still on the roster.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { classConsts, filesUnder, phpTwins, registry, specRows } from "../cmd/gaps.ts";
+import { classConsts, filesUnder, nameConstsSignature, phpTwins, registry, registryNames, specRows } from "../cmd/gaps.ts";
+import { unrecorded } from "../lib/reads.ts";
+import { anchorKey } from "./markers.ts";
 import { abs } from "../lib/paths.ts";
 import { comparePaths } from "../lib/py.ts";
 import { run as runProc } from "../lib/proc.ts";
@@ -105,15 +107,39 @@ function tableAnchors(): Record<string, Map<string, string>> {
       if (!out[kind]!.has(name)) out[kind]!.set(name, `${path}:${lineAt(text, m.index!)}`);
     }
   }
-  for (const path of filesUnder("crates/nvs-stdlib/src", ".rs")) {
-    const text = read(path);
+  // Read `unrecorded`: `collect` names the `anchor:` key of each feature it asks about.
+  unrecorded(() => {
+    for (const path of filesUnder("crates/nvs-stdlib/src", ".rs")) {
+      const text = read(path);
+      const consts = classConsts(path, text);
+      for (const m of text.matchAll(ENUM_RE)) {
+        const name = m[1] || consts.get(m[2]!) || "";
+        if (name && !out.enum!.has(name)) out.enum!.set(name, `${path}:${lineAt(text, m.index!)}`);
+      }
+    }
+  });
+  return out;
+}
+
+/** The files the anchor scans read: the stdlib's sources, and the runtime's for the class-name consts
+ * a stdlib file forwards. */
+export function isAnchorFile(path: string): boolean {
+  return path.endsWith(".rs") && (path.startsWith("crates/nvs-stdlib/src/") || path.startsWith("crates/nvs-runtime/src/"));
+}
+
+/** What the anchor scans read of one file: the `anchor:` key of each member and enum it declares, and
+ * the signature of its class-name consts, which the owners of every other file are read through. */
+export function anchorScan(path: string, text: string): { keys: string[]; consts: string } {
+  const keys = new Set<string>();
+  if (path.startsWith("crates/nvs-stdlib/src/")) {
+    for (const name of registryNames(path, text)) keys.add(anchorKey(name));
     const consts = classConsts(path, text);
     for (const m of text.matchAll(ENUM_RE)) {
       const name = m[1] || consts.get(m[2]!) || "";
-      if (name && !out.enum!.has(name)) out.enum!.set(name, `${path}:${lineAt(text, m.index!)}`);
+      if (name) keys.add(anchorKey(name));
     }
   }
-  return out;
+  return { keys: [...keys], consts: nameConstsSignature(text) };
 }
 
 /** `Class::member` -> the PHP built-ins the spec's **Replaces** column names for it. */
@@ -213,7 +239,7 @@ const pyStr = (v: unknown) => (v === undefined ? "" : v === null ? "None" : Stri
 /** Every feature Novis ships, in the order the sources give them. */
 export async function roster(nvs: string): Promise<Entry[]> {
   const doc = await metaJson(nvs);
-  const anchors = new Map([...registry()].map(([k, v]) => [k, `${v[0]}:${v[1]}`]));
+  const anchors = unrecorded(() => new Map([...registry()].map(([k, v]) => [k, `${v[0]}:${v[1]}`])));
   const tables = tableAnchors();
   const phpNames = twins();
   const out: Entry[] = [];

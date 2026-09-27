@@ -29,7 +29,7 @@ import { buildScripts, type Generated, generatedDigest, generatedIncludes, gener
 import { snapshot } from "./change.ts";
 import { CovMap, type Extracted, extract, ItemIndex, type Recorded, recordedIn } from "./extract.ts";
 import { fileWild, fnKey, WILD } from "./keys.ts";
-import { type ChangeSet, embedders, graphScope, rustFiles, type Selection } from "./select.ts";
+import { type ChangeSet, embedders, graphScope, recordOverlayMarkers, rustFiles, type Selection } from "./select.ts";
 import type { Keyed, SelectStore, Verdict } from "./store.ts";
 
 export const REC_ROOT = ".agent-tmp/select-rec";
@@ -384,6 +384,7 @@ export function advance(store: SelectStore, change: ChangeSet, sel: Selection | 
   const scripts = buildScripts(abs(`${COVWS_TARGET}/${hostTriple()}/debug/build`, root), pkgDirs);
   for (const g of generatedIncludes(change.view.values(), (f) => scope.pkgOf(f), root)) store.setMeta(generatedMeta(store.platform, g), generatedDigest(scripts.get(g.pkg), g.name));
   store.setBase(change.tree.commit, change.tree.overlay);
+  recordOverlayMarkers(store, change.tree.overlay, root);
   return { owed };
 }
 

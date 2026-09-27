@@ -20,18 +20,22 @@ import { NOT_INPUTS, ROOT } from "./paths.ts";
 export const ENV = "NV_READS_LOG";
 
 /** What one check's processes read, each list sorted: files read whole, paths tested for existence,
- * directories listed, and every program started, as its argument list. */
+ * directories listed, every program started, as its argument list, and the keys a reader named itself
+ * for what it read `unrecorded`. */
 export interface Reads {
   files: string[];
   exists: string[];
   dirs: string[];
   spawns: string[][];
+  keys?: string[];
 }
 
 export type Kind = "files" | "exists" | "dirs";
 
 const noted: Record<Kind, Set<string>> = { files: new Set(), exists: new Set(), dirs: new Set() };
 const spawned: string[][] = [];
+const named = new Set<string>();
+let quiet = 0;
 
 /** `p` as a repo-relative path, or null when it is no input. */
 function inTree(p: unknown): string | null {
@@ -49,8 +53,25 @@ function inTree(p: unknown): string | null {
 
 /** Notes that this process read, listed or tested `p`. */
 export function note(kind: Kind, p: unknown): void {
+  if (quiet > 0) return;
   const r = inTree(p);
   if (r !== null) noted[kind].add(r);
+}
+
+/** Runs `f` with nothing it reads, lists or tests noted. The caller names what it read with `noteKey`
+ * instead, as a key the change moves exactly when that answer can change. */
+export function unrecorded<T>(f: () => T): T {
+  quiet++;
+  try {
+    return f();
+  } finally {
+    quiet--;
+  }
+}
+
+/** Notes that this process depends on `key`, a key a change moves by what the text it read names. */
+export function noteKey(key: string): void {
+  named.add(key);
 }
 
 /** Notes a program this process started. One started in a directory that is no input (a test's scratch
@@ -117,7 +138,7 @@ export function flush(log: string): void {
     .map((m) => inTree(m))
     .filter((m): m is string => m !== null && m.endsWith(".ts"))
     .sort();
-  const line = { files: [...noted.files].sort(), exists: [...noted.exists].sort(), dirs: [...noted.dirs].sort(), spawns: spawned, modules };
+  const line = { files: [...noted.files].sort(), exists: [...noted.exists].sort(), dirs: [...noted.dirs].sort(), spawns: spawned, keys: [...named].sort(), modules };
   try {
     appendFileSync(log, `${JSON.stringify(line)}\n`);
   } catch {
@@ -155,7 +176,7 @@ export function readLog(path: string): Reads | null {
   } catch {
     return null;
   }
-  const out = { files: new Set<string>(), exists: new Set<string>(), dirs: new Set<string>(), spawns: new Map<string, string[]>() };
+  const out = { files: new Set<string>(), exists: new Set<string>(), dirs: new Set<string>(), keys: new Set<string>(), spawns: new Map<string, string[]>() };
   let lines = 0;
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
@@ -166,9 +187,9 @@ export function readLog(path: string): Reads | null {
       return null;
     }
     lines++;
-    for (const k of ["files", "exists", "dirs"] as const) for (const p of got[k] ?? []) out[k].add(p);
+    for (const k of ["files", "exists", "dirs", "keys"] as const) for (const p of got[k] ?? []) out[k].add(p);
     for (const argv of got.spawns ?? []) out.spawns.set(JSON.stringify(argv), argv);
   }
   if (lines === 0) return null;
-  return { files: [...out.files].sort(), exists: [...out.exists].sort(), dirs: [...out.dirs].sort(), spawns: [...out.spawns.values()] };
+  return { files: [...out.files].sort(), exists: [...out.exists].sort(), dirs: [...out.dirs].sort(), spawns: [...out.spawns.values()], keys: [...out.keys].sort() };
 }
