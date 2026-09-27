@@ -14834,7 +14834,7 @@ Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`,
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes\|string` | The octets to hash; a `string` is read as its UTF-8 bytes. |
+| `$data` | `bytes\|string` (neutral) | The octets to hash; a `string` is read as its UTF-8 bytes. |
 | `$digest` | `Core\Digest` | The algorithm, any `Core\Digest` case — the broken ones included, for interop. |
 
 **Returns** `bytes` — The digest as `bytes`, as many octets as the case's width; every case accepts every input, the empty one included.
@@ -14850,7 +14850,7 @@ Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` d
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes\|string` | The octets to authenticate; a `string` is read as its UTF-8 bytes. |
+| `$data` | `bytes\|string` (neutral) | The octets to authenticate; a `string` is read as its UTF-8 bytes. |
 | `$key` | `secret bytes` (neutral) | The secret key, of any length — a long one is hashed down and a short one zero-padded, as RFC 2104 § 2 says. |
 | `$digest` | `Core\Digest::Sha224\|Core\Digest::Sha256\|Core\Digest::Sha384\|Core\Digest::Sha512\|Core\Digest::Sha512_224\|Core\Digest::Sha512_256\|Core\Digest::Sha3_224\|Core\Digest::Sha3_256\|Core\Digest::Sha3_384\|Core\Digest::Sha3_512` | The algorithm, one of the ten SHA-2 and SHA-3 `Core\Digest` cases. |
 
@@ -14867,8 +14867,8 @@ Compares two digests in constant time, as `hash_equals` does: the running time d
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `bytes` | One digest. |
-| `$b` | `bytes` | The other digest. |
+| `$a` | `bytes` (neutral) | One digest. |
+| `$b` | `bytes` (neutral) | The other digest. |
 
 **Returns** `bool` — `true` when the two hold the same octets; `false` at once for two lengths that differ, since a digest's length is the algorithm's and never a secret.
 
@@ -14936,7 +14936,7 @@ Feeds `$data` to the stream, as `hash_update` does; the chunks are digested in o
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$data` | `bytes\|string` | The next octets; a `string` is read as its UTF-8 bytes. |
+| `$data` | `bytes\|string` (neutral) | The next octets; a `string` is read as its UTF-8 bytes. |
 
 **Returns** `void` — Nothing; the stream holds a reference to `$data` until `finish`.
 
@@ -18298,11 +18298,11 @@ One cookie by name, matched **byte for byte** — no dot, space or bracket is su
 Core\Request::body(): tainted string
 ```
 
-The whole request body, pulled to its end into one string — the buffered way of reading one, replacing `file_get_contents('php://input')` and the `$HTTP_RAW_POST_DATA` it succeeded.
+Returns the whole request body as one string. It replaces PHP's `file_get_contents('php://input')`.
 
-**Returns** `tainted string` — Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the request carried no body, which is a different fact from a program that is answering no request at all — that one throws.
+**Returns** `tainted string` — Every byte the client sent, in order and unchanged. The string is `tainted`. It is empty when the request has no body, and every call returns the same string.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files` — the three are exclusive on one request.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.; `ParseError` — The body is not UTF-8, and a `string` is UTF-8 for its whole lifetime, so there is no string this could answer with. `bytes()` reads the same octets out of the same hold.
+**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.; `ParseError` — The body is not valid UTF-8, so it cannot be a `string`. `bytes` returns the same body as `bytes`.
 
 <a id="core-core-request-bytes"></a>
 #### `Core\Request::bytes`

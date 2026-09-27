@@ -295,7 +295,12 @@ const STRONG: &[CoreTy] = &[
 /// Total in one direction and free (`rule:types/conversion`): a `string` is valid UTF-8 and therefore already a valid byte
 /// sequence, so [`data_of`] reads the same buffer either tag points at without
 /// copying or validating anything.
-const DATA: &[CoreTy] = &[CoreTy::Bytes, CoreTy::Str];
+///
+/// Both arms are [`Qual::Neutral`], as the spec's column is for all three
+/// members: hashing reads the bytes and executes none of them, so a `tainted`
+/// argument is accepted, and a digest carries no mark. A webhook's signature
+/// is an HMAC over the request's own body, which is `tainted`.
+const DATA: &[CoreTy] = &[CoreTy::Blob(Qual::Neutral), CoreTy::Text(Qual::Neutral)];
 
 /// `Core\Hash`'s registry rows — § 11's `of`/`hmac`/`equals`.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -327,7 +332,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "equals",
             names: &["a", "b"],
-            params: &[CoreTy::Bytes, CoreTy::Bytes],
+            params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_hash_equals",

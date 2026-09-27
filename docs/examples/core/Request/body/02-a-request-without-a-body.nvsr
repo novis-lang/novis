@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/orders/1042
+--HEADERS--
+accept: text/html

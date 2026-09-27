@@ -4563,10 +4563,6 @@ mod tests {
     /// member that is here *and* classified, so an entry cannot go stale and a
     /// new member cannot be added to it.
     const UNCLASSIFIED: &[(&str, &str)] = &[
-        ("Core\\Hash", "of"),
-        ("Core\\Hash", "hmac"),
-        ("Core\\Hash", "equals"),
-        ("Core\\Hash\\Stream", "update"),
         ("Core\\Router", "url"),
         ("Core\\Router", "urlAbsolute"),
         ("Core\\Csv", "parse"),
@@ -5340,7 +5336,6 @@ mod tests {
         r"Core\IO\Lines",
         r"Core\IO\Walk",
         r"Core\Regex\Pattern",
-        r"Core\Request",
         r"Core\Request\BodyStream",
         r"Core\Request\Files",
         r"Core\Request\Mount",

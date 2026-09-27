@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv proofs --bless` and `--run` judge on `target/proof/nvs.exe`, and rebuild only that one",
+  "body": "(`PROOF_BUILD` in `tools/nv/proofs/run.ts`). After a Rust change, `target/release/nvs.exe` and the covws debug `nvs` both still hold the old build, so a scratch program run on either reports the bug you just fixed. For a quick check of a change that a bless has already rebuilt, run `target/proof/nvs.exe run <file>` and do not rebuild another binary for it.",
+  "files": [
+    "tools/nv/proofs/run.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/run.ts:PROOF_BUILD"
+  }
+}

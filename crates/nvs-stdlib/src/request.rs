@@ -195,12 +195,20 @@ use nvs_runtime::{
 };
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// `Core\Request`'s fully-qualified name, in one place so the registry row and
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Request";
+
+/// `Core\Request`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "The request your program is answering: its method, path, query, headers, cookies and \
+            body. Text the client sent, such as a header or the body, is `tainted`. A program \
+            that answers no request, such as a command-line program, gets a `LogicError` from \
+            every method.",
+};
 
 /// Spec § 15's `Core\Request`, as much of it as the request line answers.
 ///
@@ -211,7 +219,7 @@ pub(crate) const NAME: &str = r"Core\Request";
 /// peer sent.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "method",
@@ -580,34 +588,31 @@ const COOKIE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::body`'s reference card — `rule:core-api/reference-card`.
 const BODY_DOC: MethodDoc = MethodDoc {
-    short: "The whole request body, pulled to its end into one string — the buffered way of \
-            reading one, replacing `file_get_contents('php://input')` and the \
-            `$HTTP_RAW_POST_DATA` it succeeded.",
+    short: "Returns the whole request body as one string. It replaces PHP's \
+            `file_get_contents('php://input')`.",
     params: &[],
-    ret: "Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the \
-          request carried no body, which is a different fact from a program that is answering no \
-          request at all — that one throws.",
+    ret: "Every byte the client sent, in order and unchanged. The string is `tainted`. It is \
+          empty when the request has no body, and every call returns the same string.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or this request's body has already \
-                   been read by `bodyStream` or `files` — the three are exclusive on one request.",
+            desc: "The program is not answering a request. Or `bodyStream` or `files` already \
+                   read the body, and those two do not keep it.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The body is larger than `[limits] request_body` (8M). The bytes over the bound \
-                   are never held: the refusal happens at the chunk that would cross it.",
+            desc: "The body is larger than `[limits] request_body` (8M). The bytes past that \
+                   limit are never stored.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed under the body, or the peer stopped short of the length \
-                   it declared.",
+            desc: "The connection failed while the body arrived, or the client sent fewer bytes \
+                   than its `Content-Length` said.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The body is not UTF-8, and a `string` is UTF-8 for its whole lifetime, so \
-                   there is no string this could answer with. `bytes()` reads the same octets \
-                   out of the same hold.",
+            desc: "The body is not valid UTF-8, so it cannot be a `string`. `bytes` returns the \
+                   same body as `bytes`.",
         },
     ],
 };
@@ -4526,6 +4531,7 @@ mod tests {
     /// something the peer never sent. Beside it, the module doc's second fact —
     /// a request that carried no body answers empty rather than throwing, which
     /// is what makes the *first* fact worth a refusal.
+    // covers: Core\Request::body
     #[test]
     fn a_body_is_every_chunk_joined_and_a_chunk_boundary_means_nothing() {
         let whole = "héllo — a body split mid-character";
@@ -4568,6 +4574,7 @@ mod tests {
     /// class table installed on the context first, which the playbook's
     /// `Ctx::pending_slot` bullet owns; what this asserts is the boundary, and
     /// the boundary is where the member can be wrong.
+    // covers: Core\Request::body
     #[test]
     fn the_request_body_cap_is_the_last_body_read_and_the_first_one_refused() {
         let full = vec![b'x'; REQUEST_BODY];
@@ -4595,6 +4602,7 @@ mod tests {
     /// `Err` ends the stream, so what had arrived before it is a prefix of what
     /// the peer meant to send — and answering a prefix is exactly the
     /// silent-wrong-answer this module's refusals exist to close.
+    // covers: Core\Request::body
     #[test]
     fn a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix() {
         let mut cut_off = answering(Some(Chunks::failing_at(&[&b"the first half"[..]], 1)));

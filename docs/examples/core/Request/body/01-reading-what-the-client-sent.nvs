@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read the body of a request that sends a short note as plain text.
+
+// `Core\Request::body` returns every byte the client sent, as one string.
+tainted string $note = Core\Request::body();
+
+// This prints 68, the length of the note in characters.
+echo "received ", Core\Str::length($note), " characters\n";
+
+// The body is exactly what the client sent, line breaks included.
+echo $note;

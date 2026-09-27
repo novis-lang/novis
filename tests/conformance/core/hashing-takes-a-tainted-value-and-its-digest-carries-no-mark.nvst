@@ -1,0 +1,33 @@
+--TEST--
+`Core\Hash::of`, `hmac`, `equals` and `Stream::update` take a `tainted` argument and answer a digest with no mark, the `neutral` their spec rows declare `rule:security/unclassified-parameter-refuses-tainted`, `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// Every value below is `tainted`, the way a request's body and headers are.
+// Hashing executes none of those bytes, so the four members take them, and
+// each digest is assigned to a plain `bytes`: a member that passed the mark on
+// would fail to compile here rather than print.
+tainted string $text = "abc";
+tainted bytes $raw = "abc" as bytes;
+bytes $whole = Core\Hash::of($text, Core\Digest::Sha256);
+bytes $again = Core\Hash::of($raw, Core\Digest::Sha256);
+echo Core\Encoding::toHex($whole), "\n";
+
+// A webhook's check: the HMAC of the body it sent, compared in constant time
+// with the signature it sent beside it. Both of those arrived tainted.
+tainted string $body = '{"order":1042,"status":"paid"}';
+tainted string $signature = "4a7abd7115cbbcab0388feb8a93f517e0229c0d89bc9d5908d0b8e7e5a9fc736";
+bytes $secret = "whsec_shop_payments" as bytes;
+bytes $mac = Core\Hash::hmac($body, $secret, Core\Digest::Sha256);
+echo Core\Hash::equals(Core\Encoding::toHex($mac) as bytes, $signature as bytes) ? "genuine" : "forged", "\n";
+echo Core\Hash::equals($whole, $raw) ? "same" : "different", "\n";
+
+// The streaming form takes the same argument a piece at a time, and agrees.
+Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+$stream->update($text);
+$stream->update("" as bytes);
+echo Core\Hash::equals($stream->finish(), $again) ? "agrees" : "disagrees", "\n";
+--EXPECT--
+ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+genuine
+different
+agrees

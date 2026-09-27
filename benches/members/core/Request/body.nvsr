@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/orders
+--HEADERS--
+content-type: application/json
+--BODY--
+{"customer":"Shop","items":[{"sku":"A-100","qty":3},{"sku":"B-220","qty":1}],"ship":"standard"}

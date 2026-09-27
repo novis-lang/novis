@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/import
+--HEADERS--
+content-type: application/json
+--BODY--
+{"customer":"Blog","items":[{"sku":"A-100","qty":3},{"sku":"B-220","qty":1},{"sku":"C-310","qty":12}],"note":"Leave the parcel at the back door. Ring twice. Call the number on the order if nobody answers."}

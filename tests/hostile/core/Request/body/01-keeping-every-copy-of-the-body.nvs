@@ -1,0 +1,23 @@
+<?nvs
+// Attack: a program reads the request body without end and keeps every copy.
+// The program should stop at its memory limit with an error, and must not crash.
+// hostile: ends-early
+
+// 1. Tries to read the body a chunk at a time after `body` already read it.
+//    This throws a `LogicError`, and the body is still there afterwards.
+tainted string $first = Core\Request::body();
+try {
+    foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+        echo "a chunk arrived after the body was read\n";
+    }
+} catch (LogicError $refused) {
+    echo "bodyStream after body: LogicError\n";
+}
+echo Core\Request::body() == $first ? "the body is unchanged\n" : "the body changed\n";
+
+// 2. Calls `body` without end and keeps every string it returns.
+//    Each call returns a new copy, so this stops at the memory limit.
+array<tainted string> $copies = [];
+while (true) {
+    $copies[] = Core\Request::body();
+}
