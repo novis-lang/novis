@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a shop filters its product list by a price range from the address.
+
+array<uint> $prices = ["notebook" => 4, "backpack" => 35, "lamp" => 60];
+
+// The address is `/products?price[min]=10&price[max]=50&sort=name`.
+// The option `name` reads only the parameters inside `price[...]`.
+var $range = Core\Request::queryAs<{min: uint, max: uint}>({name: "price"});
+
+// This prints "backpack".
+foreach ($prices as string $product => uint $price) {
+    if ($price >= $range->min && $price <= $range->max) {
+        echo $product, "\n";
+    }
+}

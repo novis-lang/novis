@@ -1,0 +1,20 @@
+<?nvs
+// Reads the query string into a shape, as a list page does for its page number and search term.
+// bench: iterations 100000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The query string is in the file `queryAs.nvsr` beside this one.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $search = Core\Request::queryAs<tainted {q: string, page: uint}>();
+            $total = $total + Core\Str::length($search->q) + $search->page + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";
