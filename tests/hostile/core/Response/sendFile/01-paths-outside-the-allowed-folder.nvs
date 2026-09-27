@@ -2,6 +2,7 @@
 // Attack: a program tries to send files outside the one folder it may read, and
 // paths that are not files. Each attempt should throw an error, and nothing outside
 // the folder should be sent.
+// hostile: timeout-ms 30000
 
 string $folder = 'tests/hostile/core/Response/sendFile';
 uint $refused = 0;
