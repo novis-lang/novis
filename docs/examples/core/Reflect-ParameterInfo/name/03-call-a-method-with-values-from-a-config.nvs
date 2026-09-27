@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to call a method with values from a configuration, matched to its parameters by name.
+
+class Pool {
+    public function open(int $size, int $timeout): string {
+        return "pool of " . $size . ", timeout " . $timeout . "s";
+    }
+}
+
+// The keys are in a different order than the parameters.
+array<int> $config = ["timeout" => 30, "size" => 8];
+
+var $pool = new Pool();
+var $info = Core\Reflect::forObject($pool);
+foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+    // Each argument is the value whose key is the parameter name.
+    array<int> $arguments = [];
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        $arguments[] = $config[$parameter->name()];
+    }
+    // This prints `pool of 8, timeout 30s`.
+    echo $info->call($pool, $method->name(), $arguments) as string, "\n";
+}

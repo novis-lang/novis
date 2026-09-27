@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to print the declared type of each parameter of a method.
+
+class Cart {
+    public function add(string $sku, uint $quantity, float $price): void {}
+}
+
+foreach (Core\Reflect::forObject(new Cart())->methods() as Core\Reflect\MethodInfo $method) {
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        // This prints `sku: string`, `quantity: uint` and `price: float`.
+        echo $parameter->name(), ": ", $parameter->type() ?? "unknown", "\n";
+    }
+}

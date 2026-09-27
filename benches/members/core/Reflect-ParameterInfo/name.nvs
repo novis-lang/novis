@@ -1,0 +1,27 @@
+<?nvs
+// Reads the name of a parameter, as a program does to match configuration keys to the arguments of a method.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Pool {
+    public function open(int $size, int $timeout, string $host): bool {
+        return true;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\MethodInfo> $methods = Core\Reflect::forObject(new Pool())->methods();
+        array<Core\Reflect\ParameterInfo> $list = $methods[0]->parameters();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which parameter is read comes from last round's total, so no round can be reused.
+            $total = $total + Core\Str::length($list[($total % 3) as int]->name());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `type` returns a nullable type, an array type and a class name exactly as they are written.
+
+class Customer {}
+
+class Orders {
+    public function find(?int $limit, array<string> $tags, Customer $owner): void {}
+}
+
+foreach (Core\Reflect::forObject(new Orders())->methods() as Core\Reflect\MethodInfo $method) {
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        // This prints `?int`, then `array<string>`, then `Customer`.
+        echo $parameter->type() ?? "unknown", "\n";
+    }
+}

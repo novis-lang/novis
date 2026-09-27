@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to write the help text of a web API from the parameters of its handler method.
+
+class SearchHandler {
+    public function handle(string $query, ?int $page, ?string $sort): string {
+        return $query;
+    }
+}
+
+echo "GET /search\n";
+foreach (Core\Reflect::forObject(new SearchHandler())->methods() as Core\Reflect\MethodInfo $method) {
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        string $type = $parameter->type() ?? "string";
+        // A type that starts with `?` may be `null`, so the field is optional.
+        if (Core\Str::startsWith($type, "?")) {
+            echo "  ", $parameter->name(), " (", $type, ", optional)\n";
+        } else {
+            echo "  ", $parameter->name(), " (", $type, ", required)\n";
+        }
+    }
+}

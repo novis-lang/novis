@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `name` returns the name of a parameter without the `$`.
+
+class Mailer {
+    public function send(string $to, string $subject): bool {
+        return true;
+    }
+}
+
+foreach (Core\Reflect::forObject(new Mailer())->methods() as Core\Reflect\MethodInfo $method) {
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        // This prints `to` next to `$to`, and `subject` next to `$subject`.
+        echo $parameter->name(), " is written as $", $parameter->name(), "\n";
+    }
+}

@@ -2,6 +2,7 @@
 `Core\Reflect\ParameterInfo::type` answers the type the declaration spells, whole — the nullable, the generic argument and the class name included — `rule:core-classes/reflect`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ParameterInfo::type
 // A parameter's declared type is part of the program's shape, so it is
 // introspection and reaches no value. What makes it worth asking for is that a
 // *representation* cannot answer it: `int` and `uint` share one, `?int` and

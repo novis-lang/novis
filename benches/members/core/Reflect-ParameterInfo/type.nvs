@@ -1,0 +1,27 @@
+<?nvs
+// Reads the declared type of a parameter, as a program does to write the help text of an API.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Search {
+    public function handle(string $query, ?int $page, array<string> $tags): bool {
+        return true;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\MethodInfo> $methods = Core\Reflect::forObject(new Search())->methods();
+        array<Core\Reflect\ParameterInfo> $list = $methods[0]->parameters();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which parameter is read comes from last round's total, so no round can be reused.
+            $total = $total + Core\Str::length($list[($total % 3) as int]->type() ?? "");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

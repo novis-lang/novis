@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a program reads deeply nested types and long class names, many times,
+// and keeps them after the description is freed. Every type should be read whole.
+
+class AVeryLongClassNameThatSomeFrameworksReallyUseForTheirServiceContainers
+{}
+
+class Deep
+{
+    public function take(array<array<array<array<array<array<array<array<string>>>>>>>> $nested, ?AVeryLongClassNameThatSomeFrameworksReallyUseForTheirServiceContainers $service, ?array<?int> $map): void
+    {
+    }
+}
+
+// 1. Read each type 300000 times and add up the lengths.
+array<Core\Reflect\MethodInfo> $methods = Core\Reflect::forObject(new Deep())->methods();
+array<Core\Reflect\ParameterInfo> $parameters = $methods[0]->parameters();
+uint $bytes = 0;
+uint $i = 0;
+while ($i < 300000) {
+    ?string $type = $parameters[($i % 3) as int]->type();
+    if ($type != null) {
+        $bytes = $bytes + Core\Str::length($type);
+    }
+    $i = $i + 1;
+}
+echo $bytes, "\n";
+
+// 2. Keep 50000 types, each from a new description that is freed at once, then print one.
+array<string> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    array<Core\Reflect\MethodInfo> $fresh = Core\Reflect::forObject(new Deep())->methods();
+    $kept[] = $fresh[0]->parameters()[($i % 3) as int]->type() ?? '';
+    $i = $i + 1;
+}
+echo Core\Arr::count($kept), ' ', $kept[0], "\n";
