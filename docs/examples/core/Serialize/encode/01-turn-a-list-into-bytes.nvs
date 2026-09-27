@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to turn a list of names into bytes and read the list back.
+
+array<string> $names = ["Anna", "Ben", "Clara"];
+
+// `encode()` returns the whole list as one `bytes` value.
+bytes $payload = Core\Serialize::encode($names);
+echo "The list is ", Core\Bytes::length($payload), " bytes long.\n";
+
+// `decode()` returns the list again. This prints the three names.
+array<string> $back = Core\Serialize::decode($payload) as array<string>;
+foreach ($back as string $name) {
+    echo $name, "\n";
+}

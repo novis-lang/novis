@@ -1,0 +1,35 @@
+<?nvs
+// Decodes a small settings object, as a program does when it reads the object back from a cache.
+// bench: iterations 200000
+
+class Settings {
+    public string $theme = "dark";
+    public uint $pageSize = 20;
+    public array<string> $columns;
+    public function constructor() {
+        $this->columns = ["name", "email", "created"];
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $payloads = [];
+        uint $size = 0;
+        while ($size < 3) {
+            Settings $settings = new Settings();
+            $settings->pageSize = $size;
+            $payloads[] = Core\Serialize::encode($settings);
+            $size = $size + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Settings $back = Core\Serialize::decode($payloads[$total % 3]) as Settings;
+            $total = $total + $back->pageSize + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

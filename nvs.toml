@@ -574,6 +574,17 @@ entry = "benches/members/core/Csv/rows.nvs"
 read = true
 write = true
 
+# `Core\Serialize::decode`'s third example saves a value in
+# `Core\IO::temporaryDir()`'s answer and reads it back, so it takes the
+# `Core\Csv` block's grant for its reason. The other proofs of the class open no
+# file.
+[[app]]
+entry = "docs/examples/core/Serialize/decode/03-load-saved-jobs-from-a-file.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
 # `Core\Http\Stream::saveTo`'s proof programs write a reply's body into
 # `Core\IO::temporaryDir()`'s answer and read it back, so they take the `Core\Csv`
 # block's grant for its reason. A `root` for the example and attack directories,

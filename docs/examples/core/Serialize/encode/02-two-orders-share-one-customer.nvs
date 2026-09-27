@@ -1,0 +1,37 @@
+<?nvs
+// Shows that two objects which point to the same object still share it after `decode()`.
+
+class Customer {
+    public string $name;
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+class Order {
+    public uint $number;
+    public Customer $customer;
+    public function constructor(uint $number, Customer $customer) {
+        $this->number = $number;
+        $this->customer = $customer;
+    }
+}
+
+class OrderBook {
+    public array<Order> $orders = [];
+}
+
+Customer $anna = new Customer("Anna");
+OrderBook $book = new OrderBook();
+$book->orders[] = new Order(1001, $anna);
+$book->orders[] = new Order(1002, $anna);
+
+OrderBook $copy = Core\Serialize::decode(Core\Serialize::encode($book)) as OrderBook;
+
+// Both orders in the copy point to one customer. A change through the first
+// order is visible through the second. This prints "Anna Schmidt".
+$copy->orders[0]->customer->name = "Anna Schmidt";
+echo $copy->orders[1]->customer->name, "\n";
+
+// The original orders are not changed. This prints "Anna".
+echo $book->orders[1]->customer->name, "\n";

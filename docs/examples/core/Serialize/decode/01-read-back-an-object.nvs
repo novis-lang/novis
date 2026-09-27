@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read an object back from bytes. Its constructor does not run a second time.
+
+class Settings {
+    public string $theme;
+    public uint $pageSize;
+    public function constructor(string $theme, uint $pageSize) {
+        echo "The constructor runs.\n";
+        $this->theme = $theme;
+        $this->pageSize = $pageSize;
+    }
+}
+
+// This prints "The constructor runs." once.
+bytes $payload = Core\Serialize::encode(new Settings("dark", 50));
+
+// `decode()` returns `mixed`. `as Settings` checks that the result is a `Settings` object.
+Settings $settings = Core\Serialize::decode($payload) as Settings;
+
+// This prints "dark 50".
+echo $settings->theme, " ", $settings->pageSize, "\n";
