@@ -5,16 +5,17 @@ Core\Regex::replace expands the same replacement template as preg_replace wherev
 // Spec § 5's `replace` row against its PHP twin. The conformance case
 // `regex-replace-reads-its-own-replacement-grammar` pins what the template
 // means; this asks whether PCRE's substitution agrees, which is a different
-// claim — the template is read by `crates/nvs-stdlib/src/regex.rs` itself and
-// never handed to an engine.
+// claim — `crates/nvs-stdlib/src/regex.rs` rewrites the template into PHP's
+// reading before either engine expands it.
 //
 // The two grammars overlap but are not equal, and the rows below are the
 // overlap on purpose. `\1` is a group reference in PHP and stays literal here
 // (a Novis string literal already spells `\1` as an escape), and `$$` is one
 // dollar here and two in PHP; both divergences are the conformance case's, and
 // a row for either would be measuring a decision rather than an agreement.
-// What is left is `$0`, `$n`, `${n}`, a reference naming no group, and the
-// boundary between `$10` and `${1}0` — every one of which PHP also answers.
+// What is left is `$0`, `$n`, `${n}`, a reference naming no group, the
+// boundary between `$10` and `${1}0`, a bare `$` reading at most two digits
+// and a `$` that starts no reference — every one of which PHP also answers.
 array<array<string>> $rows = [
     ["2026-08-24", "(\\d+)-(\\d+)-(\\d+)", "[$0] $3-$2-$1"],
     ["2026-08", "(?<y>\\d{4})-(?<m>\\d{2})", "${2}-${1}"],
@@ -30,6 +31,10 @@ array<array<string>> $rows = [
     ["abcabc", "b", "B"],
     ["xAx", "a", "-"],
     ["aXbXc", "(?<=a)X", "-"],
+    ['1 2', '(\d)', '[$1st]'],
+    ['7', '(\d)', '$123'],
+    ['7', '(\d)', '$a $'],
+    ['aa', '(a)(?=\1)', '[$1st]'],
 ];
 
 // Each row on its own line, bracketed, so a replacement that answered the
@@ -72,6 +77,10 @@ $rows = [
     ['abcabc', 'b', 'B'],
     ['xAx', 'a', '-'],
     ['aXbXc', '(?<=a)X', '-'],
+    ['1 2', '(\d)', '[$1st]'],
+    ['7', '(\d)', '$123'],
+    ['7', '(\d)', '$a $'],
+    ['aa', '(a)(?=\1)', '[$1st]'],
 ];
 
 foreach ($rows as $row) {

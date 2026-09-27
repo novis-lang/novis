@@ -316,9 +316,9 @@ const MATCH_ALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Regex::replace`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_DOC: MethodDoc = MethodDoc {
-    short: "Replaces up to `limit` matches of `$pattern` in `$subject` with `$replacement`, as \
-            `preg_replace` does; in the replacement `$1` and `${name}` are group references and \
-            `$$` is a literal `$`.",
+    short: "Replaces every match of `$pattern` in `$subject` with `$replacement`, and returns \
+            the new text. In `$replacement`, `$1` is the text of group 1 and `$0` is the whole \
+            match.",
     params: &[
         ParamDoc {
             name: "subject",
@@ -327,30 +327,30 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "pattern",
-            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
+            desc: "A `Core\\Regex\\Pattern` from `Core\\Regex::compile`, or a pattern string with \
+                   no options. A `tainted` string does not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "replacement",
-            desc: "The template each match becomes; a reference to a group the pattern does not \
-                   declare expands to the empty string, and PHP's `\\1` spelling is not a \
-                   reference.",
+            desc: "The text that replaces each match. `$1` to `$99` insert a numbered group, and \
+                   `${name}` inserts a named group. Write `${1}0` when a digit follows the \
+                   group. `$$` is one `$`. A group the pattern does not have inserts nothing. \
+                   PHP's `\\1` is not a group here.",
             shape: &[],
         },
         ParamDoc {
             name: "limit",
-            desc: "How many matches to replace, counted from the start of the subject; the \
-                   default is every one, and `0` replaces nothing.",
+            desc: "How many matches to replace, counted from the start of the text. The default \
+                   is every match. `0` replaces nothing.",
             shape: &[],
         },
     ],
-    ret: "The subject with its matches replaced — unchanged when the pattern matches nowhere or \
-          `limit` is `0`.",
+    ret: "The text with the matches replaced. It is the same text if there is no match.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
-               the backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` is not a valid regular expression, or matching it against `$subject` \
+               needs more steps than the limit allows.",
     }],
 };
 
@@ -1338,6 +1338,132 @@ fn produced(text: &str) -> HelperResult {
     Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
+/// One part of `Core\Regex::replace`'s replacement, as [`template`] reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Piece<'a> {
+    /// Text copied as it is.
+    Text(&'a str),
+    /// The text of one group, by number. A number the pattern has no group
+    /// for, and a group that did not take part in the match, insert nothing.
+    Group(usize),
+}
+
+/// `Core\Regex::replace`'s replacement, read the way `preg_replace` reads it.
+///
+/// A bare `$` takes **at most two digits** and nothing else: `$1st` is group 1
+/// and then `st`, `$123` is group 12 and then `3`, and `$a` is the two
+/// characters `$a`. `${n}` and `${name}` are the braced references, `$$` is
+/// one `$`, and a `$` that starts none of these is itself. Both engines' own
+/// expanders read a bare `$` as the *longest* run of name characters, which is
+/// why neither is handed the template. A name `names` does not have becomes a
+/// group number no match has, so it inserts nothing, as a missing number does.
+fn template<'a>(replacement: &'a str, names: &[Option<&str>]) -> Vec<Piece<'a>> {
+    let number = |digits: &str| digits.parse::<usize>().unwrap_or(usize::MAX);
+    let bytes = replacement.as_bytes();
+    let mut pieces = Vec::new();
+    let mut at = 0;
+    while let Some(found) = replacement[at..].find('$') {
+        let dollar = at + found;
+        if dollar > at {
+            pieces.push(Piece::Text(&replacement[at..dollar]));
+        }
+        let after = &bytes[dollar + 1..];
+        let digits = after
+            .iter()
+            .take(2)
+            .take_while(|b| b.is_ascii_digit())
+            .count();
+        // The length of the name between `${` and `}`, when there is one.
+        let braced = (after.first() == Some(&b'{'))
+            .then(|| after.iter().skip(1).position(|&b| b == b'}'))
+            .flatten()
+            .filter(|&close| {
+                close > 0
+                    && after[1..=close]
+                        .iter()
+                        .all(|b| b.is_ascii_alphanumeric() || *b == b'_')
+            });
+        if after.first() == Some(&b'$') {
+            pieces.push(Piece::Text("$"));
+            at = dollar + 2;
+        } else if digits > 0 {
+            let digits = &replacement[dollar + 1..dollar + 1 + digits];
+            pieces.push(Piece::Group(number(digits)));
+            at = dollar + 1 + digits.len();
+        } else if let Some(close) = braced {
+            let name = &replacement[dollar + 2..dollar + 2 + close];
+            let group = if name.bytes().all(|b| b.is_ascii_digit()) {
+                number(name)
+            } else {
+                names
+                    .iter()
+                    .position(|held| *held == Some(name))
+                    .unwrap_or(usize::MAX)
+            };
+            pieces.push(Piece::Group(group));
+            at = dollar + 3 + close;
+        } else {
+            pieces.push(Piece::Text("$"));
+            at = dollar + 1;
+        }
+    }
+    if at < replacement.len() {
+        pieces.push(Piece::Text(&replacement[at..]));
+    }
+    pieces
+}
+
+/// Appends `gap`, the text before one match, and that match's expansion of
+/// `pieces` to `out`, after [`grow`] has asked for the room. `group` returns
+/// a group's text by number.
+fn expand<'s>(
+    out: &mut String,
+    gap: &str,
+    pieces: &[Piece<'_>],
+    group: impl Fn(usize) -> Option<&'s str>,
+) -> Result<(), Fault> {
+    let wanted = pieces
+        .iter()
+        .map(|piece| match *piece {
+            Piece::Text(text) => text.len(),
+            Piece::Group(number) => group(number).map_or(0, str::len),
+        })
+        .fold(gap.len(), usize::saturating_add);
+    grow(out, wanted, "Core\\Regex::replace")?;
+    out.push_str(gap);
+    for piece in pieces {
+        match *piece {
+            Piece::Text(text) => out.push_str(text),
+            Piece::Group(number) => out.push_str(group(number).unwrap_or_default()),
+        }
+    }
+    Ok(())
+}
+
+/// Makes room in `out` for `add` more bytes, and asks the request's memory
+/// budget **before** the allocation rather than after it.
+///
+/// A replacement repeats text the program never allocated — `$0` written a
+/// thousand times over a long match — so a result built first and checked
+/// afterwards can reach many times the request's limit before the check. The
+/// room grows by doubling, as `String`'s own does, and the doubled size is
+/// what is asked for.
+///
+/// # Errors
+///
+/// [`nvs_runtime::affordable`]'s two: a `FATAL` past the limit, and a throw
+/// for a size no process could hold.
+fn grow(out: &mut String, add: usize, member: &str) -> Result<(), Fault> {
+    let needed = out.len().checked_add(add);
+    if needed.is_some_and(|needed| needed <= out.capacity()) {
+        return Ok(());
+    }
+    let doubled = needed.map(|needed| needed.max(out.capacity().saturating_mul(2)));
+    let size = nvs_runtime::affordable(doubled, member)?;
+    out.reserve_exact(size - out.len());
+    Ok(())
+}
+
 // ============================================================================
 // The members
 // ============================================================================
@@ -1702,7 +1828,9 @@ nvs_runtime::nvs_helper! {
     /// — replacing `preg_replace`.
     ///
     /// **`$1` and `${name}` are the group spellings**, and `$$` is a literal
-    /// `$`. PHP additionally accepts `\1`; it is not accepted here, because
+    /// `$`. A bare `$` reads at most two digits and a `$` that starts no
+    /// reference is itself, as PHP's does; [`template`] is that reading.
+    /// PHP additionally accepts `\1`; it is not accepted here, because
     /// `\1` inside a double-quoted Novis string is already an escape the lexer
     /// reads, so the same source text would mean two different things
     /// depending on the quote used to write it. A group reference that names
@@ -1711,6 +1839,11 @@ nvs_runtime::nvs_helper! {
     /// `limit` counts *replacements*, defaults to every one, and a limit of
     /// `0` replaces nothing — which is the reading the option's `uint` type
     /// forces and the one PHP's own `preg_replace` gives it.
+    ///
+    /// The result is built here rather than by either engine's `replacen`,
+    /// so [`grow`] asks the memory budget before every allocation of it. A
+    /// template that reads no group searches with `find_iter`, which builds
+    /// no capture set per match.
     fn nvs_core_regex_replace(ctx, args: [4]) {
         let subject = text(&args[0], "replace", "the subject")?;
         let given = pattern_of(&args[1], "replace")?;
@@ -1720,20 +1853,52 @@ nvs_runtime::nvs_helper! {
         if limit == 0 {
             return produced(subject);
         }
-        // Both engines spell "every match" as `0`, so an unlimited call has to
-        // say so rather than passing a huge count.
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
-        let count = if limit == u64::MAX { 0 } else { count };
 
         let budget = step_budget(ctx);
-        let replaced = match &*compiled(pattern, given.flags, "replace", budget)? {
-            Compiled::Linear(re) => re.replacen(subject, count, replacement).into_owned(),
-            Compiled::Backtracking(re) => re
-                .try_replacen(subject, count, replacement)
-                .map_err(|err| budget_exhausted("replace", pattern, budget, &err))?
-                .into_owned(),
-        };
-        produced(&replaced)
+        let compiled = compiled(pattern, given.flags, "replace", budget)?;
+        let pieces = template(replacement, &names_of(&compiled));
+        let reads_groups = pieces
+            .iter()
+            .any(|piece| matches!(piece, Piece::Group(number) if *number > 0));
+        let mut out = String::new();
+        let mut cursor = 0;
+        match &*compiled {
+            Compiled::Linear(re) if !reads_groups => {
+                for whole in re.find_iter(subject).take(count) {
+                    let gap = &subject[cursor..whole.start()];
+                    expand(&mut out, gap, &pieces, |number| {
+                        (number == 0).then(|| whole.as_str())
+                    })?;
+                    cursor = whole.end();
+                }
+            }
+            Compiled::Linear(re) => {
+                for caps in re.captures_iter(subject).take(count) {
+                    let Some(whole) = caps.get(0) else { continue };
+                    let gap = &subject[cursor..whole.start()];
+                    expand(&mut out, gap, &pieces, |number| {
+                        caps.get(number).map(|group| group.as_str())
+                    })?;
+                    cursor = whole.end();
+                }
+            }
+            Compiled::Backtracking(re) => {
+                for caps in re.captures_iter(subject).take(count) {
+                    let caps =
+                        caps.map_err(|err| budget_exhausted("replace", pattern, budget, &err))?;
+                    let Some(whole) = caps.get(0) else { continue };
+                    let gap = &subject[cursor..whole.start()];
+                    expand(&mut out, gap, &pieces, |number| {
+                        caps.get(number).map(|group| group.as_str())
+                    })?;
+                    cursor = whole.end();
+                }
+            }
+        }
+        grow(&mut out, subject.len() - cursor, "Core\\Regex::replace")?;
+        out.push_str(&subject[cursor..]);
+        produced(&out)
     }
 }
 
@@ -1830,17 +1995,23 @@ nvs_runtime::nvs_helper! {
             }
         }
 
-        let mut out = String::with_capacity(subject.len());
+        // Every piece of the result is asked for by `grow` before it is
+        // allocated, as `Core\Regex::replace`'s is.
+        let mut out = String::new();
         let mut offsets = DEFAULT.cursor(subject);
         let mut cursor = 0;
         for captured in &found {
             let Some((start, whole)) = captured.first().copied().flatten() else {
                 continue;
             };
-            out.push_str(&subject[cursor..start]);
-            out.push_str(&replacement_for(ctx, args[2], &mut offsets, &names, captured)?);
+            let answer = replacement_for(ctx, args[2], &mut offsets, &names, captured)?;
+            let gap = &subject[cursor..start];
+            grow(&mut out, gap.len().saturating_add(answer.len()), "Core\\Regex::replaceWith")?;
+            out.push_str(gap);
+            out.push_str(&answer);
             cursor = start + whole.len();
         }
+        grow(&mut out, subject.len() - cursor, "Core\\Regex::replaceWith")?;
         out.push_str(&subject[cursor..]);
         produced(&out)
     }
@@ -2484,6 +2655,77 @@ mod tests {
         unsafe {
             subject.release();
         }
+    }
+
+    /// `Core\Regex::replace` reads its replacement the way `preg_replace`
+    /// does on both engines: a bare `$` takes at most two digits, so `$1st` is
+    /// group 1 and then `st` rather than a group named `1st`, and a `$` that
+    /// starts no reference is inserted as itself. `(\d)(?!\1)` needs a
+    /// backreference, so the second pattern runs on the backtracking engine
+    /// and must expand the template exactly as the linear one does. A result
+    /// larger than the request's memory limit stops before it is built.
+    // covers: Core\Regex::replace
+    #[test]
+    fn replace_reads_a_group_reference_as_php_does_on_both_engines() {
+        use Piece::{Group, Text};
+        let names = [None, None, Some("name")];
+        assert_eq!(template("plain", &names), [Text("plain")]);
+        assert_eq!(
+            template("$1st ${name} $$ $a $123 ${nope} $", &names),
+            [
+                Group(1),
+                Text("st "),
+                Group(2),
+                Text(" "),
+                Text("$"),
+                Text(" "),
+                Text("$"),
+                Text("a "),
+                Group(12),
+                Text("3 "),
+                Group(usize::MAX),
+                Text(" "),
+                Text("$"),
+            ]
+        );
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(1 << 20);
+        let mut replace = |subject: &str, pattern: &str, replacement: &str, limit: u64| {
+            let args = [
+                Value::str(NvsStr::new(subject.as_bytes())),
+                Value::str(NvsStr::new(pattern.as_bytes())),
+                Value::str(NvsStr::new(replacement.as_bytes())),
+                Value::uint(limit),
+            ];
+            let answer = nvs_runtime::call(nvs_core_regex_replace, &mut ctx, &args)
+                .map(|out| {
+                    let text = out.as_text().expect("a string").to_owned();
+                    #[expect(unsafe_code, reason = "this frame owns the string `replace` returned")]
+                    unsafe {
+                        out.release();
+                    }
+                    text
+                })
+                .ok();
+            #[expect(unsafe_code, reason = "this frame owns the three strings it built")]
+            unsafe {
+                args[0].release();
+                args[1].release();
+                args[2].release();
+            }
+            answer
+        };
+        for pattern in [r"(\d)", r"(\d)(?!\1)"] {
+            let got = replace("1 2", pattern, "[$1st] $a $", u64::MAX);
+            assert_eq!(got.as_deref(), Some("[1st] $a $ [2st] $a $"), "{pattern}");
+            let got = replace("1 2", pattern, "<$0>", 1);
+            assert_eq!(got.as_deref(), Some("<1> 2"), "{pattern}");
+        }
+        let slow = format!("{}b", "a".repeat(40));
+        assert_eq!(replace(&slow, r"^(a|a?)+\1$", "x", u64::MAX), None);
+        // 1000 copies of a 4 KiB match is about 4 MiB, four times the limit.
+        let long = "a".repeat(4096);
+        assert_eq!(replace(&long, ".+", &"$0".repeat(1000), u64::MAX), None);
     }
 
     /// [`compiled`] at the shipped budget, which is what every case above

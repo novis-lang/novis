@@ -31,6 +31,13 @@ echo "[", Core\Regex::replace("7", "(\\d)", "${nope}"), "]\n";
 echo "[", Core\Regex::replace("7", "(\\d)", "$10"), "]\n";
 echo "[", Core\Regex::replace("7", "(\\d)", "${1}0"), "]\n";
 
+// A bare `$` reads at most two digits and nothing else, as PHP's does: `$1st`
+// is group 1 and then `st`, `$123` is group 12 and then `3`, and a `$` that
+// starts no reference is itself.
+echo "[", Core\Regex::replace("7", "(\\d)", '$1st'), "]\n";
+echo "[", Core\Regex::replace("7", "(\\d)", '$123'), "]\n";
+echo "[", Core\Regex::replace("7", "(\\d)", '$a $'), "]\n";
+
 // `limit` counts replacements: `0` replaces nothing, a limit past the number
 // of matches is every one of them, and a zero-width pattern matches at each
 // position between characters.
@@ -47,6 +54,9 @@ $7
 []
 []
 [70]
+[7st]
+[3]
+[$a $]
 bbb
 -a-b-c-
 -a-bc
