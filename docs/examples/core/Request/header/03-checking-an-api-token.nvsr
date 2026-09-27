@@ -1,0 +1,10 @@
+--METHOD--
+GET
+--PATH--
+/api/orders
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+accept: application/json
+authorization: Bearer s7f3a9c2e1

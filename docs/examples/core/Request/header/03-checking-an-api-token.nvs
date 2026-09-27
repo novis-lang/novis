@@ -1,0 +1,20 @@
+<?nvs
+// Shows how an API reads the access token that a client sends in the `Authorization` header.
+
+// The server knows each token and the client it belongs to.
+array<string> $clients = ["s7f3a9c2e1" => "shop", "b4d8e0f6a2" => "blog"];
+
+// The header looks like "Bearer s7f3a9c2e1". `Core\Str::after` returns the text after "Bearer ".
+tainted string $header = Core\Request::header("Authorization") ?? "";
+?tainted string $token = null;
+if (Core\Str::startsWith($header, "Bearer ")) {
+    $token = Core\Str::after($header, "Bearer ");
+}
+
+// `??` gives "" when the token is missing or unknown. This prints "hello, shop".
+string $client = $clients[$token ?? ""] ?? "";
+if ($client != "") {
+    echo "hello, ", $client, "\n";
+} else {
+    echo "401: send a valid token\n";
+}

@@ -1,0 +1,35 @@
+<?nvs
+// Attack: a client sends one header on many lines, and names that only look like `Content-Type`.
+// Only the real name should match, in any case. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads `X-Forwarded-For`, which arrived on many lines. The values are joined into one string.
+echo 'x-forwarded-for: ', Core\Str::length(Core\Request::header('x-forwarded-for') ?? ''), "\n";
+
+// 2. Reads `Content-Type` in three different cases. Each gives the same value.
+array<string> $cases = ['Content-Type', 'content-type', 'CONTENT-TYPE'];
+foreach ($cases as string $name) {
+    echo $name, ': ', Core\Request::header($name) ?? 'null', "\n";
+}
+
+// 3. Reads names that differ from `Content-Type` by one character. Each result is `null`.
+array<string> $near = ['Content_Type', 'Content-Typ', 'Content-Type:', 'ContentType', "Content-Type\0", 'Сontent-Type'];
+uint $found = 0;
+foreach ($near as string $name) {
+    if (Core\Request::header($name) != null) {
+        $found = $found + 1;
+    }
+}
+echo 'near names found: ', $found, "\n";
+
+// 4. Reads names that are empty, made of separators, not ASCII, or very long.
+array<string> $strange = ['', ':', ' ', ',', 'X-Kind', "\u{212A}ind", Core\Str::repeat('x', 1000000)];
+foreach ($strange as string $name) {
+    echo Core\Str::length($name), ': ', Core\Request::header($name) ?? 'null', "\n";
+}
+
+// 5. Keeps every copy of the long joined header without end. This stops at the memory limit.
+array<?tainted string> $kept = [];
+while (true) {
+    $kept[] = Core\Request::header('X-Forwarded-For');
+}

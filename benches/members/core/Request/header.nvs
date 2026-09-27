@@ -1,0 +1,20 @@
+<?nvs
+// Reads one header by its name, as a program does to find the content type or language of a request.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The headers are in the file `header.nvsr` beside this one.
+        array<string> $names = ["Content-Type", "accept-language", "USER-AGENT"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            tainted string $value = Core\Request::header($names[$total % 3]) ?? "";
+            $total = $total + Core\Str::length($value);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

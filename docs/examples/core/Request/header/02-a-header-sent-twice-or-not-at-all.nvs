@@ -1,0 +1,10 @@
+<?nvs
+// Shows what `Core\Request::header` returns for a header sent twice, and for a header not sent.
+
+// The request has two `Accept` lines. The values are joined with ", ".
+// This prints "text/html, application/json".
+echo Core\Request::header("Accept") ?? "none", "\n";
+
+// The request has no `Referer` header, so the result is `null`.
+// `??` gives "none" instead. This prints "none".
+echo Core\Request::header("Referer") ?? "none", "\n";
