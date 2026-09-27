@@ -311,7 +311,9 @@ export class SelectStore {
    * afresh; any other run widens it by what this run used, since a footprint is the union of the runs
    * since the definition last changed. A red run still widens it: a wider footprint only selects more.
    * `*` stands for a run whose use could not be read, not for a use, so a run whose use was read takes
-   * it out of the footprint and keeps every key the earlier runs recorded.
+   * it out of the footprint and keeps every key the earlier runs recorded. A `bun nv` check's run
+   * whose reads log was read is its whole footprint: the log names every path the run read, listed or
+   * tested, so what an earlier run read and this one did not is dropped.
    */
   recordRun(id: string, run: { def: string; verdict: Verdict; keys: Keyed; at?: number }): void {
     this.transaction(() => {
@@ -319,7 +321,7 @@ export class SelectStore {
       const n = this.atomN(id)!;
       const was = this.stmt("SELECT def, keys FROM atoms WHERE n = ?").get(n) as { def: string; keys: Uint8Array | null };
       const old = was.keys ? unpack(was.keys) : [];
-      const fresh = was.def !== run.def;
+      const fresh = was.def !== run.def || (id.startsWith("nv:") && !run.keys.has(WILD));
       const ids = new Set<number>(fresh ? [] : old);
       const wild = run.keys.has(WILD) ? null : (this.keyIdsOf([WILD]).get(WILD) ?? null);
       if (wild !== null) ids.delete(wild);

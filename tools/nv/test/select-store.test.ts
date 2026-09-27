@@ -60,13 +60,22 @@ describe("the select store", () => {
 
   test("a run whose use was read takes `*` out of the footprint and keeps what the earlier runs recorded", () => {
     const s = store();
-    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["file:a.json", ""]]) });
-    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["*", ""]]) });
-    expect(s.footprint("nv:a")).toEqual(["*", "file:a.json"]);
-    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["file:b.json", ""]]) });
-    expect(s.footprint("nv:a")).toEqual(["file:a.json", "file:b.json"]);
+    s.recordRun("test:a lib a", { def: "d", verdict: "green", keys: new Map([["fn:a.rs#f", ""]]) });
+    s.recordRun("test:a lib a", { def: "d", verdict: "green", keys: new Map([["*", ""]]) });
+    expect(s.footprint("test:a lib a")).toEqual(["*", "fn:a.rs#f"]);
+    s.recordRun("test:a lib a", { def: "d", verdict: "green", keys: new Map([["fn:a.rs#g", ""]]) });
+    expect(s.footprint("test:a lib a")).toEqual(["fn:a.rs#f", "fn:a.rs#g"]);
     expect(s.atomsUnder(["*"]).size).toBe(0);
-    expect(s.atom("nv:a")).toMatchObject({ keys: 2 });
+  });
+
+  test("a `bun nv` check's run with a reads log is its whole footprint, and one without keeps the old one", () => {
+    const s = store();
+    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["dir:data/gaps", ""], ["file:a.json", ""]]) });
+    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["*", ""]]) });
+    expect(s.footprint("nv:a")).toEqual(["*", "dir:data/gaps", "file:a.json"]);
+    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["file:b.json", ""]]) });
+    expect(s.footprint("nv:a")).toEqual(["file:b.json"]);
+    expect(s.atomsUnder(["dir:data/gaps", "*"]).size).toBe(0);
   });
 
   test("the reverse index answers which atoms hold a key, and only on its own platform", () => {
