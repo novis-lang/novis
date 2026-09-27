@@ -2,8 +2,9 @@
 // and `bun nv loop --goal` print. `driver/console.ts` paints the row and the key row, in its colours. Everything here is a pure function of a goal plan, the check results and
 // one session's event stream, so a recorded stream reproduces what a run showed.
 //
-// The row reads `goal {slug}/{stage} | {x}% | {in}in/{out}out | {calls} tool calls | session {n} | {doing}`:
+// The row reads `goal {slug}/{stage} ({n} of {total}) | {x}% | {in}in/{out}out | {calls} tool calls | session {n} | {doing}`:
 //   - `{stage}` is the lowest stage with a check that is not green, and `done` when there is none;
+//   - `{n} of {total}` is the goal's place on the chain, and `side goal` for a goal off the chain;
 //   - `{x}` is the share of the goal's own checks that are green, with the floor stage left out, since
 //     the floor is every walked goal's checks and would start every goal near 100%;
 //   - `{in}` is the context of the session's latest turn, its input, cache-write and cache-read tokens,
@@ -161,11 +162,12 @@ export function cut(text: string, width: number): string {
 }
 
 /** The status row, cut to the terminal's width. `working` is what each running `nv` command says it is
- * doing, the one started first first. */
-export function statusRow(plan: Plan, results: Results, s: Session, width: number, working: string[] = []): string {
+ * doing, the one started first first. `place` is the goal's place on the chain, `3 of 9` or `side goal`,
+ * printed in brackets after the goal's slug and stage. */
+export function statusRow(plan: Plan, results: Results, s: Session, width: number, working: string[] = [], place = ""): string {
   const stage = currentStage(plan, results);
   const row = [
-    `goal ${plan.slug}/${stage ?? "done"}`,
+    `goal ${plan.slug}/${stage ?? "done"}${place ? ` (${place})` : ""}`,
     `${percent(plan, results)}%`,
     `${ktok(s.context)}in/${ktok(s.out)}out`,
     `${s.calls} tool calls`,

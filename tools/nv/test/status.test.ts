@@ -79,6 +79,9 @@ describe("the status row", () => {
     expect(statusRow(plan, results, session, 200, ["verify: test (3/40 test binaries)", "proofs: 7/12 programs run"])).toEndWith(
       "| Edit tools/nv/cmd/loop.ts > verify: test (3/40 test binaries) > proofs: 7/12 programs run",
     );
+    // The goal's place on the chain follows its slug and stage.
+    expect(statusRow(plan, results, session, 200, [], "3 of 9")).toStartWith("goal demo/2 (3 of 9) | 25% |");
+    expect(statusRow(plan, results, session, 200, [], "side goal")).toStartWith("goal demo/2 (side goal) | 25% |");
   });
 
   test("the floor is left out of the percentage, and counts toward the stage", () => {

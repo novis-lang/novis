@@ -992,7 +992,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
       working = readProgress(PROGRESS_DIR);
       workingAt = performance.now();
     }
-    return statusRow(plan, results, session, width, working);
+    return statusRow(plan, results, session, width, working, live.num === null ? "side goal" : `${live.num} of ${total}`);
   };
   CONTROL.onGoal = () => {
     for (const row of goalTable({ plan, results, session, position: live.num, total, commits: SLICES.subjects(), width: TICKER.width() - 1, utf8: TICKER.utf8 })) say(row);
