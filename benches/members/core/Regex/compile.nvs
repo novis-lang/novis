@@ -1,0 +1,24 @@
+<?nvs
+// Compiles a pattern that was compiled before, as a function does that compiles its pattern on every call.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $patterns = ['^\d{5}$', '^[A-Z]{2}-\d+$', '^[a-z0-9._-]+@[a-z0-9.-]+$'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which pattern and which option are used comes from last round's total,
+            // so no round can be reused.
+            uint $pick = $total % 3;
+            Core\Regex\Pattern $pattern = Core\Regex::compile($patterns[$pick as int], {
+                caseInsensitive: $total % 2 == 0,
+            });
+            $total = $total + $pick + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

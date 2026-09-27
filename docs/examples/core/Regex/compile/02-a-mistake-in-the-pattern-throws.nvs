@@ -1,0 +1,15 @@
+<?nvs
+// Shows what happens when a pattern has a mistake in it.
+
+// This pattern opens a group with `(` and never closes it.
+string $pattern = '(\d+-\d+';
+
+// `compile` checks the pattern at once, so the error is thrown here.
+// The message contains the pattern, so you can see which one is wrong.
+try {
+    Core\Regex\Pattern $range = Core\Regex::compile($pattern);
+    echo "The pattern is valid.\n";
+} catch (RuntimeError $e) {
+    echo "The pattern is not valid.\n";
+    echo "The message names it: ", Core\Str::contains($e->message, $pattern) ? "yes" : "no", "\n";
+}

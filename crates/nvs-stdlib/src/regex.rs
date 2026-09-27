@@ -89,7 +89,7 @@ use nvs_runtime::{Ctx, Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::granularity::{Cursor, DEFAULT};
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -106,7 +106,7 @@ pub const NAME: &str = r"Core\Regex";
 /// [`MATCH`]'s own roster, not this one.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "compile",
@@ -210,45 +210,55 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Regex`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Finds, extracts, replaces and splits text with regular expressions. Every method \
+            takes a pattern as a `string` or as a `Core\\Regex\\Pattern` that `compile` \
+            returns.",
+};
+
 /// `Core\Regex::compile`'s reference card — `rule:core-api/reference-card`.
 const COMPILE_DOC: MethodDoc = MethodDoc {
-    short: "Compiles `$pattern` under the four flags into a `Pattern` handle every other member \
-            takes in place of a pattern string — PCRE's `/…/imsU` delimiter-and-modifier \
-            syntax, as named options.",
+    short: "Compiles a regular expression once, with options, and returns a \
+            `Core\\Regex\\Pattern`. You can pass the `Pattern` to every `Core\\Regex` method \
+            that takes a pattern.",
     params: &[
         ParamDoc {
             name: "pattern",
-            desc: "The pattern text; a sink, so a `tainted` string is refused at the call.",
+            desc: "The regular expression, with no delimiters. A `tainted` string does not \
+                   compile here. Use `Core\\Regex::quote` to match a user's text literally.",
             shape: &[],
         },
         ParamDoc {
             name: "caseInsensitive",
-            desc: "Match letters regardless of case — PCRE's `i`; the default is case-sensitive.",
+            desc: "`true` makes letters match in upper and lower case. PHP writes this as `i`. \
+                   The default is `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "multiline",
-            desc: "Let `^` and `$` match at every line boundary rather than only at the ends of \
-                   the subject — PCRE's `m`.",
+            desc: "`true` makes `^` and `$` match at the start and end of every line. PHP writes \
+                   this as `m`. The default is `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "dotAll",
-            desc: "Let `.` match a newline too — PCRE's `s`.",
+            desc: "`true` makes `.` match a newline too. PHP writes this as `s`. The default is \
+                   `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "ungreedy",
-            desc: "Swap the greediness of every quantifier, so `*` is lazy and `*?` is greedy — \
-                   PCRE's `U`.",
+            desc: "`true` makes `*` and `+` match as little as possible, and `*?` as much as \
+                   possible. PHP writes this as `U`. The default is `false`.",
             shape: &[],
         },
     ],
-    ret: "The `Pattern`, compiled eagerly so a malformed pattern fails here rather than at its \
-          first use.",
+    ret: "The compiled `Core\\Regex\\Pattern`. The pattern is checked here, so a mistake in it \
+          throws at this line and not at its first use.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one.",
+        desc: "`$pattern` is not a valid regular expression. The message contains the pattern.",
     }],
 };
 
@@ -693,9 +703,9 @@ const OFFSET_SLOT: usize = 1;
 /// [`compiled`] and [`budget_exhausted`] raise, and they are two entries
 /// rather than one because a reader wants to know *when*.
 const MATCH_DOC: MethodDoc = MethodDoc {
-    short: "Finds the first match of `$pattern` in `$subject` at or after `from`, as a `Match` \
-            carrying its groups and offset — `preg_match` with `$matches` and \
-            `PREG_OFFSET_CAPTURE` folded into the return.",
+    short: "Finds the first match of `$pattern` in `$subject` and returns it as a \
+            `Core\\Regex\\Match`. The `Match` has the matched text, each group and the position \
+            of the match.",
     params: &[
         ParamDoc {
             name: "subject",
@@ -704,22 +714,22 @@ const MATCH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "pattern",
-            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
+            desc: "A `Core\\Regex\\Pattern` from `Core\\Regex::compile`, or a pattern string with \
+                   no options. A `tainted` string does not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "from",
-            desc: "The grapheme index the search starts at; negative counts from the end, and an \
-                   index past the end starts at the end.",
+            desc: "The character position where the search starts. The default is `0`. A \
+                   negative position counts from the end of `$subject`.",
             shape: &[],
         },
     ],
-    ret: "The first `Match`, or `null` when the pattern matches nowhere at or after `from`.",
+    ret: "The first `Core\\Regex\\Match` at or after `from`, or `null` if there is no match.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
-               the backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` is not a valid regular expression, or matching it against `$subject` \
+               needs more steps than the limit allows.",
     }],
 };
 
@@ -2220,6 +2230,99 @@ mod tests {
             built(&format!("bounded-{nth}"), NO_FLAGS, "matches").expect("compiles");
         }
         CACHE.with_borrow(|cache| assert!(cache.len() <= CACHE_CAPACITY, "{}", cache.len()));
+    }
+
+    /// `Core\Regex::compile` builds the program before it returns, so the
+    /// first match against the handle is already a cache hit, and the
+    /// `Pattern` carries the text as the program wrote it beside the flags
+    /// [`pattern_of`] reads back. A pattern neither engine takes throws from
+    /// `compile` itself, quoting the written text rather than [`effective`]'s
+    /// flag-wrapped form.
+    // covers: Core\Regex::compile
+    #[test]
+    fn compile_builds_eagerly_and_answers_the_written_text_beside_its_flags() {
+        let mut ctx = Ctx::buffered();
+        let (on, off) = (Value::bool(true), Value::bool(false));
+        let written = Value::str(NvsStr::new(br"^order-\d+$"));
+        let args = [Value::int(PREPARED_NONE), written, on, off, on, off];
+        let pattern = nvs_runtime::call(nvs_core_regex_compile, &mut ctx, &args).expect("compiles");
+
+        let given = pattern_of(&pattern, "match").expect("a `Pattern` is a pattern");
+        assert_eq!(given.text.as_str_bytes(), Some(&br"^order-\d+$"[..]));
+        assert_eq!(given.flags, FLAG_CASE_INSENSITIVE | FLAG_DOT_ALL);
+        let held = CACHE.with_borrow(|cache| {
+            cache.iter().any(|(text, flags, budget, _)| {
+                text == r"^order-\d+$" && *flags == given.flags && *budget == BACKTRACK_BUDGET
+            })
+        });
+        assert!(held, "compile returned before the program was cached");
+
+        let unclosed = Value::str(NvsStr::new(b"(unclosed"));
+        let args = [Value::int(PREPARED_NONE), unclosed, on, off, off, off];
+        assert!(nvs_runtime::call(nvs_core_regex_compile, &mut ctx, &args).is_err());
+        let message = ctx.take_pending().expect("a throw leaves its message");
+        assert!(message.contains("`(unclosed`"), "{message}");
+        assert!(!message.contains("(?i:"), "{message}");
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the two strings it built and the `Pattern` `compile` returned"
+        )]
+        unsafe {
+            pattern.release();
+            written.release();
+            unclosed.release();
+        }
+    }
+
+    /// `Core\Regex::match` starts at the grapheme `from` names, counts a
+    /// negative one from the end, and answers `null` from the end onwards. The
+    /// `Match` reports its offset in graphemes rather than bytes, so the
+    /// two-byte `é` ahead of each run of digits moves it by one, not by two.
+    // covers: Core\Regex::match
+    #[test]
+    fn match_searches_from_a_grapheme_index_and_answers_null_past_the_last_match() {
+        let mut ctx = Ctx::buffered();
+        let subject = Value::str(NvsStr::new("é1 é22".as_bytes()));
+        let digits = Value::str(NvsStr::new(br"\d+"));
+        let mut found = Vec::new();
+        for from in [0, 2, -2, 5, 6, 100] {
+            let args = [subject, digits, Value::int(from)];
+            let answer = nvs_runtime::call(nvs_core_regex_match, &mut ctx, &args).expect("answers");
+            found.push(answer.obj_ptr().map(|object| {
+                let groups = crate::instance::slot(object, GROUPS_SLOT);
+                let held = crate::arr::borrowed(groups.array_ptr().expect("an array"));
+                let whole = held
+                    .get(b"0")
+                    .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec))
+                    .expect("group 0 is the whole match");
+                let offset = crate::instance::slot(object, OFFSET_SLOT).as_int();
+                (whole, offset.expect("an offset"))
+            }));
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the one reference `match` returned"
+            )]
+            unsafe {
+                answer.release();
+            }
+        }
+        assert_eq!(
+            found,
+            [
+                Some((b"1".to_vec(), 1)),
+                Some((b"22".to_vec(), 4)),
+                Some((b"22".to_vec(), 4)),
+                Some((b"2".to_vec(), 5)),
+                None,
+                None,
+            ]
+        );
+        #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
+        unsafe {
+            subject.release();
+            digits.release();
+        }
     }
 
     /// [`compiled`] at the shipped budget, which is what every case above

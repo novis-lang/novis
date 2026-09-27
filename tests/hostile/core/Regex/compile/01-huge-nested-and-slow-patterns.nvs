@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program compiles patterns that are very large, very deeply nested or
+// very slow to match. Each one should compile or throw an error, and the program must not crash.
+
+class Attempt
+{
+    public static function compile(string $pattern, bool $allFlags): string
+    {
+        try {
+            Core\Regex\Pattern $compiled = Core\Regex::compile($pattern, {
+                caseInsensitive: $allFlags,
+                multiline: $allFlags,
+                dotAll: $allFlags,
+                ungreedy: $allFlags,
+            });
+            return 'compiled';
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A pattern with 100000 groups inside each other. This throws an error.
+string $deep = Core\Str::repeat('(', 100000) . 'a' . Core\Str::repeat(')', 100000);
+echo Attempt::compile($deep, false), "\n";
+
+// 2. A short pattern that repeats a group one million times. This throws an error.
+echo Attempt::compile('(\w{1000}){1000}', true), "\n";
+
+// 3. A pattern of one million characters, with every option on. This throws an error.
+echo Attempt::compile(Core\Str::repeat('ab', 500000), true), "\n";
+
+// 4. 5000 different patterns, many more than the program keeps compiled at once.
+// This prints 5000.
+uint $compiled = 0;
+uint $i = 0;
+while ($i < 5000) {
+    if (Attempt::compile('item-' . ($i as string) . '-\d+', $i % 2 == 0) == 'compiled') {
+        $compiled = $compiled + 1;
+    }
+    $i = $i + 1;
+}
+echo $compiled, "\n";
+
+// 5. A pattern that needs very many steps to fail on this text. Matching throws an error.
+Core\Regex\Pattern $slow = Core\Regex::compile('^(a|a?)+\1$');
+try {
+    echo Core\Regex::matches(Core\Str::repeat('a', 40) . 'b', $slow) ? 'matched' : 'no match', "\n";
+} catch (RuntimeError $e) {
+    echo "error\n";
+}

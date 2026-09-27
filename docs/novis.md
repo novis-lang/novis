@@ -10272,19 +10272,19 @@ a\.b\*c\?
 Core\Regex::compile(string $pattern, {caseInsensitive?: bool, multiline?: bool, dotAll?: bool, ungreedy?: bool}): Core\Regex\Pattern
 ```
 
-Compiles `$pattern` under the four flags into a `Pattern` handle every other member takes in place of a pattern string — PCRE's `/…/imsU` delimiter-and-modifier syntax, as named options.
+Compiles a regular expression once, with options, and returns a `Core\Regex\Pattern`. You can pass the `Pattern` to every `Core\Regex` method that takes a pattern.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$pattern` | `string` (sink) | The pattern text; a sink, so a `tainted` string is refused at the call. |
-| `{caseInsensitive: …}` | `bool` (default `false`) | Match letters regardless of case — PCRE's `i`; the default is case-sensitive. |
-| `{multiline: …}` | `bool` (default `false`) | Let `^` and `$` match at every line boundary rather than only at the ends of the subject — PCRE's `m`. |
-| `{dotAll: …}` | `bool` (default `false`) | Let `.` match a newline too — PCRE's `s`. |
-| `{ungreedy: …}` | `bool` (default `false`) | Swap the greediness of every quantifier, so `*` is lazy and `*?` is greedy — PCRE's `U`. |
+| `$pattern` | `string` (sink) | The regular expression, with no delimiters. A `tainted` string does not compile here. Use `Core\Regex::quote` to match a user's text literally. |
+| `{caseInsensitive: …}` | `bool` (default `false`) | `true` makes letters match in upper and lower case. PHP writes this as `i`. The default is `false`. |
+| `{multiline: …}` | `bool` (default `false`) | `true` makes `^` and `$` match at the start and end of every line. PHP writes this as `m`. The default is `false`. |
+| `{dotAll: …}` | `bool` (default `false`) | `true` makes `.` match a newline too. PHP writes this as `s`. The default is `false`. |
+| `{ungreedy: …}` | `bool` (default `false`) | `true` makes `*` and `+` match as little as possible, and `*?` as much as possible. PHP writes this as `U`. The default is `false`. |
 
-**Returns** `Core\Regex\Pattern` — The `Pattern`, compiled eagerly so a malformed pattern fails here rather than at its first use.
+**Returns** `Core\Regex\Pattern` — The compiled `Core\Regex\Pattern`. The pattern is checked here, so a mistake in it throws at this line and not at its first use.
 
-**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one.
+**Throws** `RuntimeError` — `$pattern` is not a valid regular expression. The message contains the pattern.
 
 <a id="core-core-regex-matches"></a>
 #### `Core\Regex::matches`
@@ -10311,17 +10311,17 @@ Answers whether `$pattern` matches anywhere in `$subject` — `preg_match` used 
 Core\Regex::match(string $subject, Core\Regex\Pattern|string $pattern, {from?: int}): ?Core\Regex\Match
 ```
 
-Finds the first match of `$pattern` in `$subject` at or after `from`, as a `Match` carrying its groups and offset — `preg_match` with `$matches` and `PREG_OFFSET_CAPTURE` folded into the return.
+Finds the first match of `$pattern` in `$subject` and returns it as a `Core\Regex\Match`. The `Match` has the matched text, each group and the position of the match.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
-| `{from: …}` | `int` (default `0`) | The grapheme index the search starts at; negative counts from the end, and an index past the end starts at the end. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
+| `{from: …}` | `int` (default `0`) | The character position where the search starts. The default is `0`. A negative position counts from the end of `$subject`. |
 
-**Returns** `?Core\Regex\Match` — The first `Match`, or `null` when the pattern matches nowhere at or after `from`.
+**Returns** `?Core\Regex\Match` — The first `Core\Regex\Match` at or after `from`, or `null` if there is no match.
 
-**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` is not a valid regular expression, or matching it against `$subject` needs more steps than the limit allows.
 
 <a id="core-core-regex-matchall"></a>
 #### `Core\Regex::matchAll`
