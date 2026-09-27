@@ -20,23 +20,34 @@
 // runs it again.
 //
 // **The heavy set builds what no recorded run builds**: the release profile, the fuzz and TSan builds
-// inside WSL, the database matrix. What each run reads is observed where it can be: the footprint log
-// of every `nvs` and test binary it starts, and the reads of a `bun nv` command. What it compiles is
-// not, so a heavy check also holds `heavyKeys`: every Rust file of the crates it builds, as `fn:<file>#*`,
-// which any item change in the file moves, and every directory of those crates, which a new file
-// moves. That is the one prediction left in the selection, and it is named as one: `heavyCrates` reads
-// the crates off the check's own arguments, the fuzz target's source file, and the TSan and database
-// matrix scripts. The two Linux legs run `nvs` inside WSL, which records nothing, so they are keyed the
-// same way on what `nvs-cli` builds and the trees the fixtures read.
+// inside WSL, the database matrix. What each run reads is observed from the footprint log of every
+// `nvs` and test binary it starts, and from the reads of a `bun nv` command. What Rust code it runs is
+// observed on a **twin** (`heavyTwin`): the same work run again on the covws build, whose verdict counts
+// for nothing and whose coverage is the check's keys.
+//
+// | heavy check | its twin | held besides |
+// |---|---|---|
+// | a release `cargo test` | the same test binaries and filters, with `--include-ignored`, since a release-only test is ignored in debug | `profile:optimized` |
+// | `bun nv bench` on the release CLI | the same bench on the covws `nvs`, one rep, nothing recorded | `profile:optimized` |
+// | the database matrix | its SQLite leg (`db-matrix.ts` `sqliteLeg`) | every file of `nvs-db`, whose server drivers only a server leg runs, and `platform:elsewhere` for the socket legs |
+// | fuzz, TSan | none: they build inside WSL | `heavyKeys`, every file of the crates they build, and `platform:elsewhere` |
+//
+// A twin that cannot run or be read records `*`, which every change moves and the next run whose twin
+// was read drops again (`store.ts` `recordRun`). Fuzz and TSan keep the one prediction left
+// in the selection, and it is named as one: `heavyCrates` reads the crates off the fuzz target's source
+// file and the TSan script. The two Linux legs run every fixture and suite of the plan inside WSL, so a
+// leg is selected whenever the selection picks one of those atoms (`legAtoms`), and its own atom holds
+// only `platform:elsewhere` and the modules that run it.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Check, isHeavy, PROGRAM_KINDS, proofGroups, subsetRun } from "../driver/accept.ts";
+import { sqliteLeg } from "../cmd/db-matrix.ts";
+import { type Check, heavyRole, isHeavy, PROGRAM_KINDS, proofGroups, subsetRun } from "../driver/accept.ts";
 import { allTestBinaries, closure, type Graph, testBinaries } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { caseFiles, caseId, nvTestFiles, nvTestId, proofFiles, proofId } from "./atoms.ts";
-import { fileWild, spawnKeys, WILD } from "./keys.ts";
+import { fileWild, PLATFORM_ONLY, PROFILE_ONLY, spawnKeys, WILD } from "./keys.ts";
 import { type Keyed, proofReadsSlot, type SelectStore } from "./store.ts";
 
 /** How the sweep runs a check. */
@@ -152,10 +163,10 @@ export function grouped(c: Check, ctx: PlanContext): Grouped {
     return { how, atoms: [o.id], own: o };
   };
   if (isHeavy(c)) {
-    // A run adds keys to a footprint and never removes one while the definition stays the same, so the
-    // crates a heavy check is predicted to build are part of its definition: when the prediction
-    // changes, the check runs once more and records the new keys in place of the old ones.
-    const def = ctx.graph ? digest(`${checkDef(c)} ${JSON.stringify(heavyCrates(c, ctx.graph))}`) : checkDef(c);
+    // A run adds keys to a footprint and never removes one while the definition stays the same, so what
+    // a heavy check's keys are read from, its twin or its predicted crates, is part of its definition:
+    // when that changes, the check runs once more and records the new keys in place of the old ones.
+    const def = ctx.graph ? digest(`${checkDef(c)} ${JSON.stringify(heavyBasis(c, ctx.graph))}`) : checkDef(c);
     return { how: "heavy", atoms: [`heavy:${c.id}`], own: { id: `heavy:${c.id}`, def } };
   }
   if (PROGRAM_KINDS.has(c.kind)) return single("fixture", "check");
@@ -283,8 +294,128 @@ export function usedIn(graph: Graph, rel: string, root: string): string[] | null
   return [...graph.keys()].filter((n) => new RegExp(`(?<![\\w])${n.replace(/-/g, "_")}(?![\\w])`).test(code)).sort();
 }
 
+/** One run of a twin: a test binary of the covws build (`<package> <kind> <target>`) and the harness
+ * arguments it takes. */
+export interface TwinTest {
+  name: string;
+  args: string[];
+}
+
+/** What a heavy check runs again on the covws build to learn which Rust code its own run used. */
+export interface Twin {
+  /** Test binaries to run, each with its harness arguments. */
+  tests: TwinTest[];
+  /** A command to run, `{nvs}` standing for the covws `nvs`; empty for none. */
+  argv: string[];
+  /** The environment the twin's processes get besides the recorder's; `{scratch}` in a value stands for
+   * a fresh directory. */
+  env: Record<string, string>;
+  /** Keys held besides what the twin records, for code the twin cannot reach. */
+  held: string[];
+  /** Packages whose every file is held, for code the twin cannot reach. */
+  crates: string[];
+}
+
+/** Cargo options that take a value, which is therefore no test-name filter. */
+const VALUED = new Set(["-p", "--package", "--bin", "--test", "--example", "--bench", "--features", "-F", "--target", "--profile", "-j", "--jobs", "--manifest-path"]);
+
+/** The arguments `cargo <args>` hands each test binary: its test-name filters and what follows `--`. */
+export function harnessArgs(args: string[]): string[] {
+  const at = args.indexOf("--");
+  const head = at < 0 ? args : args.slice(0, at);
+  const filters: string[] = [];
+  for (let i = head[0] === "test" ? 1 : 0; i < head.length; i++) {
+    const a = head[i]!;
+    if (VALUED.has(a)) i++;
+    else if (!a.startsWith("-")) filters.push(a);
+  }
+  return [...filters, ...(at < 0 ? [] : args.slice(at + 1))];
+}
+
+/** The test binaries `cargo <args>` runs: `testTargets` for a `-p` run, and every package's target of
+ * that name for a `--bin` or `--test` run that names no package. */
+export function suiteBinaries(graph: Graph, args: string[]): string[] {
+  const named = testTargets(graph, args);
+  if (named) return named.names;
+  const flag = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
+  const bin = flag("--bin");
+  const test = flag("--test");
+  const out: string[] = [];
+  for (const pkg of [...graph.keys()].sort()) {
+    for (const b of testBinaries(graph, pkg)) {
+      if ((bin !== undefined && b.target.kind === "bin" && b.target.name === bin) || (test !== undefined && b.target.kind === "test" && b.target.name === test)) out.push(b.name);
+    }
+  }
+  return out;
+}
+
+/** `bun nv bench` as its twin runs it: on the covws `nvs`, one rep and few requests, with no budget to
+ * fail and nothing written. */
+export function benchTwin(argv: string[]): string[] {
+  const valued = new Set(["--record", "--max-work-ms", "--max-ms", "--nvs", "--reps", "--json", "--requests"]);
+  const out: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (valued.has(argv[i]!)) i++;
+    else if (argv[i] !== "--check") out.push(argv[i]!);
+  }
+  out.push("--nvs", "{nvs}", "--allow-debug", "--reps", "1");
+  if (out.includes("--serve-vs-fpm")) out.push("--requests", "200");
+  return out;
+}
+
+/** The twin of heavy check `c`, or null for one that has none: fuzz, TSan, and a check that runs on the
+ * covws build already. The module doc's table says what each twin is. */
+export function heavyTwin(c: Check, graph: Graph): Twin | null {
+  const args = c.args ?? [];
+  const argv = c.argv ?? [];
+  if (c.kind === "cargo-named" && args[0] === "test" && args.includes("--release")) {
+    const names = suiteBinaries(graph, args.filter((a) => a !== "--release"));
+    if (names.length === 0) return null;
+    const run = [...harnessArgs(args), "--include-ignored"];
+    return { tests: names.map((name) => ({ name, args: run })), argv: [], env: {}, held: [PROFILE_ONLY], crates: [] };
+  }
+  if (argv[0] === "bun" && argv[1] === "nv" && argv[2] === "bench") return { tests: [], argv: benchTwin(argv), env: {}, held: [PROFILE_ONLY], crates: [] };
+  if (heavyRole(c) === "db-matrix") {
+    const leg = sqliteLeg();
+    const tests = leg.suites.flatMap((s) => suiteBinaries(graph, ["test", ...s]).map((name) => ({ name, args: harnessArgs(["test", ...s]) })));
+    return { tests, argv: [], env: leg.env, held: [PLATFORM_ONLY, "tree:tests/db"], crates: ["nvs-db"] };
+  }
+  return null;
+}
+
+/** Whether heavy check `c` is keyed on a prediction: fuzz and TSan, which build and run inside WSL. */
+export function predicted(c: Check): boolean {
+  const role = heavyRole(c);
+  return role === "fuzz" || role === "tsan";
+}
+
+/** What a heavy check's keys are read from, which is part of its definition: its twin, its predicted
+ * crates, or its own run on the covws build. */
+function heavyBasis(c: Check, graph: Graph): unknown {
+  if (predicted(c)) return { predicted: heavyCrates(c, graph) };
+  const twin = heavyTwin(c, graph);
+  return twin ? { twin } : { observed: true };
+}
+
 /**
- * The workspace packages a heavy check or leg builds, read off the check: `-p <crate>` for a release
+ * The atoms a Linux leg runs again on Linux: every fixture of the plan and every case of its suites. A
+ * leg is selected whenever the selection picks one of them.
+ */
+export function legAtoms(plan: Check[], groups: Map<string, Grouped>): string[] {
+  const out: string[] = [];
+  for (const c of plan) {
+    if (!PROGRAM_KINDS.has(c.kind) && c.kind !== "nvs-suite") continue;
+    out.push(...(groups.get(c.id)?.atoms ?? []));
+  }
+  return out;
+}
+
+/** What a leg's own atom holds: code only Linux compiles, and the modules that run the legs. */
+export const LEG_KEYS = [PLATFORM_ONLY, "mod:tools/nv/driver/legs.ts", "mod:tools/nv/driver/mirror.ts"];
+
+/**
+ * The workspace packages a heavy check builds: what fuzz and TSan are keyed on, and what a check whose
+ * twin could not be read widens to. Read off the check: `-p <crate>` for a release
  * test, `nvs-cli` for a bench, an `nvs` command or a leg, the packages a fuzz target's own source file
  * uses (the fuzz workspace's manifest when that file cannot be read), the packages the TSan script or
  * the database matrix's module names, and every package for anything else. Each
@@ -321,7 +452,13 @@ export function heavyCrates(c: Check | null, graph: Graph, root: string = ROOT):
  * crates, `dir:` for every directory that holds one, and `tree:` for each extra path. */
 export function heavyKeys(c: Check | null, graph: Graph, files: string[], root: string = ROOT): Keyed {
   const { crates, extra } = heavyCrates(c, graph, root);
-  const dirs = crates.map((p) => graph.get(p)!.dir).filter((d) => d !== "" && d !== ".");
+  return crateKeys(crates, extra, graph, files);
+}
+
+/** Packages `crates` as keys over `files`, the tree's Rust files: `fn:<file>#*` for every file of them,
+ * `dir:` for every directory that holds one, and `tree:` for each of `extra`. */
+export function crateKeys(crates: string[], extra: string[], graph: Graph, files: string[]): Keyed {
+  const dirs = crates.flatMap((p) => graph.get(p)?.dir ?? []).filter((d) => d !== "" && d !== ".");
   const keys: Keyed = new Map();
   for (const f of files) {
     if (!dirs.some((d) => f.startsWith(`${d}/`))) continue;
@@ -362,19 +499,21 @@ export function describeGroup(c: Check, g: Grouped, graph: Graph | null, root: s
       return [`${head} its own atom ${own}, keyed on what the command was seen to read`];
     case "heavy": {
       const lines = [`${head} a heavy check, its own atom ${own}, held for the floor gate`];
-      if (graph) {
+      const twin = graph && !predicted(c) ? heavyTwin(c, graph) : null;
+      if (graph && predicted(c)) {
         const { crates, extra } = heavyCrates(c, graph, root);
         lines.push(`  it builds ${crates.join(", ")}${extra.length ? `, and reads ${extra.map((e) => (e.includes(".") ? e : `${e}/`)).join(", ")} besides` : ""}: the one prediction the selection keeps`);
-      }
+      } else if (twin) {
+        const runs = [...twin.tests.map((t) => `${t.name}${t.args.length ? ` ${t.args.join(" ")}` : ""}`), ...(twin.argv.length ? [twin.argv.join(" ")] : [])];
+        const held = [...twin.held, ...twin.crates.map((p) => `every file of ${p}`)];
+        lines.push(`  keyed on its twin on the covws build: ${runs.join("; ")}${held.length ? `; held besides: ${held.join(", ")}` : ""}`);
+      } else if (graph) lines.push("  keyed on what its own run on the covws build used");
       return lines;
     }
     default:
       return [`${head} a command, its own atom ${own}, keyed on what it was seen to use${[...commandKeys(c).keys()].includes(WILD) ? ", and on everything, since nothing records what it reads" : ""}`];
   }
 }
-
-/** What a Linux leg holds besides `heavyKeys` for `nvs-cli`: the trees its fixtures and suites read. */
-export const LEG_TREES = ["examples", "tests", "docs"];
 
 /** Whether `rel` exists under the root: a named case of a suite must. */
 export const onDisk = (rel: string) => existsSync(abs(rel));

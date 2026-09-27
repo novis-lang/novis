@@ -17,6 +17,7 @@
 // | `mod:<path>` | a TypeScript module a `bun nv` process loaded |
 // | `tests:<package>` | computed: held by every test binary of the package, moved by a test added to it |
 // | `profile:optimized` | computed: moved by a change to code only an optimized build compiles, which selects every proof program |
+// | `platform:elsewhere` | computed: moved by a change to code Linux compiles and this platform does not, held by what runs on Linux |
 // | `*` | something ran that could not be attributed at all: any change selects the atom |
 //
 // Paths are repo-relative with `/`. A path outside the repository, or under a directory that is never
@@ -44,6 +45,9 @@ export const WHOLE_TREE = "tree:.";
 /** Moved by a change to code only an optimized build compiles, with no twin the recording build runs:
  * no footprint holds it, and it selects every proof program. */
 export const PROFILE_ONLY = "profile:optimized";
+/** Moved by a change to code Linux compiles and the recording platform does not, or to code such code
+ * names: no footprint recorded here holds it, so what runs on Linux holds this key. */
+export const PLATFORM_ONLY = "platform:elsewhere";
 
 /** A class or card name as a key holds it: lowercased, without a leading `\`. */
 export function norm(name: string): string {

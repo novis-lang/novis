@@ -2,7 +2,8 @@
   "title": "A check runs only when the change reaches what its green runs were observed to use, and the pipeline runs and records on the one `covws` debug build",
   "status": "shipped",
   "because": [
-    "0226"
+    "0226",
+    "0227"
   ],
   "seeAlso": [
     "tooling/the-chain-names-its-live-goal",
@@ -15,6 +16,7 @@
     "tools/nv/test/select-query.test.ts",
     "tools/nv/test/select-record.test.ts",
     "tools/nv/test/select-checks.test.ts",
+    "tools/nv/test/select-profile.test.ts",
     "crates/nvs-cli/tests/footprint.rs"
   ]
 }

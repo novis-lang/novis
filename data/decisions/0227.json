@@ -1,0 +1,10 @@
+{
+  "title": "a heavy check is keyed on what a twin of its run on the covws build used, a Linux leg on the fixtures and suites it runs again, and every heavy check runs on one goal end in three",
+  "status": "accepted",
+  "scope": "how the release tests, the benches, the database matrix and the two Linux legs are selected. It replaces\nthe prediction [0226](0226.md) § 6 kept for them. Fuzz and TSan keep that prediction. How a heavy check is\njudged, and the floor gate's cadence, do not change.",
+  "dependsOn": [
+    "0226"
+  ],
+  "dependsOnText": "[0226](0226.md) for the store, the covws build and the recording run beside a judged one.",
+  "validatedBy": "`tools/nv/test/select-checks.test.ts` § *the heavy set's twins* and\n`tools/nv/test/select-profile.test.ts` § *code only Linux compiles*, and the trial runs under\n*Verification*."
+}

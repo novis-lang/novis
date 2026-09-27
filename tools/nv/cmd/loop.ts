@@ -91,7 +91,9 @@
 // sweep reached is owed until the gate opens. On the turn the gate opens by its count, the full run
 // (`select/full.ts`, `bun nv select --full`) comes first: every atom that is not heavy runs and records,
 // and a selection miss it finds is a red of the sweep. A scoped sweep that is green with checks held runs again over the whole
-// plan, collecting every red, since a goal is never reached on a held check. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
+// plan, collecting every red, since a goal is never reached on a held check. That goal-end sweep runs the
+// heavy checks and legs its goal reached, and on one goal end in three (`HEAVY_FULL_EVERY`, counted in the
+// store as `heavy-full:since`) every one of them, the safety net for the keys their twins record. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
 // would reach the goal also runs the goal-end gates, rustdoc and owner, and a goal is reached only when
 // the sweep and both gates are green. Then `advance` makes the next goal on the chain live, commits
 // `data/chain.json`, brings up its services, and the run goes on; after the last goal the chain is complete.
@@ -172,6 +174,14 @@ const FLOOR_META = "floor-gate:since";
  * most this many sessions to be named; every other check runs in the sweep after the change that reached it.
  */
 const FLOOR_GATE_EVERY = 10;
+/** Goal ends since the last one that ran every heavy check and Linux leg, in the store's `meta`. */
+const HEAVY_FULL_META = "heavy-full:since";
+/**
+ * One goal end in this many runs every heavy check and both Linux legs, whatever changed: the safety net
+ * for the keys their twins record. Every other goal end runs the ones its change reached, so a heavy
+ * check the keys missed waits at most this many goals to be named.
+ */
+const HEAVY_FULL_EVERY = 3;
 
 interface Filters {
   stage?: string;
@@ -402,7 +412,7 @@ async function sweepOver(
   goal: Goal,
   checks: Check[],
   labelOf: (n: number) => string,
-  o: { full: boolean; collect: boolean; legs?: boolean; gateOpen?: boolean; onDone?: (c: Check, green: boolean) => void; progress?: Progress },
+  o: { full: boolean; collect: boolean; legs?: boolean; gateOpen?: boolean; heavyAll?: boolean; onDone?: (c: Check, green: boolean) => void; progress?: Progress },
 ): Promise<{ result: AcceptanceResult; secs: number; owed: number }> {
   const started = Date.now();
   const p: Progress = o.progress ?? {
@@ -413,7 +423,7 @@ async function sweepOver(
     plan: () => {},
     step: () => {},
   };
-  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: o.full, onRun: p.run, say: p.note });
+  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: o.full, heavyAll: o.heavyAll === true, onRun: p.run, say: p.note });
   const reachedOf = new Map<string, boolean>();
   const reached = (c: Check) => {
     let r = reachedOf.get(c.id);
@@ -458,7 +468,7 @@ async function sweepOver(
   try {
     if (runLegs) {
       p.count(legSteps(legs));
-      p.note("the Linux legs run `nvs` where nothing records a footprint: they keep the floor gate's cadence, keyed on what nvs-cli builds and the fixture trees");
+      p.note("the Linux legs run every fixture and suite again on Linux: they keep the floor gate's cadence, and run when the change reached one of those or code only Linux compiles");
       startWslBuild(legs);
     }
     if (need.origin) {
@@ -831,16 +841,30 @@ function standIn(): string[] | null {
   return words.length > 0 ? words : null;
 }
 
-/** Turns since the floor gate last opened; a store that holds no count opens it, the safe direction. */
-function floorSince(): number {
+/** The count the store's `meta` holds under `key`, or `missing` when it holds none. */
+function metaCount(key: string, missing: number): number {
   const store = new SelectStore();
   try {
-    const raw = store.meta(FLOOR_META);
+    const raw = store.meta(key);
     const since = raw === null ? NaN : Number(raw);
-    return Number.isInteger(since) && since >= 0 ? since : FLOOR_GATE_EVERY;
+    return Number.isInteger(since) && since >= 0 ? since : missing;
   } finally {
     store.close();
   }
+}
+
+function setMetaCount(key: string, count: number): void {
+  const store = new SelectStore();
+  try {
+    store.setMeta(key, String(count));
+  } finally {
+    store.close();
+  }
+}
+
+/** Turns since the floor gate last opened; a store that holds no count opens it, the safe direction. */
+function floorSince(): number {
+  return metaCount(FLOOR_META, FLOOR_GATE_EVERY);
 }
 
 /**
@@ -864,12 +888,7 @@ async function fullRunTurn(note: (line: string) => void): Promise<string> {
 }
 
 function setFloorSince(since: number): void {
-  const store = new SelectStore();
-  try {
-    store.setMeta(FLOOR_META, String(since));
-  } finally {
-    store.close();
-  }
+  setMetaCount(FLOOR_META, since);
 }
 
 /**
@@ -1252,13 +1271,18 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   // session sees every finding.
   let reaching = result.fail === "";
   if (result.fail === "" && heldBack.length > 0) {
-    step(`scoped sweep green with ${heldBack.length} check(s) held -- opening the floor gate over what this goal changed before the goal is reached`, C.CYAN);
-    ledger(`       goal cost: ${cost}, ${heldBack.length} held (scoped; opening the floor gate)`);
+    // On the safety net's cadence of goal ends, every heavy check and leg runs, whatever this goal changed.
+    const goalEnds = metaCount(HEAVY_FULL_META, HEAVY_FULL_EVERY) + 1;
+    const heavyAll = goalEnds >= HEAVY_FULL_EVERY;
+    const which = heavyAll ? `every heavy check and leg, 1 goal end in ${HEAVY_FULL_EVERY}` : "what this goal changed";
+    step(`scoped sweep green with ${heldBack.length} check(s) held -- opening the floor gate over ${which} before the goal is reached`, C.CYAN);
+    ledger(`       goal cost: ${cost}, ${heldBack.length} held (scoped; opening the floor gate${heavyAll ? " over every heavy check" : ""})`);
     open = true;
     reaching = true;
     TICKER.set({ phase: "acceptance sweep, floor gate open", total: all.length, done: 0 });
-    ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, { full: false, collect: true, legs: true, gateOpen: true, onDone, progress }));
+    ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, { full: false, collect: true, legs: true, gateOpen: true, heavyAll, onDone, progress }));
     cost = `${secs}s over ${result.ran} check(s), ${result.answered} not reached`;
+    setMetaCount(HEAVY_FULL_META, heavyAll ? 0 : goalEnds);
   }
   setFloorSince(open ? 0 : since);
   if (missed) result = { ...result, fail: result.fail ? allReds([result.fail, missed]) : missed };

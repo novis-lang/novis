@@ -161,10 +161,21 @@ on `covws`, which is never a verdict; when the two runs end differently, the pro
 they agree.
 
 The heavy checks, which build the release profile, fuzz, TSan, the database matrix or run a Linux leg,
-record nothing of what they compile. They are keyed on their observed reads plus every item and
-directory of the crates they build, and wait for the floor gate. That is the one predicted key left. A
-check with `memoize = false` is never answered from the store, and `bun nv loop --goal-only --full`
-runs every atom of every check.
+wait for the floor gate, and record no coverage of their own. A release test, a bench and the database
+matrix are keyed on a **twin**: the same work run again on `covws`, whose verdict counts for nothing and
+whose coverage is the check's keys. The twin of a release test runs its tests with `--include-ignored`,
+a bench runs once on the covws `nvs`, and the database matrix runs its SQLite leg. Each also holds a key
+for what its twin cannot reach: `profile:optimized` for release code, and every file of `nvs-db` for the
+server drivers. A Linux leg runs every fixture and suite of the plan again, so it is selected whenever
+one of those atoms is. Code only Linux compiles moves `platform:elsewhere`, which the legs, the database
+matrix, fuzz and TSan hold. Fuzz and TSan build inside WSL and have no twin: they are keyed on every
+item and directory of the crates they build, the one predicted key left. A twin that cannot run or be
+read records `*`, which every change reaches until a twin is read again. A check with `memoize = false`
+is never answered from the store, and
+`bun nv loop --goal-only --full` runs every atom of every check.
+
+**Every third goal end runs every heavy check and both legs**, whatever changed. That is the safety net
+for the twins' keys. The goal-end sweeps between those run what their goal reached.
 
 **The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
 heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there
@@ -174,6 +185,6 @@ nothing: it applies one batch of breaking edits at a time, runs every atom that 
 copy of the store named by `NV_SELECT_STORE`, requires every red atom to have been selected, and
 reverts the edits.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#the-chain-names-its-live-goal" title="The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated"><code>tooling/the-chain-names-its-live-goal</code></a> <a href="/docs/rules/tooling/the-repository-tools/#the-repository-tools-are-one-bun-program" title="The repository's tools are one Bun + TypeScript program, bun nv, and smol-toml is its only runtime dependency"><code>tooling/the-repository-tools-are-one-bun-program</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0226.md">record 0226</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-store.test.ts"><code>tools/nv/test/select-store.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-items.test.ts"><code>tools/nv/test/select-items.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-extract.test.ts"><code>tools/nv/test/select-extract.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-query.test.ts"><code>tools/nv/test/select-query.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-record.test.ts"><code>tools/nv/test/select-record.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-checks.test.ts"><code>tools/nv/test/select-checks.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/footprint.rs"><code>crates/nvs-cli/tests/footprint.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/the-repository-tools/#the-chain-names-its-live-goal" title="The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated"><code>tooling/the-chain-names-its-live-goal</code></a> <a href="/docs/rules/tooling/the-repository-tools/#the-repository-tools-are-one-bun-program" title="The repository's tools are one Bun + TypeScript program, bun nv, and smol-toml is its only runtime dependency"><code>tooling/the-repository-tools-are-one-bun-program</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0226.md">record 0226</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0227.md">record 0227</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-store.test.ts"><code>tools/nv/test/select-store.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-items.test.ts"><code>tools/nv/test/select-items.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-extract.test.ts"><code>tools/nv/test/select-extract.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-query.test.ts"><code>tools/nv/test/select-query.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-record.test.ts"><code>tools/nv/test/select-record.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-checks.test.ts"><code>tools/nv/test/select-checks.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/nv/test/select-profile.test.ts"><code>tools/nv/test/select-profile.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/footprint.rs"><code>crates/nvs-cli/tests/footprint.rs</code></a></dd></div></dl>
 
 </div>

@@ -103,6 +103,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, appendFil
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
+import { unrecorded } from "../lib/reads.ts";
 
 export const summary = "the userland benchmark suite: nv bench [PATTERN...] | --check | --warm-start | --serve-vs-fpm";
 
@@ -409,15 +410,18 @@ export function findNvs(explicit: string | null, allowDebug: boolean): string {
   return binary;
 }
 
-/** Nothing here builds. If the binary predates the sources, the number is about old code. */
+/** Nothing here builds. If the binary predates the sources, the number is about old code. The warning
+ * is no input to any verdict, so the files it looks at are not noted as reads of the run. */
 export function warnIfStale(binary: string): void {
-  let built: number;
+  let built = 0;
   let newest = -Infinity;
   try {
-    built = statSync(binary).mtimeMs;
-    for (const p of new Bun.Glob("**/*.rs").scanSync({ cwd: join(ROOT, "crates") })) {
-      newest = Math.max(newest, statSync(join(ROOT, "crates", p)).mtimeMs);
-    }
+    unrecorded(() => {
+      built = statSync(binary).mtimeMs;
+      for (const p of new Bun.Glob("**/*.rs").scanSync({ cwd: join(ROOT, "crates") })) {
+        newest = Math.max(newest, statSync(join(ROOT, "crates", p)).mtimeMs);
+      }
+    });
   } catch {
     return;
   }

@@ -3,8 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type FileItems, scanItems } from "../keys/scan.ts";
 import { closure, diffFile, Universe } from "../select/items.ts";
-import { PROFILE_ONLY } from "../select/keys.ts";
-import { cfgValue, leadingAttrs, optimizedOnly, profileReader, type Side } from "../select/profile.ts";
+import { PLATFORM_ONLY, PROFILE_ONLY } from "../select/keys.ts";
+import { cfgValue, elsewhereOnly, LINUX, leadingAttrs, optimizedOnly, type Platform, platformOf, profileReader, type Side } from "../select/profile.ts";
 import { scratch } from "./scratch.ts";
 
 const tree = scratch();
@@ -44,8 +44,9 @@ function scanned(files: string[]): Map<string, FileItems> {
   return new Map(scanItems(files, tree.root).map((f) => [f.file, f]));
 }
 
-/** The keys an edit of `file` from `before` to `after` moves, with the profile-only test on. */
-function movedBy(file: string, before: string, after: string): string[] {
+/** The keys an edit of `file` from `before` to `after` moves, with the profile-only test on, and the
+ * platform-only test for `here` too when it is given. */
+function movedBy(file: string, before: string, after: string, here?: Platform): string[] {
   tree.put("crates/demo/src/lib.rs", LIB);
   tree.put(file, before);
   const base = scanned([file]);
@@ -57,8 +58,40 @@ function movedBy(file: string, before: string, after: string): string[] {
     return existsSync(full) ? readFileSync(full, "utf8") : null;
   };
   const d = diffFile(base.get(file)!, head.get(file)!);
-  return [...closure(d.changes, new Universe(head), [], new Map(), profileReader(read, head)).keys()].sort();
+  const platform = here ? profileReader(read, head, elsewhereOnly(here)) : undefined;
+  return [...closure(d.changes, new Universe(head), [], new Map(), profileReader(read, head), platform).keys()].sort();
 }
+
+const WINDOWS = platformOf("win32");
+
+describe("code only Linux compiles", () => {
+  test("a cfg predicate on the platform is true or false once the platform is known, and unknown otherwise", () => {
+    expect(cfgValue("unix", { platform: LINUX })).toBe(true);
+    expect(cfgValue("unix", { platform: WINDOWS })).toBe(false);
+    expect(cfgValue('target_os = "linux"', { platform: LINUX })).toBe(true);
+    expect(cfgValue('all(unix, not(target_os = "macos"))', { platform: LINUX })).toBe(true);
+    expect(cfgValue('target_os = "linux"', {})).toBe(null);
+    expect(cfgValue('feature = "x"', { platform: LINUX })).toBe(null);
+  });
+
+  test("code is Linux-only here when this platform leaves it out and Linux keeps it, and on Linux nothing is", () => {
+    const here = elsewhereOnly(WINDOWS);
+    expect(here(["unix"])).toBe(true);
+    expect(here(["not(windows)"])).toBe(true);
+    expect(here(["windows"])).toBe(false);
+    expect(here(['target_os = "macos"'])).toBe(false);
+    expect(here([])).toBe(false);
+    expect(elsewhereOnly(LINUX)(["unix"])).toBe(false);
+  });
+
+  test("a changed Linux-only item moves the key the Linux checks hold, and a changed item every platform compiles does not", () => {
+    const file = "crates/demo/src/socket.rs";
+    const text = "#[cfg(unix)]\npub fn dial() -> u8 {\n    1\n}\n\npub fn name() -> u8 {\n    2\n}\n";
+    expect(movedBy(file, text, text.replace("    1\n", "    3\n"), WINDOWS)).toContain(PLATFORM_ONLY);
+    expect(movedBy(file, text, text.replace("    2\n", "    4\n"), WINDOWS)).not.toContain(PLATFORM_ONLY);
+    expect(movedBy(file, text, text.replace("    1\n", "    3\n"), LINUX)).not.toContain(PLATFORM_ONLY);
+  });
+});
 
 describe("code only an optimized build compiles", () => {
   test("a cfg predicate is true, false, or unknown when it names anything else", () => {

@@ -9,6 +9,11 @@
 // profile-only item as a change to its twin, the item of the same file whose id differs only by the `#2`
 // ordinal nv-scan gives a repeated id and that a debug build compiles; one with no twin moves
 // `PROFILE_ONLY`, which selects every proof program.
+//
+// `elsewhereOnly` asks the same question about platforms: an item one of whose `cfg` attributes is false
+// for this platform and none of which is false for Linux. Such code never ran where footprints are
+// recorded, so a change to it, or to code it names, moves `PLATFORM_ONLY`, which the checks that run on
+// Linux hold. On a Linux host nothing is such code.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
@@ -24,9 +29,26 @@ export type ProfileOnly = (file: string, item: Item, side: Side) => boolean;
 /** Nothing is profile-only: the closure's default, for a caller with no file text. */
 export const NO_PROFILE: ProfileOnly = () => false;
 
+/** A target as `cfg` sees it: `unix` or `windows`, and its `target_os`. */
+export interface Platform {
+  family: "unix" | "windows";
+  os: string;
+}
+
+/** The platform the Linux legs, the database matrix's socket legs, fuzz and TSan build for. */
+export const LINUX: Platform = { family: "unix", os: "linux" };
+
+/** The platform a Node platform name is, as `cfg` sees it. */
+export function platformOf(name: string): Platform {
+  if (name === "win32") return { family: "windows", os: "windows" };
+  return { family: "unix", os: name === "darwin" ? "macos" : name };
+}
+
+/** What a `cfg` predicate is evaluated against. A name left out is unknown. */
 interface CfgEnv {
-  debug_assertions: boolean;
-  test: boolean;
+  debug_assertions?: boolean;
+  test?: boolean;
+  platform?: Platform;
 }
 
 /** A `cfg` predicate's value under `env`: true, false, or null when it depends on anything else. */
@@ -36,10 +58,19 @@ export function cfgValue(pred: string, env: CfgEnv): boolean | null {
   const one = (): boolean | null => {
     const name = tokens[at++] ?? "";
     if (tokens[at] === "=") {
+      const value = (tokens[at + 1] ?? "").replace(/^"|"$/g, "");
       at += 2;
+      if (env.platform === undefined) return null;
+      if (name === "target_os") return value === env.platform.os;
+      if (name === "target_family") return value === env.platform.family;
       return null;
     }
-    if (tokens[at] !== "(") return name === "debug_assertions" ? env.debug_assertions : name === "test" ? env.test : null;
+    if (tokens[at] !== "(") {
+      if (name === "debug_assertions") return env.debug_assertions ?? null;
+      if (name === "test") return env.test ?? null;
+      if ((name === "unix" || name === "windows") && env.platform !== undefined) return env.platform.family === name;
+      return null;
+    }
     at++;
     const args: (boolean | null)[] = [];
     while (at < tokens.length && tokens[at] !== ")") {
@@ -99,6 +130,13 @@ export function optimizedOnly(cfgs: string[]): boolean {
   return !compiled(true) && compiled(false);
 }
 
+/** The test for attributes whose `cfg` predicates leave the code out of a build for `here` and keep it in
+ * a Linux one. Nothing is such code when `here` is Linux. */
+export function elsewhereOnly(here: Platform): (cfgs: string[]) => boolean {
+  const compiled = (cfgs: string[], platform: Platform) => !cfgs.map((p) => cfgValue(p, { platform })).includes(false);
+  return (cfgs) => !compiled(cfgs, here) && compiled(cfgs, LINUX);
+}
+
 /** The text of the header above line `line` (1-based): the attribute and comment lines that lead into
  * it, from the line after the last one that ends an item, a block or a statement. */
 function headerAbove(lines: string[], line: number): string {
@@ -125,9 +163,14 @@ function declarers(file: string): { name: string; parents: string[] } | null {
 
 /**
  * The profile-only test over the files of `view`, reading each file's text on either side with `read`.
- * Every answer is kept, so a file is read and an item judged once.
+ * `only` judges an item's `cfg` predicates: `optimizedOnly` by default, or `elsewhereOnly` for code this
+ * platform does not compile. Every answer is kept, so a file is read and an item judged once.
  */
-export function profileReader(read: (file: string, side: Side) => string | null, view: Map<string, FileItems> = new Map()): ProfileOnly {
+export function profileReader(
+  read: (file: string, side: Side) => string | null,
+  view: Map<string, FileItems> = new Map(),
+  only: (cfgs: string[]) => boolean = optimizedOnly,
+): ProfileOnly {
   const texts = new Map<string, string[] | null>();
   const lines = (file: string, side: Side) => {
     const k = `${side}\0${file}`;
@@ -139,7 +182,7 @@ export function profileReader(read: (file: string, side: Side) => string | null,
     const k = `${side}\0${file}`;
     if (files.has(k)) return files.get(k)!;
     files.set(k, false);
-    let only = false;
+    let found = false;
     const d = declarers(file);
     for (const parent of d?.parents ?? []) {
       const text = lines(parent, side);
@@ -147,11 +190,11 @@ export function profileReader(read: (file: string, side: Side) => string | null,
       const decl = new RegExp(`^\\s*(?:pub(?:\\s*\\([^)]*\\))?\\s+)?mod\\s+${d!.name}\\s*;`);
       const at = text.findIndex((l) => decl.test(l));
       if (at < 0) continue;
-      only = optimizedOnly(cfgsOf(leadingAttrs(headerAbove(text, at + 1)))) || fileOnly(parent, side);
+      found = only(cfgsOf(leadingAttrs(headerAbove(text, at + 1)))) || fileOnly(parent, side);
       break;
     }
-    files.set(k, only);
-    return only;
+    files.set(k, found);
+    return found;
   };
   const items = new Map<string, boolean>();
   const itemOnly = (file: string, item: Item, side: Side): boolean => {
@@ -159,14 +202,14 @@ export function profileReader(read: (file: string, side: Side) => string | null,
     if (items.has(k)) return items.get(k)!;
     items.set(k, false);
     const text = lines(file, side);
-    let only = text !== null && optimizedOnly(cfgsOf(leadingAttrs(text.slice(item.start - 1, item.end).join("\n"))));
-    if (!only && item.parent && side === "head") {
+    let found = text !== null && only(cfgsOf(leadingAttrs(text.slice(item.start - 1, item.end).join("\n"))));
+    if (!found && item.parent && side === "head") {
       const parent = view.get(file)?.items.find((i) => i.id === item.parent);
-      if (parent) only = itemOnly(file, parent, side);
+      if (parent) found = itemOnly(file, parent, side);
     }
-    only ||= fileOnly(file, side);
-    items.set(k, only);
-    return only;
+    found ||= fileOnly(file, side);
+    items.set(k, found);
+    return found;
   };
   return itemOnly;
 }

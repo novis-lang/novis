@@ -39,7 +39,7 @@
 // program.
 
 import type { FileItems, Item, ItemRow } from "../keys/scan.ts";
-import { ALL_CARDS, ALL_CLASSES, cardKey, classKey, fnKey, itemPrefix, PROFILE_ONLY } from "./keys.ts";
+import { ALL_CARDS, ALL_CLASSES, cardKey, classKey, fnKey, itemPrefix, PLATFORM_ONLY, PROFILE_ONLY } from "./keys.ts";
 import { baseId, NO_PROFILE, type ProfileOnly, shipsIn } from "./profile.ts";
 
 export type How = "added" | "removed" | "changed" | "reached";
@@ -53,11 +53,12 @@ export interface ItemChange {
   was?: Item;
 }
 
-/** Why a key moved: the path and item it came from, and for a reached item the item that reached it. */
+/** Why a key moved: the path and item it came from, and for a reached item the item that reached it.
+ * `cadence` is no change at all: the loop's safety net picks every heavy check on its cadence. */
 export interface Origin {
   path: string;
   item?: string;
-  how: How | "path" | "global" | "build" | "wide";
+  how: How | "path" | "global" | "build" | "wide" | "cadence";
   via?: string;
 }
 
@@ -181,10 +182,18 @@ export function rowClasses(before: ItemRow[] | undefined, after: ItemRow[] | und
 export type ExtraDefines = Map<string, string[]>;
 
 /**
- * The keys `changes` move, closed over the reference graph. `wideFiles` are files taken whole, and
- * `profile` says which items only an optimized build compiles.
+ * The keys `changes` move, closed over the reference graph. `wideFiles` are files taken whole,
+ * `profile` says which items only an optimized build compiles, and `platform` which items only a Linux
+ * build does: each one the closure reaches, test code included, moves `PLATFORM_ONLY`.
  */
-export function closure(changes: ItemChange[], universe: Universe, wideFiles: string[] = [], extra: ExtraDefines = new Map(), profile: ProfileOnly = NO_PROFILE): Moved {
+export function closure(
+  changes: ItemChange[],
+  universe: Universe,
+  wideFiles: string[] = [],
+  extra: ExtraDefines = new Map(),
+  profile: ProfileOnly = NO_PROFILE,
+  platform: ProfileOnly = NO_PROFILE,
+): Moved {
   const moved: Moved = new Map();
   const emit = (key: string, origin: Origin) => {
     if (!moved.has(key)) moved.set(key, origin);
@@ -225,6 +234,7 @@ export function closure(changes: ItemChange[], universe: Universe, wideFiles: st
     seen.add(id);
     const origin: Origin = { path: e.file, item: e.item.id, how: e.how, ...(e.via ? { via: e.via } : {}) };
     emit(fnKey(e.file, e.item.id), origin);
+    if (platform(e.file, e.item, e.how === "removed" ? "base" : "head")) emit(PLATFORM_ONLY, origin);
     const shipped = !e.item.test;
     if (shipped && shipsIn(e.file) && profile(e.file, e.item, e.how === "removed" ? "base" : "head")) {
       const twins = universe.twins(e.file, e.item.id).filter((t) => !profile(e.file, t, "head"));

@@ -28,7 +28,7 @@ import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerSigns, PERF_ANY } from "../pro
 import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
-import { gitTexts, profileReader } from "./profile.ts";
+import { elsewhereOnly, gitTexts, platformOf, profileReader } from "./profile.ts";
 import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, PROFILE_ONLY, testsKey, WILD } from "./keys.ts";
 import { type AtomKind, kindOfAtom, type Overlay, type SelectStore } from "./store.ts";
 
@@ -256,8 +256,10 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   }
 
   const universe = new Universe(view, scope);
-  const profile = profileReader(gitTexts(since, until, root), view);
-  for (const [k, o] of closure(itemChanges, universe, wideFiles, extra, profile)) emit(k, o);
+  const texts = gitTexts(since, until, root);
+  const profile = profileReader(texts, view);
+  const platform = profileReader(texts, view, elsewhereOnly(platformOf(process.platform)));
+  for (const [k, o] of closure(itemChanges, universe, wideFiles, extra, profile, platform)) emit(k, o);
   // Code of a file no item held was recorded as the whole file.
   for (const c of itemChanges) emit(fileWild(c.file), { path: c.file, item: c.id, how: c.how });
   // A test that did not exist is in no footprint: every test binary of its package runs.
@@ -592,6 +594,7 @@ export function explain(store: SelectStore, sel: Selection, id: string): string[
 }
 
 export function describe(o: Origin): string {
+  if (o.how === "cadence") return "the safety net's cadence: every heavy check runs on this goal end";
   const where = o.item ? `${o.path}#${o.item}` : o.path;
   const how = o.how === "path" ? "the path changed" : o.how === "global" ? "a global file" : o.how === "wide" ? "the file does not parse; taken whole" : `item ${o.how}`;
   return `${where} (${how}${o.via ? `, through ${o.via}` : ""})`;

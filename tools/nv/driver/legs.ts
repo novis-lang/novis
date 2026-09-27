@@ -46,10 +46,12 @@
 //
 // Each leg is an atom of the selection store's heavy set (`heavy:wsl leg`, `heavy:valgrind sweep`,
 // `select/checks.ts`). A leg runs `nvs` inside WSL or under valgrind, and neither records coverage or a
-// footprint log the store can read, so a leg keeps the floor gate's cadence and is keyed on what
-// `nvs-cli` builds and the trees its fixtures read, which `bun nv loop` says when the legs begin. A leg
-// is recorded green only when it is green on a sweep with the floor gate open: a leg over the goal's own
-// fixtures alone is not the leg the store names. A red leg stays selected until a run of it is green.
+// footprint log the store can read. What a leg runs is the plan's fixtures and suites again, whose own
+// atoms were recorded on the covws build, so a leg is selected whenever the selection picks one of them,
+// and its own atom holds only the key moved by code only Linux compiles (`checks.ts` `LEG_KEYS`). A leg
+// keeps the floor gate's cadence, and is recorded green only when it is green on a sweep with the floor
+// gate open: a leg over the goal's own fixtures alone is not the leg the store names. A red leg stays
+// selected until a run of it is green.
 // The build is skipped only when the change reaches neither leg, since either one still to run needs
 // the binary.
 //

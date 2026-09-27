@@ -18,8 +18,11 @@
 //   and with `NV_SELECT_NO_ADVANCE`, so a `bun nv proofs` it starts records its programs and leaves the
 //   tree to the sweep;
 // - the tools' `tsc` and each of their test files run as `select/nvtests.ts` runs them for `nv verify`;
-// - a heavy check runs as it always has, with the footprint logs of what it starts, and holds
-//   `heavyKeys` besides.
+// - a heavy check runs as it always has, with the footprint logs of what it starts, and then its twin
+//   runs on the covws build and records which Rust code it used (`select/checks.ts` `heavyTwin`); fuzz
+//   and TSan have none and hold `heavyKeys`;
+// - a Linux leg is picked when a fixture or case it runs again is, and on the safety net's cadence every
+//   heavy check and leg is picked (`OpenOptions.heavyAll`).
 //
 // A sweep shares every process between the checks that ask for the same one. Two checks naming one
 // `argv` in one directory get one run, recorded under each check's atom, and each judges its own exit
@@ -34,6 +37,7 @@
 // sweep over every atom, or one with no workspace graph, builds every binary. A check that measures the
 // release CLI gets `cargo build --release -p nvs-cli` first, since nothing else builds it.
 
+import { mkdtempSync, rmSync } from "node:fs";
 import { cpus } from "node:os";
 import { join } from "node:path";
 import { allTestBinaries, metadata, type Graph, targetFilters } from "../keys/graph.ts";
@@ -43,7 +47,8 @@ import { run } from "../lib/proc.ts";
 import { linked, releaseCli } from "../lib/relink.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
-import { commandKeys, grouped, type Grouped, heavyKeys, LEG_TREES, LEGS, legId, onDisk, planContext } from "../select/checks.ts";
+import { commandKeys, crateKeys, grouped, type Grouped, heavyKeys, heavyTwin, LEG_KEYS, legAtoms, LEGS, legId, onDisk, planContext, predicted, type Twin } from "../select/checks.ts";
+import { PLATFORM_ONLY, WILD } from "../select/keys.ts";
 import { NO_ADVANCE_ENV, advance, caseSkipped, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
 import { NV_TSC, runNvTest, runTsc, type ToolRun } from "../select/nvtests.ts";
 import { type ChangeSet, computeChange, discover, query, rustFiles, type Selection } from "../select/select.ts";
@@ -122,6 +127,9 @@ export interface OpenOptions {
   /** The store to read and record in, which the caller closes; the default store, closed by `close`,
    * when absent. */
   store?: SelectStore;
+  /** Pick every heavy check and both Linux legs, whatever changed: the loop's safety net for their keys,
+   * on its cadence of goal ends. */
+  heavyAll?: boolean;
 }
 
 /** One sweep over a plan: the change it reads, what that reaches, and the runs it makes. */
@@ -186,6 +194,18 @@ export class PlanSweep {
       defs.set(legId(leg), LEG_DEF);
     }
     const sel = query(store, change, { discovered: [...discovered], complete: found.complete, defs });
+    // A leg runs every fixture and suite of the plan again on Linux, so a change that reaches one of them
+    // reaches both legs, for the same reason.
+    const by = legAtoms(plan, groups)
+      .map((a) => sel.selected.get(a))
+      .find((s) => s !== undefined);
+    const heavy = [...groups.values()].flatMap((g) => (g.how === "heavy" && g.own ? [g.own.id] : []));
+    for (const id of LEGS.map(legId)) if (by && !sel.selected.has(id)) sel.selected.set(id, { id, kind: "heavy", why: by.why, keys: by.keys });
+    if (o.heavyAll) {
+      for (const id of [...heavy, ...LEGS.map(legId)]) {
+        if (!sel.selected.has(id)) sel.selected.set(id, { id, kind: "heavy", why: "key", keys: [{ key: HEAVY_ALL, origin: { path: "", how: "cadence" } }] });
+      }
+    }
     const rec = await Recorder.open(store, change.view, graph, "sweep", { say: o.say ?? (() => {}) });
     return new PlanSweep(store, graph, change, sel, groups, plan, rec, label, o);
   }
@@ -377,7 +397,7 @@ export class PlanSweep {
     const label = this.labelOf(c);
     switch (g.how) {
       case "fixture":
-        return this.fixture(c, g, label, false);
+        return this.fixture(c, g, label);
       case "cases":
         return this.suite(c, g, label);
       case "tests":
@@ -395,7 +415,7 @@ export class PlanSweep {
     }
   }
 
-  private async fixture(c: Check, g: Grouped, label: string, heavy: boolean): Promise<Verdict> {
+  private async fixture(c: Check, g: Grouped, label: string): Promise<Verdict> {
     // `needs = "af-unix"`: this platform's build has no Unix-domain transport, so the claim is not asked here.
     if (c.needs === "af-unix" && process.platform === "win32") {
       this.recordOwn(g, "green", new Map([[`file:${c.file}`, ""]]));
@@ -408,7 +428,6 @@ export class PlanSweep {
     const { o } = got;
     const keys: Keyed = new Map(got.keys);
     const fail = judgeProgram(c, o, `native ${c.file} [${this.label(c.stage)}]`);
-    if (heavy && this.graph) for (const [k, d] of heavyKeys(c, this.graph, await this.rustFiles())) keys.set(k, d);
     this.recordOwn(g, fail === "" ? "green" : "red", keys);
     return none(fail);
   }
@@ -428,15 +447,15 @@ export class PlanSweep {
     // What records nothing of its reads: a command's `commandKeys`, and any `cargo` run everything.
     if (!heavy && c.kind === "command" && !(argv[0] === "bun" && argv[1] === "nv")) for (const [k, d] of commandKeys(c)) own.set(k, d);
     if (!heavy && c.kind === "cargo-named") own.set("*", "");
-    if (heavy && this.graph) for (const [k, d] of heavyKeys(c, this.graph, await this.rustFiles())) own.set(k, d);
-    else if (heavy) own.set("*", "");
+    if (heavy) for (const [k, d] of await this.heavyKeysOf(c)) own.set(k, d);
     const fail = c.kind === "command" ? judgeCommand(c, o, label) : judgeTests(c, o, label, onDisk).fail;
     this.recordOwn(g, fail === "" ? "green" : "red", own);
     return none(fail);
   }
 
   private async heavy(c: Check, g: Grouped, label: string): Promise<Verdict> {
-    if (PROGRAM_KINDS.has(c.kind)) return this.fixture(c, g, label, true);
+    // A heavy fixture is one never memoized, and it runs on the covws build like any other.
+    if (PROGRAM_KINDS.has(c.kind)) return this.fixture(c, g, label);
     if (c.kind === "command") return this.command(c, g, label, true);
     // A release test or anything else cargo runs: cargo builds and runs it, and its footprint logs record.
     const args = c.kind === "nvs-suite" ? null : (c.args ?? []);
@@ -448,11 +467,71 @@ export class PlanSweep {
     const got = await this.recorded(argv, ".", argv.join(" "));
     const { o } = got;
     const keys: Keyed = new Map(got.keys);
-    if (this.graph) for (const [k, d] of heavyKeys(c, this.graph, await this.rustFiles())) keys.set(k, d);
-    else keys.set("*", "");
+    for (const [k, d] of await this.heavyKeysOf(c)) keys.set(k, d);
     const v = judgeTests(c, o, label, onDisk);
     this.recordOwn(g, v.fail === "" ? "green" : "red", keys);
     return v;
+  }
+
+  /**
+   * What heavy check `c` holds besides what its own run recorded: its twin's record and the keys for what
+   * the twin cannot reach, the crates fuzz and TSan are predicted to build, or nothing for a check that
+   * ran on the covws build itself. A twin that cannot run or be read gives `*`, which the store drops
+   * again at the next run whose twin was read.
+   */
+  private async heavyKeysOf(c: Check): Promise<Keyed> {
+    if (this.graph === null) return new Map([[WILD, ""]]);
+    if (predicted(c)) return new Map([...heavyKeys(c, this.graph, await this.rustFiles()), [PLATFORM_ONLY, ""]]);
+    const twin = heavyTwin(c, this.graph);
+    if (twin === null) return new Map();
+    const seen = await this.twin(c, twin);
+    if (seen === null) {
+      this.say(`the twin of ${this.labelOf(c)} could not be read: every change reaches it until a twin is`);
+      return new Map([[WILD, ""]]);
+    }
+    for (const k of twin.held) seen.set(k, "");
+    if (twin.crates.length > 0) for (const [k, d] of crateKeys(twin.crates, [], this.graph, await this.rustFiles())) seen.set(k, d);
+    return seen;
+  }
+
+  /**
+   * One run of `twin` on the covws build, recorded: each of its test binaries with its harness arguments,
+   * then its command with `{nvs}` as the covws `nvs`. Its verdict counts for nothing, since a release
+   * figure is not a debug one, but a command that fails may have stopped short, so it gives null, as does
+   * a binary the build did not make or a record that cannot be read.
+   */
+  private async twin(c: Check, twin: Twin): Promise<Keyed | null> {
+    const keys: Keyed = new Map();
+    const scratch = mkdtempSync(join(this.rec.dir, "twin-"));
+    const env = Object.fromEntries(Object.entries(twin.env).map(([k, v]) => [k, v.replaceAll("{scratch}", scratch)]));
+    try {
+      if (twin.tests.length > 0) {
+        const exes = await this.testExes(twin.tests.map((t) => t.name));
+        if (!(exes instanceof Map)) return null;
+        for (const t of twin.tests) {
+          const found = exeOf(t.name, exes);
+          if (found === null) return null;
+          this.say(`twin of ${c.id}: ${t.name}${t.args.length ? ` ${t.args.join(" ")}` : ""} (covws)`);
+          // Short, as `recorded` names its runs: the name is in the profile's path twice.
+          const rec = `tw${++this.runs}`;
+          await capture([found.t.exe, ...t.args], found.t.dir, { ...this.rec.env(rec), ...(await this.rec.cacheDir(rec)), CARGO_MANIFEST_DIR: found.t.dir, NO_COLOR: "1", ...env });
+          const ext = await this.rec.keysOf(rec, [found.t.exe, covwsNvs()]);
+          if (!ext) return null;
+          for (const [k, d] of testKeys(found.pkg, ext, t.name)) keys.set(k, d);
+        }
+      }
+      if (twin.argv.length > 0) {
+        const exe = await this.binary();
+        if (typeof exe !== "string") return null;
+        const argv = twin.argv.map((a) => (a === "{nvs}" ? exe : a));
+        const got = await this.recorded(argv, ".", `twin of ${c.id}: ${argv.join(" ")}`, { NVS_BIN: exe, ...env });
+        if (got.o.code !== 0) return null;
+        for (const [k, d] of got.keys) keys.set(k, d);
+      }
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+    return keys;
   }
 
   // ---- a suite of cases --------------------------------------------------------------------------
@@ -499,8 +578,7 @@ export class PlanSweep {
     let p = this.exeRuns.get(name);
     if (p === undefined) {
       p = (async () => {
-        let found: { pkg: string; t: TestExe } | null = null;
-        for (const [pkg, ts] of exes) for (const t of ts) if (`${pkg} ${t.kind} ${t.kind === "lib" ? t.target.replace(/-/g, "_") : t.target}` === name) found = { pkg, t };
+        const found = exeOf(name, exes);
         if (found === null) return { o: { code: -1, out: "", err: `no test executable in the workspace build is ${name}` }, verdict: "red" as AtomVerdict };
         const { pkg, t } = found;
         this.say(`${pkg}: ${t.target}`);
@@ -633,10 +711,10 @@ export class PlanSweep {
     return this.picked(legId(leg));
   }
 
-  /** Records a green leg, run with the floor gate open. */
+  /** Records a green leg, run with the floor gate open. What it ran is the plan's fixtures and suites,
+   * whose own atoms select it (`open`), so its own atom holds only `LEG_KEYS`. */
   async legGreen(leg: string): Promise<void> {
-    const keys: Keyed = this.graph ? heavyKeys(null, this.graph, await this.rustFiles()) : new Map([["*", ""]]);
-    for (const t of LEG_TREES) keys.set(`tree:${t}`, "");
+    const keys: Keyed = new Map(LEG_KEYS.map((k) => [k, ""]));
     this.store.recordRun(legId(leg), { def: LEG_DEF, verdict: "green", keys });
     this.ran.add(legId(leg));
   }
@@ -684,8 +762,17 @@ export class PlanSweep {
   }
 }
 
-/** What a leg's atom is defined by: nothing a plan writes. */
-const LEG_DEF = "leg";
+/** What a leg's atom is defined by: nothing a plan writes, only what its keys are read from. */
+const LEG_DEF = "leg: selected by the fixtures and suites it runs";
+
+/** The key a heavy atom is picked under on the safety net's cadence of goal ends. */
+const HEAVY_ALL = "cadence:every heavy check";
+
+/** The test executable `<package> <kind> <target>` names in `exes`, with its package, or null. */
+function exeOf(name: string, exes: Map<string, TestExe[]>): { pkg: string; t: TestExe } | null {
+  for (const [pkg, ts] of exes) for (const t of ts) if (`${pkg} ${t.kind} ${t.kind === "lib" ? t.target.replace(/-/g, "_") : t.target}` === name) return { pkg, t };
+  return null;
+}
 
 /**
  * Every check of `plan` whose atoms the store last recorded green, by id: what a status row and the goal

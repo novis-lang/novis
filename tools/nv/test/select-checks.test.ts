@@ -5,7 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Check } from "../driver/accept.ts";
 import type { Graph } from "../keys/graph.ts";
-import { checkDef, commandKeys, grouped, heavyCrates, heavyKeys, type PlanContext, planContext } from "../select/checks.ts";
+import { checkDef, commandKeys, grouped, harnessArgs, heavyCrates, heavyKeys, heavyTwin, legAtoms, type PlanContext, planContext, predicted } from "../select/checks.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { scratch } from "./scratch.ts";
 
@@ -116,6 +116,62 @@ describe("what a command that records nothing reads", () => {
     expect(commandKeys(check({ argv: ["{nvs}", "ast", "x"] })).size).toBe(0);
     expect([...commandKeys(check({ argv: ["bun", "-e", "1"] })).keys()]).toEqual(["*"]);
     expect([...commandKeys(check({ argv: ["cargo", "metadata"] })).keys()]).toEqual(["*"]);
+  });
+});
+
+describe("the heavy set's twins", () => {
+  test("a test binary is handed the check's test-name filters and what follows `--`, and no option's value", () => {
+    expect(harnessArgs(["test", "--release", "-p", "nvs-cli", "--bin", "nvs", "by_the_margin", "--", "--test-threads=1"])).toEqual(["by_the_margin", "--test-threads=1"]);
+    expect(harnessArgs(["test", "-p", "nvs-host", "--lib"])).toEqual([]);
+    expect(harnessArgs(["--bin", "nvs", "worker::"])).toEqual(["worker::"]);
+  });
+
+  test("a release test's twin is the same binary and filters in debug, with the tests only a release build runs", () => {
+    const twin = heavyTwin(check({ kind: "cargo-named", args: ["test", "--release", "-p", "nvs-cli", "--bin", "nvs", "by_the_margin"] }), graph);
+    expect(twin?.tests).toEqual([{ name: "nvs-cli bin nvs", args: ["by_the_margin", "--include-ignored"] }]);
+    expect(twin?.held).toEqual(["profile:optimized"]);
+  });
+
+  test("a bench's twin runs once on the covws nvs, with no budget to fail and nothing written", () => {
+    const serve = heavyTwin(check({ argv: ["bun", "nv", "bench", "--serve-vs-fpm", "--record", "benches/results/serve.json"] }), graph);
+    expect(serve?.argv).toEqual(["bun", "nv", "bench", "--serve-vs-fpm", "--nvs", "{nvs}", "--allow-debug", "--reps", "1", "--requests", "200"]);
+    const warm = heavyTwin(check({ argv: ["bun", "nv", "bench", "--warm-start", "--max-work-ms", "6"] }), graph);
+    expect(warm?.argv).toEqual(["bun", "nv", "bench", "--warm-start", "--nvs", "{nvs}", "--allow-debug", "--reps", "1"]);
+  });
+
+  test("the database matrix's twin is its SQLite leg, and it holds every file of nvs-db and the code only Linux compiles", () => {
+    const test = (name: string) => ({ kind: "test", name, src: `crates/nvs-stdlib/tests/${name}.rs`, test: true });
+    const dbGraph: Graph = new Map([
+      ...graph,
+      pkg("nvs-db", "crates/nvs-db"),
+      pkg("nvs-stdlib", "crates/nvs-stdlib", [], [{ kind: "lib", name: "nvs_stdlib", src: "crates/nvs-stdlib/src/lib.rs", test: true }, test("queue"), test("db_stream"), test("queue_sqlite")]),
+    ]);
+    const twin = heavyTwin(check({ argv: ["bun", "nv", "db-matrix", "--all"] }), dbGraph);
+    expect(twin?.tests).toEqual([
+      { name: "nvs-db lib nvs_db", args: [] },
+      { name: "nvs-stdlib test queue", args: [] },
+      { name: "nvs-stdlib test db_stream", args: [] },
+      { name: "nvs-cli bin nvs", args: ["worker::"] },
+      { name: "nvs-stdlib test queue_sqlite", args: [] },
+    ]);
+    expect(twin?.env.NVS_DB_MATRIX_DRIVER).toBe("sqlite");
+    expect(twin?.crates).toEqual(["nvs-db"]);
+    expect(twin?.held).toContain("platform:elsewhere");
+  });
+
+  test("fuzz and TSan have no twin and keep the prediction, and a check never memoized has neither", () => {
+    const fuzz = check({ argv: ["wsl.exe", "--", "bash", "-lc", "cargo +nightly fuzz run lex fuzz/corpus/lex"] });
+    expect(predicted(fuzz)).toBe(true);
+    expect(heavyTwin(fuzz, graph)).toBeNull();
+    const host = check({ argv: ["npm", "run", "test:host"], memoize: false });
+    expect(predicted(host)).toBe(false);
+    expect(heavyTwin(host, graph)).toBeNull();
+  });
+
+  test("a leg runs every fixture of the plan and every case of its suites again, and nothing else", () => {
+    const plan = [check({ id: "f", kind: "exact", file: "examples/a.nvs" }), check({ id: "s", kind: "nvs-suite", args: ["test", "tests/conformance/"] }), check({ id: "n", argv: ["bun", "nv", "rules", "--check"] })];
+    const groups = new Map(plan.map((c) => [c.id, grouped(c, ctx)]));
+    expect(legAtoms(plan, groups)).toEqual(["check:f", "case:tests/conformance/a.nvst", "case:tests/conformance/sub/b.nvst"]);
   });
 });
 

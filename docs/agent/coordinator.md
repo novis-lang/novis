@@ -365,11 +365,12 @@ reached, carried or the goal's own, and a floor regression is named in the sessi
 driver holds only the heavy checks (`isHeavy` in `tools/nv/driver/accept.ts`: the release profile and
 its cost guards, fuzz, TSan, the database matrix, and the checks never memoized) with the WSL leg and
 the valgrind sweep, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/loop.ts` is
-that number's only home. They build what no recorded run builds, so each is keyed on its observed reads
-plus every item of the crates it builds (`heavyKeys` in `tools/nv/select/checks.ts`), the one predicted
-key left. A held check is not a green one: a sweep that held anything reports `held` on its cost line,
-and a green one is run again, gate open, before the goal is declared reached — where each held check is
-answered from the store or runs, by the rule above. `--goal-only` runs with the gate open.
+that number's only home. They build what no recorded run builds, so each is keyed on a twin of its run
+on the covws build, and a leg on the fixtures and suites it runs again (`heavyTwin` and `legAtoms` in
+`tools/nv/select/checks.ts`). A held check is not a green one: a sweep that held anything reports `held`
+on its cost line, and a green one is run again, gate open, before the goal is declared reached — where
+each held check is answered from the store or runs, by the rule above, and on one goal end in three
+every heavy check runs (`HEAVY_FULL_EVERY`). `--goal-only` runs with the gate open.
 
 The sweep runs several fixtures at once, and **how many is the machine's answer, not this repo's** —
 `tools/nv/lib/machine.ts` holds that policy and nothing else does: half the cores the work will actually see,

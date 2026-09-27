@@ -140,6 +140,15 @@ const SUITES: string[][] = [
 const NO_SERVER_SUITES: string[][] = [["-p", "nvs-stdlib", "--test", "queue_sqlite"]];
 
 /**
+ * What the SQLite leg runs, and the environment it runs with, `{scratch}` standing for a fresh directory.
+ * The acceptance sweep runs these suites again on the covws build to learn which code the matrix runs
+ * (`select/checks.ts` `heavyTwin`), because this leg needs no server.
+ */
+export function sqliteLeg(): { suites: string[][]; env: Record<string, string> } {
+  return { suites: [...SUITES, ...NO_SERVER_SUITES], env: { NVS_DB_MATRIX_DRIVER: "sqlite", NVS_DB_MATRIX_PATH: "{scratch}/matrix.sqlite" } };
+}
+
+/**
  * What a socket leg runs: `nvs-db`'s own case list, and nothing else. `queue.rs` and `db_stream.rs`
  * return without asserting on a `Location::Socket`, and the worker's case is SQL Server's, because each
  * asserts a dialect or a read state rather than a transport. `crates/nvs-db/tests/handshake.rs` dials
