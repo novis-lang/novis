@@ -243,7 +243,10 @@ export function nvChecks(root: string = ROOT): { id: string; argv: string[]; cwd
 export function nvKeys(log: string): Keyed {
   const reads = existsSync(log) ? readLog(log) : null;
   const keys: Keyed = new Map();
-  if (!reads) keys.set("*", "");
+  if (!reads) {
+    console.error(`select: ${log} holds no reads, so its check depends on everything until a run of it leaves its reads`);
+    keys.set("*", "");
+  }
   else for (const k of readsKeys(reads, readModules(log))) keys.set(k, "");
   return keys;
 }

@@ -29,6 +29,7 @@
 import { Database, type Statement } from "bun:sqlite";
 import { mkdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { WILD } from "./keys.ts";
 import type { FileItems } from "../keys/scan.ts";
 import { CACHE } from "../lib/paths.ts";
 
@@ -309,6 +310,8 @@ export class SelectStore {
    * Records one run of `id`. A run whose definition differs from the one recorded starts the footprint
    * afresh; any other run widens it by what this run used, since a footprint is the union of the runs
    * since the definition last changed. A red run still widens it: a wider footprint only selects more.
+   * `*` stands for a run whose use could not be read, not for a use, so a run whose use was read takes
+   * it out of the footprint and keeps every key the earlier runs recorded.
    */
   recordRun(id: string, run: { def: string; verdict: Verdict; keys: Keyed; at?: number }): void {
     this.transaction(() => {
@@ -318,10 +321,13 @@ export class SelectStore {
       const old = was.keys ? unpack(was.keys) : [];
       const fresh = was.def !== run.def;
       const ids = new Set<number>(fresh ? [] : old);
+      const wild = run.keys.has(WILD) ? null : (this.keyIdsOf([WILD]).get(WILD) ?? null);
+      if (wild !== null) ids.delete(wild);
       for (const [k, d] of run.keys) ids.add(this.keyId(k, d));
       const del = this.stmt("DELETE FROM footprint WHERE key = ? AND atom = ?");
       const ins = this.stmt("INSERT OR IGNORE INTO footprint (key, atom) VALUES (?, ?)");
       if (fresh) for (const k of old) if (!ids.has(k)) del.run(k, n);
+      if (!fresh && wild !== null && old.includes(wild)) del.run(wild, n);
       const oldSet = new Set(old);
       for (const k of ids) if (fresh || !oldSet.has(k)) ins.run(k, n);
       const sorted = [...ids].sort((a, b) => a - b);

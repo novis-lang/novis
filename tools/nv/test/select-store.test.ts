@@ -58,6 +58,17 @@ describe("the select store", () => {
     expect(s.keyDigest("fn:a.rs#g")).toBe("y");
   });
 
+  test("a run whose use was read takes `*` out of the footprint and keeps what the earlier runs recorded", () => {
+    const s = store();
+    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["file:a.json", ""]]) });
+    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["*", ""]]) });
+    expect(s.footprint("nv:a")).toEqual(["*", "file:a.json"]);
+    s.recordRun("nv:a", { def: "d", verdict: "green", keys: new Map([["file:b.json", ""]]) });
+    expect(s.footprint("nv:a")).toEqual(["file:a.json", "file:b.json"]);
+    expect(s.atomsUnder(["*"]).size).toBe(0);
+    expect(s.atom("nv:a")).toMatchObject({ keys: 2 });
+  });
+
   test("the reverse index answers which atoms hold a key, and only on its own platform", () => {
     const s = store();
     s.recordRun("test:a lib a", { def: "", verdict: "green", keys: new Map([["fn:a.rs#f", ""], ["file:x.txt", ""]]) });
