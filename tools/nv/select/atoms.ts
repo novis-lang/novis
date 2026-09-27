@@ -3,7 +3,7 @@
 // | kind | one atom is | its definition (`def:`) |
 // |---|---|---|
 // | `case` | one `.nvst` file of a case tree under `tests/` | the file's bytes |
-// | `proof` | one example or attack program of the feature roster | the program, its `.out` and `.in`, and the `nvs.toml` beside it |
+// | `proof` | one example or attack program of the feature roster | the program, its `.out`, `.in` and `.nvsr`, and the `nvs.toml` beside it |
 // | `test` | one Rust test executable of the `covws` build, `<package> <kind> <target>` | nothing: its sources are items |
 // | `nv` | one `bun nv` command check of the live plan | its argument list and working directory |
 // | `nvtest` | one `bun test` file of the tools, `tools/nv/**/*.test.ts` | the file's bytes |
@@ -91,13 +91,17 @@ export function nvTestFiles(root: string = ROOT): string[] {
 
 const sibling = (proof: string, suffix: string) => proof.replace(/\.nvs$/, suffix);
 
-/** A proof program's definition: what `bun nv proofs` remembers a green verdict against. */
+/** A proof program's definition: what `bun nv proofs` remembers a green verdict against. The `.nvsr`
+ * request file joins only where it exists, so a proof without one keeps the definition it had before
+ * request files were read. */
 export function proofDef(path: string, root: string = ROOT): string {
   const chunks: (string | Uint8Array)[] = [];
   for (const p of [path, sibling(path, ".out"), sibling(path, ".in"), `${dirname(path)}/nvs.toml`]) {
     const full = join(root, p);
     chunks.push(existsSync(full) ? readFileSync(full) : "");
   }
+  const request = join(root, sibling(path, ".nvsr"));
+  if (existsSync(request)) chunks.push(readFileSync(request));
   return digest(...chunks);
 }
 

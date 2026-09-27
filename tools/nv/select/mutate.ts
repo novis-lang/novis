@@ -293,14 +293,14 @@ export function overlap(parts: Part[], root: string = ROOT): string | null {
 /**
  * The red atoms each batch of `parts` accounts for: those the selection picked through a key that came
  * from a file the batch edits, and those a file of the batch names (a case, a tools test, or a proof
- * program with its `.out`, `.in` and `nvs.toml`). An atom can count for more than one batch.
+ * program with its `.out`, `.in`, `.nvsr` and `nvs.toml`). An atom can count for more than one batch.
  */
 export function attribute(parts: Part[], sel: Selection, red: string[]): { index: number; red: string[] }[] {
   const named = (id: string, file: string) => {
     const path = id.slice(id.indexOf(":") + 1);
     if (path === file) return true;
     if (!id.startsWith("proof:")) return false;
-    return file === path.replace(/\.nvs$/, ".out") || file === path.replace(/\.nvs$/, ".in") || file === `${dirname(path)}/nvs.toml`;
+    return [".out", ".in", ".nvsr"].some((suffix) => file === path.replace(/\.nvs$/, suffix)) || file === `${dirname(path)}/nvs.toml`;
   };
   return parts.map((p) => {
     const files = new Set(p.edits.map((e) => e.file));

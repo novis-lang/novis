@@ -1,7 +1,7 @@
 // Which proof programs `bun nv proofs --run` and `--verify` run, and recording the ones that ran.
 //
 // A program runs when the selection picks it (`tools/nv/select/`): its footprint holds a key the change
-// since the store's tree moved, its definition changed (the program, its `.out` and `.in`, the `nvs.toml`
+// since the store's tree moved, its definition changed (the program, its `.out`, `.in` and `.nvsr`, the `nvs.toml`
 // beside it), it was never recorded, its last run was red or owed, or it is marked diverged. Every other
 // program is reported green without a run. `--no-cache` runs every program in scope.
 //

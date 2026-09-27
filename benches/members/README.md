@@ -69,6 +69,9 @@ The rules, of which the chained input and the `int` subscript are the ones that 
   timed and counted run is then sent from its first byte
   ([docs/examples/README.md](../../docs/examples/README.md) § *A file for standard input*). Input
   can be read once per run, so a bench of `Core\IO::stdin` declares `iterations 1`.
+- **A bench answers no request** unless a sibling `<name>.nvsr` describes one, which every timed
+  and counted run then answers ([docs/examples/README.md](../../docs/examples/README.md) § *A request
+  for the program*). A `Core\Request` member throws without one.
 - **Size it to run in well under a second.** The sweep runs one program per feature and there are
   hundreds; a bench that takes ten seconds costs an hour across the tree. Raise `iterations` until
   the reading is stable, not until it is long.

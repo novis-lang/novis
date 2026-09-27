@@ -179,14 +179,19 @@ export function proofRecording(proof: string, dir: string | undefined = process.
 
 /** One run of a proof program from the repository root. A proof with a `<name>.in` beside it reads that
  * file as its standard input, and every other proof reads nothing, so no proof ever waits on a terminal.
- * A proof whose directory holds an `nvs.toml` runs under that file alone, handed over as `--config`
- * after `run`, so a feature that needs a grant carries it where its reader sees it; every other proof
- * runs under the repository root's. `record` names the directory the run is recorded into, which
- * defaults to `NV_PROOF_RECORD`, and variables its processes get beside the recording's. */
+ * A proof with a `<name>.nvsr` beside it answers the request that file describes, handed over as
+ * `--request` after `run`, so a `Core\Request` member has a request to read; every other proof answers
+ * none, and a `Core\Request` member there throws. A proof whose directory holds an `nvs.toml` runs
+ * under that file alone, handed over as `--config` after `run`, so a feature that needs a grant carries
+ * it where its reader sees it; every other proof runs under the repository root's. `record` names the
+ * directory the run is recorded into, which defaults to `NV_PROOF_RECORD`, and variables its processes
+ * get beside the recording's. */
 export async function spawnProof(argv: string[], proof: string, timeoutMs: number, record?: { dir: string; env?: Record<string, string> }): Promise<Ran> {
   const feed = abs(sibling(proof, ".in"));
+  const request = sibling(proof, ".nvsr");
   const config = `${dirname(proof)}/nvs.toml`;
   const at = argv.indexOf("run");
+  if (at >= 0 && existsSync(abs(request))) argv = [...argv.slice(0, at + 1), "--request", request, ...argv.slice(at + 1)];
   if (at >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, at + 1), "--config", config, ...argv.slice(at + 1)];
   const recording = proofRecording(proof, record?.dir ?? process.env[RECORD_ENV]);
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });

@@ -155,6 +155,16 @@ at once. An example that shows reading input puts that input beside it, under it
 the file to the program's standard input, byte for byte, and the website shows it beside the
 example. `tests/hostile/` and `benches/members/` read a `.in` file the same way.
 
+## A request for the program — `<name>.nvsr`
+
+An example runs as a command-line program, which answers no request, so every `Core\Request`
+member throws a `LogicError` there. An example that shows reading a request puts that request
+beside it, under its own name with `.nvsr` in place of `.nvs`. `--bless` and the sweep then run the
+program with `nvs run --request <file>`, and the website shows the file beside the example. The
+file's sections are `nvs_test::request`'s module doc: `--METHOD--`, `--PATH--`, `--QUERY--`,
+`--HEADERS--` and `--BODY--` last, read to the end of the file byte for byte. `tests/hostile/` and
+`benches/members/` read a `.nvsr` file the same way.
+
 ## A grant the examples need — `nvs.toml`
 
 An example runs from the repository root under its `nvs.toml`, which grants no capability. A
