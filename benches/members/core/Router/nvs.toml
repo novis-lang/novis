@@ -1,0 +1,5 @@
+# `Core\Router::urlAbsolute` puts this origin in front of each link.
+# `root = "."` means the programs in this directory use this block.
+[[app]]
+root = "."
+origin = "https://www.example.com"

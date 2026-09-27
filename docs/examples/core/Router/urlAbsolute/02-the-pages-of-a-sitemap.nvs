@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to write the entries of a sitemap. A sitemap must contain full URLs.
+
+class Pages {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Pages::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    #[Core\Route(path: "/help/{topic}", method: Core\Http\Method::Get, name: "Pages::help")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function help(string $topic): string { return "one help page"; }
+}
+
+echo "<urlset>\n";
+
+// The home page has the path `/`, so this link is `https://www.example.com/`.
+echo "  <url><loc>", Core\Router::urlAbsolute("Pages::home", []), "</loc></url>\n";
+
+// Each topic is percent-encoded, so "gift cards" becomes `gift%20cards`.
+array<string> $topics = ["shipping", "returns", "gift cards"];
+foreach ($topics as string $topic) {
+    string $link = Core\Router::urlAbsolute("Pages::help", ["topic" => $topic]);
+    echo "  <url><loc>", $link, "</loc></url>\n";
+}
+
+echo "</urlset>\n";

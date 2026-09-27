@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a program builds full URLs from text that a visitor chose. The text tries to
+// point the link at another site. Every link should start with the configured origin,
+// or throw an error, and the program must not crash.
+
+class Files
+{
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name, #[Core\Query] string $q = ''): string
+    { return 'one file'; }
+
+    #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get, name: "Files::docs")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function docs(string $rest): string
+    { return 'a page'; }
+}
+
+string $origin = 'https://www.example.com/';
+
+// 1. Captures that look like another host. Each link must still start with the origin.
+array<string> $tricks = [
+    '//evil.example.org/',
+    'https://evil.example.org',
+    '@evil.example.org',
+    '\\\\evil.example.org',
+    "evil\r\nLocation: https://evil.example.org",
+    '%2F%2Fevil.example.org',
+];
+uint $kept = 0;
+foreach ($tricks as string $trick) {
+    string $name = Core\Router::urlAbsolute('Files::show', ['name' => $trick, 'q' => $trick]);
+    string $docs = Core\Router::urlAbsolute('Files::docs', ['rest' => 'a/' . $trick]);
+    if (Core\Str::startsWith($name, $origin . 'files/') && Core\Str::startsWith($docs, $origin . 'docs/a/')) {
+        $kept = $kept + 1;
+    }
+}
+echo 'kept: ', $kept, ' of 6', "\n";
+
+// 2. A rest capture that starts with `/`, so the path would begin with `//`.
+string $slashes = Core\Router::urlAbsolute('Files::docs', ['rest' => '/evil.example.org/x']);
+if (Core\Str::startsWith($slashes, $origin . 'docs/')) {
+    echo 'slashes: kept', "\n";
+} else {
+    echo 'slashes: moved', "\n";
+}
+
+// 3. A rest capture with `..` steps. A browser would move that link, so this throws a `RuntimeError`.
+try {
+    Core\Router::urlAbsolute('Files::docs', ['rest' => Core\Str::repeat('../', 100000)]);
+    echo 'dots: built', "\n";
+} catch (RuntimeError $e) {
+    echo 'dots: error', "\n";
+}
+
+// 4. A capture of one million characters.
+string $long = Core\Router::urlAbsolute('Files::show', ['name' => Core\Str::repeat('a', 1000000)]);
+echo 'long: ', Core\Str::length($long), "\n";
+
+// 5. Many links in a loop, to check that no memory is lost.
+uint $built = 0;
+uint $i = 0;
+while ($i < 100000) {
+    string $each = Core\Router::urlAbsolute('Files::show', ['name' => 'report ' . ($i as string)]);
+    $built = $built + Core\Str::length($each);
+    $i = $i + 1;
+}
+echo $built, ' characters', "\n";

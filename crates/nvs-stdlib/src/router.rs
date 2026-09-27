@@ -348,66 +348,63 @@ const URL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Router::urlAbsolute`'s reference card — `rule:core-api/reference-card`.
 const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
-    short: "`url` with the mount's configured origin in front — the `[[app]] origin` setting, \
-            resolved before the request ran and never derived from a `Host` or \
-            `X-Forwarded-Host` header.",
+    short: "Builds the same link as `url`, with the origin of your site in front. The origin \
+            is the `origin` setting of the `[[app]]` block in `nvs.toml`. It never comes from \
+            the `Host` or `X-Forwarded-Host` header of a request.",
     params: &[NAME_DOC, PARAMS_DOC],
-    ret: "The absolute URL, `https://example.test/users/42?page=2`.",
+    ret: "The full URL, for example `https://example.test/users/42?page=2`. There is exactly \
+          one `/` between the origin and the path.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "For everything `url` throws for, and when no origin is configured for the unit, \
-               since an origin is never derived from a request header.",
+        desc: "For every case where `url` throws an error. When no `origin` is set for the \
+               program in `nvs.toml`.",
     }],
 };
 
 /// `Core\Router::urlSigned`'s reference card — `rule:core-api/reference-card`.
 const URL_SIGNED_DOC: MethodDoc = MethodDoc {
-    short: "`url` with the reserved `_sig` query parameter on the end, over a signature taken \
-            across the route's **name** and `$params` — never the path they render to, so the \
-            same link still verifies after the module is remounted somewhere else.",
+    short: "Builds the same link as `url`, with a signature in the `_sig` query parameter at \
+            the end. The signature is made from the route's name and `$params`, not from the \
+            path. So the link still works when the route moves to another path. \
+            `Core\\Router::signedRoute` checks the signature.",
     params: &[
         NAME_DOC,
         PARAMS_DOC,
         ParamDoc {
             name: "settings",
-            desc: "The key ring and the lifetime, written as one literal because neither has a \
-                   sensible value this member could choose.",
+            desc: "The keys and the time when the link stops working. Both are required.",
             shape: &[
                 ShapeKeyDoc {
                     key: "keys",
                     ty: "array<secret bytes>",
-                    desc: "The key ring, **newest first**: `$keys[0]` signs, and the rest exist \
-                           so that a link minted before the last rotation still verifies. The \
-                           same ring `Core\\Signature` and `$uri->sign` take, and a token minted \
-                           at one of those doors does not verify at this one.",
+                    desc: "The keys, newest first. `$keys[0]` signs the link. The older keys \
+                           are there so that `signedRoute` still accepts links made before you \
+                           changed the key. A signature made by `Core\\Signature` or \
+                           `$uri->sign` is not accepted here, even with the same keys.",
                 },
                 ShapeKeyDoc {
                     key: "until",
                     ty: "?Core\\Time\\Instant",
-                    desc: "When the link stops working, inside the signed bytes where a holder \
-                           cannot edit it. `null` is the forever spelling, and it has to be \
-                           written — a permanent signed URL is a permanent bearer credential, \
-                           and it ends up in browser history, `Referer` headers and chat \
-                           unfurls.",
+                    desc: "When the link stops working. It is part of the signature, so \
+                           nobody can change it. `null` means the link never stops working. \
+                           You must write `null` yourself, because anybody who has such a link \
+                           can use it forever.",
                 },
             ],
         },
     ],
-    ret: "`url`'s path with `_sig=…` appended, `/users/42?page=2&_sig=…` — laundered for the \
-          URL-path sink exactly as `url` is, and carrying the mount prefix the same way. The same \
-          name, parameters, ring and lifetime always mint the same token; the token carries the \
-          signed form as well as the tag, so it adds about `4/3 × (name + params + 40)` \
-          characters.",
+    ret: "The link from `url` with `_sig=…` at the end, for example `/users/42?page=2&_sig=…`. \
+          The same name, values, keys and end time always give the same link. The signature \
+          adds about `4/3 × (name + params + 40)` characters.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "For everything `url` throws for, and when `$params` carries the reserved \
-                   `_sig` key, which this member is about to write and will not write twice.",
+            desc: "For every case where `url` throws an error. When `$params` has a `_sig` key, \
+                   because this method writes that key itself.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$settings.keys` is empty, so there is no newest key; or its first entry is \
-                   not 32 octets long — a `bytes` that was never a key.",
+            desc: "When `$settings.keys` is empty. When its first key is not 32 bytes long.",
         },
     ],
 };
@@ -2581,6 +2578,69 @@ mod tests {
         }
     }
 
+    /// `urlAbsolute` is `url`'s answer with the configured origin in front,
+    /// joined by exactly one `/` whatever the setting ends with. A unit with no
+    /// origin throws and names the setting, and a dot segment throws before the
+    /// origin is read, so the absolute form refuses what the relative one does.
+    // covers: Core\Router::urlAbsolute
+    #[test]
+    fn url_absolute_puts_the_configured_origin_in_front_of_url_and_throws_without_one() {
+        use super::link::{LITERAL, REQUIRED};
+        let user = [(LITERAL, "/users"), (REQUIRED, "id")];
+        let absolute = |origin: Option<&str>, entries: &[(&str, &str)]| {
+            let template = prepared(&user);
+            let params = text_params(entries);
+            let mut ctx = Ctx::buffered();
+            if let Some(origin) = origin {
+                ctx.set_origin(origin);
+            }
+            let answer = nvs_runtime::call(
+                super::nvs_core_router_link_absolute,
+                &mut ctx,
+                &[template, params],
+            );
+            dropped(template);
+            dropped(params);
+            match answer {
+                Ok(value) => {
+                    let text = String::from_utf8(
+                        value
+                            .as_str_bytes()
+                            .expect("a link answers a `string`")
+                            .to_vec(),
+                    )
+                    .expect("a link is built out of `str`");
+                    dropped(value);
+                    Ok(text)
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .map(std::borrow::Cow::into_owned)
+                    .expect("a refusal leaves its message on the context")),
+            }
+        };
+        let relative = {
+            let template = prepared(&user);
+            let params = text_params(&[("id", "a b"), ("page", "2")]);
+            let text = linked(super::nvs_core_router_link, &[template, params]);
+            dropped(template);
+            dropped(params);
+            text
+        };
+        for origin in ["https://example.test", "https://example.test/"] {
+            assert_eq!(
+                absolute(Some(origin), &[("id", "a b"), ("page", "2")]),
+                Ok(format!("https://example.test{relative}")),
+                "{origin}"
+            );
+        }
+        let unset = absolute(None, &[("id", "42")]).expect_err("no origin is configured");
+        assert!(unset.contains("[[app]] origin"), "{unset}");
+        let dotted =
+            absolute(Some("https://example.test"), &[("id", "..")]).expect_err("a dot segment");
+        assert!(dotted.contains("leave its route"), "{dotted}");
+    }
+
     /// § 4 calls `url` the launderer for the URL-path sink, and `urlSigned` is
     /// that member with a parameter on the end — so the claim is an
     /// *agreement* rather than a second escaping rule, and it is asserted on
@@ -2594,6 +2654,7 @@ mod tests {
     /// so a hostile value that cannot leave its segment there cannot leave it
     /// here either. A member that grew its own encoder would still pass the
     /// first half.
+    // covers: Core\Router::urlSigned
     #[test]
     fn url_signed_launders_for_the_url_path_sink_exactly_as_url_does() {
         let row = |name: &str| {
@@ -2827,6 +2888,7 @@ mod tests {
     /// the table but which carries no match refuses, which a member that
     /// matched for itself could not do. Either one alone is satisfied by a
     /// member that reads the right thing for the wrong reason.
+    // covers: Core\Router::signedRoute
     #[test]
     fn signed_route_verifies_against_the_match_the_server_already_made_and_reparses_nothing() {
         let ring = crate::keyring::tests::ring_of(&[&[7; 32]]);
