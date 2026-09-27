@@ -23911,9 +23911,9 @@ Keywords: name, isPublic, parameterCount, parameters
 $methodInfo->name(): string
 ```
 
-The method's name, as the declaring class writes it.
+Returns the name of the method.
 
-**Returns** `string` — The name with no class qualifier and no parentheses — what `hasMethod` and `call` take.
+**Returns** `string` — The name as the class declares it, with no class name and no parentheses. A constructor is named `constructor`. You can pass the name to `Core\Reflect\ClassInfo::hasMethod` and `Core\Reflect\ClassInfo::call`.
 
 <a id="core-core-reflect-methodinfo-ispublic"></a>
 #### `Core\Reflect\MethodInfo->isPublic`
@@ -23922,9 +23922,9 @@ The method's name, as the declaring class writes it.
 $methodInfo->isPublic(): bool
 ```
 
-Whether code outside the declaring class may call the method.
+Tells you whether code outside the class may call the method.
 
-**Returns** `bool` — `false` for a `private` or `protected` method, which is still listed: knowing that a method exists and may not be called is what tells a refusal from a misspelling, and neither answer reaches any state the declaration did not expose.
+**Returns** `bool` — `true` for a `public` method, and `false` for a `protected` or `private` method. Those methods are still in the list that `Core\Reflect\ClassInfo::methods` returns. If `isPublic` returns `false`, `Core\Reflect\ClassInfo::call` from outside the class throws a `LogicError`.
 
 <a id="core-core-reflect-methodinfo-parametercount"></a>
 #### `Core\Reflect\MethodInfo->parameterCount`
@@ -23933,9 +23933,9 @@ Whether code outside the declaring class may call the method.
 $methodInfo->parameterCount(): uint
 ```
 
-How many parameters the method declares, excluding the implicit receiver.
+Returns how many parameters the method declares.
 
-**Returns** `uint` — The count an argument list is judged against — the same number a call through `Core\Reflect\ClassInfo::call` must supply.
+**Returns** `uint` — The number of parameters, as a `uint`. `$this` is not counted. The number is also correct for a method the compiler adds, where `parameters` returns an empty array.
 
 <a id="core-core-reflect-methodinfo-parameters"></a>
 #### `Core\Reflect\MethodInfo->parameters`
@@ -23944,9 +23944,9 @@ How many parameters the method declares, excluding the implicit receiver.
 $methodInfo->parameters(): array<Core\Reflect\ParameterInfo>
 ```
 
-The parameters the method declares, in the order they are written, each carrying the name its declaration spells. Replaces `ReflectionMethod::getParameters`.
+Returns the parameters of the method, in the order they are written. It replaces PHP's `ReflectionMethod::getParameters`.
 
-**Returns** `array<Core\Reflect\ParameterInfo>` — One `Core\Reflect\ParameterInfo` per declared parameter, the implicit receiver excluded — or an empty array for a method no source declared, which is a compiler-synthesized member and a `Core` class's own. `parameterCount` still answers how many arguments such a method takes: the count travels with the compiled code, and only a written declaration spells a name.
+**Returns** `array<Core\Reflect\ParameterInfo>` — One `Core\Reflect\ParameterInfo` for each parameter. `$this` is not included. For a method the compiler adds, such as the constructor of `LogicError`, the array is empty. `parameterCount` still returns how many arguments that method takes.
 
 <a id="core-core-reflect-propertyinfo"></a>
 ### `Core\Reflect\PropertyInfo`
@@ -24009,9 +24009,9 @@ Keywords: name, type
 $parameterInfo->name(): string
 ```
 
-The parameter's name, as the declaring method writes it.
+Returns the name of the parameter.
 
-**Returns** `string` — The name with no `$` sigil — what a named argument at a call site writes. A promoted constructor parameter answers here under the same name its property carries.
+**Returns** `string` — The name as the method declares it, without the `$`. This is the name you write for a named argument. A promoted constructor parameter has the same name as its property.
 
 <a id="core-core-reflect-parameterinfo-type"></a>
 #### `Core\Reflect\ParameterInfo->type`
@@ -24020,9 +24020,9 @@ The parameter's name, as the declaring method writes it.
 $parameterInfo->type(): ?string
 ```
 
-The type the parameter is declared at, spelled as the declaration spells it.
+Returns the declared type of the parameter, written the way the method writes it.
 
-**Returns** `?string` — The written type — `int`, `?int`, `array<string>`, `App\User` — or `null` for a row the declaring table named no type for. A method declaring a parameter in source names its type there, so a listed parameter answers with one; the member nothing spelled is the one with no row at all, and `parameterCount` is what still answers for it. A name rather than a value to compare: what a type *is* is `Core\Reflect::typeOf`'s question, asked of a value.
+**Returns** `?string` — The type as text, such as `int`, `?int`, `array<string>` or `App\User`. A parameter declared in a source file always has a type, so the result is text. The result is `null` only if no type is known for the parameter. To check the type of a value, use `Core\Reflect::typeOf`.
 
 <a id="core-core-reflect-constantinfo"></a>
 ### `Core\Reflect\ConstantInfo`

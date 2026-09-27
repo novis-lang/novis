@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `parameterCount` also works for a method that the compiler adds.
+
+var $info = Core\Reflect::forClass("LogicError");
+if ($info != null) {
+    foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+        // The constructor of `LogicError` has no parameter list in any source file.
+        // `parameters` is empty, but `parameterCount` still prints `2`.
+        echo $method->name(), ": ", $method->parameterCount(), " parameters, ",
+             Core\Arr::count($method->parameters()), " listed\n";
+    }
+}

@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a program calls every method that is not public, from outside the class
+// and from an unrelated class, many times. Every call should throw an error, and
+// `isPublic` should keep the same answer.
+
+class Vault
+{
+    public function open(): string
+    {
+        return 'open';
+    }
+
+    protected function share(): string
+    {
+        return 'shared';
+    }
+
+    private function drain(): string
+    {
+        return 'drained';
+    }
+}
+
+class Thief
+{
+    public static function steal(Core\Reflect\ClassInfo $info, Vault $vault, string $name): uint
+    {
+        try {
+            $info->call($vault, $name, []);
+            return 1;
+        } catch (LogicError $closed) {
+            return 0;
+        }
+    }
+}
+
+var $vault = new Vault();
+var $info = Core\Reflect::forObject($vault);
+array<Core\Reflect\MethodInfo> $list = $info->methods();
+
+// 1. Call each method from outside the class. This prints `1 2`, because only `open` runs.
+uint $ran = 0;
+uint $refused = 0;
+foreach ($list as Core\Reflect\MethodInfo $method) {
+    try {
+        $info->call($vault, $method->name(), []);
+        $ran = $ran + 1;
+    } catch (LogicError $closed) {
+        $refused = $refused + 1;
+    }
+}
+echo $ran, ' ', $refused, "\n";
+
+// 2. Call each method that is not public from an unrelated class, 50000 times.
+// Every call throws, so this prints 0.
+uint $stolen = 0;
+uint $i = 0;
+while ($i < 50000) {
+    Core\Reflect\MethodInfo $one = $list[($i % 3) as int];
+    if (!$one->isPublic()) {
+        $stolen = $stolen + Thief::steal($info, $vault, $one->name());
+    }
+    $i = $i + 1;
+}
+echo $stolen, "\n";
+
+// 3. Keep the items after the description is freed, and ask `isPublic` 500000 times.
+array<Core\Reflect\MethodInfo> $kept = Core\Reflect::forObject(new Vault())->methods();
+uint $public = 0;
+$i = 0;
+while ($i < 500000) {
+    if ($kept[($i % 3) as int]->isPublic()) {
+        $public = $public + 1;
+    }
+    $i = $i + 1;
+}
+echo $public, "\n";

@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a program calls methods with too few and too many arguments, with a huge
+// argument list, and calls a method with 18 parameters. A call with fewer arguments
+// than `parameterCount` should throw an error. Extra arguments are ignored.
+
+class Target
+{
+    public function none(): int
+    {
+        return 0;
+    }
+
+    public function pair(int $a, int $b): int
+    {
+        return $a + $b;
+    }
+
+    public function wide(int $a1, int $a2, int $a3, int $a4, int $a5, int $a6, int $a7, int $a8, int $a9, int $a10, int $a11, int $a12, int $a13, int $a14, int $a15, int $a16, int $a17, int $a18): int
+    {
+        return $a1;
+    }
+}
+
+var $target = new Target();
+var $info = Core\Reflect::forObject($target);
+
+// 1. Call each method with 0 to 20 arguments, 500 times. `none` runs 21 times a round and `pair` 19 times.
+// `wide` has more than 16 parameters, so it never runs. This prints `20000` and then `11500`.
+uint $ran = 0;
+uint $refused = 0;
+uint $round = 0;
+while ($round < 500) {
+    foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+        array<int> $arguments = [];
+        uint $count = 0;
+        while ($count <= 20) {
+            try {
+                $info->call($target, $method->name(), $arguments);
+                $ran = $ran + 1;
+                if ($count < $method->parameterCount()) {
+                    echo 'ran with too few arguments: ', $method->name(), "\n";
+                }
+            } catch (Throwable $wrong) {
+                $refused = $refused + 1;
+            }
+            $arguments[] = $count as int;
+            $count = $count + 1;
+        }
+    }
+    $round = $round + 1;
+}
+echo $ran, "\n";
+echo $refused, "\n";
+
+// 2. Call `pair` with 200000 arguments. The extra arguments are ignored, so this prints `ran`.
+array<int> $huge = [];
+int $i = 0;
+while ($i < 200000) {
+    $huge[] = $i;
+    $i = $i + 1;
+}
+try {
+    $info->call($target, 'pair', $huge);
+    echo "ran\n";
+} catch (Throwable $tooMany) {
+    echo "refused\n";
+}

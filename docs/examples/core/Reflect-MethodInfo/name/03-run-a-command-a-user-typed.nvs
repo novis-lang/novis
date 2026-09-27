@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a command-line tool runs the command a user typed, and lists the commands when the name is wrong.
+
+class Commands {
+    public function status(): string {
+        return "All services are running.";
+    }
+
+    public function version(): string {
+        return "Version 2.4.1";
+    }
+}
+
+class Tool {
+    public static function run(string $typed): void {
+        var $commands = new Commands();
+        var $info = Core\Reflect::forObject($commands);
+        if ($info->hasMethod($typed)) {
+            echo $info->call($commands, $typed, []) as string, "\n";
+            return;
+        }
+        // The name is not a command, so the tool prints the names that are.
+        echo "Unknown command '", $typed, "'. Try one of:";
+        foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+            echo " ", $method->name();
+        }
+        echo "\n";
+    }
+}
+
+Tool::run("version");
+// Names are case-sensitive, so `Status` is not a command.
+Tool::run("Status");

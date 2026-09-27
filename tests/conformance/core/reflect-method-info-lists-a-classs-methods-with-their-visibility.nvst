@@ -4,6 +4,9 @@
 <?nvs
 // covers: Core\Reflect\ClassInfo::methods
 // covers: Core\Reflect\ClassInfo::hasMethod
+// covers: Core\Reflect\MethodInfo::name
+// covers: Core\Reflect\MethodInfo::isPublic
+// covers: Core\Reflect\MethodInfo::parameterCount
 // `rule:core-classes/reflect`: reading a member's *shape* — that it exists,
 // what it is called, what it may be called from — is introspection and is
 // always available. Acting on one is the other half, and it is

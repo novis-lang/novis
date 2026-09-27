@@ -2,6 +2,8 @@
 `Core\Reflect\MethodInfo::parameters` answers one `Core\Reflect\ParameterInfo` per declared parameter, in the order the declaration writes them — `rule:core-classes/reflect`
 --FILE--
 <?nvs
+// covers: Core\Reflect\MethodInfo::parameters
+// covers: Core\Reflect\ParameterInfo::name
 // `rule:core-classes/reflect`: a parameter's name is part of the program's
 // shape, so it is introspection and always available — a `private` method
 // publishes its parameter names exactly as a `public` one does, and neither

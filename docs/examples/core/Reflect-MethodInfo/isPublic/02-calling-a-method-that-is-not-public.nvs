@@ -1,0 +1,25 @@
+<?nvs
+// Shows what happens when code outside a class calls a method that is not public.
+
+class Account {
+    public function balance(): int {
+        return 120;
+    }
+
+    private function resetBalance(): int {
+        return 0;
+    }
+}
+
+var $account = new Account();
+var $info = Core\Reflect::forObject($account);
+
+// `balance` is public, so `call` runs it. This prints `120`.
+echo $info->call($account, "balance", []) as int, "\n";
+
+// `resetBalance` is private. `call` throws a `LogicError` and the method does not run.
+try {
+    $info->call($account, "resetBalance", []);
+} catch (LogicError $error) {
+    echo "Not allowed: ", $error->message, "\n";
+}

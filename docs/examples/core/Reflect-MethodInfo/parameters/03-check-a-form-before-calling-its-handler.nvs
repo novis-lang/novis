@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to check that a web form sent every field that its handler method needs.
+
+class SignupHandler {
+    public function handle(string $email, string $name, string $country): string {
+        return "Welcome, " . $name;
+    }
+}
+
+class FormCheck {
+    public static function missing(Core\Reflect\ClassInfo $info, array<string> $sent): array<string> {
+        array<string> $missing = [];
+        foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+            if ($method->name() != "handle") {
+                continue;
+            }
+            // Each parameter of `handle` is a field the form must send.
+            foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+                if (!Core\Arr::contains($sent, $parameter->name())) {
+                    $missing[] = $parameter->name();
+                }
+            }
+        }
+        return $missing;
+    }
+}
+
+var $info = Core\Reflect::forObject(new SignupHandler());
+
+// This form has no `country` field, so this prints `Missing: country`.
+array<string> $sent = ["email", "name"];
+echo "Missing: ", Core\Str::join(FormCheck::missing($info, $sent), ", "), "\n";
+
+// This form has every field, so this prints `Missing: ` with nothing after it.
+$sent[] = "country";
+echo "Missing: ", Core\Str::join(FormCheck::missing($info, $sent), ", "), "\n";

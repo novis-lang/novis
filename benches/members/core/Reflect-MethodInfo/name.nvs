@@ -1,0 +1,34 @@
+<?nvs
+// Reads the name of a method, as a router or a command-line tool does to find the method it must call.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Commands {
+    public function status(): string {
+        return "ok";
+    }
+
+    public function version(): string {
+        return "1";
+    }
+
+    public function migrate(): string {
+        return "done";
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\MethodInfo> $list = Core\Reflect::forObject(new Commands())->methods();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which method is read comes from last round's total, so no round can be reused.
+            $total = $total + Core\Str::length($list[($total % 3) as int]->name());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,34 @@
+<?nvs
+// Reads the parameter list of a method, as a form handler does to find the fields it needs.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Handlers {
+    public function signup(string $email, string $name, string $country): bool {
+        return true;
+    }
+
+    public function login(string $email, string $password): bool {
+        return true;
+    }
+
+    public function logout(): bool {
+        return true;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\MethodInfo> $list = Core\Reflect::forObject(new Handlers())->methods();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which method is read comes from last round's total, so no round can be reused.
+            $total = $total + 1 + Core\Arr::count($list[($total % 3) as int]->parameters());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

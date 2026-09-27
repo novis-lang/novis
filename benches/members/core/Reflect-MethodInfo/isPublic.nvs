@@ -1,0 +1,38 @@
+<?nvs
+// Checks whether a method is public, as a router does before it offers a method as a page.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Controller {
+    public function home(): string {
+        return "home";
+    }
+
+    protected function layout(): string {
+        return "layout";
+    }
+
+    private function prices(): string {
+        return "prices";
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\MethodInfo> $list = Core\Reflect::forObject(new Controller())->methods();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which method is checked comes from last round's total, so no round can be reused.
+            if ($list[($total % 3) as int]->isPublic()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

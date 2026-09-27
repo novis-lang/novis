@@ -1038,7 +1038,7 @@ const CONSTRUCT_DOC: MethodDoc = MethodDoc {
 /// made.
 pub(crate) const METHOD_INFO: CoreClass = CoreClass {
     name: METHOD_INFO_NAME,
-    doc: None,
+    doc: Some(&METHOD_INFO_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1085,43 +1085,51 @@ pub(crate) const METHOD_INFO: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Reflect\MethodInfo`'s class card — `rule:core-api/reference-card`.
+const METHOD_INFO_CARD: ClassDoc = ClassDoc {
+    short: "One method of a class, as `Core\\Reflect\\ClassInfo::methods` returns it. `name` and \
+            `isPublic` describe the declaration. `parameterCount` and `parameters` describe what \
+            the method takes.",
+};
+
 /// `Core\Reflect\MethodInfo::name`'s reference card — `rule:core-api/reference-card`.
 const METHOD_NAME_DOC: MethodDoc = MethodDoc {
-    short: "The method's name, as the declaring class writes it.",
+    short: "Returns the name of the method.",
     params: &[],
-    ret: "The name with no class qualifier and no parentheses — what `hasMethod` and `call` take.",
+    ret: "The name as the class declares it, with no class name and no parentheses. A \
+          constructor is named `constructor`. You can pass the name to \
+          `Core\\Reflect\\ClassInfo::hasMethod` and `Core\\Reflect\\ClassInfo::call`.",
     errors: &[],
 };
 
 /// `Core\Reflect\MethodInfo::isPublic`'s reference card — `rule:core-api/reference-card`.
 const IS_PUBLIC_DOC: MethodDoc = MethodDoc {
-    short: "Whether code outside the declaring class may call the method.",
+    short: "Tells you whether code outside the class may call the method.",
     params: &[],
-    ret: "`false` for a `private` or `protected` method, which is still listed: knowing that a \
-          method exists and may not be called is what tells a refusal from a misspelling, and \
-          neither answer reaches any state the declaration did not expose.",
+    ret: "`true` for a `public` method, and `false` for a `protected` or `private` method. Those \
+          methods are still in the list that `Core\\Reflect\\ClassInfo::methods` returns. If \
+          `isPublic` returns `false`, `Core\\Reflect\\ClassInfo::call` from outside the class \
+          throws a `LogicError`.",
     errors: &[],
 };
 
 /// `Core\Reflect\MethodInfo::parameterCount`'s reference card — `rule:core-api/reference-card`.
 const PARAMETER_COUNT_DOC: MethodDoc = MethodDoc {
-    short: "How many parameters the method declares, excluding the implicit receiver.",
+    short: "Returns how many parameters the method declares.",
     params: &[],
-    ret: "The count an argument list is judged against — the same number a call through \
-          `Core\\Reflect\\ClassInfo::call` must supply.",
+    ret: "The number of parameters, as a `uint`. `$this` is not counted. The number is also \
+          correct for a method the compiler adds, where `parameters` returns an empty array.",
     errors: &[],
 };
 
 /// `Core\Reflect\MethodInfo::parameters`'s reference card — `rule:core-api/reference-card`.
 const METHOD_PARAMETERS_DOC: MethodDoc = MethodDoc {
-    short: "The parameters the method declares, in the order they are written, each carrying the \
-            name its declaration spells. Replaces `ReflectionMethod::getParameters`.",
+    short: "Returns the parameters of the method, in the order they are written. It replaces \
+            PHP's `ReflectionMethod::getParameters`.",
     params: &[],
-    ret: "One `Core\\Reflect\\ParameterInfo` per declared parameter, the implicit receiver \
-          excluded — or an empty array for a method no source declared, which is a \
-          compiler-synthesized member and a `Core` class's own. `parameterCount` still answers \
-          how many arguments such a method takes: the count travels with the compiled code, and \
-          only a written declaration spells a name.",
+    ret: "One `Core\\Reflect\\ParameterInfo` for each parameter. `$this` is not included. For a \
+          method the compiler adds, such as the constructor of `LogicError`, the array is empty. \
+          `parameterCount` still returns how many arguments that method takes.",
     errors: &[],
 };
 
@@ -1138,7 +1146,7 @@ const METHOD_PARAMETERS_DOC: MethodDoc = MethodDoc {
 /// [`PROPERTY_INFO`] answers for a declared property.
 pub(crate) const PARAMETER_INFO: CoreClass = CoreClass {
     name: PARAMETER_INFO_NAME,
-    doc: None,
+    doc: Some(&PARAMETER_INFO_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1168,25 +1176,29 @@ pub(crate) const PARAMETER_INFO: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Reflect\ParameterInfo`'s class card — `rule:core-api/reference-card`.
+const PARAMETER_INFO_CARD: ClassDoc = ClassDoc {
+    short: "One parameter of a method, as `Core\\Reflect\\MethodInfo::parameters` returns it. \
+            `name` returns the name of the parameter, and `type` returns its declared type.",
+};
+
 /// `Core\Reflect\ParameterInfo::name`'s reference card — `rule:core-api/reference-card`.
 const PARAMETER_NAME_DOC: MethodDoc = MethodDoc {
-    short: "The parameter's name, as the declaring method writes it.",
+    short: "Returns the name of the parameter.",
     params: &[],
-    ret: "The name with no `$` sigil — what a named argument at a call site writes. A promoted \
-          constructor parameter answers here under the same name its property carries.",
+    ret: "The name as the method declares it, without the `$`. This is the name you write for a \
+          named argument. A promoted constructor parameter has the same name as its property.",
     errors: &[],
 };
 
 /// `Core\Reflect\ParameterInfo::type`'s reference card — `rule:core-api/reference-card`.
 const PARAMETER_TYPE_DOC: MethodDoc = MethodDoc {
-    short: "The type the parameter is declared at, spelled as the declaration spells it.",
+    short: "Returns the declared type of the parameter, written the way the method writes it.",
     params: &[],
-    ret: "The written type — `int`, `?int`, `array<string>`, `App\\User` — or `null` for a row the \
-          declaring table named no type for. A method declaring a parameter in source names its \
-          type there, so a listed parameter answers with one; the member nothing spelled is the \
-          one with no row at all, and `parameterCount` is what still answers for it. A name \
-          rather than a value to compare: what a type *is* is `Core\\Reflect::typeOf`'s question, \
-          asked of a value.",
+    ret: "The type as text, such as `int`, `?int`, `array<string>` or `App\\User`. A parameter \
+          declared in a source file always has a type, so the result is text. The result is \
+          `null` only if no type is known for the parameter. To check the type of a value, use \
+          `Core\\Reflect::typeOf`.",
     errors: &[],
 };
 
@@ -5606,5 +5618,325 @@ mod tests {
                 info.release();
             }
         }
+    }
+
+    /// A context whose table declares `Mailer` the way `nvs-codegen` records
+    /// it, the description of that class, its method roster, and the roster's
+    /// rows in name order: `audit` (`private`, one parameter typed `?string`),
+    /// `constructor` (two parameters and no names, as a member the compiler
+    /// adds has), `notify` (one named parameter with no type recorded), `send`
+    /// (three parameters) and `share` (`protected`, none). The context holds
+    /// the table, so the description outlives nothing it was built from.
+    fn mailer_methods() -> (Ctx, Value, Value, Vec<Value>) {
+        let mut classes = ClassTable::new();
+        let mailer = classes.define("Mailer", &[] as &[&str], &[]);
+        let row = |name: &str,
+                   (public, protected): (bool, bool),
+                   arity: u32,
+                   names: &[&str],
+                   types: &[&str]| MethodRow {
+            name: name.to_owned(),
+            code: (vault_open as NvsFn) as *const u8,
+            arity,
+            param_tags: 0,
+            param_names: names.iter().map(|name| (*name).to_owned()).collect(),
+            param_types: types.iter().map(|ty| (*ty).to_owned()).collect(),
+            public,
+            protected,
+            native: false,
+        };
+        classes.set_methods(
+            mailer,
+            vec![
+                row(
+                    "send",
+                    (true, false),
+                    3,
+                    &["to", "subject", "retries"],
+                    &["string", "string", "int"],
+                ),
+                row("share", (false, true), 0, &[], &[]),
+                row(nvs_runtime::object::CONSTRUCTOR, (true, false), 2, &[], &[]),
+                row("notify", (true, false), 1, &["channel"], &[]),
+                row("audit", (false, false), 1, &["who"], &["?string"]),
+            ],
+        );
+        let classes = std::sync::Arc::new(classes);
+        let mut ctx = Ctx::buffered();
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::clone(&classes), mailer));
+        #[expect(
+            unsafe_code,
+            reason = "the context holds the table for as long as it lives, and the table never \
+                      moves a descriptor it handed out"
+        )]
+        let info = super::describe(unsafe { &*classes.desc(mailer) });
+        let listed = call(
+            super::nvs_core_reflect_class_info_methods,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        #[expect(
+            unsafe_code,
+            reason = "`methods` answered an array the caller owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`methods` answers an array"))
+        });
+        let rows = (0..roster.count())
+            .map(|at| roster.value_at(at).expect("every position holds a row"))
+            .collect();
+        (ctx, info, listed, rows)
+    }
+
+    /// Releases what [`mailer_methods`] handed its caller.
+    fn release_mailer(info: Value, listed: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the caller owns the description and one reference to its roster"
+        )]
+        unsafe {
+            listed.release();
+            info.release();
+        }
+    }
+
+    /// The parameters of one `MethodInfo` row, each as its name and its type,
+    /// with every reference the members handed back released.
+    fn parameter_rows(ctx: &mut Ctx, method: Value) -> Vec<(String, Option<String>)> {
+        let listed = call(
+            super::nvs_core_reflect_method_info_parameters,
+            ctx,
+            &[method],
+        )
+        .expect("a roster slot always answers");
+        #[expect(
+            unsafe_code,
+            reason = "`parameters` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`parameters` answers an array"))
+        });
+        let read = (0..roster.count())
+            .map(|at| {
+                let parameter = roster.value_at(at).expect("every position holds a row");
+                let name =
+                    attribute_text(ctx, super::nvs_core_reflect_parameter_info_name, parameter);
+                let ty = call(
+                    super::nvs_core_reflect_parameter_info_type,
+                    ctx,
+                    &[parameter],
+                )
+                .expect("a type slot always answers");
+                let written = ty.as_text().map(str::to_owned);
+                #[expect(
+                    unsafe_code,
+                    reason = "the member handed back a fresh reference, and this frame is its \
+                              only owner"
+                )]
+                unsafe {
+                    ty.release();
+                }
+                (name, written)
+            })
+            .collect();
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to the roster `parameters` handed back"
+        )]
+        unsafe {
+            listed.release();
+        }
+        read
+    }
+
+    /// `name` reads back each declared name, the constructor's as
+    /// `constructor`, and hands back a reference of its own each time, so
+    /// releasing every answer leaves every row readable. A receiver that is not
+    /// an object faults naming the member rather than reading a slot.
+    // covers: Core\Reflect\MethodInfo::name
+    #[test]
+    fn method_info_name_is_the_declared_name_and_survives_its_answer_being_released() {
+        let (mut ctx, info, listed, rows) = mailer_methods();
+        let read = |ctx: &mut Ctx| -> Vec<String> {
+            rows.iter()
+                .map(|row| attribute_text(ctx, super::nvs_core_reflect_method_info_name, *row))
+                .collect()
+        };
+        let first = read(&mut ctx);
+        assert_eq!(first, ["audit", "constructor", "notify", "send", "share"]);
+        assert_eq!(
+            read(&mut ctx),
+            first,
+            "a released answer left its row whole"
+        );
+
+        let refused = call(
+            super::nvs_core_reflect_method_info_name,
+            &mut ctx,
+            &[Value::int(7)],
+        );
+        assert!(refused.is_err(), "an integer is no receiver");
+        assert!(
+            ctx.take_pending()
+                .unwrap_or_default()
+                .contains(r"Core\Reflect\MethodInfo::name"),
+            "the fault names the member it was raised by"
+        );
+        release_mailer(info, listed);
+    }
+
+    /// `isPublic` is `true` for exactly the `public` rows: a `protected`
+    /// method and a `private` one both read `false` and are still listed, and
+    /// the constructor the compiler adds reads `true`. Asking again reads the
+    /// same bits.
+    // covers: Core\Reflect\MethodInfo::isPublic
+    #[test]
+    fn method_info_is_public_is_true_for_the_public_rows_alone() {
+        let (mut ctx, info, listed, rows) = mailer_methods();
+        let bits = |ctx: &mut Ctx| -> Vec<bool> {
+            rows.iter()
+                .map(|row| {
+                    call(super::nvs_core_reflect_method_info_is_public, ctx, &[*row])
+                        .expect("a bit slot always answers")
+                        .as_bool()
+                        .expect("the slot holds a bool")
+                })
+                .collect()
+        };
+        let first = bits(&mut ctx);
+        assert_eq!(
+            first,
+            [false, true, true, true, false],
+            "`audit` is private and `share` protected, and both are listed"
+        );
+        assert_eq!(bits(&mut ctx), first);
+        release_mailer(info, listed);
+    }
+
+    /// `parameterCount` is the declared arity, as a `uint`, for every row — the
+    /// constructor included, whose parameter list is empty because nothing
+    /// wrote one. The count and the list agree on every row that has names.
+    // covers: Core\Reflect\MethodInfo::parameterCount
+    #[test]
+    fn method_info_parameter_count_is_the_arity_even_where_no_names_were_written() {
+        let (mut ctx, info, listed, rows) = mailer_methods();
+        let mut counts = Vec::new();
+        for row in &rows {
+            let count = call(
+                super::nvs_core_reflect_method_info_parameter_count,
+                &mut ctx,
+                &[*row],
+            )
+            .expect("a count slot always answers");
+            assert_eq!(count.tag(), Some(Tag::Uint), "the count is a `uint`");
+            counts.push(count.as_uint().expect("the slot holds a uint"));
+        }
+        assert_eq!(counts, [1, 2, 1, 3, 0]);
+        let listed_lengths: Vec<u64> = rows
+            .iter()
+            .map(|row| parameter_rows(&mut ctx, *row).len() as u64)
+            .collect();
+        assert_eq!(
+            listed_lengths,
+            [1, 0, 1, 3, 0],
+            "only the constructor's list is empty while its count is not"
+        );
+        release_mailer(info, listed);
+    }
+
+    /// `parameters` is one `ParameterInfo` per declared parameter in declaration
+    /// order, an empty array for a method the compiler adds, and the row's own
+    /// array each time it is asked rather than a new one.
+    // covers: Core\Reflect\MethodInfo::parameters
+    #[test]
+    fn method_info_parameters_are_in_declaration_order_and_empty_where_nothing_was_written() {
+        let (mut ctx, info, listed, rows) = mailer_methods();
+        let names: Vec<Vec<String>> = rows
+            .iter()
+            .map(|row| {
+                parameter_rows(&mut ctx, *row)
+                    .into_iter()
+                    .map(|(name, _)| name)
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            names,
+            [
+                vec!["who"],
+                vec![],
+                vec!["channel"],
+                vec!["to", "subject", "retries"],
+                vec![],
+            ]
+        );
+
+        let first = call(
+            super::nvs_core_reflect_method_info_parameters,
+            &mut ctx,
+            &[rows[3]],
+        )
+        .expect("a roster slot always answers");
+        let second = call(
+            super::nvs_core_reflect_method_info_parameters,
+            &mut ctx,
+            &[rows[3]],
+        )
+        .expect("a roster slot always answers");
+        assert_eq!(
+            first.array_ptr(),
+            second.array_ptr(),
+            "the list is the row's own array, handed back rather than rebuilt"
+        );
+        #[expect(unsafe_code, reason = "this frame owns one reference to each answer")]
+        unsafe {
+            first.release();
+            second.release();
+        }
+        release_mailer(info, listed);
+    }
+
+    /// `ParameterInfo::name` is the declared name without its `$`, and every
+    /// parameter of a method answers its own.
+    // covers: Core\Reflect\ParameterInfo::name
+    #[test]
+    fn parameter_info_name_is_the_declared_name_in_order() {
+        let (mut ctx, info, listed, rows) = mailer_methods();
+        let send: Vec<String> = parameter_rows(&mut ctx, rows[3])
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        assert_eq!(send, ["to", "subject", "retries"]);
+        assert!(send.iter().all(|name| !name.starts_with('$')));
+        release_mailer(info, listed);
+    }
+
+    /// `ParameterInfo::type` is the type as the declaration writes it — the
+    /// `?` of a nullable type included — and `null` for a parameter whose row
+    /// recorded no type.
+    // covers: Core\Reflect\ParameterInfo::type
+    #[test]
+    fn parameter_info_type_is_the_written_type_or_null_where_none_was_recorded() {
+        let (mut ctx, info, listed, rows) = mailer_methods();
+        let typed = |ctx: &mut Ctx, row: Value| -> Vec<Option<String>> {
+            parameter_rows(ctx, row)
+                .into_iter()
+                .map(|(_, ty)| ty)
+                .collect()
+        };
+        assert_eq!(typed(&mut ctx, rows[0]), [Some("?string".to_owned())]);
+        assert_eq!(
+            typed(&mut ctx, rows[2]),
+            [None],
+            "`notify` recorded no type"
+        );
+        assert_eq!(
+            typed(&mut ctx, rows[3]),
+            ["string", "string", "int"].map(|ty| Some(ty.to_owned()))
+        );
+        release_mailer(info, listed);
     }
 }

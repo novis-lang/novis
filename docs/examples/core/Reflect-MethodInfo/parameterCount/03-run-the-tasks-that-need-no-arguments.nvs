@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a nightly job runs every task of a class that needs no arguments.
+
+class NightlyTasks {
+    public function clearCache(): string {
+        return "cache cleared";
+    }
+
+    public function sendReport(string $email): string {
+        return "report sent to " . $email;
+    }
+
+    public function rotateLogs(): string {
+        return "logs rotated";
+    }
+}
+
+var $tasks = new NightlyTasks();
+var $info = Core\Reflect::forObject($tasks);
+foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+    // `sendReport` needs an email address, so the job skips it.
+    if ($method->parameterCount() != 0) {
+        echo "skipped ", $method->name(), "\n";
+        continue;
+    }
+    echo $info->call($tasks, $method->name(), []) as string, "\n";
+}
