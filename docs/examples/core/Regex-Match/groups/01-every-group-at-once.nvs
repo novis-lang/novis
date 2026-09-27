@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read every group of a match with one call.
+
+// The pattern has three groups. `(:\d+)?` is optional and does not match here,
+// so its value is `null`.
+var $m = Core\Regex::match("https://example.com/shop", '(\w+)://([\w.]+)(:\d+)?');
+if ($m != null) {
+    foreach ($m->groups() as string $key => ?string $text) {
+        echo $key, ": ", $text ?? "null", "\n";
+    }
+}

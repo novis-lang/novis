@@ -1,0 +1,27 @@
+<?nvs
+// Reads every group of a match at once, as a program does when it turns a matched line into fields.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lines = ["timeout=30", "name=shop", "retries=3"];
+        array<Core\Regex\Match> $found = [];
+        foreach ($lines as string $line) {
+            var $m = Core\Regex::match($line, '^(?<key>[a-z]+)=(?<value>\w+)(;)?$');
+            if ($m != null) {
+                $found[] = $m;
+            }
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which match is read comes from last round's total, so no round can be reused.
+            array<?string> $all = $found[($total % 3) as int]->groups();
+            $total = $total + Core\Arr::count($all) + $i % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

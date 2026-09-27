@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a group with a name is in the array under its name and under its number.
+
+// The group `(?<user>\w+)` is group 1. The array has it as "user" and as "1".
+var $m = Core\Regex::match("mail to ada@example.com", '(?<user>\w+)@([\w.]+)');
+if ($m != null) {
+    array<?string> $all = $m->groups();
+    // This prints 4: the whole match, "user", 1 and 2.
+    echo Core\Arr::count($all), " entries\n";
+    foreach ($all as string $key => ?string $text) {
+        echo $key, " = ", $text ?? "null", "\n";
+    }
+}
