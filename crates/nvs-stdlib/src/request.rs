@@ -619,27 +619,27 @@ const BODY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::bytes`'s reference card — `rule:core-api/reference-card`.
 const BYTES_DOC: MethodDoc = MethodDoc {
-    short: "The whole request body as the octets it arrived as — `body()`'s reading for a payload \
-            that is not text, named after `Core\\Response::bytes`, and buffering on the same terms.",
+    short: "Returns the whole request body as `bytes`. Use it for a body that is not text, such \
+            as an uploaded file.",
     params: &[],
-    ret: "Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the \
-          request carried no body. A body `body()` refuses for not being UTF-8 is an answer here, \
-          because `bytes` carries no encoding promise.",
+    ret: "Every byte the client sent, in order and unchanged. The value is `tainted`. It is empty \
+          when the request has no body. A body that is not valid UTF-8 is returned too, where \
+          `body` throws an error.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or this request's body has already \
-                   been read by `bodyStream` or `files`, which keep none of what they read.",
+            desc: "The program is not answering a request. Or `bodyStream` or `files` already \
+                   read the body, and those two do not keep it.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The body is larger than `[limits] request_body` (8M). The bytes over the bound \
-                   are never held: the refusal happens at the chunk that would cross it.",
+            desc: "The body is larger than `[limits] request_body` (8M). The bytes past that \
+                   limit are never stored.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed under the body, or the peer stopped short of the length \
-                   it declared.",
+            desc: "The connection failed while the body arrived, or the client sent fewer bytes \
+                   than its `Content-Length` said.",
         },
     ],
 };
@@ -4610,6 +4610,55 @@ mod tests {
             nvs_runtime::call(nvs_core_request_body, &mut cut_off, &[]).is_err(),
             "a connection that failed under a body did not deliver one"
         );
+    }
+
+    /// `bytes` answers the body `body` cannot: octets that are not UTF-8, split
+    /// by the wire in the middle of what a decoder would take for one sequence,
+    /// come back whole and in order. A second reading over the same hold answers
+    /// the same octets, and `body` over that hold still refuses them — the
+    /// `string` promise is `body`'s, and `bytes` makes none.
+    // covers: Core\Request::bytes
+    #[test]
+    fn bytes_answers_a_body_that_is_not_utf8_whole_and_body_still_refuses_it() {
+        let raw: &[u8] = &[0x89, b'P', b'N', b'G', 0x00, 0xc3, 0xff, 0xfe];
+        let mut arriving = answering(Some(Chunks::of(&[&raw[..6], &raw[6..]])));
+        let first = nvs_runtime::call(nvs_core_request_bytes, &mut arriving, &[])
+            .expect("a body that is not text is still a body to read as bytes");
+        let again = nvs_runtime::call(nvs_core_request_bytes, &mut arriving, &[])
+            .expect("a buffering reader may follow another one");
+        assert_eq!(
+            first.as_bytes(),
+            Some(raw),
+            "every octet, in the order it arrived"
+        );
+        assert_eq!(
+            again.as_bytes(),
+            Some(raw),
+            "the hold answers the same octets twice"
+        );
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut arriving, &[]).is_err(),
+            "a body that is not UTF-8 has no `string` to be"
+        );
+
+        let mut bodiless = answering(None);
+        let nothing = nvs_runtime::call(nvs_core_request_bytes, &mut bodiless, &[])
+            .expect("a request that carried no body is still a request");
+        assert_eq!(
+            nothing.as_bytes(),
+            Some(&b""[..]),
+            "no body reads as empty bytes"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "each call transferred the reference it answered"
+        )]
+        unsafe {
+            first.release();
+            again.release();
+            nothing.release();
+        }
     }
 
     /// Walks a stream exactly as `foreach` walks one — `iterate()` once, then an

@@ -1,0 +1,30 @@
+<?nvs
+// Attack: the client says its body is one gigabyte long and sends a short one. Then the
+// program reads the body as bytes without end. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads the body that really arrived. The header does not change what `bytes` returns.
+tainted bytes $first = Core\Request::bytes();
+echo 'arrived ', Core\Bytes::length($first), " bytes\n";
+
+// 2. Reads the same body as text, then as bytes again. Both give the same bytes.
+tainted string $text = Core\Request::body();
+echo 'as text ', Core\Str::length($text), " characters\n";
+echo Core\Request::bytes() == $first ? "the bytes are unchanged\n" : "the bytes changed\n";
+
+// 3. Tries to read the body a chunk at a time after `bytes` already read it.
+//    This throws a `LogicError`.
+try {
+    foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+        echo "a chunk arrived after the body was read\n";
+    }
+} catch (LogicError $refused) {
+    echo "bodyStream after bytes: LogicError\n";
+}
+
+// 4. Calls `bytes` without end and keeps every copy it returns.
+//    This stops at the memory limit.
+array<tainted bytes> $copies = [];
+while (true) {
+    $copies[] = Core\Request::bytes();
+}

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how a service that stores invoices checks that an upload really is a PDF file.
+
+tainted bytes $upload = Core\Request::bytes();
+
+// The `content-type` header can say anything. So the program checks the file itself.
+// Every PDF file starts with the bytes `%PDF-`.
+if (Core\Bytes::startsWith($upload, "%PDF-" as bytes)) {
+    // This prints `stored invoice, 142 bytes`.
+    echo "stored invoice, ", Core\Bytes::length($upload), " bytes\n";
+} else {
+    echo "rejected: the upload is not a PDF file\n";
+}

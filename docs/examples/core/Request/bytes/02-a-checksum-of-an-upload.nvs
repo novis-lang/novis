@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to compute a checksum of an uploaded file, so a later copy can be compared with it.
+
+// The upload is the whole body of the request.
+tainted bytes $upload = Core\Request::bytes();
+
+// `Core\Hash::of` computes a SHA-256 digest of the exact bytes that arrived.
+// The same file always gives the same checksum.
+string $checksum = Core\Encoding::toHex(Core\Hash::of($upload, Core\Digest::Sha256));
+
+echo "received ", Core\Bytes::length($upload), " bytes\n";
+echo "sha-256 ", $checksum, "\n";

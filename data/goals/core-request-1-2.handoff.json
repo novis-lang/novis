@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-request-1-2`: `Core\\Request::body` has all its feature proofs. A proof program can now\nanswer a request. A `<name>.nvsr` beside it (the `nvs run --request` file, `nvs_test::request`'s module\ndoc) is passed as `--request` by `tools/nv/proofs/run.ts`'s `spawnProof`, for examples, attacks and\nbenches alike (`docs/examples/README.md` § *A request for the program*). The `body` slice also fixed\n`Core\\Hash::of`/`hmac`/`equals`/`Stream::update`, which refused a `tainted` argument: they are now\n`Qual::Neutral`, as the spec's column says, and the four rows are gone from `UNCLASSIFIED`.\n`Core\\Request` has its class card and is off `CLASSES_STILL_OWING_A_CARD`.",
+  "state": "Goal `core-request-1-2`: `Core\\Request::body` and `Core\\Request::bytes` have all their feature proofs.\nA proof program answers a request through the `<name>.nvsr` beside it (`docs/examples/README.md` §\n*A request for the program*). `bytes` has its card rewritten in the plain voice, a Rust test\n(`bytes_answers_a_body_that_is_not_utf8_whole_and_body_still_refuses_it`) and a measured figure.\n`Core\\Hash` and `Core\\Hash\\Stream`'s bench figures were re-measured after the `tainted`-argument fix\nstaled them, so `dossier-core-hash` is green again. The remaining members of `Core\\Request (1/2)` owe\ntheir proofs one at a time, in the order the check lists them.",
   "next": {
     "stage": 1,
     "title": "member proofs, one file set",
@@ -8,16 +8,17 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::bytes`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/request.rs:305`. Its `MethodDoc` card is in the internal voice; rewrite it the way `BODY_DOC` now reads. `body`'s examples and `.nvsr` files are the pattern."
+        "text": "**`Core\\Request::bodyStream`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/request.rs:333`. The Rust tests near `a_body_stream_yields_the_chunks_the_wire_delivered` need only a `// covers:` marker. Rewrite its card the way `BYTES_DOC` now reads. `bytes`'s proofs are the nearest pattern."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::bodyStream`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/request.rs:332`. The Rust tests near `a_body_stream_yields_the_chunks_the_wire_delivered` need only a `// covers:` marker. Rewrite its card too."
+        "text": "**`Core\\Request::clientIp`** — owes its proofs (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Request::clientIp'`). `crates/nvs-stdlib/src/request.rs:369`. A `.nvsr` sets the address with `--CLIENT_IP--` (`crates/nvs-test/src/request.rs:51`)."
       }
     ]
   },
   "backlog": [
-    "A `.nvsr` body that is not valid UTF-8 cannot be written with Write or Edit, so `body`'s `ParseError` path has no attack. `bytes` is where one belongs. Not checked: whether `bun nv splice` can write raw bytes.",
+    "A `.nvsr` body that is not valid UTF-8 cannot be written with Write, Edit or `bun nv splice` (its patch format is text only), so `body`'s `ParseError` path and `bytes`'s non-UTF-8 answer have no example or attack. The Rust test covers the octets; owner `nvs_test::request`'s module doc, if a hex body section is ever wanted.",
+    "A `.nvsr`'s `content-length` header is not checked against its body under `nvs run --request` (the `bytes` attack declares 1 GiB and reads 62 bytes), so `body`/`bytes`'s \"fewer bytes than `Content-Length`\" `IOError` has no proof program; owner `nvs_test::request`'s module doc. To see what an attack prints, run `target/covws/<host triple>/debug/nvs.exe run --request <file>.nvsr <file>.nvs`: `bun nv try` takes no `--request`.",
     "`Core\\Router::url`/`urlAbsolute` and `Core\\Csv::parse`/`format` are still in `UNCLASSIFIED` (`crates/nvs-stdlib/src/registry.rs`). A proof that passes them a request value will hit the same refusal `Core\\Hash` did."
   ]
 }

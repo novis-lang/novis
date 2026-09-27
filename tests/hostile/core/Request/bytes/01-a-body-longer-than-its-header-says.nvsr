@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/uploads
+--HEADERS--
+content-type: application/octet-stream
+content-length: 1073741824
+--BODY--
+GIF89a....this upload is much shorter than its header says....

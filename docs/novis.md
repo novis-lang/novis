@@ -18311,11 +18311,11 @@ Returns the whole request body as one string. It replaces PHP's `file_get_conten
 Core\Request::bytes(): tainted bytes
 ```
 
-The whole request body as the octets it arrived as — `body()`'s reading for a payload that is not text, named after `Core\Response::bytes`, and buffering on the same terms.
+Returns the whole request body as `bytes`. Use it for a body that is not text, such as an uploaded file.
 
-**Returns** `tainted bytes` — Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the request carried no body. A body `body()` refuses for not being UTF-8 is an answer here, because `bytes` carries no encoding promise.
+**Returns** `tainted bytes` — Every byte the client sent, in order and unchanged. The value is `tainted`. It is empty when the request has no body. A body that is not valid UTF-8 is returned too, where `body` throws an error.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files`, which keep none of what they read.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+**Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
 
 <a id="core-core-request-json"></a>
 #### `Core\Request::json`
