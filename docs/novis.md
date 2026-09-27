@@ -18945,13 +18945,13 @@ Keywords: html, json, text, bytes, sendFile, stream, setStatus, setHeader, redir
 Core\Response::html(Core\Html\Markup $body): void
 ```
 
-Answers with `$body`'s bytes as they are, declaring `text/html; charset=utf-8` — the page a handler built, sent without a second escaping pass.
+Sends the HTML page `$body` and adds the header `Content-Type: text/html; charset=utf-8`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `Core\Html\Markup` | The markup to send, verbatim. A `Core\Html\Markup` is trusted by the time it exists — a markup literal escaped its holes, `as` took a source literal, a launderer rebuilt it — so there is nothing left here to refuse or to escape, and a `string` is not accepted at all. |
+| `$body` | `Core\Html\Markup` | The page to send. It is a `Core\Html\Markup`, which is HTML that is already safe: an `html` literal escaped the values in its `{...}`, or `Core\Html::escape` made it. It is sent as it is and nothing is escaped again. A `string` does not compile. |
 
-**Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error, `echo` in a request being the other way to write this same body.
+**Returns** `void` — Nothing. Using this and `echo` in one response does not compile.
 
 <a id="core-core-response-json"></a>
 #### `Core\Response::json`
@@ -18992,16 +18992,16 @@ Answers with `$body` as the response body, declaring `text/plain; charset=utf-8`
 Core\Response::bytes(bytes $body, string $contentType): void
 ```
 
-Answers with `$body` verbatim, declaring `$contentType` — the one body member that cannot know the media type, so it is told.
+Sends `$body` exactly as it is, with `$contentType` as the `Content-Type` header. Use it for an image, a CSV file or any other body that is not HTML, text or JSON.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `bytes` (neutral) | The octets to send, unchanged. |
-| `$contentType` | `string` (sink) | The media type to declare. A sink: it becomes a header the peer obeys, so a `tainted` value is refused at compile time and one holding anything a header cannot carry is refused here. |
+| `$body` | `bytes` (neutral) | The bytes to send. Nothing is escaped or changed. |
+| `$contentType` | `string` (sink) | The content type, such as `image/png` or `text/csv; charset=utf-8`. A `tainted` value does not compile, because the browser obeys this header. |
 
-**Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
+**Returns** `void` — Nothing. Using this and `echo` in one response does not compile.
 
-**Throws** `LogicError` — `$contentType` is empty or holds a byte outside a header field value — a control character, a newline, or anything above ASCII.
+**Throws** `LogicError` — `$contentType` is empty, or has a character that is not printable ASCII: a line break, a control character or a letter like `é`. Nothing is sent.
 
 <a id="core-core-response-sendfile"></a>
 #### `Core\Response::sendFile`

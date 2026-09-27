@@ -608,18 +608,16 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Response::html`'s reference card — `rule:core-api/reference-card`.
 const HTML_DOC: MethodDoc = MethodDoc {
-    short: "Answers with `$body`'s bytes as they are, declaring `text/html; charset=utf-8` — the \
-            page a handler built, sent without a second escaping pass.",
+    short: "Sends the HTML page `$body` and adds the header `Content-Type: text/html; \
+            charset=utf-8`.",
     params: &[ParamDoc {
         name: "body",
-        desc: "The markup to send, verbatim. A `Core\\Html\\Markup` is trusted by the time it \
-               exists — a markup literal escaped its holes, `as` took a source literal, a \
-               launderer rebuilt it — so there is nothing left here to refuse or to escape, and \
-               a `string` is not accepted at all.",
+        desc: "The page to send. It is a `Core\\Html\\Markup`, which is HTML that is already safe: \
+               an `html` literal escaped the values in its `{...}`, or `Core\\Html::escape` made \
+               it. It is sent as it is and nothing is escaped again. A `string` does not compile.",
         shape: &[],
     }],
-    ret: "Nothing. Mixing this with `echo` on one response is a compile error, `echo` in a request \
-          being the other way to write this same body.",
+    ret: "Nothing. Using this and `echo` in one response does not compile.",
     errors: &[],
 };
 
@@ -645,27 +643,26 @@ const JSON_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Response::bytes`'s reference card — `rule:core-api/reference-card`.
 const BYTES_DOC: MethodDoc = MethodDoc {
-    short: "Answers with `$body` verbatim, declaring `$contentType` — the one body member that \
-            cannot know the media type, so it is told.",
+    short: "Sends `$body` exactly as it is, with `$contentType` as the `Content-Type` header. Use \
+            it for an image, a CSV file or any other body that is not HTML, text or JSON.",
     params: &[
         ParamDoc {
             name: "body",
-            desc: "The octets to send, unchanged.",
+            desc: "The bytes to send. Nothing is escaped or changed.",
             shape: &[],
         },
         ParamDoc {
             name: "contentType",
-            desc: "The media type to declare. A sink: it becomes a header the peer obeys, so a \
-                   `tainted` value is refused at compile time and one holding anything a header \
-                   cannot carry is refused here.",
+            desc: "The content type, such as `image/png` or `text/csv; charset=utf-8`. A \
+                   `tainted` value does not compile, because the browser obeys this header.",
             shape: &[],
         },
     ],
-    ret: "Nothing. Mixing this with `echo` on one response is a compile error.",
+    ret: "Nothing. Using this and `echo` in one response does not compile.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$contentType` is empty or holds a byte outside a header field value — a control \
-               character, a newline, or anything above ASCII.",
+        desc: "`$contentType` is empty, or has a character that is not printable ASCII: a line \
+               break, a control character or a letter like `é`. Nothing is sent.",
     }],
 };
 
@@ -1993,6 +1990,8 @@ mod tests {
     /// `tests/conformance/core/response-send-file-streams-the-file-under-its-media-type.nvst`.
     /// The sweep below is over the table rather than over a list of names, so a
     /// member that does declare one joins by being added to it.
+    // covers: Core\Response::bytes
+    // covers: Core\Response::html
     #[test]
     fn each_body_member_sets_its_own_content_type() {
         // Nothing else on the path declares one: a context no body member has

@@ -1,0 +1,8 @@
+<?nvs
+// Shows how text from a visitor is shown safely inside a page.
+
+string $comment = "Nice shop! <script>alert('hi')</script>";
+
+// An `html` literal escapes every value in `{...}`. The `<` and `>` of the
+// script tag become `&lt;` and `&gt;`, so the browser shows them as text.
+Core\Response::html(html`<p class="comment">{$comment}</p>`);

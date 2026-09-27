@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a program puts a script, line breaks and very large values into a page, and
+// then writes pages without end. Each value should be escaped or sent as it is, and the
+// program should stop at its memory limit without crashing.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+// 1. A value that tries to close the tag and start a script.
+string $comment = '"></p><script>document.location="https://example.com/"</script>';
+Core\Response::html(html`<p title="{$comment}">{$comment}</p>`);
+
+// 2. A value with a NUL byte and line breaks that try to start a header.
+string $broken = "a\x00b\r\nSet-Cookie: sid=admin\r\n\r\n";
+Core\Response::html(html`<p>{$broken}</p>`);
+
+// 3. An empty page.
+Core\Response::html('' as Core\Html\Markup);
+
+// 4. One value of eight megabytes of `<` characters. Each one is escaped to four characters.
+string $angles = Core\Str::repeat('<', 8388608);
+Core\Response::html(html`<pre>{$angles}</pre>`);
+
+// 5. A page built from 100000 small pieces.
+Core\Html\Markup $page = '' as Core\Html\Markup;
+uint $piece = 0;
+while ($piece < 100000) {
+    $page = $page + html`<i>x</i>`;
+    $piece = $piece + 1;
+}
+Core\Response::html($page);
+
+// 6. The page is kept in memory and written again and again until the memory limit
+// stops the program.
+Core\Html\Markup $chunk = Core\Html::escape(Core\Str::repeat('b', 65536));
+var $kept = Core\Out::capture(fn (): void => {
+    uint $written = 0;
+    while ($written < 1000000) {
+        Core\Response::html($chunk);
+        $written = $written + 1;
+    }
+});
+Core\Response::text("done\n");

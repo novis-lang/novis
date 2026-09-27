@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a shop builds a page with a list of products and sends it.
+
+array<string> $products = ["Tea & biscuits", "Coffee beans", "Hot chocolate"];
+
+// Each product becomes one `<li>` item. The `&` in the first name is escaped.
+array<Core\Html\Markup> $items = [];
+foreach ($products as string $product) {
+    $items[] = html`<li>{$product}</li>`;
+}
+
+// `Core\Html::join` puts the items together, with a line break between each two.
+Core\Html\Markup $list = Core\Html::join($items, "\n" as Core\Html\Markup);
+Core\Response::html(html`<h1>Our products</h1>` + ("\n<ul>\n" as Core\Html\Markup) + $list + ("\n</ul>\n" as Core\Html\Markup));
