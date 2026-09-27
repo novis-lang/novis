@@ -1,0 +1,11 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--SCHEME--
+https
+--MOUNT--
+/acme
+Acme
+--HEADERS--
+host: shop.example.com

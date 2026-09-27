@@ -4123,6 +4123,7 @@ mod tests {
     /// `nvs-types`, so the door writes two strings with nothing to write a
     /// qualifier with, and `nvs_server::mount::carry`'s own test asserts the
     /// carrying.
+    // covers: Core\Request::mount
     #[test]
     fn core_request_mount_answers_the_prefix_and_its_captures_as_tainted_strings() {
         /// A context answering a request that reached the mount at `prefix`,

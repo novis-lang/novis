@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a request reads captures that its mount does not have, and keeps every mount it reads.
+// Each missing capture should throw an error. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads a capture past the last one. The mount has one capture, so index 1 throws an error.
+Core\Request\Mount $mount = Core\Request::mount();
+try {
+    tainted string $second = $mount->captures()[1];
+    echo 'capture 1: ', $second, "\n";
+} catch (Throwable $error) {
+    echo 'capture 1: ', $error::class, "\n";
+}
+
+// 2. Reads the mount many times. Every read returns the same prefix and the same capture.
+uint $same = 0;
+uint $i = 0;
+while ($i < 100000) {
+    Core\Request\Mount $again = Core\Request::mount();
+    if ($again->prefix() == '/acme' && $again->captures()[0] == 'Acme') {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo 'same answer: ', $same, "\n";
+
+// 3. Keeps every mount without end. This stops at the memory limit.
+array<Core\Request\Mount> $kept = [];
+while (true) {
+    $kept[] = Core\Request::mount();
+}
