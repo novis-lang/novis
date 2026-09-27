@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `write` sends a `string` or `bytes`.
+
+Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8");
+
+// A `string` is sent exactly as it is.
+$body->write("Hello from a string.\n");
+
+// `bytes` is sent exactly as it is too. `as bytes` converts the text to `bytes`.
+$body->write("Hello from bytes.\n" as bytes);

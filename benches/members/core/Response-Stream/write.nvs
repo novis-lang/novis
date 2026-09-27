@@ -1,0 +1,21 @@
+<?nvs
+// Sends one part of a body that is sent in parts, as a CSV export does for each row.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(Core\Response\Stream $body, uint $rounds): uint {
+        array<string> $rows = ["1042,Ada,19.90", "1043,Alan,5.00", "1044,Grace,12.50"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $k = $total % 3;
+            $body->write($rows[$k]);
+            $total = $total + $k + 1;   // chained: the next row depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response\Stream $csv = Core\Response::stream("text/csv");
+$csv->write((Bench::run($csv, 20000) as string) . "\n");

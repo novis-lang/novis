@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/export
+--HEADERS--
+host: example.com

@@ -2,6 +2,7 @@
 `Core\Response\Stream::write` sends octets no text-shaped chunk could carry, and a body written in chunks is byte-for-byte the body written whole -- `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:types/bytes`
 --FILE--
 <?nvs
+// covers: Core\Response\Stream::write
 // The `bytes` arm of the one parameter, asked the question `text` cannot be
 // asked: a chunk holding a NUL and bytes that are not valid UTF-8 goes out
 // unchanged and unmeasured. It is read back through a capture and re-hexed,

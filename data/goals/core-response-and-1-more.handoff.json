@@ -1,23 +1,18 @@
 {
-  "state": "Goal `core-response-and-1-more`: nine of `Core\\Response`'s ten members carry every feature proof. The\nnine are `addCookie`, `bytes`, `html`, `text`, `json`, `setStatus`, `setHeader`, `redirect` and\n`sendFile`. Each has `about.md`, three examples with `.nvsr` requests, the attack, the bench record in\n`docs/perf/members.ndjson`, and a `covers:` line in `crates/nvs-stdlib/src/response.rs`'s `tests`\nmodule. Their cards follow AGENTS.md § *Text an end user reads*. `stream` owes every proof, and its\ncard is not plain yet. `Core\\Response\\Stream` is still in `CLASSES_STILL_OWING_A_CARD`, and\n`Core\\Response\\Stream::write` owes every proof. Nothing is blocked.\n\n`nvs run --request` prints the response body alone, never the status line or the headers, so an\nexample about a status or a header shows it through the body it writes. A file `sendFile` named is\nwritten after the program ends, when it ended without an error, which is what a server does\n(`crates/nvs-cli/src/main.rs`'s `send_file_body`). A body member's bench writes bodies with no\nnewline in them, because a newline flushes the terminal on every call. The wall-clock of these\nbenches is noisy: compare the allocation and byte counts. `benches/members/core/Response/nvs.toml`\ngrants `fs.read` over that folder for the `sendFile` bench, and every Response bench runs under it.",
+  "state": "Goal `core-response-and-1-more` is reached. All ten of `Core\\Response`'s members and\n`Core\\Response\\Stream::write` carry every feature proof: `about.md`, three examples with `.nvsr`\nrequests, the attack, the bench record in `docs/perf/members.ndjson`, a `covers:` line in\n`crates/nvs-stdlib/src/response.rs`'s `tests` module, and a plain card. `Core\\Response\\Stream` has\nits class card and is gone from `CLASSES_STILL_OWING_A_CARD`. Both stage 2 checks,\n`bun nv proofs --verify --group 'Core\\Response'` and `--group 'Core\\Response\\Stream'`, pass, and\nso do `bun nv verify --doc`, `bun nv owners --closes` and `bun nv playbook --closes`. Nothing is\nblocked.\n\nOff a connection, `Core\\Response::stream` writes each chunk to the program's own output, so an\nexample about a streamed body shows it through `nvs run --request` exactly like a whole body. A\nbench of a member cheaper than about 50 ns needs 400000 iterations. At 20000 the tool's noise floor\ncuts `ns_per_op` to `0.0`.",
   "next": {
-    "stage": 2,
-    "title": "the members that open a body over time",
+    "stage": null,
+    "title": "The goal is reached",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/response.rs` (the members, their cards and the `tests` module, whose `offered_cell` and `framing` helpers already drive `stream`), `crates/nvs-stdlib/src/registry.rs` (the class card), `docs/examples/core/Response/stream/`, `docs/examples/core/Response-Stream/write/`, `tests/hostile/core/Response/stream/`, `tests/hostile/core/Response-Stream/write/`, `benches/members/core/Response/`, `benches/members/core/Response-Stream/`.",
+    "note": "the driver moves `live` to the next goal on the chain, which starts from its own handoff record.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Response::stream`** — owes examples, hostile, perf, Rust `covers:` (`rule:security/response-body-is-one-typed-member`). Member at `crates/nvs-stdlib/src/response.rs:1826`, card at `crates/nvs-stdlib/src/response.rs:566`. The tests after `framing` already drive it and need only the `covers:` line if they pin the member."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Response\\Stream::write`** — owes the class card, examples, hostile, perf and 2 tests (`rule:testing/feature-proofs`). Member at `crates/nvs-stdlib/src/response.rs:1898`; the class card goes above the class's `CLASS` row, and the name comes out of `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5279`. As an instance member it needs a `covers:` marker even on a `.nvst` case that calls it."
+        "done": true,
+        "text": "**`Core\\Response::stream` and `Core\\Response\\Stream::write` carry every feature proof** — `crates/nvs-stdlib/src/response.rs:566` (`rule:testing/feature-proofs`)."
       }
     ]
   },
   "backlog": [
-    "A body member called after `sendFile` in one request: the server sends the file and drops the other body (`crates/nvs-server/src/serve.rs`'s `finished`), and `nvs run --request` prints both. Whether a later body member should clear the file name is a question for `nvs_stdlib::response`'s module doc.",
-    "`Core\\Test::request` against a handler that calls `sendFile`: `runner.rs`'s `UnderTest` never reads the completion's `file_body`, so the test response's body is probably empty. Not checked."
+    "The landed `Core\\Response` cards from before this goal are goal `plain-comments`'s to sweep (AGENTS.md § *Text an end user reads*)."
   ]
 }

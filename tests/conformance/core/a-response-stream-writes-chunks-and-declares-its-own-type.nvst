@@ -2,6 +2,7 @@
 `Core\Response::stream` writes a body one chunk at a time, in the order the chunks were written -- `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
+// covers: Core\Response\Stream::write
 // A body written over time is still one body. Off a connection there is no cell
 // to open, so the chunks reach this program's own output -- which is what makes
 // the claim assertable here at all, no `.nvst` case being a request a server is

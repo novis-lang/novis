@@ -19027,15 +19027,15 @@ Sends the file at `$path` as the whole response. The server reads the file in sm
 Core\Response::stream(string $contentType): Core\Response\Stream
 ```
 
-Answers with a body written over time, declaring `$contentType` — the head goes out as soon as this is called and the body ends when the request does.
+Starts a response body that your program sends in parts, and sets the header `Content-Type` to `$contentType`. The status and the headers are sent when this is called, and the body ends when the program ends.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$contentType` | `string` (sink) | The media type to declare. A sink, exactly as `bytes`' is: it becomes a header the peer obeys, so a `tainted` value is refused at compile time and one holding anything a header cannot carry is refused here. |
+| `$contentType` | `string` (sink) | The content type of the body, for example `text/csv`. It becomes a header, so a `tainted` value does not compile. It must be printable ASCII and not empty. |
 
-**Returns** `Core\Response\Stream` — The handle to write chunks through. Mixing this with `echo` on one response is a compile error, and the body is complete when the request ends — a browser reading one with `EventSource` reconnects at that point, so a stream a client keeps open across page lifetimes is `Core\Sse::upgrade` instead.
+**Returns** `Core\Response\Stream` — A `Core\Response\Stream`. Call its `write()` method to send each part. Set the status and the headers before you call this method. Using this and `echo` in one response does not compile. A browser that reads this body with `EventSource` connects again when the body ends. For events that a page receives while it is open, use `Core\Sse::upgrade`.
 
-**Throws** `LogicError` — `$contentType` is empty or holds a byte outside a header field value — a control character, a newline, or anything above ASCII. Or this request has already opened a body stream, a response having one body.
+**Throws** `LogicError` — `$contentType` is empty, or it contains a character a header cannot contain: a control character, a line break, or a character that is not ASCII. It is also thrown when this request already started a body stream, because a response has one body.
 
 <a id="core-core-response-setstatus"></a>
 #### `Core\Response::setStatus`
@@ -19130,15 +19130,15 @@ Keywords: write
 $stream->write(string|bytes $chunk): void
 ```
 
-Writes one chunk of the body, waiting while the client is still reading the last one — the whole of the backpressure, since nothing accumulates in between.
+Sends one part of the body. If the client has not finished reading the last part, this method waits until it has. So only one part waits in memory at a time.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$chunk` | `string\|bytes` (neutral) | The bytes to send, unchanged, as text or as `bytes`. An empty chunk reaches no wire and is not an error. A `tainted` value is accepted, as it is at `Core\Response::text`: the chunk goes out to the client that sent it and nothing is answered for the qualifier to carry. |
+| `$chunk` | `string\|bytes` (neutral) | The part to send, as a `string` or as `bytes`. It is sent exactly as it is. An empty part sends nothing and is not an error. A `tainted` value is allowed, as it is for `Core\Response::text`. |
 
-**Returns** `void` — Nothing. The chunk has been handed to the connection by the time this returns.
+**Returns** `void` — Nothing. When this method returns, the part has been given to the connection.
 
-**Throws** `RuntimeError` — The client stopped reading — it went away, or it did not take this chunk within the connection's send timeout, which closes the stream rather than waiting without end.
+**Throws** `RuntimeError` — The client stopped reading. It closed the connection, or it did not read this part before the server's send timeout. The stream is then closed.
 
 <a id="core-core-session"></a>
 ### `Core\Session`

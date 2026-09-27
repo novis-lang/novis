@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program writes parts that look like headers, and then writes parts without
+// end into a body that is kept in memory. The parts should be sent as they are, and
+// the program should stop at its memory limit without crashing.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8');
+
+// 1. Line breaks that try to add a header and start a second response.
+$body->write("a\r\nSet-Cookie: sid=admin\r\n\r\nHTTP/1.1 200 OK\r\n\r\n");
+
+// 2. The same line breaks and a script tag, sent by the visitor in the address.
+$body->write(Core\Request::query('q') as string);
+
+// 3. A NUL byte and bytes that are not UTF-8.
+$body->write(Core\Encoding::fromHex('00fffe80'));
+
+// 4. One hundred thousand empty parts.
+uint $empty = 0;
+while ($empty < 100000) {
+    $body->write('');
+    $empty = $empty + 1;
+}
+
+// 5. One part of eight megabytes.
+$body->write(Core\Str::repeat('x', 8388608));
+
+// 6. The parts are kept in memory and written again and again until the memory limit
+// stops the program.
+string $chunk = Core\Str::repeat('b', 65536);
+var $kept = Core\Out::capture(fn (): void => {
+    Core\Response\Stream $inner = Core\Response::stream('text/plain; charset=utf-8');
+    uint $written = 0;
+    while ($written < 1000000) {
+        $inner->write($chunk);
+        $written = $written + 1;
+    }
+});
+$body->write("done\n");
