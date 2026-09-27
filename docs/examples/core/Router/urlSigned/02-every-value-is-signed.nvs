@@ -1,0 +1,32 @@
+<?nvs
+// Shows that the signature changes when any value of the link changes.
+
+class Files {
+    #[Core\Route(path: "/files/{id}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id, #[Core\Query] string $size = ""): string { return "one file"; }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+string $first = Core\Router::urlSigned("Files::show", ["id" => 7, "size" => "large"], {keys: $keys, until: null});
+string $again = Core\Router::urlSigned("Files::show", ["id" => 7, "size" => "large"], {keys: $keys, until: null});
+string $other = Core\Router::urlSigned("Files::show", ["id" => 7, "size" => "small"], {keys: $keys, until: null});
+
+// The same values and the same key give the same link. This prints `same`.
+echo $first == $again ? "same" : "different", "\n";
+
+// `size` is in the query string, and it is signed too. This prints `different`.
+string $firstSignature = Core\Str::after($first, "_sig=") as string;
+string $otherSignature = Core\Str::after($other, "_sig=") as string;
+echo $firstSignature == $otherSignature ? "same" : "different", "\n";
+
+// The method writes `_sig` itself, so `$params` may not contain it.
+// This throws a `RuntimeError`.
+try {
+    array<mixed> $params = ["id" => 7, "_sig" => "my own"];
+    Core\Router::urlSigned("Files::show", $params, {keys: $keys, until: null});
+} catch (RuntimeError $e) {
+    echo "`_sig` is not allowed in the values", "\n";
+}

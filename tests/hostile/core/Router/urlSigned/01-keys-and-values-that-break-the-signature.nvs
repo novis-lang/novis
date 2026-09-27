@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a program signs links with bad keys and with values that a visitor chose.
+// Each call should return a link or throw an error, and the program must not crash.
+
+class Files
+{
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name, #[Core\Query] string $q = ''): string
+    { return 'one file'; }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// 1. No keys at all. This throws a `LogicError`.
+array<secret bytes> $none = [];
+try {
+    Core\Router::urlSigned('Files::show', ['name' => 'a'], { keys: $none, until: null });
+    echo 'no keys: built', "\n";
+} catch (LogicError $e) {
+    echo 'no keys: error', "\n";
+}
+
+// 2. A first key that is 31 bytes long, one byte too short. This throws a `LogicError`.
+bytes $raw = '0123456789012345678901234567890' as bytes;
+secret bytes $short = $raw as secret bytes;
+array<secret bytes> $shortKeys = [$short];
+try {
+    Core\Router::urlSigned('Files::show', ['name' => 'a'], { keys: $shortKeys, until: null });
+    echo 'short key: built', "\n";
+} catch (LogicError $tooShort) {
+    echo 'short key: error', "\n";
+}
+
+// 3. A value that tries to add its own `_sig`. This throws a `RuntimeError`.
+array<mixed> $smuggled = ['name' => 'a', '_sig' => 'forged'];
+try {
+    Core\Router::urlSigned('Files::show', $smuggled, { keys: $keys, until: null });
+    echo 'own sig: built', "\n";
+} catch (RuntimeError $reserved) {
+    echo 'own sig: error', "\n";
+}
+
+// 4. A query value that hides a second `_sig` inside it. It is encoded, so the link has one `_sig=`.
+string $hidden = Core\Router::urlSigned('Files::show', ['name' => 'a', 'q' => 'x&_sig=forged'], { keys: $keys, until: null });
+echo 'hidden: ', Core\Arr::count(Core\Str::split($hidden, '_sig=')), ' parts', "\n";
+
+// 5. A capture of one million characters. The signature grows with it.
+string $long = Core\Router::urlSigned('Files::show', ['name' => Core\Str::repeat('a', 1000000)], { keys: $keys, until: null });
+echo 'long: ', Core\Str::length($long) > 1000000 ? 'built' : 'short', "\n";
+
+// 6. A ring of ten thousand keys. Only the first one signs.
+array<secret bytes> $many = [];
+uint $k = 0;
+while ($k < 10000) {
+    $many[] = $key;
+    $k = $k + 1;
+}
+string $ringLink = Core\Router::urlSigned('Files::show', ['name' => 'a'], { keys: $many, until: null });
+string $oneLink = Core\Router::urlSigned('Files::show', ['name' => 'a'], { keys: $keys, until: null });
+echo 'many keys: ', $ringLink == $oneLink ? 'same link' : 'different link', "\n";
+
+// 7. Many links in a loop, to check that no memory is lost.
+uint $built = 0;
+uint $i = 0;
+while ($i < 50000) {
+    string $each = Core\Router::urlSigned('Files::show', ['name' => 'report ' . ($i as string)], { keys: $keys, until: null });
+    $built = $built + Core\Str::length($each);
+    $i = $i + 1;
+}
+echo $built, ' characters', "\n";
