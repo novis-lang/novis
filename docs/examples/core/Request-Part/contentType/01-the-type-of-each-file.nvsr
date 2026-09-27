@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/reports/upload
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=report-6c21
+--BODY_CRLF--
+--report-6c21
+Content-Disposition: form-data; name="report"; filename="report.pdf"
+Content-Type: application/pdf
+
+%PDF-1.7 the monthly report
+--report-6c21
+Content-Disposition: form-data; name="chart"; filename="sales.png"
+Content-Type: image/png
+
+PNG bytes of a chart
+--report-6c21--

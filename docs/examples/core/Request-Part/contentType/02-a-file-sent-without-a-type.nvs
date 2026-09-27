@@ -1,0 +1,8 @@
+<?nvs
+// Shows the type of a file that the client sent without a `Content-Type` line.
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // The second file has no `Content-Type` line, so its type is "text/plain".
+    // This prints "notes.md: text/markdown" and then "notes.txt: text/plain".
+    echo $part->filename(), ': ', $part->contentType(), "\n";
+}

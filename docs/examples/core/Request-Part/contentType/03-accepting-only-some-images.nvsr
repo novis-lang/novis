@@ -1,0 +1,21 @@
+--METHOD--
+POST
+--PATH--
+/profile/picture
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=----WebKitFormBoundaryQ3r7mWc1ZtLp
+--BODY_CRLF--
+------WebKitFormBoundaryQ3r7mWc1ZtLp
+Content-Disposition: form-data; name="picture"; filename="me.JPG"
+Content-Type: Image/JPEG
+
+JPEG bytes of a face
+------WebKitFormBoundaryQ3r7mWc1ZtLp
+Content-Disposition: form-data; name="picture"; filename="me.png"
+Content-Type: text/html
+
+<script>alert('this is not a picture')</script>
+------WebKitFormBoundaryQ3r7mWc1ZtLp--

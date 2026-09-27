@@ -1,0 +1,18 @@
+--METHOD--
+POST
+--PATH--
+/notes/import
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=notes-19e4
+--BODY_CRLF--
+--notes-19e4
+Content-Disposition: form-data; name="notes"; filename="notes.md"
+Content-Type: text/markdown
+
+# Shopping list
+--notes-19e4
+Content-Disposition: form-data; name="notes"; filename="notes.txt"
+
+milk, bread, apples
+--notes-19e4--
