@@ -13,6 +13,7 @@
 // reads nothing. A path outside the repository, or under a directory in `NOT_INPUTS`, is no input
 // and is not noted.
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { appendFileSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { NOT_INPUTS, ROOT } from "./paths.ts";
@@ -35,7 +36,8 @@ export type Kind = "files" | "exists" | "dirs";
 const noted: Record<Kind, Set<string>> = { files: new Set(), exists: new Set(), dirs: new Set() };
 const spawned: string[][] = [];
 const named = new Set<string>();
-let quiet = 0;
+/** Set inside `unrecorded`, and carried across every `await` of what it runs. */
+const quiet = new AsyncLocalStorage<true>();
 
 /** `p` as a repo-relative path, or null when it is no input. */
 function inTree(p: unknown): string | null {
@@ -53,20 +55,18 @@ function inTree(p: unknown): string | null {
 
 /** Notes that this process read, listed or tested `p`. */
 export function note(kind: Kind, p: unknown): void {
-  if (quiet > 0) return;
+  if (quiet.getStore()) return;
   const r = inTree(p);
   if (r !== null) noted[kind].add(r);
 }
 
-/** Runs `f` with nothing it reads, lists or tests noted. The caller names what it read with `noteKey`
- * instead, as a key the change moves exactly when that answer can change. */
+/** Runs `f` with nothing it reads, lists, tests or starts noted. The caller names what it read with
+ * `noteKey` instead, as a key the change moves exactly when that answer can change, or names nothing for
+ * work that is no input to its verdict. The scope is asynchronous: when `f` returns a promise, every
+ * continuation of the work `f` started stays unrecorded, and work that runs beside it outside `f` is
+ * noted as before. */
 export function unrecorded<T>(f: () => T): T {
-  quiet++;
-  try {
-    return f();
-  } finally {
-    quiet--;
-  }
+  return quiet.run(true, f);
 }
 
 /** Notes that this process depends on `key`, a key a change moves by what the text it read names. */
@@ -75,8 +75,10 @@ export function noteKey(key: string): void {
 }
 
 /** Notes a program this process started. One started in a directory that is no input (a test's scratch
- * tree under `.cache`, say) reads nothing of the tree through its working directory, and is not noted. */
+ * tree under `.cache`, say) reads nothing of the tree through its working directory, and is not noted;
+ * nor is one started inside `unrecorded`. */
 export function noteSpawn(cmd: unknown, opts?: unknown): void {
+  if (quiet.getStore()) return;
   const argv = Array.isArray(cmd) ? cmd : cmd && typeof cmd === "object" && Array.isArray((cmd as { cmd?: unknown }).cmd) ? (cmd as { cmd: unknown[] }).cmd : null;
   const options = (Array.isArray(cmd) ? opts : cmd) as { cwd?: unknown } | undefined;
   const cwd = options && typeof options === "object" ? options.cwd : undefined;

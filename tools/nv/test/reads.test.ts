@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { CACHE, ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV, readLog, readModules } from "../lib/reads.ts";
@@ -23,6 +24,34 @@ describe("what a `bun nv` process reads", () => {
     expect(readLog(LOG)).toEqual({ files: ["a", "b"], exists: ["e"], dirs: ["d"], spawns: [["git", "ls-files"]], keys: [] });
     writeFileSync(LOG, "");
     expect(readLog(LOG)).toBeNull();
+  });
+
+  test("`unrecorded` holds across an await for what it runs, and not for work beside it", async () => {
+    rmSync(LOG, { force: true });
+    const reads = JSON.stringify(pathToFileURL(join(ROOT, "tools", "nv", "lib", "reads.ts")).href);
+    const bun = JSON.stringify(process.execPath);
+    const script = [
+      `import { install, note, unrecorded } from ${reads};`,
+      `install(process.env.${ENV});`,
+      "let release = () => {};",
+      "const gate = new Promise((r) => (release = r));",
+      "const quiet = unrecorded(async () => {",
+      "  await gate;",
+      '  note("files", "inside-after-await.txt");',
+      `  await Bun.spawn([${bun}, "--version"], { stdout: "ignore" }).exited;`,
+      '  note("files", "inside-after-spawn.txt");',
+      "});",
+      'note("files", "beside.txt");',
+      "release();",
+      "await quiet;",
+      'note("files", "after.txt");',
+      `Bun.spawnSync([${bun}, "--revision"], { stdout: "ignore" });`,
+    ].join("\n");
+    const r = await run([process.execPath, "-e", script], { cwd: ROOT, env: { [ENV]: LOG } });
+    expect(r.code).toBe(0);
+    const got = readLog(LOG)!;
+    expect(got.files).toEqual(["after.txt", "beside.txt"]);
+    expect(got.spawns).toEqual([[process.execPath, "--revision"]]);
   });
 
   test("a recorded run names the modules its process loaded: main.ts, its command's, and no other command's", async () => {
