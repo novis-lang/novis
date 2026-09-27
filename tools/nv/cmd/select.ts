@@ -35,6 +35,7 @@ import { seed } from "../select/seed.ts";
 import { describeFull, fullRun } from "../select/full.ts";
 import { describeBatch, mutateBatch, mutateBatches, readMutations } from "../select/mutate.ts";
 import { abs } from "../lib/paths.ts";
+import { unrecorded } from "../lib/reads.ts";
 
 export const summary =
   "which atoms a change reaches, from what each was seen to use: nv select [--since REV [--until REV]] [--paths P...] [--stats] [--json] [--explain ATOM] [--seed [--kinds K,...] [--limit N] [--jobs N] [--resume]] [--full] [--mutate FILE [--batch N[,N...]]]";
@@ -167,9 +168,15 @@ export async function run(args: string[]): Promise<number> {
         return 0;
       }
     }
-    const change = await computeChange(store, { ...(o.since ? { since: o.since } : {}), ...(o.until ? { until: o.until } : {}), ...(o.paths ? { paths: o.paths } : {}), graph });
-    const found = discover(graph);
-    const sel = query(store, change, { discovered: found.atoms, complete: found.complete });
+    // What a plan check is made of reads the plan and the tree it names. Why each of its atoms was picked
+    // reads the change, which says how this tree stands against the store's, so it is no input to that
+    // check: it runs `unrecorded`, and a change elsewhere in the tree does not select the check.
+    const selecting = async () => {
+      const change = await computeChange(store, { ...(o.since ? { since: o.since } : {}), ...(o.until ? { until: o.until } : {}), ...(o.paths ? { paths: o.paths } : {}), graph });
+      const found = discover(graph);
+      return { change, sel: query(store, change, { discovered: found.atoms, complete: found.complete }) };
+    };
+    const { change, sel } = check ? await unrecorded(selecting) : await selecting();
     if (check) {
       for (const a of atoms.slice(0, 10)) console.log(`  ${explain(store, sel, a)[0]}`);
       if (atoms.length > 10) console.log(`  ... and ${atoms.length - 10} more atom(s)`);
