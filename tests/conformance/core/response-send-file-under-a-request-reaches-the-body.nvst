@@ -1,0 +1,19 @@
+--TEST--
+`Core\Response::sendFile` inside a request leaves a name, and `nvs run --request` sends the named file as the body the way a server does —`rule:security/response-body-is-one-typed-member`
+--GET--
+page=about
+--FILE--
+<?nvs
+// A context answering a request records the name and reads nothing. The
+// finish path that a server runs at its connection is what opens the file, so
+// a run under `--request` has to run that half too, or the body is empty.
+Core\Response::sendFile("page.html");
+--FILE page.html--
+<h1>About</h1>
+<p>tea &amp; cake</p>
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+<h1>About</h1>
+<p>tea &amp; cake</p>

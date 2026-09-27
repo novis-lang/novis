@@ -2264,6 +2264,27 @@ fn case_value(value: nvs_types::enums::EnumValue) -> nvs_runtime::commands::Case
     }
 }
 
+/// Writes the file `Core\Response::sendFile` named into the run's output, a
+/// chunk at a time — what `nvs run --request` does where a server would stream
+/// the file at the connection.
+///
+/// Nothing about the program's authority is asked again: the member resolved
+/// the name under `fs.read` and refused everything it could not send, which is
+/// the same reading `nvs_server::serve`'s `sent` makes. The file is read in
+/// pieces for the reason the server reads it at the connection: a response of
+/// any size costs this run one buffer and never a copy of the file.
+fn send_file_body(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> std::io::Result<()> {
+    let mut file = std::fs::File::open(path)?;
+    let mut chunk = vec![0_u8; 64 * 1024];
+    loop {
+        let read = std::io::Read::read(&mut file, &mut chunk)?;
+        if read == 0 {
+            return Ok(());
+        }
+        ctx.write_output(&chunk[..read])?;
+    }
+}
+
 /// Builds the carrier `nvs run --request <file>` describes.
 ///
 /// The format is `nvs-test`'s, because that crate writes these files for a
@@ -2820,6 +2841,24 @@ fn run_run(
         return ExitCode::FAILURE;
     };
     let mut ctx = finished.ctx;
+
+    // `--request`'s half of the finish path a server runs.
+    // `Core\Response::sendFile` leaves a name on a context answering a request,
+    // and a served request is where the connection opens that file and streams
+    // it. This run has no connection, so the file's bytes go to standard output
+    // here, on `nvs_server::serve`'s `finished` terms: only for a program that
+    // ended ordinarily, since a request that threw after naming a file is sent
+    // no file. A run with no request has already had the bytes written by the
+    // member itself, and the name left on its context is only a record, which
+    // is `Ctx::declare_file_body`'s own answer.
+    if ctx.inbound().is_some()
+        && let Some(path) = ctx.take_file_body()
+        && status.get() == Some(Ok(()))
+        && let Err(error) = send_file_body(&mut ctx, &path)
+    {
+        eprintln!("error: could not send {}: {error}", path.display());
+        return ExitCode::FAILURE;
+    }
 
     // Flushed before anything is reported: Rust's standard output is
     // line-buffered, and `echo "Hello, World!"` has no trailing newline.
