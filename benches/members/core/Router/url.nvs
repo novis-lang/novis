@@ -1,0 +1,29 @@
+<?nvs
+// Builds the link to a product page from its id, as a page does for each product it lists.
+// bench: iterations 200000
+
+class Shop {
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(uint $id): string { return "one product"; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $link = Core\Router::url("Shop::product", ["id" => $total % 1000]);
+            // chained: the next id depends on this result
+            if ($link == "/products/7") {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

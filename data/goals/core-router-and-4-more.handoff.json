@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-router-and-4-more`, stage 2 (feature proofs). `Core\\Router::match` and `Core\\Router::methodsFor` have every feature proof on disk: about, three examples each, an attack each, a bench each with a recorded figure, and a Rust `covers:` test each in `crates/nvs-stdlib/src/router.rs`'s test module. `Core\\Router` has its class card and is off `CLASSES_STILL_OWING_A_CARD`. The `match` and `methodsFor` cards are rewritten plainly.\n\n`bun nv proofs --owed --group 'Core\\Router'` names four members still owing examples, hostile, perf and tests: `url`, `urlAbsolute`, `urlSigned` and `signedRoute`. The installed handoff listed only `signedRoute` of these. All five `Core\\Router\\Match` members owe examples, help, hostile, perf and tests. `Core\\Script`, `Core\\Script\\ExitReport` and `Core\\Secret` are not started.",
+  "state": "Goal `core-router-and-4-more`, stage 2 (feature proofs). `Core\\Router::match`, `::methodsFor` and `::url` have every feature proof on disk: about, three examples, an attack, a bench, and a Rust `covers:` test in `crates/nvs-stdlib/src/router.rs`'s test module. `Core\\Router` has its class card.\n\nThe `url` attack found that a capture value of `.` or `..`, or a rest capture with one between its `/`s, built a link a browser resolves outside its route (`/docs/../admin` is `/admin`). `substitute` now throws for one through `stays_in_its_segment`, so `urlAbsolute` and `urlSigned` throw for it too; `tests/conformance/core/router-url-refuses-a-dot-segment-that-would-leave-its-route.nvst` pins it.\n\nStill owing examples, hostile, perf and tests: `urlAbsolute`, `urlSigned`, `signedRoute`. All five `Core\\Router\\Match` members owe examples, help, hostile, perf and tests. `Core\\Script`, `Core\\Script\\ExitReport` and `Core\\Secret` are not started.",
   "next": {
     "stage": 2,
     "title": "feature proofs",
@@ -8,20 +8,22 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Router::url`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). A program with `#[Route]`s and no request can call it, so no `.nvsr` is needed; its card at `URL_DOC` wants a plain rewrite. `crates/nvs-stdlib/src/router.rs:222`"
+        "text": "**`Core\\Router::urlAbsolute`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). It needs a configured `[[app]] origin`; `tests/conformance/core/router-url-absolute-is-url-with-the-configured-origin-in-front.nvst` shows how a case sets one, and an example may need the same. Its card at `URL_ABSOLUTE_DOC` wants a plain rewrite, and the Rust test can reuse `prepared` and `text_params` beside `url_substitutes_each_capture_and_writes_the_keys_left_over_as_the_query`. `crates/nvs-stdlib/src/router.rs:1077`"
       },
       {
         "done": false,
-        "text": "**`Core\\Router::urlAbsolute`** — same owed list. It needs a configured `[[app]] origin`, so check how an existing conformance case sets one before writing the examples. `crates/nvs-stdlib/src/router.rs:231`"
+        "text": "**`Core\\Router::urlSigned`** — same owed list; `URL_SIGNED_DOC` wants a plain rewrite, and `url_signed_launders_for_the_url_path_sink_exactly_as_url_does` already drives it without a `covers:` marker. `crates/nvs-stdlib/src/router.rs:364`"
       },
       {
         "done": false,
-        "text": "**`Core\\Router::urlSigned` and `::signedRoute`** — same owed list, one feature each. `signedRoute` reads the request the door matched, so its examples, attack and bench need a `.nvsr` request file beside each; `docs/examples/core/Response/stream/` shows that shape. The Rust tests `url_signed_verifies_through_signed_route_after_the_mount_prefix_changes` and `signed_route_verifies_against_the_match_the_server_already_made_and_reparses_nothing` need only `// covers:` lines. `crates/nvs-stdlib/src/router.rs:273`"
+        "text": "**`Core\\Router::signedRoute`** — same owed list. It reads the request the door matched, so its examples may need a `.nvsr` request; the `shop()` table beside the `signedRoute` Rust tests is the fixture. `crates/nvs-stdlib/src/router.rs:2659`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Router\\Match::name`, `::params`, `::param`, `::method`, `::access` — examples, help, hostile, perf, tests; `crates/nvs-stdlib/src/router.rs:608`. `Core\\Router::match` gives a match with no request.",
-    "`Core\\Script`, `Core\\Script\\ExitReport`, `Core\\Secret` — every proof; `crates/nvs-stdlib/src/script.rs`, `crates/nvs-stdlib/src/secret.rs`."
+    "`Core\\Router\\Match`'s five members and its class card — `crates/nvs-stdlib/src/router.rs` (`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`).",
+    "`Core\\Script`, `Core\\Script\\ExitReport`, `Core\\Secret` proofs and class cards — `crates/nvs-stdlib/src/script.rs`, `crates/nvs-stdlib/src/secret.rs`.",
+    "`docs/rules/routing/link-name-and-params-are-checked.md` says the result is safe as a path but does not name the dot-segment throw that makes it so; one sentence there would state it.",
+    "Any change to `router.rs` makes every Router bench stale: re-record with `bun nv proofs --record-perf --group 'Core\\Router'` before the dossier check."
   ]
 }

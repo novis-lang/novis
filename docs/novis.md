@@ -15447,16 +15447,16 @@ https://example.test/users/7
 Core\Router::url(string $name, array<mixed> $params): string
 ```
 
-Builds the URL path of the route named `$name`, substituting `$params` into its `{captures}` and writing what is left over as a query string — the launderer for the URL-path sink, every value percent-encoded into its own segment.
+Builds the link to the route named `$name`. Each value in `$params` fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$name` | `string` | The route's name as its `#[Route]` declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error. |
 | `$params` | `array<mixed>` | The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared `#[Query]` parameter is a compile error. |
 
-**Returns** `string` — The path, `/users/42?page=2`, with an optional `{name?}` capture dropped when `$params` omits it and a `{name...}` capture's own `/`s kept as structure.
+**Returns** `string` — The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out when `$params` has no value for it. The `/` characters in a `{name...}` capture stay as they are.
 
-**Throws** `RuntimeError` — When `$name` is not a literal the compiler could resolve — a computed name; when `$params` lacks a capture the path requires; or when a value has no text form a segment or query parameter could be built from.
+**Throws** `RuntimeError` — When `$name` is not written as a literal string. When `$params` has no value for a capture that the path needs. When a value cannot be written as text. When a value is `.` or `..`, or a `{name...}` value has one of them between its `/` characters, because a browser would move that link to another path.
 
 <a id="core-core-router-urlabsolute"></a>
 #### `Core\Router::urlAbsolute`

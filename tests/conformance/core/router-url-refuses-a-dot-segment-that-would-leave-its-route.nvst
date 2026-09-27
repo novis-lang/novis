@@ -1,0 +1,53 @@
+--TEST--
+`Core\Router::url` throws for a capture value that is `.` or `..`, and for a rest capture with one of them between its `/`s, because a browser resolves a dot segment against the path in front of it and no encoding of one stays inside its route — `rule:routing/link-name-and-params-are-checked`
+--FILE--
+<?nvs
+// `.` is unreserved, so percent-encoding leaves it alone, and a browser reads
+// `%2e` as `.` too. `/docs/../admin` is a link to `/admin`, so the member throws.
+// A dot that is part of a longer segment is ordinary text and still encodes.
+class Docs {
+    #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(string $rest): string { return "page"; }
+
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Docs::file")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function file(string $name): string { return "file"; }
+}
+
+array<string> $rests = ["../admin", "a/./b", "a/..", ".."];
+foreach ($rests as string $rest) {
+    try {
+        echo Core\Router::url("Docs::page", ["rest" => $rest]), "\n";
+    } catch (RuntimeError $e) {
+        echo "rest ", $rest, ": error\n";
+    }
+}
+
+array<string> $names = ["..", ".", "...", ".env", "a..b"];
+foreach ($names as string $name) {
+    try {
+        echo Core\Router::url("Docs::file", ["name" => $name]), "\n";
+    } catch (RuntimeError $e) {
+        echo "name ", $name, ": error\n";
+    }
+}
+
+// `urlAbsolute` builds the same path, so it throws for the same value. No origin
+// is configured here either, which is a different throw: the message says which.
+try {
+    echo Core\Router::urlAbsolute("Docs::file", ["name" => ".."]), "\n";
+} catch (RuntimeError $e) {
+    echo "absolute leaves its route: ", Core\Str::contains($e->message, "leave its route"), "\n";
+}
+--EXPECT--
+rest ../admin: error
+rest a/./b: error
+rest a/..: error
+rest ..: error
+name ..: error
+name .: error
+/files/...
+/files/.env
+/files/a..b
+absolute leaves its route: 1

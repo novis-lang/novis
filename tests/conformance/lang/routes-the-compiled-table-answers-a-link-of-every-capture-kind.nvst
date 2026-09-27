@@ -57,10 +57,16 @@ echo "page: ", Core\Router::url("docs", ["lang" => Lang::En, "page" => 3, "q" =>
 
 // `rule:routing/link-name-and-params-are-checked`: each value is percent-encoded into its own
 // segment, so the `/`s in a `{name}` value are encoded and a link can never grow a
-// segment the table would not claim. A `{name...}` keeps the `/`s that are its own.
+// segment the table would not claim. A `{name...}` keeps the `/`s that are its own,
+// so a `..` between them would be a real dot segment, and that value throws.
 string $traversal = "../../etc/passwd";
 echo "one: ", Core\Router::url("file", ["name" => $traversal]), "\n";
-echo "rest: ", Core\Router::url("tree", ["path" => $traversal]), "\n";
+echo "rest: ", Core\Router::url("tree", ["path" => "docs/etc/passwd"]), "\n";
+try {
+    echo "climb: ", Core\Router::url("tree", ["path" => $traversal]), "\n";
+} catch (RuntimeError $e) {
+    echo "error\n";
+}
 --EXPECT--
 show: /users/7
 new: /users/new
@@ -69,4 +75,5 @@ store: /users
 docs: /De/docs
 page: /En/docs/3?q=a+b
 one: /file/..%2F..%2Fetc%2Fpasswd
-rest: /files/../../etc/passwd
+rest: /files/docs/etc/passwd
+climb: error

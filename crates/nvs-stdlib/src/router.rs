@@ -330,17 +330,19 @@ const PARAMS_DOC: ParamDoc = ParamDoc {
 
 /// `Core\Router::url`'s reference card — `rule:core-api/reference-card`.
 const URL_DOC: MethodDoc = MethodDoc {
-    short: "Builds the URL path of the route named `$name`, substituting `$params` into its \
-            `{captures}` and writing what is left over as a query string — the launderer for \
-            the URL-path sink, every value percent-encoded into its own segment.",
+    short: "Builds the link to the route named `$name`. Each value in `$params` fills the \
+            capture with the same name, and the other values become the query string. Every \
+            value is percent-encoded, so it stays inside its own part of the link.",
     params: &[NAME_DOC, PARAMS_DOC],
-    ret: "The path, `/users/42?page=2`, with an optional `{name?}` capture dropped when `$params` \
-          omits it and a `{name...}` capture's own `/`s kept as structure.",
+    ret: "The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out \
+          when `$params` has no value for it. The `/` characters in a `{name...}` capture stay \
+          as they are.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `$name` is not a literal the compiler could resolve — a computed name; when \
-               `$params` lacks a capture the path requires; or when a value has no text form a \
-               segment or query parameter could be built from.",
+        desc: "When `$name` is not written as a literal string. When `$params` has no value for \
+               a capture that the path needs. When a value cannot be written as text. When a \
+               value is `.` or `..`, or a `{name...}` value has one of them between its `/` \
+               characters, because a browser would move that link to another path.",
     }],
 };
 
@@ -985,12 +987,16 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
         let text = spelled(&spellings, key, segment_text(value, member, key)?);
         out.push('/');
         if *tag == link::REST {
-            let encoded: Vec<String> = text
+            let encoded = text
                 .split('/')
-                .map(|segment| encode(segment.as_bytes(), Form::Component))
-                .collect();
+                .map(|segment| {
+                    stays_in_its_segment(segment, member, key)?;
+                    Ok(encode(segment.as_bytes(), Form::Component))
+                })
+                .collect::<Result<Vec<String>, Fault>>()?;
             out.push_str(&encoded.join("/"));
         } else {
+            stays_in_its_segment(&text, member, key)?;
             out.push_str(&encode(text.as_bytes(), Form::Component));
         }
     }
@@ -1000,6 +1006,24 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
         out.push_str(&query);
     }
     Ok(out)
+}
+
+/// Refuses a segment that a URL resolver removes together with the segment in
+/// front of it, which is what keeps a capture inside the route it was built for.
+///
+/// Encoding cannot do this: `.` is unreserved, so `encode` leaves it alone, and
+/// a browser reads `%2e` as `.` when it resolves dot segments. So no spelling of
+/// `..` stays in its segment, and a rest capture of `../admin` makes
+/// `/docs/../admin` — a link to `/admin`. A value of `.` or `..`, or a rest
+/// capture with one between its `/`s, throws instead.
+fn stays_in_its_segment(segment: &str, member: &str, key: &str) -> Result<(), Fault> {
+    if segment == "." || segment == ".." {
+        return Err(Fault::thrown(format!(
+            "Core\\Router::{member}(): `{key}` has the segment `{segment}`. A browser resolves it \
+             against the path in front of it, so the link would leave its route"
+        )));
+    }
+    Ok(())
 }
 
 /// [`substitute`]'s answer under the mount the request came through —
@@ -2470,6 +2494,90 @@ mod tests {
         )]
         unsafe {
             value.release();
+        }
+    }
+
+    /// A prepared template of `(tag, text)` pieces, laid out as the compiler
+    /// writes one — [`super::link`] is the layout the two sides share.
+    fn prepared(pieces: &[(u8, &str)]) -> Value {
+        let template = pieces
+            .iter()
+            .map(|(tag, text)| format!("{}{text}", *tag as char))
+            .collect::<Vec<_>>()
+            .join(&super::link::PIECE_SEPARATOR.to_string());
+        Value::str(nvs_runtime::NvsStr::new(template.as_bytes()))
+    }
+
+    /// A `$params` array of text values under the given keys.
+    fn text_params(entries: &[(&str, &str)]) -> Value {
+        let mut params = nvs_runtime::NvsArray::new();
+        for (key, value) in entries {
+            params.set(
+                nvs_runtime::NvsStr::new(key.as_bytes()),
+                Value::str(nvs_runtime::NvsStr::new(value.as_bytes())),
+            );
+        }
+        Value::array(params)
+    }
+
+    /// `url` writes each capture into its own percent-encoded segment, keeps a
+    /// rest capture's `/`s, leaves out an optional capture `$params` does not
+    /// name, writes every key no capture took as the query string, and throws
+    /// for a required capture `$params` does not name and for a dot segment,
+    /// which no encoding keeps inside its route.
+    // covers: Core\Router::url
+    #[test]
+    fn url_substitutes_each_capture_and_writes_the_keys_left_over_as_the_query() {
+        use super::link::{LITERAL, OPTIONAL, REQUIRED, REST};
+        let url = |pieces: &[(u8, &str)], entries: &[(&str, &str)]| {
+            let template = prepared(pieces);
+            let params = text_params(entries);
+            let text = linked(super::nvs_core_router_link, &[template, params]);
+            dropped(template);
+            dropped(params);
+            text
+        };
+        let user = [(LITERAL, "/users"), (REQUIRED, "id")];
+        assert_eq!(
+            url(&user, &[("id", "42"), ("page", "2")]),
+            "/users/42?page=2"
+        );
+        assert_eq!(url(&user, &[("id", "a/b c")]), "/users/a%2Fb%20c");
+
+        let list = [(LITERAL, "/posts"), (OPTIONAL, "page")];
+        assert_eq!(url(&list, &[]), "/posts");
+        assert_eq!(url(&list, &[("page", "3")]), "/posts/3");
+
+        let file = [(LITERAL, "/files"), (REST, "path")];
+        assert_eq!(url(&file, &[("path", "a b/c.txt")]), "/files/a%20b/c.txt");
+
+        assert_eq!(url(&file, &[("path", "a/.x/b..")]), "/files/a/.x/b..");
+
+        let refused = |pieces: &[(u8, &str)], entries: &[(&str, &str)]| {
+            let template = prepared(pieces);
+            let params = text_params(entries);
+            let mut ctx = Ctx::buffered();
+            assert!(
+                nvs_runtime::call(super::nvs_core_router_link, &mut ctx, &[template, params])
+                    .is_err()
+            );
+            dropped(template);
+            dropped(params);
+            ctx.take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .expect("a refusal leaves its message on the context")
+        };
+        let missing = refused(&user, &[("page", "2")]);
+        assert!(missing.contains("no `id`"), "{missing}");
+        for (pieces, key, value) in [
+            (&user[..], "id", ".."),
+            (&user[..], "id", "."),
+            (&file[..], "path", "../admin"),
+            (&file[..], "path", "a/./b"),
+            (&file[..], "path", "a/.."),
+        ] {
+            let message = refused(pieces, &[(key, value)]);
+            assert!(message.contains("leave its route"), "{value}: {message}");
         }
     }
 

@@ -30,6 +30,7 @@ crates/nvs-stdlib/src/path.rs  ".."  --  a component `Core\Path` normalises and 
 crates/nvs-stdlib/src/path.rs  "a/../.."  --  an input to `normalize`, which works on text
 crates/nvs-stdlib/src/path.rs  "../../a"  --  an input and a result of `normalize`, which works on text
 crates/nvs-stdlib/src/path.rs  "../../log/app.log"  --  a result of `relative_to`, which works on text
+crates/nvs-stdlib/src/router.rs  "../admin"  --  a link capture value, expected to be refused
 crates/nvs-stdlib/tests/capability.rs  ".."  --  joined onto `src`, from `nvs_repo::path`, and stays inside this package
 crates/nvs-stdlib/tests/capability.rs  "../src/registry.rs"  --  resolved against `src`, and stays inside this package
 crates/nvs-stdlib/tests/capability.rs  "../tests/capability.rs"  --  resolved against `src`, and stays inside this package

@@ -60,7 +60,7 @@ array<string> $hostile = [
     "two words",    // a space is `%20` here, and § 6's query would write `+`
     "héllo",        // multi-byte
     "",             // empty
-    "..",           // unreserved throughout, so it survives — see below
+    "...",          // unreserved throughout, and no dot segment, so it survives
     "?q=1",         // would open a query string
     "#frag",        // would open a fragment
     "a%2Fb",        // already-escaped
@@ -74,13 +74,15 @@ foreach ($hostile as string $s) {
 }
 echo "segments=", $intact as string, "/", Core\Arr::count($hostile) as string, "\n";
 
-// What that invariant does *not* claim, stated rather than left to be inferred:
-// `.` is unreserved, so a `..` value is written as itself and the link a reader
-// resolves is one segment up. Escaping it would diverge from RFC 3986 § 2.1 and
-// from PHP's `rawurlencode` alike, so this line is the encoding being faithful,
-// not the sink being closed — dot-segment removal is the resolver's rule and
-// belongs wherever a link is resolved rather than built.
-echo "dots=", Core\Router::url("Docs::show", ["slug" => ".."]), "\n";
+// The one value encoding cannot hold in its segment: `.` is unreserved, and a
+// resolver reads `%2e` as `.` too, so a `..` value would be a link one segment
+// up. The member throws for it instead, which is what keeps the result safe as
+// a path (`rule:routing/link-name-and-params-are-checked`).
+try {
+    echo "dots=", Core\Router::url("Docs::show", ["slug" => ".."]), "\n";
+} catch (RuntimeError $e) {
+    echo "error\n";
+}
 
 // The exception, and the reason it is one: `rule:routing/path-grammar` gives `{rest...}` every
 // remaining segment, so its `/`s are structure rather than content and each
@@ -105,7 +107,7 @@ utf8=/docs/h%C3%A9llo
 already=/docs/a%252Fb
 empty=/docs/
 segments=8/8
-dots=/docs/..
+dots=error
 rest=/files/a/b%20c/d
 restsegments=5
 path=/docs/a~b%20c
