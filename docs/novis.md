@@ -10293,16 +10293,16 @@ Compiles a regular expression once, with options, and returns a `Core\Regex\Patt
 Core\Regex::matches(string $subject, Core\Regex\Pattern|string $pattern): bool
 ```
 
-Answers whether `$pattern` matches anywhere in `$subject` — `preg_match` used as a predicate. The pattern is unanchored, so `^` and `$` are how a call asks for more.
+Checks whether `$pattern` matches anywhere in `$subject`. The match can be at any position. Write `^` and `$` in the pattern to match the whole text.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` (neutral) | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
 
-**Returns** `bool` — `true` when the subject contains at least one match, `false` otherwise.
+**Returns** `bool` — `true` if the text contains at least one match, and `false` if it does not.
 
-**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` is not a valid regular expression, or matching it against `$subject` needs more steps than the limit allows.
 
 <a id="core-core-regex-match"></a>
 #### `Core\Regex::match`
@@ -10330,16 +10330,16 @@ Finds the first match of `$pattern` in `$subject` and returns it as a `Core\Rege
 Core\Regex::matchAll(string $subject, Core\Regex\Pattern|string $pattern): array<Core\Regex\Match>
 ```
 
-Finds every non-overlapping match of `$pattern` in `$subject`, one `Match` each in the order they occur — `preg_match_all` in `PREG_SET_ORDER`'s shape, with each match's groups and offset on it.
+Finds every match of `$pattern` in `$subject` and returns them as an array of `Core\Regex\Match`. The matches do not overlap, and they are in the order they appear in the text.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
 
-**Returns** `array<Core\Regex\Match>` — The matches in subject order; an empty array when the pattern matches nowhere.
+**Returns** `array<Core\Regex\Match>` — One `Core\Regex\Match` for each match, from left to right. The array is empty if there is no match.
 
-**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` is not a valid regular expression, or matching it against `$subject` needs more steps than the limit allows.
 
 <a id="core-core-regex-replace"></a>
 #### `Core\Regex::replace`
