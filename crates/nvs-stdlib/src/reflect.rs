@@ -3141,6 +3141,144 @@ mod tests {
         }
     }
 
+    thread_local! {
+        /// How many times [`singleton_constructor`] has run on this thread, so
+        /// a refusal is read as a constructor that never ran and not only as a
+        /// throw.
+        static BUILT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    }
+
+    /// `Singleton::constructor`'s body, as `nvs-codegen` would have compiled a
+    /// constructor declaring no parameters: slot 0 is the receiver `call_at`
+    /// retained, and the answer is the `void` constructor's `null`.
+    #[expect(
+        unsafe_code,
+        reason = "compiled code's own signature, which `call_at` calls through: \
+                  one live value and the address of a live `Value` for the \
+                  result, neither expressible in the type"
+    )]
+    unsafe extern "C" fn singleton_constructor(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        BUILT.with(|built| built.set(built.get() + 1));
+        unsafe {
+            (*args).release();
+            *out = Value::null();
+        }
+        OK
+    }
+
+    /// `rule:security/reflection-enforces-visibility` for the constructing
+    /// door, asked the way the `call` test above asks it: a reflective
+    /// `construct` of a class whose constructor is `private` and an ordinary
+    /// erased construction from outside every class have to fail with the same
+    /// class and the same sentence, and neither may run the constructor. The
+    /// same call from a site inside `Singleton` then builds one instance and
+    /// runs the constructor once — the singleton's own `load()` keeps working
+    /// through this door, so "they agree" cannot be two members refusing
+    /// everything.
+    // covers: Core\Reflect\ClassInfo::construct
+    #[test]
+    fn a_reflective_construct_of_a_private_constructor_fails_like_the_ordinary_construct() {
+        let mut classes = ClassTable::new();
+        let id = classes.define("Singleton", &[] as &[&str], &[]);
+        classes.set_methods(
+            id,
+            vec![MethodRow {
+                name: nvs_runtime::object::CONSTRUCTOR.to_owned(),
+                code: (singleton_constructor as NvsFn) as *const u8,
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: false,
+                protected: false,
+                native: false,
+            }],
+        );
+        let classes = std::sync::Arc::new(classes);
+        let desc = classes.desc(id);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, id));
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor belongs to the table the context above now \
+                      holds for its whole life, and `Singleton` declares no \
+                      fields, so a fresh allocation is a fully initialized instance"
+        )]
+        let subject = Value::object(unsafe { NvsObj::new(desc) });
+        let info = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+            .expect("every object has a description");
+
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor belongs to the table the context holds"
+        )]
+        let ordinary = unsafe { nvs_runtime::construct_erased_from(&mut ctx, desc, &[], None) }
+            .expect_err("the constructor is `private`, and this site is outside every class");
+        let nvs_runtime::Fault::Thrown(ordinary_class, ordinary_said) = ordinary else {
+            panic!(
+                "an out-of-class construction through a `private` constructor is a catchable throw"
+            );
+        };
+
+        let none = Value::array(NvsArray::new());
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_construct,
+                &mut ctx,
+                &[info, none, OUTSIDE],
+            )
+            .err(),
+            Some(nvs_runtime::THROWN),
+            "reflection does not lift the check, so the reflective construction throws too"
+        );
+        assert_eq!(
+            ctx.take_pending().as_deref(),
+            Some(ordinary_said.as_ref()),
+            "the same sentence, because it is the same check"
+        );
+        assert_eq!(
+            ordinary_class,
+            nvs_runtime::ThrownClass::Logic,
+            "and the same class, which is what a `catch` in a program sees"
+        );
+        assert_eq!(
+            BUILT.with(std::cell::Cell::get),
+            0,
+            "neither door ran the constructor it refused"
+        );
+
+        let site = inside("Singleton::load");
+        let built = call(
+            super::nvs_core_reflect_class_info_construct,
+            &mut ctx,
+            &[info, none, site.1],
+        )
+        .expect("a `private` constructor is reachable from `Singleton`'s own bodies");
+        assert!(built.obj_ptr().is_some(), "what comes back is an instance");
+        assert_eq!(
+            BUILT.with(std::cell::Cell::get),
+            1,
+            "and its constructor ran exactly once"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each — `forObject` and \
+                      `construct` each handed back a fresh one, and this frame \
+                      built the other two — and every call above borrowed them"
+        )]
+        unsafe {
+            built.release();
+            none.release();
+            info.release();
+            subject.release();
+        }
+    }
+
     // Every `onPropertySet` call `ledger_observed` has been handed, in arrival
     // order, as the two things `rule:classes/property-observer-pipeline` says it is told: the property's
     // name and the value that was committed.

@@ -2,6 +2,7 @@
 A constructor invoked reflectively faces the check the `new` at that call site faces, so a `private` one builds from inside the class and is refused from outside — `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::construct
 // `rule:security/reflection-enforces-visibility`: acting on a member runs
 // through exactly the check ordinary code *at that call site* would face, and
 // a constructor is a member like any other, reached through the same

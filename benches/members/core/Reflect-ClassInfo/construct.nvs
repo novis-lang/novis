@@ -1,0 +1,34 @@
+<?nvs
+// Creates an object from its class name, as a container or a plugin loader does when the name comes from configuration.
+// bench: iterations 200000
+
+class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $found = Core\Reflect::forClass("Point");
+        if ($found == null) {
+            return 0;
+        }
+        Core\Reflect\ClassInfo $info = $found;
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each object gets last round's total, so no round can be skipped.
+            var $point = $info->construct([$total, 3]) as Point;
+            $total = $point->x + $point->y;
+            $i = $i + 1;
+        }
+        return $total as uint;
+    }
+}
+
+echo Bench::run(200000), "\n";

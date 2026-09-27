@@ -1,0 +1,50 @@
+<?nvs
+// Shows how a program creates the handler class that its configuration names.
+
+class ConsoleNotifier {
+    public string $prefix;
+
+    public function constructor(string $prefix) {
+        $this->prefix = $prefix;
+    }
+
+    public function send(string $text): string {
+        return $this->prefix . " " . $text;
+    }
+}
+
+class EmailNotifier {
+    public string $address;
+
+    public function constructor(string $address) {
+        $this->address = $address;
+    }
+
+    public function send(string $text): string {
+        return "mail to " . $this->address . ": " . $text;
+    }
+}
+
+class Notifiers {
+    public static function send(string $className, string $option, string $text): string {
+        var $info = Core\Reflect::forClass($className);
+        // `forClass` returns `null` for a name that is not a class.
+        if ($info == null) {
+            return "unknown handler: " . $className;
+        }
+        // The handler gets its option from the configuration as its constructor argument.
+        mixed $handler = $info->construct([$option]);
+        return $info->call($handler, "send", [$text]) as string;
+    }
+}
+
+// Each row is one line of configuration: the class name and its option.
+// This prints one line for each row.
+array<array<string>> $configured = [
+    ["ConsoleNotifier", "[info]"],
+    ["EmailNotifier", "ops@example.com"],
+    ["SmsNotifier", "+100"],
+];
+foreach ($configured as array<string> $row) {
+    echo Notifiers::send($row[0], $row[1], "backup finished"), "\n";
+}

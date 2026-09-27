@@ -2,6 +2,7 @@
 `Core\Reflect\ClassInfo::construct` judges `$arguments` against the constructor's declared parameters — both sides of the arity bound, and a type a parameter does not accept — `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::construct
 // The check `Core\Reflect\ClassInfo` makes here is the ordinary erased call's,
 // so what the list is
 // judged against is the *constructor's* shape and never the array's. Both

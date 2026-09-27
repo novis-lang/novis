@@ -1,0 +1,115 @@
+<?nvs
+// Attack: `construct` gets argument lists that do not fit the constructor, a private
+// constructor, and a constructor that throws. Then a constructor creates its own class
+// through `construct` until the stack is full. Each step should throw an error or stop
+// the program cleanly, and must not crash or leak the objects it did not finish.
+// hostile: ends-early
+
+class Pair
+{
+    public int $a;
+    public int $b;
+
+    public function constructor(int $a, int $b)
+    {
+        $this->a = $a;
+        $this->b = $b;
+    }
+}
+
+class Hidden
+{
+    private function constructor()
+    {
+    }
+}
+
+class Failing
+{
+    public string $payload;
+
+    public function constructor(string $payload)
+    {
+        $this->payload = $payload;
+        throw new LogicError('constructor failed');
+    }
+}
+
+class Nested
+{
+    public mixed $child;
+
+    public function constructor(int $depth)
+    {
+        var $info = Core\Reflect::forClass('Nested');
+        if ($info == null) {
+            $this->child = null;
+            return;
+        }
+        $this->child = $info->construct([$depth + 1]);
+    }
+}
+
+// 1. Too few arguments, a very long list, wrong types, and nulls.
+var $foundPair = Core\Reflect::forClass('Pair');
+if ($foundPair != null) {
+    Core\Reflect\ClassInfo $pair = $foundPair;
+    array<mixed> $many = [];
+    uint $i = 0;
+    while ($i < 100000) {
+        $many[] = $i;
+        $i = $i + 1;
+    }
+    array<array<mixed>> $lists = [[], [1], $many, ['one', 'two'], [null, null], [[1], [2]]];
+    foreach ($lists as array<mixed> $arguments) {
+        try {
+            $pair->construct($arguments);
+            echo 'built ', Core\Arr::count($arguments), "\n";
+        } catch (Throwable $badList) {
+            echo 'refused ', Core\Arr::count($arguments), "\n";
+        }
+    }
+}
+
+// 2. A private constructor, used from outside the class 100000 times. Each error should be freed.
+var $foundHidden = Core\Reflect::forClass('Hidden');
+if ($foundHidden != null) {
+    Core\Reflect\ClassInfo $hidden = $foundHidden;
+    uint $refused = 0;
+    uint $round = 0;
+    while ($round < 100000) {
+        try {
+            $hidden->construct([]);
+        } catch (Throwable $private) {
+            $refused = $refused + 1;
+        }
+        $round = $round + 1;
+    }
+    echo $refused, "\n";
+}
+
+// 3. A constructor that throws after it stored a large string, 1000 times.
+// Each object that was not finished should be freed.
+var $foundFailing = Core\Reflect::forClass('Failing');
+if ($foundFailing != null) {
+    Core\Reflect\ClassInfo $failing = $foundFailing;
+    string $large = Core\Str::repeat('x', 100000);
+    uint $failed = 0;
+    uint $attempt = 0;
+    while ($attempt < 1000) {
+        try {
+            $failing->construct([$large]);
+        } catch (LogicError $thrown) {
+            $failed = $failed + 1;
+        }
+        $attempt = $attempt + 1;
+    }
+    echo $failed, "\n";
+}
+
+// 4. A constructor that creates its own class through `construct` with no end.
+var $nested = Core\Reflect::forClass('Nested');
+if ($nested != null) {
+    $nested->construct([0]);
+    echo "unreachable\n";
+}
