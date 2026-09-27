@@ -1,0 +1,68 @@
+--TEST--
+A `spawn script` whose argument cannot cross throws in the parent and leaves the parent's value whole: a graph nested past the depth limit and an array holding a closure are each still readable and spawnable afterwards, and each is released once at the end — `rule:classes/graph-copy`, `rule:security/isolate-values-cross-by-copy`
+--FILE nvs.toml--
+# `spawn script` goes through a door that asks for `script.spawn` first, and
+# deny-by-default means a case with no configuration cannot spawn at all.
+[capabilities.script]
+spawn = true
+--FILE depth.nvs--
+<?nvs
+// Counts how deeply its argument nests.
+var $given = Core\Script::args();
+int $levels = 0;
+while ($given != null && Core\Arr::count($given as array<mixed>) > 0) {
+    $given = ($given as array<mixed>)[0];
+    $levels = $levels + 1;
+}
+echo "child counted ", $levels, "\n";
+--FILE--
+<?nvs
+// Past the limit: the refusal is a throw here, before any child exists, and the
+// walk that refused it gives back only the reference it was handed.
+mixed $deep = [];
+int $level = 0;
+while ($level < 300) {
+    $deep = [$deep];
+    $level = $level + 1;
+}
+try {
+    var $refused = spawn script "depth.nvs" with(args: $deep);
+    echo "not reached\n";
+} catch (LogicError $error) {
+    echo "refused: ", Core\Str::contains($error->message, "nests deeper") ? "too deep" : $error->message, "\n";
+}
+
+// The parent's value is untouched: walk it, then cut it under the limit and
+// send it again. A release too many on the refusal would free it under us.
+mixed $walked = $deep;
+int $depth = 0;
+while (Core\Arr::count($walked as array<mixed>) > 0) {
+    $walked = ($walked as array<mixed>)[0];
+    $depth = $depth + 1;
+}
+echo "parent still reads ", $depth, "\n";
+
+mixed $shallow = $deep;
+int $cut = 0;
+while ($cut < 100) {
+    $shallow = ($shallow as array<mixed>)[0];
+    $cut = $cut + 1;
+}
+var $sent = spawn script "depth.nvs" with(args: $shallow, output: "capture");
+echo (await $sent)->output;
+
+// A closure is refused as the object it is, one level down.
+array<mixed> $withClosure = ["label", fn (): int => 1];
+try {
+    var $closure = spawn script "depth.nvs" with(args: $withClosure);
+    echo "not reached\n";
+} catch (LogicError $error) {
+    echo "refused: a closure\n";
+}
+echo "parent still holds ", Core\Arr::count($withClosure), " entries\n";
+--EXPECT--
+refused: too deep
+parent still reads 300
+child counted 200
+refused: a closure
+parent still holds 2 entries

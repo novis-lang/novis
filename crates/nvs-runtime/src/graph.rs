@@ -310,8 +310,12 @@ fn walk<C: Carrier>(
                           table outlives it by `ClassTable`'s own contract"
             )]
             let class: &ClassDesc = unsafe { &*object.class() };
-            refusable(class)?;
-            carrier.admit(class)?;
+            // A refused object is released like every other refused node, so
+            // the walk consumes its reference on this path as well.
+            if let Err(why) = refusable(class).and_then(|()| carrier.admit(class)) {
+                release(value);
+                return Err(why);
+            }
             let adopt = carrier.adopt(value);
             let holder = carrier.open_object(class, adopt.then_some(value));
             seen.insert(ptr, holder.clone());

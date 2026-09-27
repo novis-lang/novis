@@ -223,8 +223,9 @@ impl Host for SchedulerHost {
             && ctx.script_depth_breach().is_none()
             && let Some(destination) = crate::placed::destination_for(ctx, &entry)
         {
-            return crate::placed::start(destination, ctx, entry, args, output, narrowing)
-                .map_err(StartError::Argument);
+            let started =
+                crate::placed::start(destination, ctx, entry, own(args), output, narrowing);
+            return given_up_once_started(args, started);
         }
         let method = entry.is_method();
         // The name becomes code **here**, on the core that is about to run the
@@ -234,15 +235,15 @@ impl Host for SchedulerHost {
         // everything else for `Entry::program`'s own reason — the
         // `script.spawn` grant is asked inside it, and a spawn the grant does
         // not cover may not build so much as a context.
-        // Nothing is released for `args` on the way out of here, and that is the
+        // Nothing is released for `args` on an `Err` out of here, and that is the
         // spawn's ownership rule rather than an omission: `nvs_ir::lower`'s
         // `lower_spawn_script` leaves the transferred temporary on its stack
         // across this call — the one `CoreCall` site that does not forget it
         // first — so the fault edge `emit_fallible` built releases it on every
-        // `Err` this answers with. It is the same reading `copy_graph` is
-        // written under below.
+        // `Err` this answers with. [`given_up_once_started`] is how the two
+        // starts below keep to it.
         let program = entry.program(ctx).map_err(StartError::Entry)?;
-        let isolate = Isolate::new(program, args, output).narrowed_by(narrowing);
+        let isolate = Isolate::new(program, own(args), output).narrowed_by(narrowing);
         let isolate = if method {
             isolate.running_a_method_of_the_parents_unit()
         } else {
@@ -254,8 +255,52 @@ impl Host for SchedulerHost {
         // it is its parent's child, charged to its tree, dying with it — and
         // loses only the core it asked for. `crate::placed`'s `# Known gaps` is
         // which placements those are.
-        isolate.start(ctx).map_err(StartError::Argument)
+        given_up_once_started(args, isolate.start(ctx))
     }
+}
+
+/// A second reference to the argument of a spawn, for the start to consume.
+///
+/// Both starts consume the reference they are handed on a refusal as well as on
+/// a crossing, because the graph walk releases what it was given either way. The
+/// seam leaves the caller's reference with the caller on an `Err`, so each start
+/// is handed one of its own. **What it spends:** a temporary argument is
+/// copied at the crossing where it could have been moved, because the walk sees
+/// two references rather than one — one extra transient copy of that graph per
+/// spawn, freed when the child's arena is.
+fn own(args: Value) -> Value {
+    #[expect(
+        unsafe_code,
+        reason = "the caller transferred a live reference to this seam, so the \
+                  allocation is live while a second one is taken"
+    )]
+    // SAFETY: `args` is the reference the spawn transferred, live for the whole
+    // call; [`given_up_once_started`] gives exactly one of the two back.
+    unsafe {
+        args.retain();
+    }
+    args
+}
+
+/// The seam's answer for a start that was handed [`own`]'s reference: the
+/// caller's own reference is released once the child has started, which is the
+/// transfer the success path promises, and left with the caller on a refusal.
+fn given_up_once_started(
+    args: Value,
+    started: Result<Box<dyn Running>, nvs_runtime::graph::GraphError>,
+) -> Result<Box<dyn Running>, StartError> {
+    let running = started.map_err(StartError::Argument)?;
+    #[expect(
+        unsafe_code,
+        reason = "the start consumed its own reference, so this one is the \
+                  caller's, which the success path transfers here"
+    )]
+    // SAFETY: the lowering emits no release on the success path, so this is
+    // the one release of the caller's reference.
+    unsafe {
+        args.release();
+    }
+    Ok(running)
 }
 
 /// Why a group stopped starting children.
