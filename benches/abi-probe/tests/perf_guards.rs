@@ -756,17 +756,32 @@ fn concurrent_spawns_leave_the_scheduler_serving_other_tasks() {
 /// one question the guard below cannot answer from the code it is measuring.
 /// Divided into the same denominator, it is a speedup of the same shape.
 ///
+/// Thread `n` pins itself to `nvs_host::cpus()[n]`, the CPU the worker set's
+/// `n`th core is started on (`nvs_host::worker`'s `start_one`), so the figure is
+/// about the CPUs the placement runs on and not about whichever ones are free.
+/// A worker core cannot move off a busy CPU and an unpinned thread can: under a
+/// loaded sweep, unpinned threads found idle CPUs elsewhere, read the machine as
+/// free, and the guard below blamed the placement for load on the CPUs it is
+/// pinned to.
+///
 /// Each thread is started once and runs the whole batch. A thread started per
 /// fan-out prices thread creation instead, which is a large enough share of one
 /// child's work to read *below* the placement this is meant to bound — and a
 /// probe shaped that way reports cores as busy when they were only expensive to
 /// acquire, skipping a guard that could have run.
 fn plain_thread_fan_out(iters: u64) -> Duration {
+    let cpus = nvs_host::cpus();
     let start = Instant::now();
     thread::scope(|scope| {
         let running: Vec<_> = (0..isolate::WIDTH)
             .map(|child| {
+                let cpu = cpus.get(child).copied();
                 scope.spawn(move || {
+                    // A refused pin leaves the thread where the OS put it, which
+                    // is where a worker core whose pin was refused runs too.
+                    if let Some(cpu) = cpu {
+                        nvs_host::pin_current_thread(cpu);
+                    }
                     // Chained, like every other loop in this file: the same seed
                     // twice is a call an optimiser is free to make once.
                     let mut acc = child as u64;
@@ -858,8 +873,8 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
     // cannot answer a machine whose four cores are all busy with something else,
     // and that machine reads exactly like a picker handing every child to one
     // core: both land under the floor. This is what tells the two apart, because
-    // threads owning their cores outright are held to the same floor and a busy
-    // machine fails it too. Under it, the ratio was never there to be measured,
+    // threads pinned to the CPUs the cores run on are held to the same floor, and
+    // load on those CPUs fails it too. Under it, the ratio was never there to be measured,
     // so the guard says so rather than reporting the machine as the tree — the
     // same answer the CPU count gets, for the same reason.
     if available <= MIN_SPEEDUP {

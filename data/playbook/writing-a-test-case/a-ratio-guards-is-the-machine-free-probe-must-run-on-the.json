@@ -1,0 +1,11 @@
+{
+  "lead": "A ratio guard's \"is the machine free\" probe must run on the CPUs the measured code is pinned to.",
+  "body": "Worker cores are pinned (`nvs_host::worker`'s `start_one` takes `cpus()[n]`) and an unpinned control thread is not, so under a loaded sweep the control finds idle CPUs elsewhere, reads the machine as free, and the guard blames the code for load on the pinned CPUs. Pin the control with `nvs_host::pin_current_thread` to the same CPUs, as `plain_thread_fan_out` does.",
+  "files": [
+    "benches/abi-probe/tests/perf_guards.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "benches/abi-probe/tests/perf_guards.rs:nvs_host::pin_current_thread"
+  }
+}
