@@ -1,0 +1,19 @@
+<?nvs
+// Shows how one server runs several shops, and picks the shop by the host name of the request.
+
+// Each host name belongs to one shop.
+array<string> $shops = [
+    "shoes.example.com" => "Shoe Shop",
+    "books.example.com" => "Book Shop",
+];
+
+// The request was sent to "Books.Example.com:8080". `Core\Request::host` returns
+// "books.example.com", so the lookup finds the shop.
+string $shop = $shops[Core\Request::host() ?? ""] ?? "";
+
+// This prints "Welcome to Book Shop".
+if ($shop == "") {
+    echo "404: no shop has this host name\n";
+} else {
+    echo "Welcome to ", $shop, "\n";
+}

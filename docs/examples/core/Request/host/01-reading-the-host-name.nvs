@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the host name that a request was sent to.
+
+// `Core\Request::host` returns the name in lower case, without the port.
+// This prints "shop.example.com".
+echo Core\Request::host() ?? "none", "\n";
+
+// `Core\Request::header` returns the `Host` header as it arrived.
+// This prints "Shop.Example.com:8443".
+echo Core\Request::header("host") ?? "none", "\n";

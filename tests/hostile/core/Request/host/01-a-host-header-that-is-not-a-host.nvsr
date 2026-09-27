@@ -1,0 +1,14 @@
+--METHOD--
+GET
+--PATH--
+/
+--HEADERS--
+Host: [2001:DB8::1
+Host: Shop.Example.COM.:8443:9999
+host: .
+HOST: ..........................................................................................
+host: :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+host: xn--80ak6aa92e.example, ÄÖÜ.example, shop.example.com%00.attacker.example
+X-Forwarded-Host: attacker.example
+X-Forwarded-Proto: https
+Forwarded: host=attacker.example;proto=https

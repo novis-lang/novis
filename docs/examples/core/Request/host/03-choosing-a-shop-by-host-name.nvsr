@@ -1,0 +1,7 @@
+--METHOD--
+GET
+--PATH--
+/
+--HEADERS--
+Host: Books.Example.com:8080
+accept: text/html

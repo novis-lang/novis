@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/
+--HEADERS--
+Host: Shop.Example.com:8443

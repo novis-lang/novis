@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a client sends the `Host` header on many lines, with broken values and a false `X-Forwarded-Host`.
+// `host` should return one lower-case string and never read the forwarded header. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads the host. The lines are joined, and one line opens a bracket that never closes.
+tainted string $host = Core\Request::host() ?? '';
+echo 'host: ', Core\Str::length($host), ' characters', "\n";
+
+// 2. Checks that the result is in lower case.
+echo 'lower case: ', $host == Core\Str::lower($host) ? 'yes' : 'no', "\n";
+
+// 3. Checks that the host does not come from `X-Forwarded-Host`.
+echo 'forwarded host used: ', Core\Str::contains($host, 'attacker') ? 'yes' : 'no', "\n";
+
+// 4. Reads the host many times. Every call returns the same string.
+uint $same = 0;
+uint $i = 0;
+while ($i < 10000) {
+    if (Core\Request::host() == $host) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo 'same result: ', $same, "\n";
+
+// 5. Keeps every copy of the host without end. This stops at the memory limit.
+array<?tainted string> $kept = [];
+while (true) {
+    $kept[] = Core\Request::host();
+}
