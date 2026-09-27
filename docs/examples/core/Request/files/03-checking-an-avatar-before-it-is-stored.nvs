@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a website checks an uploaded profile picture before it stores it.
+
+array<string> $allowed = ["image/png" => "png", "image/jpeg" => "jpg"];
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // The form has one file field, `avatar`. Other files are skipped.
+    if ($part->name() != "avatar") {
+        continue;
+    }
+    string $extension = $allowed[$part->contentType()] ?? "";
+    if ($extension == "") {
+        echo "only PNG and JPEG pictures are allowed\n";
+        continue;
+    }
+    try {
+        // `max` is the largest size in bytes. A larger file throws a `RuntimeError`.
+        tainted bytes $picture = $part->readAll({max: 2000000});
+        // The client chose the file name "../../me.png", so the program does not use it.
+        // The stored name is the SHA-256 checksum of the picture.
+        string $stored = Core\Encoding::toHex(Core\Hash::of($picture, Core\Digest::Sha256));
+        echo "stored as ", $stored, ".", $extension, "\n";
+    } catch (RuntimeError $tooLarge) {
+        echo "the picture is larger than 2 MB\n";
+    }
+}

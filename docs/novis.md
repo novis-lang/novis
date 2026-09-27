@@ -18371,11 +18371,11 @@ Returns the request body in pieces, in the order they arrive. Use it for a large
 Core\Request::files(): Core\Request\Files
 ```
 
-The uploaded files this request carries, as a walk over its parts — the one way to receive one, replacing `$_FILES` and `move_uploaded_file` with a stream that never lands in a temporary directory.
+Returns the files that a form uploaded, one at a time in a `foreach` loop. It replaces PHP's `$_FILES` and `move_uploaded_file`.
 
-**Returns** `Core\Request\Files` — An `Iterable<Core\Request\Part>` a `foreach` walks once, yielding each file part as it comes off the wire. Ordinary form fields are not parts of this walk: they are buffered as the walk passes them and read back through `post`. Empty where the request declared no `multipart/form-data` body, which is what a request carrying no upload is.
+**Returns** `Core\Request\Files` — An `Iterable<Core\Request\Part>`. Each loop step gives the next file as it arrives. The text fields are not in the loop, and `post` reads them after it. The loop runs zero times when the request has no `multipart/form-data` body.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body`, `bodyStream` or `post` — those readings are exclusive with this one, and naming this walk is the reading. `post` after this walk is the one order that is allowed, because the walk buffers the form fields on its way past.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one — no `boundary`, two of them, or one outside RFC 2046's grammar — or what arrived is not the body it declared. An ambiguous body is refused rather than guessed at.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+**Throws** `LogicError` — The program is not answering a request. Or `body`, `bodyStream` or `post` already read the body. After this call, `body`, `bytes`, `bodyStream` and `json` throw this error too. `post` still works after the loop.; `ParseError` — The request says it has a `multipart/form-data` body, but its `boundary` is missing, given twice or not valid. Or the body does not have the form that the request declared.; `IOError` — The connection failed while the loop read the body, or the body ended before its last boundary.
 
 <a id="core-core-request-post"></a>
 #### `Core\Request::post`

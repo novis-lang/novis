@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=form-boundary-7d2a
+--BODY_CRLF--
+--form-boundary-7d2a
+Content-Disposition: form-data; name="photo"; filename="beach.jpg"
+Content-Type: image/jpeg
+
+JPEG image bytes
+--form-boundary-7d2a
+Content-Disposition: form-data; name="notes"; filename="trip.txt"
+Content-Type: text/plain
+
+Two days at the sea.
+--form-boundary-7d2a--

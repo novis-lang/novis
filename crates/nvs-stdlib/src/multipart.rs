@@ -125,6 +125,9 @@ enum State {
     Preamble,
     /// Exactly at a delimiter, with what follows it not yet classified.
     AtDelimiter,
+    /// At the blank line that ends a part's headers, whose `CRLF` is also the
+    /// first two bytes of the delimiter where the part has no body at all.
+    Opening,
     /// Inside a part's body, which is handed out chunk by chunk.
     Body,
     /// The closing delimiter has been read. The epilogue is never pulled.
@@ -274,14 +277,14 @@ impl Multipart {
                 State::Preamble => self.find_first(body)?,
                 // § 1's drain. `chunk` leaves the cursor at the delimiter, so
                 // this is the same walk a consuming caller makes, minus the copy.
-                State::Body => while self.chunk(body)?.is_some() {},
+                State::Opening | State::Body => while self.chunk(body)?.is_some() {},
                 State::AtDelimiter => {
                     if !self.open(body)? {
                         return Ok(None);
                     }
                     match self.headers(body)? {
                         Head::File(part) => {
-                            self.state = State::Body;
+                            self.state = State::Opening;
                             return Ok(Some(part));
                         }
                         Head::Field(name) => self.buffer(body, name)?,
@@ -313,6 +316,9 @@ impl Multipart {
     /// [`Self::next_chunk`] as a span, because a `&mut self` method that hands
     /// back a piece of `self` cannot also keep looping over it.
     fn chunk(&mut self, body: &mut dyn RequestBody) -> Result<Option<Range<usize>>, Box<str>> {
+        if self.state == State::Opening {
+            self.open_body(body)?;
+        }
         if self.state != State::Body {
             return Ok(None);
         }
@@ -330,6 +336,35 @@ impl Multipart {
                         self.at = upto;
                         return Ok(Some(span));
                     }
+                    if !self.fill(body)? {
+                        return Err("the body ended before the part's closing boundary".into());
+                    }
+                }
+            }
+        }
+    }
+
+    /// Steps past the blank line that ends a part's headers, or ends the part
+    /// there when a delimiter begins on that line's own `CRLF`.
+    ///
+    /// RFC 2046 makes a part's body optional, so `headers CRLF` followed by the
+    /// delimiter `CRLF--boundary` is an empty part. Stepping over all four bytes
+    /// first would leave `--boundary` looking like content, and the part would
+    /// swallow the next one whole. That is a field a proxy in front of this
+    /// server saw and `post()` would not, so the two readings must agree.
+    fn open_body(&mut self, body: &mut dyn RequestBody) -> Result<(), Box<str>> {
+        loop {
+            match self.delimiter_at(self.at)? {
+                Some(true) => {
+                    self.state = State::AtDelimiter;
+                    return Ok(());
+                }
+                Some(false) => {
+                    self.at += 2;
+                    self.state = State::Body;
+                    return Ok(());
+                }
+                None => {
                     if !self.fill(body)? {
                         return Err("the body ended before the part's closing boundary".into());
                     }
@@ -398,11 +433,11 @@ impl Multipart {
         // A block of no headers at all is the blank line by itself, and it has
         // to be recognised *before* the search for that blank line: `\r\n\r\n`
         // would otherwise be looked for inside the part's own body, and found
-        // there by anything that happens to carry one.
+        // there by anything that happens to carry one. Either way the cursor is
+        // left on the blank line, which `open_body` steps over.
         let end = loop {
             let rest = &self.buf[self.at..];
             if rest.starts_with(b"\r\n") {
-                self.at += 2;
                 return head_of(&[]);
             }
             if let Some(off) = find(rest, b"\r\n\r\n") {
@@ -416,7 +451,7 @@ impl Multipart {
             }
         };
         let head = head_of(&self.buf[self.at..end])?;
-        self.at = end + 4;
+        self.at = end + 2;
         Ok(head)
     }
 
@@ -428,7 +463,7 @@ impl Multipart {
     /// it is still a span of the wire buffer, so what this holds never exceeds
     /// the number it was given.
     fn buffer(&mut self, body: &mut dyn RequestBody, name: Vec<u8>) -> Result<(), Box<str>> {
-        self.state = State::Body;
+        self.state = State::Opening;
         let mut value = Vec::new();
         while let Some(span) = self.chunk(body)? {
             if self.buffered + span.len() > REQUEST_BODY {
@@ -461,25 +496,34 @@ impl Multipart {
         let mut i = from;
         while let Some(off) = self.buf[i..].iter().position(|&byte| byte == b'\r') {
             let start = i + off;
-            let rest = &self.buf[start..];
-            if rest.len() < self.delimiter.len() {
-                if self.delimiter.starts_with(rest) {
-                    return Ok(Scan::More(start));
-                }
-                i = start + 1;
-                continue;
-            }
-            if !rest.starts_with(&self.delimiter) {
-                i = start + 1;
-                continue;
-            }
-            match self.follows(start + self.delimiter.len())? {
-                Follow::Need => return Ok(Scan::More(start)),
-                Follow::Closed | Follow::Next(_) => return Ok(Scan::Ends(start)),
-                Follow::Body => i = start + 1,
+            match self.delimiter_at(start)? {
+                None => return Ok(Scan::More(start)),
+                Some(true) => return Ok(Scan::Ends(start)),
+                Some(false) => i = start + 1,
             }
         }
         Ok(Scan::More(self.buf.len()))
+    }
+
+    /// Whether a real delimiter begins at `start`, or `None` where not enough
+    /// has arrived to tell.
+    fn delimiter_at(&self, start: usize) -> Result<Option<bool>, Box<str>> {
+        let rest = &self.buf[start..];
+        if rest.len() < self.delimiter.len() {
+            return Ok(if self.delimiter.starts_with(rest) {
+                None
+            } else {
+                Some(false)
+            });
+        }
+        if !rest.starts_with(&self.delimiter) {
+            return Ok(Some(false));
+        }
+        Ok(match self.follows(start + self.delimiter.len())? {
+            Follow::Need => None,
+            Follow::Closed | Follow::Next(_) => Some(true),
+            Follow::Body => Some(false),
+        })
     }
 
     /// Classifies the bytes at `after`, which is one past a delimiter's end.
@@ -904,6 +948,39 @@ mod tests {
             });
             assert_eq!(read, want, "at {piece} bytes a chunk");
             assert_eq!(parse.fields()[0].1, b"a report", "at {piece} bytes a chunk");
+        }
+    }
+
+    /// An empty part may end at the blank line after its headers, because RFC
+    /// 2046 makes a body optional and that line's `CRLF` then begins the
+    /// delimiter. A browser writes one more `CRLF` for an empty file, and both
+    /// forms answer the same parts: the empty file, and the field after it.
+    ///
+    /// The first form once read the next part as the empty file's content, so
+    /// the field after it reached no `post()`. A proxy reading the body the
+    /// RFC's way would have seen that field and this server would not.
+    #[test]
+    fn an_empty_part_ends_at_the_delimiter_on_its_own_blank_line() {
+        let head = b"--bnd\r\nContent-Disposition: form-data; name=\"empty\"; filename=\"\"\r\n";
+        let tail =
+            b"--bnd\r\nContent-Disposition: form-data; name=\"note\"\r\n\r\nafter\r\n--bnd--\r\n";
+        for blank in [&b"\r\n"[..], b"\r\n\r\n"] {
+            let mut wire = head.to_vec();
+            wire.extend_from_slice(blank);
+            wire.extend_from_slice(tail);
+            for piece in [1, 2, 3, 5, 8, 64, 4096] {
+                let (read, parse) = walk(&wire, piece).unwrap_or_else(|why| {
+                    panic!("the body parses at {piece} bytes a chunk: {why}");
+                });
+                assert_eq!(read.len(), 1, "at {piece} bytes a chunk");
+                assert_eq!(read[0].0.name, b"empty");
+                assert_eq!(read[0].1, b"", "the empty file stays empty at {piece}");
+                assert_eq!(
+                    parse.fields(),
+                    [(b"note".to_vec(), b"after".to_vec())],
+                    "the field after it is buffered at {piece}"
+                );
+            }
         }
     }
 

@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a client sends files with lines that look like the boundary between parts,
+// and a file name that points outside the upload folder. Each file should arrive whole.
+// The program then keeps a part after the loop and copies it without end.
+// It should throw errors and stop at its memory limit.
+// hostile: ends-early
+
+// 1. Asks for the files twice. The second call throws a `LogicError`.
+Core\Request\Files $walk = Core\Request::files();
+try {
+    Core\Request::files();
+    echo "a second files() was allowed\n";
+} catch (LogicError $refused) {
+    echo "second files(): LogicError\n";
+}
+
+// 2. Reads every file. The lines that only look like the boundary stay in the first file.
+//    The file `empty` has no content, so it has 0 bytes.
+array<Core\Request\Part> $parts = [];
+array<tainted bytes> $kept = [];
+foreach ($walk as Core\Request\Part $part) {
+    tainted bytes $content = $part->readAll();
+    echo $part->name(), " '", $part->filename(), "' ", Core\Bytes::length($content), " bytes\n";
+    $parts[] = $part;
+    $kept[] = $content;
+}
+
+// 3. Reads the first part again after the loop moved past it. This throws a `LogicError`.
+try {
+    $parts[0]->readAll();
+    echo "an old part was read again\n";
+} catch (LogicError $refused) {
+    echo "old part: LogicError\n";
+}
+
+// 4. Reads the text field that came after the empty file. It is a field of its own.
+echo 'comment: ', Core\Request::post('comment') ?? 'null', "\n";
+
+// 5. Reads the whole body after the files. This throws a `LogicError`.
+try {
+    Core\Request::body();
+    echo "body after files was allowed\n";
+} catch (LogicError $refused) {
+    echo "body after files: LogicError\n";
+}
+
+// 6. Makes large copies of the last file and keeps all of them.
+//    This stops at the memory limit.
+array<tainted bytes> $copies = [];
+while (true) {
+    $copies[] = Core\Bytes::repeat($kept[Core\Arr::count($kept) - 1], 100000);
+}

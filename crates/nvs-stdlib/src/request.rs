@@ -748,35 +748,29 @@ const BODY_STREAM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::files`'s reference card — `rule:core-api/reference-card`.
 const FILES_DOC: MethodDoc = MethodDoc {
-    short: "The uploaded files this request carries, as a walk over its parts — the one way to \
-            receive one, replacing `$_FILES` and `move_uploaded_file` with a stream that never \
-            lands in a temporary directory.",
+    short: "Returns the files that a form uploaded, one at a time in a `foreach` loop. It \
+            replaces PHP's `$_FILES` and `move_uploaded_file`.",
     params: &[],
-    ret: "An `Iterable<Core\\Request\\Part>` a `foreach` walks once, yielding each file part as \
-          it comes off the wire. Ordinary form fields are not parts of this walk: they are \
-          buffered as the walk passes them and read back through `post`. Empty where the \
-          request declared no `multipart/form-data` body, which is what a request carrying no \
-          upload is.",
+    ret: "An `Iterable<Core\\Request\\Part>`. Each loop step gives the next file as it arrives. \
+          The text fields are not in the loop, and `post` reads them after it. The loop runs \
+          zero times when the request has no `multipart/form-data` body.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or this request's body has already \
-                   been read by `body`, `bodyStream` or `post` — those readings are exclusive \
-                   with this one, and naming this walk is the reading. `post` after this walk \
-                   is the one order that is allowed, because the walk buffers the form fields \
-                   on its way past.",
+            desc: "The program is not answering a request. Or `body`, `bodyStream` or `post` \
+                   already read the body. After this call, `body`, `bytes`, `bodyStream` and \
+                   `json` throw this error too. `post` still works after the loop.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The request declared a `multipart/form-data` body and then did not say how \
-                   to read one — no `boundary`, two of them, or one outside RFC 2046's grammar \
-                   — or what arrived is not the body it declared. An ambiguous body is refused \
-                   rather than guessed at.",
+            desc: "The request says it has a `multipart/form-data` body, but its `boundary` is \
+                   missing, given twice or not valid. Or the body does not have the form that \
+                   the request declared.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed under the body, or the peer stopped short of the \
-                   length it declared.",
+            desc: "The connection failed while the loop read the body, or the body ended before \
+                   its last boundary.",
         },
     ],
 };
@@ -4933,6 +4927,7 @@ mod tests {
     /// The receiver is driven by hand rather than by a `.nvst` `foreach`,
     /// because a case is a program with no request in front of it — the
     /// `ASSERTED_OFF_THE_CORPUS` reading `conformance_coverage.rs` owns.
+    // covers: Core\Request::files
     #[test]
     fn a_files_walk_yields_the_file_parts_and_drains_what_it_passes() {
         let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
@@ -5254,6 +5249,7 @@ mod tests {
     ///
     /// No case can reach this: a `.nvst` program answers no request, so it can
     /// hold no walk for a connection to fail under.
+    // covers: Core\Request::files
     #[test]
     fn a_files_walk_that_fails_mid_body_throws_rather_than_ending() {
         let mut cut_off = uploading(

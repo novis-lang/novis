@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read a form that has a file and text fields.
+
+// `files` gives only the parts that are files. The text fields are skipped here.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    echo "file: ", $part->filename(), "\n";
+}
+
+// `Core\Request::post` reads the text fields. Call it after the loop.
+// This prints "Sales in March" and "Ada".
+echo "title: ", Core\Request::post("title") ?? "", "\n";
+echo "author: ", Core\Request::post("author") ?? "", "\n";

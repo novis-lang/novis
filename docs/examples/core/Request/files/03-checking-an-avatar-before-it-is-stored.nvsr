@@ -1,0 +1,16 @@
+--METHOD--
+POST
+--PATH--
+/account/avatar
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=avatar-upload-19c3
+--BODY_CRLF--
+--avatar-upload-19c3
+Content-Disposition: form-data; name="avatar"; filename="../../me.png"
+Content-Type: image/png
+
+PNG image bytes of a small face
+--avatar-upload-19c3--

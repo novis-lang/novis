@@ -1,0 +1,23 @@
+--METHOD--
+POST
+--PATH--
+/reports
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=----formdata-4f81
+--BODY_CRLF--
+------formdata-4f81
+Content-Disposition: form-data; name="title"
+
+Sales in March
+------formdata-4f81
+Content-Disposition: form-data; name="report"; filename="march.csv"
+Content-Type: text/csv
+
+month,sales
+March,1200
+------formdata-4f81
+Content-Disposition: form-data; name="author"
+
+Ada
+------formdata-4f81--
