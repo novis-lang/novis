@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to find the position where a match starts.
+
+// "total" starts after "Sum of all: ", which has 12 characters. This prints 12.
+var $m = Core\Regex::match("Sum of all: total 99", 'total');
+echo $m?->offset() ?? -1, "\n";
+
+// A match at the start of the text is at position 0.
+echo Core\Regex::match("total 99", 'total')?->offset() ?? -1, "\n";

@@ -1,0 +1,12 @@
+<?nvs
+// Shows that the position counts characters, so accented letters and emoji count as one.
+
+// "Café 🎉 " has 7 characters, so the number starts at position 7.
+// The same text has 11 bytes.
+string $line = "Café 🎉 2026";
+var $m = Core\Regex::match($line, '\d+');
+if ($m != null) {
+    echo "position: ", $m->offset(), "\n";
+    // `Core\Str::slice` counts the same way, so this prints "Café 🎉 ".
+    echo "before: [", Core\Str::slice($line, 0, $m->offset()), "]\n";
+}
