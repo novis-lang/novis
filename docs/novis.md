@@ -10368,18 +10368,18 @@ Replaces every match of `$pattern` in `$subject` with `$replacement`, and return
 Core\Regex::replaceWith(string $subject, Core\Regex\Pattern|string $pattern, callable(Core\Regex\Match): string $fn, {limit?: uint}): string
 ```
 
-Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answers for each, as `preg_replace_callback` does; the callback receives one `Match` and its answer is inserted literally, with no group expansion.
+Replaces every match of `$pattern` in `$subject` with the text your function returns for that match, and returns the new text. The function gets one `Core\Regex\Match`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
-| `$fn` | `callable(Core\Regex\Match): string` | A `callable(Match): string` called once per replaced match, in subject order, after every match has been found. |
-| `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the subject; the default is every one, `0` replaces nothing, and `$fn` is never called for a match beyond it. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
+| `$fn` | `callable(Core\Regex\Match): string` | A function that gets one `Core\Regex\Match` and returns a `string`. It is called once for each match, from left to right. The text it returns is inserted as it is, so `$1` in it is two characters. |
+| `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the text. The default is every match. `0` replaces nothing. The function is not called for a match after the limit. |
 
-**Returns** `string` — The subject with its matches replaced — unchanged when the pattern matches nowhere or `limit` is `0`.
+**Returns** `string` — The text with the matches replaced. It is the same text if there is no match.
 
-**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` is not a valid regular expression, matching it against `$subject` needs more steps than the limit allows, or the new text is larger than the memory limit.
 
 <a id="core-core-regex-split"></a>
 #### `Core\Regex::split`
@@ -10388,18 +10388,18 @@ Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answe
 Core\Regex::split(string $subject, Core\Regex\Pattern|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>
 ```
 
-Splits `$subject` at every match of `$pattern`, as `preg_split` does, under `Core\Str::split`'s reading of `limit`.
+Splits `$subject` at every match of `$pattern`, and returns the pieces as an array. The matches are not part of any piece.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to split. |
-| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
-| `{limit: …}` | `int` (default `9223372036854775807`) | `Core\Str::split`'s three-sign rule: positive is at most that many pieces with the last holding the remainder, negative drops that many pieces off the end, and `0` yields the subject unsplit — not `preg_split`'s reading of `0` and `-1` as no limit. |
-| `{keepEmpty: …}` | `bool` (default `true`) | Whether empty pieces are kept; `false` is `PREG_SPLIT_NO_EMPTY`, and drops them after `limit` has been applied. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
+| `{limit: …}` | `int` (default `9223372036854775807`) | The largest number of pieces. The last piece contains the rest of the text. A negative number removes that many pieces from the end. `0` returns the whole text as one piece. The default is no limit. PHP's `preg_split` reads `0` and `-1` as no limit. |
+| `{keepEmpty: …}` | `bool` (default `true`) | Whether empty pieces are kept. The default is `true`. With `false`, empty pieces are removed after `limit` is applied. |
 
-**Returns** `array<string>` — The pieces in order; the whole subject as one piece when the pattern matches nowhere.
+**Returns** `array<string>` — The pieces, from left to right. If there is no match, the array has one piece: the whole text.
 
-**Throws** `RuntimeError` — `$pattern` compiles under neither the linear engine nor the backtracking one, or the backtracking engine exhausted its step budget against this subject.
+**Throws** `RuntimeError` — `$pattern` is not a valid regular expression, or matching it against `$subject` needs more steps than the limit allows.
 
 <a id="core-core-regex-quote"></a>
 #### `Core\Regex::quote`
@@ -10408,13 +10408,13 @@ Splits `$subject` at every match of `$pattern`, as `preg_split` does, under `Cor
 Core\Regex::quote(string $literal): string
 ```
 
-Escapes every character either engine gives a meaning to in `$literal`, as `preg_quote` does, so the result is a pattern matching that literal and nothing else — the launder for the pattern sink, so its result is accepted where a `tainted` string is not.
+Puts a `\` before every character that has a special meaning in a pattern. The result is a pattern that matches `$literal` exactly. A `tainted` text is allowed here, and the result can be used as a pattern.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$literal` | `string` (launder) | The text to match literally. |
+| `$literal` | `string` (launder) | The text to match exactly. |
 
-**Returns** `string` — The escaped pattern; a string with no meta character comes back unchanged. The escaped set is not `preg_quote`'s — `&` and `~` are escaped here, `!:<=>` and `/` are not — so only what each result matches is comparable.
+**Returns** `string` — The escaped pattern. A text with no special characters is returned unchanged. The escaped characters are not the same as PHP's `preg_quote`: `&` and `~` are escaped here, and `!`, `:`, `<`, `=`, `>` and `/` are not.
 
 <a id="core-core-regex-match"></a>
 ### `Core\Regex\Match`
