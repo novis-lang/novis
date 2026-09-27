@@ -2,6 +2,7 @@
 Spec § 5: `Core\Regex\Match::offset` counts `rule:types/string-is-utf8`'s graphemes, from `0` to the subject's own length inclusive
 --FILE--
 <?nvs
+// covers: Core\Regex\Match::offset
 // `rule:core-api/shape-rules` R8: a position Novis hands back is in the same unit every other
 // `string` position uses, which `rule:types/string-is-utf8` fixes as the grapheme cluster.
 // A single case can read `0` off a match at the start and never learn which

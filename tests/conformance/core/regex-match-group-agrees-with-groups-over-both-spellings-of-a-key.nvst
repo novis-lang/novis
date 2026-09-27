@@ -2,6 +2,7 @@
 Spec § 5: `Core\Regex\Match::group` answers exactly the keys `groups` lists, under either spelling of a number, and throws on every other
 --FILE--
 <?nvs
+// covers: Core\Regex\Match::groups
 // `rule:core-api/shape-rules` R4 and R5: `group()` reads the one array `groups()` hands back, so
 // the two can only disagree if one of them grew a lookup of its own. The
 // `int|string` parameter is where that would happen — an integer key is

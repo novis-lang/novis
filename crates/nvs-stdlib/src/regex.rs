@@ -585,7 +585,7 @@ const MATCH_NAME: &str = r"Core\Regex\Match";
 /// `preg_match` returns it), per match, charged to the request.
 pub const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
-    doc: None,
+    doc: Some(&MATCH_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -629,50 +629,56 @@ pub const MATCH: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Regex\Match`'s class card — `rule:core-api/reference-card`.
+const MATCH_CARD: ClassDoc = ClassDoc {
+    short: "One match of a regular expression in a text. It has the matched text, the position \
+            where the match starts and the text of each group. `Core\\Regex::match` and \
+            `Core\\Regex::matchAll` return it.",
+};
+
 /// `Core\Regex\Match::group`'s reference card — `rule:core-api/reference-card`.
 const MATCH_GROUP_DOC: MethodDoc = MethodDoc {
-    short: "Answers one group's text by number or by name — `$matches[$group]` read after \
-            `preg_match`.",
+    short: "Returns the text of one group, by its number or by its name. PHP reads this as \
+            `$matches[$group]` after `preg_match`.",
     params: &[ParamDoc {
         name: "group",
-        desc: "The group's number, `0` for the whole match, or its name.",
+        desc: "The number of the group, or its name. Group `0` is the whole match.",
         shape: &[],
     }],
-    ret: "The group's text, or `null` where the pattern declares the group and this match did \
-          not reach it.",
+    ret: "The text of the group. The result is `null` if the pattern has the group but this \
+          match did not use it.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$group` names a group the pattern does not declare.",
+        desc: "The pattern has no group with this number or name.",
     }],
 };
 
 /// `Core\Regex\Match::groups`'s reference card — `rule:core-api/reference-card`.
 const MATCH_GROUPS_DOC: MethodDoc = MethodDoc {
-    short: "Answers every group at once in `preg_match`'s own order — a named group under its \
-            name and then under its number — as `$matches` reads under \
-            `PREG_UNMATCHED_AS_NULL`.",
+    short: "Returns the text of every group in one array. A named group is in the array twice: \
+            under its name and under its number.",
     params: &[],
-    ret: "The array, group `0` first; a declared group this match did not reach is present and \
-          `null` rather than absent.",
+    ret: "An array with group `0` first. A group that this match did not use is in the array, \
+          and its value is `null`.",
     errors: &[],
 };
 
 /// `Core\Regex\Match::offset`'s reference card — `rule:core-api/reference-card`.
 const MATCH_OFFSET_DOC: MethodDoc = MethodDoc {
-    short: "Answers where the whole match starts in the subject — `PREG_OFFSET_CAPTURE`'s \
-            position, counted in graphemes rather than bytes.",
+    short: "Returns the position in the text where the whole match starts. The position counts \
+            characters, not bytes.",
     params: &[],
-    ret: "The grapheme index of the match's first character; `0` for a match at the start of the \
-          subject.",
+    ret: "The position of the first character of the match. A match at the start of the text is \
+          at `0`.",
     errors: &[],
 };
 
 /// `Core\Regex\Match::text`'s reference card — `rule:core-api/reference-card`.
 const MATCH_TEXT_DOC: MethodDoc = MethodDoc {
-    short: "Answers the whole match's text, which is group `0`.",
+    short: "Returns the whole text that the pattern matched. This is the same text as \
+            `group(0)`.",
     params: &[],
-    ret: "The matched text; never `null`, since the whole match participates in every match an \
-          engine reports.",
+    ret: "The matched text. It is never `null`, but it can be an empty string.",
     errors: &[],
 };
 
@@ -1636,13 +1642,14 @@ fn group_array(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<Nv
 
 /// One `int|string` group key as the bytes an array is keyed by — an integer
 /// group is stored under its decimal rendering, which is how every integer key
-/// in an Novis array is spelled.
-fn group_key(value: &Value, member: &str) -> Result<Vec<u8>, Fault> {
+/// in an Novis array is spelled. A `string` key is borrowed from the argument,
+/// so a lookup by name allocates nothing.
+fn group_key<'a>(value: &'a Value, member: &str) -> Result<std::borrow::Cow<'a, [u8]>, Fault> {
     if let Some(number) = value.as_int() {
-        return Ok(number.to_string().into_bytes());
+        return Ok(std::borrow::Cow::Owned(number.to_string().into_bytes()));
     }
     if let Some(bytes) = value.as_str_bytes() {
-        return Ok(bytes.to_vec());
+        return Ok(std::borrow::Cow::Borrowed(bytes));
     }
     Err(Fault::fatal(format!(
         "Core\\Regex\\Match::{member} expected an `int|string` group, got tag {}",
@@ -2181,6 +2188,86 @@ mod tests {
         )]
         unsafe {
             value.release();
+        }
+    }
+
+    /// The four `Match` members, called the way a program calls them, over one
+    /// match found after a two-byte `é`: `offset` counts graphemes, `text` is
+    /// group `0`, `groups` lists a named group under its name and then its
+    /// number, and `group` answers `null` for a declared group the match did
+    /// not reach and throws for one the pattern never declared.
+    // covers: Core\Regex\Match::group, Core\Regex\Match::groups, Core\Regex\Match::offset, Core\Regex\Match::text
+    #[test]
+    fn the_four_match_members_read_one_match_by_grapheme_and_by_group() {
+        let mut ctx = Ctx::buffered();
+        let subject = Value::str(NvsStr::new("é abc".as_bytes()));
+        let pattern = Value::str(NvsStr::new(br"(?<word>[a-z]+)(\d+)?"));
+        let found = nvs_runtime::call(
+            nvs_core_regex_match,
+            &mut ctx,
+            &[subject, pattern, Value::int(0)],
+        )
+        .expect("matches");
+        let text_of = |value: Value| value.as_str_bytes().map(<[u8]>::to_vec);
+
+        let offset =
+            nvs_runtime::call(nvs_core_regex_match_offset, &mut ctx, &[found]).expect("offset");
+        assert_eq!(
+            offset.as_int(),
+            Some(2),
+            "`é` is one grapheme and two bytes"
+        );
+
+        let text = nvs_runtime::call(nvs_core_regex_match_text, &mut ctx, &[found]).expect("text");
+        assert_eq!(text_of(text), Some(b"abc".to_vec()));
+
+        let groups =
+            nvs_runtime::call(nvs_core_regex_match_groups, &mut ctx, &[found]).expect("groups");
+        let held = crate::arr::borrowed(groups.array_ptr().expect("an array"));
+        assert_eq!(
+            held.keys(),
+            [
+                b"0".to_vec(),
+                b"word".to_vec(),
+                b"1".to_vec(),
+                b"2".to_vec()
+            ]
+        );
+        assert!(held.get(b"2").is_some_and(|v| v.tag() == Some(Tag::Null)));
+
+        let word = Value::str(NvsStr::new(b"word"));
+        let by_name = nvs_runtime::call(nvs_core_regex_match_group, &mut ctx, &[found, word])
+            .expect("a name");
+        assert_eq!(text_of(by_name), Some(b"abc".to_vec()));
+        let unreached = nvs_runtime::call(
+            nvs_core_regex_match_group,
+            &mut ctx,
+            &[found, Value::int(2)],
+        )
+        .expect("declared");
+        assert_eq!(unreached.tag(), Some(Tag::Null));
+        assert!(
+            nvs_runtime::call(
+                nvs_core_regex_match_group,
+                &mut ctx,
+                &[found, Value::int(3)]
+            )
+            .is_err()
+        );
+        let message = ctx.take_pending().expect("a throw leaves its message");
+        assert_eq!(
+            message,
+            "Core\\Regex\\Match::group(): the pattern declares no group `3`"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns every reference the calls above returned"
+        )]
+        unsafe {
+            for value in [by_name, text, groups, found, word, subject, pattern] {
+                value.release();
+            }
         }
     }
 
