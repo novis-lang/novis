@@ -63,6 +63,28 @@ describe("the judged run and the recording run", () => {
     expect(PROOF_BUILD.path).toBe(PROOF_BINARY);
   });
 
+  test("an unlogged judged run drops the footprint log it would inherit, and a recorded run keeps its own", async () => {
+    const before = { log: process.env.NVS_FOOTPRINT_LOG, record: process.env[RECORD_ENV] };
+    process.env.NVS_FOOTPRINT_LOG = "inherited.log";
+    delete process.env[RECORD_ENV];
+    const argv = [process.execPath, "-e", "console.log(process.env.NVS_FOOTPRINT_LOG ?? 'none')"];
+    try {
+      expect((await spawnProof(argv, SQRT, 60_000)).stdout.trim()).toBe("inherited.log");
+      expect((await spawnProof(argv, SQRT, 60_000, { unlogged: true })).stdout.trim()).toBe("none");
+      const s = scratch();
+      try {
+        const own = (await spawnProof(argv, SQRT, 60_000, { dir: s.root, unlogged: true })).stdout.trim();
+        expect(own).toBe(join(s.root, `${recordName(SQRT)}.log`));
+      } finally {
+        s.cleanup();
+      }
+    } finally {
+      if (before.log === undefined) delete process.env.NVS_FOOTPRINT_LOG;
+      else process.env.NVS_FOOTPRINT_LOG = before.log;
+      if (before.record !== undefined) process.env[RECORD_ENV] = before.record;
+    }
+  });
+
   test("a recording run may take many times its program's limit, and its own limit after a judged timeout", () => {
     const attack = "tests/hostile/core/Attributes/all/01-one-roster-read-back-at-many-places.nvs";
     expect(recordingLimitMs("hostile", attack)).toBe(hostileLimitMs(readFileSync(abs(attack), "utf8")) * HANG_FACTOR);

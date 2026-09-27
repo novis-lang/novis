@@ -185,8 +185,9 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * under that file alone, handed over as `--config` after `run`, so a feature that needs a grant carries
  * it where its reader sees it; every other proof runs under the repository root's. `record` names the
  * directory the run is recorded into, which defaults to `NV_PROOF_RECORD`, and variables its processes
- * get beside the recording's. */
-export async function spawnProof(argv: string[], proof: string, timeoutMs: number, record?: { dir: string; env?: Record<string, string> }): Promise<Ran> {
+ * get beside the recording's. With `unlogged` and no record directory, the run writes no footprint log,
+ * not even the one this process inherited. */
+export async function spawnProof(argv: string[], proof: string, timeoutMs: number, record?: { dir?: string; env?: Record<string, string>; unlogged?: boolean }): Promise<Ran> {
   const feed = abs(sibling(proof, ".in"));
   const request = sibling(proof, ".nvsr");
   const config = `${dirname(proof)}/nvs.toml`;
@@ -195,10 +196,12 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (at >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, at + 1), "--config", config, ...argv.slice(at + 1)];
   const recording = proofRecording(proof, record?.dir ?? process.env[RECORD_ENV]);
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
+  const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...record?.env, ...recording };
+  if (record?.unlogged && !recording.NVS_FOOTPRINT_LOG) delete env.NVS_FOOTPRINT_LOG;
   const started = performance.now();
   const child = Bun.spawn(argv, {
     cwd: ROOT,
-    env: { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...record?.env, ...recording },
+    env,
     stdin: existsSync(feed) ? Bun.file(feed) : "ignore",
     stdout: "pipe",
     stderr: "pipe",
@@ -235,11 +238,11 @@ function declaredExit(source: string): number {
 type Judged = [Verdict, string, Ran?];
 
 /** An example passes when it ends with the status it declares and prints exactly its `.out`. */
-async function runExample(nvs: string, path: string): Promise<Judged> {
+async function runExample(nvs: string, path: string, unlogged = false): Promise<Judged> {
   const source = read(path);
   const skip = skipReason(source);
   if (skip) return ["skip", skip];
-  const out = await spawnProof([nvs, "run", path], path, EXAMPLE_TIMEOUT_MS);
+  const out = await spawnProof([nvs, "run", path], path, EXAMPLE_TIMEOUT_MS, unlogged ? { unlogged } : undefined);
   if (out.timedOut) return ["fail", `timed out after ${EXAMPLE_TIMEOUT_MS / 1000}s`, out];
   const want = declaredExit(source);
   if (out.code !== want) {
@@ -305,7 +308,7 @@ export function hostileLimitMs(source: string): number {
  * each is an attack that was never delivered: a compile diagnostic, unless the file declares
  * `expect-refusal`, and a program that ends before its last line, unless the file declares `ends-early`.
  */
-async function runHostile(nvs: string, path: string, valgrind: boolean): Promise<Judged> {
+async function runHostile(nvs: string, path: string, valgrind: boolean, unlogged = false): Promise<Judged> {
   const source = read(path);
   const skip = skipReason(source);
   if (skip) return ["skip", skip];
@@ -317,7 +320,7 @@ async function runHostile(nvs: string, path: string, valgrind: boolean): Promise
   }
   let out: Ran;
   try {
-    out = await spawnProof(argv, path, limit);
+    out = await spawnProof(argv, path, limit, unlogged ? { unlogged } : undefined);
   } catch (e) {
     return ["fail", `could not run: ${e instanceof Error ? e.message : String(e)}`];
   }
@@ -395,6 +398,9 @@ function jobsFor(count: number): number {
 export interface RunOptions {
   valgrind: boolean;
   strict: boolean;
+  /** The judged runs write no footprint log, not even one this process inherited: the selection records
+   * each program on its own recording run instead. */
+  unlogged?: boolean;
 }
 
 export interface Result {
@@ -437,7 +443,8 @@ export async function runPrograms(bin: Binary, programs: { what: What; path: str
   const worker = async () => {
     while (next < todo.length) {
       const t = todo[next++]!;
-      const [raw, rawWhy, out] = t.what === "examples" ? await runExample(bin.path, t.path) : await runHostile(bin.path, t.path, opts.valgrind);
+      const unlogged = opts.unlogged === true;
+      const [raw, rawWhy, out] = t.what === "examples" ? await runExample(bin.path, t.path, unlogged) : await runHostile(bin.path, t.path, opts.valgrind, unlogged);
       const [verdict, why] = judgeGap(t.path, raw, rawWhy);
       results.set(`${t.what}:${t.path}`, { verdict, why, cached: false, ...(out ? { ran: out } : {}) });
       ran++;
