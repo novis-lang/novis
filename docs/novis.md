@@ -24162,13 +24162,13 @@ Keywords: of, name, cases, valueOf, isUnsigned
 Core\Reflect\EnumInfo::of(string $name): ?Core\Reflect\EnumInfo
 ```
 
-Describes the enum `$name` names. The only way to read an enum's case list, since `rule:enums/no-class-machinery` gives an enum no members of its own.
+Returns a description of the enum with the name `$name`. An enum has no methods of its own, so this is the way to read the list of its cases.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The enum's name as its declaration writes it, namespace included and with no leading separator — what `Status::class` answers. |
+| `$name` | `string` (neutral) | The full name of the enum, with its namespace and with no `\` at the start. `Status::class` gives this name. |
 
-**Returns** `?Core\Reflect\EnumInfo` — A description of that enum, or `null` where the program declares none of that name.
+**Returns** `?Core\Reflect\EnumInfo` — A `Core\Reflect\EnumInfo` for that enum. The result is `null` if the program has no enum with that name, and also for the name of a class.
 
 <a id="core-core-reflect-enuminfo-name"></a>
 #### `Core\Reflect\EnumInfo->name`
@@ -24177,9 +24177,9 @@ Describes the enum `$name` names. The only way to read an enum's case list, sinc
 $enumInfo->name(): string
 ```
 
-The described enum's own name.
+Returns the full name of the enum.
 
-**Returns** `string` — The name as the declaration writes it — what was passed to `of`.
+**Returns** `string` — The name that was passed to `of`, with its namespace. You can pass it to `of` again to get a description of the same enum.
 
 <a id="core-core-reflect-enuminfo-cases"></a>
 #### `Core\Reflect\EnumInfo->cases`
@@ -24199,15 +24199,15 @@ Every case the enum declares, by name.
 $enumInfo->valueOf(string $case): int|uint
 ```
 
-The constant behind one case.
+Returns the value of one case of the enum.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$case` | `string` (neutral) | The case's own name, as `cases` answers it. |
+| `$case` | `string` (neutral) | The name of the case, as `cases` gives it. The name is case-sensitive. |
 
-**Returns** `int|uint` — The case's value, as an `int` or a `uint` by what `isUnsigned` answers. The union is what a description reached by *name* can promise — the backing belongs to the enum the name named — so a caller that knows which it asked for narrows with `as int`.
+**Returns** `int|uint` — The value of the case. It is a `uint` if `isUnsigned` returns `true`, and an `int` otherwise. Use `as uint` or `as int` to store it in a variable of that type.
 
-**Throws** `LogicError` — The enum declares no case of that name. `cases` is the list that cannot be wrong, so an unknown name here is a mistake in the asking rather than an absence to report.
+**Throws** `LogicError` — The enum has no case with that name. Use `cases` to get the names that exist.
 
 <a id="core-core-reflect-enuminfo-isunsigned"></a>
 #### `Core\Reflect\EnumInfo->isUnsigned`

@@ -1,0 +1,33 @@
+<?nvs
+// Builds the choices of a form's select list from any enum, given only its name.
+
+enum Shipping: int {
+    Standard = 1,
+    Express = 2,
+    Pickup = 3,
+}
+
+enum Payment: int {
+    Card = 1,
+    Invoice = 2,
+}
+
+class SelectList {
+    // One function works for every enum, because it only needs the name of the enum.
+    public static function html(string $field, string $enum): string {
+        ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($enum);
+        if ($found == null) {
+            return "<!-- " . $enum . " is not an enum -->";
+        }
+        Core\Reflect\EnumInfo $info = $found;
+        string $html = "<select name=\"" . $field . "\">";
+        foreach ($info->cases() as string $case) {
+            $html = $html . "<option>" . $case . "</option>";
+        }
+        return $html . "</select>";
+    }
+}
+
+// This prints one `<select>` with three options and one with two.
+echo SelectList::html("shipping", Shipping::class), "\n";
+echo SelectList::html("payment", Payment::class), "\n";

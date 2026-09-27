@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program asks `of` for names that are not enums, again and again, and for a name of
+// eight million characters. Every one should give `null`, and the runtime must not crash or leak.
+
+enum Status: int
+{
+    Open = 1,
+}
+
+class Status2
+{
+    public int $id = 0;
+}
+
+// 1. Names that look like an enum name but are not one are asked for 100000 times.
+array<string> $names = ['', "\\Status", 'status', "Status\0", Status2::class, 'Status::Open'];
+uint $found = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Reflect\EnumInfo::of($names[($i % 6) as int]) != null) {
+        $found = $found + 1;
+    }
+    $i = $i + 1;
+}
+echo $found, "\n";
+
+// 2. The real enum is described 100000 times, and every description is freed again.
+$i = 0;
+while ($i < 100000) {
+    ?Core\Reflect\EnumInfo $info = Core\Reflect\EnumInfo::of(Status::class);
+    if ($info != null) {
+        $found = $found + 1;
+    }
+    $i = $i + 1;
+}
+echo $found, "\n";
+
+// 3. A name of eight million characters is asked for.
+string $long = Core\Str::repeat('Status', 1333334);
+echo Core\Reflect\EnumInfo::of($long) == null ? 'null' : 'found', "\n";

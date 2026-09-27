@@ -1,0 +1,3 @@
+Color: enum
+Invoice: not an enum
+Colour: not an enum

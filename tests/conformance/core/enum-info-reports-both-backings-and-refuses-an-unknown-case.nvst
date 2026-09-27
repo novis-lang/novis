@@ -3,6 +3,7 @@
 --FILE--
 <?nvs
 // covers: Core\Reflect\EnumInfo::isUnsigned
+// covers: Core\Reflect\EnumInfo::valueOf
 // `rule:enums/one-backing-type`: exactly one backing per enum, `int` unless
 // `: uint` is written, and no unbacked form for `isUnsigned` to have a third
 // answer about.

@@ -1,0 +1,34 @@
+<?nvs
+// Gets the description of an enum from its name, as a form or an API does before it lists the cases.
+// bench: iterations 200000
+
+enum Shipping: int {
+    Standard = 1,
+    Express = 2,
+}
+
+enum Payment: uint {
+    Card = 1,
+    Invoice = 2,
+    Cash = 3,
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = [Shipping::class, Payment::class];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name asked for depends on last round's total, so no round can be skipped.
+            ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($names[($total % 2) as int]);
+            if ($found != null) {
+                Core\Reflect\EnumInfo $info = $found;
+                $total = $total + Core\Arr::count($info->cases());
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

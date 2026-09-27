@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program asks `valueOf` for case names that do not exist, many times, and for one
+// name of eight million characters. Each should throw a `LogicError`, and the runtime must not crash or leak.
+
+enum Edge: uint
+{
+    Top = 18446744073709551615,
+    Zero = 0,
+}
+
+enum Signed: int
+{
+    Low = -9223372036854775807,
+    High = 9223372036854775807,
+}
+
+?Core\Reflect\EnumInfo $a = Core\Reflect\EnumInfo::of(Edge::class);
+?Core\Reflect\EnumInfo $b = Core\Reflect\EnumInfo::of(Signed::class);
+if ($a != null) {
+    Core\Reflect\EnumInfo $edge = $a;
+
+    // 1. Names that are almost right are asked for 100000 times. Each error is caught.
+    array<string> $wrong = ['top', 'Top ', '', "Zero\0", 'Low', 'Edge::Top'];
+    uint $errors = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        try {
+            echo $edge->valueOf($wrong[($i % 6) as int]);
+        } catch (LogicError $error) {
+            $errors = $errors + 1;
+        }
+        $i = $i + 1;
+    }
+    echo $errors, "\n";
+
+    // 2. The values at both ends of both ranges are read 100000 times.
+    if ($b != null) {
+        Core\Reflect\EnumInfo $signed = $b;
+        uint $sum = 0;
+        $i = 0;
+        while ($i < 100000) {
+            uint $top = $edge->valueOf('Top') as uint;
+            int $low = $signed->valueOf('Low') as int;
+            if ($top == 18446744073709551615 && $low < 0) {
+                $sum = $sum + 1;
+            }
+            $i = $i + 1;
+        }
+        echo $sum, "\n";
+    }
+
+    // 3. A name of eight million characters. The error message contains the whole name.
+    string $long = Core\Str::repeat('Top', 2666667);
+    try {
+        echo $edge->valueOf($long);
+    } catch (LogicError $error) {
+        echo Core\Str::length($error->message), "\n";
+    }
+}

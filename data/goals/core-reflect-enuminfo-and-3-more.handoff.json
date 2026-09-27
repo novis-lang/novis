@@ -1,27 +1,30 @@
 {
-  "state": "Goal `core-reflect-enuminfo-and-3-more`, 14 items, all in `crates/nvs-stdlib/src/reflect.rs`.\n`Core\\Reflect\\EnumInfo::cases` and `isUnsigned` have every proof on disk: about.md, three examples,\none attack, one bench, a Rust test each and a `covers:` marker on an existing `.nvst` case.\n`Core\\Reflect\\EnumInfo` has its class card (`ENUM_INFO_CARD`) and is off\n`CLASSES_STILL_OWING_A_CARD`. The `cases` and `isUnsigned` cards are rewritten in the plain voice.\nThe test fixture `shop_enums` builds three enums (`int` with a shared constant, `uint`, no case) and\nreturns their descriptions. The next three members reuse it.\nNothing is blocked.",
+  "state": "Goal `core-reflect-enuminfo-and-3-more`, 14 items, all in `crates/nvs-stdlib/src/reflect.rs`.\n`Core\\Reflect\\EnumInfo` is closed: all five members (`of`, `name`, `cases`, `valueOf`,\n`isUnsigned`) have every proof on disk, and `bun nv proofs --verify --group 'Core\\Reflect\\EnumInfo'`\nreports nothing owed and 0 failed. Its cards are in the plain voice.\nThe three checks still red are `Core\\Reflect\\MethodInfo`, `ParameterInfo` and `PropertyInfo`. Each\nowes a class card (its `CoreClass` row has `doc: None` and its name is on\n`CLASSES_STILL_OWING_A_CARD`), and every member owes examples, an attack, a bench and a Rust test.\nSeveral `.nvst` cases already call these members (`tests/conformance/core/reflect-*`) and need only\na `covers:` marker each, since instance members are not credited by a call.\nA perf row is recorded with `bun nv proofs --record-perf --only <ids>` after the bench runs; the\ngate reports `perf: stale` until then. Nothing is blocked.",
   "next": {
-    "stage": 1,
-    "title": "the item list",
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs` (the `ENUM_*_DOC` cards and the test module's `shop_enums`), `docs/examples/core/Reflect-EnumInfo/`, `tests/hostile/core/Reflect-EnumInfo/`, `benches/members/core/Reflect-EnumInfo/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs` (the `METHOD_*_DOC` cards and the test module), `crates/nvs-stdlib/src/registry.rs` (`CLASSES_STILL_OWING_A_CARD`), `docs/examples/core/Reflect-MethodInfo/`, `tests/hostile/core/Reflect-MethodInfo/`, `benches/members/core/Reflect-MethodInfo/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Reflect\\EnumInfo::name`** — `rule:testing/feature-proofs`. Card at `crates/nvs-stdlib/src/reflect.rs:1289`; Rust test from `shop_enums` at `crates/nvs-stdlib/src/reflect.rs:5301`; `.nvst` marker on `tests/conformance/core/enum-info-round-trips-its-name-and-keeps-each-enums-own-backing.nvst`."
+        "text": "**`Core\\Reflect\\MethodInfo` class card** — `rule:core-api/reference-card`. Add `METHOD_INFO_CARD` and set `doc:` on the row at `crates/nvs-stdlib/src/reflect.rs:1039`; delete `Core\\Reflect\\MethodInfo` from `crates/nvs-stdlib/src/registry.rs:5283`. `ENUM_INFO_CARD` is the shape."
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\EnumInfo::of`** — `rule:testing/feature-proofs`. Card at `crates/nvs-stdlib/src/reflect.rs:1275` names a rule id in `short` and needs the plain voice. `.nvst` cases already call it by name, so no marker is needed."
+        "text": "**`Core\\Reflect\\MethodInfo::isPublic`, `parameterCount`, `parameters`** — `rule:testing/feature-proofs`. Cards from `crates/nvs-stdlib/src/reflect.rs:1089` to `crates/nvs-stdlib/src/reflect.rs:1116` rewritten in the plain voice; a Rust test each; a `covers:` marker on `tests/conformance/core/reflect-method-info-lists-a-classs-methods-with-their-visibility.nvst` and `tests/conformance/core/reflect-every-declared-methods-parameter-roster-agrees-with-its-count.nvst`; about.md, three examples, one attack and one bench each."
       },
       {
         "done": false,
-        "text": "**`Core\\Reflect\\EnumInfo::valueOf`** — `rule:testing/feature-proofs`. Card at `crates/nvs-stdlib/src/reflect.rs:1307` is in the internal voice. The Rust test should read the unknown-case `LogicError` sentence, and the attack should pass huge and broken case names."
+        "text": "**`Core\\Reflect\\ParameterInfo`** — same shape: class card on the row at `crates/nvs-stdlib/src/reflect.rs:1139`, cards at `crates/nvs-stdlib/src/reflect.rs:1172` and `crates/nvs-stdlib/src/reflect.rs:1181`, markers on `tests/conformance/core/reflect-a-parameter-answers-the-type-its-declaration-spells.nvst`."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Reflect\\PropertyInfo`** — same shape: class card on the row at `crates/nvs-stdlib/src/reflect.rs:1341`, cards from `crates/nvs-stdlib/src/reflect.rs:1382` to `crates/nvs-stdlib/src/reflect.rs:1401`, markers on `tests/conformance/core/reflect-property-info-lists-a-classs-properties-with-their-visibility.nvst`."
       }
     ]
   },
   "backlog": [
-    "After `EnumInfo`: `MethodInfo`, `ParameterInfo` and `PropertyInfo` members, items 6 to 14 in `docs/agent/goals/core-reflect-enuminfo-and-3-more.md`. Each class still owes a card in `crates/nvs-stdlib/src/registry.rs`'s `CLASSES_STILL_OWING_A_CARD`.",
-    "An enum case written `-9223372036854775808` fails with E0437 (it is the negation of an out-of-range literal). This matches PHP, where the literal is a float, so it is not recorded as a gap."
+    "`Core\\Reflect\\EnumInfo::of` builds a new description on every call, 9 allocations and about 630 bytes (its bench row in `docs/perf/members.ndjson`). A program that asks in a loop pays this each time. Not a bug; owner is `crates/nvs-stdlib/src/reflect.rs`'s module doc if it is ever cached."
   ]
 }

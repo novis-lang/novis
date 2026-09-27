@@ -1,0 +1,2 @@
+<select name="shipping"><option>Standard</option><option>Express</option><option>Pickup</option></select>
+<select name="payment"><option>Card</option><option>Invoice</option></select>

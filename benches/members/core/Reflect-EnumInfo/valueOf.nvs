@@ -1,0 +1,32 @@
+<?nvs
+// Reads the value of a case by its name, as a program does to save a choice from a form.
+// bench: iterations 400000
+// bench: allocations 0
+
+enum Rating: int {
+    Poor = 1,
+    Good = 3,
+    Great = 5,
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Rating::class);
+        if ($found == null) {
+            return 0;
+        }
+        Core\Reflect\EnumInfo $info = $found;
+        array<string> $cases = ["Poor", "Good", "Great"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The case asked for depends on last round's total, so no round can be skipped.
+            int $value = $info->valueOf($cases[($total % 3) as int]) as int;
+            $total = $total + ($value as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

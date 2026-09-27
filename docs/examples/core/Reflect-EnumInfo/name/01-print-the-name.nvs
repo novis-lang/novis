@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the name of the enum that a description is about.
+
+enum Priority: uint {
+    Low = 1,
+    High = 2,
+}
+
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Priority::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    // `name()` returns the name that was passed to `of`. This prints `Priority`.
+    echo $info->name(), "\n";
+}

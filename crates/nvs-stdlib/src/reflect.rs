@@ -1273,23 +1273,25 @@ const ENUM_INFO_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Reflect\EnumInfo::of`'s reference card — `rule:core-api/reference-card`.
 const ENUM_OF_DOC: MethodDoc = MethodDoc {
-    short: "Describes the enum `$name` names. The only way to read an enum's case list, since \
-            `rule:enums/no-class-machinery` gives an enum no members of its own.",
+    short: "Returns a description of the enum with the name `$name`. An enum has no methods of its \
+            own, so this is the way to read the list of its cases.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The enum's name as its declaration writes it, namespace included and with no \
-               leading separator — what `Status::class` answers.",
+        desc: "The full name of the enum, with its namespace and with no `\\` at the start. \
+               `Status::class` gives this name.",
         shape: &[],
     }],
-    ret: "A description of that enum, or `null` where the program declares none of that name.",
+    ret: "A `Core\\Reflect\\EnumInfo` for that enum. The result is `null` if the program has no \
+          enum with that name, and also for the name of a class.",
     errors: &[],
 };
 
 /// `Core\Reflect\EnumInfo::name`'s reference card — `rule:core-api/reference-card`.
 const ENUM_NAME_DOC: MethodDoc = MethodDoc {
-    short: "The described enum's own name.",
+    short: "Returns the full name of the enum.",
     params: &[],
-    ret: "The name as the declaration writes it — what was passed to `of`.",
+    ret: "The name that was passed to `of`, with its namespace. You can pass it to `of` again to \
+          get a description of the same enum.",
     errors: &[],
 };
 
@@ -1305,20 +1307,17 @@ const ENUM_CASES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\EnumInfo::valueOf`'s reference card — `rule:core-api/reference-card`.
 const ENUM_VALUE_OF_DOC: MethodDoc = MethodDoc {
-    short: "The constant behind one case.",
+    short: "Returns the value of one case of the enum.",
     params: &[ParamDoc {
         name: "case",
-        desc: "The case's own name, as `cases` answers it.",
+        desc: "The name of the case, as `cases` gives it. The name is case-sensitive.",
         shape: &[],
     }],
-    ret: "The case's value, as an `int` or a `uint` by what `isUnsigned` answers. The union is \
-          what a description reached by *name* can promise — the backing belongs to the enum the \
-          name named — so a caller that knows which it asked for narrows with `as int`.",
+    ret: "The value of the case. It is a `uint` if `isUnsigned` returns `true`, and an `int` \
+          otherwise. Use `as uint` or `as int` to store it in a variable of that type.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The enum declares no case of that name. `cases` is the list that cannot be wrong, \
-               so an unknown name here is a mistake in the asking rather than an absence to \
-               report.",
+        desc: "The enum has no case with that name. Use `cases` to get the names that exist.",
     }],
 };
 
@@ -5426,6 +5425,180 @@ mod tests {
                 .contains(r"Core\Reflect\EnumInfo::isUnsigned"),
             "the fault names the member it was raised by"
         );
+
+        #[expect(unsafe_code, reason = "this frame owns the three descriptions")]
+        unsafe {
+            for info in [status, level, nothing] {
+                info.release();
+            }
+        }
+    }
+
+    /// `of` answers a description for each declared enum and `null` for a
+    /// name the table has no enum under — a class of that name, a name nothing
+    /// declares, and any name at all on a context with no table installed —
+    /// while an argument that is not text faults naming the member.
+    // covers: Core\Reflect\EnumInfo::of
+    #[test]
+    fn enum_info_of_describes_a_declared_enum_and_is_null_for_anything_else() {
+        let (mut ctx, infos) = shop_enums();
+        let asked = |ctx: &mut Ctx, name: &str| {
+            let text = Value::str(NvsStr::new(name.as_bytes()));
+            let answer = call(super::nvs_core_reflect_enum_info_of, ctx, &[text])
+                .expect("asking for an enum by name never throws");
+            #[expect(
+                unsafe_code,
+                reason = "this frame built the name and is its only owner"
+            )]
+            unsafe {
+                text.release();
+            }
+            answer
+        };
+        for name in ["Shop\\Anchor", "Shop\\Missing", ""] {
+            assert_eq!(
+                asked(&mut ctx, name).tag(),
+                Some(Tag::Null),
+                "`{name}` declares no enum"
+            );
+        }
+        let mut bare = Ctx::new(OutputSink::Sink);
+        assert_eq!(
+            asked(&mut bare, "Shop\\Status").tag(),
+            Some(Tag::Null),
+            "a context with no table has no enum to describe"
+        );
+
+        let refused = call(
+            super::nvs_core_reflect_enum_info_of,
+            &mut ctx,
+            &[Value::int(7)],
+        );
+        assert!(refused.is_err(), "an integer is no name");
+        assert!(
+            ctx.take_pending()
+                .unwrap_or_default()
+                .contains(r"Core\Reflect\EnumInfo::of"),
+            "the fault names the member it was raised by"
+        );
+
+        #[expect(unsafe_code, reason = "this frame owns the three descriptions")]
+        unsafe {
+            for info in infos {
+                info.release();
+            }
+        }
+    }
+
+    /// `name` is the name the description was asked for, so handing it back
+    /// to `of` reaches the same enum, and a receiver that is not a description
+    /// faults naming the member.
+    // covers: Core\Reflect\EnumInfo::name
+    #[test]
+    fn enum_info_name_is_the_declared_name_and_reaches_the_same_enum_again() {
+        let (mut ctx, infos) = shop_enums();
+        for (info, want) in infos
+            .iter()
+            .zip(["Shop\\Status", "Shop\\Level", "Shop\\Nothing"])
+        {
+            let name = call(super::nvs_core_reflect_enum_info_name, &mut ctx, &[*info])
+                .expect("a text slot always answers");
+            assert_eq!(name.as_text(), Some(want));
+            let again = call(super::nvs_core_reflect_enum_info_of, &mut ctx, &[name])
+                .expect("asking for an enum by name never throws");
+            let round = call(super::nvs_core_reflect_enum_info_name, &mut ctx, &[again])
+                .expect("a text slot always answers");
+            assert_eq!(round.as_text(), Some(want), "the name reaches its own enum");
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns one reference to each of the two names and the \
+                          second description"
+            )]
+            unsafe {
+                name.release();
+                round.release();
+                again.release();
+            }
+        }
+
+        let refused = call(
+            super::nvs_core_reflect_enum_info_name,
+            &mut ctx,
+            &[Value::null()],
+        );
+        assert!(refused.is_err(), "null is no receiver");
+        assert!(
+            ctx.take_pending()
+                .unwrap_or_default()
+                .contains(r"Core\Reflect\EnumInfo::name"),
+            "the fault names the member it was raised by"
+        );
+
+        #[expect(unsafe_code, reason = "this frame owns the three descriptions")]
+        unsafe {
+            for info in infos {
+                info.release();
+            }
+        }
+    }
+
+    /// `valueOf` answers each case's constant as an `int` on an `int` enum and
+    /// a `uint` on a `uint` one, two cases sharing a constant each answer it,
+    /// and a case the enum does not declare is refused with a sentence naming
+    /// both the enum and the case.
+    // covers: Core\Reflect\EnumInfo::valueOf
+    #[test]
+    fn enum_info_value_of_is_the_case_constant_at_the_enums_own_backing() {
+        let (mut ctx, [status, level, nothing]) = shop_enums();
+        let value = |ctx: &mut Ctx, info: Value, case: &str| {
+            let text = Value::str(NvsStr::new(case.as_bytes()));
+            let answer = call(
+                super::nvs_core_reflect_enum_info_value_of,
+                ctx,
+                &[info, text],
+            );
+            #[expect(
+                unsafe_code,
+                reason = "this frame built the case name and is its only owner"
+            )]
+            unsafe {
+                text.release();
+            }
+            answer
+        };
+        for (case, want) in [
+            ("Shipped", 3),
+            ("Normal", 1),
+            ("Default", 1),
+            ("Returned", -1),
+        ] {
+            let answer = value(&mut ctx, status, case).expect("a declared case answers");
+            assert_eq!(
+                answer.as_int(),
+                Some(want),
+                "`Shop\\Status::{case}` is an `int`"
+            );
+        }
+        for (case, want) in [("Gold", 30), ("Bronze", 10)] {
+            let answer = value(&mut ctx, level, case).expect("a declared case answers");
+            assert_eq!(
+                answer.as_uint(),
+                Some(want),
+                "`Shop\\Level::{case}` is a `uint`"
+            );
+        }
+
+        for (info, case) in [(status, "shipped"), (level, "Shipped"), (nothing, "")] {
+            assert!(
+                value(&mut ctx, info, case).is_err(),
+                "`{case}` is not declared"
+            );
+            let sentence = ctx.take_pending().unwrap_or_default();
+            assert!(
+                sentence.contains("declares no case") && sentence.contains(case),
+                "the refusal names the case: {sentence}"
+            );
+        }
 
         #[expect(unsafe_code, reason = "this frame owns the three descriptions")]
         unsafe {

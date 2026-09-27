@@ -1,0 +1,37 @@
+<?nvs
+// Reads the name of the enum a description is about, as a program does to print a heading or a log line.
+// bench: iterations 400000
+// bench: allocations 0
+
+enum Shipping: int {
+    Standard = 1,
+}
+
+enum PaymentMethod: uint {
+    Card = 1,
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\EnumInfo> $infos = [];
+        array<string> $names = [Shipping::class, PaymentMethod::class];
+        foreach ($names as string $name) {
+            ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($name);
+            if ($found != null) {
+                Core\Reflect\EnumInfo $described = $found;
+                $infos[] = $described;
+            }
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The description read depends on last round's total, so no round can be skipped.
+            Core\Reflect\EnumInfo $info = $infos[($total % 2) as int];
+            $total = $total + Core\Str::length($info->name());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

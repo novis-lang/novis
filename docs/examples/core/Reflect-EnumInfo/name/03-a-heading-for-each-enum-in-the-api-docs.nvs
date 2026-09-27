@@ -1,0 +1,32 @@
+<?nvs
+// Writes one heading and one table row per case for each enum an API returns.
+
+enum OrderState: int {
+    Open = 1,
+    Paid = 2,
+}
+
+enum Currency: uint {
+    Eur = 978,
+    Usd = 840,
+}
+
+class ApiDocs {
+    // The function gets only the description. `name()` gives the heading.
+    public static function section(Core\Reflect\EnumInfo $info): string {
+        string $text = "## " . $info->name() . "\n";
+        foreach ($info->cases() as string $case) {
+            $text = $text . "| " . $case . " |\n";
+        }
+        return $text;
+    }
+}
+
+array<string> $names = [OrderState::class, Currency::class];
+foreach ($names as string $name) {
+    ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($name);
+    if ($found != null) {
+        Core\Reflect\EnumInfo $info = $found;
+        echo ApiDocs::section($info);
+    }
+}

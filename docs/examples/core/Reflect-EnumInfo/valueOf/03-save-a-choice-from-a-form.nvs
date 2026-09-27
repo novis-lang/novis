@@ -1,0 +1,31 @@
+<?nvs
+// Turns the case name a form sends into the number that is saved in a database column.
+
+enum Rating: int {
+    Poor = 1,
+    Good = 3,
+    Great = 5,
+}
+
+class RatingField {
+    // `cases()` is checked first, so `valueOf` never gets a name that does not exist.
+    public static function toColumn(string $sent): ?int {
+        ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Rating::class);
+        if ($found == null) {
+            return null;
+        }
+        Core\Reflect\EnumInfo $info = $found;
+        if (!Core\Arr::contains($info->cases(), $sent)) {
+            return null;
+        }
+        // `valueOf` returns `int|uint`. `Rating` is an `int` enum, so `as int` is safe here.
+        return $info->valueOf($sent) as int;
+    }
+}
+
+// These are values a visitor could send. This prints `3`, then `invalid` twice.
+array<string> $sent = ["Good", "Excellent", ""];
+foreach ($sent as string $value) {
+    ?int $column = RatingField::toColumn($value);
+    echo $column == null ? "invalid" : $column, "\n";
+}

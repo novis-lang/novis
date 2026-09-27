@@ -1,0 +1,19 @@
+<?nvs
+// Shows the error `valueOf` throws for a case name the enum does not have.
+
+enum Plan: int {
+    Free = 0,
+    Pro = 1,
+}
+
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Plan::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    // Case names are case-sensitive, so "pro" is not the case `Pro`.
+    try {
+        echo $info->valueOf("pro"), "\n";
+    } catch (LogicError $error) {
+        // This prints the message of the error, which names the enum and the case.
+        echo $error->message, "\n";
+    }
+}
