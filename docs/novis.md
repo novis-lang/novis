@@ -15519,16 +15519,16 @@ Confirms that the request this program is answering carries a signature `$keys` 
 Core\Router::match(Core\Http\Method $method, string $path): ?Core\Router\Match
 ```
 
-Matches `$method` and `$path` against this program's compiled route table, answering the same `Core\Router\Match` a served request carries — a question asked of the table, which dispatches nothing and never reads the request.
+Finds the route that `$method` and `$path` belong to. It checks every `#[Route]` in the program and does not run the route's handler.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$method` | `Core\Http\Method` | The verb to match under. A route declared for one verb is not claimed by another, so the same path under `Get` and `Post` are two questions. |
-| `$path` | `string` (neutral) | The path to match, as a URL path and with no query string; a mount's prefix is not stripped here, because nothing about a path the caller chose says which mount it was meant for. |
+| `$method` | `Core\Http\Method` | The HTTP method. A route declared for `Get` does not match a `Post`. |
+| `$path` | `string` (neutral) | The path, with no query string. A mount prefix is not removed from it. |
 
-**Returns** `?Core\Router\Match` — The match — its declared name, and the captures the path filled, each percent-decoded once and converted to the type its `#[Route]` parameter declared. `null` where no route claims that verb and path, and for a program that declares no route at all, since a table nothing built claims nothing.
+**Returns** `?Core\Router\Match` — A `Core\Router\Match` with the route's name and its captures. Each capture is decoded and has the type of its handler parameter. The result is `null` when no route has this method and this path, or when the program has no routes.
 
-**Throws** `RuntimeError` — A capture percent-decodes to octets that are not UTF-8, so it has no `tainted string` to bind to; the throw names the capture and the offset of the first byte a `string` cannot hold.
+**Throws** `RuntimeError` — A capture decodes to bytes that are not valid UTF-8. The message names the capture and the position of the first bad byte.
 
 <a id="core-core-router-methodsfor"></a>
 #### `Core\Router::methodsFor`
@@ -15537,13 +15537,13 @@ Matches `$method` and `$path` against this program's compiled route table, answe
 Core\Router::methodsFor(string $path): array<Core\Http\Method>
 ```
 
-Every verb the route table claims `$path` under, in the order the routes were declared — the question left over once `Core\Request::route()` has answered `null`, and the one a `404` and a `405` are told apart by.
+Lists the HTTP methods that the routes of `$path` accept, in the order the routes are declared. Use it when `Core\Request::route()` returns `null`, to choose between a `404` and a `405`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (neutral) | The path to ask about, as a URL path and with no query string; a mount's prefix is already stripped from the one the request arrived with. |
+| `$path` | `string` (neutral) | The path, with no query string. The path of a request already has its mount prefix removed. |
 
-**Returns** `array<Core\Http\Method>` — The verbs, once each: an empty array where no route claims the path at all — the `404` — and otherwise the list an `Allow:` header spells for the `405`. Both forms of a terminal `{name?}` answer the same verbs, and a path whose capture will not convert is claimed by nobody — which is the conversions the matcher itself performs, since a capture typed at any other class built from text matches on shape and refuses later.
+**Returns** `array<Core\Http\Method>` — The methods, each one once. An empty array means that no route has this path, so the status is `404`. Otherwise the status is `405`, and the array is the list for the `Allow` header. A path does not match when a capture is not a valid `int`, `uint`, `decimal` or `Core\Uuid` for its handler parameter, or is not one of the values its parameter allows.
 
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`

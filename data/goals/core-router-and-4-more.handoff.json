@@ -1,26 +1,27 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Router and 4 more has been taken yet.",
+  "state": "Goal `core-router-and-4-more`, stage 2 (feature proofs). `Core\\Router::match` and `Core\\Router::methodsFor` have every feature proof on disk: about, three examples each, an attack each, a bench each with a recorded figure, and a Rust `covers:` test each in `crates/nvs-stdlib/src/router.rs`'s test module. `Core\\Router` has its class card and is off `CLASSES_STILL_OWING_A_CARD`. The `match` and `methodsFor` cards are rewritten plainly.\n\n`bun nv proofs --owed --group 'Core\\Router'` names four members still owing examples, hostile, perf and tests: `url`, `urlAbsolute`, `urlSigned` and `signedRoute`. The installed handoff listed only `signedRoute` of these. All five `Core\\Router\\Match` members owe examples, help, hostile, perf and tests. `Core\\Script`, `Core\\Script\\ExitReport` and `Core\\Secret` are not started.",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "feature proofs",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/router.rs` and the `Core/Router` trees under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Router::match`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/router.rs:283`"
+        "text": "**`Core\\Router::url`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). A program with `#[Route]`s and no request can call it, so no `.nvsr` is needed; its card at `URL_DOC` wants a plain rewrite. `crates/nvs-stdlib/src/router.rs:222`"
       },
       {
         "done": false,
-        "text": "**`Core\\Router::methodsFor`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/router.rs:292`"
+        "text": "**`Core\\Router::urlAbsolute`** — same owed list. It needs a configured `[[app]] origin`, so check how an existing conformance case sets one before writing the examples. `crates/nvs-stdlib/src/router.rs:231`"
       },
       {
         "done": false,
-        "text": "**`Core\\Router::signedRoute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/router.rs:264`"
+        "text": "**`Core\\Router::urlSigned` and `::signedRoute`** — same owed list, one feature each. `signedRoute` reads the request the door matched, so its examples, attack and bench need a `.nvsr` request file beside each; `docs/examples/core/Response/stream/` shows that shape. The Rust tests `url_signed_verifies_through_signed_route_after_the_mount_prefix_changes` and `signed_route_verifies_against_the_match_the_server_already_made_and_reparses_nothing` need only `// covers:` lines. `crates/nvs-stdlib/src/router.rs:273`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Router\\Match::name`, `::params`, `::param`, `::method`, `::access` — examples, help, hostile, perf, tests; `crates/nvs-stdlib/src/router.rs:608`. `Core\\Router::match` gives a match with no request.",
+    "`Core\\Script`, `Core\\Script\\ExitReport`, `Core\\Secret` — every proof; `crates/nvs-stdlib/src/script.rs`, `crates/nvs-stdlib/src/secret.rs`."
   ]
 }
