@@ -2,6 +2,7 @@
 Every name `Core\Reflect\ClassInfo::properties` hands back is one `set` writes and `get` reads back, asserted by counting rather than line by line — `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::set
 // `rule:security/reflection-enforces-visibility`: the walk, the read and the write are one visibility answer.
 // A member that grew its own would still look right on any single line, so
 // this asks the whole roster at once and counts.

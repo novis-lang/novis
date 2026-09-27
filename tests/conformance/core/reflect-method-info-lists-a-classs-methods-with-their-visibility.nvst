@@ -2,6 +2,8 @@
 `Core\Reflect\ClassInfo::methods` names every method a class declares and `Core\Reflect\MethodInfo` carries the visibility of each — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::methods
+// covers: Core\Reflect\ClassInfo::hasMethod
 // `rule:core-classes/reflect`: reading a member's *shape* — that it exists,
 // what it is called, what it may be called from — is introspection and is
 // always available. Acting on one is the other half, and it is

@@ -2,6 +2,7 @@
 `Core\Reflect\ClassInfo::set` writes a `public` property and refuses a `private` one, and the value it is handed is checked against what the class declares — `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::set
 // `rule:security/reflection-enforces-visibility`: writing a reflected property runs exactly the check ordinary
 // code at the call site would run, and there is no `setAccessible` to lift it
 // with — the write half of the rule the `get` case pins.

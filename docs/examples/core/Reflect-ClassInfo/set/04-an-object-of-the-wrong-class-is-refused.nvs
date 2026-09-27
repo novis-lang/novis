@@ -1,0 +1,28 @@
+<?nvs
+// Shows that `set` checks the class of an object before it writes it into a property.
+// proof: gap nvs-runtime/erased-write-checks-no-class
+
+class Node {
+    public string $label = "first";
+    public ?Node $next = null;
+}
+
+class Other {
+    public string $label = "other";
+}
+
+Node $node = new Node();
+var $info = Core\Reflect::forObject($node);
+
+// `$next` has the type `?Node`. An `Other` object is not a `Node`,
+// so `set` throws a `RuntimeError`.
+try {
+    $info->set($node, "next", new Other());
+    echo "written\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+
+// A `Node` object has the right class, so this write works.
+$info->set($node, "next", new Node());
+echo "written\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Writes a property by name, as a program does when it fills an object from configuration or a form.
+// bench: iterations 400000
+
+class Counter {
+    public int $value = 0;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Counter $counter = new Counter();
+        var $info = Core\Reflect::forObject($counter);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each write stores last round's total, so no round can be skipped.
+            $info->set($counter, "value", $total + 1);
+            $total = $counter->value;
+            $i = $i + 1;
+        }
+        return $total as uint;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to check whether a class has a method with a given name.
+
+class Report {
+    public function title(): string {
+        return "Monthly sales";
+    }
+
+    public function render(): string {
+        return "<h1>Monthly sales</h1>";
+    }
+}
+
+var $found = Core\Reflect::forClass("Report");
+if ($found != null) {
+    Core\Reflect\ClassInfo $info = $found;
+    // `hasMethod` returns `true` or `false`. This prints `yes`, `yes` and `no`.
+    array<string> $names = ["title", "render", "export"];
+    foreach ($names as string $name) {
+        echo $name, ": ", $info->hasMethod($name) ? "yes" : "no", "\n";
+    }
+    // Method names are case-sensitive, so this prints `no`.
+    echo "Title: ", $info->hasMethod("Title") ? "yes" : "no", "\n";
+}

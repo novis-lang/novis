@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/object.rs",
+  "title": "An erased property write stores an object of any class into a field declared as another class.",
+  "text": "[`write_erased_property`] judges the value by [`ClassDesc::field_tag`] alone, which is `None` for a `?Node` field and `Tag::Object` for a `Node` one, so `$mixed->next = new Other()` and `Core\\Reflect\\ClassInfo::set($node, \"next\", new Other())` both commit, and a later `$node->next->count` reads past the end of the smaller `Other` allocation. That is a memory-safety hole under `rule:security/reflection-enforces-visibility`'s shared write path, reached from any `mixed` receiver. Closing it means judging a value against the field's declared type at run time, which the runtime holds only as text (`ClassDesc::field_type`), and an enum case arrives as an untagged `int` (`rule:enums/representation`), so a name check alone would refuse legitimate enum writes: the check needs a resolved per-slot class or enum descriptor laid down by `nvs-codegen`, a representation change rather than a slice. `docs/examples/core/Reflect-ClassInfo/set/04-an-object-of-the-wrong-class-is-refused.nvs` pins the behaviour the fix owes.",
+  "milestone": "M10"
+}

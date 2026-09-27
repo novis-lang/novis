@@ -1,0 +1,37 @@
+<?nvs
+// Shows the difference between a private method and a method that does not exist.
+
+class Account {
+    public function balance(): int {
+        return 120;
+    }
+
+    private function resetPassword(): string {
+        return "reset";
+    }
+}
+
+class Try {
+    public static function call(string $name): string {
+        var $info = Core\Reflect::forClass("Account");
+        if ($info == null) {
+            return "no class";
+        }
+        // `hasMethod` returns `true` for a private method too.
+        if (!$info->hasMethod($name)) {
+            return $name . ": there is no such method";
+        }
+        try {
+            return $name . ": " . ($info->call(new Account(), $name, []) as string);
+        } catch (LogicError $error) {
+            // `call` throws a `LogicError` for a private method and for a missing one.
+            // Only the `hasMethod` check above tells the two cases apart.
+            return $name . ": the method exists, but it is private";
+        }
+    }
+}
+
+// This prints one line for each name.
+echo Try::call("balance"), "\n";
+echo Try::call("resetPassword"), "\n";
+echo Try::call("resetPasword"), "\n";

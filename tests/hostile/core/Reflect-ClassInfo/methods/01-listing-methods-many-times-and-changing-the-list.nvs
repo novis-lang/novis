@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program asks for the list of methods many times and changes its copy of the list.
+// The list inside the description must not change, and the runtime must not crash or leak.
+
+class Target
+{
+    public function open(): int
+    {
+        return 1;
+    }
+
+    private function secret(string $key): string
+    {
+        return $key;
+    }
+}
+
+// 1. One description is asked for its methods one hundred thousand times.
+var $found = Core\Reflect::forClass('Target');
+if ($found == null) {
+    echo "no class\n";
+} else {
+    Core\Reflect\ClassInfo $info = $found;
+    uint $rows = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $rows = $rows + Core\Arr::count($info->methods());
+        $i = $i + 1;
+    }
+    echo $rows, "\n";
+
+    // 2. The program adds rows to its copy of the list and removes every row.
+    var $copy = $info->methods();
+    $copy[] = $copy[0];
+    $copy[] = $copy[1];
+    echo Core\Arr::count($copy), ' ', Core\Arr::count($info->methods()), "\n";
+    $copy = [];
+    echo Core\Arr::count($info->methods()), "\n";
+
+    // 3. A new description is made for every round, and its list is read and dropped.
+    uint $named = 0;
+    $i = 0;
+    while ($i < 20000) {
+        var $again = Core\Reflect::forClass('Target');
+        if ($again != null) {
+            foreach ($again->methods() as Core\Reflect\MethodInfo $method) {
+                $named = $named + Core\Str::length($method->name());
+            }
+        }
+        $i = $i + 1;
+    }
+    echo $named, "\n";
+}

@@ -1,0 +1,42 @@
+<?nvs
+// Shows how a command line tool builds its help text from the public methods of its commands class.
+
+class BackupCommands {
+    public function create(string $target): string {
+        return "backup of " . $target;
+    }
+
+    public function restore(string $file, string $target): string {
+        return "restore " . $file . " to " . $target;
+    }
+
+    public function list(): string {
+        return "no backups yet";
+    }
+
+    private function checksum(string $file): string {
+        return $file;
+    }
+}
+
+class Help {
+    public static function text(string $className): string {
+        var $info = Core\Reflect::forClass($className);
+        if ($info == null) {
+            return "";
+        }
+        string $text = "Commands:\n";
+        foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+            // A private method is a helper, so the help text does not show it.
+            if (!$method->isPublic()) {
+                continue;
+            }
+            // Each parameter is one argument the user must type.
+            $text = $text . "  " . $method->name() . " (" . $method->parameterCount() . " argument(s))\n";
+        }
+        return $text;
+    }
+}
+
+// This prints one line for each public method, sorted by name.
+echo Help::text("BackupCommands");

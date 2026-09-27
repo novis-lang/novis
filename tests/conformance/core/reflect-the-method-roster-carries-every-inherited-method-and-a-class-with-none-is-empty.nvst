@@ -2,6 +2,8 @@
 A `Core\Reflect\ClassInfo::methods` roster carries the inherited methods beside the class's own, and a class declaring none answers with an empty one — `rule:core-classes/reflect`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::methods
+// covers: Core\Reflect\ClassInfo::hasMethod
 // `rule:core-classes/reflect`: a description is of a class, and what a class answers for
 // is its own methods plus every ancestor's — the same set a call site resolves
 // against, which is why the roster is read off the descriptor rather than

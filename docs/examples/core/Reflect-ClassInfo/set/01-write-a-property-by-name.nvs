@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to write a property when its name is in a string.
+
+class Profile {
+    public string $city = "Berlin";
+    public int $age = 30;
+}
+
+Profile $profile = new Profile();
+var $info = Core\Reflect::forObject($profile);
+
+// `set` takes the object, the property name and the new value.
+$info->set($profile, "city", "Lisbon");
+$info->set($profile, "age", 31);
+
+// This prints `Lisbon 31`.
+echo $profile->city, " ", $profile->age, "\n";

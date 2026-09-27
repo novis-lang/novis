@@ -3413,6 +3413,7 @@ mod tests {
     /// which is exactly the premise a reflective write site has. `rule:classes/property-observer-costs-nothing-when-unused`'s
     /// other half is asserted in the same test, so that "they agree" cannot be
     /// satisfied by two doors that observe nothing.
+    // covers: Core\Reflect\ClassInfo::set
     #[test]
     fn a_reflective_property_write_runs_the_hook_an_ordinary_write_runs() {
         OBSERVED.with_borrow_mut(Vec::clear);
@@ -4235,6 +4236,217 @@ mod tests {
             empty.release();
             info.release();
             bare.release();
+        }
+    }
+
+    /// `methods` answers one `MethodInfo` per row the descriptor carries, in
+    /// name order whatever order the table was handed, and each row reads back
+    /// its own name, visibility and arity. The constructor is listed like any
+    /// other method, a `private` one is listed with `isPublic` false, and a
+    /// synthesized row (a `#` in its name) is not listed at all. Asking twice
+    /// hands back the same array, and a class with no method answers an empty
+    /// one, never `null`.
+    // covers: Core\Reflect\ClassInfo::methods
+    #[test]
+    fn class_info_methods_is_one_row_per_declared_method_in_name_order() {
+        let mut classes = ClassTable::new();
+        let router = classes.define("Router", &[] as &[&str], &[]);
+        let plain = classes.define("Plain", &[] as &[&str], &[]);
+        let row = |name: &str, public: bool, arity: u32| MethodRow {
+            name: name.to_owned(),
+            code: (vault_open as NvsFn) as *const u8,
+            arity,
+            param_tags: 0,
+            param_names: Vec::new(),
+            param_types: Vec::new(),
+            public,
+            protected: false,
+            native: false,
+        };
+        classes.set_methods(
+            router,
+            vec![
+                row("route", true, 2),
+                row("lambda#0", true, 1),
+                row(nvs_runtime::object::CONSTRUCTOR, true, 0),
+                row("audit", false, 1),
+            ],
+        );
+        let mut ctx = Ctx::buffered();
+
+        #[expect(
+            unsafe_code,
+            reason = "`classes` outlives every use below, and the table never moves a descriptor \
+                      it handed out"
+        )]
+        let info = super::describe(unsafe { &*classes.desc(router) });
+        let listed = call(
+            super::nvs_core_reflect_class_info_methods,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        let again = call(
+            super::nvs_core_reflect_class_info_methods,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        assert_eq!(
+            listed.array_ptr(),
+            again.array_ptr(),
+            "the roster is the description's own array, handed back rather than rebuilt"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "`methods` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`methods` answers an array"))
+        });
+        let mut read = Vec::new();
+        for at in 0..roster.count() {
+            let row = roster.value_at(at).expect("every position holds a row");
+            read.push((
+                attribute_text(&mut ctx, super::nvs_core_reflect_method_info_name, row),
+                call(
+                    super::nvs_core_reflect_method_info_is_public,
+                    &mut ctx,
+                    &[row],
+                )
+                .expect("a bit slot always answers")
+                .as_bool()
+                .expect("the slot holds a bool"),
+                call(
+                    super::nvs_core_reflect_method_info_parameter_count,
+                    &mut ctx,
+                    &[row],
+                )
+                .expect("a count slot always answers")
+                .as_uint()
+                .expect("the slot holds a uint"),
+            ));
+        }
+        assert_eq!(
+            read,
+            vec![
+                ("audit".to_owned(), false, 1),
+                ("constructor".to_owned(), true, 0),
+                ("route".to_owned(), true, 2),
+            ],
+            "one row per declared method, in name order, and no synthesized row"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "`classes` outlives every use below, and the table never moves a descriptor \
+                      it handed out"
+        )]
+        let bare = super::describe(unsafe { &*classes.desc(plain) });
+        let empty = call(
+            super::nvs_core_reflect_class_info_methods,
+            &mut ctx,
+            &[bare],
+        )
+        .expect("the roster always answers");
+        assert_eq!(
+            empty.tag(),
+            Some(Tag::Array),
+            "no method is an empty roster"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "`methods` answered an array this frame owns one reference to"
+        )]
+        let none = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(empty.array_ptr().expect("an array"))
+        });
+        assert_eq!(none.count(), 0);
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the two descriptions and one reference to each of the \
+                      three rosters `methods` handed back"
+        )]
+        unsafe {
+            listed.release();
+            again.release();
+            empty.release();
+            info.release();
+            bare.release();
+        }
+    }
+
+    /// `hasMethod` asked as an **agreement** with `call`: for every probe name,
+    /// it answers `true` exactly when a call from inside the class reaches a
+    /// method by that name. The `private` method is the point. It answers
+    /// `true`, a call from outside is refused, and a call from inside runs it,
+    /// so a refusal can be told from a misspelling. A name differing only in
+    /// case, a prefix, a longer name and the empty name all answer `false`.
+    // covers: Core\Reflect\ClassInfo::hasMethod
+    #[test]
+    fn class_info_has_method_agrees_with_what_a_call_from_inside_the_class_reaches() {
+        let (mut ctx, subject) = vault();
+        let info = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+            .expect("every object has a description");
+        let none = Value::array(NvsArray::new());
+        let site = inside("Vault::check");
+        for probe in ["open", "sealed", "OPEN", "ope", "opened", ""] {
+            let name = Value::str(NvsStr::new(probe.as_bytes()));
+            let declared = call(
+                super::nvs_core_reflect_class_info_has_method,
+                &mut ctx,
+                &[info, name],
+            )
+            .expect("`hasMethod` answers for any text")
+            .as_bool()
+            .expect("`hasMethod` answers a bool");
+            let reached = call(
+                super::nvs_core_reflect_class_info_call,
+                &mut ctx,
+                &[info, subject, name, none, site.1],
+            );
+            if reached.is_err() {
+                let _refused = ctx.take_pending();
+            }
+            assert_eq!(
+                declared,
+                reached.is_ok(),
+                "`hasMethod(\"{probe}\")` and a call from inside `Vault` agree"
+            );
+            #[expect(unsafe_code, reason = "this frame built the name and owns it")]
+            unsafe {
+                name.release();
+            }
+        }
+
+        let sealed = Value::str(NvsStr::new(b"sealed"));
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_call,
+                &mut ctx,
+                &[info, subject, sealed, none, OUTSIDE],
+            )
+            .err(),
+            Some(nvs_runtime::THROWN),
+            "and the same `private` method is refused from outside, while `hasMethod` said `true`"
+        );
+        assert!(
+            ctx.take_pending().is_some(),
+            "the refusal left its sentence"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each: `forObject` handed back the \
+                      description, and this frame built the other three"
+        )]
+        unsafe {
+            sealed.release();
+            none.release();
+            info.release();
+            subject.release();
         }
     }
 

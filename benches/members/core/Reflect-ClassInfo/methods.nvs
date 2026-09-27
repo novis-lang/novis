@@ -1,0 +1,39 @@
+<?nvs
+// Lists the methods of a class, as a router or a command line tool does to find its handlers.
+// bench: iterations 200000
+
+class Controller {
+    public function index(): int {
+        return 1;
+    }
+
+    public function show(int $id): int {
+        return $id;
+    }
+
+    private function load(int $id): int {
+        return $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $found = Core\Reflect::forClass("Controller");
+        if ($found == null) {
+            return 0;
+        }
+        Core\Reflect\ClassInfo $info = $found;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $methods = $info->methods();
+            // The row read depends on last round's total, so no round can be skipped.
+            Core\Reflect\MethodInfo $method = $methods[($total % 3) as int];
+            $total = $total + $method->parameterCount() + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

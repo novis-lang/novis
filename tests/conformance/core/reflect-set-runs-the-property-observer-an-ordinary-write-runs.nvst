@@ -2,6 +2,7 @@
 A write through `Core\Reflect\ClassInfo::set` reaches the same `PropertyObserver` an ordinary write reaches, and a throwing observer fails it the same way — `rule:security/reflection-enforces-visibility`, `rule:classes/property-observer-pipeline`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::set
 // `rule:security/reflection-enforces-visibility`: acting on a reflected property runs the `PropertyObserver`
 // hook ordinary code at that call site would face. This asks that as an
 // agreement rather than as a sentence — the same write through both doors,

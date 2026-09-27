@@ -1,0 +1,3 @@
+addLine: public, 2 parameter(s)
+roundCents: not public, 1 parameter(s)
+total: public, 0 parameter(s)
