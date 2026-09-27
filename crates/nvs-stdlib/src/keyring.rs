@@ -82,7 +82,10 @@ pub(crate) const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 ///
 /// A [`Fault::fatal`] for a slot holding anything but an array, and a
 /// `LogicError` for an empty ring — the module doc is where those are two
-/// different kinds of wrong.
+/// different kinds of wrong. [`key_at`]'s refusals for the newest entry, which
+/// is checked here so that a door refusing its input early (a verifier handed
+/// no `_sig`, or two) still refuses a broken ring first, as the module doc
+/// says every door does. An older entry is checked when a walk reaches it.
 pub(crate) fn borrow(
     args: &[Value],
     slot: usize,
@@ -105,6 +108,8 @@ pub(crate) fn borrow(
             ),
         ));
     }
+    let (slot, held) = newest(&ring);
+    key_at(&held, slot, who)?;
     Ok(ring)
 }
 
@@ -339,5 +344,33 @@ pub(crate) mod tests {
             );
             dropped(ring);
         }
+    }
+
+    /// A door that refuses its input before it walks the ring still refuses a
+    /// broken ring first, because [`borrow`] checks the newest entry itself:
+    /// `Core\Router::signedRoute` handed a request with two `_sig` parameters
+    /// answered the forgery sentence for a ring whose first key was 31 octets.
+    /// An older entry of the wrong length is left to the walk that reaches it.
+    // covers: Core\Router::signedRoute
+    #[test]
+    fn borrowing_a_ring_refuses_a_newest_key_of_the_wrong_length_and_nothing_older() {
+        let who = "Core\\Router::signedRoute";
+        let short = ring_of(&[&[5_u8; 31]]);
+        let refusal = thrown(
+            borrow(&[short], 0, who).expect_err("a 31-octet newest key is refused on borrow"),
+        );
+        assert!(
+            refusal.contains("is 31 octets, and a key is 32"),
+            "the refusal is key_at's own sentence: {refusal}"
+        );
+
+        let retired_short = ring_of(&[&[5_u8; 32], &[6_u8; 31]]);
+        assert!(
+            borrow(&[retired_short], 0, who).is_ok(),
+            "an older entry is checked by the walk that reaches it, not on borrow"
+        );
+
+        dropped(short);
+        dropped(retired_short);
     }
 }
