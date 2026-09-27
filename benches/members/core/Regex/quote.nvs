@@ -1,0 +1,20 @@
+<?nvs
+// Quotes a short search text, as a program does before it puts what a person typed into a pattern.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $searches = ["c++", "size 38", "v2.1 (beta)"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which text is quoted comes from last round's total, so no round can be reused.
+            string $quoted = Core\Regex::quote($searches[($total % 3) as int]);
+            $total = $total + Core\Str::length($quoted) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the words of a search that a person typed into a form.
+
+string $search = "  summer   dress, size 38 ";
+
+// `[\s,]+` matches one or more spaces or commas. `keepEmpty: false` removes the
+// empty pieces at the start and the end. This prints four words, one per line.
+foreach (Core\Regex::split($search, '[\s,]+', {keepEmpty: false}) as string $word) {
+    echo $word, "\n";
+}

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how `limit` and `keepEmpty` change the pieces that `Core\Regex::split` returns.
+
+string $row = "a,,b,c";
+
+// Two commas next to each other give an empty piece. This prints ["a","","b","c"].
+echo Core\Json::encode(Core\Regex::split($row, ',')), "\n";
+
+// `keepEmpty: false` removes the empty pieces. This prints ["a","b","c"].
+echo Core\Json::encode(Core\Regex::split($row, ',', {keepEmpty: false})), "\n";
+
+// `limit: 2` gives at most 2 pieces. The last piece contains the rest of the text.
+// This prints ["a",",b,c"].
+echo Core\Json::encode(Core\Regex::split($row, ',', {limit: 2})), "\n";
+
+// A negative limit removes pieces from the end. This prints ["a","","b"].
+echo Core\Json::encode(Core\Regex::split($row, ',', {limit: -1})), "\n";

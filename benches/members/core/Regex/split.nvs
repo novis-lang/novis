@@ -1,0 +1,21 @@
+<?nvs
+// Splits a line at commas and the spaces around them, as a program does when it reads a list that a person typed.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lines = ["red, green,blue", "summer dress", "a , b , c , d"];
+        Core\Regex\Pattern $comma = Core\Regex::compile('\s*,\s*');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which line is split comes from last round's total, so no round can be reused.
+            array<string> $pieces = Core\Regex::split($lines[($total % 3) as int], $comma);
+            $total = $total + Core\Arr::count($pieces) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

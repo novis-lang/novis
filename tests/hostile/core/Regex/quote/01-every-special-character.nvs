@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program quotes very long texts made only of special characters, and uses
+// the results as patterns. Each quoted pattern should match its own text, or the
+// pattern should throw an error. The program must not crash.
+
+class Quote
+{
+    public static function matchesItself(string $text): string
+    {
+        try {
+            return Core\Regex::matches($text, '^' . Core\Regex::quote($text) . '$') ? 'yes' : 'no';
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. Every character from 1 to 127 once, the special ones included. This prints "yes".
+string $ascii = '';
+uint $code = 1;
+while ($code < 128) {
+    $ascii = $ascii . Core\Str::fromCodePoint($code);
+    $code = $code + 1;
+}
+echo Quote::matchesItself($ascii), "\n";
+
+// 2. One million special characters. The quoted pattern has two million characters.
+// This prints 2000000.
+string $special = Core\Str::repeat('.*+?[](){}|^$\\', 71429);
+echo Core\Str::length(Core\Regex::quote(Core\Str::slice($special, 0, 1000000))), "\n";
+
+// 3. The same text used as a pattern. The pattern is too big to compile, so this
+// prints "error".
+echo Quote::matchesItself(Core\Str::slice($special, 0, 1000000)), "\n";
+
+// 4. Characters that take two, three and four bytes are not changed. This prints "yes".
+echo Quote::matchesItself(Core\Str::repeat('é€😀', 1000)), "\n";
+
+// 5. 100000 quotes, and every result is freed. This prints 100000.
+uint $done = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Regex::quote('a.b' . ($i % 100) as string) != '') {
+        $done = $done + 1;
+    }
+    $i = $i + 1;
+}
+echo $done, "\n";

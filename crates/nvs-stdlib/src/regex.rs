@@ -356,9 +356,9 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Regex::replaceWith`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answers \
-            for each, as `preg_replace_callback` does; the callback receives one `Match` and \
-            its answer is inserted literally, with no group expansion.",
+    short: "Replaces every match of `$pattern` in `$subject` with the text your function \
+            returns for that match, and returns the new text. The function gets one \
+            `Core\\Regex\\Match`.",
     params: &[
         ParamDoc {
             name: "subject",
@@ -367,37 +367,38 @@ const REPLACE_WITH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "pattern",
-            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
+            desc: "A `Core\\Regex\\Pattern` from `Core\\Regex::compile`, or a pattern string with \
+                   no options. A `tainted` string does not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "fn",
-            desc: "A `callable(Match): string` called once per replaced match, in subject order, \
-                   after every match has been found.",
+            desc: "A function that gets one `Core\\Regex\\Match` and returns a `string`. It is \
+                   called once for each match, from left to right. The text it returns is \
+                   inserted as it is, so `$1` in it is two characters.",
             shape: &[],
         },
         ParamDoc {
             name: "limit",
-            desc: "How many matches to replace, counted from the start of the subject; the \
-                   default is every one, `0` replaces nothing, and `$fn` is never called for a \
-                   match beyond it.",
+            desc: "How many matches to replace, counted from the start of the text. The default \
+                   is every match. `0` replaces nothing. The function is not called for a match \
+                   after the limit.",
             shape: &[],
         },
     ],
-    ret: "The subject with its matches replaced — unchanged when the pattern matches nowhere or \
-          `limit` is `0`.",
+    ret: "The text with the matches replaced. It is the same text if there is no match.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
-               the backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` is not a valid regular expression, matching it against `$subject` \
+               needs more steps than the limit allows, or the new text is larger than the \
+               memory limit.",
     }],
 };
 
 /// `Core\Regex::split`'s reference card — `rule:core-api/reference-card`.
 const SPLIT_DOC: MethodDoc = MethodDoc {
-    short: "Splits `$subject` at every match of `$pattern`, as `preg_split` does, under \
-            `Core\\Str::split`'s reading of `limit`.",
+    short: "Splits `$subject` at every match of `$pattern`, and returns the pieces as an \
+            array. The matches are not part of any piece.",
     params: &[
         ParamDoc {
             name: "subject",
@@ -406,47 +407,47 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "pattern",
-            desc: "A `Pattern` from `Core\\Regex::compile`, or a pattern string compiled with no \
-                   flags; the pattern is a sink, so a `tainted` string is refused at the call.",
+            desc: "A `Core\\Regex\\Pattern` from `Core\\Regex::compile`, or a pattern string with \
+                   no options. A `tainted` string does not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "limit",
-            desc: "`Core\\Str::split`'s three-sign rule: positive is at most that many pieces \
-                   with the last holding the remainder, negative drops that many pieces off the \
-                   end, and `0` yields the subject unsplit — not `preg_split`'s reading of `0` \
-                   and `-1` as no limit.",
+            desc: "The largest number of pieces. The last piece contains the rest of the text. \
+                   A negative number removes that many pieces from the end. `0` returns the \
+                   whole text as one piece. The default is no limit. PHP's `preg_split` reads \
+                   `0` and `-1` as no limit.",
             shape: &[],
         },
         ParamDoc {
             name: "keepEmpty",
-            desc: "Whether empty pieces are kept; `false` is `PREG_SPLIT_NO_EMPTY`, and drops \
-                   them after `limit` has been applied.",
+            desc: "Whether empty pieces are kept. The default is `true`. With `false`, empty \
+                   pieces are removed after `limit` is applied.",
             shape: &[],
         },
     ],
-    ret: "The pieces in order; the whole subject as one piece when the pattern matches nowhere.",
+    ret: "The pieces, from left to right. If there is no match, the array has one piece: the \
+          whole text.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$pattern` compiles under neither the linear engine nor the backtracking one, or \
-               the backtracking engine exhausted its step budget against this subject.",
+        desc: "`$pattern` is not a valid regular expression, or matching it against `$subject` \
+               needs more steps than the limit allows.",
     }],
 };
 
 /// `Core\Regex::quote`'s reference card — `rule:core-api/reference-card`.
 const QUOTE_DOC: MethodDoc = MethodDoc {
-    short: "Escapes every character either engine gives a meaning to in `$literal`, as \
-            `preg_quote` does, so the result is a pattern matching that literal and nothing \
-            else — the launder for the pattern sink, so its result is accepted where a \
-            `tainted` string is not.",
+    short: "Puts a `\\` before every character that has a special meaning in a pattern. The \
+            result is a pattern that matches `$literal` exactly. A `tainted` text is allowed \
+            here, and the result can be used as a pattern.",
     params: &[ParamDoc {
         name: "literal",
-        desc: "The text to match literally.",
+        desc: "The text to match exactly.",
         shape: &[],
     }],
-    ret: "The escaped pattern; a string with no meta character comes back unchanged. The escaped \
-          set is not `preg_quote`'s — `&` and `~` are escaped here, `!:<=>` and `/` are not — \
-          so only what each result matches is comparable.",
+    ret: "The escaped pattern. A text with no special characters is returned unchanged. The \
+          escaped characters are not the same as PHP's `preg_quote`: `&` and `~` are escaped \
+          here, and `!`, `:`, `<`, `=`, `>` and `/` are not.",
     errors: &[],
 };
 
@@ -2017,27 +2018,30 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// Every piece `pattern` splits `subject` into, at most `pieces` of them with
-/// the last holding the unsplit remainder.
-fn pieces_of<'a>(
+/// Hands `each` every piece `pattern` splits `subject` into, in order, at
+/// most `pieces` of them with the last holding the unsplit remainder.
+///
+/// **No piece is collected here.** A caller turns each one into a value as it
+/// arrives, so the split holds no `Vec` of sixteen bytes per piece beside the
+/// result, which for an empty pattern is sixteen times the subject.
+fn each_piece<'a>(
     compiled: &Compiled,
     subject: &'a str,
     pieces: Option<usize>,
     pattern: &str,
     budget: usize,
-) -> Result<Vec<&'a str>, Fault> {
-    match (compiled, pieces) {
-        (Compiled::Linear(re), Some(pieces)) => Ok(re.splitn(subject, pieces).collect()),
-        (Compiled::Linear(re), None) => Ok(re.split(subject).collect()),
-        (Compiled::Backtracking(re), Some(pieces)) => re
-            .splitn(subject, pieces)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| budget_exhausted("split", pattern, budget, &err)),
-        (Compiled::Backtracking(re), None) => re
-            .split(subject)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| budget_exhausted("split", pattern, budget, &err)),
+    mut each: impl FnMut(&'a str),
+) -> Result<(), Fault> {
+    let pieces = pieces.unwrap_or(usize::MAX);
+    match compiled {
+        Compiled::Linear(re) => re.splitn(subject, pieces).for_each(each),
+        Compiled::Backtracking(re) => {
+            for piece in re.splitn(subject, pieces) {
+                each(piece.map_err(|err| budget_exhausted("split", pattern, budget, &err))?);
+            }
+        }
     }
+    Ok(())
 }
 
 nvs_runtime::nvs_helper! {
@@ -2074,24 +2078,26 @@ nvs_runtime::nvs_helper! {
 
         let budget = step_budget(ctx);
         let compiled = compiled(pattern, given.flags, "split", budget)?;
-        let mut pieces = if limit >= 0 {
-            // A limit of `0` means one piece, not none — see the docs above.
-            let wanted = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
-            pieces_of(&compiled, subject, Some(wanted), pattern, budget)?
+        // A limit of `0` means one piece, not none — see the docs above.
+        let (wanted, kept) = if limit >= 0 {
+            (Some(usize::try_from(limit).unwrap_or(usize::MAX).max(1)), usize::MAX)
         } else {
-            let all = pieces_of(&compiled, subject, None, pattern, budget)?;
+            // A negative limit needs the count before the first piece is kept,
+            // so the split runs twice: once counting, once building.
+            let mut all = 0_usize;
+            each_piece(&compiled, subject, None, pattern, budget, |_| all += 1)?;
             let dropped = usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX);
-            let kept = all.len().saturating_sub(dropped);
-            all.into_iter().take(kept).collect()
+            (None, all.saturating_sub(dropped))
         };
-        if !keep_empty {
-            pieces.retain(|piece| !piece.is_empty());
-        }
 
         let mut out = NvsArray::new();
-        for piece in pieces {
-            out.append(Value::str(NvsStr::new(piece.as_bytes())));
-        }
+        let mut seen = 0_usize;
+        each_piece(&compiled, subject, wanted, pattern, budget, |piece| {
+            seen += 1;
+            if seen <= kept && (keep_empty || !piece.is_empty()) {
+                out.append(Value::str(NvsStr::new(piece.as_bytes())));
+            }
+        })?;
         Ok(Value::array(out))
     }
 }
@@ -2726,6 +2732,258 @@ mod tests {
         // 1000 copies of a 4 KiB match is about 4 MiB, four times the limit.
         let long = "a".repeat(4096);
         assert_eq!(replace(&long, ".+", &"$0".repeat(1000), u64::MAX), None);
+    }
+
+    /// A one-parameter closure calling `invoke`: the arity and tag slots and
+    /// the invoke row are all `nvs_runtime::call_closure` reads. The table is
+    /// leaked because a descriptor's address is its identity and must outlive
+    /// every instance made from it.
+    fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
+        let mut table = nvs_runtime::ClassTable::new();
+        let id = table.define("{closure}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }],
+        );
+        table.set_closure(id);
+        let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives every instance made from it"
+        )]
+        let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
+        object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(1));
+        object.set_field(
+            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
+            Value::int(i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY)),
+        );
+        Value::object(object)
+    }
+
+    /// Releases the receiver and the `Match` `call_closure` retained for a
+    /// one-parameter callee, and answers `answer`.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and one argument, each retained for this \
+                  callee to release, and the address of a live `Value` for the result"
+    )]
+    unsafe fn answered(args: *const Value, out: *mut Value, answer: Value) -> i32 {
+        unsafe {
+            (*args).release();
+            (*args.add(1)).release();
+            *out = answer;
+        }
+        nvs_runtime::OK
+    }
+
+    /// `fn(Match $m) => "[" . $m->text() . "]"`.
+    #[expect(unsafe_code, reason = "forwarding this callee's own contract")]
+    unsafe extern "C" fn bracketed(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        let matched = unsafe { *args.add(1) };
+        let groups = crate::instance::slot(matched.obj_ptr().expect("a `Match`"), GROUPS_SLOT);
+        let whole = crate::arr::borrowed(groups.array_ptr().expect("an array"))
+            .get(b"0")
+            .and_then(|v| v.as_text().map(str::to_owned))
+            .expect("group 0 is the whole match");
+        let answer = Value::str(NvsStr::new(format!("[{whole}]").as_bytes()));
+        unsafe { answered(args, out, answer) }
+    }
+
+    /// `fn(Match $m) => 7` — an answer that is not a string.
+    #[expect(unsafe_code, reason = "forwarding this callee's own contract")]
+    unsafe extern "C" fn answers_an_int(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        unsafe { answered(args, out, Value::int(7)) }
+    }
+
+    /// `fn(Match $m) => Core\Str::repeat("x", 65536)`.
+    #[expect(unsafe_code, reason = "forwarding this callee's own contract")]
+    unsafe extern "C" fn answers_64_kib(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        let answer = Value::str(NvsStr::new("x".repeat(64 * 1024).as_bytes()));
+        unsafe { answered(args, out, answer) }
+    }
+
+    /// `Core\Regex::replaceWith` calls a real closure once per replaced match
+    /// on both engines, and inserts its answer literally: the `$1` a callback
+    /// answers stays two characters. `limit` counts replacements, an answer
+    /// that is not a string throws, and a result larger than the request's
+    /// memory limit stops before it is built.
+    // covers: Core\Regex::replaceWith
+    #[test]
+    fn replace_with_inserts_the_callback_answer_literally_on_both_engines() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(1 << 20);
+        let mut replace_with =
+            |subject: &str, pattern: &str, invoke: nvs_runtime::NvsFn, limit: u64| {
+                let args = [
+                    Value::str(NvsStr::new(subject.as_bytes())),
+                    Value::str(NvsStr::new(pattern.as_bytes())),
+                    closure_of(invoke),
+                    Value::uint(limit),
+                ];
+                let answer = nvs_runtime::call(nvs_core_regex_replace_with, &mut ctx, &args)
+                    .map(|out| {
+                        let text = out.as_text().expect("a string").to_owned();
+                        #[expect(
+                            unsafe_code,
+                            reason = "this frame owns the string `replaceWith` returned"
+                        )]
+                        unsafe {
+                            out.release();
+                        }
+                        text
+                    })
+                    .ok();
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns the two strings and the closure it built"
+                )]
+                unsafe {
+                    args[0].release();
+                    args[1].release();
+                    args[2].release();
+                }
+                answer
+            };
+        // `(\d)\1*` needs a backreference, so it runs on the backtracking engine.
+        for pattern in [r"\d+", r"(\d)\1*"] {
+            let got = replace_with("a1b22c", pattern, bracketed, u64::MAX);
+            assert_eq!(got.as_deref(), Some("a[1]b[22]c"), "{pattern}");
+            let got = replace_with("a1b22c", pattern, bracketed, 1);
+            assert_eq!(got.as_deref(), Some("a[1]b22c"), "{pattern}");
+            let got = replace_with("a1b22c", pattern, bracketed, 0);
+            assert_eq!(got.as_deref(), Some("a1b22c"), "{pattern}");
+        }
+        let got = replace_with("x$1y", r"\$\d", bracketed, u64::MAX);
+        assert_eq!(got.as_deref(), Some("x[$1]y"));
+        assert_eq!(replace_with("a1", r"\d", answers_an_int, u64::MAX), None);
+        // 100 answers of 64 KiB are about 6 MiB, six times the limit.
+        let many = "a".repeat(100);
+        assert_eq!(replace_with(&many, "a", answers_64_kib, u64::MAX), None);
+    }
+
+    /// `Core\Regex::split` reads `limit` by `Core\Str::split`'s three-sign
+    /// rule on both engines: positive caps the pieces with the last holding
+    /// the rest, negative drops pieces off the end, and `0` is one piece.
+    /// `keepEmpty: false` drops empty pieces after the limit, and a
+    /// backtracking pattern that runs out of steps throws.
+    // covers: Core\Regex::split
+    #[test]
+    fn split_reads_limit_by_the_three_sign_rule_on_both_engines() {
+        let mut ctx = Ctx::buffered();
+        let mut split = |subject: &str, pattern: &str, limit: i64, keep_empty: bool| {
+            let args = [
+                Value::str(NvsStr::new(subject.as_bytes())),
+                Value::str(NvsStr::new(pattern.as_bytes())),
+                Value::int(limit),
+                Value::bool(keep_empty),
+            ];
+            let answer = nvs_runtime::call(nvs_core_regex_split, &mut ctx, &args)
+                .map(|out| {
+                    let list = crate::arr::borrowed(out.array_ptr().expect("an array"));
+                    let pieces: Vec<String> = (0..list.count())
+                        .map(|nth| {
+                            list.get(nth.to_string().as_bytes())
+                                .and_then(|piece| piece.as_text().map(str::to_owned))
+                                .expect("a string piece")
+                        })
+                        .collect();
+                    #[expect(unsafe_code, reason = "this frame owns the array `split` returned")]
+                    unsafe {
+                        out.release();
+                    }
+                    pieces
+                })
+                .ok();
+            #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
+            unsafe {
+                args[0].release();
+                args[1].release();
+            }
+            answer
+        };
+        // `(\d)\1*` needs a backreference, so it runs on the backtracking engine.
+        for pattern in [r"\d+", r"(\d)\1*"] {
+            let all = split("a1b22c3", pattern, i64::MAX, true);
+            assert_eq!(
+                all.as_deref(),
+                Some(&["a", "b", "c", ""].map(String::from)[..]),
+                "{pattern}"
+            );
+            let two = split("a1b22c3", pattern, 2, true);
+            assert_eq!(
+                two.as_deref(),
+                Some(&["a", "b22c3"].map(String::from)[..]),
+                "{pattern}"
+            );
+            let dropped = split("a1b22c3", pattern, -2, true);
+            assert_eq!(
+                dropped.as_deref(),
+                Some(&["a", "b"].map(String::from)[..]),
+                "{pattern}"
+            );
+            let one = split("a1b22c3", pattern, 0, true);
+            assert_eq!(
+                one.as_deref(),
+                Some(&["a1b22c3"].map(String::from)[..]),
+                "{pattern}"
+            );
+            let kept = split("1a22", pattern, i64::MAX, false);
+            assert_eq!(
+                kept.as_deref(),
+                Some(&["a"].map(String::from)[..]),
+                "{pattern}"
+            );
+        }
+        let slow = format!("{}b", "a".repeat(40));
+        assert_eq!(split(&slow, r"^(a|a?)+\1$", i64::MAX, true), None);
+    }
+
+    /// `Core\Regex::quote` escapes every character either engine gives a
+    /// meaning to, so its result compiles on the linear engine and matches
+    /// its own literal, inside a larger text, and nothing else.
+    // covers: Core\Regex::quote
+    #[test]
+    fn quote_escapes_every_meta_character_so_the_result_matches_only_its_literal() {
+        let mut ctx = Ctx::buffered();
+        let literal = r"#$&()*+-.?[\]^{|}~ a.b";
+        let argument = Value::str(NvsStr::new(literal.as_bytes()));
+        let quoted =
+            nvs_runtime::call(nvs_core_regex_quote, &mut ctx, &[argument]).expect("quotes");
+        let pattern = quoted.as_text().expect("a string").to_owned();
+        assert_eq!(pattern, r"\#\$\&\(\)\*\+\-\.\?\[\\\]\^\{\|\}\~ a\.b");
+        let held = built(&pattern, NO_FLAGS, "quote").expect("compiles");
+        let Compiled::Linear(re) = &*held else {
+            panic!("a quoted literal needs no backtracking")
+        };
+        assert!(re.is_match(literal));
+        assert!(re.is_match(&format!("before {literal} after")));
+        assert!(!re.is_match(r"#$&()*+-.?[\]^{|}~ axb"));
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the string it built and the one `quote` returned"
+        )]
+        unsafe {
+            argument.release();
+            quoted.release();
+        }
     }
 
     /// [`compiled`] at the shipped budget, which is what every case above

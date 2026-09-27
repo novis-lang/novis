@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program splits very long texts into millions of pieces, with limits at the
+// far ends of their range. Each call should return an array or throw an error. The last
+// one should stop at the memory limit.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+class Split
+{
+    public static function count(string $subject, string $pattern, int $limit): string
+    {
+        try {
+            return Core\Arr::count(Core\Regex::split($subject, $pattern, { limit: $limit })) as string;
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. An empty pattern matches between every two characters of a text of one million
+// characters. This prints a number close to one million.
+echo Split::count(Core\Str::repeat('é', 1000000), '', 9223372036854775807), "\n";
+
+// 2. The smallest possible limit removes every piece. This prints 0.
+echo Split::count('a,b,c', ',', -9223372036854775807 - 1), "\n";
+
+// 3. The largest possible limit keeps every piece. This prints 3.
+echo Split::count('a,b,c', ',', 9223372036854775807), "\n";
+
+// 4. A pattern that needs very many steps to fail. This throws an error.
+echo Split::count(Core\Str::repeat('a', 40) . 'b', '^(a|a?)+\1$', 9223372036854775807), "\n";
+
+// 5. 100000 splits, and every array is freed. This prints 100000.
+uint $done = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Arr::count(Core\Regex::split('a,b,' . ($i % 100) as string, ',')) == 3) {
+        $done = $done + 1;
+    }
+    $i = $i + 1;
+}
+echo $done, "\n";
+
+// 6. A text of 50 million characters is split into one piece per character. The pieces
+// need more memory than the limit, so the program stops here with a memory limit error.
+echo Split::count(Core\Str::repeat('a', 50000000), '', 9223372036854775807), "\n";
