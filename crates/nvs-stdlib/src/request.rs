@@ -4474,6 +4474,84 @@ mod tests {
         );
     }
 
+    /// `query` reads one parameter under the bracket convention a form uses,
+    /// so `a[b]=c` answers an array under `a`, a name the query string does not
+    /// carry answers `null`, and an escape no `string` can hold is refused.
+    // covers: Core\Request::query
+    #[test]
+    fn query_answers_one_parameter_under_the_bracket_convention() {
+        fn query_of(query: &str, name: &str) -> String {
+            let mut ctx = Ctx::buffered();
+            ctx.set_inbound(Inbound::new("GET", "/", query));
+            let name = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+            let answer =
+                nvs_runtime::call(crate::request::nvs_core_request_query, &mut ctx, &[name]);
+            let seen = match answer {
+                Err(_) => "refused".to_owned(),
+                Ok(value) => {
+                    let seen = match value.tag() {
+                        Some(nvs_runtime::Tag::Null) => "null".to_owned(),
+                        Some(nvs_runtime::Tag::Array) => "array".to_owned(),
+                        _ => value
+                            .as_text()
+                            .expect("a parameter is text, an array or `null`")
+                            .to_owned(),
+                    };
+                    #[expect(
+                        unsafe_code,
+                        reason = "the caller owns the one reference `query` handed back"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
+                    seen
+                }
+            };
+            #[expect(
+                unsafe_code,
+                reason = "the driver built the name and the callee only borrowed it"
+            )]
+            unsafe {
+                name.release();
+            }
+            seen
+        }
+
+        assert_eq!(query_of("page=2&q=shoes", "page"), "2");
+        assert_eq!(query_of("q=red+shoes%21", "q"), "red shoes!");
+        assert_eq!(
+            query_of("page=2", "Page"),
+            "null",
+            "a name is matched exactly"
+        );
+        assert_eq!(query_of("page=2", "sort"), "null");
+        assert_eq!(query_of("filter[color]=red", "filter"), "array");
+        assert_eq!(
+            query_of("filter[color]=red", "filter[color]"),
+            "null",
+            "a nested value is reached through its parent, never by its bracketed name"
+        );
+        assert_eq!(query_of("q=%FF", "q"), "refused");
+
+        let name = Value::str(nvs_runtime::NvsStr::new(b"page"));
+        let unanswered = nvs_runtime::call(
+            crate::request::nvs_core_request_query,
+            &mut Ctx::buffered(),
+            &[name],
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the driver built the name and the callee only borrowed it"
+        )]
+        unsafe {
+            name.release();
+        }
+        assert!(
+            unanswered.is_err(),
+            "a program answering no request has no query string to read"
+        );
+    }
+
     /// The authority folded by the three equivalences the specifications
     /// define, and nothing else: no forwarded host is read, and a request that
     /// named none says so.

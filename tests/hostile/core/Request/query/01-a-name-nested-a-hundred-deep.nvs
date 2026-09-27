@@ -1,0 +1,27 @@
+<?nvs
+// Attack: a client sends a name nested 100 levels deep, one name many times, and strange names.
+// Each read should return a value or `null`. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads the name nested 100 levels deep. The result is an array.
+mixed $deep = Core\Request::query('deep');
+echo 'deep: ', $deep == null ? 'null' : 'found', "\n";
+
+// 2. Reads the name that was sent three times. Only one value is returned.
+echo 'same: ', Core\Request::query('same') ?? 'null', "\n";
+
+// 3. Reads names that are empty, very long or made of brackets.
+array<string> $strange = ['', '[', ']', '[]', 'list[]', 'deep[a]', "\0", Core\Str::repeat('a', 1000000)];
+uint $found = 0;
+foreach ($strange as string $name) {
+    if (Core\Request::query($name) != null) {
+        $found = $found + 1;
+    }
+}
+echo 'strange names found: ', $found, "\n";
+
+// 4. Keeps every copy of the list without end. This stops at the memory limit.
+array<mixed> $kept = [];
+while (true) {
+    $kept[] = Core\Request::query('list');
+}

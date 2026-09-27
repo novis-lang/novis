@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the parameters of an address such as `/search?q=red+shoes&page=2`.
+
+// `Core\Request::query` returns the value of the parameter "q".
+// A `+` in the address is a space, so this prints "search: red shoes".
+string $search = Core\Request::query("q") as string;
+echo "search: ", $search, "\n";
+
+// The value of "page" is the text "2". `as int` converts it to a whole number.
+// This prints "next page: 3".
+int $page = Core\Request::query("page") as int;
+echo "next page: ", $page + 1, "\n";

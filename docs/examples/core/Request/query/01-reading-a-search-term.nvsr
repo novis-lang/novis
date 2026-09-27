@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/search
+--QUERY--
+q=red+shoes&page=2
+--HEADERS--
+host: shop.example.com

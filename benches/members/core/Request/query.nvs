@@ -1,0 +1,20 @@
+<?nvs
+// Reads one parameter of the query string, as a search or list page does for its page number or filter.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The query string is in the file `query.nvsr` beside this one.
+        array<string> $names = ["q", "page", "sort"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $value = Core\Request::query($names[$total % 3]) as string;
+            $total = $total + Core\Str::length($value);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
