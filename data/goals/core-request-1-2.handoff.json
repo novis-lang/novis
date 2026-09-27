@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-request-1-2`: `Core\\Request::body`, `Core\\Request::bytes` and `Core\\Request::bodyStream`\nhave all their feature proofs, and `bun nv proofs --verify --only` over those three says nothing owed.\nA proof program answers a request through the `<name>.nvsr` beside it (`docs/examples/README.md` §\n*A request for the program*). `nvs run --request` hands the body over as one piece, so an example\nmust not print a count of pieces. A body can be streamed once per request, so the `bodyStream` bench\ndeclares `iterations 1`, the way `benches/members/core/IO/stdin.nvs` does. The remaining eight\nmembers of `Core\\Request (1/2)` owe their proofs one at a time, in the order the check lists them.",
+  "state": "Goal `core-request-1-2`: `Core\\Request::body`, `bytes`, `bodyStream`, `clientIp` and `cookie` have\nall their feature proofs. `bun nv proofs --verify --only` over those five says nothing owed.\nA proof program answers a request through the `<name>.nvsr` beside it (`docs/examples/README.md` §\n*A request for the program*). The peer's address is the `--CLIENT_IP--` section, and the effective\nscheme is `--SCHEME--` (`crates/nvs-test/src/request.rs`'s module doc). A file with neither\ndescribes a request with no address, over plain HTTP. A new bench is measured with `bun nv proofs\n--record-perf --only <members>`, and only the members without a current figure are measured. `bun nv\nverify` regenerates `docs/novis.md` from the rewritten cards. Six members of `Core\\Request (1/2)` still owe their proofs, in the order the check lists them.",
   "next": {
     "stage": 1,
     "title": "member proofs, one file set",
@@ -8,15 +8,21 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::clientIp`** — owes about, examples, hostile, perf, a Rust `covers:` marker (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Request::clientIp'`). Card at `crates/nvs-stdlib/src/request.rs:861`, member at `crates/nvs-stdlib/src/request.rs:2501`. Rewrite the card the way `BODY_STREAM_DOC` now reads; `bodyStream`'s proofs are the nearest pattern."
+        "text": "**`Core\\Request::files`** — owes about, examples, hostile, perf, a Rust `covers:` marker (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Request::files'`). Card at `crates/nvs-stdlib/src/request.rs:750`, member at `crates/nvs-stdlib/src/request.rs:3164`. The `.nvsr` body is a `multipart/form-data` body written byte for byte after `--BODY--`. Rewrite the card the way `COOKIE_DOC` now reads."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::cookie`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:570`, member at `crates/nvs-stdlib/src/request.rs:2576`. A `.nvsr` carries the `cookie:` header under `--HEADERS--`."
+        "text": "**`Core\\Request::header`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:538`, member at `crates/nvs-stdlib/src/request.rs:2413`."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Request::headers`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:556`, member at `crates/nvs-stdlib/src/request.rs:2543`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Request::files`, `header`, `headers`, `host`, `isHead` and `json` owe their proofs after these two (`rule:testing/feature-proofs`)."
+    "`Core\\Arr::contains($list, $needle)` does not compile when `$list` is `array<string>` and `$needle` is `tainted string` (E0401), although comparing a tainted value is allowed. `docs/examples/core/Request/clientIp/03-an-admin-page-for-the-office-only.nvs` uses a loop instead. Owner: `crates/nvs-stdlib/src/arr.rs`'s module doc, if it is judged a gap.",
+    "`Core\\Request::cookie(\"\")` returns the value of a pair written `=value`, a cookie with an empty name. Nothing documents it either way; `rule:errors/cookie-name-bytes` owns the decision.",
+    "The rest of `Core\\Request (1/2)` after the group: `host`, `isHead`, `json`."
   ]
 }

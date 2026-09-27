@@ -1,0 +1,11 @@
+--METHOD--
+GET
+--PATH--
+/account
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+cookie: __Host-session=first; __Host.session=dotted; __Host session=spaced
+cookie: __host-session=lower; __Host_session=scored; __Host-session=second
+cookie: =nameless; novalue; ;;; ; = ; big=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

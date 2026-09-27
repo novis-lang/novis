@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a website finds the logged-in user from a session cookie.
+
+// The server keeps a list of open sessions. Each has a token and a user name.
+array<string> $sessions = ["k9f2c1d7" => "ada", "p3m8x0q4" => "linus"];
+
+// The browser sends the token in the cookie `__Host-session`.
+// The prefix `__Host-` tells the browser to send it only to this exact host.
+tainted string $token = Core\Request::cookie("__Host-session") ?? "";
+
+// `??` gives "" when no session has this token. This prints "logged in as ada".
+string $user = $sessions[$token] ?? "";
+if ($user != "") {
+    echo "logged in as ", $user, "\n";
+} else {
+    echo "please log in\n";
+}

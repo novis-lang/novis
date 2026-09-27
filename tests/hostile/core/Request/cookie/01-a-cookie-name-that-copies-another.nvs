@@ -1,0 +1,30 @@
+<?nvs
+// Attack: a client sends cookies whose names look like `__Host-session`, or sends it twice.
+// Only the exact name should match, and two copies of it should give `null`.
+// The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads `__Host-session`, which arrived twice. The result is `null`.
+echo '__Host-session: ', Core\Request::cookie('__Host-session') ?? 'null', "\n";
+
+// 2. Reads the names that differ by one character. Each gives only its own value.
+array<string> $names = ['__Host.session', '__Host session', '__host-session', '__Host_session'];
+foreach ($names as string $name) {
+    echo $name, ': ', Core\Request::cookie($name) ?? 'null', "\n";
+}
+
+// 3. Reads names that are empty, very long or made of separators.
+array<string> $strange = ['', '=', ';', ' ', "\0", Core\Str::repeat('a', 1000000)];
+uint $found = 0;
+foreach ($strange as string $name) {
+    if (Core\Request::cookie($name) != null) {
+        $found = $found + 1;
+    }
+}
+echo 'strange names found: ', $found, "\n";
+
+// 4. Keeps every value of the very long cookie without end. This stops at the memory limit.
+array<?tainted string> $kept = [];
+while (true) {
+    $kept[] = Core\Request::cookie('big');
+}

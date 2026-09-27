@@ -18281,15 +18281,15 @@ Every header the request carried, keyed by the lower-cased field name, replacing
 Core\Request::cookie(string $name): ?tainted string
 ```
 
-One cookie by name, matched **byte for byte** — no dot, space or bracket is substituted in either direction, which is what PHP's `$_COOKIE` mangling did and CVE-2024-2756 is.
+Returns the value of one cookie by its name. It replaces PHP's `$_COOKIE`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The cookie's name, exactly as it was written — the match is case-sensitive and substitutes nothing. |
+| `$name` | `string` (neutral) | The name of the cookie, exactly as it was set. Upper and lower case are different, and `a.b` and `a_b` are two different cookies. |
 
-**Returns** `?tainted string` — The cookie's value as it arrived, `tainted` and undecoded, or `null` where the request carried no such cookie. A `__Host-` name that arrived more than once is `null` as well: a browser holds at most one, so two did not come from one.
+**Returns** `?tainted string` — The value as a `tainted` string, exactly as it arrived. Nothing is decoded. The result is `null` when the request has no cookie of that name. When the name starts with `__Host-` and the cookie arrived twice, the result is `null` too.
 
-**Throws** `LogicError` — This program is not answering a request.
+**Throws** `LogicError` — The program is not answering a request.
 
 <a id="core-core-request-body"></a>
 #### `Core\Request::body`
@@ -18418,11 +18418,11 @@ The submitted form read as the type `T` written at the call site — `Core\Arr::
 Core\Request::clientIp(): ?tainted string
 ```
 
-The address this request came from, as the trusted-proxy walk settled it: the socket peer, unless a peer listed in `[server] trusted_proxies` asserted otherwise in `X-Forwarded-For`.
+Returns the network address of the client that sent this request. Behind a proxy that is listed in `[server] trusted_proxies`, the address comes from `X-Forwarded-For`.
 
-**Returns** `?tainted string` — The address in its own text form, `tainted` — or `null` where the request genuinely arrived with no address to report, which a Unix-socket peer that forwarded nothing and a trusted hop that withheld it both do. Never `""` and never `"0.0.0.0"`: those would be a repair of a fact that is missing.
+**Returns** `?tainted string` — The address as a `tainted` string, such as `203.0.113.7` or `2001:db8::1`. An IPv6 address is always in its short form. The result is `null` when the request has no address, for example over a Unix socket.
 
-**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test.
+**Throws** `LogicError` — The program is not answering a request. For example, it is a command-line program, a job or a test.
 
 <a id="core-core-request-scheme"></a>
 #### `Core\Request::scheme`
