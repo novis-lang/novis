@@ -1,0 +1,24 @@
+<?nvs
+// Sends a file from the disk as the response, as a download page does once for each request.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $folder = "benches/members/core/Response/";
+        array<string> $paths = [$folder . "text.nvs", $folder . "json.nvs", $folder . "html.nvs"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $k = ($total % 3) as int;
+            Core\Response::sendFile($paths[$k]);
+            $total = $total + ($k as uint) + 1;   // chained: the next file depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// The result chooses the file that is sent last, so the loop cannot be skipped.
+array<string> $names = ["text.nvs", "json.nvs", "html.nvs"];
+int $last = (Bench::run(20000) % 3) as int;
+Core\Response::sendFile("benches/members/core/Response/" . $names[$last]);

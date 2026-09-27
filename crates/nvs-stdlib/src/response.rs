@@ -670,34 +670,32 @@ const BYTES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Response::sendFile`'s reference card — `rule:core-api/reference-card`.
 const SEND_FILE_DOC: MethodDoc = MethodDoc {
-    short: "Answers with the file at `$path`, streamed by the server under the static-file policy's \
-            media type — the one body member that hands over a name instead of bytes.",
+    short: "Sends the file at `$path` as the whole response. The server reads the file in small \
+            pieces, and chooses the content type from the end of the file name.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to send. A sink: a path component directs the resolver, so a `tainted` \
-               value is refused at compile time, and `fs.read` must cover it like any other path \
-               this program opens. A download name is `Content-Disposition` through `setHeader`, \
-               this member taking the path alone.",
+        desc: "The file to send. `fs.read` in `nvs.toml` must allow it. A `tainted` value does not \
+               compile, because the path decides which file is read. To give a download its own \
+               name, set `Content-Disposition` with `Core\\Response::setHeader`.",
         shape: &[],
     }],
-    ret: "Nothing. The response carries the media type the static-file policy's table gives the \
-          file's extension, and answers a range or a conditional request over it; mixing this with \
-          `echo` on one response is a compile error.",
+    ret: "Nothing. The server also answers a browser that asks for only part of the file. Using \
+          this and `echo` in one response does not compile.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`fs.read` does not cover `$path` — the same refusal `Core\\IO::read` gives, from \
-                   the same door, whether or not there is a file there.",
+            desc: "`fs.read` does not allow `$path`. This error comes whether or not the file \
+                   exists, the same as for `Core\\IO::read`.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "There is nothing at `$path`, or the operating system will not let this process \
-                   read it.",
+            desc: "There is no file at `$path`, or the operating system does not allow this \
+                   program to read it.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$path` is a directory, or something else that is not a regular file — a \
-                   response body is a file's contents, and there are none to send.",
+            desc: "`$path` is a folder, or something else that is not a regular file. Nothing is \
+                   sent.",
         },
     ],
 };
@@ -1987,9 +1985,9 @@ mod tests {
     /// `sendFile` is § 4's one row that is not here, and not for want of having
     /// landed: it declares no media type at all, the static-file policy's table
     /// naming what a file's bytes are, so there is nothing of this claim to ask
-    /// it. What that member leaves instead is a name, asserted from a program
-    /// with the grant in place in
-    /// `tests/conformance/core/response-send-file-streams-the-file-under-its-media-type.nvst`.
+    /// it. What that member leaves instead is a name, which
+    /// `send_file_leaves_a_name_on_a_request_and_writes_the_bytes_off_one`
+    /// asserts.
     /// The sweep below is over the table rather than over a list of names, so a
     /// member that does declare one joins by being added to it.
     // covers: Core\Response::bytes
@@ -2340,6 +2338,89 @@ mod tests {
         dropped(media_type);
         dropped(chunk);
         dropped(handle);
+    }
+
+    /// A context granting `fs.read` under `root` and nothing else, with the
+    /// root canonicalized the way a real snapshot's is — `zip`'s cases build
+    /// theirs the same way, for the same reason.
+    fn reading_under(root: &std::path::Path) -> Ctx {
+        let mut caps = nvs_config::tree::Capabilities {
+            fs: Some(nvs_config::tree::CapFs {
+                read: Some(nvs_config::tree::Setting::List(vec![
+                    root.to_string_lossy().into_owned(),
+                ])),
+                write: None,
+            }),
+            ..nvs_config::tree::Capabilities::default()
+        };
+        caps.canonicalize(&nvs_config::resolve::Disk);
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: nvs_config::tree::Config {
+                capabilities: Some(caps),
+                ..nvs_config::tree::Config::default()
+            },
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx
+    }
+
+    /// `sendFile`'s two forks, told apart by what each leaves on the context.
+    /// Answering a request, the call leaves the file's name and writes no byte
+    /// of it, because the connection is what reads the file. Off a request, the
+    /// bytes land in the context's own output, verbatim and whole across more
+    /// than one chunk.
+    ///
+    /// The refusals are asserted to leave no name behind: a directory, a
+    /// missing file and a file outside the grant each answer an error, and a
+    /// name left over from one would be sent by the finish path anyway.
+    // covers: Core\Response::sendFile
+    #[test]
+    fn send_file_leaves_a_name_on_a_request_and_writes_the_bytes_off_one() {
+        let base = std::env::temp_dir().join("nvs-response-send-file");
+        let root = base.join("granted");
+        std::fs::create_dir_all(&root).expect("a temporary directory the test owns");
+        let page = root.join("page.html");
+        // Longer than one `SEND_FILE_CHUNK`, so the fallback's loop runs more
+        // than once and a chunk that was dropped or repeated shows.
+        let body: Vec<u8> = (0..super::SEND_FILE_CHUNK * 2 + 17)
+            .map(|at| b"<p>&\x00\xff"[at % 6])
+            .collect();
+        std::fs::write(&page, &body).expect("the fixture is written");
+        let outside = base.join("outside.txt");
+        std::fs::write(&outside, b"not granted").expect("the fixture is written");
+        let spelled =
+            |path: &std::path::Path| Value::str(NvsStr::new(path.to_string_lossy().as_bytes()));
+
+        let mut served = reading_under(&root);
+        served.set_inbound(nvs_runtime::Inbound::new("GET", "/page", ""));
+        let named = spelled(&page);
+        call(super::nvs_core_response_send_file, &mut served, &[named])
+            .expect("a granted regular file is sent");
+        assert_eq!(served.take_file_body().as_deref(), Some(page.as_path()));
+        assert_eq!(served.take_buffered_output().unwrap_or_default(), b"");
+
+        let mut run = reading_under(&root);
+        call(super::nvs_core_response_send_file, &mut run, &[named])
+            .expect("a granted regular file is sent");
+        assert_eq!(run.take_buffered_output().unwrap_or_default(), body);
+
+        let mut refused = reading_under(&root);
+        refused.set_inbound(nvs_runtime::Inbound::new("GET", "/page", ""));
+        for path in [root.clone(), root.join("missing.txt"), outside.clone()] {
+            let argument = spelled(&path);
+            call(
+                super::nvs_core_response_send_file,
+                &mut refused,
+                &[argument],
+            )
+            .expect_err("a path that is not a granted regular file is refused");
+            dropped(argument);
+        }
+        assert_eq!(refused.take_file_body(), None);
+
+        dropped(named);
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     /// `setStatus`'s bound asserted on both sides, read back off the context

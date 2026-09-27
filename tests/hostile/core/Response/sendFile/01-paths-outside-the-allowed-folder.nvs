@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a program tries to send files outside the one folder it may read, and
+// paths that are not files. Each attempt should throw an error, and nothing outside
+// the folder should be sent.
+
+string $folder = 'tests/hostile/core/Response/sendFile';
+uint $refused = 0;
+
+// 1. A path that climbs out of the folder with `..`.
+try {
+    Core\Response::sendFile($folder . '/../../../../../Cargo.toml');
+} catch (IOError $failed) {
+    $refused = $refused + 1;
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+}
+
+// 2. A full path to a file outside the folder.
+try {
+    Core\Response::sendFile('/etc/passwd');
+} catch (IOError $failed) {
+    $refused = $refused + 1;
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+}
+
+// 3. The folder itself, which is not a file.
+try {
+    Core\Response::sendFile($folder);
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// 4. A file that does not exist in the folder.
+try {
+    Core\Response::sendFile($folder . '/missing.txt');
+} catch (IOError $failed) {
+    $refused = $refused + 1;
+}
+
+// 5. A NUL byte in the file name, which cuts the name short in C programs.
+try {
+    Core\Response::sendFile($folder . "/nvs.toml\x00.png");
+} catch (IOError $failed) {
+    $refused = $refused + 1;
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+}
+
+// 6. A file name of 100,000 letters.
+try {
+    Core\Response::sendFile($folder . '/' . Core\Str::repeat('a', 100000));
+} catch (IOError $failed) {
+    $refused = $refused + 1;
+} catch (RuntimeError $denied) {
+    $refused = $refused + 1;
+}
+
+// 7. The same allowed file is sent 100,000 times. Only the last call counts,
+// so the memory the program uses should not grow.
+uint $sent = 0;
+while ($sent < 100000) {
+    Core\Response::sendFile($folder . '/nvs.toml');
+    $sent = $sent + 1;
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to send one file from a fixed list, chosen by the visitor.
+
+// A real server already has these files. The example writes them first, so that it has files to send.
+string $folder = Core\IO::temporaryDir();
+Core\IO::write(Core\Path::join($folder, "kettle.txt"), "Kettle: fill with water, then press the switch.\n");
+Core\IO::write(Core\Path::join($folder, "toaster.txt"), "Toaster: put the bread in, then push the lever.\n");
+
+// Text from a request is tainted, and `sendFile` does not compile with a tainted path.
+// So the program uses `?product=kettle` only to find a file name in its own list.
+array<string> $manuals = ["kettle" => "kettle.txt", "toaster" => "toaster.txt"];
+string $product = Core\Request::query("product") as string;
+
+if (isset($manuals[$product])) {
+    Core\Response::sendFile(Core\Path::join($folder, $manuals[$product]));
+} else {
+    Core\Response::setStatus(404);
+    Core\Response::text("There is no manual for this product.\n");
+}

@@ -1,0 +1,14 @@
+<?nvs
+// Shows what happens when the file to send does not exist.
+
+// `temporaryDir` makes a new, empty folder, so there is no file at `$path`.
+string $path = Core\Path::join(Core\IO::temporaryDir(), "invoice-1042.pdf");
+
+// `sendFile` throws an `IOError` when there is no file at the path.
+// The program catches it and sends a short page with the status 404.
+try {
+    Core\Response::sendFile($path);
+} catch (IOError $error) {
+    Core\Response::setStatus(404);
+    Core\Response::text("This invoice does not exist.\n");
+}
