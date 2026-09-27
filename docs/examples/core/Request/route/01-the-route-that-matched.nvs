@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a program reads the route that the request matched, with its name and its captured value.
+
+class Users {
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string {
+        return "one user";
+    }
+}
+
+// The address is `/users/42`. The server matches it against the routes before the program starts.
+// `Core\Request::route()` returns that match.
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched != null) {
+    // `{id}` is declared as `uint`, so the text "42" is already the number 42.
+    // This prints "Users::show" and then "id 42".
+    echo $matched->name() ?? "", "\n";
+    echo "id ", $matched->param("id") as uint, "\n";
+}

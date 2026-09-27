@@ -1,0 +1,31 @@
+<?nvs
+// Shows how a page layout marks the menu entry for the page that is open.
+
+class Shop {
+    #[Core\Route(path: "/products", method: Core\Http\Method::Get, name: "Shop::products")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function products(): string {
+        return "products";
+    }
+
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Shop::orders")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function orders(): string {
+        return "orders";
+    }
+}
+
+// Each menu entry is the name of a route and the text to show.
+array<string> $menu = ["Shop::products" => "Products", "Shop::orders" => "Orders"];
+
+// The address is `/orders`, so the route name is "Shop::orders".
+string $current = "";
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched != null) {
+    $current = $matched->name() ?? "";
+}
+
+// This prints "  Products" and then "> Orders".
+foreach ($menu as string $route => string $label) {
+    echo $route == $current ? "> " : "  ", $label, "\n";
+}

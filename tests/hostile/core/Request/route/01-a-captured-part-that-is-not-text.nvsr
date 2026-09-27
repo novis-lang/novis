@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/pages/%FF%FE
+--HEADERS--
+host: shop.example.com

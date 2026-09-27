@@ -1,0 +1,30 @@
+<?nvs
+// Reads the route the request matched, as a handler does to find the record the address names.
+// bench: iterations 200000
+// bench: calls 0
+
+class Users {
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string {
+        return "one user";
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The request is in the file `route.nvsr` beside this one.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Core\Router\Match $matched = Core\Request::route();
+            if ($matched != null) {
+                $total = $total + ($matched->param("id") as uint) + $total % 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

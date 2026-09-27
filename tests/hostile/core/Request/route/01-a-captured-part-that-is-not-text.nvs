@@ -1,0 +1,35 @@
+<?nvs
+// Attack: a client sends an address whose captured part decodes to bytes that are not valid text.
+// Every read of the route should throw a `RuntimeError`, and the program should not crash.
+
+class Pages
+{
+    #[Core\Route(path: "/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(tainted string $slug): string
+    {
+        return 'one page';
+    }
+}
+
+// 1. Reads the route once. The part after `/pages/` is `%FF%FE`, which is not UTF-8.
+try {
+    ?Core\Router\Match $matched = Core\Request::route();
+    echo 'not reached: ', $matched == null ? 'null' : 'a match', "\n";
+} catch (RuntimeError $error) {
+    echo 'not text: ', $error->message, "\n";
+}
+
+// 2. Reads the route 5000 times. Every read throws, and no memory is kept.
+uint $failed = 0;
+uint $i = 0;
+while ($i < 5000) {
+    try {
+        ?Core\Router\Match $again = Core\Request::route();
+        echo 'not reached: ', $again == null ? 'null' : 'a match', "\n";
+    } catch (RuntimeError $error) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo 'failed reads: ', $failed, "\n";

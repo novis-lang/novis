@@ -1,26 +1,20 @@
 {
-  "state": "`Core\\Request::jsonAs`, `method`, `mount`, `scheme`, `path`, `query`, `queryAs` and `post`\nowe nothing. Each has `about.md`, three examples, an attack, a bench and a Rust test that\ncarries `covers:`. The `query`, `queryAs` and `post` benches declare `calls 0` only: their\nallocations (29 and 30 per read) count the parse of the whole parameter set, which the\nmodule doc owns, so no allocation figure is declared.\n\n`dossier-core-request-2-2` still fails on two members: `postAs` and `route`. Each owes\nexamples, an attack and a bench. Their Rust tests are marked, and their Novis cases\nalready exist (`postAs` through `// covers:` in\n`tests/conformance/core/a-request-parameter-set-becomes-the-shape-it-was-asked-for.nvst`).\n\nA parameter whose escape is not UTF-8 throws a `RuntimeError` naming the member the\nprogram called (`Core\\Request::query()`, `post()`), pinned by\n`tests/conformance/core/a-request-parameter-that-is-not-utf-8-names-the-request-member.nvst`.",
+  "state": "Goal `core-request-2-2` is reached. Every `Core\\Request` member owes nothing: each has\n`about.md`, three examples, an attack, a bench and tests from Novis and from Rust.\n`bun nv proofs --verify` is green over both halves of the class, and every bench was\nre-measured against the current `crates/nvs-stdlib/src/request.rs`.\n\n`nvs run --request` now matches the request against the program's own `#[Core\\Route]`\ntable before the program starts, the way the server's door does. So\n`Core\\Request::route()` answers under `--request`, and a proof can show a real match.\n`tests/conformance/core/a-program-run-with-a-request-is-matched-against-its-own-route-table.nvst`\npins it.\n\nAny later change to `crates/nvs-stdlib/src/request.rs` makes every `Core\\Request` bench\nstale again, and the floor check fails until `bun nv proofs --record-perf` re-measures them.",
   "next": {
     "stage": 2,
-    "title": "the dossier",
+    "title": "the dossier, follow-up",
     "files": [
-      "docs/examples/core/Request/",
-      "tests/hostile/core/Request/",
-      "benches/members/core/Request/"
+      "crates/nvs-stdlib/src/uri.rs",
+      "tests/hostile/core/Request/route/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::postAs`** — owes examples, hostile and perf (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:2311`; `docs/examples/core/Request/queryAs/` is the model to follow, over a urlencoded `--BODY--`."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Request::route`** — owes examples, hostile and perf. The member is `crates/nvs-stdlib/src/request.rs:1992`; an example needs a `#[Route]` the request matches, and `crates/nvs-stdlib/src/router.rs:2428` is its Rust test."
+        "text": "**A route capture that is not UTF-8 names the member the program called** — the `RuntimeError` reads \"the route capture `slug` percent-decodes …\" and does not name `Core\\Request::route()`, which `query()` and `post()` now do (`rule:statements/no-host-populated-variables`). The sentence is `crates/nvs-stdlib/src/uri.rs:1335`. Optional polish, not owed by any check."
       }
     ]
   },
   "backlog": [
-    "`nv proofs --run` reported an attack as unbounded after its timeout, and the `nvs.exe` it started kept running for over ten minutes on Windows. `killTree` is `tools/nv/lib/proc.ts:180`. Check with `Get-CimInstance Win32_Process` after a timeout.",
-    "The `query` and `queryAs` attacks cannot reach the 256M memory limit within the timeout, because a 100-deep name makes each parse slow. The `queryAs` attack repeats a throwing read instead. The limit itself holds: under 16M the same keep-loop stops at once."
+    "The route error's missing member name, above — `crates/nvs-stdlib/src/uri.rs` module doc if it is not taken."
   ]
 }
