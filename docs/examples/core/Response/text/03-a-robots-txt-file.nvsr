@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/robots.txt
+--HEADERS--
+host: example.com

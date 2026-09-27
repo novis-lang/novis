@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program sends text that tries to add headers and a second response, and then
+// writes text without end. The text should be sent as it is, and the program should
+// stop at its memory limit without crashing.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+// 1. Line breaks that try to start a new header and then a second response.
+Core\Response::text("a\r\nSet-Cookie: sid=admin\r\n\r\nHTTP/1.1 200 OK\r\n\r\n");
+
+// 2. The same line breaks and a script tag, sent by the visitor in the address.
+Core\Response::text(Core\Request::query('q') as string);
+
+// 3. A NUL byte and an escape code that tries to change the colour of a terminal.
+Core\Response::text("a\x00b\x1b[31mred\x1b[0m");
+
+// 4. An empty body.
+Core\Response::text('');
+
+// 5. One body of eight megabytes.
+Core\Response::text(Core\Str::repeat('x', 8388608));
+
+// 6. The text is kept in memory and written again and again until the memory limit
+// stops the program.
+string $chunk = Core\Str::repeat('b', 65536);
+var $kept = Core\Out::capture(fn (): void => {
+    uint $written = 0;
+    while ($written < 1000000) {
+        Core\Response::text($chunk);
+        $written = $written + 1;
+    }
+});
+Core\Response::text("done\n");

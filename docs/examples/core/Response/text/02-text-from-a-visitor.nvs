@@ -1,0 +1,9 @@
+<?nvs
+// Shows that text from a visitor is sent exactly as it is.
+
+// The address is `/echo?message=...`, and the visitor chooses the value of "message".
+string $message = Core\Request::query("message") as string;
+
+// A plain text body is never shown as a page, so the `<b>` tags are not HTML here.
+// The browser shows them as they are. This prints "You wrote: <b>hello</b>".
+Core\Response::text("You wrote: " . $message . "\n");

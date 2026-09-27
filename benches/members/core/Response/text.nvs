@@ -1,0 +1,20 @@
+<?nvs
+// Sends a short line of plain text, as a health check or a small status page does once for each request.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $bodies = ["ok", "Not found", "User-agent: *"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $k = $total % 3;
+            Core\Response::text($bodies[$k]);
+            $total = $total + $k + 1;   // chained: the next body depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response::text((Bench::run(20000) as string) . "\n");

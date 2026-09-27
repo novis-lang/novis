@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /basket/
+Disallow: /account/
+Sitemap: https://example.com/sitemap.xml

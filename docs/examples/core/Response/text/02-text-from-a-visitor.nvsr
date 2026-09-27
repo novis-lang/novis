@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/echo
+--QUERY--
+message=%3Cb%3Ehello%3C%2Fb%3E
+--HEADERS--
+host: example.com

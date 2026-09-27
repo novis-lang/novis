@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/echo
+--QUERY--
+q=%0D%0ASet-Cookie%3A+sid%3Dadmin%0D%0A%0D%0A%3Cscript%3Ealert(1)%3C%2Fscript%3E
+--HEADERS--
+host: example.com

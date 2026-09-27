@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to answer a health check with one short line of text.
+
+// A load balancer calls this address to test that the server is running.
+// `Core\Response::text` sends "ok" with the content type `text/plain; charset=utf-8`.
+Core\Response::text("ok\n");
