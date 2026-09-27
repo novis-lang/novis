@@ -34,12 +34,19 @@
 //! does not require one either; a rule refusing a `const` holding the reason
 //! would buy no confidentiality, since the call is greppable by its own name.
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+
+/// `Core\Secret`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A `secret` value cannot be printed, logged or sent. `reveal()` and `revealBytes()` \
+            return it as a plain `string` or `bytes`. Each call needs a reason, which says why \
+            this line may use the secret.",
+};
 
 /// `rule:core-classes/secret-reveal`'s escape hatch, one row per qualifiable base.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Secret",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "reveal",
@@ -67,47 +74,45 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Secret::reveal`'s reference card — `rule:core-api/reference-card`.
 const REVEAL_DOC: MethodDoc = MethodDoc {
-    short: "Answers `$value` with the `secret` qualifier dropped, at the one call site where \
-            handing the secret over is the point — the one named escape hatch, and the only \
-            way a `secret string` reaches a sink that refuses one.",
+    short: "Returns a `secret string` as a plain `string`. Use it only on the line that must \
+            print, send or store the secret.",
     params: &[
         ParamDoc {
             name: "value",
-            desc: "The secret to reveal. A plain `string` is accepted and revealing it is the \
-                   identity.",
+            desc: "The secret text. A plain `string` is also allowed, and is returned unchanged.",
             shape: &[],
         },
         ParamDoc {
             name: "reason",
-            desc: "Why this call site is allowed to see the value, written for the next reader. \
-                   Nothing reads it at run time.",
+            desc: "Why this line needs the secret. It is for the people who read the code, and \
+                   the program never reads it. A `secret` value is not allowed here.",
             shape: &[],
         },
     ],
-    ret: "The same text, unqualified — still `tainted` if `$value` was, since revealing a \
-          secret says nothing about where it came from.",
+    ret: "The same text, as a `string`. If `$value` was also `tainted`, the result is still \
+          `tainted`.",
     errors: &[],
 };
 
 /// `Core\Secret::revealBytes`'s reference card — `rule:core-api/reference-card`.
 const REVEAL_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "`reveal` over `bytes`: answers `$value` with the `secret` qualifier dropped. A \
-            separate name because a `Core` member has one signature, and answering \
-            `string|bytes` would put a cast at every call site.",
+    short: "Returns `secret bytes` as plain `bytes`, such as a key the program must save. It \
+            works like `reveal()`, for `bytes`.",
     params: &[
         ParamDoc {
             name: "value",
-            desc: "The secret bytes to reveal.",
+            desc: "The secret bytes. Plain `bytes` are also allowed, and are returned unchanged.",
             shape: &[],
         },
         ParamDoc {
             name: "reason",
-            desc: "Why this call site is allowed to see the value, written for the next reader. \
-                   Nothing reads it at run time.",
+            desc: "Why this line needs the secret. It is for the people who read the code, and \
+                   the program never reads it. A `secret` value is not allowed here.",
             shape: &[],
         },
     ],
-    ret: "The same bytes, unqualified — still `tainted` if `$value` was.",
+    ret: "The same bytes, as `bytes`. If `$value` was also `tainted`, the result is still \
+          `tainted`.",
     errors: &[],
 };
 
@@ -159,5 +164,86 @@ nvs_runtime::nvs_helper! {
             args[0].retain();
         }
         Ok(args[0])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nvs_runtime::{Ctx, NvsFn, NvsStr, StrHeader, Value};
+
+    /// Calls `member` over `value` and a reason, and answers whether the same
+    /// allocation came back, with how many owners it had before the call,
+    /// after it, and after the caller released the answer. Releases
+    /// everything it was handed.
+    fn identity_of(member: NvsFn, value: Value, reason: Option<&str>) -> (bool, [usize; 3]) {
+        let header: *const StrHeader = value
+            .buffer_ptr()
+            .expect("the value revealed is a `string` or a `bytes`");
+        let reason =
+            reason.map_or_else(Value::null, |text| Value::str(NvsStr::new(text.as_bytes())));
+        let mut ctx = Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`value` owns one reference to `header` until its release below"
+        )]
+        let before = unsafe { NvsStr::refcount_of(header) };
+        let answer = nvs_runtime::call(member, &mut ctx, &[value, reason])
+            .expect("revealing a value never throws");
+        let same = answer.bits() == value.bits() && answer.tag() == value.tag();
+        #[expect(
+            unsafe_code,
+            reason = "`value` keeps `header` live, and the caller owns the one reference \
+                      the member handed back"
+        )]
+        let (during, after) = unsafe {
+            let during = NvsStr::refcount_of(header);
+            answer.release();
+            (during, NvsStr::refcount_of(header))
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the caller built both arguments, and each is released once"
+        )]
+        unsafe {
+            value.release();
+            reason.release();
+        }
+        (same, [before, during, after])
+    }
+
+    /// `reveal` is the identity at run time: the answer is the argument's own
+    /// allocation with one more owner, and the reason is never read, so a
+    /// `null` in its slot is answered the same as a text.
+    // covers: Core\Secret::reveal
+    #[test]
+    fn reveal_hands_back_the_argument_itself_and_reads_no_reason() {
+        for reason in [Some("the print-token command shows it once"), None] {
+            let value = Value::str(NvsStr::new("hunter2 — ключ 🔑".as_bytes()));
+            assert_eq!(
+                identity_of(super::nvs_core_secret_reveal, value, reason),
+                (true, [1, 2, 1]),
+                "`reveal` answers its argument, retained once, with reason {reason:?}"
+            );
+        }
+    }
+
+    /// `revealBytes` is the same identity over a buffer of every octet,
+    /// half of which no `string` can carry.
+    // covers: Core\Secret::revealBytes
+    #[test]
+    fn reveal_bytes_hands_back_every_octet_unchanged() {
+        let every: Vec<u8> = (0..=255).collect();
+        let value = Value::bytes(NvsStr::new(&every));
+        assert_eq!(
+            value.as_bytes(),
+            Some(every.as_slice()),
+            "the fixture is the 256 octets"
+        );
+        let reason = Some("the signer takes the key as bytes");
+        assert_eq!(
+            identity_of(super::nvs_core_secret_reveal_bytes, value, reason),
+            (true, [1, 2, 1]),
+            "`revealBytes` answers its argument, retained once"
+        );
     }
 }

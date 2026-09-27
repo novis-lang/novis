@@ -19853,14 +19853,14 @@ Bearer hunter2
 Core\Secret::reveal(string $value, string $reason): string
 ```
 
-Answers `$value` with the `secret` qualifier dropped, at the one call site where handing the secret over is the point — the one named escape hatch, and the only way a `secret string` reaches a sink that refuses one.
+Returns a `secret string` as a plain `string`. Use it only on the line that must print, send or store the secret.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `string` (reveal) | The secret to reveal. A plain `string` is accepted and revealing it is the identity. |
-| `$reason` | `string` (neutral) | Why this call site is allowed to see the value, written for the next reader. Nothing reads it at run time. |
+| `$value` | `string` (reveal) | The secret text. A plain `string` is also allowed, and is returned unchanged. |
+| `$reason` | `string` (neutral) | Why this line needs the secret. It is for the people who read the code, and the program never reads it. A `secret` value is not allowed here. |
 
-**Returns** `string` — The same text, unqualified — still `tainted` if `$value` was, since revealing a secret says nothing about where it came from.
+**Returns** `string` — The same text, as a `string`. If `$value` was also `tainted`, the result is still `tainted`.
 
 <a id="core-core-secret-revealbytes"></a>
 #### `Core\Secret::revealBytes`
@@ -19869,14 +19869,14 @@ Answers `$value` with the `secret` qualifier dropped, at the one call site where
 Core\Secret::revealBytes(bytes $value, string $reason): bytes
 ```
 
-`reveal` over `bytes`: answers `$value` with the `secret` qualifier dropped. A separate name because a `Core` member has one signature, and answering `string|bytes` would put a cast at every call site.
+Returns `secret bytes` as plain `bytes`, such as a key the program must save. It works like `reveal()`, for `bytes`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `bytes` (reveal) | The secret bytes to reveal. |
-| `$reason` | `string` (neutral) | Why this call site is allowed to see the value, written for the next reader. Nothing reads it at run time. |
+| `$value` | `bytes` (reveal) | The secret bytes. Plain `bytes` are also allowed, and are returned unchanged. |
+| `$reason` | `string` (neutral) | Why this line needs the secret. It is for the people who read the code, and the program never reads it. A `secret` value is not allowed here. |
 
-**Returns** `bytes` — The same bytes, unqualified — still `tainted` if `$value` was.
+**Returns** `bytes` — The same bytes, as `bytes`. If `$value` was also `tainted`, the result is still `tainted`.
 
 <a id="core-core-mail"></a>
 ### `Core\Mail`
