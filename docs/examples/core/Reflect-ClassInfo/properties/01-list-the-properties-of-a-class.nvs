@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to list the properties of a class with their types.
+
+class Account {
+    public string $owner = "ada";
+    public ?int $limit = null;
+    private int $pin = 1234;
+}
+
+var $info = Core\Reflect::forObject(new Account());
+// Each entry is a `Core\Reflect\PropertyInfo`. This prints three lines.
+// The private property `pin` is in the list too.
+foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
+    string $visibility = $property->isPublic() ? "public" : "not public";
+    echo $property->name(), ": ", $property->type() ?? "no type", ", ", $visibility, "\n";
+}

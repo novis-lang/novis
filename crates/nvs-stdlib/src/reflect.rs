@@ -4903,4 +4903,385 @@ mod tests {
             landed.join(", ")
         );
     }
+
+    /// `name` reads back the declared name whole, namespace included, and
+    /// `forObject` names the object's own class rather than the parent it
+    /// extends. Every name round-trips: `forClass(name())` describes the same
+    /// class again. Two calls hand back the description's one string, and a
+    /// receiver that is not a description faults naming the member.
+    // covers: Core\Reflect\ClassInfo::name
+    #[test]
+    fn class_info_name_is_the_declared_name_and_round_trips_through_for_class() {
+        let mut classes = ClassTable::new();
+        let entry = classes.define("Blog\\Entry", &[] as &[&str], &[]);
+        let post = classes.define("Blog\\Post", &[] as &[&str], &[entry]);
+        let classes = std::sync::Arc::new(classes);
+        let post_desc = classes.desc(post);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, entry));
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor belongs to the table the context above now holds for its \
+                      whole life, and `Blog\\Post` declares no fields, so a fresh allocation is a \
+                      fully initialized instance"
+        )]
+        let subject = Value::object(unsafe { NvsObj::new(post_desc) });
+
+        let by_value = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
+            .expect("every object has a description");
+        assert_eq!(
+            attribute_text(&mut ctx, super::nvs_core_reflect_class_info_name, by_value),
+            "Blog\\Post",
+            "the object's own class, not the parent it extends"
+        );
+
+        for declared in ["Blog\\Entry", "Blog\\Post"] {
+            let asked = Value::str(NvsStr::new(declared.as_bytes()));
+            let info = call(super::nvs_core_reflect_for_class, &mut ctx, &[asked])
+                .expect("asking for a class by name never throws");
+            let first = call(super::nvs_core_reflect_class_info_name, &mut ctx, &[info])
+                .expect("every description has a name");
+            let second = call(super::nvs_core_reflect_class_info_name, &mut ctx, &[info])
+                .expect("every description has a name");
+            assert_eq!(first.as_text(), Some(declared), "the name as declared");
+            assert_eq!(
+                first.as_text().map(str::as_ptr),
+                second.as_text().map(str::as_ptr),
+                "both answers are the description's own string, not two copies"
+            );
+            let again = call(super::nvs_core_reflect_for_class, &mut ctx, &[first])
+                .expect("asking for a class by name never throws");
+            assert_eq!(
+                attribute_text(&mut ctx, super::nvs_core_reflect_class_info_name, again),
+                declared,
+                "`forClass(name())` describes the same class"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "this frame built the name, and every call above handed back a fresh \
+                          reference this frame is the only owner of"
+            )]
+            unsafe {
+                asked.release();
+                first.release();
+                second.release();
+                info.release();
+                again.release();
+            }
+        }
+
+        let refused = call(
+            super::nvs_core_reflect_class_info_name,
+            &mut ctx,
+            &[Value::int(7)],
+        );
+        assert!(refused.is_err(), "an integer is no receiver");
+        assert!(
+            ctx.take_pending()
+                .unwrap_or_default()
+                .contains(r"Core\Reflect\ClassInfo::name"),
+            "the fault names the member it was raised by"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each: `forObject` handed back the \
+                      description, and this frame built the subject"
+        )]
+        unsafe {
+            by_value.release();
+            subject.release();
+        }
+    }
+
+    /// A `Ledger` with one property at each level — `code` public, `balance`
+    /// private, `notes` protected — an `Audit` extending it with a public
+    /// `reviewer`, an unrelated `Other`, and a `Plain` with no property. The
+    /// four descriptions come back in that order, beside a context anchored
+    /// into the table the way [`vault`] anchors it, because
+    /// `readableProperties` asks the context for the described class.
+    fn ledger_family() -> (Ctx, [Value; 4]) {
+        let mut classes = ClassTable::new();
+        let ledger = classes.define("Ledger", &["code", "balance", "notes"], &[]);
+        classes.set_public_fields(ledger, vec![true, false, false]);
+        classes.set_protected_fields(ledger, vec![false, false, true]);
+        let audit = classes.define(
+            "Audit",
+            &["code", "balance", "notes", "reviewer"],
+            &[ledger],
+        );
+        classes.set_public_fields(audit, vec![true, false, false, true]);
+        classes.set_protected_fields(audit, vec![false, false, true, false]);
+        let other = classes.define("Other", &["code"], &[]);
+        classes.set_public_fields(other, vec![true]);
+        let plain = classes.define("Plain", &[] as &[&str], &[]);
+        let classes = std::sync::Arc::new(classes);
+        #[expect(
+            unsafe_code,
+            reason = "each descriptor belongs to `classes`, which is alive for the whole call, \
+                      and `describe` copies what it reads rather than keeping the descriptor"
+        )]
+        let described =
+            [ledger, audit, other, plain].map(|id| super::describe(unsafe { &*classes.desc(id) }));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, ledger));
+        (ctx, described)
+    }
+
+    /// The strings in an array a member handed back, with the reference it
+    /// handed back released.
+    fn texts(answer: Value) -> Vec<String> {
+        #[expect(
+            unsafe_code,
+            reason = "the member answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let list = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(answer.array_ptr().expect("the member answers an array"))
+        });
+        let mut out = Vec::new();
+        for at in 0..list.count() {
+            let item = list.value_at(at).expect("every position holds a value");
+            out.push(item.as_text().expect("every entry is text").to_owned());
+        }
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference the member handed back"
+        )]
+        unsafe {
+            answer.release();
+        }
+        out
+    }
+
+    /// Every row of a description's property roster, as its name and its
+    /// `isPublic` bit.
+    fn property_rows(ctx: &mut Ctx, info: Value) -> Vec<(String, bool)> {
+        let listed = call(super::nvs_core_reflect_class_info_properties, ctx, &[info])
+            .expect("the roster always answers");
+        #[expect(
+            unsafe_code,
+            reason = "`properties` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`properties` answers an array"))
+        });
+        let mut read = Vec::new();
+        for at in 0..roster.count() {
+            let row = roster.value_at(at).expect("every position holds a row");
+            read.push((
+                attribute_text(ctx, super::nvs_core_reflect_property_info_name, row),
+                call(super::nvs_core_reflect_property_info_is_public, ctx, &[row])
+                    .expect("a bit slot always answers")
+                    .as_bool()
+                    .expect("the slot holds a bool"),
+            ));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference `properties` handed back"
+        )]
+        unsafe {
+            listed.release();
+        }
+        read
+    }
+
+    /// `properties` is one row per slot in slot order, inherited slots first.
+    /// The `private` and the `protected` property are listed, and both carry
+    /// `isPublic` false. Asking twice hands back the same array, and a class
+    /// with no property answers an empty one, never `null`.
+    // covers: Core\Reflect\ClassInfo::properties
+    #[test]
+    fn class_info_properties_is_one_row_per_slot_and_lists_the_private_ones() {
+        let (mut ctx, [ledger, audit, other, plain]) = ledger_family();
+        let owned = |name: &str, public: bool| (name.to_owned(), public);
+        assert_eq!(
+            property_rows(&mut ctx, ledger),
+            vec![
+                owned("code", true),
+                owned("balance", false),
+                owned("notes", false)
+            ],
+            "every declared property, whatever its visibility"
+        );
+        assert_eq!(
+            property_rows(&mut ctx, audit),
+            vec![
+                owned("code", true),
+                owned("balance", false),
+                owned("notes", false),
+                owned("reviewer", true)
+            ],
+            "the inherited slots first, the inherited `private` one included"
+        );
+        assert_eq!(
+            property_rows(&mut ctx, plain),
+            Vec::new(),
+            "no property is an empty roster"
+        );
+
+        let first = call(
+            super::nvs_core_reflect_class_info_properties,
+            &mut ctx,
+            &[ledger],
+        )
+        .expect("the roster always answers");
+        let second = call(
+            super::nvs_core_reflect_class_info_properties,
+            &mut ctx,
+            &[ledger],
+        )
+        .expect("the roster always answers");
+        assert_eq!(
+            first.array_ptr(),
+            second.array_ptr(),
+            "the roster is the description's own array, handed back rather than rebuilt"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the four descriptions and one reference to each of the two \
+                      rosters `properties` handed back"
+        )]
+        unsafe {
+            first.release();
+            second.release();
+            for info in [ledger, audit, other, plain] {
+                info.release();
+            }
+        }
+    }
+
+    /// `readableProperties` on one description answers per call site: inside
+    /// `Ledger` every property, inside the subclass `Audit` the `protected`
+    /// one beside the `public` one, and inside an unrelated class or no class
+    /// at all the `public` one alone. Each list is the roster filtered, in
+    /// roster order, so the walk never names a property the roster does not.
+    // covers: Core\Reflect\ClassInfo::readableProperties
+    #[test]
+    fn class_info_readable_properties_answers_for_the_site_that_asks() {
+        let (mut ctx, [ledger, audit, other, plain]) = ledger_family();
+        let own = inside("Ledger::check");
+        let sub = inside("Audit::check");
+        let unrelated = inside("Other::check");
+        let walk = |ctx: &mut Ctx, info: Value, site: Value| {
+            texts(
+                call(
+                    super::nvs_core_reflect_class_info_readable_properties,
+                    ctx,
+                    &[info, site],
+                )
+                .expect("the walk always answers"),
+            )
+        };
+        assert_eq!(walk(&mut ctx, ledger, own.1), ["code", "balance", "notes"]);
+        assert_eq!(walk(&mut ctx, ledger, sub.1), ["code", "notes"]);
+        assert_eq!(walk(&mut ctx, ledger, unrelated.1), ["code"]);
+        assert_eq!(walk(&mut ctx, ledger, OUTSIDE), ["code"]);
+        assert_eq!(
+            walk(&mut ctx, audit, OUTSIDE),
+            ["code", "reviewer"],
+            "a subclass's description from outside names the public slots alone"
+        );
+        assert!(
+            walk(&mut ctx, plain, own.1).is_empty(),
+            "no property, nothing to walk"
+        );
+
+        let roster: Vec<String> = property_rows(&mut ctx, ledger)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        for site in [own.1, sub.1, unrelated.1, OUTSIDE] {
+            let names = walk(&mut ctx, ledger, site);
+            let kept: Vec<&String> = roster.iter().filter(|name| names.contains(name)).collect();
+            assert_eq!(
+                kept,
+                names.iter().collect::<Vec<_>>(),
+                "the walk is the roster filtered, in roster order"
+            );
+        }
+
+        #[expect(unsafe_code, reason = "this frame owns the four descriptions")]
+        unsafe {
+            for info in [ledger, audit, other, plain] {
+                info.release();
+            }
+        }
+    }
+
+    /// `hasProperty` asked as an **agreement** with the walk from inside the
+    /// class: for every probe, it answers `true` exactly when that walk names
+    /// the property. The `private` property is the point. It answers `true`
+    /// while the walk from outside leaves it out, so a hidden property can be
+    /// told from a misspelling. A subclass has the properties it inherits.
+    // covers: Core\Reflect\ClassInfo::hasProperty
+    #[test]
+    fn class_info_has_property_agrees_with_the_walk_from_inside_the_class() {
+        let (mut ctx, [ledger, audit, other, plain]) = ledger_family();
+        let own = inside("Ledger::check");
+        let has = |ctx: &mut Ctx, info: Value, probe: &str| {
+            let name = Value::str(NvsStr::new(probe.as_bytes()));
+            let found = call(
+                super::nvs_core_reflect_class_info_has_property,
+                ctx,
+                &[info, name],
+            )
+            .expect("`hasProperty` answers for any text")
+            .as_bool()
+            .expect("`hasProperty` answers a bool");
+            #[expect(unsafe_code, reason = "this frame built the name and owns it")]
+            unsafe {
+                name.release();
+            }
+            found
+        };
+        let inside_walk = texts(
+            call(
+                super::nvs_core_reflect_class_info_readable_properties,
+                &mut ctx,
+                &[ledger, own.1],
+            )
+            .expect("the walk always answers"),
+        );
+        for probe in [
+            "code", "balance", "notes", "reviewer", "CODE", "cod", "codes", "",
+        ] {
+            assert_eq!(
+                has(&mut ctx, ledger, probe),
+                inside_walk.iter().any(|name| name == probe),
+                "`hasProperty(\"{probe}\")` and the walk from inside `Ledger` agree"
+            );
+        }
+
+        let outside_walk = texts(
+            call(
+                super::nvs_core_reflect_class_info_readable_properties,
+                &mut ctx,
+                &[ledger, OUTSIDE],
+            )
+            .expect("the walk always answers"),
+        );
+        assert!(
+            has(&mut ctx, ledger, "balance") && !outside_walk.iter().any(|name| name == "balance"),
+            "the `private` property exists while the walk from outside leaves it out"
+        );
+        for probe in ["code", "balance", "notes", "reviewer"] {
+            assert!(has(&mut ctx, audit, probe), "`Audit` has `{probe}`");
+        }
+        assert!(
+            !has(&mut ctx, other, "balance"),
+            "`Other` declares only `code`"
+        );
+        assert!(!has(&mut ctx, plain, "code"), "`Plain` declares nothing");
+
+        #[expect(unsafe_code, reason = "this frame owns the four descriptions")]
+        unsafe {
+            for info in [ledger, audit, other, plain] {
+                info.release();
+            }
+        }
+    }
 }

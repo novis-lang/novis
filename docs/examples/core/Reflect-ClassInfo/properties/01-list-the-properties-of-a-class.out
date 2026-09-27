@@ -1,0 +1,3 @@
+owner: string, public
+limit: ?int, public
+pin: int, not public

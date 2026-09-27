@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to print the name of the class of an object.
+
+class Invoice {
+    public int $number = 1042;
+}
+
+class Customer {
+    public string $email = "ada@example.com";
+}
+
+// `forObject` describes the class of an object. `name` returns the class name.
+// This prints `Invoice` and `Customer`.
+var $invoice = Core\Reflect::forObject(new Invoice());
+echo $invoice->name(), "\n";
+var $customer = Core\Reflect::forObject(new Customer());
+echo $customer->name(), "\n";

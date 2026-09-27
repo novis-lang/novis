@@ -1,0 +1,44 @@
+<?nvs
+// Reads the property list of a class, as a serializer does before it writes an object.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Tag {
+    public string $label = "";
+}
+
+class Price {
+    public int $amount = 0;
+    public string $currency = "EUR";
+}
+
+class Address {
+    public string $street = "";
+    public string $city = "";
+    public string $country = "";
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\ClassInfo> $infos = [
+            Core\Reflect::forObject(new Tag()),
+            Core\Reflect::forObject(new Price()),
+            Core\Reflect::forObject(new Address()),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The description read depends on last round's total, so no round can be skipped.
+            Core\Reflect\ClassInfo $info = $infos[($total % 3) as int];
+            if (Core\Arr::count($info->properties()) == 2) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -2,6 +2,7 @@
 `Core\Reflect::forClass` reaches the same description by name that `forObject` reaches through a value, and a name nothing declares is `null` — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::name
 class Point {
     public int $x = 3;
     public int $y = 4;

@@ -2,6 +2,7 @@
 A description's property walk from inside the described class names every slot an ordinary body there reads, and from outside only the public ones — `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::readableProperties
 // `rule:security/reflection-enforces-visibility` states its rule over the call
 // *site*, so one description answers two ways: the walk is the list a `get` is
 // about to be made against, and what may be read depends on where the asking

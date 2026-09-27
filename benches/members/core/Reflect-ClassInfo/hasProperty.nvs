@@ -1,0 +1,35 @@
+<?nvs
+// Checks whether a class has a property by name, as a settings loader does before it writes a value.
+// bench: iterations 400000
+// bench: allocations 0
+
+class MailSettings {
+    public string $host = "localhost";
+    public int $port = 25;
+    public bool $secure = false;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $found = Core\Reflect::forClass("MailSettings");
+        if ($found == null) {
+            return 0;
+        }
+        Core\Reflect\ClassInfo $info = $found;
+        array<string> $names = ["host", "timeout", "secure"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name checked depends on last round's total, so no round can be skipped.
+            if ($info->hasProperty($names[($total % 3) as int])) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

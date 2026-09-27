@@ -1,0 +1,30 @@
+<?nvs
+// Builds the list of readable properties of an object, as a debug helper does before it prints one.
+// bench: iterations 200000
+
+class Customer {
+    public string $name = "";
+    public string $email = "";
+    private string $passwordHash = "";
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $info = Core\Reflect::forObject(new Customer());
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $names = $info->readableProperties();
+            // The entry read depends on last round's total, so no round can be skipped.
+            if ($names[($total % 2) as int] == "email") {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

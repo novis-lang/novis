@@ -1,0 +1,31 @@
+<?nvs
+// Shows the difference between a private property and a property that does not exist.
+
+class Account {
+    public int $balance = 120;
+    private string $password = "secret";
+}
+
+class Try {
+    public static function read(string $name): string {
+        var $info = Core\Reflect::forClass("Account");
+        if ($info == null) {
+            return "no class";
+        }
+        // `hasProperty` returns `true` for a private property too.
+        if (!$info->hasProperty($name)) {
+            return $name . ": there is no such property";
+        }
+        try {
+            return $name . ": " . ($info->get(new Account(), $name) as string);
+        } catch (RuntimeError $error) {
+            // `get` throws a `RuntimeError` for a property this code cannot read.
+            return $name . ": the property exists, but it is private";
+        }
+    }
+}
+
+// This prints one line for each name.
+echo Try::read("balance"), "\n";
+echo Try::read("password"), "\n";
+echo Try::read("pasword"), "\n";

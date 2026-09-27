@@ -2,6 +2,8 @@
 `Core\Reflect::forObject` names the class and walks only the properties code outside it can see — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::name
+// covers: Core\Reflect\ClassInfo::readableProperties
 // `rule:core-classes/reflect`: a description is reached from a value, and it is read-only —
 // every member below asks a question and none of them acts.
 class Point {

@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a program builds the list of readable properties many times, from inside and outside
+// the class, and changes its copies. No private property may leak, and the runtime must not crash.
+
+class Vault
+{
+    public string $label = 'main';
+    protected int $level = 3;
+    private string $secret = 'k3y';
+
+    public function inside(): array<string>
+    {
+        var $info = Core\Reflect::forObject($this);
+        return $info->readableProperties();
+    }
+}
+
+class Stranger
+{
+    public static function outside(Vault $vault): array<string>
+    {
+        var $info = Core\Reflect::forObject($vault);
+        return $info->readableProperties();
+    }
+}
+
+Vault $vault = new Vault();
+
+// 1. The list is built 200000 times from each of the three places.
+uint $count = 0;
+uint $leaks = 0;
+uint $i = 0;
+while ($i < 200000) {
+    array<string> $names = [];
+    if ($i % 3 == 0) {
+        $names = $vault->inside();
+    } else if ($i % 3 == 1) {
+        $names = Stranger::outside($vault);
+    } else {
+        var $here = Core\Reflect::forObject($vault);
+        $names = $here->readableProperties();
+    }
+    $count = $count + Core\Arr::count($names);
+    if ($i % 3 != 0 && Core\Arr::contains($names, 'secret')) {
+        $leaks = $leaks + 1;
+    }
+    $i = $i + 1;
+}
+echo $count, ' ', $leaks, "\n";
+
+// 2. A copy of the list from outside is changed to name the private property.
+// The next list from outside must still leave it out, and `get` must still throw.
+array<string> $forged = Stranger::outside($vault);
+$forged[] = 'secret';
+var $described = Core\Reflect::forObject($vault);
+foreach ($forged as string $name) {
+    try {
+        string $value = $described->get($vault, $name) as string;
+        echo $name, '=', $value, "\n";
+    } catch (RuntimeError $error) {
+        echo $name, " cannot be read\n";
+    }
+}
+echo Core\Arr::count(Stranger::outside($vault)), "\n";

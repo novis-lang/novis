@@ -1,0 +1,38 @@
+<?nvs
+// Reads the class name of an object, as a logger does when it writes which class handled a request.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Order {
+}
+
+class Refund {
+}
+
+class Payment {
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\ClassInfo> $infos = [
+            Core\Reflect::forObject(new Order()),
+            Core\Reflect::forObject(new Refund()),
+            Core\Reflect::forObject(new Payment()),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The description read depends on last round's total, so no round can be skipped.
+            Core\Reflect\ClassInfo $info = $infos[($total % 3) as int];
+            if ($info->name() == "Refund") {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

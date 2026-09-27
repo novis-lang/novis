@@ -1,32 +1,19 @@
 {
-  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2. `Core\\Reflect\\ConstantInfo` is\ncomplete. In `ClassInfo`, `attributes`, `call`, `constant`, `constants`, `get`, `construct`,\n`methods`, `hasMethod` and `set` are complete. **Still owed, every proof of each: `name`,\n`properties`, `readableProperties` and `hasProperty`.** The group gate\n(`bun nv proofs --verify --group 'Core\\Reflect\\ClassInfo'`) counts 13 members and names these\nfour. Earlier handoffs never listed them, and nothing excuses them.\n\nThe `set` attack found a memory-safety hole in the shared erased write:\n`nvs-runtime/erased-write-checks-no-class` (gap record, milestone M10). An object of any class\ncan be written into a field declared as another class, through `ClassInfo::set` or a `mixed`\nreceiver. `docs/examples/core/Reflect-ClassInfo/set/04-an-object-of-the-wrong-class-is-refused.nvs`\nis marked with that gap and counts as `known-gap`. A bench that indexes an array with a `uint`\nallocates twice per read. Index with `($i % n) as int`, which allocates nothing.",
+  "state": "Goal `core-reflect-classinfo-and-1-more` (dossier), stage 2, is reached. Both stage-2 checks pass:\n`bun nv proofs --verify --group 'Core\\Reflect\\ClassInfo'` (13 members, nothing owed, 40\nexamples and 13 attacks green) and the same for `Core\\Reflect\\ConstantInfo` (3 members). No\nmodule-doc gap and no carried-gaps row names this goal.\n\nOne finding stays open, owned elsewhere: gap `nvs-runtime/erased-write-checks-no-class`\n(milestone M10). An erased write stores an object of any class into a field declared as another\nclass. `docs/examples/core/Reflect-ClassInfo/set/04-an-object-of-the-wrong-class-is-refused.nvs`\ncarries that gap's marker, and removing the marker is part of the fix.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs`, its `mod tests`, and the `docs/examples`, `tests/hostile`, `benches/members` trees under `core/Reflect-ClassInfo/`.",
+    "note": "nothing is left in this goal. The driver moves to the next goal on the chain, which starts from its own handoff record.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::name`** — about, examples, hostile, perf, Rust test, and a `covers:` marker on a `.nvst` case that calls `->name()` on a description (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/reflect.rs:2135`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::properties`** — the same proofs. The roster includes `private` properties with `isPublic` false. `class_info_methods_is_one_row_per_declared_method_in_name_order` in `mod tests` is the shape for the Rust test. `crates/nvs-stdlib/src/reflect.rs:2152`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::readableProperties`** — the same proofs. It takes a call site, so the Rust test compares an outside site with an inside one, using `inside()` (`rule:security/reflection-enforces-visibility`). `crates/nvs-stdlib/src/reflect.rs:2183`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Reflect\\ClassInfo::hasProperty`** — the same proofs. `class_info_has_method_agrees_with_what_a_call_from_inside_the_class_reaches` is the agreement shape, with `get` in place of `call`. `crates/nvs-stdlib/src/reflect.rs:2232`"
+        "done": true,
+        "text": "**`Core\\Reflect\\ClassInfo::name`, `properties`, `readableProperties`, `hasProperty`** — every proof landed (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/reflect.rs:2135`"
       }
     ]
   },
   "backlog": [
-    "`nvs-runtime/erased-write-checks-no-class`: an erased write needs a resolved per-slot class or enum check (`data/gaps/nvs-runtime/erased-write-checks-no-class.json`).",
-    "An array read with a `uint` index allocates twice where an `int` index allocates nothing. Not checked where. Owner not decided (`crates/nvs-runtime`).",
-    "Re-record the benches of every `Core\\Reflect*` group once `reflect.rs`'s code (not its tests) changes: `bun nv proofs --record-perf --group '<class>'`."
+    "`bun nv proofs --verify` reports a cached known-gap proof as `ok` in its summary line; `--no-cache` counts it as `known-gap`. Owner: `tools/nv/cmd/proofs.ts`.",
+    "Gap `nvs-runtime/erased-write-checks-no-class` — the erased write checks the tag and not the class. Owner: its gap record under `data/gaps/nvs-runtime/`."
   ]
 }

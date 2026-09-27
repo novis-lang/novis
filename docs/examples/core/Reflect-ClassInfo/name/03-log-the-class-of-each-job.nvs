@@ -1,0 +1,32 @@
+<?nvs
+// Shows how a job queue writes a log line with the class name of each job it runs.
+
+interface Job {
+    public function run(): string;
+}
+
+class SendWelcomeMail implements Job {
+    public function run(): string {
+        return "mail sent";
+    }
+}
+
+class ResizeImage implements Job {
+    public function run(): string {
+        return "image resized";
+    }
+}
+
+class Queue {
+    public static function work(array<Job> $jobs): void {
+        foreach ($jobs as Job $job) {
+            string $result = $job->run();
+            // The log line starts with the class name, so you can find the code of the job.
+            var $info = Core\Reflect::forObject($job);
+            echo "[", $info->name(), "] ", $result, "\n";
+        }
+    }
+}
+
+// This prints one log line for each job.
+Queue::work([new SendWelcomeMail(), new ResizeImage()]);

@@ -2,6 +2,9 @@
 Every row `Core\Reflect\ClassInfo::properties` names is one `readableProperties` names exactly when this call site may read it — `rule:security/reflection-enforces-visibility` and `rule:core-classes/reflect`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::properties
+// covers: Core\Reflect\ClassInfo::readableProperties
+// covers: Core\Reflect\ClassInfo::hasProperty
 // `rule:security/reflection-enforces-visibility` divides one question in two: the roster is
 // metadata and names every property the class declares, and the readable walk
 // is the list a `get` is about to be made against. Asked as an agreement —

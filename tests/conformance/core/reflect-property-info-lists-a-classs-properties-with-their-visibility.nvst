@@ -2,6 +2,8 @@
 `Core\Reflect\ClassInfo::properties` names every property a class declares and `Core\Reflect\PropertyInfo` carries the visibility and the declared type of each — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
+// covers: Core\Reflect\ClassInfo::properties
+// covers: Core\Reflect\ClassInfo::hasProperty
 // `rule:core-classes/reflect`: reading a member's *shape* — that it exists, what it is
 // called, what type it holds, what it may be reached from — is introspection
 // and is always available. Acting on one is the other half, and it is
