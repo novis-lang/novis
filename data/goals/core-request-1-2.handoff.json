@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-request-1-2` is reached. All eleven members of `Core\\Request (1/2)` have all their\nfeature proofs: `body`, `bodyStream`, `bytes`, `clientIp`, `cookie`, `files`, `header`, `headers`,\n`host`, `isHead` and `json`. The goal's check, `bun nv proofs --verify --only` over those eleven,\nsays nothing owed. The floor check `nvs-cli (cost margins)` passes, both tests, and\n`bun nv verify --doc` is green. `bun nv owners --closes` and `bun nv playbook --closes` name\nnothing for this goal. Nothing is blocked.",
+  "state": "Goal `core-request-1-2` is reached. All eleven members of `Core\\Request (1/2)` have all their\nfeature proofs: `body`, `bodyStream`, `bytes`, `clientIp`, `cookie`, `files`, `header`, `headers`,\n`host`, `isHead` and `json`. The goal's check, `bun nv proofs --verify --only` over those eleven,\nsays nothing owed. The floor check `nvs-cli (cost margins)` passes both of its tests, and\n`bun nv verify --doc` is green. The last sweep went red on both of these only because a scratch\ncrate under `.agent-tmp/` was briefly a workspace member. That crate is gone and the tree is clean.\n`bun nv owners --closes` and `bun nv playbook --closes` name nothing for this goal. Nothing is blocked.",
   "next": {
     "stage": null,
     "files": [],
@@ -7,6 +7,6 @@
     "items": []
   },
   "backlog": [
-    "Nothing carried: this goal owns no module-doc gap and no carried-gaps row."
+    "Nothing carried. The next goal's own record owns what comes next."
   ]
 }
