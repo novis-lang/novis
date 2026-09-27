@@ -1,0 +1,20 @@
+<?nvs
+// Adds a session cookie with the default options, as a login page does once for each request.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $tokens = ["k3v9Qx7wLm2p", "Zr8TqB1nYd4s", "p0Hs6WcE2uVa"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $token = $tokens[$total % 3];
+            Core\Response::addCookie("sid", $token);
+            $total = $total + Core\Str::length($token) + 1;   // chained: the next token depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response::text((Bench::run(20000) as string) . "\n");

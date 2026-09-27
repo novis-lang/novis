@@ -1,0 +1,7 @@
+--METHOD--
+POST
+--PATH--
+/login
+--HEADERS--
+host: example.com
+cookie: remember=yes

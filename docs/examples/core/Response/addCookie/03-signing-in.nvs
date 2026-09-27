@@ -1,0 +1,21 @@
+<?nvs
+// Shows the cookies a login page sends when a user signs in.
+
+string $token = "k3v9Qx7wLm2p";
+// The `__Host-` prefix tells the browser to send this cookie to this host only.
+Core\Response::addCookie("__Host-session", $token, {
+    // Other websites cannot send this cookie, not even with their links.
+    sameSite: Core\Response\SameSite::Strict,
+    // The browser deletes the cookie after eight hours.
+    maxAge: 8h,
+});
+
+// `maxAge: 0s` deletes a cookie. This request sends an old `remember` cookie,
+// so the program deletes it and this prints "Signed in. Deleted: remember".
+string $said = "Signed in.";
+if (Core\Request::cookie("remember") != null) {
+    Core\Response::addCookie("remember", "", {maxAge: 0s});
+    $said = $said . " Deleted: remember";
+}
+
+Core\Response::text($said . "\n");

@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/profile
+--HEADERS--
+host: example.com

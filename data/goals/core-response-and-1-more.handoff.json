@@ -1,26 +1,23 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Response and 1 more has been taken yet.",
+  "state": "Goal `core-response-and-1-more`: `Core\\Response::addCookie` has every feature proof — `about.md`,\nthree examples with `.nvsr` requests, the attack, the bench record in `docs/perf/members.ndjson`,\nand two Rust `#[test]`s carrying `covers:` in `crates/nvs-stdlib/src/response.rs`.\n`Core\\Response` now carries its class card; `Core\\Response\\Stream` is still in\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`, and `Core\\Response\\Stream::write`\nowes it. Nothing is blocked.\n\n`nvs run --request` prints the response body alone, never the status line or the headers. An\nexample for a member that writes only the head therefore shows its effect in a body line it writes\nitself, and the Rust test pins the header line (`every_written_option_is_one_attribute_and_each_call_is_one_line`).",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "body members",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/response.rs` (the body helpers and the `tests` module), `docs/examples/core/Response/`, `tests/hostile/core/Response/`, `benches/members/core/Response/`. Each example needs a `.nvsr` request beside it, as the `addCookie` ones have.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Response::addCookie`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:421`"
+        "text": "**`Core\\Response::bytes`** — owes about, examples, hostile, perf, Rust `covers:` (`rule:security/response-body-is-one-typed-member`). The Rust half is a `// covers:` line on `each_body_member_sets_its_own_content_type` at `crates/nvs-stdlib/src/response.rs:1997`; the member is `crates/nvs-stdlib/src/response.rs:1674`."
       },
       {
         "done": false,
-        "text": "**`Core\\Response::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:333`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Response::html`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/response.rs:297`"
+        "text": "**`Core\\Response::html`** — the same owed set; member at `crates/nvs-stdlib/src/response.rs:1062`, and the same test takes its `covers:` line. `html` takes a `Core\\Html\\Markup`, never a `string`."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`setHeader`, `setStatus` and `redirect` write only the response head, which no `.out` can show; their examples print a body line, and their Rust tests pin the head (the `addCookie` pattern).",
+    "`Core\\Response\\Stream` owes its class card — `crates/nvs-stdlib/src/registry.rs` `CLASSES_STILL_OWING_A_CARD`."
   ]
 }

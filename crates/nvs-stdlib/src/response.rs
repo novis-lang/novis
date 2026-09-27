@@ -221,8 +221,8 @@
 use nvs_runtime::{Fault, Tag, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// What `html` declares — § 4's `text/html`, with the charset every other
@@ -283,16 +283,24 @@ const LOCATION_HEADER: &str = "Location";
 /// a field name is made of.
 const TOKEN_MARKS: &[u8] = b"!#$%&'*+-.^_`|~";
 
-/// `Core\Response`'s registry rows — § 15's body members, in § 4's own table
-/// order for the ones that exist.
 /// `Core\Response`'s fully-qualified name, written once — [`CLASS`] declares it
 /// and [`crate::registry::CAPABILITIES`] names it on every row of this class, so
 /// the table and the roster cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Response";
 
+/// `Core\Response`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "The response your program sends back to a request. `html()`, `text()`, `json()`, \
+            `bytes()`, `sendFile()` and `stream()` write the body, and each one sets the matching \
+            `Content-Type`. `setStatus()`, `setHeader()`, `redirect()` and `addCookie()` change \
+            the status line and the headers.",
+};
+
+/// `Core\Response`'s registry rows — § 15's body members, in § 4's own table
+/// order for the ones that exist.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "html",
@@ -2073,6 +2081,7 @@ mod tests {
     /// that grew a fifth attribute nobody asked for, and on one whose parts fell in an order no peer
     /// parses. `Path` first and `SameSite` last is the render's own order and is not § 3's claim —
     /// what § 3 claims is that all four are there with nothing configured.
+    // covers: Core\Response::addCookie
     #[test]
     fn a_cookie_is_secure_httponly_samesite_lax_by_default() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -2115,6 +2124,96 @@ mod tests {
 
         dropped(name);
         dropped(value);
+    }
+
+    /// Every option written at once, each one landing as its own attribute, and a
+    /// second call appending a second line — the half of `addCookie` no program
+    /// can read back, since a response head is not visible from Novis.
+    ///
+    /// The lifetime is the edge: `Max-Age` is whole seconds, so `90.5s` is sent as
+    /// `90` and a negative one throws with nothing written, which is the order
+    /// `max_age_of`'s doc states.
+    // covers: Core\Response::addCookie
+    #[test]
+    fn every_written_option_is_one_attribute_and_each_call_is_one_line() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let duration =
+            |nanos: i64| crate::instance::build(&crate::time::DURATION, [Value::int(nanos)]);
+
+        let theme = Value::str(NvsStr::new(b"theme"));
+        let dark = Value::str(NvsStr::new(b"dark"));
+        let path = Value::str(NvsStr::new(b"/account"));
+        let domain = Value::str(NvsStr::new(b"example.com"));
+        let lifetime = duration(90_500_000_000);
+        // `secure: true`, `httpOnly: false`, `sameSite: Strict` (case 1), then
+        // the path, the domain and the lifetime.
+        let written = [
+            theme,
+            dark,
+            Value::bool(true),
+            Value::bool(false),
+            Value::int(1),
+            path,
+            domain,
+            lifetime,
+        ];
+        call(super::nvs_core_response_add_cookie, &mut ctx, &written)
+            .expect("a cookie with every option well formed is written");
+
+        let sid = Value::str(NvsStr::new(b"sid"));
+        let token = Value::str(NvsStr::new(b"r4nd0m"));
+        let bare = [
+            sid,
+            token,
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+        ];
+        call(super::nvs_core_response_add_cookie, &mut ctx, &bare)
+            .expect("a second cookie is written beside the first");
+
+        let backwards = duration(-1_000_000_000);
+        let refused = [
+            sid,
+            token,
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            backwards,
+        ];
+        assert!(
+            call(super::nvs_core_response_add_cookie, &mut ctx, &refused).is_err(),
+            "a negative `maxAge` throws"
+        );
+        assert!(
+            ctx.take_pending()
+                .is_some_and(|message| message.contains("cannot be negative"))
+        );
+
+        let headers = ctx.take_headers();
+        let lines: Vec<&str> = headers.iter().map(|header| &*header.value).collect();
+        assert_eq!(
+            lines,
+            [
+                "theme=dark; Path=/account; Domain=example.com; Max-Age=90; Secure; SameSite=Strict",
+                "sid=r4nd0m; Path=/; Secure; HttpOnly; SameSite=Lax",
+            ],
+            "two calls write two lines, and the refused third writes none"
+        );
+        assert!(
+            headers
+                .iter()
+                .all(|header| &*header.name == "Set-Cookie" && header.append)
+        );
+
+        for value in [theme, dark, path, domain, lifetime, sid, token, backwards] {
+            dropped(value);
+        }
     }
 
     /// The cell a connection offers, at both of its bounds: a send timeout no

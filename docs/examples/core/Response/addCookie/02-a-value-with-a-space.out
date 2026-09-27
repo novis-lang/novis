@@ -1,0 +1,1 @@
+Core\Response::addCookie(): `Ada Lovelace` is not a value a cookie can carry — a space, a comma, a semicolon, a backslash, a quote and anything outside printable ASCII would end the value and begin an attribute the program never wrote
