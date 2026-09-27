@@ -1,23 +1,27 @@
 {
-  "state": "Goal `core-router-and-4-more`, stage 2 (feature proofs). Every `Core\\Router` member has every feature proof on disk, `signedRoute` included: about, three examples with a `.nvsr` request beside each, an attack with its own `.nvsr`, a bench with `benches/members/core/Router/signedRoute.nvsr`, a perf figure, and a Rust `covers:` test. Its card is rewritten in plain words. `bun nv proofs --verify --group 'Core\\Router'` is the check that should now pass.\n\nThe attack found a bug, fixed in the same session: `crate::keyring::borrow` now checks the newest key's length itself. Before, `signedRoute` and `$uri->verifySignature` answered the forgery sentence for a 31-byte first key whenever the request had no `_sig` or two, since they refuse that input before the ring walk. Pinned by `borrowing_a_ring_refuses_a_newest_key_of_the_wrong_length_and_nothing_older` in `crates/nvs-stdlib/src/keyring.rs` and `tests/conformance/core/keyring-a-short-first-key-is-refused-before-the-input-is-read.nvst`.\n\nA `.nvsr` request with a valid `_sig` is minted by running a throwaway program that calls `urlSigned` with the same fixed 32-byte key (`\"example-key-for-signed-links-001\" as bytes`) and `until: null`, and pasting the query into `--QUERY--`.\n\n`Core\\Router\\Match`'s class card and members, `Core\\Script`, `Core\\Script\\ExitReport` and `Core\\Secret` are not started.",
+  "state": "Goal `core-router-and-4-more`, stage 2 (feature proofs). `Core\\Router` and `Core\\Router\\Match` have every feature proof on disk, and `bun nv proofs --verify --group` says nothing owed for both, with every example and attack ok. `Core\\Router\\Match` now has a class card, and its five member cards are rewritten in plain words. The `params` card said a capture is still percent-encoded, which was stale: the binary decodes once at the crossing, as `tests/conformance/core/router-match-decodes-each-capture-once-where-it-crosses.nvst` pins.\n\nIts Novis tests are three existing cases that now carry `covers:` markers; its Rust test is `every_match_member_answers_its_own_field_of_the_row` in `crates/nvs-stdlib/src/router.rs`.\n\nA match for an example or bench comes from `Core\\Router::match` (no request needed) or from `Core\\Request::route()` with a `.nvsr` beside the program. Inside a loop, bind a narrowed `?Core\\Router\\Match` to a non-null `Core\\Router\\Match` variable first (playbook, *Writing a test case*).\n\n`Core\\Script`, `Core\\Script\\ExitReport` and `Core\\Secret` are not started.",
   "next": {
     "stage": 2,
     "title": "feature proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/router.rs`, `crates/nvs-stdlib/src/registry.rs` and the `Core/Router-Match` trees under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/script.rs`, `crates/nvs-stdlib/src/registry.rs` and the `Core/Script` and `Core/Script-ExitReport` trees under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Router\\Match`'s class card** — a `ClassDoc` above the `MATCH` row, and the class deleted from `CLASSES_STILL_OWING_A_CARD` (`rule:core-api/reference-card`). The member cards read plain already, so check them against AGENTS.md § *Text an end user reads* while there. `crates/nvs-stdlib/src/router.rs:597`, `crates/nvs-stdlib/src/registry.rs:5279`"
+        "text": "**`Core\\Script`'s class card, and `Core\\Script\\ExitReport`'s** — a `ClassDoc` above each `CLASS` row, both deleted from `CLASSES_STILL_OWING_A_CARD`, and the member cards checked against AGENTS.md § *Text an end user reads* (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/script.rs:141`, `crates/nvs-stdlib/src/script.rs:293`, `crates/nvs-stdlib/src/registry.rs:5342`"
       },
       {
         "done": false,
-        "text": "**`Core\\Router\\Match`'s members** — each owes about, three examples, an attack, a bench and two test cases (`rule:testing/feature-proofs`); `bun nv proofs --group 'Core\\Router\\Match'` lists them. A match is read off a request, so each example is a `.nvs` with a `.nvsr` beside it, the way `docs/examples/core/Request/route/` does. Instance members need a `covers:` marker on every test. `crates/nvs-stdlib/src/router.rs:653`"
+        "text": "**`Core\\Script`'s members** — `args`, `onExit`, `finish` each owe about, three examples, an attack, a bench and a Rust `covers:` test (`rule:testing/feature-proofs`). A member whose program exits may be a `skip` in `data/proofs/policy.json` with its reason, per the goal's standing decisions. `crates/nvs-stdlib/src/script.rs:141`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Script\\ExitReport`'s members** — `reason`, `status`, `error` each owe the same, and two test cases each (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/script.rs:293`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Script`, `Core\\Script\\ExitReport`: every proof and both class cards — `crates/nvs-stdlib/src/script.rs`.",
-    "`Core\\Secret`: every proof and its class card — `crates/nvs-stdlib/src/secret.rs`."
+    "`Core\\Secret`'s class card and its members `reveal` and `revealBytes` — `crates/nvs-stdlib/src/secret.rs:40` (`rule:testing/feature-proofs`).",
+    "A `covers:` marker added to an `--EXPECTF-ERROR--` case goes at the end of its `--FILE--` block, so the diagnostic's line numbers do not move (`tests/conformance/core/a-matched-routes-name-is-the-units-own-and-its-captures-are-the-peers.nvst`)."
   ]
 }

@@ -1,0 +1,21 @@
+<?nvs
+// Shows one handler that shows a form for `Get` and saves the form for `Post`.
+
+class Newsletter {
+    // The two routes have the same path and the same name.
+    #[Core\Route(path: "/newsletter", method: Core\Http\Method::Get, name: "Newsletter::signup")]
+    #[Core\Route(path: "/newsletter", method: Core\Http\Method::Post, name: "Newsletter::signup")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function signup(): string {
+        // `method()` tells the two routes apart. `?->` gives `null` when there is no match.
+        ?Core\Router\Match $matched = Core\Request::route();
+        if ($matched?->method() == Core\Http\Method::Post) {
+            return "Thank you. You are now subscribed.";
+        }
+        return "Enter your email address to subscribe.";
+    }
+}
+
+// The request is `POST /newsletter`, so this prints the thank-you text.
+var $newsletter = new Newsletter();
+echo $newsletter->signup(), "\n";

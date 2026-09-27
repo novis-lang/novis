@@ -1,0 +1,43 @@
+<?nvs
+// Shows a front controller that checks the access rule once, before it calls any handler.
+namespace App;
+
+enum Role { Admin }
+
+class Pages {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Pages::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string { return "200 Welcome"; }
+
+    #[Core\Route(path: "/admin/reports", method: Core\Http\Method::Get, name: "Pages::reports")]
+    #[Core\Access(allow: Role::Admin)]
+    public function reports(): string { return "200 Reports"; }
+}
+
+class FrontController {
+    public static function answer(bool $isAdmin): string {
+        ?Core\Router\Match $matched = Core\Request::route();
+        if ($matched == null) {
+            return "404 Not Found";
+        }
+        // The server does not check the rule. This one check covers every route below.
+        ?string $rule = $matched->access();
+        bool $allowed = $rule == "Core\\Audience::Public"
+            || ($rule == "App\\Role::Admin" && $isAdmin);
+        if (!$allowed) {
+            return "403 Forbidden";
+        }
+        var $pages = new Pages();
+        switch ($matched->name()) {
+            case "Pages::home":
+                return $pages->home();
+            case "Pages::reports":
+                return $pages->reports();
+        }
+        return "404 Not Found";
+    }
+}
+
+// The request is `GET /admin/reports`. A real program reads the role from the session.
+// The visitor is not an admin, so this prints `403 Forbidden`.
+echo FrontController::answer(false), "\n";

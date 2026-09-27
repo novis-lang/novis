@@ -1,0 +1,15 @@
+<?nvs
+// Shows that a `HEAD` request matches a `Get` route, and `method()` returns `Get`.
+
+class Reports {
+    #[Core\Route(path: "/reports/daily", method: Core\Http\Method::Get, name: "Reports::daily")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function daily(): string { return "the daily report"; }
+}
+
+// A `HEAD` request asks for the headers of a page and not its body.
+?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Head, "/reports/daily");
+if ($found != null) {
+    // The route is a `Get` route, so this prints `Get`.
+    echo $found->method() == Core\Http\Method::Get ? "Get" : "not Get", "\n";
+}

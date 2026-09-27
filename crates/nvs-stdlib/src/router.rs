@@ -573,9 +573,9 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// up would be laundering the request through the route table, which is the one
 /// direction `AGENTS.md`'s priority 1 does not trade.
 ///
-/// A capture's text is still **percent-encoded**, which is
-/// [`nvs_runtime::routes`]' own gap 4: decoding belongs to [`crate::uri`] and a
-/// second decoder below it would be two launderers that agree today.
+/// A capture's text is percent-decoded once, by [`match_value`], as the match
+/// crosses into the program, so `Core\Router::match` and
+/// `Core\Request::route()` answer the same value for the same segment.
 ///
 /// # The access decision and the verb cross, and the handler does not
 ///
@@ -596,7 +596,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// `rule:routing/matching-is-not-dispatching` refuses.
 pub(crate) const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
-    doc: None,
+    doc: Some(&MATCH_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -649,60 +649,68 @@ pub(crate) const MATCH: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Router\Match`'s class card — `rule:core-api/reference-card`.
+const MATCH_CARD: ClassDoc = ClassDoc {
+    short: "The route that a path matched. `Core\\Request::route()` returns the match of the \
+            request being served, and `Core\\Router::match()` returns the match of a path you \
+            choose. `name()` returns the route's name, `params()` and `param()` return the values \
+            captured from the path, `method()` returns the route's HTTP method and `access()` \
+            returns its access rule.",
+};
+
 /// `Core\Router\Match::name`'s reference card — `rule:core-api/reference-card`.
 const MATCH_NAME_DOC: MethodDoc = MethodDoc {
-    short: "The declared name of the route this request matched, as its `#[Route(name: …)]` wrote \
-            it — the same string `Core\\Router::url` resolves and the `route` metric label \
-            carries.",
+    short: "Returns the name of the matched route, as its `#[Route(name: …)]` writes it. \
+            `Core\\Router::url` builds a link from the same name.",
     params: &[],
-    ret: "The name, or `null` where the matched route declares none. Not `tainted`: it is the \
-          unit's own literal and not anything the request carried.",
+    ret: "The name, or `null` when the route has no name. The name is not `tainted`, because it \
+          comes from your program and not from the request.",
     errors: &[],
 };
 
 /// `Core\Router\Match::params`'s reference card — `rule:core-api/reference-card`.
 const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
-    short: "Every capture the matched path filled, keyed by the parameter name it binds, in path \
-            order.",
+    short: "Returns every value captured from the path, in the order of the path. Each key is \
+            the capture's name.",
     params: &[],
-    ret: "An array of the captures. A `{name}` declared `string` answers `tainted string` and is \
-          still percent-encoded; one declared `int`, `uint`, `decimal` or `Core\\Uuid` answers the \
-          value the match already converted, and a segment that would not convert never matched \
-          the route at all. One declared at any other class implementing `Parses` answers what \
-          that class's own `parse` made of the segment, which runs when this match is read: it \
-          matched on shape, so a segment the class refuses throws here rather than sending the \
-          request to another route. A route with no captures answers an empty array.",
+    ret: "An array of the captures. Each value is already percent-decoded, so `%20` is a space. \
+          Each value has the type of its handler parameter: `{id}` read by `uint $id` is a \
+          number. A `string` capture is `tainted`, because the request sent it. An optional \
+          capture that the path does not have is not in the array. A route with no captures \
+          returns an empty array.",
     errors: &[],
 };
 
 /// `Core\Router\Match::param`'s reference card — `rule:core-api/reference-card`.
 const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
-    short: "One capture by the parameter name it binds — `params()` read at one key, and the \
-            spelling a handler reaching for a single segment writes.",
+    short: "Returns one value captured from the path, found by its name. It is the same value \
+            that `params()` has under that key.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The capture's name as the route's path declared it, without the braces.",
+        desc: "The capture's name as the route's path writes it, without the braces.",
         shape: &[],
     }],
-    ret: "The capture, on `params()`'s terms, or `null` where the matched route declares no \
-          capture under that name — including an optional `{name?}` the request left off.",
+    ret: "The capture, with the type of its handler parameter. The result is `null` when the \
+          route has no capture with this name, and when an optional `{name?}` is not in the \
+          path.",
     errors: &[],
 };
 
 /// `Core\Router\Match::method`'s reference card — `rule:core-api/reference-card`.
 const MATCH_METHOD_DOC: MethodDoc = MethodDoc {
-    short: "The verb the matched `#[Route]` declares. A method with two `#[Route]` attributes \
-            uses this to see which of the two matched.",
+    short: "Returns the HTTP method of the matched route. A handler with two `#[Route]` \
+            attributes uses it to see which of the two matched.",
     params: &[],
-    ret: "The `Core\\Http\\Method` case written in the route's `method:`.",
+    ret: "The `Core\\Http\\Method` case written in the route's `method:`. A `HEAD` request \
+          matches a `Get` route, so the result is `Core\\Http\\Method::Get`.",
     errors: &[],
 };
 
 /// `Core\Router\Match::access`'s reference card — `rule:core-api/reference-card`.
 const MATCH_ACCESS_DOC: MethodDoc = MethodDoc {
-    short: "The access decision of the matched route: the full name of the constant written in \
-            its `#[Access(allow: …)]`. The server does not enforce it. A program that calls route \
-            methods checks it once, before it calls any of them.",
+    short: "Returns the access rule of the matched route: the full name of the constant in its \
+            `#[Access(allow: …)]`. The server does not check it for you. A program that calls \
+            the route's handler checks it once, before that call.",
     params: &[],
     ret: "The name with its namespace, such as `Core\\Audience::Public` or `App\\Role::Admin`. \
           Not `tainted`: it is the program's own text. Every route of a compiled program has \
@@ -2171,6 +2179,87 @@ mod tests {
 
         let refused = asked(&mut ctx, "Get", b"/files/%ff").expect_err("`%ff` is no `string`");
         assert!(refused.contains("`name`"), "{refused}");
+    }
+
+    /// Each of the match's five members answers its own field of one row, read
+    /// through the symbols a program calls: the name, the captures whole and at
+    /// one key, the verb as its case and the access decision as its text. A row
+    /// with no name and no capture answers `null` and an empty array.
+    // covers: Core\Router\Match::name, Core\Router\Match::params, Core\Router\Match::param
+    // covers: Core\Router\Match::method, Core\Router\Match::access
+    #[test]
+    fn every_match_member_answers_its_own_field_of_the_row() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_routes(std::sync::Arc::new(nvs_runtime::routes::Routes::new(vec![
+            nvs_runtime::routes::Route::new(
+                "Post",
+                "/articles/{id}",
+                Some("Articles::update".to_owned()),
+                "Articles::update",
+                Some("App\\Role::Editor".to_owned()),
+                vec![nvs_runtime::routes::Capture {
+                    name: "id".to_owned(),
+                    conv: nvs_runtime::routes::CaptureConv::Int,
+                }],
+            ),
+            nvs_runtime::routes::Route::new(
+                "Get",
+                "/health",
+                None,
+                "Status::health",
+                Some("Core\\Audience::Public".to_owned()),
+                Vec::new(),
+            ),
+        ])));
+        let captures = |ctx: &mut Ctx, found: Value| {
+            let params = nvs_runtime::call(super::nvs_core_router_match_params, ctx, &[found])
+                .expect("a match answers its captures");
+            let count =
+                crate::arr::borrowed(params.array_ptr().expect("the captures are an array"))
+                    .count();
+            dropped(params);
+            count
+        };
+
+        let found = asked(&mut ctx, "Post", b"/articles/7")
+            .expect("an `int` capture refuses nothing")
+            .expect("the row claims its own verb and path");
+        let name = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[found])
+            .expect("a match answers its name");
+        assert_eq!(name.as_str_bytes(), Some(&b"Articles::update"[..]));
+        dropped(name);
+        assert_eq!(captures(&mut ctx, found), 1);
+        let key = Value::str(nvs_runtime::NvsStr::new(b"id"));
+        let id = nvs_runtime::call(super::nvs_core_router_match_param, &mut ctx, &[found, key])
+            .expect("a match answers a capture it has");
+        assert_eq!(id.as_int(), Some(7), "the capture is the converted number");
+        dropped(key);
+        let unknown = Value::str(nvs_runtime::NvsStr::new(b"slug"));
+        let absent = nvs_runtime::call(
+            super::nvs_core_router_match_param,
+            &mut ctx,
+            &[found, unknown],
+        )
+        .expect("a name the row does not declare is not a throw");
+        assert_eq!(absent.tag(), Some(nvs_runtime::Tag::Null));
+        dropped(unknown);
+        let method = nvs_runtime::call(super::nvs_core_router_match_method, &mut ctx, &[found])
+            .expect("a match answers its verb");
+        assert_eq!(method.as_int(), super::method_case("Post"));
+        let access = nvs_runtime::call(super::nvs_core_router_match_access, &mut ctx, &[found])
+            .expect("a match answers its access decision");
+        assert_eq!(access.as_str_bytes(), Some(&b"App\\Role::Editor"[..]));
+        dropped(access);
+        dropped(found);
+
+        let bare = asked(&mut ctx, "Get", b"/health")
+            .expect("a row with no capture refuses nothing")
+            .expect("the row claims its own verb and path");
+        let unnamed = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[bare])
+            .expect("a match answers its name");
+        assert_eq!(unnamed.tag(), Some(nvs_runtime::Tag::Null));
+        assert_eq!(captures(&mut ctx, bare), 0);
+        dropped(bare);
     }
 
     /// The ordinals `Core\Router::methodsFor($path)` answers over the table

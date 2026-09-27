@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a visitor sends a path with eight very long captures, full of escapes.
+// `params()` should return all of them or the match should throw an error, and nothing may crash.
+
+class Search
+{
+    #[Core\Route(path: "/s/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}", method: Core\Http\Method::Get, name: "Search::deep")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function deep(string $a, string $b, string $c, string $d, string $e, string $f, string $g, string $h): string
+    { return 'results'; }
+}
+
+// 1. Eight captures of 200000 characters each. Every character is the escape `%41`.
+string $part = Core\Str::repeat('%41', 200000);
+string $path = '/s/' . $part . '/' . $part . '/' . $part . '/' . $part
+    . '/' . $part . '/' . $part . '/' . $part . '/' . $part;
+?Core\Router\Match $big = Core\Router::match(Core\Http\Method::Get, $path);
+if ($big != null) {
+    uint $length = 0;
+    foreach ($big->params() as mixed $value) {
+        $length = $length + Core\Str::length($value as string);
+    }
+    echo 'decoded length ', $length, "\n";
+}
+
+// 2. The same array is read one hundred thousand times.
+uint $read = 0;
+if ($big != null) {
+    Core\Router\Match $kept = $big;
+    uint $i = 0;
+    while ($i < 100000) {
+        $read = $read + Core\Arr::count($kept->params());
+        $i = $i + 1;
+    }
+}
+echo $read, ' captures read', "\n";
+
+// 3. One capture has an escape that is not valid UTF-8. The match throws a `RuntimeError`.
+try {
+    Core\Router::match(Core\Http\Method::Get, '/s/a/b/c/d/e/f/g/%c3%28');
+    echo 'bad escape: matched', "\n";
+} catch (RuntimeError $e) {
+    echo 'bad escape: error', "\n";
+}
+
+// 4. A path with one segment too many or too few does not match.
+?Core\Router\Match $short = Core\Router::match(Core\Http\Method::Get, '/s/a/b/c/d/e/f/g');
+echo $short == null ? 'short: no route' : 'short: matched', "\n";
+?Core\Router\Match $long = Core\Router::match(Core\Http\Method::Get, '/s/a/b/c/d/e/f/g/h/i');
+echo $long == null ? 'long: no route' : 'long: matched', "\n";

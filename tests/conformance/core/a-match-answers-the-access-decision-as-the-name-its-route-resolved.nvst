@@ -2,6 +2,7 @@
 `Core\Router\Match::access` answers the matched route's `#[Access(allow: …)]` as the resolved name, `Core`'s own case and the application's alike, and interprets neither — `rule:security/access-is-checked-for-presence-not-meaning` `rule:routing/matching-is-not-dispatching`
 --FILE--
 <?nvs
+// covers: Core\Router\Match::access
 namespace App;
 
 enum Role { Admin, Editor }

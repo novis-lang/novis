@@ -1,0 +1,30 @@
+<?nvs
+// Shows that `params()` returns an empty array when the path has no captures.
+
+class Pages {
+    #[Core\Route(path: "/about", method: Core\Http\Method::Get, name: "Pages::about")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function about(): string { return "about us"; }
+
+    #[Core\Route(path: "/archive/{page?}", method: Core\Http\Method::Get, name: "Pages::archive")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function archive(uint $page = 1): string { return "the archive"; }
+}
+
+// `/about` has no captures, so this prints 0.
+?Core\Router\Match $about = Core\Router::match(Core\Http\Method::Get, "/about");
+if ($about != null) {
+    echo Core\Arr::count($about->params()), "\n";
+}
+
+// `{page?}` is optional. The path `/archive` has no page, so this prints 0 too.
+?Core\Router\Match $first = Core\Router::match(Core\Http\Method::Get, "/archive");
+if ($first != null) {
+    echo Core\Arr::count($first->params()), "\n";
+}
+
+// The path `/archive/3` has a page, so this prints 1.
+?Core\Router\Match $third = Core\Router::match(Core\Http\Method::Get, "/archive/3");
+if ($third != null) {
+    echo Core\Arr::count($third->params()), "\n";
+}

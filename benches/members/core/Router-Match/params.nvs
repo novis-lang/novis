@@ -1,0 +1,45 @@
+<?nvs
+// Reads every capture of a route match, as a program does when it writes a log line for a request.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Orders {
+    #[Core\Route(path: "/orders/{order}/items/{item}", method: Core\Http\Method::Get, name: "Orders::item")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function item(uint $order, uint $item): string { return "one item"; }
+
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string { return "all orders"; }
+}
+
+class Bench {
+    public static function loop(Core\Router\Match $two, Core\Router\Match $none, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which match this round reads.
+            if ($total % 2 == 0) {
+                $total = $total + 1 + Core\Arr::count($two->params());
+            } else {
+                $total = $total + 1 + Core\Arr::count($none->params());
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    public static function run(uint $rounds): uint {
+        ?Core\Router\Match $two = Core\Router::match(Core\Http\Method::Get, "/orders/1042/items/3");
+        ?Core\Router\Match $none = Core\Router::match(Core\Http\Method::Get, "/orders");
+        if ($two != null) {
+            if ($none != null) {
+                return Bench::loop($two, $none, $rounds);
+            }
+        }
+        return 0;
+    }
+}
+
+echo Bench::run(400000), "\n";

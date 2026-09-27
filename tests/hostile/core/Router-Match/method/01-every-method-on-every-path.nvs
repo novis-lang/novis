@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a visitor sends every HTTP method to every path, many times over.
+// Each match should be `null` or have the method of its route, and nothing may crash.
+
+class Tasks
+{
+    #[Core\Route(path: "/tasks", method: Core\Http\Method::Get, name: "Tasks::list")]
+    #[Core\Route(path: "/tasks", method: Core\Http\Method::Post, name: "Tasks::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string
+    { return 'all tasks'; }
+
+    #[Core\Route(path: "/tasks/{id}", method: Core\Http\Method::Delete, name: "Tasks::remove")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function remove(uint $id): string
+    { return 'removed'; }
+}
+
+array<Core\Http\Method> $methods = [
+    Core\Http\Method::Get, Core\Http\Method::Head, Core\Http\Method::Post, Core\Http\Method::Put,
+    Core\Http\Method::Patch, Core\Http\Method::Delete, Core\Http\Method::Options,
+];
+array<string> $paths = ['/tasks', '/tasks/1', '/tasks/', '/TASKS', '/tasks/1/2', ''];
+
+// 1. Every method on every path, ten thousand times. A match whose method is not
+// the method that was sent must be a `HEAD` that matched a `Get` route.
+uint $matched = 0;
+uint $wrong = 0;
+uint $round = 0;
+while ($round < 10000) {
+    foreach ($methods as Core\Http\Method $sent) {
+        foreach ($paths as string $path) {
+            ?Core\Router\Match $found = Core\Router::match($sent, $path);
+            if ($found != null) {
+                $matched = $matched + 1;
+                Core\Http\Method $got = $found->method();
+                if ($got != $sent && !($sent == Core\Http\Method::Head && $got == Core\Http\Method::Get)) {
+                    $wrong = $wrong + 1;
+                }
+            }
+        }
+    }
+    $round = $round + 1;
+}
+echo $matched, ' matched, ', $wrong, ' with the wrong method', "\n";

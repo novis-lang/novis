@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to allow a route only for users with one role.
+namespace App;
+
+enum Role { Editor }
+
+class Articles {
+    #[Core\Route(path: "/articles", method: Core\Http\Method::Get, name: "Articles::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string { return "all articles"; }
+
+    #[Core\Route(path: "/articles/edit", method: Core\Http\Method::Get, name: "Articles::edit")]
+    #[Core\Access(allow: Role::Editor)]
+    public function edit(): string { return "the editor"; }
+}
+
+class Guard {
+    // A public route is open to everyone. An editor route is open only to editors.
+    // Any other rule, and `null`, is denied.
+    public static function allows(?string $rule, bool $isEditor): bool {
+        if ($rule == "Core\\Audience::Public") {
+            return true;
+        }
+        if ($rule == "App\\Role::Editor") {
+            return $isEditor;
+        }
+        return false;
+    }
+}
+
+// A visitor who is not an editor. This prints `yes` and then `no`.
+array<string> $paths = ["/articles", "/articles/edit"];
+foreach ($paths as string $path) {
+    ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, $path);
+    if ($found != null) {
+        echo $path, ": ", Guard::allows($found->access(), false) ? "yes" : "no", "\n";
+    }
+}

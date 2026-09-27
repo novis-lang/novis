@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/articles/42
+--HEADERS--
+host: www.example.com

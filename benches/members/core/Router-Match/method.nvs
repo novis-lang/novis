@@ -1,0 +1,43 @@
+<?nvs
+// Reads the HTTP method of a route match, as one handler for a form does to choose between showing and saving it.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Newsletter {
+    #[Core\Route(path: "/newsletter", method: Core\Http\Method::Get, name: "Newsletter::signup")]
+    #[Core\Route(path: "/newsletter", method: Core\Http\Method::Post, name: "Newsletter::signup")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function signup(): string { return "the form"; }
+}
+
+class Bench {
+    public static function loop(Core\Router\Match $shown, Core\Router\Match $saved, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which match this round reads.
+            Core\Http\Method $method = $total % 2 == 0 ? $shown->method() : $saved->method();
+            if ($method == Core\Http\Method::Post) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    public static function run(uint $rounds): uint {
+        ?Core\Router\Match $shown = Core\Router::match(Core\Http\Method::Get, "/newsletter");
+        ?Core\Router\Match $saved = Core\Router::match(Core\Http\Method::Post, "/newsletter");
+        if ($shown != null) {
+            if ($saved != null) {
+                return Bench::loop($shown, $saved, $rounds);
+            }
+        }
+        return 0;
+    }
+}
+
+echo Bench::run(400000), "\n";

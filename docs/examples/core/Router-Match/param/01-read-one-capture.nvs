@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read one value that the route captured from the path.
+
+class Profiles {
+    #[Core\Route(path: "/users/{username}", method: Core\Http\Method::Get, name: "Profiles::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $username): string { return "one profile"; }
+}
+
+// The request is `GET /users/alice`.
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched != null) {
+    // `param("username")` returns the capture `{username}`. This prints `alice`.
+    echo $matched->param("username") as string, "\n";
+
+    // The route has no capture called `id`, so the result is `null`.
+    // This prints `no id`.
+    echo $matched->param("id") == null ? "no id" : "has id", "\n";
+}

@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/orders/1042/items/3
+--HEADERS--
+host: shop.example.com

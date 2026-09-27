@@ -1,0 +1,46 @@
+<?nvs
+// Reads the name of a route match, as a front controller does before it picks the method to call.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Shop {
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(uint $id): string { return "one product"; }
+
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Post)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): string { return "the cart"; }
+}
+
+class Bench {
+    public static function loop(Core\Router\Match $named, Core\Router\Match $unnamed, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which match this round reads.
+            ?string $name = $total % 2 == 0 ? $named->name() : $unnamed->name();
+            if ($name == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    public static function run(uint $rounds): uint {
+        ?Core\Router\Match $named = Core\Router::match(Core\Http\Method::Get, "/products/42");
+        ?Core\Router\Match $unnamed = Core\Router::match(Core\Http\Method::Post, "/cart");
+        if ($named != null) {
+            if ($unnamed != null) {
+                return Bench::loop($named, $unnamed, $rounds);
+            }
+        }
+        return 0;
+    }
+}
+
+echo Bench::run(400000), "\n";

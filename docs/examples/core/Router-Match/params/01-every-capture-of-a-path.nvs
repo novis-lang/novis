@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read every value that a route captured from the path.
+
+class Blog {
+    #[Core\Route(path: "/blog/{year}/{slug}", method: Core\Http\Method::Get, name: "Blog::post")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function post(uint $year, string $slug): string { return "one post"; }
+}
+
+?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, "/blog/2026/hello%20world");
+if ($found != null) {
+    // `params()` returns an array. Each key is the name in the route's path.
+    // `%20` is already decoded, so this prints `year: 2026` and `slug: hello world`.
+    foreach ($found->params() as string $name => mixed $value) {
+        echo $name, ": ", $value as string, "\n";
+    }
+}

@@ -15605,9 +15605,9 @@ no request here
 $match->name(): ?string
 ```
 
-The declared name of the route this request matched, as its `#[Route(name: …)]` wrote it — the same string `Core\Router::url` resolves and the `route` metric label carries.
+Returns the name of the matched route, as its `#[Route(name: …)]` writes it. `Core\Router::url` builds a link from the same name.
 
-**Returns** `?string` — The name, or `null` where the matched route declares none. Not `tainted`: it is the unit's own literal and not anything the request carried.
+**Returns** `?string` — The name, or `null` when the route has no name. The name is not `tainted`, because it comes from your program and not from the request.
 
 <a id="core-core-router-match-params"></a>
 #### `Core\Router\Match->params`
@@ -15616,9 +15616,9 @@ The declared name of the route this request matched, as its `#[Route(name: …)]
 $match->params(): array<tainted string|int|uint|decimal|Core\Uuid|Parses>
 ```
 
-Every capture the matched path filled, keyed by the parameter name it binds, in path order.
+Returns every value captured from the path, in the order of the path. Each key is the capture's name.
 
-**Returns** `array<tainted string|int|uint|decimal|Core\Uuid|Parses>` — An array of the captures. A `{name}` declared `string` answers `tainted string` and is still percent-encoded; one declared `int`, `uint`, `decimal` or `Core\Uuid` answers the value the match already converted, and a segment that would not convert never matched the route at all. One declared at any other class implementing `Parses` answers what that class's own `parse` made of the segment, which runs when this match is read: it matched on shape, so a segment the class refuses throws here rather than sending the request to another route. A route with no captures answers an empty array.
+**Returns** `array<tainted string|int|uint|decimal|Core\Uuid|Parses>` — An array of the captures. Each value is already percent-decoded, so `%20` is a space. Each value has the type of its handler parameter: `{id}` read by `uint $id` is a number. A `string` capture is `tainted`, because the request sent it. An optional capture that the path does not have is not in the array. A route with no captures returns an empty array.
 
 <a id="core-core-router-match-param"></a>
 #### `Core\Router\Match->param`
@@ -15627,13 +15627,13 @@ Every capture the matched path filled, keyed by the parameter name it binds, in 
 $match->param(string $name): ?tainted string|int|uint|decimal|Core\Uuid|Parses
 ```
 
-One capture by the parameter name it binds — `params()` read at one key, and the spelling a handler reaching for a single segment writes.
+Returns one value captured from the path, found by its name. It is the same value that `params()` has under that key.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The capture's name as the route's path declared it, without the braces. |
+| `$name` | `string` (neutral) | The capture's name as the route's path writes it, without the braces. |
 
-**Returns** `?tainted string|int|uint|decimal|Core\Uuid|Parses` — The capture, on `params()`'s terms, or `null` where the matched route declares no capture under that name — including an optional `{name?}` the request left off.
+**Returns** `?tainted string|int|uint|decimal|Core\Uuid|Parses` — The capture, with the type of its handler parameter. The result is `null` when the route has no capture with this name, and when an optional `{name?}` is not in the path.
 
 <a id="core-core-router-match-method"></a>
 #### `Core\Router\Match->method`
@@ -15642,9 +15642,9 @@ One capture by the parameter name it binds — `params()` read at one key, and t
 $match->method(): Core\Http\Method
 ```
 
-The verb the matched `#[Route]` declares. A method with two `#[Route]` attributes uses this to see which of the two matched.
+Returns the HTTP method of the matched route. A handler with two `#[Route]` attributes uses it to see which of the two matched.
 
-**Returns** `Core\Http\Method` — The `Core\Http\Method` case written in the route's `method:`.
+**Returns** `Core\Http\Method` — The `Core\Http\Method` case written in the route's `method:`. A `HEAD` request matches a `Get` route, so the result is `Core\Http\Method::Get`.
 
 <a id="core-core-router-match-access"></a>
 #### `Core\Router\Match->access`
@@ -15653,7 +15653,7 @@ The verb the matched `#[Route]` declares. A method with two `#[Route]` attribute
 $match->access(): ?string
 ```
 
-The access decision of the matched route: the full name of the constant written in its `#[Access(allow: …)]`. The server does not enforce it. A program that calls route methods checks it once, before it calls any of them.
+Returns the access rule of the matched route: the full name of the constant in its `#[Access(allow: …)]`. The server does not check it for you. A program that calls the route's handler checks it once, before that call.
 
 **Returns** `?string` — The name with its namespace, such as `Core\Audience::Public` or `App\Role::Admin`. Not `tainted`: it is the program's own text. Every route of a compiled program has one, so treat `null` as access denied.
 

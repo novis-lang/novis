@@ -1,0 +1,49 @@
+<?nvs
+// Reads the access rule of a route match, as a front controller does before it calls any handler.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+namespace App;
+
+enum Role { Admin }
+
+class Pages {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Pages::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Pages::admin")]
+    #[Core\Access(allow: Role::Admin)]
+    public function admin(): string { return "admin"; }
+}
+
+class Bench {
+    public static function loop(Core\Router\Match $open, Core\Router\Match $closed, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which match this round reads.
+            ?string $rule = $total % 2 == 0 ? $open->access() : $closed->access();
+            if ($rule == "Core\\Audience::Public") {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    public static function run(uint $rounds): uint {
+        ?Core\Router\Match $open = Core\Router::match(Core\Http\Method::Get, "/");
+        ?Core\Router\Match $closed = Core\Router::match(Core\Http\Method::Get, "/admin");
+        if ($open != null) {
+            if ($closed != null) {
+                return Bench::loop($open, $closed, $rounds);
+            }
+        }
+        return 0;
+    }
+}
+
+echo Bench::run(400000), "\n";
