@@ -1,0 +1,19 @@
+<?nvs
+// Reads every header of a request at once, as a program does to log a request or pass it on.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The headers are in the file `headers.nvsr` beside this one.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<array<tainted string>> $headers = Core\Request::headers();
+            $total = $total + Core\Arr::count($headers) + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

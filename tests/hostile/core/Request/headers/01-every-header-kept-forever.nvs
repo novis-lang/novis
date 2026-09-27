@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a client sends one name in many cases and on many lines, and the program keeps every copy.
+// All the lines of one name should be in one list. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Counts the names and the lines. `X-Trace` arrived in four cases, so it is one key.
+array<array<tainted string>> $headers = Core\Request::headers();
+uint $lines = 0;
+foreach ($headers as string $name => array<tainted string> $values) {
+    $lines = $lines + Core\Arr::count($values);
+}
+echo 'names: ', Core\Arr::count($headers), ', lines: ', $lines, "\n";
+
+// 2. Looks for the keys in their original case. Every key is lower case, so each one prints `missing`.
+array<string> $asked = ['X-Trace', 'X-TRACE', 'Content-Type', ''];
+foreach ($asked as string $name) {
+    echo $name, ': ', Core\Arr::hasKey($headers, $name) ? 'found' : 'missing', "\n";
+}
+
+// 3. Changes the copy the program received, then reads the headers again. They are unchanged.
+$headers['x-trace'] = ['changed'];
+echo 'x-trace lines: ', Core\Arr::count(Core\Request::headers()['x-trace']), "\n";
+
+// 4. Keeps every copy of all the headers without end. This stops at the memory limit.
+array<array<array<tainted string>>> $kept = [];
+while (true) {
+    $kept[] = Core\Request::headers();
+}

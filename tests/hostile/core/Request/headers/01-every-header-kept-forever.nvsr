@@ -1,0 +1,39 @@
+--METHOD--
+GET
+--PATH--
+/
+--HEADERS--
+host: example.com
+X-Trace: 1
+x-trace: 2
+X-TRACE: 3
+x-TrAcE: 4
+content-type: text/plain
+x-empty:
+x-commas: ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+x-long: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+x-a-01: 1
+x-a-02: 2
+x-a-03: 3
+x-a-04: 4
+x-a-05: 5
+x-a-06: 6
+x-a-07: 7
+x-a-08: 8
+x-a-09: 9
+x-a-10: 10
+x-a-11: 11
+x-a-12: 12
+x-a-13: 13
+x-a-14: 14
+x-a-15: 15
+x-a-16: 16
+x-a-17: 17
+x-a-18: 18
+x-a-19: 19
+x-a-20: 20
+X-A-01: 21
+X-A-02: 22
+X-A-03: 23
+X-A-04: 24
+X-A-05: 25

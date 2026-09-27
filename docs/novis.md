@@ -18251,15 +18251,15 @@ The query string read as the type `T` written at the call site — `Core\Arr::sh
 Core\Request::header(string $name): ?tainted string
 ```
 
-One request header by name, matched without regard to case — and where the peer sent the field more than once, its lines joined by `, ` as RFC 9110 § 5.3 defines them to be equivalent.
+Returns the value of one request header by its name. It replaces the `HTTP_` entries of PHP's `$_SERVER`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The field name, in any case — `Content-Type` and `content-type` are one question. |
+| `$name` | `string` (neutral) | The name of the header. Upper and lower case do not matter, so `Content-Type` and `content-type` are the same header. |
 
-**Returns** `?tainted string` — The field's value as it arrived, `tainted`, or `null` where the request carried no such field. `headers()` is the answer that keeps two lines of one name apart.
+**Returns** `?tainted string` — The value as a `tainted` string, exactly as it arrived. The result is `null` when the request has no header of that name. When the header arrived on more than one line, the values are joined with `, ` in the order they arrived. `headers()` returns each line on its own.
 
-**Throws** `LogicError` — This program is not answering a request.
+**Throws** `LogicError` — The program is not answering a request.
 
 <a id="core-core-request-headers"></a>
 #### `Core\Request::headers`
@@ -18268,11 +18268,11 @@ One request header by name, matched without regard to case — and where the pee
 Core\Request::headers(): array<array<tainted string>>
 ```
 
-Every header the request carried, keyed by the lower-cased field name, replacing `getallheaders` and the `HTTP_*` half of `$_SERVER`.
+Returns every header of the request, grouped by name. It replaces PHP's `getallheaders`.
 
-**Returns** `array<array<tainted string>>` — An `array<array<tainted string>>`: one key per distinct field name, holding one entry per field *line* in the order the peer sent them, so a repeated name keeps every value rather than the last. Empty where the request carried no headers at all.
+**Returns** `array<array<tainted string>>` — An `array<array<tainted string>>`. Each key is a header name in lower case. Its value is a list with one entry for each line of that header, in the order the lines arrived. The array is empty when the request has no headers.
 
-**Throws** `LogicError` — This program is not answering a request.
+**Throws** `LogicError` — The program is not answering a request.
 
 <a id="core-core-request-cookie"></a>
 #### `Core\Request::cookie`

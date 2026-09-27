@@ -1,0 +1,15 @@
+--METHOD--
+GET
+--PATH--
+/api/orders
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
+accept: text/html
+accept: application/json
+accept-language: de-DE,de;q=0.9,en;q=0.8
+accept-encoding: gzip, deflate, br
+authorization: Bearer s7f3a9c2e1
+x-request-id: 4f1c2b7e-9a3d-4e5f-8b6a-0c1d2e3f4a5b

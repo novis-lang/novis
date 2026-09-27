@@ -1,0 +1,15 @@
+<?nvs
+// Shows that a header sent on two lines keeps both values as two entries.
+
+array<array<tainted string>> $headers = Core\Request::headers();
+
+// The request has two `Accept` lines. The key is "accept", and its list has two entries.
+if (Core\Arr::hasKey($headers, "accept")) {
+    // This prints "2".
+    echo Core\Arr::count($headers["accept"]), "\n";
+
+    // This prints "text/html", then "application/json".
+    foreach ($headers["accept"] as tainted string $type) {
+        echo $type, "\n";
+    }
+}
