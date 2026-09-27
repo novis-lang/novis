@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--SCHEME--
+https
+--HEADERS--
+host: shop.example.com

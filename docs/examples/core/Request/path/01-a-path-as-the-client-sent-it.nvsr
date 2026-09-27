@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/docs/price%20list.pdf
+--HEADERS--
+host: shop.example.com

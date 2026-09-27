@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a client sends every header that claims `https`, and the program keeps every scheme it reads.
+// The scheme should stay "http". The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads the scheme. The request came over `http`, and the headers do not change that.
+tainted string $scheme = Core\Request::scheme();
+echo 'scheme: ', $scheme, "\n";
+
+// 2. Reads the scheme many times. Every read returns "http".
+uint $same = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Request::scheme() == 'http') {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo 'same answer: ', $same, "\n";
+
+// 3. Keeps every scheme without end. This stops at the memory limit.
+array<tainted string> $kept = [];
+while (true) {
+    $kept[] = Core\Request::scheme();
+}

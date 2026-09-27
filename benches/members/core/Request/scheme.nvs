@@ -1,0 +1,21 @@
+<?nvs
+// Reads the scheme of a request, as a program does before it builds a full address or sets a cookie.
+// bench: iterations 200000
+// bench: allocations 1
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The request is in the file `scheme.nvsr` beside this one.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            tainted string $scheme = Core\Request::scheme();
+            $total = $total + Core\Str::length($scheme) + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

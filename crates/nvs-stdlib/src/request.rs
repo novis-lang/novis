@@ -4419,6 +4419,7 @@ mod tests {
     /// carrier below, which is the bug
     /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`
     /// exists to close.
+    // covers: Core\Request::scheme
     #[test]
     fn scheme_answers_what_the_carrier_was_told_the_request_arrived_over() {
         assert_eq!(scheme_text(&from_peer(None, Scheme::Https, &[])), "https");
@@ -4434,6 +4435,42 @@ mod tests {
                 &[("X-Forwarded-Proto", "https")]
             )),
             "http"
+        );
+    }
+
+    /// The path is the remainder the door left after it took the mount's
+    /// prefix off, read back byte for byte. Percent-encoding is not decoded
+    /// here, so `%2F` stays three bytes and never becomes a separator.
+    // covers: Core\Request::path
+    #[test]
+    fn path_answers_the_remainder_the_carrier_holds_as_it_arrived() {
+        fn path_of(target: &str, prefix: &str) -> String {
+            let mut ctx = Ctx::buffered();
+            let mut inbound = Inbound::new("GET", target, "");
+            inbound.set_mount(prefix, &[]);
+            ctx.set_inbound(inbound);
+            nvs_runtime::call(crate::request::nvs_core_request_path, &mut ctx, &[])
+                .expect("a request is being answered")
+                .as_text()
+                .expect("`path()` answers a string")
+                .to_owned()
+        }
+
+        assert_eq!(
+            path_of("/orders", "/acme"),
+            "/orders",
+            "the prefix is `mount()`'s to report, never the path's"
+        );
+        assert_eq!(path_of("/", ""), "/");
+        assert_eq!(path_of("/files/a%2Fb", ""), "/files/a%2Fb");
+        assert!(
+            nvs_runtime::call(
+                crate::request::nvs_core_request_path,
+                &mut Ctx::buffered(),
+                &[]
+            )
+            .is_err(),
+            "a program answering no request has no path to read"
         );
     }
 

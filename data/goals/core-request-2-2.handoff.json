@@ -1,5 +1,5 @@
 {
-  "state": "A `.nvsr` request file can name a mount: `--MOUNT--`, the prefix on its first line and\none glob capture per line after it (`crates/nvs-test/src/request.rs`'s module doc).\n`nvs run --request` carries it to the carrier the way `nvs_server::mount::carry` does,\nso `/` reads as `\"\"`. A prefix no mount table could hold and a blank capture line are\nrefused.\n\n`Core\\Request::jsonAs`, `method` and `mount` owe nothing. `mount` has `about.md`, three\nexamples, an attack (`tests/hostile/core/Request/mount/`, a capture past the last one and\nthen every mount kept until the memory limit), a bench (6 allocations per read: the\ninstance, its array and the strings), and its Rust test carries `covers:`.\n\n`dossier-core-request-2-2` still fails on seven members: `path`, `query`, `queryAs`,\n`post`, `postAs`, `scheme` and `route`. Each owes examples, an attack and a bench, and\nmost owe a `covers:` marker on a Rust test.",
+  "state": "`Core\\Request::jsonAs`, `method`, `mount`, `scheme` and `path` owe nothing. `scheme` and\n`path` each have `about.md`, three examples, an attack and a bench declaring\n`allocations 1` and `calls 0` (both measured at 1.00 allocations per read). Each also has a\nRust test carrying `covers:`. `path`'s test (`path_answers_the_remainder_the_carrier_holds_as_it_arrived`)\nis new, because no Rust test called the member before.\n\n`dossier-core-request-2-2` still fails on five members: `query`, `queryAs`, `post`,\n`postAs` and `route`. Each owes examples, an attack and a bench, and most owe a `covers:`\nmarker on a Rust test. `query_as_reads_the_query_string_the_same_way` and the\n`post_as_*` tests (`crates/nvs-stdlib/src/request.rs:6879`, `:6822`) are the Rust tests\nto mark for `queryAs` and `postAs`.\n\nA `.nvsr` names the query with `--GET--` and a urlencoded body with `--POST--`\n(`crates/nvs-test/src/request.rs`'s module doc). `--PATH--` is the path after the mount\nprefix was removed.",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -12,21 +12,19 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::scheme`** — owes examples, hostile, perf and a `covers:` marker (`rule:testing/feature-proofs`). The Rust test is `crates/nvs-stdlib/src/request.rs:4423` and the member `crates/nvs-stdlib/src/request.rs:2511`. `--SCHEME--` in the `.nvsr` sets it."
+        "text": "**`Core\\Request::query`** — owes examples, hostile, perf and a `covers:` marker (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:2121`; `--GET--` in the `.nvsr` sets the query."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::path`** — owes examples, hostile, perf and a `covers:` marker (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:2109`; a `--MOUNT--` beside `--PATH--` shows the stripped path."
+        "text": "**`Core\\Request::queryAs`** — the same four; the member is `crates/nvs-stdlib/src/request.rs:2172` and its Rust test `crates/nvs-stdlib/src/request.rs:6879`."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::query`** — the same four; the member is `crates/nvs-stdlib/src/request.rs:2121`."
+        "text": "**`Core\\Request::post`** — the same four; the member is `crates/nvs-stdlib/src/request.rs:2264` and a Rust test to mark `crates/nvs-stdlib/src/request.rs:5902`."
       }
     ]
   },
   "backlog": [
-    "`queryAs`, `post`, `postAs`, `route` — the same proofs, after the group above (`rule:testing/feature-proofs`).",
-    "A `.nvsr` accepts any non-blank capture; a server only produces `[A-Za-z0-9._-]+` (`rule:http-server/a-mount-table-expands-at-boot`). Tightening the reader is optional — `crates/nvs-test/src/request.rs`.",
-    "An array index past the end throws `RuntimeError`; whether a narrower class belongs there is not checked — owner: the array module doc."
+    "`Core\\Request::postAs` (`crates/nvs-stdlib/src/request.rs:2309`) and `Core\\Request::route` (`crates/nvs-stdlib/src/request.rs:1992`) — the same four proofs; `rule:testing/feature-proofs`."
   ]
 }

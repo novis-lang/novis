@@ -1,0 +1,9 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--SCHEME--
+http
+--HEADERS--
+host: shop.example.com
+x-forwarded-proto: https
