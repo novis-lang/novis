@@ -1,0 +1,21 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.23
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=bnd
+--BODY_CRLF--
+--bnd
+Content-Disposition: form-data; name="file"; filename="../../../../../../etc/passwd"
+Content-Type: text/plain
+
+root:x:0:0:root:/root:/bin/sh
+--bnd
+Content-Disposition: form-data; name="file"; filename="..\..\..\Windows\win.ini"
+Content-Type: text/plain
+
+[fonts]
+--bnd--

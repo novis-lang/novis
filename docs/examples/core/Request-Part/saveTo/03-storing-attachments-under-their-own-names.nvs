@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a help desk stores the attachments of a ticket under the names the client sent.
+
+string $attachments = Core\IO::temporaryDir();
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    try {
+        // The client chooses the file name, so `saveTo` does not accept it directly.
+        // `Core\IO::within` throws a `RuntimeError` for a name that leaves the folder.
+        string $path = Core\IO::within($attachments, $part->filename());
+        // A file larger than 10000000 bytes throws a `RuntimeError`.
+        $part->saveTo($path, {max: 10000000});
+        echo 'stored ', $part->filename(), "\n";
+    } catch (RuntimeError $refused) {
+        echo 'refused ', $part->filename(), "\n";
+    }
+}

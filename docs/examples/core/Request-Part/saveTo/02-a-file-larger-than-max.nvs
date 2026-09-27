@@ -1,0 +1,16 @@
+<?nvs
+// Shows what happens when an uploaded file is larger than the size you allow.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'video.mp4');
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `max` is the largest size in bytes. A larger file throws a `RuntimeError`.
+    try {
+        $part->saveTo($path, {max: 20});
+        echo "the video was saved\n";
+    } catch (RuntimeError $tooLarge) {
+        echo "the video is larger than 20 bytes\n";
+    }
+}
+
+// The part that was already written is deleted. This prints "file exists: no".
+echo 'file exists: ', Core\IO::exists($path) ? 'yes' : 'no', "\n";

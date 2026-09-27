@@ -1,0 +1,14 @@
+--METHOD--
+POST
+--PATH--
+/reports
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=report-3a9d
+--BODY_CRLF--
+--report-3a9d
+Content-Disposition: form-data; name="report"; filename="weekly.txt"
+Content-Type: text/plain
+
+Week 12: 48 orders, 2 returns, 0 late.
+--report-3a9d--

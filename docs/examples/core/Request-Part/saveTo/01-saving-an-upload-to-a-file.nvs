@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to write an uploaded file to disk.
+
+string $folder = Core\IO::temporaryDir();
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    string $path = Core\Path::join($folder, 'report.txt');
+    // `saveTo` writes the file to `$path`. It keeps only a small piece in memory at a time.
+    $part->saveTo($path);
+    // This prints "saved 38 bytes" and then the content of the file.
+    echo 'saved ', Core\IO::size($path), " bytes\n";
+    echo Core\IO::readText($path), "\n";
+}

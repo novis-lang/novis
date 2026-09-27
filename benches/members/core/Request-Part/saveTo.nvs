@@ -1,0 +1,19 @@
+<?nvs
+// Writes an uploaded file to disk, as a handler does when it stores a document somebody sent.
+// bench: iterations 1
+
+class Bench
+{
+    public static function run(): uint
+    {
+        // The form is the body in the file `saveTo.nvsr` beside this one.
+        // A request body can be read only once.
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'handbook.txt');
+        foreach (Core\Request::files() as Core\Request\Part $part) {
+            $part->saveTo($path);
+        }
+        return Core\IO::size($path);
+    }
+}
+
+echo Bench::run() > 0 ? 'done' : 'no file was saved', "\n";
