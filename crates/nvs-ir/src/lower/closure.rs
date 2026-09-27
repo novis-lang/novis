@@ -241,14 +241,18 @@ pub(crate) fn lower_closure(
     match &fn_expr.body {
         // An expression body is an implicit `return` (`rule:types/closure-literal`), lowered
         // through the same path `StmtKind::Return` uses: retain if the value
-        // is a borrowed read, release the frame's locals, return.
+        // is a borrowed read, release the frame's locals, return. A body that
+        // is a `void` call, as in `fn (): void => Log::write($line)`, has no
+        // value: the id `lower_expr` hands back for it is defined by nothing,
+        // so the frame returns nothing, exactly as a block body does.
         FnBody::Expr(body) => {
             let (v, ty) = low.lower_expr(body, Some(*ret), &mut env, &mut cur);
             if ty.is_refcounted() && low.aliasing_read(body) {
                 low.emit_retain(cur, v);
             }
             low.release_all_locals(cur, &env, None);
-            low.seal(cur, Terminator::Return(Some(v)));
+            let value = (ty != Ty::Void).then_some(v);
+            low.seal(cur, Terminator::Return(value));
         }
         FnBody::Block(block) => {
             low.lower_stmts(&block.stmts, &mut cur, &mut env);
