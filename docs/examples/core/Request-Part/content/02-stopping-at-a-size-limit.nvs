@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to stop reading an uploaded file when it is too large.
+
+uint $limit = 32;
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    uint $size = 0;
+    foreach ($part->content() as tainted bytes $chunk) {
+        $size = $size + Core\Bytes::length($chunk);
+        // `break` stops reading this file. The next file can still be read.
+        if ($size > $limit) {
+            break;
+        }
+    }
+    if ($size > $limit) {
+        echo $part->filename(), ': larger than ', $limit, " bytes\n";
+    } else {
+        echo $part->filename(), ': ', $size, " bytes\n";
+    }
+}

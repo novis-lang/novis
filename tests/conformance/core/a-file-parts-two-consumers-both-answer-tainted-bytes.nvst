@@ -18,6 +18,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
     foreach ($part->content() as bytes $chunk) {
     }
 }
+// covers: Core\Request\Part::content, Core\Request\Part::readAll
 --EXPECT--
 
 --EXPECTF-ERROR--

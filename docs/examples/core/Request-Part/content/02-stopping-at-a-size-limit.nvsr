@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/messages/attachments
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=attach-81f0
+--BODY_CRLF--
+--attach-81f0
+Content-Disposition: form-data; name="attachment"; filename="long-letter.txt"
+Content-Type: text/plain
+
+Dear Ada, this letter is much longer than the limit of this form.
+--attach-81f0
+Content-Disposition: form-data; name="attachment"; filename="note.txt"
+Content-Type: text/plain
+
+See you on Monday.
+--attach-81f0--

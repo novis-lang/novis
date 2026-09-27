@@ -19,6 +19,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
     string $claimed = $part->filename();
     string $declared = $part->contentType();
 }
+// covers: Core\Request\Part::name, Core\Request\Part::filename, Core\Request\Part::contentType
 --EXPECT--
 
 --EXPECTF-ERROR--

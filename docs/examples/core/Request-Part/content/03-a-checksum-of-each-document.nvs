@@ -1,0 +1,13 @@
+<?nvs
+// Shows how a document service computes the checksum of each uploaded file.
+// The program never has a whole file in memory at once.
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `Core\Hash::stream` starts a SHA-256 digest that you can feed piece by piece.
+    Core\Hash\Stream $digest = Core\Hash::stream(Core\Digest::Sha256);
+    foreach ($part->content() as tainted bytes $chunk) {
+        $digest->update($chunk);
+    }
+    // `finish` returns the digest of every byte of this file.
+    echo $part->filename(), ' ', Core\Encoding::toHex($digest->finish()), "\n";
+}

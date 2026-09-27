@@ -1223,7 +1223,7 @@ const PART_ORDINAL: usize = 3;
 /// [`part_parse`], which is the one place the stamp is compared.
 pub(crate) const PART: CoreClass = CoreClass {
     name: PART_NAME,
-    doc: None,
+    doc: Some(&PART_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1293,6 +1293,15 @@ pub(crate) const PART: CoreClass = CoreClass {
     ],
     slots: &["name", "filename", "contentType", "ordinal"],
     constants: &[],
+};
+
+/// `Core\Request\Part`'s class card — `rule:core-api/reference-card`.
+const PART_CARD: ClassDoc = ClassDoc {
+    short: "One uploaded file, as the `Core\\Request::files()` loop gives it. `name()`, \
+            `filename()` and `contentType()` return what the client sent about the file, and all \
+            three are `tainted`. `readAll()` returns the content as one value, `content()` returns \
+            it in pieces, and `saveTo()` writes it to a file. Read the content before the loop \
+            moves to the next file.",
 };
 
 /// `Core\Request\Part::name`'s reference card — `rule:core-api/reference-card`.
@@ -5062,7 +5071,7 @@ mod tests {
     /// The receiver is driven by hand rather than by a `.nvst` `foreach`,
     /// because a case is a program with no request in front of it — the
     /// `ASSERTED_OFF_THE_CORPUS` reading `conformance_coverage.rs` owns.
-    // covers: Core\Request::files
+    // covers: Core\Request::files, Core\Request\Part::name, Core\Request\Part::filename, Core\Request\Part::contentType
     #[test]
     fn a_files_walk_yields_the_file_parts_and_drains_what_it_passes() {
         let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
@@ -5511,6 +5520,7 @@ mod tests {
     /// The receivers are driven by hand rather than by a `.nvst` `foreach`,
     /// because a case is a program with no request in front of it — the
     /// `ASSERTED_OFF_THE_CORPUS` reading `conformance_coverage.rs` owns.
+    // covers: Core\Request\Part::content
     #[test]
     fn a_parts_content_walks_the_bytes_of_the_part_the_walk_is_on() {
         let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
@@ -5636,6 +5646,7 @@ mod tests {
     ///
     /// No case can reach this: a `.nvst` program answers no request, so it has
     /// no part to send over a bound.
+    // covers: Core\Request\Part::readAll
     #[test]
     fn a_parts_read_all_holds_its_bound_on_both_sides() {
         const CONTENT: &[u8] = b"%PDF-1.4 and the rest of it";
@@ -5867,6 +5878,7 @@ mod tests {
     ///
     /// No case can reach this: a `.nvst` program answers no request, so it
     /// holds no part to write.
+    // covers: Core\Request\Part::saveTo
     #[test]
     fn save_to_writes_the_part_whole_and_defaults_to_not_replacing() {
         let mut arriving = saving(Chunks::of(UPLOAD));

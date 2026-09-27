@@ -15,6 +15,7 @@
 foreach (Core\Request::files() as Core\Request\Part $part) {
     $part->saveTo($part->filename());
 }
+// covers: Core\Request\Part::saveTo
 --EXPECT--
 
 --EXPECTF-ERROR--

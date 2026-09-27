@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=upload-5c1e
+--BODY_CRLF--
+--upload-5c1e
+Content-Disposition: form-data; name="invoice"; filename="invoice.pdf"
+Content-Type: application/pdf
+
+%PDF-1.7 a short invoice
+--upload-5c1e
+Content-Disposition: form-data; name="receipt"; filename="receipt.txt"
+Content-Type: text/plain
+
+Paid in full on 3 March.
+--upload-5c1e--

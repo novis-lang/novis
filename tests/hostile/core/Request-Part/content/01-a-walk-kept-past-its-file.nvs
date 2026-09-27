@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program keeps the content of a file after the loop moved to the next file,
+// and reads one file twice. Reading content that is gone should throw a `LogicError`.
+// The program then copies a piece without end. It should stop at its memory limit.
+// hostile: ends-early
+
+array<Core\Request\Part> $parts = [];
+array<Core\Request\PartContent> $walks = [];
+array<tainted bytes> $pieces = [];
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // 1. Keeps the file and its content, and does not read the content yet.
+    $parts[] = $part;
+    $walks[] = $part->content();
+
+    // 2. Reads the content of the same file twice.
+    uint $first = 0;
+    foreach ($part->content() as tainted bytes $chunk) {
+        $first = $first + Core\Bytes::length($chunk);
+        $pieces[] = $chunk;
+    }
+    uint $second = 0;
+    foreach ($part->content() as tainted bytes $chunk) {
+        $second = $second + Core\Bytes::length($chunk);
+    }
+    echo $part->filename(), ': ', $first, ' bytes, then ', $second, " bytes\n";
+}
+
+// 3. Reads the kept content of the first file. This throws a `LogicError`.
+try {
+    foreach ($walks[0] as tainted bytes $chunk) {
+        echo "old content was read\n";
+    }
+    echo "old content gave no error\n";
+} catch (LogicError $gone) {
+    echo "kept content: LogicError\n";
+}
+
+// 4. Asks the first file for its content again. This throws a `LogicError`.
+try {
+    $parts[0]->content();
+    echo "an old file gave its content\n";
+} catch (LogicError $gone) {
+    echo "old file: LogicError\n";
+}
+
+// 5. Copies the last piece and keeps every copy. This stops at the memory limit.
+array<tainted bytes> $copies = [];
+while (true) {
+    $copies[] = Core\Bytes::repeat($pieces[Core\Arr::count($pieces) - 1], 100000);
+}
