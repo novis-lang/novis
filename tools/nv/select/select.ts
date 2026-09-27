@@ -24,6 +24,7 @@ import { caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proof
 import { NV_TSC } from "./nvtests.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
 import { ANCHOR_ANY, CALLS_ANY, COVERS_ANY, markerKeys, scannedFor } from "../proofs/markers.ts";
+import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerSigns, PERF_ANY } from "../proofs/ledger.ts";
 import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
@@ -171,7 +172,9 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     if (!moved.has(key)) moved.set(key, origin);
   };
   const global = changes.find((c) => isGlobal(c.path))?.path ?? null;
-  for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) emit(k, { path: c.path, how: "path" });
+  // The perf ledger is read by its rows, so a change to it moves the `perf:` keys `scanKeys` names in
+  // place of its `file:` key.
+  for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) if (c.path !== LEDGER || k !== `file:${LEDGER}`) emit(k, { path: c.path, how: "path" });
   if (global) emit(WILD, { path: global, how: "global" });
   for (const [k, origin] of await scanKeys(store, changes, since, until, fromBase, root)) emit(k, origin);
 
@@ -281,24 +284,27 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
 }
 
 /** The meta key holding, for each path of the recorded overlay the proof scans read, the keys its
- * recorded text named (`markerKeys`). */
+ * recorded text named (`markerKeys`), and for the perf ledger the digest of each feature's rows. */
 const markersMeta = (platform: string) => `markers:${platform}`;
 
 /** What the proof scans read of one file's text (`text` null for a file that is not there): the
- * `covers:`, `calls:` and `anchor:` keys it names, and the signature of its class-name consts. */
+ * `covers:`, `calls:` and `anchor:` keys it names, and the signature of its class-name consts. For
+ * the perf ledger it is `rows`, the digest of each feature's rows (`ledgerSigns`). */
 interface Scanned {
   keys: string[];
   consts: string;
+  rows?: Record<string, string>;
 }
 
 function scanned(path: string, text: string | null): Scanned {
+  if (path === LEDGER) return { keys: [], consts: "", rows: ledgerSigns(text) };
   const anchor = isAnchorFile(path) ? anchorScan(path, text ?? "") : { keys: [], consts: "" };
   return { keys: [...(text === null ? [] : markerKeys(path, text)), ...(text === null ? [] : anchor.keys)], consts: anchor.consts };
 }
 
 const readByScans = (path: string) => {
   const s = scannedFor(path);
-  return s.markers || s.calls || isAnchorFile(path);
+  return s.markers || s.calls || isAnchorFile(path) || path === LEDGER;
 };
 
 /** Records, beside the overlay just recorded as the store's tree, what the proof scans read of each of
@@ -314,9 +320,11 @@ export function recordOverlayMarkers(store: SelectStore, overlay: Overlay, root:
   store.setMeta(markersMeta(store.platform), JSON.stringify(out));
 }
 
-/** The `covers:`, `calls:` and `anchor:` keys `changes` move: what each changed file the proof scans
- * read names in its text before and after. A file whose earlier text is not known moves every key of
- * each kind it is scanned for, and a file whose class-name consts changed moves every `anchor:` key. */
+/** The `covers:`, `calls:`, `anchor:` and `perf:` keys `changes` move: what each changed file the proof
+ * scans read names in its text before and after. A file whose earlier text is not known moves every
+ * key of each kind it is scanned for, and a file whose class-name consts changed moves every `anchor:`
+ * key. A change to the perf ledger moves `LEDGER_WHOLE` and the `perf:` key of each feature whose rows
+ * differ, or every `perf:` key when its earlier text is not known. */
 async function scanKeys(store: SelectStore, changes: Change[], since: string, until: string | null, fromBase: boolean, root: string): Promise<Map<string, Origin>> {
   const out = new Map<string, Origin>();
   const overlay = fromBase ? store.overlay() : {};
@@ -334,6 +342,12 @@ async function scanKeys(store: SelectStore, changes: Change[], since: string, un
     const before: Scanned | null = c.path in overlay ? (recorded[c.path] ?? null) : scanned(c.path, text(await blobAt(since, c.path, root)));
     const now = until ? text(await blobAt(until, c.path, root)) : existsSync(join(root, c.path)) ? readFileSync(join(root, c.path), "utf8") : null;
     const after = scanned(c.path, now);
+    if (c.path === LEDGER) {
+      out.set(LEDGER_WHOLE, origin);
+      if (before?.rows === undefined) out.set(PERF_ANY, origin);
+      else for (const k of ledgerMoved(before.rows, after.rows ?? {})) if (!out.has(k)) out.set(k, origin);
+      continue;
+    }
     if (before === null) {
       if (s.markers) out.set(COVERS_ANY, origin);
       if (s.calls) out.set(CALLS_ANY, origin);

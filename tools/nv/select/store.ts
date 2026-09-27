@@ -5,7 +5,7 @@
 //
 // | table | holds |
 // |---|---|
-// | `meta` | `schema`, the tree the store last recorded (`base:<platform>`), the `covws` build, each generated file's digest, and the `covers:` and `calls:` keys each overlay path's text named (`markers:<platform>`) |
+// | `meta` | `schema`, the tree the store last recorded (`base:<platform>`), the `covws` build, each generated file's digest, and the `covers:` and `calls:` keys each overlay path's text named, with the perf ledger's digest of each feature's rows (`markers:<platform>`) |
 // | `atoms` | one row per atom and platform: its kind, its definition's digest, its last verdict and run, and its own key list |
 // | `keys` | every key any footprint holds, numbered, with the digest it had when last recorded |
 // | `footprint` | `(key, atom)`: the reverse index a selection reads, keyed on the key |

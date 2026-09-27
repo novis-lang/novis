@@ -16,6 +16,7 @@ import { analyseAll, digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { comparePaths, splitlines } from "../lib/py.ts";
 import { noteKey, unrecorded } from "../lib/reads.ts";
+import { LEDGER, LEDGER_WHOLE, ledgerRows, perfKey } from "./ledger.ts";
 import { anchorKey, CALL_ROOTS, callsIn, callsKey, coversKey, MARKER_ROOTS, markersIn } from "./markers.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, implFile, namesIn, read, type Entry, type Kind } from "./roster.ts";
 
@@ -247,26 +248,14 @@ function scanCalls(): Map<string, string[]> {
   return out;
 }
 
-export const LEDGER = "docs/perf/members.ndjson";
+export { LEDGER };
 
-/** Every perf record, grouped by feature, oldest first. */
-export function ledgerRecords(): Map<string, Record<string, unknown>[]> {
-  const out = new Map<string, Record<string, unknown>[]>();
-  if (!existsSync(abs(LEDGER))) return out;
-  for (const raw of read(LEDGER).split("\n")) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    let rec: Record<string, unknown>;
-    try {
-      rec = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    const id = String(rec.id ?? "");
-    if (!out.has(id)) out.set(id, []);
-    out.get(id)!.push(rec);
-  }
-  return out;
+/** Every perf record, grouped by feature, oldest first. The ledger is read without recording the file.
+ * With `keyed` the caller names `perfKey` for each feature whose rows it uses; without it this names
+ * `LEDGER_WHOLE`, because the caller uses every row. */
+export function ledgerRecords(keyed = false): Map<string, Record<string, unknown>[]> {
+  if (!keyed) noteKey(LEDGER_WHOLE);
+  return unrecorded(() => (existsSync(abs(LEDGER)) ? ledgerRows(read(LEDGER)) : new Map()));
 }
 
 const sha12 = (text: string) => createHash("sha1").update(text, "utf8").digest("hex").slice(0, 12);
@@ -340,7 +329,7 @@ const sortedSet = (items: Iterable<string>) => [...new Set(items)].sort();
 export function collect(entries: Entry[]): Map<string, Proofs> {
   const markers = scanMarkers();
   const calls = scanCalls();
-  const perf = ledgerRecords();
+  const perf = ledgerRecords(true);
   const me = fingerprint().id;
   const hashes = implHashes(entries.map(implFile).filter((f) => f !== ""));
   const hashOf = (path: string) => hashes.get(path) ?? "";
@@ -382,6 +371,7 @@ export function collect(entries: Entry[]): Map<string, Proofs> {
       p.gaps.push(...programs(dir).sort(comparePaths).filter((f) => knownGap(read(f))));
     }
     if (existsSync(abs(benchFile(e)))) p.bench = benchFile(e);
+    noteKey(perfKey(e.id));
     const records = perf.get(e.id) ?? [];
     const mine = records.filter((r) => r.machine === me);
     p.perf = mine.at(-1) ?? null;
