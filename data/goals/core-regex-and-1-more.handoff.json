@@ -1,26 +1,27 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Regex and 1 more has been taken yet.",
+  "state": "Goal `core-regex-and-1-more`. `Core\\Regex::compile` owes nothing, and `Core\\Regex` has its class\ncard. `Core\\Regex::match` has all its proofs; its attack is marked with gap\n`nvs-stdlib/a-regex-match-over-thousands-of-groups-ends-in-an-empty-fatal` (a pattern of 5000 groups\nends `nvs run` with an empty `FATAL:`), so it counts as a known gap. `matchAll` is next, and its\ncard is still in the old voice. `Core\\Regex\\Match` and `Core\\Regex\\Pattern` are still listed in\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "the `Core\\Regex` members",
+    "files": [
+      "crates/nvs-stdlib/src/regex.rs",
+      "docs/examples/core/Regex/",
+      "tests/hostile/core/Regex/",
+      "benches/members/core/Regex/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Regex::compile`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:112`"
+        "text": "**`Core\\Regex::matchAll`** — owes about, examples, hostile, perf and a Rust test with `// covers: Core\\Regex::matchAll` (`rule:testing/feature-proofs`). Rewrite `MATCH_ALL_DOC` in the plain voice the way `MATCH_DOC` now reads. Its attack must not reuse the 5000-group pattern outside the gap's marker. `crates/nvs-stdlib/src/regex.rs:291` `crates/nvs-stdlib/src/regex.rs:1529`"
       },
       {
         "done": false,
-        "text": "**`Core\\Regex::match`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:133`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Regex::matchAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/regex.rs:146`"
+        "text": "**Regenerate the reference and record the row** — `bun nv reference --no-examples` after any card edit, `bun nv proofs --record-perf --only 'Core\\Regex::matchAll'` after the last `regex.rs` edit. `crates/nvs-stdlib/src/regex.rs:146`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "Gap `nvs-stdlib/a-regex-match-over-thousands-of-groups-ends-in-an-empty-fatal`: whether the stop is inside the engine or on the CLI's panic arm is not yet read — the gap record owns it.",
+    "`Core\\Regex\\Match` and `Core\\Regex\\Pattern` class cards — `crates/nvs-stdlib/src/registry.rs` `CLASSES_STILL_OWING_A_CARD`."
   ]
 }
