@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/regex.rs",
-  "title": "`Core\\Regex::match` with a pattern of thousands of groups ends the program with a `FATAL:` that carries no message.",
-  "text": "`tests/hostile/core/Regex/match/01-far-positions-and-many-groups.nvs` step 2 matches a pattern of 5000 `(a)` groups against 5000 `a`s. Called from a `-p nvs-stdlib` test the same call succeeds with `Ctx::memory_used` at about 2.4 GB, which is the linear engine's per-state slot table for that many capture slots; under `nvs run` the process instead prints `FATAL:` and an empty message, where a plain loop past the same ceiling prints `the request exceeded its memory limit — …`. Checking `Ctx::memory_breach` in `nvs_core_regex_match` after the engine returns does not change the output, so the stop happens inside the engine call or on the CLI's panic arm (`crates/nvs-cli/src/main.rs`, `FATAL: {panic.message()}`), and which one is not yet read. Closing it is two parts: the stop names the memory limit as every other one does, and `match` and `matchAll` refuse in front of the engine a search whose capture-slot cost the request cannot afford, through `nvs_runtime::affordable`.",
-  "milestone": "M12"
-}
