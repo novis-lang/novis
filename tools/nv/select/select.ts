@@ -64,18 +64,23 @@ export interface ChangeSet {
   /** The tree the change was read at, for the store to record once a run over it is green; absent for
    * a change replayed from history. */
   tree?: { commit: string; overlay: Overlay };
-  /** A change that stands for everything: the store had no tree to compare with, and `view` is a scan
-   * of every Rust file. */
+  /** A change that stands for everything, and `view` is a scan of every Rust file: the store had no
+   * tree to compare with, or the scanner itself changed. */
   full?: boolean;
 }
 
 /** The workspace graph as the closure's scope: a file's package is the one whose directory holds it. */
 export function graphScope(graph: Graph | null): Scope {
-  if (!graph) return { pkgOf: () => null, sees: () => true };
+  if (!graph) return { pkgOf: () => null, sees: () => true, modDir: () => null };
   const dirs = [...graph.values()].map((p) => [p.dir, p.name] as const).sort((a, b) => b[0].length - a[0].length);
+  const roots = new Set([...graph.values()].flatMap((p) => p.targets.map((t) => t.src)));
   const cache = new Map<string, string | null>();
   const deps = new Map<string, Set<string>>();
   return {
+    modDir(file) {
+      if (roots.has(file) || file.endsWith("/mod.rs")) return file.slice(0, file.lastIndexOf("/") + 1);
+      return `${file.replace(/\.rs$/, "")}/`;
+    },
     pkgOf(file) {
       if (cache.has(file)) return cache.get(file)!;
       const hit = dirs.find(([d]) => d === "" || d === "." || file === d || file.startsWith(`${d}/`));
@@ -205,8 +210,11 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     itemChanges.push(...d.changes);
   }
 
-  // The tree as the closure reads it: the stored scan, with every changed file as it is now.
-  const view = new Map(files);
+  // The tree as the closure reads it: the stored scan, with every changed file as it is now. A change
+  // to the scanner leaves every stored scan in its old shape, so the whole tree is scanned again and
+  // the store keeps that scan once the run is recorded.
+  const rescan = !until && global !== null && global.startsWith("tools/nv-scan/");
+  const view = rescan ? new Map(scanItems(await rustFiles(root), root).map((f) => [f.file, f])) : new Map(files);
   for (const f of rust) {
     const now = after.get(f);
     if (now) view.set(f, now);
@@ -259,6 +267,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     changes,
     moved,
     global,
+    ...(rescan ? { full: true } : {}),
     rustFiles: rust.length,
     itemChanges: itemChanges.length,
     wideFiles,

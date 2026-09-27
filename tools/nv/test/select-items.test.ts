@@ -139,10 +139,37 @@ describe("the item diff and the reference-graph closure", () => {
     tree.put(a, "pub const SHARED: u8 = 2;\n");
     const head = scanned([a, b]);
     const d = diffFile(base.get(a)!, head.get(a)!);
-    const apart: Scope = { pkgOf: (f) => f.split("/")[1]!, sees: (user, owner) => user === owner };
+    const apart: Scope = { pkgOf: (f) => f.split("/")[1]!, sees: (user, owner) => user === owner, modDir: () => null };
     expect([...closure(d.changes, new Universe(head, apart)).keys()]).toEqual(["fn:crates/a/src/lib.rs#SHARED"]);
-    const depends: Scope = { pkgOf: (f) => f.split("/")[1]!, sees: () => true };
+    const depends: Scope = { pkgOf: (f) => f.split("/")[1]!, sees: () => true, modDir: () => null };
     expect([...closure(d.changes, new Universe(head, depends)).keys()]).toContain("fn:crates/b/src/lib.rs#reads");
+  });
+
+  test("a private item is reached from its own module's files, a pub(crate) one from its package, and vendored code from neither", () => {
+    const regex = "crates/std/src/regex.rs";
+    const child = "crates/std/src/regex/tier.rs";
+    const sibling = "crates/std/src/http.rs";
+    const other = "crates/app/src/lib.rs";
+    const vendored = "vendor/lib/src/lib.rs";
+    tree.put(regex, "enum Piece { A }\npub(crate) struct Tier;\n");
+    tree.put(child, "fn piece() -> super::Piece { super::Piece::A }\n");
+    tree.put(sibling, "struct Piece;\nfn tier() -> Tier { Tier }\nfn own() -> Piece { Piece }\n");
+    tree.put(other, "pub fn tier() -> Tier { Tier }\n");
+    tree.put(vendored, "pub fn piece(p: Piece) {}\n");
+    const files = [regex, child, sibling, other, vendored];
+    const base = scanned(files);
+    tree.put(regex, "enum Piece { A, B }\npub(crate) struct Tier(u8);\n");
+    const head = scanned(files);
+    expect(head.get(regex)!.items.map((i) => i.scope)).toEqual(["private", "crate"]);
+    const d = diffFile(base.get(regex)!, head.get(regex)!);
+    const pkg = (f: string) => (f.startsWith("vendor/") ? null : f.split("/")[1]!);
+    const scope: Scope = { pkgOf: pkg, sees: () => true, modDir: (f) => `${f.replace(/\.rs$/, "")}/` };
+    const moved = [...closure(d.changes, new Universe(head, scope)).keys()];
+    expect(moved).toContain(`fn:${child}#piece`);
+    expect(moved).toContain(`fn:${sibling}#tier`);
+    expect(moved).not.toContain(`fn:${sibling}#own`);
+    expect(moved).not.toContain(`fn:${other}#tier`);
+    expect(moved).not.toContain(`fn:${vendored}#piece`);
   });
 
   test("a test-only class table moves no class, and a file that does not parse is taken whole", () => {

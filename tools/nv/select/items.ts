@@ -22,6 +22,13 @@
 // - any other item (a const, a static, a struct, an enum, a type alias) moves every item that names
 //   it, in its own package and in the packages that depend on it, and so on until a `fn` is reached.
 //
+// An item is reached only from where Rust lets its name resolve to the item that moved. A `private`
+// item (`scope`) is named from its own module's files alone, and a `crate` item from its own package;
+// another file's item of the same name is another item. A file of no package (vendored code, a tool
+// with a workspace of its own) names no item of the workspace, except under `fuzz/`, whose targets
+// depend on the workspace's crates. A `macro_rules!` is scoped by where it is defined and exported, not
+// by `scope`, and keeps the package rule alone.
+//
 // An item compiled only for tests (`test`) is never a card or a class row a program reads: its cards,
 // classes and rows are ignored and it moves what names it, like any other item. A test that was added
 // is in no footprint yet; `select.ts` moves its package's `tests:` key for it.
@@ -81,10 +88,14 @@ export interface Scope {
   pkgOf(file: string): string | null;
   /** Whether code of `user` can name items of `owner`: the same package, or one that depends on it. */
   sees(user: string, owner: string): boolean;
+  /** The prefix every file of `file`'s module and the modules inside it starts with: `a/b/` for
+   * `a/b.rs`, and the file's own directory for a crate root or a `mod.rs`. Null when the crate roots
+   * are not known, and then a private item is reached as a `crate` one. */
+  modDir(file: string): string | null;
 }
 
 /** Every package sees every other: the scope a caller without the workspace graph uses. */
-export const OPEN_SCOPE: Scope = { pkgOf: () => null, sees: () => true };
+export const OPEN_SCOPE: Scope = { pkgOf: () => null, sees: () => true, modDir: () => null };
 
 interface Placed {
   file: string;
@@ -195,9 +206,13 @@ export function closure(changes: ItemChange[], universe: Universe, wideFiles: st
       for (const p of universe.naming(name)) {
         if (p.file === from.file && p.item.id === from.item.id) continue;
         if (sameFile && p.file !== from.file) continue;
-        if (!sameFile && owner !== null) {
+        if (!sameFile && owner !== null && p.file !== from.file) {
           const user = universe.scope.pkgOf(p.file);
-          if (user !== null && !universe.scope.sees(user, owner)) continue;
+          if (user === null ? !p.file.startsWith("fuzz/") : !universe.scope.sees(user, owner)) continue;
+          const scope = from.item.kind === "macro-rules" ? undefined : from.item.scope;
+          if (scope !== undefined && user !== owner) continue;
+          const dir = scope === "private" ? universe.scope.modDir(from.file) : null;
+          if (dir !== null && !p.file.startsWith(dir)) continue;
         }
         queue.push({ file: p.file, item: p.item, how: "reached", via: `${from.file}#${from.item.id}`, viaClasses });
       }

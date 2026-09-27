@@ -34,6 +34,11 @@
 //!   names a `use` binds (`*` for a glob), and for a macro invocation the identifiers its body spells
 //!   in a defining position (`nvs_core_math_sqrt` in `unary_float! { nvs_core_math_sqrt, .. }`),
 //!   which is how a function a macro generated maps back to the invocation that named it.
+//! - `scope` says who may name a free item of the file (a `fn`, `const`, `static`, `struct`, `enum`,
+//!   `union`, `type` or `trait`) when that is narrower than `pub`: `private` for no visibility or
+//!   `pub(self)`, which is its own module and the modules inside it, and `crate` for `pub(crate)`,
+//!   `pub(super)` or `pub(in ..)`, which is at most its own package. It is left out for a `pub` item
+//!   and for every other kind of item, and a reader takes a missing `scope` as `pub`.
 //! - `class` is set on a `const` or `static` whose value names a `Core` class: a struct literal whose
 //!   `name` field is a class name, or a class name itself, directly or through another const, in
 //!   this file or another file of the batch. `rows` is set on a `const` or `static` whose value is
@@ -158,6 +163,7 @@ struct Out {
     refs: BTreeSet<String>,
     defines: Vec<String>,
     parent: Option<usize>,
+    scope: &'static str,
     includes: Vec<String>,
     value: Option<Ref>,
     class: Vec<String>,
@@ -283,6 +289,7 @@ impl Walker<'_> {
         };
         for item in items {
             let span = item.span();
+            let first = self.out.len();
             match item {
                 Item::Fn(f) => {
                     let name = f.sig.ident.to_string();
@@ -562,6 +569,9 @@ impl Walker<'_> {
                     );
                 }
             }
+            if let (Some(scope), Some(out)) = (scope_of(item), self.out.get_mut(first)) {
+                out.scope = scope;
+            }
         }
     }
 
@@ -629,6 +639,7 @@ impl Walker<'_> {
             refs,
             defines,
             parent,
+            scope: "",
             includes,
             value: None,
             class: Vec::new(),
@@ -1243,6 +1254,29 @@ impl FileScan {
     }
 }
 
+/// Who may name `item` when that is narrower than `pub`: `private` or `crate`, as the module doc says.
+/// None for a `pub` item and for a kind of item that carries no `scope`.
+fn scope_of(item: &Item) -> Option<&'static str> {
+    let vis = match item {
+        Item::Fn(x) => &x.vis,
+        Item::Const(x) => &x.vis,
+        Item::Static(x) => &x.vis,
+        Item::Struct(x) => &x.vis,
+        Item::Enum(x) => &x.vis,
+        Item::Union(x) => &x.vis,
+        Item::Type(x) => &x.vis,
+        Item::TraitAlias(x) => &x.vis,
+        Item::Trait(x) => &x.vis,
+        _ => return None,
+    };
+    match vis {
+        syn::Visibility::Public(_) => None,
+        syn::Visibility::Restricted(r) if r.path.is_ident("self") => Some("private"),
+        syn::Visibility::Restricted(_) => Some("crate"),
+        syn::Visibility::Inherited => Some("private"),
+    }
+}
+
 fn list<'a>(names: impl IntoIterator<Item = &'a String>) -> String {
     let quoted: Vec<String> = names.into_iter().map(|n| quote_json(n)).collect();
     format!("[{}]", quoted.join(","))
@@ -1263,6 +1297,9 @@ impl Out {
         );
         if let Some(parent) = self.parent {
             s.push_str(&format!(r#","parent":{}"#, quote_json(&all[parent].id)));
+        }
+        if !self.scope.is_empty() {
+            s.push_str(&format!(r#","scope":"{}""#, self.scope));
         }
         if !self.includes.is_empty() {
             s.push_str(&format!(r#","includes":{}"#, list(&self.includes)));

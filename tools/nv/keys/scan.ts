@@ -112,6 +112,8 @@ export interface Item {
   refs: string[];
   defines: string[];
   parent?: string;
+  /** Who may name the item when that is narrower than `pub`; missing means `pub`. */
+  scope?: "private" | "crate";
   includes?: string[];
   class?: string[];
   rows?: ItemRow[];
