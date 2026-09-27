@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the parts of a web server log line by their names.
+
+// Each `(?<name>...)` is a group with a name. `group("status")` reads it by that name.
+Core\Regex\Pattern $line = Core\Regex::compile('^(?<method>[A-Z]+) (?<path>\S+) (?<status>\d{3})$');
+
+array<string> $log = ["GET /orders/42 200", "POST /cart 500", "not a request"];
+foreach ($log as string $entry) {
+    var $m = Core\Regex::match($entry, $line);
+    if ($m == null) {
+        echo "skipped: ", $entry, "\n";
+    } else {
+        echo $m->group("status"), " for ", $m->group("method"), " ", $m->group("path"), "\n";
+    }
+}

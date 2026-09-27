@@ -1,0 +1,21 @@
+<?nvs
+// Shows the two cases where `group` has no text: an optional group, and a group that does not exist.
+
+// `(\.\d+)?` is optional. In "42" it does not match, so group 2 is `null`.
+array<string> $prices = ["42.50", "42"];
+foreach ($prices as string $price) {
+    var $m = Core\Regex::match($price, '^(\d+)(\.\d+)?$');
+    if ($m != null) {
+        echo $price, ": whole part ", $m->group(1), ", fraction ", $m->group(2) ?? "none", "\n";
+    }
+}
+
+// The pattern has only two groups, so asking for group 3 throws an error.
+var $short = Core\Regex::match("42", '^(\d+)(\.\d+)?$');
+if ($short != null) {
+    try {
+        echo $short->group(3) ?? "null", "\n";
+    } catch (RuntimeError $e) {
+        echo "error: ", $e->message, "\n";
+    }
+}

@@ -1,0 +1,28 @@
+<?nvs
+// Reads one named group of a match, as a program does after it matched a log line or a URL.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lines = ["GET /a 200", "POST /orders 201", "DELETE /cart/7 404"];
+        array<Core\Regex\Match> $found = [];
+        foreach ($lines as string $line) {
+            var $m = Core\Regex::match($line, '^(?<method>[A-Z]+) (?<path>\S+) (?<status>\d+)$');
+            if ($m != null) {
+                $found[] = $m;
+            }
+        }
+        array<string> $keys = ["method", "path"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which match and which group are read comes from last round's total.
+            ?string $part = $found[($total % 3) as int]->group($keys[($total % 2) as int]);
+            $total = $total + Core\Str::length($part ?? "") + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

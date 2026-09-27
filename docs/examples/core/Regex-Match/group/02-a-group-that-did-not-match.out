@@ -1,0 +1,3 @@
+42.50: whole part 42, fraction .50
+42: whole part 42, fraction none
+error: Core\Regex\Match::group(): the pattern declares no group `3`

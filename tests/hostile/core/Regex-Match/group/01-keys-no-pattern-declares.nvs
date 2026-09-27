@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a program reads groups that the pattern does not have. The keys are very
+// large numbers, very long names and names close to a real one. Each call should throw an error.
+
+class Ask
+{
+    public static function group(Core\Regex\Match $m, int|string $key): string
+    {
+        try {
+            return $m->group($key) ?? 'null';
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+var $first = Core\Regex::match('key=value', '(?<name>\w+)=(\w+)(;)?');
+if ($first != null) {
+    Core\Regex\Match $m = $first;
+
+    // 1. Numbers one past the last group, below zero, and at both ends of `int`.
+    // Group 3 is declared but did not match, so it prints "null". The rest print "error".
+    echo Ask::group($m, 3), ' ', Ask::group($m, 4), ' ', Ask::group($m, -1), "\n";
+    echo Ask::group($m, 9223372036854775807), ' ', Ask::group($m, -9223372036854775807 - 1), "\n";
+
+    // 2. Names that are close to a real name, empty, or contain a zero byte.
+    // Each one prints "error".
+    array<string> $names = ['Name', 'name ', '', "name\0", '01', '+1', ' 1'];
+    foreach ($names as string $name) {
+        echo Ask::group($m, $name), ' ';
+    }
+    echo "\n";
+
+    // 3. A name of one million characters. The error message repeats the name,
+    // so it is large. This prints "error".
+    echo Ask::group($m, Core\Str::repeat('n', 1000000)), "\n";
+
+    // 4. 200000 calls, half of them throwing. Every result and every error is freed.
+    // This prints 100000.
+    uint $found = 0;
+    int $i = 0;
+    while ($i < 200000) {
+        if (Ask::group($m, $i % 2 == 0 ? 'name' : 'missing') != 'error') {
+            $found = $found + 1;
+        }
+        $i = $i + 1;
+    }
+    echo $found, "\n";
+}
