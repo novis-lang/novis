@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { stepNames, summaries } from "../cmd/verify.ts";
-import { wayOut } from "../keys/escape.ts";
+import { stepNames, summaries, targetFilters } from "../cmd/verify.ts";
+import { wayOut, wideWhy } from "../keys/escape.ts";
 
 describe("wayOut", () => {
   test("a source that opens nothing outside its package has no way out", () => {
@@ -82,6 +82,18 @@ describe("summaries", () => {
   test("a case tree run over batches is summed by its last line, and says how many of the tree were selected", () => {
     const out = "12 of 400 case(s) of tests/conformance selected\n8 passed, 0 failed, 0 skipped\n4 passed, 0 failed, 0 skipped\n\n12 passed, 0 failed, 0 skipped\n";
     expect(summaries.cases!(out)).toBe("12 passed, 0 failed  (12 of 400 selected)");
+  });
+});
+
+describe("the test build", () => {
+  test("the chosen binaries become target filters, one `--lib` for every library and never a `-p`", () => {
+    const names = ["nvs-ir lib nvs_ir", "nvs-cli bin nvs", "nvs-cli test agent", "nvs-lsp lib nvs_lsp", "nvs-fmt test agent"];
+    expect(targetFilters(names)).toEqual(["--bin", "nvs", "--lib", "--test", "agent"]);
+    expect(targetFilters([])).toEqual([]);
+  });
+
+  test("a binary the run did not build is not judged", () => {
+    expect(wideWhy({ name: "nvs-ir test refusals", owner: "nvs-ir", exe: "", reads: undefined, known: true })).toBeNull();
   });
 });
 

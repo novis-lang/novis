@@ -435,6 +435,7 @@ function staleData(data: Map<string, Set<string>>): string[] {
 export interface Judged {
   name: string;
   owner: string;
+  /** Its executable, or "" when the run asking did not build it. */
   exe: string;
   /** Its recorded run-time reads, or `undefined` when no run has recorded any. */
   reads: string[] | undefined;
@@ -442,10 +443,12 @@ export interface Judged {
   known: boolean;
 }
 
-/** Why a binary is wide, "" when it is narrow, or `null` when it cannot be judged yet: it reads
- * through `nvs_repo` and no run has recorded what, which the run asking is about to do. */
+/** Why a binary is wide, "" when it is narrow, or `null` when it cannot be judged yet: the run asking
+ * did not build it, or it reads through `nvs_repo` and no run has recorded what, which the run asking
+ * is about to do. */
 export function wideWhy(b: Judged): string | null {
   if (!b.known) return `no workspace package is named ${JSON.stringify(b.owner)}`;
+  if (!b.exe) return null;
   const sources = depInfo(b.exe);
   if (sources === null) return "its dep-info could not be read";
   const how = escapes(sources);

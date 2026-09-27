@@ -57,14 +57,17 @@
 // either one rewrites a file the change is read again, and an atom that ran before the rewrite and is
 // selected again counts as not run.
 //
-// `test` runs the selected binaries `cargo test --no-run` names side by side, as many at a time as there
-// are cores, the slowest of the last run first, each with libtest threads in proportion to its last
-// time, and the doc-tests beside them when they are selected. A binary that fails is run a second time,
-// alone: a binary that passes alone shares a port, a path or a container with another, and is reported
-// red with that diagnosis rather than retried into green. A binary not selected prints the `test
-// result:` line of its last green run. Each binary runs with a compile cache and a temporary directory
-// of its own, and every `nvs` it starts records into its footprint. An unscoped run fails on a wide
-// binary `tools/data/impact-wide.txt` does not list, and on a listed one that is narrow now
+// `test` builds the selected binaries with `cargo test --no-run` and the target filters that name them
+// (`--lib`, `--bin <name>`, `--test <name>`), never a `-p`, so a change to a library every binary links
+// relinks only the binaries that run; the workspace graph names the rest. Without a graph, and under
+// `--no-cache`, it builds every one. It runs them side by side, as many at a time as there are cores,
+// the slowest of the last run first, each with libtest threads in proportion to its last time, and the
+// doc-tests beside them when they are selected. A binary that fails is run a second time, alone: a
+// binary that passes alone shares a port, a path or a container with another, and is reported red with
+// that diagnosis rather than retried into green. A binary not selected prints the `test result:` line
+// of its last green run. Each binary runs with a compile cache and a temporary directory of its own, and
+// every `nvs` it starts records into its footprint. An unscoped run fails on a wide binary among those
+// it built that `tools/data/impact-wide.txt` does not list, and on a listed one that is narrow now
 // (`tools/nv/keys/escape.ts`), from the paths its footprint says it asked `nvs_repo` for.
 //
 // Two stretches run at the same time and are still judged in list order. The script steps read nothing
@@ -361,13 +364,29 @@ async function fmtKeys(): Promise<Keyed> {
 
 const FLAGS: Record<string, string> = { lib: "--lib", bin: "--bin", test: "--test", example: "--example", bench: "--bench" };
 
-/** `cargo test --no-run` on `covws`, as every workspace test binary's job, or `[null, output]` when it
- * fails. A `-p` never goes on the build: it narrows which binaries run, off the one build. */
-async function buildTestJobs(): Promise<[Job[] | null, string]> {
+/** The cargo target filters that build the test binaries `names` (`<package> <kind> <target>`) and as
+ * few others as a filter can: `--lib` builds every package's library tests, since a filter cannot name
+ * one package, and `--test <name>` builds that target in every package that has one. */
+export function targetFilters(names: string[]): string[] {
+  const flags = new Set<string>();
+  for (const n of names) {
+    const [, kind, target] = n.split(" ");
+    if (kind === "lib") flags.add("--lib");
+    else if (kind && target && FLAGS[kind]) flags.add(`${FLAGS[kind]} ${target}`);
+  }
+  return [...flags].sort().flatMap((f) => f.split(" "));
+}
+
+/** `cargo test --no-run` on `covws`, as the job of each test binary it built, or `[null, output]` when
+ * it fails. With `filters` it builds only the targets they name, and with none nothing at all; with
+ * `null` it builds every workspace test binary. A `-p` never goes on the build, since it would resolve
+ * features over one package and build a second copy of the workspace. */
+async function buildTestJobs(filters: string[] | null): Promise<[Job[] | null, string]> {
+  if (filters !== null && filters.length === 0) return [[], ""];
   const { env, args } = covwsCargo();
   let p;
   try {
-    p = await proc(["cargo", "test", "--no-run", ...args, "--message-format=json-render-diagnostics"], { env, timeoutMs: STEP_TIMEOUT_MS, onLine: cargoDetail("test") });
+    p = await proc(["cargo", "test", "--no-run", ...args, ...(filters ?? []), "--message-format=json-render-diagnostics"], { env, timeoutMs: STEP_TIMEOUT_MS, onLine: cargoDetail("test") });
   } catch (e) {
     return [null, `could not run \`cargo test --no-run\`: ${(e as Error).message}`];
   }
@@ -418,15 +437,19 @@ const RERUN_ALONE_PASSED = (name: string) =>
 /** The `test` step: the selected binaries and, when selected, the doc-tests. */
 async function runTests(r: Run, s: Step): Promise<[number, string]> {
   const pkg = r.opts.package;
-  const [all, note] = await buildTestJobs();
+  const chosen = new Set(testsToRun(r));
+  // With the graph, every test binary is named without a build, so only the chosen ones are built.
+  // Without it, or with `--no-cache`, every one is built and every one the graph does not name runs.
+  const narrow = r.graph !== null && !r.opts.noCache;
+  const [all, note] = await buildTestJobs(narrow ? targetFilters([...chosen]) : null);
   if (all === null) return [1, note];
   const nvs = covwsNvs();
-  const built = new Set(all.map((j) => j.name));
-  // A test atom whose binary the build no longer makes is gone.
-  if (!pkg) for (const a of r.store.atoms("test")) if (!built.has(a.id.slice(5))) r.store.removeAtom(a.id);
-  const scoped = all.filter((j) => !pkg || j.owner === pkg);
-  const chosen = new Set(testsToRun(r));
-  let jobs = scoped.filter((j) => r.opts.noCache || chosen.has(j.name) || !r.testNames.has(j.name));
+  const exists = narrow ? r.testNames : new Set(all.map((j) => j.name));
+  // A test atom whose binary the workspace no longer has is gone.
+  if (!pkg) for (const a of r.store.atoms("test")) if (!exists.has(a.id.slice(5))) r.store.removeAtom(a.id);
+  const ownerOf = (name: string) => name.split(" ")[0]!;
+  const scoped = [...exists].filter((n) => !pkg || ownerOf(n) === pkg);
+  let jobs = all.filter((j) => (!pkg || j.owner === pkg) && (r.opts.noCache || chosen.has(j.name) || !r.testNames.has(j.name)));
   const docs = !pkg && picked(r, DOC_TESTS);
   const docDir = join(r.rec.dir, "doctests");
   if (docs) {
@@ -516,7 +539,9 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   // Unscoped runs only: the wide list is the workspace's, and `-p` sees one package's.
   if (!pkg && r.graph) {
     const reads = testReads(r.store);
-    wide = findings(scoped.map((j) => ({ name: j.name, owner: j.owner, exe: j.argv[0]!, reads: reads.get(j.name), known: r.graph!.has(j.owner) })));
+    const exe = new Map(all.map((j) => [j.name, j.argv[0]!]));
+    // A binary this run did not build is judged by the next run that builds it.
+    wide = findings(scoped.map((n) => ({ name: n, owner: ownerOf(n), exe: exe.get(n) ?? "", reads: reads.get(n), known: r.graph!.has(ownerOf(n)) })));
   }
 
   const times: Record<string, number> = { ...last };
@@ -526,7 +551,7 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   // Passing binaries first, by name, so the tail a red step prints is the failures.
   const names = new Set(failed.map((j) => j.name));
   const out: string[] = note ? [note] : [];
-  const held = scoped.filter((j) => !results.has(j.name)).map((j) => j.name).sort();
+  const held = scoped.filter((n) => !results.has(n)).sort();
   if (held.length) out.push(`${held.length} of ${scoped.length} test binaries not re-run: the change reaches nothing each one ran`);
   for (const n of held) out.push(`     Unchanged ${n}\n${testGreen(r.store, n)?.result ?? ""}`);
   for (const n of [...results.keys()].sort()) if (!names.has(n)) out.push(`     Running ${n}\n${results.get(n)![2]}`);
