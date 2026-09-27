@@ -462,9 +462,11 @@ not the unattended one every measurement over the ledger assumes.
   line; Enter sends, Esc cancels. Without a console, write the text to `.loop/say`: it is delivered and
   the file deleted. The agent reads the message at its next step, inside the same run — no restart, no
   lost tool call. It works because a session is started with `--input-format stream-json`, its prompt
-  and pack going down stdin as the first message, and the driver closes stdin on the `result` event,
-  which is what lets such a session exit. The text is kept in the session's log as a `loop_prompt`
-  event.
+  and pack going down stdin as the first message, and the driver closes stdin on the session's last
+  `result` event, which is what lets such a session exit. A `result` that arrives while a background
+  task of the session's still runs is not the last one: the CLI starts the next turn when the task
+  ends, so stdin stays open for it, up to a cap. The text is kept in the session's log as a
+  `loop_prompt` event.
 
 ## The run
 

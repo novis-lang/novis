@@ -4,8 +4,13 @@
 // `loop_pack` record, the pack's size and the goal, which `loop-stats` fits the pack's cost from.
 //
 // The opening message is the session prompt with the pack behind it, the order the CLI itself puts an
-// argv prompt and a piped stdin in. Stdin stays open until the terminal `result` event, because it is
-// the channel a later message to the session would use. The child's environment is this process's with
+// argv prompt and a piped stdin in. Stdin stays open until the session's last `result`, because it is the
+// channel a later message to the session would use, and the CLI does not exit while it is open. The last
+// `result` is one that arrives while no harness background task is live, which `StdinGate` decides from
+// the stream's `background_tasks_changed` events. A turn that ends while a task of its own still runs is
+// waiting on it: the CLI starts the next turn by itself when the task ends, and closing stdin first would
+// kill the task and end the session unwrapped. The wait has a cap and a grace, both on `StdinGate`, and a
+// Ctrl-C or a halt reaches the child during it as they do during a turn. The child's environment is this process's with
 // `extraEnv` over it, less `NOVIS_LOOP_RUN`: that variable tells a turn it belongs to the run holding
 // `.loop/running`, and a session that inherited it would say the same of a `bun nv loop` it typed.
 //
@@ -18,7 +23,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { ROOT } from "../lib/paths.ts";
-import { say } from "./console.ts";
+import { C, say } from "./console.ts";
 
 /** The environment variable that names the run; `driver/respawn.ts` sets it for every turn. */
 export const RUN_ENV = "NOVIS_LOOP_RUN";
@@ -67,8 +72,68 @@ export interface Launched {
   code: number;
   /** The `session_id` off the `system`/`init` event, or "" when none arrived. */
   sessionId: string;
-  /** The terminal `result` event, or null when the stream ended without one. */
+  /** The session's last `result` event, or null when the stream ended without one. */
   result: Record<string, unknown> | null;
+}
+
+/** How long past a `result` stdin stays open for the session's background tasks, at most. */
+export const BACKGROUND_WAIT_MS = 30 * 60 * 1000;
+/** How long stdin stays open once the tasks have ended and no next turn has started. */
+export const FOLLOW_UP_GRACE_MS = 2 * 60 * 1000;
+
+/**
+ * When `launch` closes the child's stdin. `feed` takes each event and says whether this one ends the
+ * session: a `result` with no background task live. A `result` with tasks live starts a wait instead, and
+ * `due` says when the wait is over although no such `result` came: the cap, counted from the first
+ * `result` that waited, or the grace after the last task ended with no next turn started.
+ */
+export class StdinGate {
+  /** The task ids the latest `background_tasks_changed` listed. */
+  live: string[] = [];
+  /** When the first waiting `result` came, in ms; null while the session has not waited. */
+  waitingSince: number | null = null;
+  /** When the tasks were last seen to end while no turn ran, in ms; null otherwise. */
+  private idleSince: number | null = null;
+  private turnRunning = true;
+
+  constructor(
+    readonly capMs = BACKGROUND_WAIT_MS,
+    readonly graceMs = FOLLOW_UP_GRACE_MS,
+  ) {}
+
+  get waiting(): boolean {
+    return !this.turnRunning && this.waitingSince !== null;
+  }
+
+  /** True when `e` is the session's last `result` and stdin should close now. */
+  feed(e: Record<string, any>, now: number): boolean {
+    if (e.type === "system" && e.subtype === "background_tasks_changed") {
+      this.live = Array.isArray(e.tasks) ? e.tasks.map((t: any) => String(t?.task_id ?? "")) : [];
+      if (this.live.length === 0 && !this.turnRunning) this.idleSince = now;
+      return false;
+    }
+    if (e.type === "result") {
+      this.turnRunning = false;
+      if (this.live.length === 0) return true;
+      this.waitingSince ??= now;
+      this.idleSince = null;
+      return false;
+    }
+    // Anything the model produces means the next turn has started.
+    if (e.type === "assistant" || (e.type === "system" && e.subtype === "init")) {
+      this.turnRunning = true;
+      this.idleSince = null;
+    }
+    return false;
+  }
+
+  /** Why the wait is over although no last `result` came, or "" while it goes on. */
+  due(now: number): string {
+    if (!this.waiting || this.waitingSince === null) return "";
+    if (now - this.waitingSince >= this.capMs) return `its background task(s) ${this.live.join(", ")} ran past the ${Math.round(this.capMs / 1000)}s wait`;
+    if (this.idleSince !== null && now - this.idleSince >= this.graceMs) return `its background tasks ended and no next turn started within ${Math.round(this.graceMs / 1000)}s`;
+    return "";
+  }
 }
 
 /** The running child as `onStart` gets it: its pid, a line down its stdin, and whether stdin is still open. */
@@ -91,6 +156,7 @@ export async function launch(
   onEvent: (e: Record<string, any>) => void,
   extraEnv: Record<string, string> = {},
   onStart?: (child: Started) => void,
+  gate = new StdinGate(),
 ): Promise<Launched> {
   mkdirSync(dirname(log), { recursive: true });
   appendFileSync(log, `${JSON.stringify({ type: "loop_pack", ...pack })}\n`);
@@ -137,21 +203,31 @@ export async function launch(
       return;
     }
     if (!sessionId && e.type === "system" && e.subtype === "init") sessionId = String(e.session_id ?? "");
-    if (e.type === "result") {
-      result = e;
-      close();
-    }
+    if (e.type === "result") result = e;
+    const wasWaiting = gate.waiting;
+    if (gate.feed(e, Date.now())) close();
+    else if (gate.waiting && !wasWaiting) say(`   the turn ended with background task(s) ${gate.live.join(", ")} running -- stdin stays open for the turn their end starts`, C.CYAN, true);
     onEvent(e);
   };
-  for await (const chunk of child.stdout) {
-    pending += decoder.decode(chunk, { stream: true });
-    let nl: number;
-    while ((nl = pending.indexOf("\n")) >= 0) {
-      take(pending.slice(0, nl).replace(/\r$/, ""));
-      pending = pending.slice(nl + 1);
+  const watch = setInterval(() => {
+    const why = open ? gate.due(Date.now()) : "";
+    if (!why) return;
+    say(`   closing the session's stdin: ${why}`, C.YELLOW, true);
+    close();
+  }, 1000);
+  try {
+    for await (const chunk of child.stdout) {
+      pending += decoder.decode(chunk, { stream: true });
+      let nl: number;
+      while ((nl = pending.indexOf("\n")) >= 0) {
+        take(pending.slice(0, nl).replace(/\r$/, ""));
+        pending = pending.slice(nl + 1);
+      }
     }
+    take(pending);
+  } finally {
+    clearInterval(watch);
   }
-  take(pending);
   close();
   return { code: await child.exited, sessionId, result };
 }
