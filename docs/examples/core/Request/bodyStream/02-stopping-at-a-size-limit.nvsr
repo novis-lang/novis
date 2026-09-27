@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/comments
+--HEADERS--
+content-type: text/plain; charset=utf-8
+--BODY--
+This comment is far too long for the small comment box on the product page, so the service stops reading it.

@@ -1,0 +1,11 @@
+--METHOD--
+PUT
+--PATH--
+/backups/2026-09-27.csv
+--HEADERS--
+content-type: text/csv
+--BODY--
+order,customer,total
+1042,Blog Ltd,19.90
+1043,Shop GmbH,4.50
+1044,Framework Inc,120.00

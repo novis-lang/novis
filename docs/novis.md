@@ -18358,11 +18358,11 @@ The request body hydrated into an instance of `T` — `Core\Json::decodeAs` over
 Core\Request::bodyStream(): Core\Request\BodyStream
 ```
 
-The request body as a walk over its chunks — the streaming way of reading one, for a body too large to want resident and for a program that can work as the bytes arrive.
+Returns the request body in pieces, in the order they arrive. Use it for a large body that you do not want in memory all at once.
 
-**Returns** `Core\Request\BodyStream` — An `Iterable<tainted bytes>` a `foreach` walks once, yielding each chunk as it comes off the wire. A chunk boundary is the wire's and carries no meaning. The walk is empty where the request carried no body.
+**Returns** `Core\Request\BodyStream` — A value that a `foreach` loop reads once. Each piece is a `tainted bytes` value. How the body is split has no meaning. The loop runs zero times when the request has no body.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `files` — the three are exclusive on one request, and naming this walk is the reading.
+**Throws** `LogicError` — The program is not answering a request. Or `body`, `bytes`, `json`, `files` or `bodyStream` already read the body. After this call, those methods throw this error too.; `IOError` — The connection failed while the loop read the body. The pieces before the failure are still given to the loop.
 
 <a id="core-core-request-files"></a>
 #### `Core\Request::files`

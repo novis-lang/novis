@@ -728,18 +728,24 @@ const JSON_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::bodyStream`'s reference card — `rule:core-api/reference-card`.
 const BODY_STREAM_DOC: MethodDoc = MethodDoc {
-    short: "The request body as a walk over its chunks — the streaming way of reading one, for a \
-            body too large to want resident and for a program that can work as the bytes arrive.",
+    short: "Returns the request body in pieces, in the order they arrive. Use it for a large body \
+            that you do not want in memory all at once.",
     params: &[],
-    ret: "An `Iterable<tainted bytes>` a `foreach` walks once, yielding each chunk as it comes off \
-          the wire. A chunk boundary is the wire's and carries no meaning. The walk is empty where \
-          the request carried no body.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "This program is not answering a request, or this request's body has already been \
-               read by `body` or `files` — the three are exclusive on one request, and naming this \
-               walk is the reading.",
-    }],
+    ret: "A value that a `foreach` loop reads once. Each piece is a `tainted bytes` value. How the \
+          body is split has no meaning. The loop runs zero times when the request has no body.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The program is not answering a request. Or `body`, `bytes`, `json`, `files` \
+                   or `bodyStream` already read the body. After this call, those methods throw \
+                   this error too.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the loop read the body. The pieces before the \
+                   failure are still given to the loop.",
+        },
+    ],
 };
 
 /// `Core\Request::files`'s reference card — `rule:core-api/reference-card`.
@@ -4727,6 +4733,7 @@ mod tests {
     /// The receiver is driven by hand rather than by a `.nvst` `foreach`,
     /// because a case is a program with no request in front of it — the
     /// `ASSERTED_OFF_THE_CORPUS` reading `conformance_coverage.rs` owns.
+    // covers: Core\Request::bodyStream
     #[test]
     fn a_body_stream_yields_the_chunks_the_wire_delivered() {
         let pieces: &[&[u8]] = &[b"h\xc3\xa9llo \xe2\x80", b"\x94 and the rest"];

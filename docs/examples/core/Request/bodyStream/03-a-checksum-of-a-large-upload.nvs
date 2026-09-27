@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a file service computes the checksum of an upload while it arrives.
+// The program never needs the whole file in memory at once.
+
+// `Core\Hash::stream` starts a SHA-256 digest that you can feed piece by piece.
+Core\Hash\Stream $digest = Core\Hash::stream(Core\Digest::Sha256);
+uint $size = 0;
+
+foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+    // `update` adds this piece to the digest. The piece is then no longer needed.
+    $digest->update($chunk);
+    $size = $size + Core\Bytes::length($chunk);
+}
+
+// `finish` returns the digest of every byte that arrived.
+// It is the same checksum that `Core\Hash::of` gives for the whole file.
+echo "stored ", $size, " bytes\n";
+echo "sha-256 ", Core\Encoding::toHex($digest->finish()), "\n";

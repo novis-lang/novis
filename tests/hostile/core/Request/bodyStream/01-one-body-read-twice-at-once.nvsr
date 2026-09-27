@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/uploads
+--HEADERS--
+content-type: application/octet-stream
+--BODY--
+PK....a small archive whose pieces the program tries to read twice....

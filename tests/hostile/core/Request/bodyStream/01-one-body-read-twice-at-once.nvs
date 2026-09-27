@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program reads the same request body twice at the same time, and then keeps
+// copies of it without end. Each second read should throw an error or read nothing.
+// The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Asks for the body in pieces twice. The second call throws a `LogicError`.
+Core\Request\BodyStream $stream = Core\Request::bodyStream();
+try {
+    Core\Request::bodyStream();
+    echo "a second bodyStream was allowed\n";
+} catch (LogicError $refused) {
+    echo "second bodyStream: LogicError\n";
+}
+
+// 2. Walks the stream inside a walk of the same stream. Each piece arrives once.
+array<tainted bytes> $kept = [];
+foreach ($stream as tainted bytes $outer) {
+    $kept[] = $outer;
+    foreach ($stream as tainted bytes $inner) {
+        $kept[] = $inner;
+    }
+}
+uint $total = 0;
+foreach ($kept as tainted bytes $piece) {
+    $total = $total + Core\Bytes::length($piece);
+}
+echo 'read ', $total, " bytes\n";
+
+// 3. Walks the stream again after it ended. The loop runs zero times.
+foreach ($stream as tainted bytes $late) {
+    echo "a piece arrived after the end\n";
+}
+
+// 4. Reads the whole body after the stream read it. This throws a `LogicError`.
+try {
+    Core\Request::body();
+    echo "body after bodyStream was allowed\n";
+} catch (LogicError $refused) {
+    echo "body after bodyStream: LogicError\n";
+}
+
+// 5. Makes large copies of the first piece and keeps all of them.
+//    This stops at the memory limit.
+array<tainted bytes> $copies = [];
+while (true) {
+    $copies[] = Core\Bytes::repeat($kept[0], 100000);
+}

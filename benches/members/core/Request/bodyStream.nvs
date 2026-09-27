@@ -1,0 +1,18 @@
+<?nvs
+// Reads an uploaded file in pieces and adds up its size, as a handler does before it stores a large upload.
+// bench: iterations 1
+// bench: allocations 2
+
+class Bench {
+    public static function run(): uint {
+        // The upload is the body in the file `bodyStream.nvsr` beside this one.
+        // A request body can be read in pieces only once.
+        uint $total = 0;
+        foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+            $total = $total + Core\Bytes::length($chunk);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run() > 0 ? "done" : "no body was read", "\n";
