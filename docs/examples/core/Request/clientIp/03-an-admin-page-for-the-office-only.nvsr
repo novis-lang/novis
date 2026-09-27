@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/admin
+--CLIENT_IP--
+2001:0db8:0000::0001
+--HEADERS--
+host: example.com

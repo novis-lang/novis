@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `Core\Request::clientIp` returns when the request has no address.
+// This happens, for example, when the request arrives over a Unix socket.
+
+?tainted string $address = Core\Request::clientIp();
+
+// The result is `null`. It is never an empty string.
+if ($address == null) {
+    echo "the request has no address\n";
+} else {
+    echo "the request came from ", $address, "\n";
+}

@@ -568,21 +568,19 @@ const HEADERS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::cookie`'s reference card — `rule:core-api/reference-card`.
 const COOKIE_DOC: MethodDoc = MethodDoc {
-    short: "One cookie by name, matched **byte for byte** — no dot, space or bracket is \
-            substituted in either direction, which is what PHP's `$_COOKIE` mangling did and \
-            CVE-2024-2756 is.",
+    short: "Returns the value of one cookie by its name. It replaces PHP's `$_COOKIE`.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The cookie's name, exactly as it was written — the match is case-sensitive and \
-               substitutes nothing.",
+        desc: "The name of the cookie, exactly as it was set. Upper and lower case are different, \
+               and `a.b` and `a_b` are two different cookies.",
         shape: &[],
     }],
-    ret: "The cookie's value as it arrived, `tainted` and undecoded, or `null` where the request \
-          carried no such cookie. A `__Host-` name that arrived more than once is `null` as well: \
-          a browser holds at most one, so two did not come from one.",
+    ret: "The value as a `tainted` string, exactly as it arrived. Nothing is decoded. The result \
+          is `null` when the request has no cookie of that name. When the name starts with \
+          `__Host-` and the cookie arrived twice, the result is `null` too.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request.",
+        desc: "The program is not answering a request.",
     }],
 };
 
@@ -859,18 +857,16 @@ const POST_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::clientIp`'s reference card — `rule:core-api/reference-card`.
 const CLIENT_IP_DOC: MethodDoc = MethodDoc {
-    short: "The address this request came from, as the trusted-proxy walk settled it: the socket \
-            peer, unless a peer listed in `[server] trusted_proxies` asserted otherwise in \
-            `X-Forwarded-For`.",
+    short: "Returns the network address of the client that sent this request. Behind a proxy that \
+            is listed in `[server] trusted_proxies`, the address comes from `X-Forwarded-For`.",
     params: &[],
-    ret: "The address in its own text form, `tainted` — or `null` where the request genuinely \
-          arrived with no address to report, which a Unix-socket peer that forwarded nothing and \
-          a trusted hop that withheld it both do. Never `\"\"` and never `\"0.0.0.0\"`: those \
-          would be a repair of a fact that is missing.",
+    ret: "The address as a `tainted` string, such as `203.0.113.7` or `2001:db8::1`. An IPv6 \
+          address is always in its short form. The result is `null` when the request has no \
+          address, for example over a Unix socket.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request — a CLI program, a scheduled script, a job \
-               worker or a test.",
+        desc: "The program is not answering a request. For example, it is a command-line \
+               program, a job or a test.",
     }],
 };
 
@@ -4316,6 +4312,7 @@ mod tests {
     /// four cookies here. This is CVE-2024-2756 asked as a test — the mangling
     /// is what let a name a browser would not give the `__Host-` meaning become
     /// one that had it.
+    // covers: Core\Request::cookie
     #[test]
     fn a_cookie_name_is_matched_byte_for_byte() {
         let inbound = carrying(&[("Cookie", "a.b=dotted; a_b=scored; a b=spaced; ab=bare")]);
@@ -4391,6 +4388,7 @@ mod tests {
     /// The address is the carrier's, in one spelling per address, and `None`
     /// stays `None`: a peer that had no address to report is a fact this
     /// module reports rather than one it fills in.
+    // covers: Core\Request::clientIp
     #[test]
     fn client_ip_answers_the_peer_the_carrier_holds() {
         let v4 = from_peer(Some(IpAddr::from([203, 0, 113, 7])), Scheme::Http, &[]);

@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a client sends forged `X-Forwarded-For` headers to choose its own address.
+// `clientIp` should still return the address of the connection, and the program
+// should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads the address. The forged headers name 127.0.0.1, which is not the result.
+?tainted string $first = Core\Request::clientIp();
+echo 'client: ', $first ?? 'none', "\n";
+
+// 2. Reads the address many times. Every result is the same.
+uint $different = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Request::clientIp() != $first) {
+        $different = $different + 1;
+    }
+    $i = $i + 1;
+}
+echo 'different results: ', $different, "\n";
+
+// 3. Keeps every result without end. This stops at the memory limit.
+array<?tainted string> $kept = [];
+while (true) {
+    $kept[] = Core\Request::clientIp();
+}

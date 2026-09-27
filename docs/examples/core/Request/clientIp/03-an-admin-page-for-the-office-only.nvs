@@ -1,0 +1,23 @@
+<?nvs
+// Shows how an admin page accepts only requests from the addresses of the office.
+
+array<string> $office = ["203.0.113.8", "2001:db8::1"];
+
+// The request came from 2001:0db8:0000::0001. `clientIp` returns the short form.
+// With no address, `??` gives the empty string, which is not in the list.
+tainted string $address = Core\Request::clientIp() ?? "";
+
+// This loop checks the address against each address of the office.
+bool $allowed = false;
+foreach ($office as string $known) {
+    if ($address == $known) {
+        $allowed = true;
+    }
+}
+
+// This prints "admin page for 2001:db8::1".
+if ($allowed) {
+    echo "admin page for ", $address, "\n";
+} else {
+    echo "403 Forbidden\n";
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Reads the address of the client, as a handler does before it writes a log line or counts logins.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The address is in the file `clientIp.nvsr` beside this one.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            tainted string $address = Core\Request::clientIp() ?? "";
+            $total = $total + Core\Str::length($address);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
