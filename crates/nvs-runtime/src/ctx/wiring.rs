@@ -181,7 +181,7 @@ impl Ctx {
             body_stream: None,
             event_stream: None,
             status: None,
-            headers: Vec::new(),
+            headers: DeclaredHeaders::default(),
             inbound: None,
             stmt_hits: Vec::new(),
             counted_stmts: 0,

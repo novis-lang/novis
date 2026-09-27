@@ -13,6 +13,8 @@
 //! § 5's captures, and the content type, status and headers a request declares
 //! back, sit beside them because each is a decision about the same response.
 
+use std::collections::HashMap;
+
 use super::*;
 
 /// The `Core` class a captured terminal sink hands its bytes back as —
@@ -776,22 +778,7 @@ impl Ctx {
     /// header line cannot carry before it calls here, so a second check would
     /// be a second answer to a question that has one.
     pub fn declare_header(&mut self, name: &str, value: &str) {
-        let mut replaced = false;
-        self.headers.retain_mut(|already| {
-            if !already.name.eq_ignore_ascii_case(name) {
-                return true;
-            }
-            if replaced {
-                return false;
-            }
-            replaced = true;
-            already.value = value.into();
-            already.append = false;
-            true
-        });
-        if !replaced {
-            self.headers.push(DeclaredHeader::set(name, value));
-        }
+        self.headers.set(name, value);
     }
 
     /// A second value under a name that may already carry one — spec § 15's
@@ -808,14 +795,14 @@ impl Ctx {
     /// What a name and a value may be is the calling member's to enforce, for
     /// the reason [`Self::declare_header`] gives.
     pub fn append_header(&mut self, name: &str, value: &str) {
-        self.headers.push(DeclaredHeader::add(name, value));
+        self.headers.add(name, value);
     }
 
     /// Takes the declared headers away, leaving the context with none — the
     /// finish path's third call, made once beside [`Self::take_status`].
     #[must_use]
     pub fn take_headers(&mut self) -> Vec<DeclaredHeader> {
-        std::mem::take(&mut self.headers)
+        self.headers.take()
     }
 
     /// Takes everything written so far, if this context buffers its output.
@@ -877,6 +864,68 @@ impl DeclaredHeader {
             value: value.into(),
             append: true,
         }
+    }
+}
+
+/// The rows a request declared, in declaration order, with an index from each
+/// name to the rows that carry it.
+///
+/// The index is what keeps one declaration constant-time. Without it,
+/// [`Ctx::declare_header`] compares against every row already declared, so a
+/// program declaring many distinct names spends time quadratic in their count
+/// while holding only a few bytes per row — the memory ceiling never trips, and
+/// the request runs for minutes. A row [`Ctx::declare_header`] drops becomes a
+/// `None` rather than being removed, so the positions the index holds stay
+/// valid, and [`Self::take`] is the one place the holes are skipped.
+///
+/// **What it spends:** per request, one lower-cased copy of each distinct
+/// name and one position per row, beside the rows themselves; one `None` per
+/// row dropped. All of it is charged to that request's budget.
+#[derive(Debug, Default)]
+pub(crate) struct DeclaredHeaders {
+    /// Every row, in the order it was first declared.
+    rows: Vec<Option<DeclaredHeader>>,
+    /// Each name, ASCII-lower-cased because RFC 9110's field name is
+    /// case-insensitive, to the positions in [`Self::rows`] that carry it —
+    /// first position first.
+    by_name: HashMap<Box<str>, Vec<usize>>,
+}
+
+impl DeclaredHeaders {
+    /// [`Ctx::declare_header`]'s whole effect: the first row under `name`
+    /// takes `value` and becomes a replacing row, and every further row under
+    /// it is dropped.
+    fn set(&mut self, name: &str, value: &str) {
+        let key: Box<str> = name.to_ascii_lowercase().into();
+        if let Some(positions) = self.by_name.get_mut(&key) {
+            for &further in &positions[1..] {
+                self.rows[further] = None;
+            }
+            positions.truncate(1);
+            if let Some(first) = self.rows[positions[0]].as_mut() {
+                first.value = value.into();
+                first.append = false;
+            }
+            return;
+        }
+        self.by_name.insert(key, vec![self.rows.len()]);
+        self.rows.push(Some(DeclaredHeader::set(name, value)));
+    }
+
+    /// [`Ctx::append_header`]'s: one more row, whatever the name carries.
+    fn add(&mut self, name: &str, value: &str) {
+        let key: Box<str> = name.to_ascii_lowercase().into();
+        self.by_name.entry(key).or_default().push(self.rows.len());
+        self.rows.push(Some(DeclaredHeader::add(name, value)));
+    }
+
+    /// The rows still standing, in order, leaving none behind.
+    fn take(&mut self) -> Vec<DeclaredHeader> {
+        self.by_name = HashMap::new();
+        std::mem::take(&mut self.rows)
+            .into_iter()
+            .flatten()
+            .collect()
     }
 }
 
@@ -1007,6 +1056,33 @@ mod tests {
             ],
             "a set left a second value under its own name, or moved a name it did not set"
         );
+    }
+
+    /// Many distinct names cost time linear in their count, and a set after a
+    /// run of appends still collapses them: the index [`DeclaredHeaders`] keeps
+    /// is what both rest on.
+    ///
+    /// The count is the pin. A set that compared against every row declared
+    /// before it takes minutes here in a debug build, and the hostile case
+    /// `tests/hostile/core/Response/setHeader/` is the same attack from a
+    /// program.
+    #[test]
+    fn many_distinct_names_are_declared_without_comparing_each_to_every_other() {
+        const NAMES: usize = 200_000;
+        let mut ctx = Ctx::buffered();
+        for n in 0..NAMES {
+            ctx.declare_header(&format!("X-Header-{n}"), "v");
+        }
+        for _ in 0..1_000 {
+            ctx.append_header("Set-Cookie", "a=1");
+            ctx.declare_header("set-cookie", "b=2");
+        }
+        ctx.declare_header("x-header-7", "last");
+        let headers = ctx.take_headers();
+        assert_eq!(headers.len(), NAMES + 1);
+        assert_eq!(headers[7], DeclaredHeader::set("X-Header-7", "last"));
+        assert_eq!(headers[NAMES], DeclaredHeader::set("Set-Cookie", "b=2"));
+        assert!(ctx.take_headers().is_empty(), "a take left rows behind");
     }
 
     /// `[limits] max_output` bounds the *response*: what a capture swallowed is

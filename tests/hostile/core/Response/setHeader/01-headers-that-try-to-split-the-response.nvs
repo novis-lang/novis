@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a program tries to add a second header through a newline, to set `Content-Type`,
+// and to set very many headers. Each bad header should throw an error, and the program
+// should stop at its memory limit without crashing.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+// 1. Values with a newline, a carriage return, a zero byte, a tab and a non-ASCII letter.
+// Each call should throw a `LogicError`.
+array<string> $values = ["a\r\nSet-Cookie: admin=1", "a\nb", "a\rb", "a\0b", "a\tb", 'Grüße'];
+foreach ($values as string $value) {
+    try {
+        Core\Response::setHeader('X-Note', $value);
+        throw new RuntimeError('a value that could split the header line was set');
+    } catch (LogicError $badValue) {
+    }
+}
+
+// 2. Names that are empty, have a space or a colon, are not ASCII, or are `Content-Type`
+// in any case. Each call should throw a `LogicError`.
+array<string> $names = ['', 'X Note', 'X-Note:', 'Überschrift', 'Content-Type', 'CONTENT-type'];
+foreach ($names as string $name) {
+    try {
+        Core\Response::setHeader($name, 'text/html');
+        throw new RuntimeError('a name that is not allowed was set');
+    } catch (LogicError $badName) {
+    }
+}
+
+// 3. A header value of one million characters.
+Core\Response::setHeader('X-Long', Core\Str::repeat('a', 1000000));
+
+// 4. A new header name again and again, until the memory limit stops the program.
+uint $n = 0;
+while ($n < 100000000) {
+    Core\Response::setHeader('X-Header-' . ($n as string), Core\Str::repeat('v', 1000));
+    $n = $n + 1;
+}
+Core\Response::text("done\n");

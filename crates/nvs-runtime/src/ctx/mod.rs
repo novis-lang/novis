@@ -1174,19 +1174,20 @@ pub struct Ctx {
     /// response, so what has to cross is every pair a program set rather than
     /// one of them.
     ///
-    /// A `Vec` and not a map: a response carries a handful of these, the order
-    /// a program set them in is the order the peer sees them in, and a hash
-    /// over three entries costs more than the scan that replaces one — and a
-    /// map keyed by name could not hold a second `Set-Cookie` at all, which is
-    /// why a name declared twice stays two rows here and each row says for
-    /// itself how it joins. [`Self::declare_header`] owns the comparison and
+    /// Rows in order rather than a map from name to value: the order a
+    /// program set them in is the order the peer sees them in, and a map keyed
+    /// by name could not hold a second `Set-Cookie` at all, which is why a name
+    /// declared twice stays two rows and each row says for itself how it
+    /// joins. [`DeclaredHeaders`] indexes the rows by name so that replacing
+    /// one never scans the rest, and says what that index spends.
+    /// [`Self::declare_header`] owns the comparison and
     /// [`DeclaredHeader::append`] the distinction.
     ///
     /// **What it spends:** nothing for a request that sets none — an empty
-    /// `Vec` does not allocate — and two short allocations per declared header
-    /// for one that does, charged to that request's own budget like every
-    /// other allocation it makes.
-    headers: Vec<DeclaredHeader>,
+    /// `Vec` and an empty map do not allocate — and a few short allocations
+    /// per declared header for one that does, charged to that request's own
+    /// budget like every other allocation it makes.
+    headers: DeclaredHeaders,
     /// The request this context is answering, as it arrived — spec § 15's
     /// `Core\Request`, and `None` in every process that is not serving one.
     ///
