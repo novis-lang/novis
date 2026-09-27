@@ -968,6 +968,12 @@ fn compiled_prepared(
 
     let built = build(pattern, flags, prepared, budget)
         .map_err(|why| Fault::thrown(format!("Core\\Regex::{member}(): {why}")))?;
+    // Asked before the program is cached, so a refused request leaves nothing
+    // behind, and a cached program has already been paid for.
+    nvs_runtime::affordable(
+        Some(search_cost(&built, &effective(pattern, flags))),
+        "Core\\Regex",
+    )?;
 
     let built = Rc::new(built);
     CACHE.with_borrow_mut(|cache| {
@@ -1046,6 +1052,44 @@ fn build(
              to build: {limit}"
         )),
     }
+}
+
+/// The bytes the linear engine allocates on this core the first time it
+/// searches with `built`, which [`compiled_prepared`] asks the request's
+/// memory ceiling for in front of the engine.
+///
+/// The engine's capture table has one row of capture slots per automaton
+/// state, and it keeps two tables, so a pattern of thousands of groups asks
+/// for gigabytes before it reads one byte of the subject. `regex` allocates
+/// that table outside any ask, and a request past its ceiling then ends with
+/// no message; asking first ends it with the memory-limit `FATAL` every other
+/// breach reports. The figure is `regex-automata`'s own layout for its PikeVM,
+/// read off an automaton built from the same text with the same defaults.
+///
+/// The backtracking tier answers `0`: its memory grows with the steps it
+/// takes, and the step budget already bounds those.
+///
+/// **What it spends:** a second automaton built and dropped, once per pattern
+/// per core, on a cache miss only.
+fn search_cost(built: &Compiled, spelled: &str) -> usize {
+    let Compiled::Linear(_) = built else {
+        return 0;
+    };
+    // `regex` has already built this text under a tighter size limit than
+    // the automaton's default, so the build does not fail in practice; if it
+    // did, the table would still be counted by the allocator as it grows.
+    let Ok(nfa) = regex_automata::nfa::thompson::NFA::new(spelled) else {
+        return 0;
+    };
+    let slots = nfa.group_info().slot_len();
+    let table = nfa
+        .states()
+        .len()
+        .saturating_mul(slots)
+        .saturating_add(slots.max(nfa.pattern_len().saturating_mul(2)));
+    table
+        .saturating_mul(2)
+        .saturating_mul(std::mem::size_of::<usize>())
 }
 
 /// `spelled` on `rule:core-classes/regex-two-tiers`'s second tier, with the
@@ -2164,6 +2208,40 @@ mod tests {
         let first = built(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
         let again = built(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
         assert!(Rc::ptr_eq(&first, &again));
+    }
+
+    /// A pattern's capture table is priced before the engine allocates it:
+    /// a few groups cost kilobytes, five thousand cost more than a gigabyte,
+    /// and a request under a 64 MiB ceiling is refused the second pattern
+    /// with nothing cached and without the gigabyte ever being held.
+    // covers: Core\Regex::match
+    #[test]
+    fn a_search_whose_capture_table_the_request_cannot_afford_is_refused_first() {
+        let few = tiered(r"(\d+)-(\d+)", NO_FLAGS, None).expect("compiles");
+        assert!(search_cost(&few, r"(\d+)-(\d+)") < 64 * 1024);
+        let many = "(a)".repeat(5000);
+        let wide = tiered(&many, NO_FLAGS, None).expect("compiles");
+        assert!(search_cost(&wide, &many) > 1 << 30);
+        let backtracking = tiered(r"(a)\1", NO_FLAGS, None).expect("compiles");
+        assert_eq!(search_cost(&backtracking, r"(a)\1"), 0);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(64 << 20);
+        let subject = Value::str(NvsStr::new("a".repeat(5000).as_bytes()));
+        let pattern = Value::str(NvsStr::new(many.as_bytes()));
+        let args = [subject, pattern, Value::int(0)];
+        assert!(nvs_runtime::call(nvs_core_regex_match, &mut ctx, &args).is_err());
+        assert!(
+            ctx.memory_used() < 64 << 20,
+            "{} bytes held",
+            ctx.memory_used()
+        );
+        assert!(CACHE.with_borrow(|cache| cache.iter().all(|(key, ..)| *key != many)));
+        #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
+        unsafe {
+            subject.release();
+            pattern.release();
+        }
     }
 
     /// The four flags are part of the key, not of the text: one pattern under

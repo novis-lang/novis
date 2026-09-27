@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-regex-and-1-more`. `Core\\Regex::compile` owes nothing, and `Core\\Regex` has its class\ncard. `Core\\Regex::match` has all its proofs; its attack is marked with gap\n`nvs-stdlib/a-regex-match-over-thousands-of-groups-ends-in-an-empty-fatal` (a pattern of 5000 groups\nends `nvs run` with an empty `FATAL:`), so it counts as a known gap. `matchAll` is next, and its\ncard is still in the old voice. `Core\\Regex\\Match` and `Core\\Regex\\Pattern` are still listed in\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`.",
+  "state": "Goal `core-regex-and-1-more`. `Core\\Regex::compile` and `Core\\Regex::match` owe nothing, and\n`Core\\Regex` has its class card. The many-groups gap is closed rather than deferred: a linear\npattern's capture table is priced by `search_cost` in `crates/nvs-stdlib/src/regex.rs` and asked of\nthe request's ceiling in `compiled_prepared` before the program is cached, so 5000 `(a)` groups now\nstop at once with the memory-limit `FATAL`. The attack for `match` carries no gap marker. `matchAll`\nis next, and its card is still in the old voice. `Core\\Regex\\Match` and `Core\\Regex\\Pattern` are\nstill listed in `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`.",
   "next": {
     "stage": 1,
     "title": "the `Core\\Regex` members",
@@ -12,16 +12,17 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Regex::matchAll`** — owes about, examples, hostile, perf and a Rust test with `// covers: Core\\Regex::matchAll` (`rule:testing/feature-proofs`). Rewrite `MATCH_ALL_DOC` in the plain voice the way `MATCH_DOC` now reads. Its attack must not reuse the 5000-group pattern outside the gap's marker. `crates/nvs-stdlib/src/regex.rs:291` `crates/nvs-stdlib/src/regex.rs:1529`"
+        "text": "**`Core\\Regex::matchAll`** — owes about, examples, hostile, perf and a Rust test with `// covers: Core\\Regex::matchAll` (`rule:testing/feature-proofs`). Rewrite `MATCH_ALL_DOC` in the plain voice the way `MATCH_DOC` now reads. Its attack can use many groups: the capture-table ask in `compiled_prepared` now stops that search cleanly. `crates/nvs-stdlib/src/regex.rs:291` `crates/nvs-stdlib/src/regex.rs:1573`"
       },
       {
         "done": false,
-        "text": "**Regenerate the reference and record the row** — `bun nv reference --no-examples` after any card edit, `bun nv proofs --record-perf --only 'Core\\Regex::matchAll'` after the last `regex.rs` edit. `crates/nvs-stdlib/src/regex.rs:146`"
+        "text": "**Regenerate the reference and record the row** — `bun nv reference --no-examples` after any card edit, `bun nv proofs --record-perf --only 'Core\\Regex::matchAll'` once the bench exists (`rule:testing/member-perf-ledger`). `crates/nvs-stdlib/src/regex.rs:291`"
       }
     ]
   },
   "backlog": [
-    "Gap `nvs-stdlib/a-regex-match-over-thousands-of-groups-ends-in-an-empty-fatal`: whether the stop is inside the engine or on the CLI's panic arm is not yet read — the gap record owns it.",
-    "`Core\\Regex\\Match` and `Core\\Regex\\Pattern` class cards — `crates/nvs-stdlib/src/registry.rs` `CLASSES_STILL_OWING_A_CARD`."
+    "`Core\\Regex::replaceWith`, `split`, `quote` owe every proof — `bun nv proofs --id 'Core\\Regex::split'` (`rule:testing/feature-proofs`).",
+    "`Core\\Regex\\Match` owes its class card and the proofs of `groups`, `offset`, `text` (`crates/nvs-stdlib/src/registry.rs` `CLASSES_STILL_OWING_A_CARD`).",
+    "Not checked: why a native allocation of gigabytes that no member asked for first ends `nvs run` with an empty `FATAL:` (the pending message is gone by `crates/nvs-cli/src/main.rs:2861`). The regex path no longer reaches it; the general path has no owner yet."
   ]
 }

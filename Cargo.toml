@@ -458,7 +458,13 @@ unicode-width = { version = "0.2", default-features = false }
 # itself, so the two share one syntax and one Unicode table set rather than
 # disagreeing about what a pattern means. Both pure Rust, no C, no build
 # script. `crates/nvs-stdlib/src/regex.rs` owns why these two and not others.
+# `regex-automata` is the engine inside `regex`, already in the tree at the
+# version `regex` pins; it is named directly only to read the size of the
+# capture table a search allocates, which `regex` does not expose. Its
+# features are a subset of the ones `regex` already turns on, so the engines
+# `regex` picks from do not change.
 regex = "1"
+regex-automata = { version = "0.4", default-features = false, features = ["syntax", "nfa-thompson"] }
 fancy-regex = "0.19"
 
 # --- dates, times and the IANA zone database (spec § 4, named by the user) ---

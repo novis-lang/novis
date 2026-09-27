@@ -3,7 +3,6 @@
 // long text, and with a pattern of many groups. Each search should return a match,
 // return `null` or throw an error. The last one should stop at the memory limit.
 // hostile: ends-early
-// proof: gap nvs-stdlib/a-regex-match-over-thousands-of-groups-ends-in-an-empty-fatal
 
 class Search
 {
