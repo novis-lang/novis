@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to read the text that a pattern matched.
+
+// The pattern finds an amount of money. `text()` returns the whole match, "12.50 EUR".
+var $m = Core\Regex::match("You paid 12.50 EUR today.", '\d+\.\d{2} [A-Z]{3}');
+echo $m?->text() ?? "no amount", "\n";
+
+// `text()` returns the same text as `group(0)`. This prints "true".
+echo $m?->text() == $m?->group(0) ? "true" : "false", "\n";

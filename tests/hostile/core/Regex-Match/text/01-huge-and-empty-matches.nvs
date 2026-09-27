@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program reads matches of millions of characters, empty matches and the same
+// match many times. The last step asks for more memory than the program may use and should stop with an error.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// 1. A match of four million characters. This prints 4000000.
+var $huge = Core\Regex::match('<' . Core\Str::repeat('ü', 4000000) . '>', 'ü+');
+echo Core\Str::length($huge?->text() ?? ''), "\n";
+
+// 2. 100000 empty matches, one at each position of the text. This prints 100001 0.
+array<Core\Regex\Match> $empty = Core\Regex::matchAll(Core\Str::repeat('a', 100000), '\d*');
+int $chars = 0;
+foreach ($empty as Core\Regex\Match $m) {
+    $chars = $chars + (Core\Str::length($m->text()) as int);
+}
+echo Core\Arr::count($empty), ' ', $chars, "\n";
+
+// 3. The same large match read 200000 times. No call may copy the text or keep it.
+// This prints 200000.
+uint $same = 0;
+int $i = 0;
+while ($i < 200000) {
+    if ($huge?->text() == $huge?->group(0)) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo $same, "\n";
+
+// 4. The large match repeated one thousand times needs about eight billion bytes.
+// The program stops here with a memory limit error.
+echo Core\Str::length(Core\Str::repeat($huge?->text() ?? '', 1000)), "\n";

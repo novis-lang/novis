@@ -10460,15 +10460,15 @@ no b c
 $match->group(int|string $group): ?string
 ```
 
-Answers one group's text by number or by name — `$matches[$group]` read after `preg_match`.
+Returns the text of one group, by its number or by its name. PHP reads this as `$matches[$group]` after `preg_match`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$group` | `int\|string` (neutral) | The group's number, `0` for the whole match, or its name. |
+| `$group` | `int\|string` (neutral) | The number of the group, or its name. Group `0` is the whole match. |
 
-**Returns** `?string` — The group's text, or `null` where the pattern declares the group and this match did not reach it.
+**Returns** `?string` — The text of the group. The result is `null` if the pattern has the group but this match did not use it.
 
-**Throws** `RuntimeError` — `$group` names a group the pattern does not declare.
+**Throws** `RuntimeError` — The pattern has no group with this number or name.
 
 <a id="core-core-regex-match-groups"></a>
 #### `Core\Regex\Match->groups`
@@ -10477,9 +10477,9 @@ Answers one group's text by number or by name — `$matches[$group]` read after 
 $match->groups(): array<?string>
 ```
 
-Answers every group at once in `preg_match`'s own order — a named group under its name and then under its number — as `$matches` reads under `PREG_UNMATCHED_AS_NULL`.
+Returns the text of every group in one array. A named group is in the array twice: under its name and under its number.
 
-**Returns** `array<?string>` — The array, group `0` first; a declared group this match did not reach is present and `null` rather than absent.
+**Returns** `array<?string>` — An array with group `0` first. A group that this match did not use is in the array, and its value is `null`.
 
 <a id="core-core-regex-match-offset"></a>
 #### `Core\Regex\Match->offset`
@@ -10488,9 +10488,9 @@ Answers every group at once in `preg_match`'s own order — a named group under 
 $match->offset(): int
 ```
 
-Answers where the whole match starts in the subject — `PREG_OFFSET_CAPTURE`'s position, counted in graphemes rather than bytes.
+Returns the position in the text where the whole match starts. The position counts characters, not bytes.
 
-**Returns** `int` — The grapheme index of the match's first character; `0` for a match at the start of the subject.
+**Returns** `int` — The position of the first character of the match. A match at the start of the text is at `0`.
 
 <a id="core-core-regex-match-text"></a>
 #### `Core\Regex\Match->text`
@@ -10499,9 +10499,9 @@ Answers where the whole match starts in the subject — `PREG_OFFSET_CAPTURE`'s 
 $match->text(): string
 ```
 
-Answers the whole match's text, which is group `0`.
+Returns the whole text that the pattern matched. This is the same text as `group(0)`.
 
-**Returns** `string` — The matched text; never `null`, since the whole match participates in every match an engine reports.
+**Returns** `string` — The matched text. It is never `null`, but it can be an empty string.
 
 <a id="core-core-regex-pattern"></a>
 ### `Core\Regex\Pattern`

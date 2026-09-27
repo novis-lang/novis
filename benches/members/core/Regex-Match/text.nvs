@@ -1,0 +1,20 @@
+<?nvs
+// Reads the whole text of a match, as a program does when it collects every tag or number it found.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Regex\Match> $found = Core\Regex::matchAll("Shipped #release to #staging and #prod", '#\w+');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which match is read comes from last round's total, so no round can be reused.
+            string $tag = $found[($total % 3) as int]->text();
+            $total = $total + Core\Str::length($tag);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
