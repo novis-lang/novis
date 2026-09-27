@@ -1,0 +1,12 @@
+{
+  "lead": "A `.nvsr` file with a multipart body under `--BODY--` fails to parse, because checkout gives it LF line endings.",
+  "body": "`.gitattributes` normalises every text file to LF, and RFC 2046's delimiters are CRLF, so a hand-written form body never matches its own boundary. Write the body under `--BODY_CRLF--`, which sends each line ending as CRLF; `docs/examples/core/Request/files/` is the shape.",
+  "files": [
+    "docs/examples/core/Request/files/",
+    "crates/nvs-test/src/request.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-test/src/request.rs:BODY_CRLF"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-request-1-2`: `Core\\Request::body`, `bytes`, `bodyStream`, `clientIp` and `cookie` have\nall their feature proofs. `bun nv proofs --verify --only` over those five says nothing owed.\nA proof program answers a request through the `<name>.nvsr` beside it (`docs/examples/README.md` §\n*A request for the program*). The peer's address is the `--CLIENT_IP--` section, and the effective\nscheme is `--SCHEME--` (`crates/nvs-test/src/request.rs`'s module doc). A file with neither\ndescribes a request with no address, over plain HTTP. A new bench is measured with `bun nv proofs\n--record-perf --only <members>`, and only the members without a current figure are measured. `bun nv\nverify` regenerates `docs/novis.md` from the rewritten cards. Six members of `Core\\Request (1/2)` still owe their proofs, in the order the check lists them.",
+  "state": "Goal `core-request-1-2`: `Core\\Request::body`, `bytes`, `bodyStream`, `clientIp`, `cookie` and `files`\nhave all their feature proofs. `bun nv proofs --verify --only` over those six says nothing owed.\nA proof program answers a request through the `<name>.nvsr` beside it (`docs/examples/README.md` §\n*A request for the program*, and `crates/nvs-test/src/request.rs`'s module doc for every section).\nA multipart body is written under `--BODY_CRLF--`. A new bench is measured with `bun nv proofs\n--record-perf --only <members>`. `bun nv verify` regenerates `docs/novis.md` from the rewritten\ncards. Five members of `Core\\Request (1/2)` still owe their proofs, in the order the check lists them.",
   "next": {
     "stage": 1,
     "title": "member proofs, one file set",
@@ -8,21 +8,20 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::files`** — owes about, examples, hostile, perf, a Rust `covers:` marker (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Request::files'`). Card at `crates/nvs-stdlib/src/request.rs:750`, member at `crates/nvs-stdlib/src/request.rs:3164`. The `.nvsr` body is a `multipart/form-data` body written byte for byte after `--BODY--`. Rewrite the card the way `COOKIE_DOC` now reads."
+        "text": "**`Core\\Request::header`** — owes about, examples, hostile, perf, a Rust `covers:` marker (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Request::header'`). Card at `crates/nvs-stdlib/src/request.rs:538`, member at `crates/nvs-stdlib/src/request.rs:2407`. Rewrite the card the way `COOKIE_DOC` and `FILES_DOC` now read."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::header`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:538`, member at `crates/nvs-stdlib/src/request.rs:2413`."
+        "text": "**`Core\\Request::headers`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:556`, member at `crates/nvs-stdlib/src/request.rs:2537`."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::headers`** — owes the same set. Card at `crates/nvs-stdlib/src/request.rs:556`, member at `crates/nvs-stdlib/src/request.rs:2543`."
+        "text": "**`Core\\Request::host`** — owes the same set (`bun nv proofs --id 'Core\\Request::host'`). Card at `crates/nvs-stdlib/src/request.rs:882`, member at `crates/nvs-stdlib/src/request.rs:2520`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Arr::contains($list, $needle)` does not compile when `$list` is `array<string>` and `$needle` is `tainted string` (E0401), although comparing a tainted value is allowed. `docs/examples/core/Request/clientIp/03-an-admin-page-for-the-office-only.nvs` uses a loop instead. Owner: `crates/nvs-stdlib/src/arr.rs`'s module doc, if it is judged a gap.",
-    "`Core\\Request::cookie(\"\")` returns the value of a pair written `=value`, a cookie with an empty name. Nothing documents it either way; `rule:errors/cookie-name-bytes` owns the decision.",
-    "The rest of `Core\\Request (1/2)` after the group: `host`, `isHead`, `json`."
+    "`Core\\Request::isHead` and `json` owe their proofs after this group (`bun nv proofs --id`).",
+    "Many Rust tests in `crates/nvs-stdlib/src/request.rs` say \"No case can reach this: a `.nvst` program answers no request\". A `.nvst` case can describe a request now, but a multipart one still cannot, because a case file is checked out with LF line endings. Owned by `crates/nvs-test/src/request.rs`'s module doc."
   ]
 }
