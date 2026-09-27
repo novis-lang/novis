@@ -25,7 +25,7 @@
 // not, so a heavy check also holds `heavyKeys`: every Rust file of the crates it builds, as `fn:<file>#*`,
 // which any item change in the file moves, and every directory of those crates, which a new file
 // moves. That is the one prediction left in the selection, and it is named as one: `heavyCrates` reads
-// the crates off the check's own arguments, the fuzz workspace's manifest, and the TSan and database
+// the crates off the check's own arguments, the fuzz target's source file, and the TSan and database
 // matrix scripts. The two Linux legs run `nvs` inside WSL, which records nothing, so they are keyed the
 // same way on what `nvs-cli` builds and the trees the fixtures read.
 
@@ -151,7 +151,13 @@ export function grouped(c: Check, ctx: PlanContext): Grouped {
     const o = own(kind);
     return { how, atoms: [o.id], own: o };
   };
-  if (isHeavy(c)) return single("heavy", "heavy");
+  if (isHeavy(c)) {
+    // A run adds keys to a footprint and never removes one while the definition stays the same, so the
+    // crates a heavy check is predicted to build are part of its definition: when the prediction
+    // changes, the check runs once more and records the new keys in place of the old ones.
+    const def = ctx.graph ? digest(`${checkDef(c)} ${JSON.stringify(heavyCrates(c, ctx.graph))}`) : checkDef(c);
+    return { how: "heavy", atoms: [`heavy:${c.id}`], own: { id: `heavy:${c.id}`, def } };
+  }
   if (PROGRAM_KINDS.has(c.kind)) return single("fixture", "check");
   const args = c.args ?? [];
   if (c.kind === "nvs-suite") {
@@ -238,6 +244,7 @@ export function commandKeys(c: Check): Keyed {
 
 const TSAN = "tools/tsan.sh";
 const FUZZ_MANIFEST = "fuzz/Cargo.toml";
+const FUZZ_TARGETS = "fuzz/fuzz_targets";
 const DB_MATRIX = "tools/nv/cmd/db-matrix.ts";
 
 /** The workspace packages `rel` names as a whole word. */
@@ -251,10 +258,36 @@ function namedIn(graph: Graph, rel: string, root: string): string[] {
   return [...graph.keys()].filter((n) => new RegExp(`(?<![\\w-])${n.replace(/-/g, "\\-")}(?![\\w-])`).test(text)).sort();
 }
 
+/** The fuzz target a `cargo fuzz run <target>` command line names, or "" for none. */
+export function fuzzTarget(line: string): string {
+  return /fuzz run\s+([\w-]+)/.exec(line)?.[1] ?? "";
+}
+
+/**
+ * The workspace packages the Rust source `rel` uses in its code, as `nvs_syntax`-style paths. Whole-line
+ * and block comments are left out, because a doc comment names crates the file never links; a trailing
+ * comment is kept, which can only add a package. `null` when the file cannot be read.
+ */
+export function usedIn(graph: Graph, rel: string, root: string): string[] | null {
+  let text: string;
+  try {
+    text = readFileSync(join(root, rel), "utf8");
+  } catch {
+    return null;
+  }
+  const code = text
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("//"))
+    .join("\n");
+  return [...graph.keys()].filter((n) => new RegExp(`(?<![\\w])${n.replace(/-/g, "_")}(?![\\w])`).test(code)).sort();
+}
+
 /**
  * The workspace packages a heavy check or leg builds, read off the check: `-p <crate>` for a release
- * test, `nvs-cli` for a bench, an `nvs` command or a leg, the packages the fuzz workspace's manifest,
- * the TSan script or the database matrix's module names, and every package for anything else. Each
+ * test, `nvs-cli` for a bench, an `nvs` command or a leg, the packages a fuzz target's own source file
+ * uses (the fuzz workspace's manifest when that file cannot be read), the packages the TSan script or
+ * the database matrix's module names, and every package for anything else. Each
  * with every package it is compiled against. `extra` is what it reads outside the crates that no log
  * records: the fuzz workspace, the TSan script.
  */
@@ -264,11 +297,15 @@ export function heavyCrates(c: Check | null, graph: Graph, root: string = ROOT):
   const line = argv.join(" ");
   let own: string[];
   let extra: string[] = [];
+  // A fuzz target links its packages as ordinary dependencies, so their dev-dependencies are not built.
+  let dev = true;
   if (c === null || argv.includes("{nvs}") || (argv[0] === "bun" && argv[1] === "nv" && argv[2] === "bench")) own = ["nvs-cli"];
   else if (c.kind === "cargo-named" && args.includes("-p")) own = [args[args.indexOf("-p") + 1]!];
   else if (line.includes("fuzz run")) {
-    own = namedIn(graph, FUZZ_MANIFEST, root);
+    const target = fuzzTarget(line);
+    own = (target && usedIn(graph, `${FUZZ_TARGETS}/${target}.rs`, root)) || namedIn(graph, FUZZ_MANIFEST, root);
     extra = ["fuzz"];
+    dev = false;
   } else if (line.includes(TSAN)) {
     own = namedIn(graph, TSAN, root);
     extra = [TSAN];
@@ -276,7 +313,7 @@ export function heavyCrates(c: Check | null, graph: Graph, root: string = ROOT):
   else own = [...graph.keys()];
   if (own.length === 0 || own.some((p) => !graph.has(p))) own = [...graph.keys()];
   const all = new Set(own);
-  for (const p of own) for (const d of closure(graph, p, true)) all.add(d);
+  for (const p of own) for (const d of closure(graph, p, dev)) all.add(d);
   return { crates: [...all].sort(), extra };
 }
 

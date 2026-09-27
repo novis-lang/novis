@@ -90,6 +90,13 @@ describe("a check as atoms", () => {
     expect(grouped(check({ kind: "exact", file: "examples/a.nvs", memoize: false }), ctx).atoms).toEqual(["heavy:c"]);
   });
 
+  test("a heavy check's definition moves with the crates it is predicted to build, so a run records them afresh", () => {
+    const c = check({ kind: "cargo-named", args: ["test", "--release", "-p", "nvs-cli"] });
+    const narrower: Graph = new Map([pkg("nvs-cli", "crates/nvs-cli")]);
+    expect(grouped(c, ctx).own!.def).toBe(grouped({ ...c, name: "renamed" }, ctx).own!.def);
+    expect(grouped(c, { ...ctx, graph: narrower }).own!.def).not.toBe(grouped(c, ctx).own!.def);
+  });
+
   test("a check's own atom is defined by what it runs and judges, never by its name or stage", () => {
     const a = check({ argv: ["bun", "nv", "rules", "--check"], want: ["ok"] });
     expect(checkDef({ ...a, name: "other", stage: 9 })).toBe(checkDef(a));
@@ -118,6 +125,26 @@ describe("the heavy set's named prediction", () => {
     expect(heavyCrates(check({ argv: ["bun", "nv", "bench"] }), graph).crates).toEqual(["nvs-cli", "nvs-host", "nvs-syntax"]);
     expect(heavyCrates(null, graph).crates).toEqual(["nvs-cli", "nvs-host", "nvs-syntax"]);
     expect(heavyCrates(check({ argv: ["wsl.exe", "--", "bash", "-lc", "odd"] }), graph).crates).toEqual(["nvs-cli", "nvs-host", "nvs-syntax"]);
+  });
+
+  test("a fuzz target builds the crates its own source uses with their ordinary dependencies, never one only its comments name, and the manifest's when the source is missing", () => {
+    const t = scratch();
+    const fuzzGraph: Graph = new Map([
+      pkg("nvs-diagnostics", "crates/nvs-diagnostics"),
+      pkg("nvs-repo", "crates/nvs-repo"),
+      pkg("nvs-syntax", "crates/nvs-syntax", [["nvs-diagnostics", "normal"], ["nvs-repo", "dev"]]),
+      pkg("nvs-host", "crates/nvs-host", [["nvs-syntax", "normal"]]),
+      pkg("nvs-cli", "crates/nvs-cli", [["nvs-host", "normal"]]),
+    ]);
+    try {
+      t.put("fuzz/Cargo.toml", '[dependencies]\nnvs-host = { path = "../crates/nvs-host" }\nnvs-syntax = { path = "../crates/nvs-syntax" }\n');
+      t.put("fuzz/fuzz_targets/lex.rs", "//! Compare with `nvs_host::run` and `nvs-cli`.\n/* nvs_cli */\nuse nvs_syntax::tokenize;\n");
+      const fuzz = (target: string) => check({ argv: ["wsl.exe", "--", "bash", "-lc", `mkdir -p fuzz/corpus/${target} && cargo +nightly fuzz run ${target} fuzz/corpus/${target} -- -max_total_time=300`] });
+      expect(heavyCrates(fuzz("lex"), fuzzGraph, t.root)).toEqual({ crates: ["nvs-diagnostics", "nvs-syntax"], extra: ["fuzz"] });
+      expect(heavyCrates(fuzz("gone"), fuzzGraph, t.root).crates).toEqual(["nvs-diagnostics", "nvs-host", "nvs-syntax"]);
+    } finally {
+      t.cleanup();
+    }
   });
 
   test("its keys are every Rust file of those crates, each directory that holds one, and what it reads besides", () => {
