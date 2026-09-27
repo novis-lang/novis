@@ -1,23 +1,32 @@
 {
-  "state": "`Core\\Request::method` has all its proofs: `about.md`, three examples, an attack\n(`tests/hostile/core/Request/method/`, a `CONNECT` request thrown 100000 times and then kept\nuntil the memory limit), a bench (0 allocations), and the Rust test\n`method_reports_get_for_a_head_request_and_is_head_carries_the_truth` now carries its\n`covers:` marker. Its card in `crates/nvs-stdlib/src/request.rs` is in the plain voice.\n\nThe `Core\\Json` figures went stale when `decode_fields` gained its stack check, and are\nre-measured, so `dossier-core-json` is green again.\n\n`Core\\Request::mount` cannot have examples yet: a `.nvsr` request file has no section for a\nmount (`crates/nvs-test/src/request.rs`'s module doc lists every section), so a proof run\nalways answers the door that strips nothing, `\"\"` and no captures. `nvs run --request`\nis what the proof runner calls (`tools/nv/proofs/run.ts:190`).",
+  "state": "A `.nvsr` request file can name a mount: `--MOUNT--`, the prefix on its first line and\none glob capture per line after it (`crates/nvs-test/src/request.rs`'s module doc).\n`nvs run --request` carries it to the carrier the way `nvs_server::mount::carry` does,\nso `/` reads as `\"\"`. A prefix no mount table could hold and a blank capture line are\nrefused.\n\n`Core\\Request::jsonAs`, `method` and `mount` owe nothing. `mount` has `about.md`, three\nexamples, an attack (`tests/hostile/core/Request/mount/`, a capture past the last one and\nthen every mount kept until the memory limit), a bench (6 allocations per read: the\ninstance, its array and the strings), and its Rust test carries `covers:`.\n\n`dossier-core-request-2-2` still fails on seven members: `path`, `query`, `queryAs`,\n`post`, `postAs`, `scheme` and `route`. Each owes examples, an attack and a bench, and\nmost owe a `covers:` marker on a Rust test.",
   "next": {
     "stage": 2,
     "title": "the dossier",
-    "files": [],
-    "note": "one file set: `crates/nvs-test/src/request.rs`, the `nvs run --request` reader in `nvs-cli`, `crates/nvs-stdlib/src/request.rs`.",
+    "files": [
+      "crates/nvs-stdlib/src/request.rs",
+      "docs/examples/core/Request/",
+      "tests/hostile/core/Request/",
+      "benches/members/core/Request/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**A `.nvsr` file can name a mount** — a `--MOUNT--` section (prefix, then one capture per line) that `nvs run --request` carries to `Core\\Request::mount` the way the server's door does, `nvs_server::mount::carry` (`rule:routing/a-request-reads-its-mount`). The parser is `crates/nvs-test/src/request.rs:180` and the CLI's reading of it is tested at `crates/nvs-cli/src/main.rs:3359`."
+        "text": "**`Core\\Request::scheme`** — owes examples, hostile, perf and a `covers:` marker (`rule:testing/feature-proofs`). The Rust test is `crates/nvs-stdlib/src/request.rs:4423` and the member `crates/nvs-stdlib/src/request.rs:2511`. `--SCHEME--` in the `.nvsr` sets it."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::mount`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`); the Rust test after `method_reports_get_for_a_head_request_and_is_head_carries_the_truth` asserts both sides of the mount and only needs its `covers:` marker. `crates/nvs-stdlib/src/request.rs:404`"
+        "text": "**`Core\\Request::path`** — owes examples, hostile, perf and a `covers:` marker (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:2109`; a `--MOUNT--` beside `--PATH--` shows the stripped path."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Request::query`** — the same four; the member is `crates/nvs-stdlib/src/request.rs:2121`."
       }
     ]
   },
   "backlog": [
-    "The rest of the `Core\\Request` roster in `data/goals/core-request-2-2.json`'s dossier check: `path`, `post`, `postAs`, `query`, `queryAs`, `route`, `scheme` — `bun nv proofs --owed`.",
-    "`tests/hostile/core/Json/decode/01-deep-large-and-broken-documents.nvs` ended with exit 253 on the proofs' recording run and 0 on the judged run; both count as a pass, but the runner now runs it every time until they agree — `tools/nv/proofs/run.ts`."
+    "`queryAs`, `post`, `postAs`, `route` — the same proofs, after the group above (`rule:testing/feature-proofs`).",
+    "A `.nvsr` accepts any non-blank capture; a server only produces `[A-Za-z0-9._-]+` (`rule:http-server/a-mount-table-expands-at-boot`). Tightening the reader is optional — `crates/nvs-test/src/request.rs`.",
+    "An array index past the end throws `RuntimeError`; whether a narrower class belongs there is not checked — owner: the array module doc."
   ]
 }
