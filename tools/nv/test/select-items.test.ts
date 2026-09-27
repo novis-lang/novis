@@ -208,6 +208,12 @@ describe("paths and build scripts", () => {
     expect(pathKeys("tests/conformance/arr/old.nvst", false)).not.toContain("dir:tests/conformance/arr");
   });
 
+  test("a changed file moves its extension, which a `git grep -- *.<ext>` holds, and a file without one moves none", () => {
+    expect(pathKeys("crates/nvs-ir/src/Lower.RS", false)).toContain("ext:rs");
+    expect(pathKeys("data/playbook/a/b.json", false)).not.toContain("ext:rs");
+    expect(pathKeys("Makefile", false).filter((k) => k.startsWith("ext:"))).toEqual([]);
+  });
+
   test("a build script's inputs are what cargo recorded, and the item including its output is found", () => {
     const out = parseOutput(
       [`cargo:rerun-if-changed=build.rs`, `cargo:rerun-if-changed=${join(tree.root, "docs", "core")}`, "cargo:rustc-env=NVS_X=1", "cargo:rerun-if-changed=C:\\elsewhere\\x"].join("\r\n"),

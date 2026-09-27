@@ -3,7 +3,7 @@
 //     changed = diff(recorded tree, working tree incl. untracked)
 //            -> each .rs file: item diff -> reference-graph closure -> fn:, class:, card: keys
 //            -> each build script whose inputs moved: the items that include what it generated
-//            -> every path: file:, tree:, named:, and exists:/dir: for a path that came or went
+//            -> every path: file:, tree:, named:, ext:, and exists:/dir: for a path that came or went
 //     run = atoms never recorded on this platform, last red, or owed from an earlier change
 //         + atoms marked diverged: a recording run that ended differently from the judged run
 //         + atoms whose definition changed

@@ -13,6 +13,7 @@
 // | `exists:<path>` | a path tested for existence |
 // | `tree:<path>` | a file or a directory a test asked `nvs_repo` for: everything beneath it; `tree:.` is the whole tree |
 // | `named:<name>` | every file called `<name>`, anywhere |
+// | `ext:<ext>` | every file whose name ends `.<ext>`, anywhere, as a `git grep -- *.<ext>` reads them |
 // | `mod:<path>` | a TypeScript module a `bun nv` process loaded |
 // | `tests:<package>` | computed: held by every test binary of the package, moved by a test added to it |
 // | `profile:optimized` | computed: moved by a change to code only an optimized build compiles, which selects every proof program |
@@ -193,10 +194,31 @@ export const ALL_NAMES = "dir:*";
 /** The subcommands of `git` that read nothing of the working tree: history, refs and configuration. */
 const GIT_HISTORY = new Set(["rev-parse", "log", "show", "cat-file", "merge-base", "config", "for-each-ref", "rev-list", "ls-tree", "describe", "symbolic-ref", "worktree", "branch", "tag", "hash-object", "var", "version"]);
 
+/** The key a path with extension `.<ext>` moves, and a search of every `*.<ext>` file holds. The
+ * extension is lowercased, since git on Windows may match a pathspec without regard to case. */
+export const extKey = (ext: string) => `ext:${ext.toLowerCase()}`;
+
+/** A `git grep` option that makes it read a file besides those its pathspec names. */
+const GREP_READS_MORE = /^(?:-f|--file(?:=|$)|--recurse-submodules$)/;
+
+/**
+ * The `ext:` keys of a `git grep` whose files are named only by pathspecs of the form `*.<ext>` after
+ * a `--`, or null when it names them any other way. A `*` in a git pathspec matches across `/`, so
+ * `*.rs` is every `.rs` file of the tree, and only a change to one of them can change what it prints.
+ */
+function grepKeys(args: string[]): string[] | null {
+  const dash = args.indexOf("--");
+  if (dash < 0 || args.slice(0, dash).some((a) => GREP_READS_MORE.test(a))) return null;
+  const specs = args.slice(dash + 1);
+  if (specs.length === 0 || !specs.every((s) => /^\*\.[A-Za-z0-9_]+$/.test(s))) return null;
+  return [...new Set(specs.map((s) => extKey(s.slice(2))))];
+}
+
 /** What a program a `bun nv` process started read of the tree, as keys. `bun` and `nvs` record their own
  * reads in their own logs, and most tools read no file of the tree. `git` does, and keeps no log:
- * `ls-files` lists every name (`dir:*`), and `grep`, `status`, `diff` or a subcommand not known here
- * read what they like (`tree:.`). */
+ * `ls-files` lists every name (`dir:*`), a `grep` over `-- *.<ext>` pathspecs every file with that
+ * extension (`ext:<ext>`), and any other `grep`, `status`, `diff` or a subcommand not known here read
+ * what they like (`tree:.`). */
 export function spawnKeys(argv: string[]): string[] {
   const exe = (argv[0] ?? "").replace(/\\/g, "/").split("/").pop()!.toLowerCase().replace(/\.exe$/, "");
   if (exe !== "git") return [];
@@ -209,6 +231,7 @@ export function spawnKeys(argv: string[]): string[] {
   const sub = argv[i] ?? "";
   if (GIT_HISTORY.has(sub)) return [];
   if (sub === "ls-files") return [ALL_NAMES];
+  if (sub === "grep") return grepKeys(argv.slice(i + 1)) ?? [WHOLE_TREE];
   return [WHOLE_TREE];
 }
 
@@ -229,10 +252,13 @@ export function readsKeys(reads: Reads, modules: string[] = []): Set<string> {
 }
 
 /** The keys a changed path moves, other than its Rust items: the file itself, every directory it sits
- * in as a `tree:`, its name, and, for a path that came or went, the test for it and its directory's
- * listing. A `.ts` file is also a module. */
+ * in as a `tree:`, its name and its extension, and, for a path that came or went, the test for it and
+ * its directory's listing. A `.ts` file is also a module. */
 export function pathKeys(path: string, cameOrWent: boolean): string[] {
-  const keys = [`file:${path}`, `named:${posix.basename(path)}`, WHOLE_TREE];
+  const name = posix.basename(path);
+  const keys = [`file:${path}`, `named:${name}`, WHOLE_TREE];
+  const dot = name.lastIndexOf(".");
+  if (dot >= 0 && dot < name.length - 1) keys.push(extKey(name.slice(dot + 1)));
   const parts = path.split("/");
   for (let i = 1; i <= parts.length; i++) keys.push(`tree:${parts.slice(0, i).join("/")}`);
   if (cameOrWent) {

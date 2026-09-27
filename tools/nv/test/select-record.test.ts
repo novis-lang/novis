@@ -158,9 +158,14 @@ describe("process trees", () => {
 });
 
 describe("what a started program read", () => {
-  test("git keeps no log: a listing holds every name, a grep the whole tree, and history nothing", () => {
+  test("git keeps no log: a listing holds every name, a grep its extensions or the whole tree, and history nothing", () => {
     expect(spawnKeys(["C:\\Program Files\\Git\\bin\\git.exe", "ls-files", "-z"])).toEqual([ALL_NAMES]);
-    expect(spawnKeys(["git", "grep", "-h", "-o", "fn x", "--", "*.rs"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "grep", "-h", "-o", "fn x", "--", "*.rs"])).toEqual(["ext:rs"]);
+    expect(spawnKeys(["git", "grep", "-l", "x", "--", "*.rs", "*.TOML", "*.rs"])).toEqual(["ext:rs", "ext:toml"]);
+    expect(spawnKeys(["git", "grep", "fn x", "*.rs"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "grep", "x", "--", "crates/*.rs"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "grep", "-f", "patterns.txt", "--", "*.rs"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "grep", "x", "--"])).toEqual(["tree:."]);
     expect(spawnKeys(["git", "-c", "core.quotepath=off", "status", "--porcelain"])).toEqual(["tree:."]);
     expect(spawnKeys(["git", "rev-parse", "HEAD"])).toEqual([]);
     expect(spawnKeys(["git", "-C", "/elsewhere/scratch", "ls-files"])).toEqual([]);
