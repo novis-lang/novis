@@ -2313,6 +2313,9 @@ fn inbound_of(text: &str) -> Result<nvs_runtime::Inbound, String> {
             nvs_test::case::Scheme::Https => nvs_runtime::Scheme::Https,
         },
     );
+    // Already in the shape `nvs_server::mount::carry` leaves a served carrier
+    // in, so the program reads the pair a door would have handed it.
+    spec.set_mount(&wire.mount_prefix, &wire.mount_captures);
     Ok(spec.build())
 }
 
@@ -3405,6 +3408,27 @@ mod tests {
             nvs_runtime::Scheme::Https,
             "`--SCHEME--` is a claim only a section can make"
         );
+        assert_eq!(inbound.mount_prefix(), "", "a case names no mount");
+        assert!(inbound.mount_captures().is_empty());
+    }
+
+    /// A file naming a mount reaches the carrier with the prefix and the
+    /// captures a served request's door would have written, which is what
+    /// `Core\Request::mount()` reads.
+    #[test]
+    fn a_request_file_naming_a_mount_carries_it_to_the_inbound() {
+        let inbound = inbound_of("--METHOD--\nGET\n--PATH--\n/orders\n--MOUNT--\n/shop\nacme\n")
+            .expect("the file reads");
+        assert_eq!(inbound.mount_prefix(), "/shop");
+        assert_eq!(
+            inbound
+                .mount_captures()
+                .iter()
+                .map(AsRef::as_ref)
+                .collect::<Vec<&str>>(),
+            ["acme"]
+        );
+        assert_eq!(inbound.path(), "/orders", "the path stays the stripped one");
     }
 
     /// Help text with every run of whitespace collapsed to one space.

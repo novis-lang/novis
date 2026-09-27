@@ -64,6 +64,16 @@
 //! `nvs_runtime::InboundSpec`'s own fail-closed pair rather than a hole for
 //! anything downstream to fill.
 //!
+//! `--MOUNT--` is the mount the request came through
+//! (`rule:routing/a-request-reads-its-mount`), and only a file written by
+//! hand names one: a case describes a request no mount table selected. Its
+//! first line is the prefix as the mount table holds it and every further line
+//! is one of the row's glob captures, in order. It reaches the carrier the way
+//! `nvs_server::mount::carry` puts a served one there, so the prefix `/` reads
+//! back as `""`, the prefix that strips nothing, and a file naming no mount
+//! answers that same `""` with no captures. `--PATH--` is still the path the
+//! program sees, with the prefix already taken off.
+//!
 //! `--COOKIE--`'s pairs are joined into the one `cookie` field a peer would
 //! have sent, because the wire has no cookie of its own — only a header — and
 //! `content-type` and `content-length` are written for a body the case did not
@@ -110,6 +120,12 @@ pub struct Wire {
     pub client_ip: Option<IpAddr>,
     /// `--SCHEME--`, and [`Scheme::Http`] for a file naming none.
     pub scheme: Scheme,
+    /// `--MOUNT--`'s prefix as a door strips it — `""` for the prefix `/` and
+    /// for a file naming no mount, the two states
+    /// `Core\Request::mount()` does not tell apart either.
+    pub mount_prefix: String,
+    /// `--MOUNT--`'s glob captures, in order, and empty where it names none.
+    pub mount_captures: Vec<String>,
 }
 
 /// Renders the request `case` describes as the file `nvs run --request` reads.
@@ -178,8 +194,10 @@ pub fn render(case: &Request) -> String {
 ///
 /// Returns the one-line reason, already phrased for a terminal: an unknown or
 /// repeated section, a missing `--METHOD--` or `--PATH--`, a header line that
-/// is not a field, a `--CLIENT_IP--` that is not an address, or a `--SCHEME--`
-/// that is neither of the two a request can arrive over.
+/// is not a field, a `--CLIENT_IP--` that is not an address, a `--SCHEME--`
+/// that is neither of the two a request can arrive over, or a `--MOUNT--`
+/// whose prefix no mount table could hold or whose captures include an empty
+/// line.
 pub fn read(text: &str) -> Result<Wire, String> {
     // The body is the rest of the file rather than a section, which is this
     // format's one deviation from the shape and the module doc's reason for
@@ -207,7 +225,7 @@ pub fn read(text: &str) -> Result<Wire, String> {
     let sections = section::lex(&head)
         .map_err(|stray| format!("line {}: text before `--METHOD--`", stray.line))?;
     let (mut method, mut path, mut query) = (None, None, None);
-    let (mut client_ip, mut scheme) = (None, None);
+    let (mut client_ip, mut scheme, mut mount) = (None, None, None);
     let mut headers = Vec::new();
     for seen in &sections {
         let (name, at) = (seen.name.as_str(), seen.line);
@@ -220,6 +238,7 @@ pub fn read(text: &str) -> Result<Wire, String> {
             "QUERY" => &mut query,
             "CLIENT_IP" => &mut client_ip,
             "SCHEME" => &mut scheme,
+            "MOUNT" => &mut mount,
             "HEADERS" => {
                 for (offset, line) in seen.body.lines().enumerate() {
                     let line = line.trim();
@@ -274,6 +293,10 @@ pub fn read(text: &str) -> Result<Wire, String> {
         Some("https") => Scheme::Https,
         Some(other) => return Err(format!("`--SCHEME--` is `http` or `https`, not `{other}`")),
     };
+    let (mount_prefix, mount_captures) = match mount {
+        None => (String::new(), Vec::new()),
+        Some(text) => mount_of(&text)?,
+    };
     Ok(Wire {
         method,
         path,
@@ -282,7 +305,40 @@ pub fn read(text: &str) -> Result<Wire, String> {
         body,
         client_ip,
         scheme,
+        mount_prefix,
+        mount_captures,
     })
+}
+
+/// Reads `--MOUNT--`'s body, already trimmed: the prefix on the first line
+/// and one capture on each line after it.
+///
+/// The prefix is held to the shape `nvs_config::mount` keeps every row's in —
+/// it begins with `/` and ends with one only when it is `/` — because a door
+/// strips nothing else, and a file describing a prefix no table could hold
+/// describes a request no server could have sent.
+fn mount_of(text: &str) -> Result<(String, Vec<String>), String> {
+    let mut lines = text.lines();
+    let prefix = lines.next().unwrap_or_default().trim();
+    if prefix.is_empty() {
+        return Err("`--MOUNT--` is empty".to_owned());
+    }
+    if !prefix.starts_with('/') || (prefix != "/" && prefix.ends_with('/')) {
+        return Err(format!(
+            "`--MOUNT--`'s prefix starts with `/` and ends with one only when it is `/`, not `{prefix}`"
+        ));
+    }
+    let mut captures = Vec::new();
+    for line in lines {
+        let capture = line.trim();
+        if capture.is_empty() {
+            return Err("`--MOUNT--` has an empty line where a capture belongs".to_owned());
+        }
+        captures.push(capture.to_owned());
+    }
+    // `nvs_server::mount::carry`'s own reading of the root prefix.
+    let prefix = if prefix == "/" { "" } else { prefix };
+    Ok((prefix.to_owned(), captures))
 }
 
 /// Writes one header field line, with the name in the shape a served request
@@ -436,6 +492,51 @@ mod tests {
             read("--METHOD--\nGET\n--PATH--\n/\n--SCHEME--\nftp\n")
                 .expect_err("a request arrives over one of two schemes"),
             "`--SCHEME--` is `http` or `https`, not `ftp`"
+        );
+    }
+
+    #[test]
+    fn a_mount_section_carries_its_prefix_and_captures_as_the_door_strips_them() {
+        let wire = read("--METHOD--\nGET\n--PATH--\n/orders\n--MOUNT--\n/shop\nacme\neu\n")
+            .expect("a file naming a mount reads back");
+        assert_eq!(wire.mount_prefix, "/shop");
+        assert_eq!(wire.mount_captures, ["acme", "eu"]);
+        assert_eq!(wire.path, "/orders", "the path is the one the program sees");
+
+        let root = read("--METHOD--\nGET\n--PATH--\n/\n--MOUNT--\n/\n").expect("the root mount");
+        assert_eq!(
+            root.mount_prefix, "",
+            "`/` strips nothing, so it reads as `\"\"`"
+        );
+        assert!(root.mount_captures.is_empty());
+
+        let none = read("--METHOD--\nGET\n--PATH--\n/\n").expect("no mount at all");
+        assert_eq!(
+            (none.mount_prefix.as_str(), none.mount_captures.len()),
+            ("", 0),
+            "a file naming no mount answers what the root mount answers"
+        );
+    }
+
+    #[test]
+    fn a_mount_no_table_could_hold_is_refused() {
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--MOUNT--\n\n").expect_err("nothing in it"),
+            "`--MOUNT--` is empty"
+        );
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--MOUNT--\nshop\n").expect_err("not a prefix"),
+            "`--MOUNT--`'s prefix starts with `/` and ends with one only when it is `/`, not `shop`"
+        );
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--MOUNT--\n/shop/\n")
+                .expect_err("a trailing slash no row keeps"),
+            "`--MOUNT--`'s prefix starts with `/` and ends with one only when it is `/`, not `/shop/`"
+        );
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--MOUNT--\n/shop\nacme\n\neu\n")
+                .expect_err("a blank capture"),
+            "`--MOUNT--` has an empty line where a capture belongs"
         );
     }
 
