@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a program redirects to addresses that try to add a second header, and to a very
+// long address, again and again. Each bad address should throw an error and set nothing.
+
+// 1. Addresses that are empty, or contain a newline, a carriage return, a zero byte, a tab
+// or a non-ASCII letter. Each call should throw a `LogicError`.
+array<string> $urls = [
+    '',
+    "/a\r\nSet-Cookie: admin=1",
+    "/a\nLocation: https://example.com/",
+    "/a\rb",
+    "/a\0b",
+    "/a\tb",
+    '/straße',
+];
+foreach ($urls as string $url) {
+    try {
+        Core\Response::redirect($url, Core\Response\Redirect::Permanent);
+        throw new RuntimeError('an address that could split the header line was set');
+    } catch (LogicError $badUrl) {
+    }
+}
+
+// 2. An address of one million characters, set one thousand times with each kind of redirect.
+string $long = '/' . Core\Str::repeat('a', 1000000);
+array<Core\Response\Redirect> $kinds = [
+    Core\Response\Redirect::SeeOther,
+    Core\Response\Redirect::Temporary,
+    Core\Response\Redirect::Permanent,
+];
+uint $n = 0;
+while ($n < 1000) {
+    Core\Response::redirect($long, $kinds[$n % 3]);
+    $n = $n + 1;
+}
+Core\Response::redirect('/done');
+echo "done\n";

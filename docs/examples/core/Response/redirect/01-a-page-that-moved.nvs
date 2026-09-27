@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to send visitors from an old address to a new one.
+
+// The page `/pricing` is now at `/plans`. `Permanent` sets the status 308,
+// so the browser uses `/plans` from now on.
+Core\Response::redirect("/plans", Core\Response\Redirect::Permanent);
+echo "Status 308, Location: /plans\n";

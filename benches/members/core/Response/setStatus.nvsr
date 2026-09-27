@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/api/status
+--HEADERS--
+host: example.com

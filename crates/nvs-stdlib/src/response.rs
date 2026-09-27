@@ -719,78 +719,77 @@ const TEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Response::setStatus`'s reference card — `rule:core-api/reference-card`.
 const SET_STATUS_DOC: MethodDoc = MethodDoc {
-    short: "Answers with `$code` as the response's status, replacing \
-            `http_response_code` — the one member here that says nothing about the body.",
+    short: "Sets the HTTP status of the response to `$code`, such as `404` or `201`. It does \
+            not write a body, so you can use it together with `echo` or a body method.",
     params: &[ParamDoc {
         name: "code",
-        desc: "The status to answer with, from 100 to 599. Not a sink, unlike `bytes`' content \
-               type: a status line carries a number and never a string, so there is nothing here \
-               a `tainted` value could become.",
+        desc: "The status code, from 100 to 599.",
         shape: &[],
     }],
-    ret: "Nothing. The last call on one response is the one that answers, and a request that \
-          failed answers `500` whatever it had set.",
+    ret: "Nothing. If you call it more than once, the last call sets the status. If the request \
+          fails with an error, the status is `500`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$code` is outside 100 to 599, which is not a status any peer can classify.",
+        desc: "`$code` is less than 100 or greater than 599. The status does not change.",
     }],
 };
 
 /// `Core\Response::setHeader`'s reference card — `rule:core-api/reference-card`.
 const SET_HEADER_DOC: MethodDoc = MethodDoc {
-    short: "Sets `$name` to `$value` on this response, replacing whatever the server's own \
-            policy wrote for that header — spec § 15's override, replacing `header`.",
+    short: "Sets the response header `$name` to `$value`. If the server already sets this \
+            header, your value replaces the server's value.",
     params: &[
         ParamDoc {
             name: "name",
-            desc: "The field name: a non-empty token, so letters, digits and the marks \
-                   RFC 9110 admits. A sink, and `Content-Type` is refused whatever its case — \
-                   the body member that wrote the body is what declares that one.",
+            desc: "The header name, such as `Cache-Control`. It contains letters, digits and a \
+                   few marks such as `-` and `_`. Spaces and `:` are not allowed. It cannot be \
+                   `Content-Type`, because the body method you use sets that header. A `tainted` \
+                   value is not allowed.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The field value: printable ASCII, so a newline cannot smuggle a second \
-                   header and a control character cannot end the line early. A sink; empty is \
-                   admitted, an empty header being a header.",
+            desc: "The header value. It contains only printable ASCII characters, so it cannot \
+                   contain a newline. It can be empty. A `tainted` value is not allowed.",
             shape: &[],
         },
     ],
-    ret: "Nothing. Setting one name twice keeps the last value, at the first call's position, \
-          and a request that failed answers `500` carrying none of them.",
+    ret: "Nothing. If you set the same name twice, the header has the last value. The \
+          comparison of names ignores upper and lower case. If the request fails with an error, \
+          the response has none of these headers.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$name` is empty, holds a byte a token cannot, or is `Content-Type`; or \
-               `$value` holds a byte outside printable ASCII.",
+        desc: "`$name` is empty, contains a character that is not allowed, or is \
+               `Content-Type`. Or `$value` contains a character that is not printable ASCII.",
     }],
 };
 
 /// `Core\Response::redirect`'s reference card — `rule:core-api/reference-card`.
 const REDIRECT_DOC: MethodDoc = MethodDoc {
-    short: "Answers by sending the peer to `$url`, declaring the redirect status and the \
-            `Location` header together — spec § 15's redirect, replacing a `Location` written \
-            by hand beside `http_response_code`.",
+    short: "Sends the browser to another address. It sets the redirect status and the \
+            `Location` header together. It does not write a body.",
     params: &[
         ParamDoc {
             name: "url",
-            desc: "Where the peer is being sent: printable ASCII and non-empty, absolute or \
-                   relative to the request. A sink, because a destination chosen by whoever \
-                   sent the request is an open redirect.",
+            desc: "The address to send the browser to. It can be a full URL or a path such as \
+                   `/orders/42`. It is not empty and contains only printable ASCII characters. \
+                   A `tainted` value is not allowed, because a visitor must not choose where the \
+                   browser goes.",
             shape: &[],
         },
         ParamDoc {
             name: "status",
-            desc: "Which redirect this is. Defaults to `SeeOther`, the one that answers a form \
-                   post by sending the browser to fetch a page.",
+            desc: "The kind of redirect: `SeeOther` (303), `Temporary` (307) or `Permanent` \
+                   (308). The default is `SeeOther`, which you use after a form is sent.",
             shape: &[],
         },
     ],
-    ret: "Nothing, and no byte of body. The last call on one response is the one that answers, \
-          and a request that failed answers `500` carrying neither the status nor the header.",
+    ret: "Nothing. If you call it more than once, the last call wins. If the request fails with \
+          an error, the status is `500` and there is no `Location` header.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$url` is empty, or holds a byte outside printable ASCII — a newline included, \
-               which would end the header line and begin one the program never wrote.",
+        desc: "`$url` is empty, or contains a character that is not printable ASCII, such as a \
+               newline. Nothing is set.",
     }],
 };
 
@@ -2341,5 +2340,125 @@ mod tests {
         dropped(media_type);
         dropped(chunk);
         dropped(handle);
+    }
+
+    /// `setStatus`'s bound asserted on both sides, read back off the context
+    /// the finish path takes the status from: `100` and `599` are declared,
+    /// `99` and `600` are refused, and a refusal leaves the status an earlier
+    /// call declared in place rather than clearing it.
+    ///
+    /// `65636` is the case a truncating cast would get wrong, since it wraps
+    /// to `100`, which is inside the bound.
+    // covers: Core\Response::setStatus
+    #[test]
+    fn set_status_declares_both_ends_of_its_bound_and_keeps_the_last_good_one() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        for code in [100, 599, 204] {
+            call(
+                super::nvs_core_response_set_status,
+                &mut ctx,
+                &[Value::uint(code)],
+            )
+            .expect("a status between 100 and 599 is declared");
+        }
+        for code in [0, 99, 600, 65636] {
+            call(
+                super::nvs_core_response_set_status,
+                &mut ctx,
+                &[Value::uint(code)],
+            )
+            .expect_err("a code outside 100 to 599 is refused");
+        }
+        assert_eq!(ctx.take_status(), Some(204));
+        assert_eq!(ctx.take_buffered_output().unwrap_or_default(), b"");
+    }
+
+    /// `setHeader` replacing rather than adding, and refusing each byte that
+    /// would let a value start a second header line: after two writes to one
+    /// name in two spellings the name has one value, at its first position,
+    /// and none of the refused writes left anything behind.
+    // covers: Core\Response::setHeader
+    #[test]
+    fn set_header_replaces_in_place_and_refuses_what_would_split_the_line() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let set = |ctx: &mut Ctx, name: &[u8], value: &[u8]| {
+            let args = [
+                Value::str(NvsStr::new(name)),
+                Value::str(NvsStr::new(value)),
+            ];
+            let answer = call(super::nvs_core_response_set_header, ctx, &args);
+            args.into_iter().for_each(dropped);
+            answer.is_ok()
+        };
+        assert!(set(&mut ctx, b"Cache-Control", b"no-store"));
+        assert!(set(&mut ctx, b"X-Request-Id", b"42"));
+        assert!(set(&mut ctx, b"cache-control", b"max-age=60"));
+        assert!(set(&mut ctx, b"X-Empty", b""));
+        for (name, value) in [
+            (&b""[..], &b"x"[..]),
+            (b"Bad Name", b"x"),
+            (b"Bad:Name", b"x"),
+            (b"content-TYPE", b"text/plain"),
+            (b"X-Split", b"a\r\nSet-Cookie: admin=1"),
+            (b"X-Split", b"a\nb"),
+            (b"X-Split", b"a\0b"),
+        ] {
+            assert!(
+                !set(&mut ctx, name, value),
+                "{name:?}: {value:?} was declared"
+            );
+        }
+        let headers: Vec<(Box<str>, Box<str>)> = ctx
+            .take_headers()
+            .into_iter()
+            .map(|header| (header.name, header.value))
+            .collect();
+        assert_eq!(
+            headers,
+            [
+                ("Cache-Control".into(), "max-age=60".into()),
+                ("X-Request-Id".into(), "42".into()),
+                ("X-Empty".into(), "".into()),
+            ]
+        );
+    }
+
+    /// `redirect`'s two declarations made together or not at all: each case
+    /// of the closed set declares its own status beside one `Location`, and
+    /// a destination that would split the header line declares neither.
+    // covers: Core\Response::redirect
+    #[test]
+    fn redirect_declares_status_and_location_together_or_neither() {
+        for status in [303, 307, 308] {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let url = Value::str(NvsStr::new(b"/orders/42"));
+            call(
+                super::nvs_core_response_redirect,
+                &mut ctx,
+                &[url, Value::int(status)],
+            )
+            .expect("a printable destination is declared");
+            dropped(url);
+            assert_eq!(ctx.take_status(), u16::try_from(status).ok());
+            let headers = ctx.take_headers();
+            assert_eq!(headers.len(), 1);
+            assert_eq!(
+                (&*headers[0].name, &*headers[0].value),
+                ("Location", "/orders/42")
+            );
+        }
+        for bad in [&b""[..], b"/a\r\nSet-Cookie: admin=1", b"/a\tb"] {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let url = Value::str(NvsStr::new(bad));
+            call(
+                super::nvs_core_response_redirect,
+                &mut ctx,
+                &[url, Value::int(303)],
+            )
+            .expect_err("a destination a `Location` line cannot carry is refused");
+            dropped(url);
+            assert_eq!(ctx.take_status(), None);
+            assert!(ctx.take_headers().is_empty());
+        }
     }
 }

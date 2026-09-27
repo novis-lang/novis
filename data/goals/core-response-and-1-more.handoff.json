@@ -1,27 +1,26 @@
 {
-  "state": "Goal `core-response-and-1-more`: every body member of `Core\\Response` — `addCookie`, `bytes`,\n`html`, `text` and `json` — has every feature proof: `about.md`, three examples with `.nvsr`\nrequests, the attack, the bench record in `docs/perf/members.ndjson`, and a `covers:` line on\n`each_body_member_sets_its_own_content_type` in `crates/nvs-stdlib/src/response.rs`. The\n`BYTES_DOC`, `HTML_DOC`, `TEXT_DOC` and `JSON_DOC` cards follow AGENTS.md § *Text an end user\nreads*. The cards of `setStatus`, `setHeader`, `redirect` and `sendFile` do not yet.\n`Core\\Response\\Stream` is still in `CLASSES_STILL_OWING_A_CARD` in\n`crates/nvs-stdlib/src/registry.rs`, and `Core\\Response\\Stream::write` owes every proof. Nothing is\nblocked.\n\n`nvs run --request` prints the response body alone, never the status line or the headers, so an\nexample about a status or a header shows it through the body it writes. A body member's bench\nwrites bodies with no newline in them, because a newline flushes the terminal on every call. The\nwall-clock of these benches is noisy: compare the allocation and byte counts.",
+  "state": "Goal `core-response-and-1-more`: eight of `Core\\Response`'s ten members carry every feature proof —\n`addCookie`, `bytes`, `html`, `text`, `json`, `setStatus`, `setHeader` and `redirect` — with\n`about.md`, three examples with `.nvsr` requests, the attack, the bench record in\n`docs/perf/members.ndjson`, and a `covers:` line in `crates/nvs-stdlib/src/response.rs`'s `tests`\nmodule. Their cards follow AGENTS.md § *Text an end user reads*. `sendFile` and `stream` owe every\nproof, and their cards are not plain yet. `Core\\Response\\Stream` is still in\n`CLASSES_STILL_OWING_A_CARD`, and `Core\\Response\\Stream::write` owes every proof. Nothing is blocked.\n\n`nvs run --request` prints the response body alone, never the status line or the headers, so an\nexample about a status or a header shows it through the body it writes. A body member's bench\nwrites bodies with no newline in them, because a newline flushes the terminal on every call. The\nwall-clock of these benches is noisy: compare the allocation and byte counts.",
   "next": {
     "stage": 2,
-    "title": "the members that shape a response",
+    "title": "the members that open a body from outside the program",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/response.rs` (the members, their cards and the `tests` module), `docs/examples/core/Response/`, `tests/hostile/core/Response/`, `benches/members/core/Response/`. Each example gets a `.nvsr` request beside it, and each card touched is brought up to AGENTS.md § *Text an end user reads*.",
+    "note": "one file set: `crates/nvs-stdlib/src/response.rs` (the members, their cards and the `tests` module, whose `offered_cell` and `framing` helpers already drive `stream`), `crates/nvs-stdlib/src/registry.rs` (the class card), `docs/examples/core/Response/`, `docs/examples/core/Response-Stream/`, `tests/hostile/core/Response/`, `tests/hostile/core/Response-Stream/`, `benches/members/core/Response/`, `benches/members/core/Response-Stream/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Response::setStatus`** — owes examples, hostile, perf, Rust `covers:` (`rule:security/response-body-is-one-typed-member`). Member at `crates/nvs-stdlib/src/response.rs:1134`, card at `crates/nvs-stdlib/src/response.rs:721`. The body is all an example can show, so each one writes a body saying what status it chose."
+        "text": "**`Core\\Response::sendFile`** — owes examples, hostile, perf, Rust `covers:` (`rule:security/response-body-is-one-typed-member`). Member at `crates/nvs-stdlib/src/response.rs:1748`, card at `crates/nvs-stdlib/src/response.rs:672`. It needs a static-file grant; `tests/conformance/core/response-send-file-streams-the-file-under-its-media-type.nvst` shows the setup an example needs."
       },
       {
         "done": false,
-        "text": "**`Core\\Response::setHeader`** — the same owed set. Member at `crates/nvs-stdlib/src/response.rs:1175`, card at `crates/nvs-stdlib/src/response.rs:740`. The attack is header injection through the name and the value, and `Content-Type` in any case."
+        "text": "**`Core\\Response::stream`** — the same owed set. Member at `crates/nvs-stdlib/src/response.rs:1828`, card at `crates/nvs-stdlib/src/response.rs:566`. The tests `a_streamed_chunk_reaches_the_connections_half_and_not_the_requests_output` and its two siblings only need a `// covers:` line."
       },
       {
         "done": false,
-        "text": "**`Core\\Response::redirect`** — the same owed set. Member at `crates/nvs-stdlib/src/response.rs:1244`, card at `crates/nvs-stdlib/src/response.rs:769`."
+        "text": "**`Core\\Response\\Stream::write`** — owes the class card, examples, hostile, perf and 2 tests. Member at `crates/nvs-stdlib/src/response.rs:1900`, card at `crates/nvs-stdlib/src/response.rs:589`; the class card replaces its entry at `crates/nvs-stdlib/src/registry.rs:5279`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Response\\Stream::write` owes every proof and its class a card — `crates/nvs-stdlib/src/registry.rs` `CLASSES_STILL_OWING_A_CARD`; acceptance check `dossier-core-response-stream`.",
-    "The `SEND_FILE_DOC` card in `crates/nvs-stdlib/src/response.rs` is not yet plain."
+    "A bench that reads `$codes[$i]` from an `array<uint>` counted 2 allocations per read; reading no array counted 0 (`benches/members/core/Response/setStatus.nvs` avoids the index). Not traced to its cause — owner: the `nvs-codegen` array-index lowering, not checked which file."
   ]
 }

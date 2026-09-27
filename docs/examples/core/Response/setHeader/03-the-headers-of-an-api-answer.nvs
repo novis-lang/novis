@@ -1,0 +1,11 @@
+<?nvs
+// Shows the headers an API sets on an answer: how long to cache it, and which API version wrote it.
+
+// A client may keep this answer for 60 seconds.
+Core\Response::setHeader("Cache-Control", "max-age=60");
+Core\Response::setHeader("X-Api-Version", "2");
+
+// The second call to `Cache-Control` replaces the first, so the value is `max-age=300`.
+Core\Response::setHeader("cache-control", "max-age=300");
+
+Core\Response::json({ cacheControl: "max-age=300", apiVersion: 2, products: ["Tea", "Coffee"] });

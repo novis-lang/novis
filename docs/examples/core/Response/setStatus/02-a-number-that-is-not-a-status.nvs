@@ -1,0 +1,10 @@
+<?nvs
+// Shows what happens when a number is not an HTTP status.
+
+// A status is between 100 and 599. 600 is not, so `setStatus` throws a `LogicError`.
+// The status does not change, so it is still 200.
+try {
+    Core\Response::setStatus(600);
+} catch (LogicError $error) {
+    Core\Response::text("Status 200. The error was: " . $error->message . "\n");
+}

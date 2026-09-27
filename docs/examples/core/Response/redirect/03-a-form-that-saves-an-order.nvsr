@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/orders
+--HEADERS--
+host: example.com

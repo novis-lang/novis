@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to answer with status 404 when a visitor asks for a page that does not exist.
+
+// The path comes from the visitor, so it is a `tainted string`.
+tainted string $path = Core\Request::path();
+if ($path == "/about" || $path == "/contact") {
+    Core\Response::text("This is the page " . $path . "\n");
+} else {
+    // The path is `/prices`, so the status is 404 and this text is the body.
+    Core\Response::setStatus(404);
+    Core\Response::text("Status 404: there is no page " . $path . "\n");
+}

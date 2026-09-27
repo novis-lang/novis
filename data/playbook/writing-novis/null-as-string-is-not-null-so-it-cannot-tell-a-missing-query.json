@@ -1,0 +1,11 @@
+{
+  "lead": "`null as ?string` is `\"\"`, not `null`, so it cannot tell a missing query parameter from an empty one.",
+  "body": "`rule:expressions/nullable-conversion` makes `as ?string` render exactly what `as string` renders, and `null` renders `\"\"`; `null as ?int` is `null`, so the two read alike and behave differently. Keep `Core\\Request::query(...)` in a `mixed` variable, compare that to `null`, and convert only in the other branch.",
+  "files": [
+    "tests/conformance/lang/a-nullable-conversion-to-string-answers-null-where-the-checked-one-throws.nvst"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tests/conformance/lang/a-nullable-conversion-to-string-answers-null-where-the-checked-one-throws.nvst:as ?string"
+  }
+}

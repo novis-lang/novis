@@ -1,0 +1,20 @@
+<?nvs
+// Sets the status of a response, as a handler does once for each request that is not a plain 200.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $code = 200 + $total % 5;
+            Core\Response::setStatus($code);
+            $total = $total + $code;   // chained: the next code depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response::text((Bench::run(400000) as string) . "\n");

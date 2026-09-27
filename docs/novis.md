@@ -19044,15 +19044,15 @@ Answers with a body written over time, declaring `$contentType` — the head goe
 Core\Response::setStatus(uint $code): void
 ```
 
-Answers with `$code` as the response's status, replacing `http_response_code` — the one member here that says nothing about the body.
+Sets the HTTP status of the response to `$code`, such as `404` or `201`. It does not write a body, so you can use it together with `echo` or a body method.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$code` | `uint` | The status to answer with, from 100 to 599. Not a sink, unlike `bytes`' content type: a status line carries a number and never a string, so there is nothing here a `tainted` value could become. |
+| `$code` | `uint` | The status code, from 100 to 599. |
 
-**Returns** `void` — Nothing. The last call on one response is the one that answers, and a request that failed answers `500` whatever it had set.
+**Returns** `void` — Nothing. If you call it more than once, the last call sets the status. If the request fails with an error, the status is `500`.
 
-**Throws** `LogicError` — `$code` is outside 100 to 599, which is not a status any peer can classify.
+**Throws** `LogicError` — `$code` is less than 100 or greater than 599. The status does not change.
 
 <a id="core-core-response-setheader"></a>
 #### `Core\Response::setHeader`
@@ -19061,16 +19061,16 @@ Answers with `$code` as the response's status, replacing `http_response_code` �
 Core\Response::setHeader(string $name, string $value): void
 ```
 
-Sets `$name` to `$value` on this response, replacing whatever the server's own policy wrote for that header — spec § 15's override, replacing `header`.
+Sets the response header `$name` to `$value`. If the server already sets this header, your value replaces the server's value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (sink) | The field name: a non-empty token, so letters, digits and the marks RFC 9110 admits. A sink, and `Content-Type` is refused whatever its case — the body member that wrote the body is what declares that one. |
-| `$value` | `string` (sink) | The field value: printable ASCII, so a newline cannot smuggle a second header and a control character cannot end the line early. A sink; empty is admitted, an empty header being a header. |
+| `$name` | `string` (sink) | The header name, such as `Cache-Control`. It contains letters, digits and a few marks such as `-` and `_`. Spaces and `:` are not allowed. It cannot be `Content-Type`, because the body method you use sets that header. A `tainted` value is not allowed. |
+| `$value` | `string` (sink) | The header value. It contains only printable ASCII characters, so it cannot contain a newline. It can be empty. A `tainted` value is not allowed. |
 
-**Returns** `void` — Nothing. Setting one name twice keeps the last value, at the first call's position, and a request that failed answers `500` carrying none of them.
+**Returns** `void` — Nothing. If you set the same name twice, the header has the last value. The comparison of names ignores upper and lower case. If the request fails with an error, the response has none of these headers.
 
-**Throws** `LogicError` — `$name` is empty, holds a byte a token cannot, or is `Content-Type`; or `$value` holds a byte outside printable ASCII.
+**Throws** `LogicError` — `$name` is empty, contains a character that is not allowed, or is `Content-Type`. Or `$value` contains a character that is not printable ASCII.
 
 <a id="core-core-response-redirect"></a>
 #### `Core\Response::redirect`
@@ -19079,16 +19079,16 @@ Sets `$name` to `$value` on this response, replacing whatever the server's own p
 Core\Response::redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void
 ```
 
-Answers by sending the peer to `$url`, declaring the redirect status and the `Location` header together — spec § 15's redirect, replacing a `Location` written by hand beside `http_response_code`.
+Sends the browser to another address. It sets the redirect status and the `Location` header together. It does not write a body.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string` (sink) | Where the peer is being sent: printable ASCII and non-empty, absolute or relative to the request. A sink, because a destination chosen by whoever sent the request is an open redirect. |
-| `$status` | `Core\Response\Redirect` (default `Core\Response\Redirect::SeeOther`) | Which redirect this is. Defaults to `SeeOther`, the one that answers a form post by sending the browser to fetch a page. |
+| `$url` | `string` (sink) | The address to send the browser to. It can be a full URL or a path such as `/orders/42`. It is not empty and contains only printable ASCII characters. A `tainted` value is not allowed, because a visitor must not choose where the browser goes. |
+| `$status` | `Core\Response\Redirect` (default `Core\Response\Redirect::SeeOther`) | The kind of redirect: `SeeOther` (303), `Temporary` (307) or `Permanent` (308). The default is `SeeOther`, which you use after a form is sent. |
 
-**Returns** `void` — Nothing, and no byte of body. The last call on one response is the one that answers, and a request that failed answers `500` carrying neither the status nor the header.
+**Returns** `void` — Nothing. If you call it more than once, the last call wins. If the request fails with an error, the status is `500` and there is no `Location` header.
 
-**Throws** `LogicError` — `$url` is empty, or holds a byte outside printable ASCII — a newline included, which would end the header line and begin one the program never wrote.
+**Throws** `LogicError` — `$url` is empty, or contains a character that is not printable ASCII, such as a newline. Nothing is set.
 
 <a id="core-core-response-addcookie"></a>
 #### `Core\Response::addCookie`

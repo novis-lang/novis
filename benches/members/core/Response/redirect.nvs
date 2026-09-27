@@ -1,0 +1,21 @@
+<?nvs
+// Sends the browser to another page, as a form handler does after it saves the form.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $urls = ["/orders/42", "/thanks", "/account", "/cart"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $url = $urls[$total % 4];
+            Core\Response::redirect($url);
+            $total = $total + Core\Str::length($url);   // chained: the next address depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response::redirect("/done");
+echo Bench::run(200000), "\n";

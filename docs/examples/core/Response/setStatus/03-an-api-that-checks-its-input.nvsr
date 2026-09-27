@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/api/subscribers
+--QUERY--
+name=Ada
+--HEADERS--
+host: example.com

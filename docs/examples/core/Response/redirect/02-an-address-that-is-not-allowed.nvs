@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when the address of a redirect contains a newline.
+
+// A newline would end the `Location` header and start a new header.
+// So `redirect` throws a `LogicError`, and the response is not a redirect.
+try {
+    Core\Response::redirect("/home\nSet-Cookie: admin=1");
+    echo "Redirected\n";
+} catch (LogicError $error) {
+    echo "Not redirected: the address contains a newline.\n";
+}
