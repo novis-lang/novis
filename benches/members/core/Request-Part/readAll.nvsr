@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/documents
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=----WebKitFormBoundary3kQz8vLm1PdR
+--BODY_CRLF--
+------WebKitFormBoundary3kQz8vLm1PdR
+Content-Disposition: form-data; name="document"; filename="handbook.txt"
+Content-Type: text/plain
+
+Chapter 1. Welcome to the team. This handbook says how orders are packed and shipped.
+Chapter 2. Every order is checked twice before it leaves the warehouse.
+Chapter 3. A customer who writes to us gets an answer on the same working day.
+Chapter 4. Returns are accepted within 30 days, and the money is paid back in 5 days.
+------WebKitFormBoundary3kQz8vLm1PdR--

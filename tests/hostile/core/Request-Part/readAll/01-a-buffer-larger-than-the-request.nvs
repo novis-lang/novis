@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program asks `readAll` for more memory than the request has. It also reads
+// a file too large for `max`, and reads files twice and after the loop. Each wrong read
+// should throw an error. The program then copies a file without end and should stop at
+// its memory limit.
+// hostile: ends-early
+
+array<Core\Request\Part> $parts = [];
+tainted bytes $last = '' as bytes;
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $parts[] = $part;
+
+    // 1. Asks for the largest `max` there is. This throws a `LogicError` and reads nothing.
+    try {
+        $part->readAll({ max: 18446744073709551615 });
+        echo "the largest max was accepted\n";
+    } catch (LogicError $tooMuch) {
+        echo "largest max: LogicError\n";
+    }
+
+    // 2. Allows one byte for the second file, which is larger. This throws a `RuntimeError`.
+    if (Core\Arr::count($parts) == 2) {
+        try {
+            $part->readAll({ max: 1 });
+            echo "one byte was enough\n";
+        } catch (RuntimeError $tooLarge) {
+            echo "max of 1: RuntimeError\n";
+        }
+    }
+
+    // 3. Reads each file twice and prints both sizes.
+    tainted bytes $first = $part->readAll();
+    tainted bytes $second = $part->readAll();
+    echo 'read twice: ', Core\Bytes::length($first), ' then ', Core\Bytes::length($second), " bytes\n";
+    if (Core\Bytes::length($first) > 0) {
+        $last = $first;
+    }
+}
+
+// 4. Reads the first file after the loop ended. This throws a `LogicError`.
+try {
+    $parts[0]->readAll();
+    echo "an old file was read\n";
+} catch (LogicError $gone) {
+    echo "old file: LogicError\n";
+}
+
+// 5. Copies a file without end and keeps every copy. This stops at the memory limit.
+array<tainted bytes> $copies = [];
+while (true) {
+    $copies[] = Core\Bytes::repeat($last, 100000);
+}

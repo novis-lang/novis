@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read a small uploaded file as one value and print it as text.
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `readAll` returns the whole file as `tainted bytes`.
+    tainted bytes $content = $part->readAll();
+    echo $part->filename(), ': ', Core\Bytes::length($content), " bytes\n";
+    // `Core\Encoding::decodeText` reads the bytes as UTF-8 text.
+    echo Core\Encoding::decodeText($content, Core\Charset::Utf8), "\n";
+}

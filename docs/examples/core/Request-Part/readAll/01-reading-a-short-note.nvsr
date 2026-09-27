@@ -1,0 +1,14 @@
+--METHOD--
+POST
+--PATH--
+/notes
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=note-5c21
+--BODY_CRLF--
+--note-5c21
+Content-Disposition: form-data; name="note"; filename="shopping.txt"
+Content-Type: text/plain
+
+Bread, milk and two lemons.
+--note-5c21--

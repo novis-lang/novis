@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/comments/attachments
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=limit-7e02
+--BODY_CRLF--
+--limit-7e02
+Content-Disposition: form-data; name="attachment"; filename="story.txt"
+Content-Type: text/plain
+
+Once upon a time there was a comment that was much too long for this form.
+--limit-7e02
+Content-Disposition: form-data; name="attachment"; filename="thanks.txt"
+Content-Type: text/plain
+
+Thank you for the quick help!
+--limit-7e02--

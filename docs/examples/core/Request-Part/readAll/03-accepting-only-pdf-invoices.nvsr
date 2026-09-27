@@ -1,0 +1,23 @@
+--METHOD--
+POST
+--PATH--
+/invoices
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=----WebKitFormBoundary9TnB4xWq2LsK
+--BODY_CRLF--
+------WebKitFormBoundary9TnB4xWq2LsK
+Content-Disposition: form-data; name="invoice"; filename="invoice-march.pdf"
+Content-Type: application/pdf
+
+%PDF-1.7
+1 0 obj << /Type /Catalog >> endobj
+%%EOF
+------WebKitFormBoundary9TnB4xWq2LsK
+Content-Disposition: form-data; name="invoice"; filename="invoice-april.pdf"
+Content-Type: application/pdf
+
+<html><body>This is a web page, not an invoice.</body></html>
+------WebKitFormBoundary9TnB4xWq2LsK--
