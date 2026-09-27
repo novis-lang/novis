@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/contact
+--HEADERS--
+host: shop.example.com
+content-type: application/x-www-form-urlencoded
+--BODY--
+name=Ada+Lovelace&email=ada%40example.com&message=Please+call+me&newsletter=on&csrf=t0ken

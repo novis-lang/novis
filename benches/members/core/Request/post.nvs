@@ -1,0 +1,21 @@
+<?nvs
+// Reads one field of a submitted form, as a program does when it handles a sign-up or contact form.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The form is in the file `post.nvsr` beside this one.
+        array<string> $names = ["name", "email", "message"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $value = Core\Request::post($names[$total % 3]) as string;
+            $total = $total + Core\Str::length($value);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

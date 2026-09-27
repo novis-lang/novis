@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a client sends a form with a name nested 100 levels deep and one escape that is not UTF-8.
+// Each read should throw a `RuntimeError`, and the program should not crash.
+
+// 1. Reads a field that is correct. The broken escape is in another field, and the read still throws.
+try {
+    mixed $name = Core\Request::post('name');
+    echo 'not reached: ', $name ?? 'null', "\n";
+} catch (RuntimeError $error) {
+    echo 'name: ', Core\Str::length($error->message) > 0 ? 'error' : 'no message', "\n";
+}
+
+// 2. Reads the deep name 2000 times. Every read throws, and no memory is kept.
+uint $failed = 0;
+uint $i = 0;
+while ($i < 2000) {
+    try {
+        mixed $deep = Core\Request::post('deep');
+        echo 'not reached: ', $deep == null ? 'null' : 'found', "\n";
+    } catch (RuntimeError $error) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo 'failed reads: ', $failed, "\n";

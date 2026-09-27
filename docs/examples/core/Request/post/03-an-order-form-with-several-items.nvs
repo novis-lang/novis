@@ -1,0 +1,11 @@
+<?nvs
+// Shows how a shop reads an order form where the customer ticked several products.
+
+// The form sends `item[]=notebook&item[]=pen`. The `[]` puts every value in one list.
+array<string> $items = Core\Request::post("item") as array<string>;
+
+// This prints "notebook" and "pen", and then "2 items".
+foreach ($items as string $item) {
+    echo $item, "\n";
+}
+echo Core\Arr::count($items), " items\n";

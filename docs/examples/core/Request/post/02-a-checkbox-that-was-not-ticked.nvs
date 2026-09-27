@@ -1,0 +1,11 @@
+<?nvs
+// Shows what `Core\Request::post` returns for a field that is missing or empty.
+
+// A browser does not send a checkbox that is not ticked.
+// The body has no field "newsletter", so the result is `null`. This prints "newsletter: no".
+echo "newsletter: ", Core\Request::post("newsletter") == null ? "no" : "yes", "\n";
+
+// The field "comment" was sent with no text. The result is an empty string, not `null`.
+// This prints "comment is empty".
+string $comment = Core\Request::post("comment") as string;
+echo $comment == "" ? "comment is empty\n" : "comment: " . $comment . "\n";

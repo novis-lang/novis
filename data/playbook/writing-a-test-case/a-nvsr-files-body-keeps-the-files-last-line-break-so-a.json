@@ -1,0 +1,11 @@
+{
+  "lead": "A `.nvsr` file's `--BODY--` keeps the file's last line break, so a urlencoded form's last field reads as its value plus `\\n`.",
+  "body": "The body is everything after the header line, verbatim, and an editor or the Write tool ends the file with a newline. Write a body `.nvsr` with no line break after the body, and read the last field once to check it.",
+  "files": [
+    "crates/nvs-test/src/request.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-test/src/request.rs:is read **verbatim**"
+  }
+}

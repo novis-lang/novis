@@ -1,10 +1,9 @@
 {
-  "state": "`Core\\Request::jsonAs`, `method`, `mount`, `scheme` and `path` owe nothing. `scheme` and\n`path` each have `about.md`, three examples, an attack and a bench declaring\n`allocations 1` and `calls 0` (both measured at 1.00 allocations per read). Each also has a\nRust test carrying `covers:`. `path`'s test (`path_answers_the_remainder_the_carrier_holds_as_it_arrived`)\nis new, because no Rust test called the member before.\n\n`dossier-core-request-2-2` still fails on five members: `query`, `queryAs`, `post`,\n`postAs` and `route`. Each owes examples, an attack and a bench, and most owe a `covers:`\nmarker on a Rust test. `query_as_reads_the_query_string_the_same_way` and the\n`post_as_*` tests (`crates/nvs-stdlib/src/request.rs:6879`, `:6822`) are the Rust tests\nto mark for `queryAs` and `postAs`.\n\nA `.nvsr` names the query with `--GET--` and a urlencoded body with `--POST--`\n(`crates/nvs-test/src/request.rs`'s module doc). `--PATH--` is the path after the mount\nprefix was removed.",
+  "state": "`Core\\Request::jsonAs`, `method`, `mount`, `scheme`, `path`, `query`, `queryAs` and `post`\nowe nothing. Each has `about.md`, three examples, an attack, a bench and a Rust test that\ncarries `covers:`. The `query`, `queryAs` and `post` benches declare `calls 0` only: their\nallocations (29 and 30 per read) count the parse of the whole parameter set, which the\nmodule doc owns, so no allocation figure is declared.\n\n`dossier-core-request-2-2` still fails on two members: `postAs` and `route`. Each owes\nexamples, an attack and a bench. Their Rust tests are marked, and their Novis cases\nalready exist (`postAs` through `// covers:` in\n`tests/conformance/core/a-request-parameter-set-becomes-the-shape-it-was-asked-for.nvst`).\n\nA parameter whose escape is not UTF-8 throws a `RuntimeError` naming the member the\nprogram called (`Core\\Request::query()`, `post()`), pinned by\n`tests/conformance/core/a-request-parameter-that-is-not-utf-8-names-the-request-member.nvst`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [
-      "crates/nvs-stdlib/src/request.rs",
       "docs/examples/core/Request/",
       "tests/hostile/core/Request/",
       "benches/members/core/Request/"
@@ -12,19 +11,16 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::query`** — owes examples, hostile, perf and a `covers:` marker (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:2121`; `--GET--` in the `.nvsr` sets the query."
+        "text": "**`Core\\Request::postAs`** — owes examples, hostile and perf (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:2311`; `docs/examples/core/Request/queryAs/` is the model to follow, over a urlencoded `--BODY--`."
       },
       {
         "done": false,
-        "text": "**`Core\\Request::queryAs`** — the same four; the member is `crates/nvs-stdlib/src/request.rs:2172` and its Rust test `crates/nvs-stdlib/src/request.rs:6879`."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Request::post`** — the same four; the member is `crates/nvs-stdlib/src/request.rs:2264` and a Rust test to mark `crates/nvs-stdlib/src/request.rs:5902`."
+        "text": "**`Core\\Request::route`** — owes examples, hostile and perf. The member is `crates/nvs-stdlib/src/request.rs:1992`; an example needs a `#[Route]` the request matches, and `crates/nvs-stdlib/src/router.rs:2428` is its Rust test."
       }
     ]
   },
   "backlog": [
-    "`Core\\Request::postAs` (`crates/nvs-stdlib/src/request.rs:2309`) and `Core\\Request::route` (`crates/nvs-stdlib/src/request.rs:1992`) — the same four proofs; `rule:testing/feature-proofs`."
+    "`nv proofs --run` reported an attack as unbounded after its timeout, and the `nvs.exe` it started kept running for over ten minutes on Windows. `killTree` is `tools/nv/lib/proc.ts:180`. Check with `Get-CimInstance Win32_Process` after a timeout.",
+    "The `query` and `queryAs` attacks cannot reach the 256M memory limit within the timeout, because a 100-deep name makes each parse slow. The `queryAs` attack repeats a throwing read instead. The limit itself holds: under 16M the same keep-loop stops at once."
   ]
 }
