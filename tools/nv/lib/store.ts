@@ -3,7 +3,7 @@
 // indent, LF line ends and one trailing newline. That is what lets git merge two edits to one record
 // line by line, and what makes "load then write" change nothing.
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT, rel } from "./paths.ts";
 import { plainIdOf, SchemaError, type Issue, type RecordType } from "./schema.ts";
@@ -58,8 +58,8 @@ export function loadFile<T>(type: RecordType<T>, path: string, root: string = RO
   return { type, id, path, value: value as T, issues };
 }
 
-/** Every repo-relative `.json` path under `data/`, sorted. */
-export function recordFiles(root: string = ROOT): string[] {
+/** Every repo-relative `.json` path under `data/`, or under `data/<under>/` alone, sorted. */
+export function recordFiles(root: string = ROOT, under = ""): string[] {
   const out: string[] = [];
   const walk = (dir: string) => {
     let entries;
@@ -74,13 +74,18 @@ export function recordFiles(root: string = ROOT): string[] {
       else if (e.name.endsWith(".json")) out.push(rel(full, root));
     }
   };
-  walk(dataDir(root));
+  walk(under ? join(dataDir(root), under) : dataDir(root));
   return out.sort();
 }
 
-/** Every record of `type` on disk. */
+/** Every record of `type` on disk. Only the type's own directory is listed, so what a command read is
+ * the records it loaded and not the names of every other type's. */
 export function load<T>(type: RecordType<T>, root: string = ROOT): Loaded<T>[] {
-  return recordFiles(root)
+  if (type.single) {
+    const path = pathOf(type, type.name);
+    return existsSync(join(root, path)) ? [loadFile(type, path, root)] : [];
+  }
+  return recordFiles(root, type.dir)
     .filter((p) => idAt(type, p) !== null)
     .map((p) => loadFile(type, p, root));
 }
