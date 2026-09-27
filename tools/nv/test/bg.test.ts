@@ -60,6 +60,25 @@ describe("nv bg", () => {
     }
   });
 
+  test("a start through `bun run` and a pipe returns while the job still runs", async () => {
+    // `bun run`'s shell reads the script's output through pipes, and the job must not hold them open.
+    const release = join(ROOT, ".agent-tmp", `bg-test-pipe-${process.pid}`);
+    try {
+      const script = `const { existsSync } = require("node:fs"); while (!existsSync(${JSON.stringify(release)})) await Bun.sleep(50)`;
+      const r = await run([process.execPath, "run", "nv", "bg", "--", process.execPath, "-e", script], { cwd: ROOT, timeoutMs: 20_000 });
+      expect(r.code).toBe(0);
+      const id = r.stdout.trim().split("\n").pop()!.trim();
+      expect(id).toMatch(/^\d{8}-\d{6}-[0-9a-f]{4}$/);
+      started.push(id);
+      expect((await nv("--list")).stdout).toContain(id);
+      writeFileSync(release, "");
+      expect((await nv("--wait", id)).code).toBe(0);
+    } finally {
+      writeFileSync(release, "");
+      released.push(release);
+    }
+  }, 30_000);
+
   test("an id that names no job is a bad argument", async () => {
     const r = await nv("--wait", "no-such-job");
     expect(r.code).toBe(2);

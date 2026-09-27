@@ -17,6 +17,7 @@
 // Exits 0 when a job starts or the list prints, the job's status for `--wait`, and 2 on a bad argument
 // or an id that names no job.
 
+import { dlopen, FFIType, type Pointer } from "bun:ffi";
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -80,6 +81,33 @@ function start(argv: string[]): number {
   return 0;
 }
 
+/** The handle values `uninheritAll` tries: every multiple of 4 below this. */
+const HANDLE_SCAN_END = 1 << 18;
+
+/**
+ * Clears the inherit flag on every handle this process has, on Windows, so the supervisor started next
+ * inherits none of them. A Windows child inherits every inheritable handle of its parent, whatever its
+ * `stdio` says. `bun run`'s shell leaves inheritable copies of the pipes it reads the script's output
+ * from in this process, beside the standard handles, so under `bun nv … | tail` the supervisor held
+ * that pipe open and the caller waited for the whole job. The supervisor writes only to its job's log.
+ * Handle values are multiples of 4, and the flag call fails harmlessly on a value that names no handle.
+ * This process only starts the supervisor and then prints and exits, so its own later children lose
+ * nothing.
+ */
+function uninheritAll(): void {
+  if (process.platform !== "win32") return;
+  try {
+    const k32 = dlopen("kernel32.dll", {
+      SetHandleInformation: { args: [FFIType.ptr, FFIType.u32, FFIType.u32], returns: FFIType.i32 },
+    });
+    const HANDLE_FLAG_INHERIT = 1;
+    for (let h = 4; h < HANDLE_SCAN_END; h += 4) k32.symbols.SetHandleInformation(h as unknown as Pointer, HANDLE_FLAG_INHERIT, 0);
+    k32.close();
+  } catch {
+    // The job still starts; a caller reading this process through a pipe then waits until it ends.
+  }
+}
+
 /** Starts `argv` as a detached job and returns its id. */
 export function startJob(argv: string[]): string {
   prune();
@@ -88,6 +116,7 @@ export function startJob(argv: string[]): string {
   mkdirSync(dir, { recursive: true });
   const job: Job = { argv, cwd: process.cwd(), started: new Date().toISOString() };
   writeFileSync(join(dir, "job.json"), JSON.stringify(job, null, 2) + "\n");
+  uninheritAll();
   const child = spawn(process.execPath, [join(ROOT, "tools", "nv", "main.ts"), "bg", "--run", id], {
     cwd: ROOT,
     detached: true,
