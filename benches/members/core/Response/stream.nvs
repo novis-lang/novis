@@ -1,0 +1,21 @@
+<?nvs
+// Starts a response body that is sent in parts, as a CSV export or a progress page does once for each request.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $types = ["text/csv", "text/plain; charset=utf-8", "application/x-ndjson"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $k = $total % 3;
+            Core\Response::stream($types[$k]);
+            $total = $total + $k + 1;   // chained: the next content type depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8");
+$body->write((Bench::run(400000) as string) . "\n");

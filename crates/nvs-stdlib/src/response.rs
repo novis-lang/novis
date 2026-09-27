@@ -515,6 +515,12 @@ const STREAM_SYMBOL: &str = "nvs_core_response_stream";
 /// See [`STREAM_SYMBOL`].
 const STREAM_WRITE_SYMBOL: &str = "nvs_core_response_stream_write";
 
+/// `Core\Response\Stream`'s class card — `rule:core-api/reference-card`.
+const STREAM_CARD: ClassDoc = ClassDoc {
+    short: "A response body that your program sends in parts. `Core\\Response::stream()` returns \
+            it, and its `write()` method sends each part. The body ends when the program ends.",
+};
+
 /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
 /// first spelling, as the handle a program writes through — what
 /// [`nvs_core_response_stream`] answers with.
@@ -537,7 +543,7 @@ const STREAM_WRITE_SYMBOL: &str = "nvs_core_response_stream_write";
 /// `fetch` or a progress UI that closes itself.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
-    doc: None,
+    doc: Some(&STREAM_CARD),
     methods: &[],
     instance: &[CoreMethod {
         name: "write",
@@ -564,45 +570,44 @@ pub(crate) const STREAM: CoreClass = CoreClass {
 
 /// `Core\Response::stream`'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: MethodDoc = MethodDoc {
-    short: "Answers with a body written over time, declaring `$contentType` — the head goes out as \
-            soon as this is called and the body ends when the request does.",
+    short: "Starts a response body that your program sends in parts, and sets the header \
+            `Content-Type` to `$contentType`. The status and the headers are sent when this is \
+            called, and the body ends when the program ends.",
     params: &[ParamDoc {
         name: "contentType",
-        desc: "The media type to declare. A sink, exactly as `bytes`' is: it becomes a header the \
-               peer obeys, so a `tainted` value is refused at compile time and one holding \
-               anything a header cannot carry is refused here.",
+        desc: "The content type of the body, for example `text/csv`. It becomes a header, so a \
+               `tainted` value does not compile. It must be printable ASCII and not empty.",
         shape: &[],
     }],
-    ret: "The handle to write chunks through. Mixing this with `echo` on one response is a compile \
-          error, and the body is complete when the request ends — a browser reading one with \
-          `EventSource` reconnects at that point, so a stream a client keeps open across page \
-          lifetimes is `Core\\Sse::upgrade` instead.",
+    ret: "A `Core\\Response\\Stream`. Call its `write()` method to send each part. Set the status \
+          and the headers before you call this method. Using this and `echo` in one response does \
+          not compile. A browser that reads this body with `EventSource` connects again when the \
+          body ends. For events that a page receives while it is open, use `Core\\Sse::upgrade`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$contentType` is empty or holds a byte outside a header field value — a control \
-               character, a newline, or anything above ASCII. Or this request has already opened a \
-               body stream, a response having one body.",
+        desc: "`$contentType` is empty, or it contains a character a header cannot contain: a \
+               control character, a line break, or a character that is not ASCII. It is also \
+               thrown when this request already started a body stream, because a response has \
+               one body.",
     }],
 };
 
 /// `Core\Response\Stream::write`'s reference card — `rule:core-api/reference-card`.
 const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
-    short: "Writes one chunk of the body, waiting while the client is still reading the last one — \
-            the whole of the backpressure, since nothing accumulates in between.",
+    short: "Sends one part of the body. If the client has not finished reading the last part, \
+            this method waits until it has. So only one part waits in memory at a time.",
     params: &[ParamDoc {
         name: "chunk",
-        desc: "The bytes to send, unchanged, as text or as `bytes`. An empty chunk reaches no \
-               wire and is not an error. A `tainted` value is accepted, as it is at \
-               `Core\\Response::text`: the chunk goes out to the client that sent it and \
-               nothing is answered for the qualifier to carry.",
+        desc: "The part to send, as a `string` or as `bytes`. It is sent exactly as it is. An \
+               empty part sends nothing and is not an error. A `tainted` value is allowed, as it \
+               is for `Core\\Response::text`.",
         shape: &[],
     }],
-    ret: "Nothing. The chunk has been handed to the connection by the time this returns.",
+    ret: "Nothing. When this method returns, the part has been given to the connection.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The client stopped reading — it went away, or it did not take this chunk within \
-               the connection's send timeout, which closes the stream rather than waiting \
-               without end.",
+        desc: "The client stopped reading. It closed the connection, or it did not read this part \
+               before the server's send timeout. The stream is then closed.",
     }],
 };
 
@@ -2243,6 +2248,8 @@ mod tests {
     /// type and wrote the bytes somewhere else would pass either half alone:
     /// this is the seam `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
     /// describes, asserted from the end that frames the response.
+    // covers: Core\Response::stream
+    // covers: Core\Response\Stream::write
     #[test]
     fn a_streamed_chunk_reaches_the_connections_half_and_not_the_requests_output() {
         let slot = offered_cell();
@@ -2284,6 +2291,7 @@ mod tests {
     /// second `stream` is told so and the first one is what the connection
     /// still frames. Unreachable from a `.nvst` case — a second stream needs a
     /// first, and a first needs a cell nothing offers a script.
+    // covers: Core\Response::stream
     #[test]
     fn a_second_stream_on_one_request_is_refused_and_the_first_still_stands() {
         let slot = offered_cell();
@@ -2314,6 +2322,7 @@ mod tests {
     ///
     /// Unreachable from a `.nvst` case for the reason above: a stream that can
     /// close is one a connection is draining.
+    // covers: Core\Response\Stream::write
     #[test]
     fn a_write_whose_reader_has_gone_is_refused_rather_than_parked() {
         let slot = offered_cell();

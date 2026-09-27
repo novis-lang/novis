@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program starts body streams with content types that try to add headers,
+// and with content types of eight megabytes. Every bad content type should throw an
+// error, and the program should not crash.
+// hostile: timeout-ms 60000
+
+// 1. Line breaks that try to add a cookie header and start a second response.
+try {
+    Core\Response::stream("text/plain\r\nSet-Cookie: sid=admin\r\n\r\nHTTP/1.1 200 OK");
+} catch (LogicError $split) {
+}
+
+// 2. Content types with a NUL byte, an escape code, a tab, a character that is not ASCII, and nothing.
+array<string> $bad = ["text/\x00plain", "text/\x1b[31mred", "text/pl\tain", 'text/plänn', ''];
+foreach ($bad as string $type) {
+    try {
+        Core\Response::stream($type);
+    } catch (LogicError $refused) {
+    }
+}
+
+// 3. A content type of eight megabytes that ends with a line break.
+try {
+    Core\Response::stream(Core\Str::repeat('a', 8388608) . "\n");
+} catch (LogicError $long) {
+}
+
+// 4. A content type of eight megabytes of letters. It is printable ASCII, so it is allowed.
+Core\Response::stream(Core\Str::repeat('a', 8388608));
+
+// 5. One hundred thousand streams started in one request. Each new one replaces the last.
+uint $opened = 0;
+while ($opened < 100000) {
+    Core\Response::stream('text/csv');
+    $opened = $opened + 1;
+}
+
+// 6. A normal stream and one part, written after all of the above.
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8');
+$body->write("done\n");

@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/customers.csv
+--HEADERS--
+host: example.com
