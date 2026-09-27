@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a client posts a form whose values do not fit the fields, and a name nested 100 levels deep.
+// Each read should throw a `ParseError`, and the program should not crash.
+
+// 1. Sends a number too large for `uint`, and a negative one.
+try {
+    var $big = Core\Request::postAs<{big: uint, negative: uint}>();
+    echo 'not reached: ', $big->big, "\n";
+} catch (ParseError $error) {
+    echo 'numbers: ', Core\Arr::count($error->issues), " issues\n";
+}
+
+// 2. Sends an array where the field is a string.
+try {
+    var $form = Core\Request::postAs<tainted {email: string}>();
+    echo 'not reached: ', $form->email, "\n";
+} catch (ParseError $error) {
+    echo 'array for a string: ', Core\Arr::count($error->issues), " issue\n";
+}
+
+// 3. Reads a name that the form does not have.
+try {
+    var $missing = Core\Request::postAs<tainted {city: string}>({ name: 'address' });
+    echo 'not reached: ', $missing->city, "\n";
+} catch (ParseError $error) {
+    echo 'missing name: ', Core\Arr::count($error->issues), " issue\n";
+}
+
+// 4. Reads the name nested 100 levels deep as a shape with one field.
+try {
+    var $deep = Core\Request::postAs<tainted {a: string}>({ name: 'deep' });
+    echo 'not reached: ', $deep->a, "\n";
+} catch (ParseError $error) {
+    echo 'deep: ', Core\Arr::count($error->issues), " issue\n";
+}
+
+// 5. Reads the deep name 2000 times. Every read throws, and no memory is kept.
+uint $failed = 0;
+uint $i = 0;
+while ($i < 2000) {
+    try {
+        var $again = Core\Request::postAs<tainted {a: string}>({ name: 'deep' });
+        echo 'not reached: ', $again->a, "\n";
+    } catch (ParseError $error) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo 'failed reads: ', $failed, "\n";

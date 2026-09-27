@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Request::postAs` does when a form field is missing or has the wrong type.
+
+// The form is `name=Ada&age=young`. "young" is not a number, and there is no "email".
+// `postAs` checks every field and then throws one `ParseError`.
+try {
+    var $form = Core\Request::postAs<tainted {name: string, email: string, age: uint}>();
+    echo "welcome, ", $form->name, "\n";
+} catch (ParseError $error) {
+    // `issues` has one entry for each wrong field. This prints two lines:
+    // "age: expected uint, found a string" and "email: required field missing".
+    foreach ($error->issues as {path: string, message: string} $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}

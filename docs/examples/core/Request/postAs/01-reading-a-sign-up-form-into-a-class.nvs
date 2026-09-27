@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to read a submitted sign-up form into your own class.
+
+// `#[Core\Json\Derive]` lets `postAs` fill the class. Each public field reads the form field with the same name.
+// The form comes from the client, so a string field must be `tainted string`.
+#[Core\Json\Derive]
+class SignUp {
+    public tainted string $name;
+    public tainted string $email;
+    public uint $age;
+
+    public function constructor(tainted string $name, tainted string $email, uint $age) {
+        $this->name = $name;
+        $this->email = $email;
+        $this->age = $age;
+    }
+}
+
+// The form is `name=Ada+Lovelace&email=ada%40example.com&age=36&newsletter=on`.
+// The text "36" is converted to the number 36. The field `newsletter` is ignored.
+var $form = Core\Request::postAs<SignUp>();
+
+// This prints "Ada Lovelace <ada@example.com>, 36".
+echo $form->name, " <", $form->email, ">, ", $form->age, "\n";
