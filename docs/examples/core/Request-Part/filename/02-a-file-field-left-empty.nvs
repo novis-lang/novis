@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to skip a file field that the person left empty.
+
+// A form with two file fields sends both, even when the person chose only one file.
+// The field without a file has an empty file name.
+uint $received = 0;
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    if ($part->filename() == '') {
+        echo 'no file was chosen for ', $part->name(), "\n";
+        continue;
+    }
+    $received = $received + 1;
+}
+
+// This prints "1 file received".
+echo $received, " file received\n";

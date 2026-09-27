@@ -1,0 +1,8 @@
+<?nvs
+// Shows the file name that the client sent with each uploaded file.
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `filename` returns the name the file had on the client's computer.
+    // This prints "holiday.jpg" and then "map of the route.png".
+    echo $part->filename(), "\n";
+}

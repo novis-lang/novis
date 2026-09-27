@@ -1,0 +1,19 @@
+<?nvs
+// Reads the file name of each uploaded file, as a handler does to show a list of the files it received.
+// bench: iterations 1
+
+class Bench
+{
+    public static function run(): uint
+    {
+        // The form is the body in the file `filename.nvsr` beside this one.
+        // A request body can be read only once.
+        uint $total = 0;
+        foreach (Core\Request::files() as Core\Request\Part $part) {
+            $total = $total + Core\Str::length($part->filename());
+        }
+        return $total;
+    }
+}
+
+echo Bench::run() > 0 ? 'done' : 'no file was read', "\n";

@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/claims/new
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=claim-0b7f
+--BODY_CRLF--
+--claim-0b7f
+Content-Disposition: form-data; name="receipt"; filename="receipt.pdf"
+Content-Type: application/pdf
+
+%PDF-1.7 a receipt for a train ticket
+--claim-0b7f
+Content-Disposition: form-data; name="photo"; filename=""
+Content-Type: application/octet-stream
+
+
+--claim-0b7f--
