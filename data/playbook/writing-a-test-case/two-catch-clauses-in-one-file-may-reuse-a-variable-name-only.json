@@ -1,0 +1,12 @@
+{
+  "lead": "Two `catch` clauses in one file may reuse a variable name only at the same class.",
+  "body": "`catch (IOError $error)` and a later `catch (RuntimeError $error)` is `E0406` \"already declared\", because a catch variable is function-scoped like the `foreach` binding above; `tests/hostile/core/Response/sendFile/01-paths-outside-the-allowed-folder.nvs` is an attack that hit it. Give each class its own name (`$failed`, `$denied`, `$error`) and keep it for every `try` in the file.",
+  "files": [
+    "tests/hostile/core/Response/sendFile/01-paths-outside-the-allowed-folder.nvs",
+    "crates/nvs-diagnostics/src/lib.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-diagnostics/src/lib.rs:E0406"
+  }
+}

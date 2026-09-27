@@ -1,26 +1,23 @@
 {
-  "state": "Goal `core-response-and-1-more`: eight of `Core\\Response`'s ten members carry every feature proof —\n`addCookie`, `bytes`, `html`, `text`, `json`, `setStatus`, `setHeader` and `redirect` — with\n`about.md`, three examples with `.nvsr` requests, the attack, the bench record in\n`docs/perf/members.ndjson`, and a `covers:` line in `crates/nvs-stdlib/src/response.rs`'s `tests`\nmodule. Their cards follow AGENTS.md § *Text an end user reads*. `sendFile` and `stream` owe every\nproof, and their cards are not plain yet. `Core\\Response\\Stream` is still in\n`CLASSES_STILL_OWING_A_CARD`, and `Core\\Response\\Stream::write` owes every proof. Nothing is blocked.\n\n`nvs run --request` prints the response body alone, never the status line or the headers, so an\nexample about a status or a header shows it through the body it writes. A body member's bench\nwrites bodies with no newline in them, because a newline flushes the terminal on every call. The\nwall-clock of these benches is noisy: compare the allocation and byte counts.",
+  "state": "Goal `core-response-and-1-more`: nine of `Core\\Response`'s ten members carry every feature proof. The\nnine are `addCookie`, `bytes`, `html`, `text`, `json`, `setStatus`, `setHeader`, `redirect` and\n`sendFile`. Each has `about.md`, three examples with `.nvsr` requests, the attack, the bench record in\n`docs/perf/members.ndjson`, and a `covers:` line in `crates/nvs-stdlib/src/response.rs`'s `tests`\nmodule. Their cards follow AGENTS.md § *Text an end user reads*. `stream` owes every proof, and its\ncard is not plain yet. `Core\\Response\\Stream` is still in `CLASSES_STILL_OWING_A_CARD`, and\n`Core\\Response\\Stream::write` owes every proof. Nothing is blocked.\n\n`nvs run --request` prints the response body alone, never the status line or the headers, so an\nexample about a status or a header shows it through the body it writes. A file `sendFile` named is\nwritten after the program ends, when it ended without an error, which is what a server does\n(`crates/nvs-cli/src/main.rs`'s `send_file_body`). A body member's bench writes bodies with no\nnewline in them, because a newline flushes the terminal on every call. The wall-clock of these\nbenches is noisy: compare the allocation and byte counts. `benches/members/core/Response/nvs.toml`\ngrants `fs.read` over that folder for the `sendFile` bench, and every Response bench runs under it.",
   "next": {
     "stage": 2,
-    "title": "the members that open a body from outside the program",
+    "title": "the members that open a body over time",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/response.rs` (the members, their cards and the `tests` module, whose `offered_cell` and `framing` helpers already drive `stream`), `crates/nvs-stdlib/src/registry.rs` (the class card), `docs/examples/core/Response/`, `docs/examples/core/Response-Stream/`, `tests/hostile/core/Response/`, `tests/hostile/core/Response-Stream/`, `benches/members/core/Response/`, `benches/members/core/Response-Stream/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/response.rs` (the members, their cards and the `tests` module, whose `offered_cell` and `framing` helpers already drive `stream`), `crates/nvs-stdlib/src/registry.rs` (the class card), `docs/examples/core/Response/stream/`, `docs/examples/core/Response-Stream/write/`, `tests/hostile/core/Response/stream/`, `tests/hostile/core/Response-Stream/write/`, `benches/members/core/Response/`, `benches/members/core/Response-Stream/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Response::sendFile`** — owes examples, hostile, perf, Rust `covers:` (`rule:security/response-body-is-one-typed-member`). Member at `crates/nvs-stdlib/src/response.rs:1748`, card at `crates/nvs-stdlib/src/response.rs:672`. It needs a static-file grant; `tests/conformance/core/response-send-file-streams-the-file-under-its-media-type.nvst` shows the setup an example needs."
+        "text": "**`Core\\Response::stream`** — owes examples, hostile, perf, Rust `covers:` (`rule:security/response-body-is-one-typed-member`). Member at `crates/nvs-stdlib/src/response.rs:1826`, card at `crates/nvs-stdlib/src/response.rs:566`. The tests after `framing` already drive it and need only the `covers:` line if they pin the member."
       },
       {
         "done": false,
-        "text": "**`Core\\Response::stream`** — the same owed set. Member at `crates/nvs-stdlib/src/response.rs:1828`, card at `crates/nvs-stdlib/src/response.rs:566`. The tests `a_streamed_chunk_reaches_the_connections_half_and_not_the_requests_output` and its two siblings only need a `// covers:` line."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Response\\Stream::write`** — owes the class card, examples, hostile, perf and 2 tests. Member at `crates/nvs-stdlib/src/response.rs:1900`, card at `crates/nvs-stdlib/src/response.rs:589`; the class card replaces its entry at `crates/nvs-stdlib/src/registry.rs:5279`."
+        "text": "**`Core\\Response\\Stream::write`** — owes the class card, examples, hostile, perf and 2 tests (`rule:testing/feature-proofs`). Member at `crates/nvs-stdlib/src/response.rs:1898`; the class card goes above the class's `CLASS` row, and the name comes out of `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5279`. As an instance member it needs a `covers:` marker even on a `.nvst` case that calls it."
       }
     ]
   },
   "backlog": [
-    "A bench that reads `$codes[$i]` from an `array<uint>` counted 2 allocations per read; reading no array counted 0 (`benches/members/core/Response/setStatus.nvs` avoids the index). Not traced to its cause — owner: the `nvs-codegen` array-index lowering, not checked which file."
+    "A body member called after `sendFile` in one request: the server sends the file and drops the other body (`crates/nvs-server/src/serve.rs`'s `finished`), and `nvs run --request` prints both. Whether a later body member should clear the file name is a question for `nvs_stdlib::response`'s module doc.",
+    "`Core\\Test::request` against a handler that calls `sendFile`: `runner.rs`'s `UnderTest` never reads the completion's `file_body`, so the test response's body is probably empty. Not checked."
   ]
 }

@@ -19010,15 +19010,15 @@ Sends `$body` exactly as it is, with `$contentType` as the `Content-Type` header
 Core\Response::sendFile(string $path): void
 ```
 
-Answers with the file at `$path`, streamed by the server under the static-file policy's media type — the one body member that hands over a name instead of bytes.
+Sends the file at `$path` as the whole response. The server reads the file in small pieces, and chooses the content type from the end of the file name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to send. A sink: a path component directs the resolver, so a `tainted` value is refused at compile time, and `fs.read` must cover it like any other path this program opens. A download name is `Content-Disposition` through `setHeader`, this member taking the path alone. |
+| `$path` | `string` (sink) | The file to send. `fs.read` in `nvs.toml` must allow it. A `tainted` value does not compile, because the path decides which file is read. To give a download its own name, set `Content-Disposition` with `Core\Response::setHeader`. |
 
-**Returns** `void` — Nothing. The response carries the media type the static-file policy's table gives the file's extension, and answers a range or a conditional request over it; mixing this with `echo` on one response is a compile error.
+**Returns** `void` — Nothing. The server also answers a browser that asks for only part of the file. Using this and `echo` in one response does not compile.
 
-**Throws** `RuntimeError` — `fs.read` does not cover `$path` — the same refusal `Core\IO::read` gives, from the same door, whether or not there is a file there.; `IOError` — There is nothing at `$path`, or the operating system will not let this process read it.; `LogicError` — `$path` is a directory, or something else that is not a regular file — a response body is a file's contents, and there are none to send.
+**Throws** `RuntimeError` — `fs.read` does not allow `$path`. This error comes whether or not the file exists, the same as for `Core\IO::read`.; `IOError` — There is no file at `$path`, or the operating system does not allow this program to read it.; `LogicError` — `$path` is a folder, or something else that is not a regular file. Nothing is sent.
 
 <a id="core-core-response-stream"></a>
 #### `Core\Response::stream`
