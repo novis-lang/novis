@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/images/dot.svg
+--HEADERS--
+host: example.com

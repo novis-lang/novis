@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/reports/orders.csv
+--HEADERS--
+host: example.com

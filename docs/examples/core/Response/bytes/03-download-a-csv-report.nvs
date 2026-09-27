@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to send a CSV report that the browser saves as a file.
+
+array<string> $orders = ["1042,Ada,19.90", "1043,Grace,5.00", "1044,Alan,42.50"];
+string $csv = "order,customer,total\n";
+foreach ($orders as string $order) {
+    $csv = $csv . $order . "\n";
+}
+
+// This header tells the browser to save the body as a file named `orders.csv`.
+Core\Response::setHeader("Content-Disposition", "attachment; filename=\"orders.csv\"");
+
+// The content type tells the browser that the file is CSV text in UTF-8.
+Core\Response::bytes($csv as bytes, "text/csv; charset=utf-8");

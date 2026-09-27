@@ -1,0 +1,1 @@
+Core\Response::bytes(): `text/plain; name=café` is not a media type a `Content-Type` header can carry — a field value is printable ASCII and never empty

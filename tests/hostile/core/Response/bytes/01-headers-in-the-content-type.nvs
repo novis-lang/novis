@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program tries to add its own headers through the content type, and then
+// writes a body without end. Each bad content type should throw an error, and the
+// program should stop at its memory limit without crashing.
+// hostile: ends-early
+// hostile: timeout-ms 60000
+
+uint $refused = 0;
+
+// 1. A carriage return and a line feed try to start a new header.
+try {
+    Core\Response::bytes('a' as bytes, "text/html\r\nSet-Cookie: sid=admin");
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// 2. A line feed alone tries the same.
+try {
+    Core\Response::bytes('a' as bytes, "text/html\nLocation: https://example.com/");
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// 3. A NUL byte in the content type.
+try {
+    Core\Response::bytes('a' as bytes, "text/html\x00");
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// 4. An empty content type.
+try {
+    Core\Response::bytes('a' as bytes, '');
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// 5. A letter that is not ASCII, and the byte 127.
+try {
+    Core\Response::bytes('a' as bytes, 'text/plän');
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Response::bytes('a' as bytes, "text/plain\x7f");
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// 6. A content type of one megabyte of letters, which is allowed.
+Core\Response::bytes('a' as bytes, 'text/' . Core\Str::repeat('x', 1048576));
+
+// 7. A body with a NUL byte and bytes that are not valid text, which is allowed.
+Core\Response::bytes(Core\Encoding::fromHex('00ff80c3281b5b306d'), 'application/octet-stream');
+
+// 8. The body is kept in memory and written again and again until the memory limit
+// stops the program.
+bytes $chunk = Core\Str::repeat('b', 65536) as bytes;
+var $kept = Core\Out::capture(fn (): void => {
+    uint $written = 0;
+    while ($written < 1000000) {
+        Core\Response::bytes($chunk, 'application/octet-stream');
+        $written = $written + 1;
+    }
+});
+Core\Response::text('refused ' . ($refused as string) . "\n");

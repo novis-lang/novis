@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to send a body with a content type that you choose.
+
+// An SVG image is text, but its content type is `image/svg+xml`.
+string $circle = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\">"
+    . "<circle cx=\"10\" cy=\"10\" r=\"8\" fill=\"teal\"/></svg>\n";
+
+// `as bytes` converts the text to bytes. `bytes` sends them exactly as they are
+// and adds the header `Content-Type: image/svg+xml`.
+Core\Response::bytes($circle as bytes, "image/svg+xml");
