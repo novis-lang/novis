@@ -221,7 +221,7 @@ function pastState(): { id: string; complete: boolean; tagged: number; carried: 
   const live = liveGoal(goals);
   const walked = walkedGoals(goals, live);
   const tagged = new Map<string, number>();
-  for (const reg of registers(collect())) {
+  for (const reg of registers(collect(), true)) {
     for (const owner of reg.owners) tagged.set(owner, (tagged.get(owner) ?? 0) + 1);
   }
   const out = [];

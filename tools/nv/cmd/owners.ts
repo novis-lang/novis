@@ -203,21 +203,26 @@ function ratchetOwners(): string[] {
   return out;
 }
 
-/** Every place owed work is written down, in the order a gap is most often written. */
-export function registers(found: Gap[]): Register[] {
-  return [
-    { name: "module docs", where: "data/gaps/", owners: found.map((g) => g.owner),
+/**
+ * Every place owed work is written down, in the order a gap is most often written. With `naming`, only
+ * the registers whose items name an owner, so a caller that counts items per owner reads no register
+ * that could never add to a count.
+ */
+export function registers(found: Gap[], naming = false): Register[] {
+  const all: (Omit<Register, "owners"> & { names: boolean; read: () => string[] })[] = [
+    { name: "module docs", where: "data/gaps/", names: true, read: () => found.map((g) => g.owner),
       what: "a gap record, naming the goal or milestone that owns it" },
-    { name: "carried-refusals.md", where: CARRIED_REFUSALS, owners: entryLines(CARRIED_REFUSALS, /^9\d\d\. /),
+    { name: "carried-refusals.md", where: CARRIED_REFUSALS, names: false, read: () => entryLines(CARRIED_REFUSALS, /^9\d\d\. /),
       what: "a run of `nvs-ir` refusal sites an earlier milestone left, numbered from 900" },
-    { name: "outstanding keys", where: RATCHETS, owners: ratchetOwners(),
+    { name: "outstanding keys", where: RATCHETS, names: true, read: ratchetOwners,
       what: "a spec or migration member `registry::CLASSES` does not declare yet, each key naming its owner in a `#` column" },
-    { name: "guard-name-debt.md", where: GUARD_DEBT, owners: entryLines(GUARD_DEBT, /^- \[/),
+    { name: "guard-name-debt.md", where: GUARD_DEBT, names: false, read: () => entryLines(GUARD_DEBT, /^- \[/),
       what: "a guard test a goal record's check names and the tree does not hold yet" },
-    { name: "playbook until", where: "data/playbook/",
-      owners: load(playbookBullet).map(() => ""),
+    { name: "playbook until", where: "data/playbook/", names: false,
+      read: () => load(playbookBullet).map(() => ""),
       what: "a trap whose `until` names the state of the tree that retires it" },
   ];
+  return all.filter((r) => !naming || r.names).map(({ names: _, read, ...r }) => ({ ...r, owners: read() }));
 }
 
 function tally(owners: string[]): Record<string, number> {
@@ -242,10 +247,6 @@ function reportRegisters(regs: Register[]): void {
   const total = regs.reduce((n, r) => n + r.owners.length, 0);
   console.log(`\n== ${total} item(s) open across ${regs.length} register(s)`);
   console.log(`   ${absentLine()}`);
-}
-
-function registerLine(regs: Register[]): string {
-  return `  registers: ${regs.map((r) => `${r.name} ${r.owners.length}`).join(", ")} -- ${regs.length} register(s)`;
 }
 
 function lineOf(g: Gap): string {
@@ -305,7 +306,9 @@ function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnTy
   reportRegisters(regs);
 }
 
-function runCheck(kinds: Kinds, regs: Register[]): number {
+/** The gate. Its verdict is the gap records' alone, so it reads no other register: a new playbook
+ * bullet or outstanding key cannot change it, and `--registers` is where their counts are printed. */
+function runCheck(kinds: Kinds): number {
   const bad = REFUSED.flatMap((kind) => kinds[kind].map((g) => ({ ...g, why: g.why ?? WHY[kind]! })))
     .sort((a, b) => cmp(a.module, b.module) || cmp(a.slug, b.slug));
   for (const g of bad) console.log(`${g.module}: gap ${g.slug} -- ${g.why}`);
@@ -323,7 +326,7 @@ function runCheck(kinds: Kinds, regs: Register[]): number {
         "only owner it accepts",
     );
   }
-  console.log([...countLines(kinds), registerLine(regs)].join("\n"));
+  console.log(countLines(kinds).join("\n"));
   return bad.length > 0 ? 1 : 0;
 }
 
@@ -411,20 +414,19 @@ export async function run(args: string[]): Promise<number> {
   const has = (flag: string) => rest.includes(flag);
   const found = collect();
   const kinds = classify(found);
-  const regs = registers(found);
 
   if (has("--json")) {
-    const counts = Object.fromEntries(regs.map((r) => [r.name, { items: r.owners.length, owners: tally(r.owners) }]));
+    const counts = Object.fromEntries(registers(found).map((r) => [r.name, { items: r.owners.length, owners: tally(r.owners) }]));
     console.log(JSON.stringify({ ...kinds, registers: counts, sections: outsideBlocks(), first_future_milestone: FIRST_FUTURE_MILESTONE }, null, 2));
     return 0;
   }
   if (has("--registers")) {
-    reportRegisters(regs);
+    reportRegisters(registers(found));
     return 0;
   }
   if (slug) return runCloses(found, slug);
   if (has("--deferrals")) return runDeferrals(kinds);
-  if (has("--check")) return runCheck(kinds, regs);
+  if (has("--check")) return runCheck(kinds);
   if (has("--untagged")) {
     for (const g of kinds.untagged) console.log(lineOf(g));
     console.log(`\n  ${kinds.untagged.length} of ${found.length} item(s) name nobody`);
@@ -435,6 +437,6 @@ export async function run(args: string[]): Promise<number> {
     console.log(`\n  ${kinds.unowned.length} item(s) still tagged \`unowned\`, which is no longer an owner kind`);
     return 0;
   }
-  report(kinds, found, regs, outsideBlocks());
+  report(kinds, found, registers(found), outsideBlocks());
   return 0;
 }
