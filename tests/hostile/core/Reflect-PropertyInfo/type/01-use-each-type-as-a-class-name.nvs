@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program reads long nested types and uses each type as a class name,
+// many times. It also reads the types of an error class, which have no written type.
+// The lookups should return `null`, and the program must not crash.
+
+class Report
+{
+    public array<array<array<array<string>>>> $cells = [];
+    public ?Report $parent = null;
+    public array<?Report> $children = [];
+    private ?string $note = null;
+}
+
+var $info = Core\Reflect::forObject(new Report());
+array<Core\Reflect\PropertyInfo> $list = $info->properties();
+
+// 1. Use each type as a class name, 50000 times. A `?` or `array<` is not part of
+// a class name, so no lookup finds a class. This prints 0.
+uint $classes = 0;
+uint $i = 0;
+while ($i < 50000) {
+    string $type = $list[($i % 4) as int]->type() ?? '';
+    if (Core\Reflect::forClass($type) != null) {
+        $classes = $classes + 1;
+    }
+    $i = $i + 1;
+}
+echo $classes, "\n";
+
+// 2. Read the types of an error class 100000 times. None of them has a written type,
+// so this prints 0.
+array<Core\Reflect\PropertyInfo> $error = Core\Reflect::forObject(new LogicError('x'))->properties();
+uint $typed = 0;
+$i = 0;
+while ($i < 100000) {
+    if ($error[($i % 4) as int]->type() != null) {
+        $typed = $typed + 1;
+    }
+    $i = $i + 1;
+}
+echo $typed, "\n";
+
+// 3. Keep the items after the description is freed, and read each type 500000 times.
+array<Core\Reflect\PropertyInfo> $kept = Core\Reflect::forObject(new Report())->properties();
+uint $length = 0;
+$i = 0;
+while ($i < 500000) {
+    $length = $length + Core\Str::length($kept[($i % 4) as int]->type() ?? '');
+    $i = $i + 1;
+}
+echo $length, "\n";

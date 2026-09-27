@@ -1,0 +1,4 @@
+id: int
+total: float
+items: array<string>
+coupon: ?string

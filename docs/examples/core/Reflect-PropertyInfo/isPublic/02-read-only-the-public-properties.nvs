@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to read the public properties of an object and skip the others.
+
+class Session {
+    public string $user = "ada";
+    public int $expires = 3600;
+    private string $token = "a81c-44f0";
+}
+
+var $session = new Session();
+var $info = Core\Reflect::forObject($session);
+
+// `get` throws a `RuntimeError` for `token`, so the loop checks `isPublic` first.
+// This prints `user = ada` and `expires = 3600`.
+foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
+    if ($property->isPublic()) {
+        echo $property->name(), " = ", $info->get($session, $property->name()) as string, "\n";
+    }
+}
+
+// Reading `token` from outside the class throws an error. This prints `RuntimeError`.
+try {
+    echo $info->get($session, "token") as string, "\n";
+} catch (RuntimeError $error) {
+    echo "RuntimeError\n";
+}

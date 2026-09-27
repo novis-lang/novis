@@ -23966,9 +23966,9 @@ Keywords: name, isPublic, type
 $propertyInfo->name(): string
 ```
 
-The property's name, as the declaring class writes it.
+Returns the name of the property.
 
-**Returns** `string` — The name with no `$` sigil and no class qualifier — what `hasProperty`, `get` and `set` take.
+**Returns** `string` — The name as the class declares it, with no `$` and no class name. You can pass the name to `Core\Reflect\ClassInfo::hasProperty`, `Core\Reflect\ClassInfo::get` and `Core\Reflect\ClassInfo::set`.
 
 <a id="core-core-reflect-propertyinfo-ispublic"></a>
 #### `Core\Reflect\PropertyInfo->isPublic`
@@ -23977,9 +23977,9 @@ The property's name, as the declaring class writes it.
 $propertyInfo->isPublic(): bool
 ```
 
-Whether code outside the declaring class may read and write the property.
+Tells you whether code outside the class may read and write the property.
 
-**Returns** `bool` — `false` for a `private` or `protected` property, which is still listed: knowing that a property exists and may not be reached from here is what tells a refusal from a misspelling, and the name and the type are what the declaration already published.
+**Returns** `bool` — `true` for a `public` property, and `false` for a `protected` or `private` property. Those properties are still in the list that `Core\Reflect\ClassInfo::properties` returns. If `isPublic` returns `false`, `Core\Reflect\ClassInfo::get` from outside the class throws a `RuntimeError`.
 
 <a id="core-core-reflect-propertyinfo-type"></a>
 #### `Core\Reflect\PropertyInfo->type`
@@ -23988,9 +23988,9 @@ Whether code outside the declaring class may read and write the property.
 $propertyInfo->type(): ?string
 ```
 
-The type the property is declared with, spelled as the declaration spells it.
+Returns the type the property is declared with, written the way the class writes it.
 
-**Returns** `?string` — The written type — `int`, `?int`, `array<string>`, `App\User` — or `null` for a slot no declaration named one for, which is a compiler-synthesized class or a member of the built-in exception tree. A name rather than a value to compare: what a type *is* is `Core\Reflect::typeOf`'s question, asked of a value.
+**Returns** `?string` — The type as a string, such as `int`, `?int`, `array<string>` or `Customer`. The properties of a built-in error class, such as `message` on `LogicError`, have no written type, so the result is `null`. To find the type of a value, use `Core\Reflect::typeOf`.
 
 <a id="core-core-reflect-parameterinfo"></a>
 ### `Core\Reflect\ParameterInfo`

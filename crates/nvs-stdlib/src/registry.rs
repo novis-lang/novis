@@ -5339,7 +5339,6 @@ mod tests {
         r"Core\Http\Target",
         r"Core\IO\Lines",
         r"Core\IO\Walk",
-        r"Core\Reflect\PropertyInfo",
         r"Core\Regex",
         r"Core\Regex\Match",
         r"Core\Regex\Pattern",

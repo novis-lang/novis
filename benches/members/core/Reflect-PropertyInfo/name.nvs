@@ -1,0 +1,26 @@
+<?nvs
+// Reads the name of a property, as an export tool does to write the header of a CSV file.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Product {
+    public string $sku = "A-100";
+    public string $title = "Desk lamp";
+    public int $stock = 12;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\PropertyInfo> $list = Core\Reflect::forObject(new Product())->properties();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which property is read comes from last round's total, so no round can be reused.
+            $total = $total + Core\Str::length($list[($total % 3) as int]->name());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,32 @@
+<?nvs
+// Converts the text of a web form to the type that each property of a class needs.
+
+class Signup {
+    public string $name = "";
+    public int $age = 0;
+    public bool $newsletter = false;
+}
+
+// A form sends every value as text.
+array<string> $form = ["name" => "Ada", "age" => "36", "newsletter" => "1"];
+
+var $signup = new Signup();
+var $info = Core\Reflect::forObject($signup);
+
+// The loop reads the type of each property and converts the text to that type.
+foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
+    string $text = $form[$property->name()];
+    string $type = $property->type() ?? "string";
+    if ($type == "int") {
+        $info->set($signup, $property->name(), $text as int);
+    } elseif ($type == "bool") {
+        $info->set($signup, $property->name(), $text == "1");
+    } else {
+        $info->set($signup, $property->name(), $text);
+    }
+}
+
+// This prints `Ada`, `37` and `yes`.
+echo $signup->name, "\n";
+echo $signup->age + 1, "\n";
+echo $signup->newsletter ? "yes" : "no", "\n";

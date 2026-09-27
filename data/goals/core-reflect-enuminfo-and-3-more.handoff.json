@@ -1,22 +1,19 @@
 {
-  "state": "Goal `core-reflect-enuminfo-and-3-more`, 14 items, all in `crates/nvs-stdlib/src/reflect.rs`.\n`Core\\Reflect\\EnumInfo`, `Core\\Reflect\\MethodInfo` and `Core\\Reflect\\ParameterInfo` are closed:\neach member has every proof on disk, and `bun nv proofs --verify --group` reports nothing owed and\n0 failed for all three. Their class cards and member cards are in the plain voice.\nThe one check still red is `Core\\Reflect\\PropertyInfo`: its `CoreClass` row has `doc: None`, its\nname is still on `CLASSES_STILL_OWING_A_CARD`, and `name`, `isPublic` and `type` each owe\nexamples, an attack, a bench, a Rust test and a `covers:` marker.\n`ClassInfo::call` ignores extra arguments (the arity trim in `nvs_runtime::dispatch`), and only\ntoo few arguments throw. The `MethodInfo::parameterCount` proofs are written to that.\nA perf row is recorded with `bun nv proofs --record-perf --only <ids>` after the bench runs; the\ngate reports `perf: stale` until then. Nothing is blocked.",
+  "state": "Goal `core-reflect-enuminfo-and-3-more`, 14 items, all in `crates/nvs-stdlib/src/reflect.rs`.\nAll four classes are closed: `Core\\Reflect\\EnumInfo`, `Core\\Reflect\\MethodInfo`,\n`Core\\Reflect\\ParameterInfo` and `Core\\Reflect\\PropertyInfo` each have a class card, plain member\ncards, and every proof on disk, and `bun nv proofs --verify --group` reports nothing owed and\n0 failed for each. `Core\\Reflect\\PropertyInfo` is off `CLASSES_STILL_OWING_A_CARD`.\n`Core\\Reflect\\ClassInfo::get` and `set` throw `RuntimeError` for a property the call site cannot\nreach and `LogicError` for a name the class does not have; the `isPublic` card says so.\nNothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
-    "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/reflect.rs` (the `PROPERTY_*_DOC` cards and the test module), `crates/nvs-stdlib/src/registry.rs` (`CLASSES_STILL_OWING_A_CARD`), `docs/examples/core/Reflect-PropertyInfo/`, `tests/hostile/core/Reflect-PropertyInfo/`, `benches/members/core/Reflect-PropertyInfo/`.",
+    "files": [
+      "crates/nvs-stdlib/src/reflect.rs"
+    ],
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Reflect\\PropertyInfo` class card** — `rule:core-api/reference-card`. Add `PROPERTY_INFO_CARD` and set `doc:` on the row at `crates/nvs-stdlib/src/reflect.rs:1353`; delete `Core\\Reflect\\PropertyInfo` from `crates/nvs-stdlib/src/registry.rs:5342`. `CONSTANT_INFO_CARD` and `METHOD_INFO_CARD` are the shape."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Reflect\\PropertyInfo::name`, `isPublic`, `type`** — `rule:testing/feature-proofs`. Rewrite the cards at `crates/nvs-stdlib/src/reflect.rs:1394`, `crates/nvs-stdlib/src/reflect.rs:1403` and `crates/nvs-stdlib/src/reflect.rs:1413` in the plain voice; about.md, three examples, one attack and one bench each, modelled on `docs/examples/core/Reflect-MethodInfo/`. Rust tests beside `property_rows` at `crates/nvs-stdlib/src/reflect.rs:5077` (the `mailer_methods` fixture at the end of the test module is the shape); `covers:` markers on `tests/conformance/core/reflect-property-info-lists-a-classs-properties-with-their-visibility.nvst` and `tests/conformance/core/reflect-a-property-infos-type-is-the-declarations-own-spelling.nvst`. When this is green the goal is met: run `bun nv verify --doc`, `bun nv owners --closes` and `bun nv playbook --closes` for the goal, then write `DONE`."
+        "done": true,
+        "text": "**`Core\\Reflect\\PropertyInfo` class card and member proofs** — `rule:testing/feature-proofs`. Landed at `crates/nvs-stdlib/src/reflect.rs:1393`; the goal's checks are the driver's to sweep."
       }
     ]
   },
   "backlog": [
-    "Nothing outstanding beyond the group above."
+    "`Core\\Reflect\\ClassInfo::call` ignores extra arguments (the arity trim in `nvs_runtime::dispatch`); only too few throw. Owned by `crates/nvs-stdlib/src/reflect.rs`'s module doc if it is ever judged a bug."
   ]
 }

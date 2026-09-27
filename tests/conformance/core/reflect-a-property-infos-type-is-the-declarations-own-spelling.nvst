@@ -2,6 +2,7 @@
 `Core\Reflect\PropertyInfo::type` answers the type its declaration wrote, nullable, element type and class name intact, for an inherited slot as much as an own one — `rule:core-classes/reflect`
 --FILE--
 <?nvs
+// covers: Core\Reflect\PropertyInfo::type
 // `rule:core-classes/reflect` reaches a property's declared type, and a type is reported as
 // the declaration *spells* it rather than as whatever representation the slot
 // was laid out in: a `?int` keeps its `?`, an `array<string>` keeps its element

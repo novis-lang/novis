@@ -4,6 +4,8 @@
 <?nvs
 // covers: Core\Reflect\ClassInfo::properties
 // covers: Core\Reflect\ClassInfo::hasProperty
+// covers: Core\Reflect\PropertyInfo::name
+// covers: Core\Reflect\PropertyInfo::isPublic
 // `rule:core-classes/reflect`: reading a member's *shape* — that it exists, what it is
 // called, what type it holds, what it may be reached from — is introspection
 // and is always available. Acting on one is the other half, and it is

@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program writes every property that is not public, from outside the class
+// and from an unrelated class, many times. Every write should throw an error, the
+// values should not change, and `isPublic` should keep the same answer.
+
+class Vault
+{
+    public string $label = 'main';
+    protected int $balance = 100;
+    private string $key = 'k-1';
+
+    public function balance(): int
+    {
+        return $this->balance;
+    }
+}
+
+class Thief
+{
+    public static function write(Core\Reflect\ClassInfo $info, Vault $vault, string $name): uint
+    {
+        try {
+            $info->set($vault, $name, 999999);
+            return 1;
+        } catch (RuntimeError $closed) {
+            return 0;
+        } catch (LogicError $wrong) {
+            return 0;
+        }
+    }
+}
+
+var $vault = new Vault();
+var $info = Core\Reflect::forObject($vault);
+array<Core\Reflect\PropertyInfo> $list = $info->properties();
+
+// 1. Write each property that is not public from an unrelated class, 50000 times.
+// Every write throws, so this prints 0 and then 100.
+uint $written = 0;
+uint $i = 0;
+while ($i < 50000) {
+    Core\Reflect\PropertyInfo $one = $list[($i % 3) as int];
+    if (!$one->isPublic()) {
+        $written = $written + Thief::write($info, $vault, $one->name());
+    }
+    $i = $i + 1;
+}
+echo $written, "\n";
+echo $vault->balance(), "\n";
+
+// 2. Read each property that is not public from outside the class. This prints 0.
+uint $read = 0;
+foreach ($list as Core\Reflect\PropertyInfo $property) {
+    if (!$property->isPublic()) {
+        try {
+            $info->get($vault, $property->name());
+            $read = $read + 1;
+        } catch (RuntimeError $closed) {
+        }
+    }
+}
+echo $read, "\n";
+
+// 3. Keep the items after the description is freed, and check `isPublic` 500000 times.
+// One item in three is public, so this prints 166667.
+array<Core\Reflect\PropertyInfo> $kept = Core\Reflect::forObject(new Vault())->properties();
+uint $public = 0;
+$i = 0;
+while ($i < 500000) {
+    if ($kept[($i % 3) as int]->isPublic()) {
+        $public = $public + 1;
+    }
+    $i = $i + 1;
+}
+echo $public, "\n";

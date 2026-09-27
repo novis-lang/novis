@@ -1352,7 +1352,7 @@ const ENUM_IS_UNSIGNED_DOC: MethodDoc = MethodDoc {
 /// where § 2's check is made.
 pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
     name: PROPERTY_INFO_NAME,
-    doc: None,
+    doc: Some(&PROPERTY_INFO_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1390,33 +1390,42 @@ pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Reflect\PropertyInfo`'s class card — `rule:core-api/reference-card`.
+const PROPERTY_INFO_CARD: ClassDoc = ClassDoc {
+    short: "One property of a class, as `Core\\Reflect\\ClassInfo::properties` returns it. `name` \
+            and `isPublic` describe the declaration. `type` returns the type the property is \
+            declared with.",
+};
+
 /// `Core\Reflect\PropertyInfo::name`'s reference card — `rule:core-api/reference-card`.
 const PROPERTY_NAME_DOC: MethodDoc = MethodDoc {
-    short: "The property's name, as the declaring class writes it.",
+    short: "Returns the name of the property.",
     params: &[],
-    ret: "The name with no `$` sigil and no class qualifier — what `hasProperty`, `get` and `set` \
-          take.",
+    ret: "The name as the class declares it, with no `$` and no class name. You can pass the name \
+          to `Core\\Reflect\\ClassInfo::hasProperty`, `Core\\Reflect\\ClassInfo::get` and \
+          `Core\\Reflect\\ClassInfo::set`.",
     errors: &[],
 };
 
 /// `Core\Reflect\PropertyInfo::isPublic`'s reference card — `rule:core-api/reference-card`.
 const PROPERTY_IS_PUBLIC_DOC: MethodDoc = MethodDoc {
-    short: "Whether code outside the declaring class may read and write the property.",
+    short: "Tells you whether code outside the class may read and write the property.",
     params: &[],
-    ret: "`false` for a `private` or `protected` property, which is still listed: knowing that a \
-          property exists and may not be reached from here is what tells a refusal from a \
-          misspelling, and the name and the type are what the declaration already published.",
+    ret: "`true` for a `public` property, and `false` for a `protected` or `private` property. \
+          Those properties are still in the list that `Core\\Reflect\\ClassInfo::properties` \
+          returns. If `isPublic` returns `false`, `Core\\Reflect\\ClassInfo::get` from outside \
+          the class throws a `RuntimeError`.",
     errors: &[],
 };
 
 /// `Core\Reflect\PropertyInfo::type`'s reference card — `rule:core-api/reference-card`.
 const PROPERTY_TYPE_DOC: MethodDoc = MethodDoc {
-    short: "The type the property is declared with, spelled as the declaration spells it.",
+    short: "Returns the type the property is declared with, written the way the class writes it.",
     params: &[],
-    ret: "The written type — `int`, `?int`, `array<string>`, `App\\User` — or `null` for a slot \
-          no declaration named one for, which is a compiler-synthesized class or a member of the \
-          built-in exception tree. A name rather than a value to compare: what a type *is* is \
-          `Core\\Reflect::typeOf`'s question, asked of a value.",
+    ret: "The type as a string, such as `int`, `?int`, `array<string>` or `Customer`. The \
+          properties of a built-in error class, such as `message` on `LogicError`, have no \
+          written type, so the result is `null`. To find the type of a value, use \
+          `Core\\Reflect::typeOf`.",
     errors: &[],
 };
 
@@ -5938,5 +5947,149 @@ mod tests {
             ["string", "string", "int"].map(|ty| Some(ty.to_owned()))
         );
         release_mailer(info, listed);
+    }
+
+    /// `PropertyInfo::name` is the declared name without its `$`, every
+    /// inherited row included, and hands back a reference of its own each
+    /// time, so releasing every answer leaves every row readable. A receiver
+    /// that is not an object faults naming the member.
+    // covers: Core\Reflect\PropertyInfo::name
+    #[test]
+    fn property_info_name_is_the_declared_name_and_survives_its_answer_being_released() {
+        let (mut ctx, described) = ledger_family();
+        let names = |ctx: &mut Ctx| -> Vec<String> {
+            property_rows(ctx, described[1])
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect()
+        };
+        let first = names(&mut ctx);
+        assert_eq!(first, ["code", "balance", "notes", "reviewer"]);
+        assert!(first.iter().all(|name| !name.starts_with('$')));
+        assert_eq!(
+            names(&mut ctx),
+            first,
+            "a released answer left its row whole"
+        );
+
+        let refused = call(
+            super::nvs_core_reflect_property_info_name,
+            &mut ctx,
+            &[Value::int(7)],
+        );
+        assert!(refused.is_err(), "an integer is no receiver");
+        assert!(
+            ctx.take_pending()
+                .unwrap_or_default()
+                .contains(r"Core\Reflect\PropertyInfo::name"),
+            "the fault names the member it was raised by"
+        );
+        #[expect(unsafe_code, reason = "this frame owns the four descriptions")]
+        unsafe {
+            for info in described {
+                info.release();
+            }
+        }
+    }
+
+    /// `PropertyInfo::isPublic` is `true` for exactly the `public` rows: the
+    /// `private` and the `protected` property read `false` and are still
+    /// listed, in the subclass as in the class declaring them.
+    // covers: Core\Reflect\PropertyInfo::isPublic
+    #[test]
+    fn property_info_is_public_is_true_for_the_public_rows_alone() {
+        let (mut ctx, described) = ledger_family();
+        let bits = |ctx: &mut Ctx, info: Value| -> Vec<bool> {
+            property_rows(ctx, info)
+                .into_iter()
+                .map(|(_, public)| public)
+                .collect()
+        };
+        assert_eq!(bits(&mut ctx, described[0]), [true, false, false]);
+        assert_eq!(
+            bits(&mut ctx, described[1]),
+            [true, false, false, true],
+            "the inherited `private` and `protected` rows stay closed in the subclass"
+        );
+        assert_eq!(bits(&mut ctx, described[2]), [true]);
+        #[expect(unsafe_code, reason = "this frame owns the four descriptions")]
+        unsafe {
+            for info in described {
+                info.release();
+            }
+        }
+    }
+
+    /// `PropertyInfo::type` is the type as the declaration writes it — the `?`
+    /// of a nullable type and an `array`'s element type included — and `null`
+    /// for a slot whose class recorded no type, as the built-in error classes'
+    /// slots are.
+    // covers: Core\Reflect\PropertyInfo::type
+    #[test]
+    fn property_info_type_is_the_written_type_or_null_where_none_was_recorded() {
+        let mut classes = ClassTable::new();
+        let order = classes.define("Order", &["id", "total", "tags", "note"], &[]);
+        classes.set_public_fields(order, vec![true, true, false, true]);
+        classes.set_field_types(
+            order,
+            ["int", "?float", "array<string>", ""]
+                .map(str::to_owned)
+                .to_vec(),
+        );
+        let classes = std::sync::Arc::new(classes);
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor belongs to `classes`, which is alive for the whole call, and \
+                      `describe` copies what it reads rather than keeping the descriptor"
+        )]
+        let info = super::describe(unsafe { &*classes.desc(order) });
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(classes, order));
+
+        let listed = call(
+            super::nvs_core_reflect_class_info_properties,
+            &mut ctx,
+            &[info],
+        )
+        .expect("the roster always answers");
+        #[expect(
+            unsafe_code,
+            reason = "`properties` answered an array this frame owns one reference to, and the \
+                      `ManuallyDrop` borrows it without taking that reference over"
+        )]
+        let roster = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(listed.array_ptr().expect("`properties` answers an array"))
+        });
+        let types: Vec<Option<String>> = (0..roster.count())
+            .map(|at| {
+                let row = roster.value_at(at).expect("every position holds a row");
+                let ty = call(super::nvs_core_reflect_property_info_type, &mut ctx, &[row])
+                    .expect("a type slot always answers");
+                let written = ty.as_text().map(str::to_owned);
+                #[expect(
+                    unsafe_code,
+                    reason = "the member handed back a fresh reference, and this frame is its \
+                              only owner"
+                )]
+                unsafe {
+                    ty.release();
+                }
+                written
+            })
+            .collect();
+        assert_eq!(
+            types,
+            [Some("int"), Some("?float"), Some("array<string>"), None]
+                .map(|ty| ty.map(str::to_owned)),
+            "the private `tags` row carries its type, and `note` recorded none"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the description and one reference to the roster"
+        )]
+        unsafe {
+            listed.release();
+            info.release();
+        }
     }
 }
