@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to replace each match with a text that your own function builds.
+
+string $text = "the red fox and the blue bird";
+
+// The function gets each match and returns it in upper case.
+// This prints "the RED fox and the BLUE bird".
+echo Core\Regex::replaceWith($text, '\b(red|blue)\b', fn(Core\Regex\Match $m) => Core\Str::upper($m->text())), "\n";
+
+// `limit: 1` replaces only the first match. This prints "the RED fox and the blue bird".
+echo Core\Regex::replaceWith($text, '\b(red|blue)\b', fn(Core\Regex\Match $m) => Core\Str::upper($m->text()), {limit: 1}), "\n";
+
+// There is no match here, so the function is not called and the text does not change.
+// This prints "the red fox and the blue bird".
+echo Core\Regex::replaceWith($text, '[0-9]+', fn(Core\Regex\Match $m) => "#"), "\n";

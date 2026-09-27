@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to fill the placeholders in an email text with values from an array.
+
+array<string> $values = ["name" => "Ana", "order" => "1042"];
+string $email = "Hello {name}, your order {order} has shipped. {coupon}";
+
+// `\{(\w+)\}` matches a word in curly brackets, and group 1 is the word. The function
+// returns the value for that word. A word with no value keeps its placeholder.
+string $filled = Core\Regex::replaceWith($email, '\{(\w+)\}', fn(Core\Regex\Match $m) => $values[$m->group(1) ?? ''] ?? $m->text());
+
+// This prints "Hello Ana, your order 1042 has shipped. {coupon}".
+echo $filled, "\n";

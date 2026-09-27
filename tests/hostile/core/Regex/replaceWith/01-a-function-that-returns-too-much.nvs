@@ -1,0 +1,43 @@
+<?nvs
+// Attack: the function that builds each replacement returns long texts, throws errors
+// and calls `Core\Regex::replaceWith` again. Each call should return a text or throw
+// an error. The last one should stop at the memory limit before the new text is built.
+// hostile: ends-early
+
+class Replace
+{
+    public static function length(string $subject, string $pattern, callable(Core\Regex\Match): string $fn): string
+    {
+        try {
+            return Core\Str::length(Core\Regex::replaceWith($subject, $pattern, $fn)) as string;
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+
+    public static function fail(Core\Regex\Match $m): string
+    {
+        throw new RuntimeError('no replacement for ' . $m->text());
+    }
+}
+
+// 1. A pattern that matches an empty text at every position of a text of one
+// million characters. The function is called 1000001 times. This prints 2000001.
+echo Replace::length(Core\Str::repeat('é', 1000000), 'x*', fn(Core\Regex\Match $m) => '-'), "\n";
+
+// 2. The function throws an error for the first match. This prints "error".
+echo Replace::length('a1b2', '\d', fn(Core\Regex\Match $m) => Replace::fail($m)), "\n";
+
+// 3. The function calls `Core\Regex::replaceWith` again for each match.
+// The new text is "a<1>b<2>", so this prints 8.
+echo Replace::length('a1b2', '\d', fn(Core\Regex\Match $m) => Core\Regex::replaceWith($m->text(), '.', fn(Core\Regex\Match $n) => '<' . $n->text() . '>')), "\n";
+
+// 4. A pattern that needs very many steps to fail. This throws an error.
+echo Replace::length(Core\Str::repeat('a', 40) . 'b', '^(a|a?)+\1$', fn(Core\Regex\Match $m) => 'x'), "\n";
+
+// 5. The function reads a group that the pattern does not have. This throws an error.
+echo Replace::length('abc', '(b)', fn(Core\Regex\Match $m) => $m->group('nope') ?? ''), "\n";
+
+// 6. 100000 matches, and the function returns 100000 characters for each one.
+// The new text would need about 10 GB, so the program stops here with a memory limit error.
+echo Replace::length(Core\Str::repeat('a', 100000), 'a', fn(Core\Regex\Match $m) => Core\Str::repeat('x', 100000)), "\n";
