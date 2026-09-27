@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a client sends `CONNECT`, a method that is not a case of `Core\Http\Method`.
+// Every call to `method` should throw a `LogicError`. The program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Reads the method once. `CONNECT` has no case, so `method` throws a `LogicError`.
+try {
+    echo 'method is Get: ', Core\Request::method() == Core\Http\Method::Get ? 'yes' : 'no', "\n";
+} catch (LogicError $error) {
+    echo 'method: LogicError', "\n";
+}
+
+// 2. Checks that a header cannot change the method. `X-HTTP-Method-Override` is only a header.
+echo 'override header: ', Core\Request::header('x-http-method-override') ?? 'null', "\n";
+
+// 3. Reads the method many times. Every call throws the same error.
+uint $thrown = 0;
+uint $i = 0;
+while ($i < 100000) {
+    try {
+        Core\Request::method();
+    } catch (LogicError $error) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+echo 'errors thrown: ', $thrown, "\n";
+
+// 4. Keeps every error without end. This stops at the memory limit.
+array<LogicError> $kept = [];
+while (true) {
+    try {
+        Core\Request::method();
+    } catch (LogicError $error) {
+        $kept[] = $error;
+    }
+}

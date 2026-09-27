@@ -1,0 +1,14 @@
+<?nvs
+// Shows how one address of an API reads, changes or deletes a record, depending on the method.
+
+// `match` checks the method and gives one text for each case.
+// `default` is used for every method that is not listed.
+var $action = match (Core\Request::method()) {
+    Core\Http\Method::Get => "read order 1042",
+    Core\Http\Method::Put, Core\Http\Method::Patch => "change order 1042",
+    Core\Http\Method::Delete => "delete order 1042",
+    default => "method not allowed",
+};
+
+// The request below uses `PATCH`. This prints "change order 1042".
+echo $action, "\n";

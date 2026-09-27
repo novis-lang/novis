@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a page that supports only `GET` and `POST` answers any other method.
+
+var $method = Core\Request::method();
+
+// The request below uses `DELETE`. This page does not support it.
+// The status `405` means "method not allowed". This prints "405, allowed: GET, POST".
+if ($method == Core\Http\Method::Get || $method == Core\Http\Method::Post) {
+    echo "200\n";
+} else {
+    echo "405, allowed: GET, POST\n";
+}

@@ -427,16 +427,16 @@ const HEADER_LINES: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 
 /// `Core\Request::method`'s reference card — `rule:core-api/reference-card`.
 const METHOD_DOC: MethodDoc = MethodDoc {
-    short: "The verb this request carries, as one of `Core\\Http\\Method`'s eight cases — with \
-            `HEAD` reported as `Get`, so a `Get`-only route table still matches one and \
-            `isHead` carries the difference.",
+    short: "Returns the method of the request, such as `GET` or `POST`, as a case of \
+            `Core\\Http\\Method`. A `HEAD` request returns `Get`. Use `isHead` to tell the two \
+            apart.",
     params: &[],
-    ret: "The matching `Core\\Http\\Method` case. Never `Head`, by the rule above.",
+    ret: "The `Core\\Http\\Method` case of the request. It is never `Head`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request — a CLI program, a scheduled script, a \
-               job worker or a test — or the verb it carries is outside the eight \
-               `Core\\Http\\Method` names, which the server refuses with a `501` before a \
+        desc: "The program is not answering a request, such as a command-line program or a \
+               test. It is also thrown when the method is not one of the cases of \
+               `Core\\Http\\Method`. The server answers such a request with `501` before your \
                program runs.",
     }],
 };
@@ -4051,7 +4051,7 @@ mod tests {
     /// *reports* it. The arm is therefore reachable from a declaration and
     /// unreachable from this member, which is why the sweep asserts what
     /// `method()` answers and never that [`METHOD`] has one case fewer.
-    // covers: Core\Request::isHead
+    // covers: Core\Request::method, Core\Request::isHead
     #[test]
     fn method_reports_get_for_a_head_request_and_is_head_carries_the_truth() {
         /// A context answering a request whose request line carried `verb` and

@@ -18178,11 +18178,11 @@ no request here
 Core\Request::method(): Core\Http\Method
 ```
 
-The verb this request carries, as one of `Core\Http\Method`'s eight cases — with `HEAD` reported as `Get`, so a `Get`-only route table still matches one and `isHead` carries the difference.
+Returns the method of the request, such as `GET` or `POST`, as a case of `Core\Http\Method`. A `HEAD` request returns `Get`. Use `isHead` to tell the two apart.
 
-**Returns** `Core\Http\Method` — The matching `Core\Http\Method` case. Never `Head`, by the rule above.
+**Returns** `Core\Http\Method` — The `Core\Http\Method` case of the request. It is never `Head`.
 
-**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test — or the verb it carries is outside the eight `Core\Http\Method` names, which the server refuses with a `501` before a program runs.
+**Throws** `LogicError` — The program is not answering a request, such as a command-line program or a test. It is also thrown when the method is not one of the cases of `Core\Http\Method`. The server answers such a request with `501` before your program runs.
 
 <a id="core-core-request-ishead"></a>
 #### `Core\Request::isHead`

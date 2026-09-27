@@ -1,0 +1,6 @@
+--METHOD--
+DELETE
+--PATH--
+/contact
+--HEADERS--
+host: example.com

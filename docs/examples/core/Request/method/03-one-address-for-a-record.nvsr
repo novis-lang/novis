@@ -1,0 +1,11 @@
+--METHOD--
+PATCH
+--PATH--
+/api/orders/1042
+--SCHEME--
+https
+--HEADERS--
+host: shop.example.com
+content-type: application/json
+--BODY--
+{"status":"shipped"}
