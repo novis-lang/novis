@@ -1,0 +1,7 @@
+<?nvs
+// The first two examples in the folder above start this file with `spawn script`.
+// It prints a greeting for the name it was given.
+
+var $given = Core\Script::args();
+string $name = $given == null ? "everyone" : $given as string;
+echo "Hello, ", $name, "!\n";

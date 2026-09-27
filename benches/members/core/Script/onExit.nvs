@@ -1,0 +1,24 @@
+<?nvs
+// Adds a function to run when the script ends, as a library does when it opens a file or takes a lock.
+// bench: iterations 100000
+
+final class Seen {
+    public static uint $ran = 0;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each function is new, because it keeps its own copy of `$i`.
+            uint $n = $i;
+            Core\Script::onExit(fn (): void => {
+                Seen::$ran = Seen::$ran + $n % 2;
+            });
+            $i = $i + 1;
+        }
+        return $i;
+    }
+}
+
+echo Bench::run(100000), "\n";

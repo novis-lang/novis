@@ -1,0 +1,23 @@
+<?nvs
+// Reads the value a script was started with, as a child script does before it starts its work.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $none = 1;
+        uint $some = 2;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $given = Core\Script::args();
+            // This script was started from the command line, so `$given` is `null`.
+            $total = $total + ($given == null ? $none : $some);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

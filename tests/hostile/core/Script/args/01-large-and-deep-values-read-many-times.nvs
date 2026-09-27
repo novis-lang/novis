@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a script passes very large and very deep values to child scripts, and
+// each child reads its value many times. Each child should finish or fail with
+// an error value, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+string $reader = 'tests/hostile/core/Script/args/scripts/reader.nvs';
+string $row = 'order 1042, customer 77, shipping address line one, line two, postcode, city, country';
+
+// 1. A list of 20000 long strings is passed, and the child reads it 100000 times.
+try {
+    array<string> $rows = [];
+    int $i = 0;
+    while ($i < 20000) {
+        $rows[] = $row . ' ' . $i;
+        $i = $i + 1;
+    }
+    var $large = spawn script $reader with(args: $rows);
+    var $result = await $large;
+    echo 'large: ', $result->ok ? 'read' : 'failed', "\n";
+} catch (Throwable $error) {
+    echo 'large: ', $error->message, "\n";
+}
+
+// 2. An array nested 5000 levels deep is passed.
+try {
+    mixed $deep = [];
+    int $level = 0;
+    while ($level < 5000) {
+        $deep = [$deep];
+        $level = $level + 1;
+    }
+    var $nested = spawn script $reader with(args: $deep);
+    var $read = await $nested;
+    echo 'deep: ', $read->ok ? 'read' : 'failed', "\n";
+} catch (Throwable $error) {
+    echo 'deep: ', $error->message, "\n";
+}
+
+// 3. 100 children start at once, and each one receives its own copy of one large list.
+try {
+    array<string> $shared = [];
+    int $k = 0;
+    while ($k < 2000) {
+        $shared[] = $row;
+        $k = $k + 1;
+    }
+    array<Core\Script\Handle> $jobs = [];
+    int $n = 0;
+    while ($n < 100) {
+        $jobs[] = spawn script $reader with(args: $shared);
+        $n = $n + 1;
+    }
+    int $ok = 0;
+    foreach ($jobs as Core\Script\Handle $job) {
+        var $done = await $job;
+        $ok = $ok + ($done->ok ? 1 : 0);
+    }
+    echo 'many: ', $ok, " finished\n";
+} catch (Throwable $error) {
+    echo 'many: ', $error->message, "\n";
+}

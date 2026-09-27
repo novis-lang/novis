@@ -1,0 +1,14 @@
+<?nvs
+// Shows what `Core\Script::args()` returns when a script was given no value.
+// The result is `null`, so the script uses a default.
+
+// You start this script from the command line, and no other script started it.
+// So the result is `null`, and this prints "given: nothing".
+var $given = Core\Script::args();
+echo "given: ", $given == null ? "nothing" : "a value", "\n";
+
+// This child is started with no `args:`. It reads `null` too, and it prints
+// "Hello, everyone!".
+string $path = "docs/examples/core/Script/args/scripts/greet.nvs";
+var $child = spawn script $path with(output: "capture");
+echo (await $child)->output;

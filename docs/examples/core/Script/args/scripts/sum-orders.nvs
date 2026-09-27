@@ -1,0 +1,13 @@
+<?nvs
+// The third example in the folder above starts this file once for each part of
+// a list. It adds up the order totals it was given and returns the sum.
+
+var $given = Core\Script::args();
+int $sum = 0;
+if ($given != null) {
+    array<int> $totals = $given as array<int>;
+    foreach ($totals as int $total) {
+        $sum = $sum + $total;
+    }
+}
+return $sum;

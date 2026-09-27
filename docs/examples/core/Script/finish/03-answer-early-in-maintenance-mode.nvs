@@ -1,0 +1,22 @@
+<?nvs
+// Shows a request handler that answers at once while the site is under maintenance.
+// The access log is written by a function added with `Core\Script::onExit()`.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // After `finish()`, the reason is `Finish` and the status is 0.
+    string $how = $report->reason() == Core\Script\ExitReason::Finish ? "finished early" : "ran to the end";
+    echo "access log: ", $how, ", status ", $report->status(), "\n";
+});
+
+class Site {
+    public static function handle(bool $maintenance): void {
+        if ($maintenance) {
+            echo "503 the site is under maintenance\n";
+            Core\Script::finish();
+        }
+        echo "200 the page\n";
+    }
+}
+
+Site::handle(true);
+echo "this line does not print\n";

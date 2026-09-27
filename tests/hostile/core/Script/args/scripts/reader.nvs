@@ -1,0 +1,13 @@
+<?nvs
+// The attack in the folder above starts this file. It reads its value many
+// times and returns how many reads gave a value.
+
+int $reads = 0;
+int $i = 0;
+while ($i < 100000) {
+    if (Core\Script::args() != null) {
+        $reads = $reads + 1;
+    }
+    $i = $i + 1;
+}
+return $reads;

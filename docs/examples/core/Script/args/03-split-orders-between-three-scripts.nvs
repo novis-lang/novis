@@ -1,0 +1,19 @@
+<?nvs
+// Splits a list of order totals between three scripts that run at the same time.
+// Each script adds up its own part, and this script adds the three sums.
+
+string $path = "docs/examples/core/Script/args/scripts/sum-orders.nvs";
+
+// Each child receives its own copy of one part of the list.
+var $first = spawn script $path with(args: [120, 80, 45]);
+var $second = spawn script $path with(args: [300, 15]);
+var $third = spawn script $path with(args: [99, 1, 60, 40]);
+
+// `value` is what the child returned. The three sums are 245, 315 and 200.
+int $total = 0;
+$total = $total + ((await $first)->value as int);
+$total = $total + ((await $second)->value as int);
+$total = $total + ((await $third)->value as int);
+
+// This prints "total: 760".
+echo "total: ", $total, "\n";

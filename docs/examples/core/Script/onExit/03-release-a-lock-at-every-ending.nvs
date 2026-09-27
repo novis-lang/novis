@@ -1,0 +1,25 @@
+<?nvs
+// Shows a job that releases its lock however it ends. A job that stops with
+// the lock still taken would block every later run.
+// proof: exit 1
+
+final class Lock {
+    public static bool $taken = false;
+
+    public static function take(): void {
+        Lock::$taken = true;
+        echo "lock taken\n";
+        // The release is added right after the lock is taken.
+        Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+            Lock::$taken = false;
+            echo "lock released, status ", $report->status(), "\n";
+        });
+    }
+}
+
+Lock::take();
+echo "importing orders\n";
+
+// Nothing catches this error, so the script ends here with status 1.
+// The function above still runs and releases the lock.
+throw new RuntimeError("the order file is not valid");
