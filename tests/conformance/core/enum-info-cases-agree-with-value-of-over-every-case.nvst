@@ -2,6 +2,7 @@
 Every name `Core\Reflect\EnumInfo::cases` answers is one `valueOf` reads, the list is ascending by constant rather than in declaration order, and a `Core` enum is described on the same terms (`rule:enums/reflection`)
 --FILE--
 <?nvs
+// covers: Core\Reflect\EnumInfo::cases
 // Asserted by counting rather than read off a line: a description that dropped
 // a case, repeated one, or answered a name `valueOf` cannot read still prints
 // plausibly case by case.

@@ -1,0 +1,87 @@
+<?nvs
+// Attack: a program reads the cases of a large enum many times and keeps every list.
+// Every step should return the full list, and the runtime must not crash or leak.
+
+enum Code: int
+{
+    A0 = 9223372036854775807,
+    A1 = -9223372036854775807,
+    A2 = 0,
+    A3 = 0,
+    A4 = 0,
+    A5,
+    A6,
+    A7 = -1,
+    A8 = 9223372036854775806,
+    A9,
+    B0 = 5,
+    B1 = 5,
+    B2 = 5,
+    B3 = 5,
+    B4 = 5,
+    B5 = 5,
+    B6 = 5,
+    B7 = 5,
+    B8 = 5,
+    B9 = 5,
+}
+
+enum Big: uint
+{
+    Top = 18446744073709551615,
+    Bottom = 0,
+    Middle = 9223372036854775808,
+}
+
+enum Nothing: int
+{
+}
+
+// 1. The enum is described and its cases are read, 100000 times.
+uint $seen = 0;
+uint $i = 0;
+while ($i < 100000) {
+    ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Code::class);
+    if ($found != null) {
+        Core\Reflect\EnumInfo $fresh = $found;
+        $seen = $seen + Core\Arr::count($fresh->cases());
+    }
+    $i = $i + 1;
+}
+echo $seen, "\n";
+
+// 2. One description returns its list 100000 times, and every list is kept.
+?Core\Reflect\EnumInfo $one = Core\Reflect\EnumInfo::of(Code::class);
+if ($one != null) {
+    Core\Reflect\EnumInfo $info = $one;
+    array<array<string>> $kept = [];
+    $i = 0;
+    while ($i < 100000) {
+        $kept[] = $info->cases();
+        $i = $i + 1;
+    }
+    echo Core\Arr::count($kept), "\n";
+}
+
+// 3. The largest `uint` values, and an enum with no case.
+array<string> $edges = [Big::class, Nothing::class];
+foreach ($edges as string $name) {
+    ?Core\Reflect\EnumInfo $edge = Core\Reflect\EnumInfo::of($name);
+    if ($edge != null) {
+        Core\Reflect\EnumInfo $described = $edge;
+        echo $name, ': ', Core\Str::join($described->cases(), ', '), "\n";
+    }
+}
+
+// 4. Every name in the list is read back with `valueOf`, and a copy of the list is changed.
+if ($one != null) {
+    Core\Reflect\EnumInfo $again = $one;
+    array<string> $names = $again->cases();
+    int $sum = 0;
+    foreach ($names as string $case) {
+        $sum = $sum + (($again->valueOf($case) as int) % 7);
+    }
+    echo $sum, "\n";
+    $names[] = 'Extra';
+    echo Core\Arr::count($names), ' ', Core\Arr::count($again->cases()), "\n";
+}

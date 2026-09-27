@@ -1207,7 +1207,7 @@ const PARAMETER_TYPE_DOC: MethodDoc = MethodDoc {
 /// be the twin of, and nothing it carries reaches back into the program.
 pub(crate) const ENUM_INFO: CoreClass = CoreClass {
     name: ENUM_INFO_NAME,
-    doc: None,
+    doc: Some(&ENUM_INFO_CARD),
     methods: &[CoreMethod {
         name: "of",
         names: &["name"],
@@ -1264,6 +1264,13 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Reflect\EnumInfo`'s class card — `rule:core-api/reference-card`.
+const ENUM_INFO_CARD: ClassDoc = ClassDoc {
+    short: "One enum, as `Core\\Reflect\\EnumInfo::of` returns it for the enum's name. `cases` \
+            lists the names of its cases, `valueOf` returns the value of one case, and \
+            `isUnsigned` says whether the values are `uint` or `int`.",
+};
+
 /// `Core\Reflect\EnumInfo::of`'s reference card — `rule:core-api/reference-card`.
 const ENUM_OF_DOC: MethodDoc = MethodDoc {
     short: "Describes the enum `$name` names. The only way to read an enum's case list, since \
@@ -1290,9 +1297,9 @@ const ENUM_NAME_DOC: MethodDoc = MethodDoc {
 const ENUM_CASES_DOC: MethodDoc = MethodDoc {
     short: "Every case the enum declares, by name.",
     params: &[],
-    ret: "One string per case, ascending by the case's constant and then by name. A declaration's \
-          own order is carried by nothing below the parser, so this order is the one the runtime \
-          can state rather than an approximation of the source.",
+    ret: "One string per case, sorted by the value of the case from the smallest to the largest. \
+          Two cases with the same value are sorted by name. The order is not the order of the \
+          declaration. An enum with no case gives an empty list.",
     errors: &[],
 };
 
@@ -1317,10 +1324,10 @@ const ENUM_VALUE_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\EnumInfo::isUnsigned`'s reference card — `rule:core-api/reference-card`.
 const ENUM_IS_UNSIGNED_DOC: MethodDoc = MethodDoc {
-    short: "Which of `rule:enums/one-backing-type`'s two integer types the cases are constants of.",
+    short: "Checks whether the values of the enum's cases are `uint` or `int`.",
     params: &[],
-    ret: "`true` for an enum written `: uint`, `false` for every other one — there is no third \
-          backing and no unbacked form.",
+    ret: "`true` for an enum declared with `: uint`. `false` for an enum declared with `: int` \
+          or with no type, because an enum with no type is an `int` enum.",
     errors: &[],
 };
 
@@ -5280,6 +5287,149 @@ mod tests {
         #[expect(unsafe_code, reason = "this frame owns the four descriptions")]
         unsafe {
             for info in [ledger, audit, other, plain] {
+                info.release();
+            }
+        }
+    }
+
+    /// A context whose table declares three enums the way `nvs-codegen` records
+    /// them — `Shop\Status` (`int`, written out of order, with `Default` and
+    /// `Normal` sharing a constant), `Shop\Level` (`uint`) and `Shop\Nothing`
+    /// with no case — and their three descriptions in that order. The anchor
+    /// class is there because `EnumInfo::of` reads the table through
+    /// `Ctx::set_runtime_error_class`'s handle and nothing else.
+    fn shop_enums() -> (Ctx, [Value; 3]) {
+        let mut classes = ClassTable::new();
+        let anchor = classes.define("Shop\\Anchor", &[] as &[&str], &[]);
+        let case = |name: &str, value: i128| (name.to_owned(), value);
+        classes.define_enum(
+            "Shop\\Status",
+            false,
+            vec![
+                case("Shipped", 3),
+                case("Normal", 1),
+                case("Returned", -1),
+                case("Default", 1),
+            ],
+        );
+        classes.define_enum(
+            "Shop\\Level",
+            true,
+            vec![case("Gold", 30), case("Bronze", 10)],
+        );
+        classes.define_enum("Shop\\Nothing", false, Vec::new());
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), anchor));
+        let infos = ["Shop\\Status", "Shop\\Level", "Shop\\Nothing"].map(|name| {
+            let asked = Value::str(NvsStr::new(name.as_bytes()));
+            let info = call(super::nvs_core_reflect_enum_info_of, &mut ctx, &[asked])
+                .expect("asking for an enum by name never throws");
+            #[expect(
+                unsafe_code,
+                reason = "this frame built the name and is its only owner"
+            )]
+            unsafe {
+                asked.release();
+            }
+            assert_eq!(info.tag(), Some(Tag::Object), "`{name}` is declared");
+            info
+        });
+        (ctx, infos)
+    }
+
+    /// `cases` lists every declared case once, ascending by constant and a
+    /// shared constant by name, whatever order the declaration wrote them in.
+    /// A `uint` enum is listed on the same terms, an enum with no case is an
+    /// empty list, two calls hand back the description's one array, and a
+    /// receiver that is not a description faults naming the member.
+    // covers: Core\Reflect\EnumInfo::cases
+    #[test]
+    fn enum_info_cases_is_every_case_ascending_by_constant_then_by_name() {
+        let (mut ctx, [status, level, nothing]) = shop_enums();
+        let listed = |ctx: &mut Ctx, info: Value| {
+            texts(
+                call(super::nvs_core_reflect_enum_info_cases, ctx, &[info])
+                    .expect("the case list always answers"),
+            )
+        };
+        assert_eq!(
+            listed(&mut ctx, status),
+            ["Returned", "Default", "Normal", "Shipped"],
+            "by constant, and `Default` before `Normal` because they share `1`"
+        );
+        assert_eq!(listed(&mut ctx, level), ["Bronze", "Gold"]);
+        assert_eq!(listed(&mut ctx, nothing), Vec::<String>::new());
+
+        let first = call(super::nvs_core_reflect_enum_info_cases, &mut ctx, &[status])
+            .expect("the case list always answers");
+        let second = call(super::nvs_core_reflect_enum_info_cases, &mut ctx, &[status])
+            .expect("the case list always answers");
+        assert_eq!(
+            first.array_ptr(),
+            second.array_ptr(),
+            "the list is the description's own array, handed back rather than rebuilt"
+        );
+
+        let refused = call(
+            super::nvs_core_reflect_enum_info_cases,
+            &mut ctx,
+            &[Value::int(7)],
+        );
+        assert!(refused.is_err(), "an integer is no receiver");
+        assert!(
+            ctx.take_pending()
+                .unwrap_or_default()
+                .contains(r"Core\Reflect\EnumInfo::cases"),
+            "the fault names the member it was raised by"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the three descriptions and one reference to each of the two \
+                      lists `cases` handed back"
+        )]
+        unsafe {
+            first.release();
+            second.release();
+            for info in [status, level, nothing] {
+                info.release();
+            }
+        }
+    }
+
+    /// `isUnsigned` is `true` for the `uint` enum alone — the one with no case
+    /// included, since the backing is the declaration's and not the cases' —
+    /// and a receiver that is not a description faults naming the member.
+    // covers: Core\Reflect\EnumInfo::isUnsigned
+    #[test]
+    fn enum_info_is_unsigned_is_the_declared_backing_and_nothing_else() {
+        let (mut ctx, [status, level, nothing]) = shop_enums();
+        let unsigned = |ctx: &mut Ctx, info: Value| {
+            call(super::nvs_core_reflect_enum_info_is_unsigned, ctx, &[info])
+                .expect("a bit slot always answers")
+                .as_bool()
+                .expect("the slot holds a bool")
+        };
+        assert!(!unsigned(&mut ctx, status), "`Shop\\Status` is `int`");
+        assert!(unsigned(&mut ctx, level), "`Shop\\Level` is `uint`");
+        assert!(!unsigned(&mut ctx, nothing), "no case is still `int`");
+
+        let refused = call(
+            super::nvs_core_reflect_enum_info_is_unsigned,
+            &mut ctx,
+            &[Value::bool(true)],
+        );
+        assert!(refused.is_err(), "a bool is no receiver");
+        assert!(
+            ctx.take_pending()
+                .unwrap_or_default()
+                .contains(r"Core\Reflect\EnumInfo::isUnsigned"),
+            "the fault names the member it was raised by"
+        );
+
+        #[expect(unsafe_code, reason = "this frame owns the three descriptions")]
+        unsafe {
+            for info in [status, level, nothing] {
                 info.release();
             }
         }

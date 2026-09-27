@@ -1,0 +1,42 @@
+<?nvs
+// Reads the case list of an enum, as a program does before it checks a filter or builds a menu.
+// bench: iterations 400000
+// bench: allocations 0
+
+enum Status: int {
+    Open = 1,
+    Paid = 2,
+    Shipped = 3,
+}
+
+enum Size: int {
+    Small,
+    Medium,
+    Large,
+    Huge,
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Reflect\EnumInfo> $infos = [];
+        array<string> $names = [Status::class, Size::class];
+        foreach ($names as string $name) {
+            ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($name);
+            if ($found != null) {
+                Core\Reflect\EnumInfo $described = $found;
+                $infos[] = $described;
+            }
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The description read depends on last round's total, so no round can be skipped.
+            Core\Reflect\EnumInfo $info = $infos[($total % 2) as int];
+            $total = $total + Core\Arr::count($info->cases());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
