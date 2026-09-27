@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-request-mount-and-1-more`: `Core\\Request\\Mount` has every proof, and its check is green.\n`Core\\Request\\Part` has its class card, and `CLASSES_STILL_OWING_A_CARD` no longer names it.\nEvery `Part` member has its `covers:` markers on a Rust test and a `.nvst` case. `name`, `filename` and `contentType` share `a_files_walk_yields_the_file_parts_and_drains_what_it_passes`, which reads all three through `parts_of`.\n`Core\\Request\\Part::content` and `Core\\Request\\Part::name` have every proof on disk and pass `bun nv proofs --verify`.\n`readAll`, `saveTo`, `filename` and `contentType` still owe examples, an attack, a bench and `about.md`. They are all that stands between the goal and `dossier-core-request-part`.\nA proof program that needs a request does not run under `bun nv try`. Run `target/covws/x86_64-pc-windows-msvc/debug/nvs.exe run --request <case>.nvsr <case>.nvs` with `LLVM_PROFILE_FILE` pointed under `.agent-tmp/`.\nA multipart part whose `Content-Disposition` names `name` twice throws a `ParseError` from the `files()` loop, so an attack that sends one catches it.",
+  "state": "Goal `core-request-mount-and-1-more`: `Core\\Request\\Mount` has every proof, and its check is green.\n`Core\\Request\\Part` has its class card, and every member has its `covers:` markers on a Rust test and a `.nvst` case.\n`content`, `name`, `readAll` and `saveTo` have every proof on disk and pass `bun nv proofs --verify`.\n`filename` and `contentType` still owe examples, an attack, a bench and `about.md`. They are all that stands between the goal and `dossier-core-request-part`.\nA proof program that needs a request does not run under `bun nv try`, and a loop of `nvs run` over the trees is refused by the guard: `bun nv proofs --run --id '<member>' --show` runs every example, attack and bench of one member and prints what each printed.\nA request program has no capability at all. `saveTo`'s example and attack directories and `benches/members/core/Request-Part/` each carry an `nvs.toml` granting `fs` read and write, which every bench in that class directory now runs under.\n`Core\\Csv::parse` takes a plain `string`, so an upload cannot reach it even through `Core\\Encoding::decodeText`. An example that parses an upload does not compile (see Backlog).",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -8,19 +8,16 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request\\Part::readAll`** — owes examples, hostile, perf, about.md (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:3643` and its card with the `max` bound is `crates/nvs-stdlib/src/request.rs:1379`. `docs/examples/core/Request-Part/content/` is the shape, and `docs/examples/core/Request/files/03-checking-an-avatar-before-it-is-stored.nvs` already shows `{max: …}`."
+        "text": "**`Core\\Request\\Part::filename`** — owes examples, hostile, perf, about.md (`rule:testing/feature-proofs`). The member is `crates/nvs-stdlib/src/request.rs:3406` and its card is `crates/nvs-stdlib/src/request.rs:1318`. `docs/examples/core/Request-Part/name/` is the shape. A quoted `filename` loses its backslashes when the form is read (`..\\a` arrives as `..a`), and `tests/hostile/core/Request-Part/saveTo/01-a-save-that-lands-in-the-wrong-place.nvs` already sends a `../` name, so the attack takes another angle: a very long name, an empty one, a control character."
       },
       {
         "done": false,
-        "text": "**`Core\\Request\\Part::saveTo`** — owes examples, hostile, perf, about.md. The member is `crates/nvs-stdlib/src/request.rs:3784` and its card is `crates/nvs-stdlib/src/request.rs:1417`. The path is a sink, so an example reaches it through `Core\\IO::within`, and a program writes under `.agent-tmp/` or a folder it creates and deletes."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Request\\Part::filename`** and **`Core\\Request\\Part::contentType`** — owe examples, hostile, perf, about.md. The members are `crates/nvs-stdlib/src/request.rs:3406` and `crates/nvs-stdlib/src/request.rs:3414`. `benches/members/core/Request-Part/name.nvs` is the bench shape."
+        "text": "**`Core\\Request\\Part::contentType`** — owes examples, hostile, perf, about.md. The member is `crates/nvs-stdlib/src/request.rs:3414` and its card is `crates/nvs-stdlib/src/request.rs:1328`. `docs/examples/core/Request/files/03-checking-an-avatar-before-it-is-stored.nvs` already checks a type against a list. When both land, `dossier-core-request-part` should be green: run `bun nv proofs --verify --group 'Core\\Request\\Part'`, then close the goal per the loop's `DONE` step."
       }
     ]
   },
   "backlog": [
-    "`Core\\Request\\Part::name`'s first measurement recorded `ns/op 0.0` beside 44 allocations. Read the row in `docs/perf/members.ndjson` before trusting the clock for a one-iteration request bench (`benches/members/README.md`)."
+    "A second read of a part that was already read returns empty content from `readAll` and `content()`, and `saveTo` with `{overwrite: true}` then replaces a good copy with an empty file. `rule:http-server/a-part-is-consumed-in-one-of-three-ways` says a part is read \"exactly once\" but not what a second read does. A `LogicError` would be clearer. This is a design question for ADR 0105's owner, and no proof fails on it.",
+    "`Core\\Csv::parse` (`crates/nvs-stdlib/src/csv.rs:210`) takes `CoreTy::Str`, so a `tainted string` from an upload cannot be parsed at all, while `rule:http-server/a-part-is-consumed-in-one-of-three-ways` names \"a CSV about to be parsed\" as what `readAll` is for. A taint-preserving parameter (tainted in, tainted rows out) is the likely fix; it is owed by whoever owns `Core\\Csv`."
   ]
 }
