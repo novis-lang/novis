@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 179 goals. 138 are walked (120 of them retired), `core-request-1-2` is live at 139 of 179, and 40 are ahead.
+The chain holds 179 goals. 139 are walked (120 of them retired), `core-request-2-2` is live at 140 of 179, and 39 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -151,8 +151,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 136 | [`core-reflect-classinfo-and-1-more`](goals/core-reflect-classinfo-and-1-more.md) | Core\Reflect\ClassInfo and 1 more | walked |  | **2** the dossier |
 | 137 | [`core-reflect-enuminfo-and-3-more`](goals/core-reflect-enuminfo-and-3-more.md) | Core\Reflect\EnumInfo and 3 more | walked |  | **2** the dossier |
 | 138 | [`core-regex-and-1-more`](goals/core-regex-and-1-more.md) | Core\Regex and 1 more | walked |  | **2** the dossier |
-| 139 | [`core-request-1-2`](goals/core-request-1-2.md) | Core\Request (1/2) | **live** |  | **2** the dossier |
-| 140 | [`core-request-2-2`](goals/core-request-2-2.md) | Core\Request (2/2) | ahead |  | **2** the dossier |
+| 139 | [`core-request-1-2`](goals/core-request-1-2.md) | Core\Request (1/2) | walked |  | **2** the dossier |
+| 140 | [`core-request-2-2`](goals/core-request-2-2.md) | Core\Request (2/2) | **live** |  | **2** the dossier |
 | 141 | [`core-request-mount-and-1-more`](goals/core-request-mount-and-1-more.md) | Core\Request\Mount and 1 more | ahead |  | **2** the dossier |
 | 142 | [`core-response-and-1-more`](goals/core-response-and-1-more.md) | Core\Response and 1 more | ahead |  | **2** the dossier |
 | 143 | [`core-router-and-4-more`](goals/core-router-and-4-more.md) | Core\Router and 4 more | ahead |  | **2** the dossier |
