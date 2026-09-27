@@ -2,7 +2,9 @@
 // measures in `id`. `nv proofs` reads it without recording the file, and names a `perf:#<feature>` key
 // for each feature whose rows it consults (`perfKey`). A reader that uses every row names
 // `LEDGER_WHOLE`. A change to the ledger moves the keys of the features whose rows differ between its
-// old and new text (`ledgerMoved`), so a new figure for one feature selects only that feature's checks.
+// old and new text (`ledgerMoved`), so a new figure for one feature selects only that feature's proofs
+// checks. It also moves the file's own `file:` key, which selects every other check that reads the
+// file directly.
 
 import { createHash } from "node:crypto";
 

@@ -172,9 +172,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     if (!moved.has(key)) moved.set(key, origin);
   };
   const global = changes.find((c) => isGlobal(c.path))?.path ?? null;
-  // The perf ledger is read by its rows, so a change to it moves the `perf:` keys `scanKeys` names in
-  // place of its `file:` key.
-  for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) if (c.path !== LEDGER || k !== `file:${LEDGER}`) emit(k, { path: c.path, how: "path" });
+  for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) emit(k, { path: c.path, how: "path" });
   if (global) emit(WILD, { path: global, how: "global" });
   for (const [k, origin] of await scanKeys(store, changes, since, until, fromBase, root)) emit(k, origin);
 

@@ -44,7 +44,7 @@ describe("the perf ledger is keyed by the features whose rows a reader uses", ()
     expect(whole.keys).toContain(LEDGER_WHOLE);
   });
 
-  test("a ledger edit selects the checks of the edited feature and whole readers, and moves no path key of the ledger", async () => {
+  test("a ledger edit selects the checks of the edited feature, whole readers and direct readers of the file", async () => {
     const t = scratch();
     const git = (...args: string[]) => {
       const r = Bun.spawnSync(["git", ...args], { cwd: t.root, stdout: "pipe", stderr: "pipe" });
@@ -65,17 +65,17 @@ describe("the perf ledger is keyed by the features whose rows a reader uses", ()
       rec("nv:proofs-a", [perfKey("Core\\A::run")]);
       rec("nv:proofs-b", [perfKey("Core\\B::run")]);
       rec("nv:report", [LEDGER_WHOLE]);
-      rec("nv:stale", [`file:${LEDGER}`]);
+      rec("nv:direct", [`file:${LEDGER}`]);
 
       t.put(LEDGER, LEDGER_TEXT + row("Core\\A::run", 9) + "\n");
       const c = await computeChange(s, { paths: [LEDGER], graph: null, root: t.root });
-      expect(c.moved.has(`file:${LEDGER}`)).toBe(false);
+      expect(c.moved.has(`file:${LEDGER}`)).toBe(true);
       expect(c.moved.has(perfKey("Core\\A::run"))).toBe(true);
       expect(c.moved.has(perfKey("Core\\B::run"))).toBe(false);
       expect(c.moved.has(PERF_ANY)).toBe(false);
       const sel = query(s, c);
       const keyed = [...sel.selected.values()].filter((x) => x.why === "key").map((x) => x.id).sort();
-      expect(keyed).toEqual(["nv:proofs-a", "nv:report"]);
+      expect(keyed).toEqual(["nv:direct", "nv:proofs-a", "nv:report"]);
     } finally {
       s.close();
       t.cleanup();
