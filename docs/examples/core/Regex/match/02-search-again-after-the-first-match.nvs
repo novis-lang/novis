@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to find the next match by starting the search after the previous one.
+
+string $text = "Call 555-0142 or 555-0199.";
+
+// The first search starts at position 0 and finds the first number.
+var $first = Core\Regex::match($text, '\d{3}-\d{4}');
+if ($first != null) {
+    echo $first->text(), " starts at ", $first->offset(), "\n";
+
+    // `from` starts the second search where the first match ends.
+    // This prints "555-0199 starts at 17".
+    int $after = $first->offset() + (Core\Str::length($first->text()) as int);
+    var $second = Core\Regex::match($text, '\d{3}-\d{4}', {from: $after});
+    echo $second?->text() ?? "none", " starts at ", $second?->offset() ?? 0, "\n";
+}

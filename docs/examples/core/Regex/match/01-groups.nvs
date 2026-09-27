@@ -1,4 +1,8 @@
 <?nvs
+// Shows how to read the parts of a text that the groups of a pattern match.
+
+// `match` returns a `Match`, or `null` if the pattern does not match.
+// `group(1)` is the text the first `( )` matched, and `text()` is the whole match.
 var $m = Core\Regex::match("order-4711-eu", "order-(\\d+)-(\\w+)");
 if ($m != null) {
     echo "id=", $m->group(1), "\n";

@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a program searches with start positions far outside the text, in a very
+// long text, and with a pattern of many groups. Each search should return a match,
+// return `null` or throw an error. The last one should stop at the memory limit.
+// hostile: ends-early
+// proof: gap nvs-stdlib/a-regex-match-over-thousands-of-groups-ends-in-an-empty-fatal
+
+class Search
+{
+    public static function at(string $subject, string $pattern, int $from): string
+    {
+        try {
+            var $found = Core\Regex::match($subject, $pattern, { from: $from });
+            return $found?->text() ?? 'null';
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. The largest and the smallest positions an `int` can have.
+// The first prints "null". The second starts at the beginning and prints "ab".
+echo Search::at('ab', '[a-z]+', 9223372036854775807), "\n";
+echo Search::at('ab', '[a-z]+', -9223372036854775807 - 1), "\n";
+
+// 2. A text of two million characters, where the only match is at the very end.
+// This prints "end".
+string $long = Core\Str::repeat('x', 2000000) . 'end';
+echo Search::at($long, 'e.d', 0), "\n";
+
+// 3. 100000 searches, each from a different start position, and every `Match` is freed.
+// This prints 100000.
+uint $hits = 0;
+int $i = 0;
+while ($i < 100000) {
+    if (Search::at('é1 é22 é333', '\d+', $i % 11 - 5) != 'null') {
+        $hits = $hits + 1;
+    }
+    $i = $i + 1;
+}
+echo $hits, "\n";
+
+// 4. A pattern that needs very many steps to fail, started in the middle of the text.
+// This throws an error.
+echo Search::at('xx' . Core\Str::repeat('a', 40) . 'b', '(a|a?)+\1$', 2), "\n";
+
+// 5. A pattern with 5000 groups. Searching with it needs more memory than the
+// program may use, so the program stops here with a memory limit error.
+echo Search::at(Core\Str::repeat('a', 5000), Core\Str::repeat('(a)', 5000), 0), "\n";

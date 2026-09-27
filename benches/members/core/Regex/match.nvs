@@ -1,0 +1,21 @@
+<?nvs
+// Finds an order number in a short line of text, as a program does when it reads an email subject.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $subjects = ["Re: order 4711", "Order 81 shipped", "Invoice for order 1203"];
+        Core\Regex\Pattern $order = Core\Regex::compile('order (\d+)', {caseInsensitive: true});
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which line is searched comes from last round's total, so no round can be reused.
+            var $found = Core\Regex::match($subjects[($total % 3) as int], $order);
+            $total = $total + ($found?->offset() ?? 0) as uint + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

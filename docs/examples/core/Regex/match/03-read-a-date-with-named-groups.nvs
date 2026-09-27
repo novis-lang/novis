@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read the year, month and day from a date with named groups.
+
+// `(?<year>...)` gives a group a name. `group("year")` reads it by that name.
+Core\Regex\Pattern $date = Core\Regex::compile('^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$');
+
+array<string> $inputs = ["2026-03-14", "14.03.2026"];
+// The first date matches. The second one has another format, so `match` returns `null`.
+foreach ($inputs as string $input) {
+    var $parts = Core\Regex::match($input, $date);
+    if ($parts == null) {
+        echo $input, ": not a date in the format YYYY-MM-DD\n";
+    } else {
+        echo $input, ": day ", $parts->group("day"), ", month ", $parts->group("month"),
+            ", year ", $parts->group("year"), "\n";
+    }
+}
