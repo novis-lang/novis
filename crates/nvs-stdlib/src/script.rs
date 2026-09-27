@@ -108,7 +108,9 @@ use nvs_runtime::host::{Completion, Entry, Narrowing, Output, Placement, StartEr
 use nvs_runtime::script::ResolveError;
 use nvs_runtime::{Fault, NvsObj, NvsStr, ThrownClass, Value};
 
-use crate::registry::{CaseDoc, CoreClass, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc};
+use crate::registry::{
+    CaseDoc, ClassDoc, CoreClass, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc,
+};
 
 /// The handle class's fully-qualified name, as
 /// [`CoreTy::Instance`] spells it.
@@ -140,7 +142,7 @@ const PENDING: usize = 0;
 ///
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Script",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "args",
@@ -178,36 +180,44 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Script`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "The script that is running now. `args()` returns the value the script was started \
+            with. `onExit()` adds a function that runs when the script ends, and `finish()` ends \
+            the script at once.",
+};
+
 /// `Core\Script::onExit`'s reference card — `rule:core-api/reference-card`.
 const ON_EXIT_DOC: MethodDoc = MethodDoc {
-    short: "Registers a closure to run as the last user code of this script — at a normal end, at \
-            an `exit`, and when a throw reaches the root with nothing left to catch it. Hooks run \
-            in registration order, once, and a `FATAL` or a cancellation runs none of them.",
+    short: "Adds a function that runs when this script ends. It runs at a normal end, after \
+            `exit`, after `Core\\Script::finish()` and after an exception that nothing caught. \
+            The functions run once each, in the order they were added. A `FATAL` error and a \
+            cancelled script run none of them.",
     params: &[ParamDoc {
         name: "hook",
-        desc: "What to run. It is handed one readonly `Core\\Script\\ExitReport` saying which \
-               ending this was, and answers nothing; declaring no parameter is allowed. A hook \
-               that throws is logged and abandoned, and the hooks behind it still run.",
+        desc: "The function to run. It receives one `Core\\Script\\ExitReport` that describes \
+               the ending, and its return value is not used. It may also take no parameter. If \
+               it throws an error, the error is logged and the next function still runs.",
         shape: &[],
     }],
-    ret: "Nothing. Registering is request-local, registering twice registers twice, and a hook \
-          registered by a hook joins the tail of the same drain. Nothing a hook does changes the \
-          ending: the report is fixed before the first one runs, and `exit` inside a hook is a \
-          `RuntimeError` rather than a second ending.",
+    ret: "Nothing. The list belongs to this request only. Adding the same function twice runs it \
+          twice. A function added while the list runs is added to the end of the same list. A \
+          function cannot change the ending, because the report is fixed before the first one \
+          runs. `exit` or `Core\\Script::finish()` inside one of these functions stops that \
+          function, and the error is logged as a `RuntimeError`.",
     errors: &[],
 };
 
 /// `Core\Script::finish`'s reference card — `rule:core-api/reference-card`.
 const FINISH_DOC: MethodDoc = MethodDoc {
-    short: "Ends this script here and does not return. Every `finally` between the call and the \
-            root runs, then the exit queue drains — so it is the ending `exit` is not, and the \
-            one a request handler reaches for when it is done answering.",
+    short: "Ends this script at once. Every `finally` block between the call and the top of the \
+            script runs first. Then the functions added with `Core\\Script::onExit()` run. A \
+            request handler calls it when its response is complete.",
     params: &[],
-    ret: "Nothing, and nothing after the call runs. No `catch` arm sees the ending — the value \
-          raised is outside the `Throwable` tree — and the report each exit hook is handed names \
-          it `Finish` with status `0` and no error. Under a server the response the handler \
-          declared is the one sent and `Core\\Task::afterResponse` work still runs; under \
-          `nvs run` it is the end of the script.",
+    ret: "Nothing. The call does not return, no code after it runs, and no `catch` block \
+          catches it. The `Core\\Script\\ExitReport` has the reason `Finish`, the status `0` and \
+          no error. On a server, the response that the handler set is sent, and work added with \
+          `Core\\Task::afterResponse` still runs. Under `nvs run`, the script ends.",
     errors: &[],
 };
 
@@ -237,28 +247,27 @@ pub(crate) const EXIT_REASON: crate::registry::CoreEnum = crate::registry::CoreE
 
 /// [`EXIT_REASON`]'s reference card — `rule:core-api/reference-card`.
 const EXIT_REASON_DOC: EnumDoc = EnumDoc {
-    short: "Which ending ran the exit hooks. A `FATAL` and a cancellation have no case here \
-            because they run no hook at all.",
+    short: "How a script ended, as `Core\\Script\\ExitReport::reason()` returns it. A `FATAL` \
+            error and a cancelled script have no case, because they run no exit function.",
     cases: &[
         CaseDoc {
             name: "Normal",
-            desc: "The last top-level statement ran and the script ended of its own accord.",
+            desc: "The last top-level statement ran.",
         },
         CaseDoc {
             name: "ExitCall",
-            desc: "`exit`, `exit($n)` or `exit(\"msg\")` ended the script — the one ending no \
-                   `finally` observes.",
+            desc: "`exit`, `exit($n)` or `exit(\"msg\")` ended the script. No `finally` block \
+                   runs after `exit`.",
         },
         CaseDoc {
             name: "UncaughtThrow",
-            desc: "A throw reached the root of the script with nothing left to catch it; the \
-                   report carries the `Throwable` itself.",
+            desc: "An exception reached the top of the script and nothing caught it. \
+                   `Core\\Script\\ExitReport::error()` returns that exception.",
         },
         CaseDoc {
             name: "Finish",
-            desc: "`Core\\Script::finish()` ended the script from inside it — the ending every \
-                   `finally` observes and no `catch` arm does. The status is `0` and there is no \
-                   error, because a script that finished has not failed.",
+            desc: "`Core\\Script::finish()` ended the script. Every `finally` block runs, and no \
+                   `catch` block catches it. The status is `0` and there is no error.",
         },
     ],
 };
@@ -292,7 +301,7 @@ const THROWABLE: CoreTy = CoreTy::Instance("Throwable");
 /// before the first hook runs" as structure rather than as a rule.
 pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
     name: EXIT_REPORT_NAME,
-    doc: None,
+    doc: Some(&EXIT_REPORT_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -318,7 +327,7 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // `rule:core-api/shape-rules` R4's "absence is `?T`": two of the three endings have no
+            // `rule:core-api/shape-rules` R4's "absence is `?T`": three of the four endings have no
             // exception, and a `Throwable` with an empty message would be a
             // different claim from having none.
             return_ty: CoreTy::Nullable(&THROWABLE),
@@ -330,40 +339,49 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Script\ExitReport`'s class card — `rule:core-api/reference-card`.
+const EXIT_REPORT_CARD: ClassDoc = ClassDoc {
+    short: "Describes how a script ended. Each function added with `Core\\Script::onExit()` \
+            receives one. `reason()` returns the kind of ending, `status()` returns the exit \
+            status, and `error()` returns the exception that ended the script, if there was one. \
+            The values cannot change.",
+};
+
 /// `Core\Script\ExitReport::reason`'s reference card — `rule:core-api/reference-card`.
 const REASON_DOC: MethodDoc = MethodDoc {
-    short: "Which ending is running the hooks.",
+    short: "Returns how the script ended, as a `Core\\Script\\ExitReason` case.",
     params: &[],
-    ret: "`Normal` for the last statement having run, `ExitCall` for an `exit`, `UncaughtThrow` \
-          for a throw that reached the root.",
+    ret: "`Normal` when the last statement ran, `ExitCall` after `exit`, `UncaughtThrow` after \
+          an exception that nothing caught, and `Finish` after `Core\\Script::finish()`.",
     errors: &[],
 };
 
 /// `Core\Script\ExitReport::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
-    short: "The status the process will exit with, decided before the first hook ran.",
+    short: "Returns the status that the process exits with.",
     params: &[],
-    ret: "`0` for a normal end, the `exit($n)` argument for an `exit`, `1` for an uncaught throw. \
-          Reading it changes nothing — a hook observes the ending it was given.",
+    ret: "`0` for a normal end and after `Core\\Script::finish()`. After `exit($n)`, it is `$n`. \
+          After an exception that nothing caught, it is `1`. The status is fixed before the \
+          first function runs.",
     errors: &[],
 };
 
 /// `Core\Script\ExitReport::error`'s reference card — `rule:core-api/reference-card`.
 const ERROR_DOC: MethodDoc = MethodDoc {
-    short: "The exception that ended the script, for the one ending that has one.",
+    short: "Returns the exception that ended the script, if there was one.",
     params: &[],
-    ret: "The live `Throwable` for an `UncaughtThrow` — the object the program threw, with its \
-          own class, message and backtrace — and `null` for the other two endings.",
+    ret: "When the reason is `UncaughtThrow`, the `Throwable` that nothing caught, with its own \
+          class, message and backtrace. For every other ending, `null`.",
     errors: &[],
 };
 
 /// `Core\Script::args`'s reference card — `rule:core-api/reference-card`.
 const ARGS_DOC: MethodDoc = MethodDoc {
-    short: "Answers the value this script was spawned with — `spawn script … with(args: …)` as \
-            the child sees it, already copied into this isolate's own arena.",
+    short: "Returns the value that this script was started with. The parent script writes it as \
+            `spawn script … with(args: …)`, and this script receives a copy.",
     params: &[],
-    ret: "Whatever the parent passed, unchanged in shape; `null` for a child spawned with no \
-          `args:` and for the root script, which nothing spawned.",
+    ret: "The value the parent passed, with the same shape. It is `null` when the parent gave no \
+          `args:`, and in the first script, which no other script started.",
     errors: &[],
 };
 
@@ -1288,8 +1306,52 @@ mod tests {
         error: u64,
     }
 
+    /// `Core\Script::args` answers the value this isolate was handed, as a
+    /// reference of its own: the context keeps the one it holds, so every read
+    /// is the same string and none of them is a copy. A context that was handed
+    /// nothing answers `null`.
+    // covers: Core\Script::args
+    #[test]
+    fn args_answers_the_isolates_own_value_as_a_second_reference() {
+        let mut ctx = Ctx::buffered();
+        let none = call(super::nvs_core_script_args, &mut ctx, &[]).expect("`args` cannot fail");
+        assert_eq!(
+            none.bits(),
+            Value::null().bits(),
+            "nothing spawned this context"
+        );
+
+        ctx.set_isolate_argument(Value::str(nvs_runtime::NvsStr::new(b"orders.csv")));
+        let held = ctx
+            .isolate_argument()
+            .str_ptr()
+            .expect("the argument is a string");
+        for read in 1..=3 {
+            let answer =
+                call(super::nvs_core_script_args, &mut ctx, &[]).expect("`args` cannot fail");
+            assert_eq!(answer.str_ptr(), Some(held), "read {read} is not a copy");
+            #[expect(
+                unsafe_code,
+                reason = "the context still owns its reference, so the string is live, \
+                          and this frame owns the one the call handed back"
+            )]
+            // SAFETY: `held` is kept alive by the context for the whole test,
+            // and `answer` is this frame's own reference, released once.
+            unsafe {
+                assert_eq!(
+                    nvs_runtime::NvsStr::refcount_of(held),
+                    2,
+                    "read {read}: the context's reference and this one"
+                );
+                answer.release();
+            }
+        }
+        ctx.set_isolate_argument(Value::null());
+    }
+
     /// `rule:observability/three-endings-fire-the-exit-queue`'s first row, and § 1's FIFO: two hooks registered in order
     /// run in that order, once each, and are handed `Normal` with status `0`.
+    // covers: Core\Script::onExit
     #[test]
     fn on_exit_hooks_run_in_registration_order_at_a_clean_end() {
         let mut ctx = Ctx::buffered();
@@ -1470,6 +1532,7 @@ mod tests {
     /// carrying a `Throwable` a hook could then read — and the object it would
     /// hand over is an implementation detail of how a finish unwinds, not
     /// something the program ever named.
+    // covers: Core\Script::finish
     #[test]
     fn the_exit_report_names_the_finish_ending_with_a_zero_status_and_no_error() {
         let mut ctx = Ctx::buffered();

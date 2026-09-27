@@ -5339,8 +5339,6 @@ mod tests {
         r"Core\Request\BodyStream",
         r"Core\Request\Files",
         r"Core\Request\PartContent",
-        r"Core\Script",
-        r"Core\Script\ExitReport",
         r"Core\Script\Handle",
         r"Core\Secret",
         r"Core\Serialize",

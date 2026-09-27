@@ -17061,9 +17061,9 @@ Keywords: args, onExit, finish
 Core\Script::args(): mixed
 ```
 
-Answers the value this script was spawned with — `spawn script … with(args: …)` as the child sees it, already copied into this isolate's own arena.
+Returns the value that this script was started with. The parent script writes it as `spawn script … with(args: …)`, and this script receives a copy.
 
-**Returns** `mixed` — Whatever the parent passed, unchanged in shape; `null` for a child spawned with no `args:` and for the root script, which nothing spawned.
+**Returns** `mixed` — The value the parent passed, with the same shape. It is `null` when the parent gave no `args:`, and in the first script, which no other script started.
 
 <a id="core-core-script-onexit"></a>
 #### `Core\Script::onExit`
@@ -17072,13 +17072,13 @@ Answers the value this script was spawned with — `spawn script … with(args: 
 Core\Script::onExit(callable(Core\Script\ExitReport): mixed $hook): void
 ```
 
-Registers a closure to run as the last user code of this script — at a normal end, at an `exit`, and when a throw reaches the root with nothing left to catch it. Hooks run in registration order, once, and a `FATAL` or a cancellation runs none of them.
+Adds a function that runs when this script ends. It runs at a normal end, after `exit`, after `Core\Script::finish()` and after an exception that nothing caught. The functions run once each, in the order they were added. A `FATAL` error and a cancelled script run none of them.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$hook` | `callable(Core\Script\ExitReport): mixed` | What to run. It is handed one readonly `Core\Script\ExitReport` saying which ending this was, and answers nothing; declaring no parameter is allowed. A hook that throws is logged and abandoned, and the hooks behind it still run. |
+| `$hook` | `callable(Core\Script\ExitReport): mixed` | The function to run. It receives one `Core\Script\ExitReport` that describes the ending, and its return value is not used. It may also take no parameter. If it throws an error, the error is logged and the next function still runs. |
 
-**Returns** `void` — Nothing. Registering is request-local, registering twice registers twice, and a hook registered by a hook joins the tail of the same drain. Nothing a hook does changes the ending: the report is fixed before the first one runs, and `exit` inside a hook is a `RuntimeError` rather than a second ending.
+**Returns** `void` — Nothing. The list belongs to this request only. Adding the same function twice runs it twice. A function added while the list runs is added to the end of the same list. A function cannot change the ending, because the report is fixed before the first one runs. `exit` or `Core\Script::finish()` inside one of these functions stops that function, and the error is logged as a `RuntimeError`.
 
 <a id="core-core-script-finish"></a>
 #### `Core\Script::finish`
@@ -17087,9 +17087,9 @@ Registers a closure to run as the last user code of this script — at a normal 
 Core\Script::finish(): void
 ```
 
-Ends this script here and does not return. Every `finally` between the call and the root runs, then the exit queue drains — so it is the ending `exit` is not, and the one a request handler reaches for when it is done answering.
+Ends this script at once. Every `finally` block between the call and the top of the script runs first. Then the functions added with `Core\Script::onExit()` run. A request handler calls it when its response is complete.
 
-**Returns** `void` — Nothing, and nothing after the call runs. No `catch` arm sees the ending — the value raised is outside the `Throwable` tree — and the report each exit hook is handed names it `Finish` with status `0` and no error. Under a server the response the handler declared is the one sent and `Core\Task::afterResponse` work still runs; under `nvs run` it is the end of the script.
+**Returns** `void` — Nothing. The call does not return, no code after it runs, and no `catch` block catches it. The `Core\Script\ExitReport` has the reason `Finish`, the status `0` and no error. On a server, the response that the handler set is sent, and work added with `Core\Task::afterResponse` still runs. Under `nvs run`, the script ends.
 
 <a id="core-core-script-exitreport"></a>
 ### `Core\Script\ExitReport`
@@ -17109,9 +17109,9 @@ Keywords: reason, status, error
 $exitReport->reason(): Core\Script\ExitReason
 ```
 
-Which ending is running the hooks.
+Returns how the script ended, as a `Core\Script\ExitReason` case.
 
-**Returns** `Core\Script\ExitReason` — `Normal` for the last statement having run, `ExitCall` for an `exit`, `UncaughtThrow` for a throw that reached the root.
+**Returns** `Core\Script\ExitReason` — `Normal` when the last statement ran, `ExitCall` after `exit`, `UncaughtThrow` after an exception that nothing caught, and `Finish` after `Core\Script::finish()`.
 
 <a id="core-core-script-exitreport-status"></a>
 #### `Core\Script\ExitReport->status`
@@ -17120,9 +17120,9 @@ Which ending is running the hooks.
 $exitReport->status(): int
 ```
 
-The status the process will exit with, decided before the first hook ran.
+Returns the status that the process exits with.
 
-**Returns** `int` — `0` for a normal end, the `exit($n)` argument for an `exit`, `1` for an uncaught throw. Reading it changes nothing — a hook observes the ending it was given.
+**Returns** `int` — `0` for a normal end and after `Core\Script::finish()`. After `exit($n)`, it is `$n`. After an exception that nothing caught, it is `1`. The status is fixed before the first function runs.
 
 <a id="core-core-script-exitreport-error"></a>
 #### `Core\Script\ExitReport->error`
@@ -17131,9 +17131,9 @@ The status the process will exit with, decided before the first hook ran.
 $exitReport->error(): ?Throwable
 ```
 
-The exception that ended the script, for the one ending that has one.
+Returns the exception that ended the script, if there was one.
 
-**Returns** `?Throwable` — The live `Throwable` for an `UncaughtThrow` — the object the program threw, with its own class, message and backtrace — and `null` for the other two endings.
+**Returns** `?Throwable` — When the reason is `UncaughtThrow`, the `Throwable` that nothing caught, with its own class, message and backtrace. For every other ending, `null`.
 
 <a id="core-core-program"></a>
 ### `Core\Program`
@@ -25950,14 +25950,14 @@ Which of CLDR's six plural forms a count selects. The names are CLDR's own label
 <a id="enum-core-script-exitreason"></a>
 #### `Core\Script\ExitReason`
 
-Which ending ran the exit hooks. A `FATAL` and a cancellation have no case here because they run no hook at all.
+How a script ended, as `Core\Script\ExitReport::reason()` returns it. A `FATAL` error and a cancelled script have no case, because they run no exit function.
 
 | Case | Meaning |
 |---|---|
-| `Core\Script\ExitReason::Normal` | The last top-level statement ran and the script ended of its own accord. |
-| `Core\Script\ExitReason::ExitCall` | `exit`, `exit($n)` or `exit("msg")` ended the script — the one ending no `finally` observes. |
-| `Core\Script\ExitReason::UncaughtThrow` | A throw reached the root of the script with nothing left to catch it; the report carries the `Throwable` itself. |
-| `Core\Script\ExitReason::Finish` | `Core\Script::finish()` ended the script from inside it — the ending every `finally` observes and no `catch` arm does. The status is `0` and there is no error, because a script that finished has not failed. |
+| `Core\Script\ExitReason::Normal` | The last top-level statement ran. |
+| `Core\Script\ExitReason::ExitCall` | `exit`, `exit($n)` or `exit("msg")` ended the script. No `finally` block runs after `exit`. |
+| `Core\Script\ExitReason::UncaughtThrow` | An exception reached the top of the script and nothing caught it. `Core\Script\ExitReport::error()` returns that exception. |
+| `Core\Script\ExitReason::Finish` | `Core\Script::finish()` ended the script. Every `finally` block runs, and no `catch` block catches it. The status is `0` and there is no error. |
 
 <a id="enum-core-db-driver"></a>
 #### `Core\Db\Driver`
