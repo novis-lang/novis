@@ -1,0 +1,67 @@
+<?nvs
+// Attack: `Core\Str::replace` gets an empty search, long searches that almost match, and letters
+// whose lower case has a different size. It also builds a result far larger than its text.
+// Each call should return a string. The last step should stop the program at its memory limit.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Searches for an empty text, with the largest `limit`. The result is the text unchanged.
+    public static function emptySearch(): uint
+    {
+        string $text = Core\Str::repeat('ab', 1000);
+        return Core\Str::length(Core\Str::replace($text, '', 'x', { limit: 18446744073709551615 }));
+    }
+
+    /// 2. Searches 1 MiB of `a` for 1000 `a` and one `b`, with and without `caseInsensitive`.
+    public static function almostMatches(): uint
+    {
+        string $text = Core\Str::repeat('a', 1048576);
+        string $search = Core\Str::repeat('a', 1000) . 'b';
+        string $exact = Core\Str::replace($text, $search, 'x');
+        string $ignoringCase = Core\Str::replace($text, $search, 'x', { caseInsensitive: true });
+        return Core\Str::length($exact) + Core\Str::length($ignoringCase);
+    }
+
+    /// 3. Finds `k` in a text of Kelvin signs. The sign has 3 bytes and its lower case `k` has 1.
+    public static function differentSizes(): string
+    {
+        string $text = Core\Str::repeat("\u{212A}", 1000);
+        string $done = Core\Str::replace($text, 'k', 'K', { caseInsensitive: true });
+        return Core\Str::replace($done, 'KK', '', { limit: 499 });
+    }
+
+    /// 4. Replaces `aa` with `a` in 1 MiB of `a`, so each match touches the next one.
+    public static function touchingMatches(): uint
+    {
+        return Core\Str::length(Core\Str::replace(Core\Str::repeat('a', 1048576), 'aa', 'a'));
+    }
+
+    /// 5. Calls it one million times on a short text and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::replace('a-b-c', '-', '+'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 6. Replaces each `a` of 1 MiB with 1 KiB of text. The result does not fit under the memory limit.
+    /// The memory limit stops the program here.
+    public static function tooLarge(): uint
+    {
+        string $text = Core\Str::repeat('a', 1048576);
+        return Core\Str::length(Core\Str::replace($text, 'a', Core\Str::repeat('x', 1024)));
+    }
+}
+
+echo Attack::emptySearch(), "\n";
+echo Attack::almostMatches(), "\n";
+echo Attack::differentSizes(), "\n";
+echo Attack::touchingMatches(), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooLarge(), "\n";

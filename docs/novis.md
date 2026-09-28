@@ -7329,17 +7329,17 @@ Lists the code points of `$s`. A code point is the number Unicode gives to one s
 Core\Str::replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string
 ```
 
-Replaces every occurrence of `$search` in `$s` with `$replacement`, as `str_replace` and `str_ireplace` do — non-overlapping, left to right, and the replacement is never rescanned.
+Replaces every occurrence of `$search` in `$s` with `$replacement`. Matches are found from left to right and do not overlap. The new text is not searched again. Replaces PHP's `str_replace` and `str_ireplace`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The string to rewrite. |
-| `$search` | `string` | The text to look for; an empty one matches nothing. |
-| `$replacement` | `string` | The text put in its place. |
-| `{caseInsensitive: …}` | `bool` (default `false`) | Match through Unicode's simple lower-case mapping of each character rather than exactly; the default is `false`. |
-| `{limit: …}` | `uint` (default `18446744073709551615`) | Replace at most this many occurrences, from the left; `0` replaces nothing, and the default is every one. |
+| `$s` | `string` | The string to change. |
+| `$search` | `string` | The text to find. An empty `$search` matches nothing. |
+| `$replacement` | `string` | The text that replaces each match. |
+| `{caseInsensitive: …}` | `bool` (default `false`) | If `true`, upper-case and lower-case letters match each other, so `"A"` finds `"a"`. The default is `false`. |
+| `{limit: …}` | `uint` (default `18446744073709551615`) | The most matches to replace, counted from the left. `0` replaces nothing. The default is every match. |
 
-**Returns** `string` — The rewritten string; `$s` unchanged when nothing matched.
+**Returns** `string` — The changed string. If nothing matched, the result is `$s` unchanged.
 
 <a id="core-core-str-replaceall"></a>
 #### `Core\Str::replaceAll`

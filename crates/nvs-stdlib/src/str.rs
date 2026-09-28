@@ -1056,39 +1056,39 @@ const CODE_POINTS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::replace`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_DOC: MethodDoc = MethodDoc {
-    short: "Replaces every occurrence of `$search` in `$s` with `$replacement`, as `str_replace` \
-            and `str_ireplace` do — non-overlapping, left to right, and the replacement is \
-            never rescanned.",
+    short: "Replaces every occurrence of `$search` in `$s` with `$replacement`. Matches are \
+              found from left to right and do not overlap. The new text is not searched again. \
+              Replaces PHP's `str_replace` and `str_ireplace`.",
     params: &[
         ParamDoc {
             name: "s",
-            desc: "The string to rewrite.",
+            desc: "The string to change.",
             shape: &[],
         },
         ParamDoc {
             name: "search",
-            desc: "The text to look for; an empty one matches nothing.",
+            desc: "The text to find. An empty `$search` matches nothing.",
             shape: &[],
         },
         ParamDoc {
             name: "replacement",
-            desc: "The text put in its place.",
+            desc: "The text that replaces each match.",
             shape: &[],
         },
         ParamDoc {
             name: "caseInsensitive",
-            desc: "Match through Unicode's simple lower-case mapping of each character rather \
-                   than exactly; the default is `false`.",
+            desc: "If `true`, upper-case and lower-case letters match each other, so `\"A\"` \
+                   finds `\"a\"`. The default is `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "limit",
-            desc: "Replace at most this many occurrences, from the left; `0` replaces nothing, \
-                   and the default is every one.",
+            desc: "The most matches to replace, counted from the left. `0` replaces nothing. \
+                   The default is every match.",
             shape: &[],
         },
     ],
-    ret: "The rewritten string; `$s` unchanged when nothing matched.",
+    ret: "The changed string. If nothing matched, the result is `$s` unchanged.",
     errors: &[],
 };
 
@@ -4144,6 +4144,7 @@ mod tests {
         )
     }
 
+    // covers: Core\Str::replace
     #[test]
     fn replace_substitutes_every_occurrence_left_to_right() {
         assert_eq!(replaced("a-b-c", "-", "+"), "a+b+c");

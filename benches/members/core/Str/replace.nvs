@@ -1,0 +1,20 @@
+<?nvs
+// Replaces a word in a short sentence, as a program does when it cleans up a message or a name.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lines = ["the cat sat on the mat", "a cat in a hat", "no match here"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $pick = ($total + $i) % 3;
+            $total = $total + Core\Str::length(Core\Str::replace($lines[$pick as int], "at", "og"));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
