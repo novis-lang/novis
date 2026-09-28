@@ -429,6 +429,11 @@ nvs_runtime::nvs_helper! {
         let offered = offers(args)?;
 
         let (chosen, held) = if ctx.faked_http().is_armed() {
+            // A header the handshake refuses before it connects is refused
+            // here too, so a test sees the error production throws.
+            for (name, value) in super::headers_of(args, SOCKET_HEADERS, MEMBER)? {
+                transport::judged_field(&name, &value, MEMBER)?;
+            }
             (
                 transport::settled(scripted(ctx, &url)?, &offered, MEMBER)?,
                 Value::null(),

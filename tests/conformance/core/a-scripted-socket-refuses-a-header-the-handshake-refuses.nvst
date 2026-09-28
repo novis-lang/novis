@@ -1,0 +1,34 @@
+--TEST--
+A socket a scripted peer answers refuses a header holding a control byte, as a live handshake does before it connects — `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`
+--FILE--
+<?nvs
+// A bound asserted on both sides: a header value one byte short of a line
+// break opens the socket, and each value holding a control byte throws the
+// error a live handshake throws. A colon in the name is refused too.
+Core\Test::answerSocket("wss://gateway.example.com/*", []);
+
+var $open = Core\Http\Client::openSocket("wss://gateway.example.com/ok", {headers: ["X-Note" => "a X-Injected: yes"]});
+echo "opened", "\n";
+
+array<string> $refused = ["a\r\nX-Injected: yes", "a\nb", "a\tb", "a\x7fb"];
+foreach ($refused as string $value) {
+    try {
+        Core\Http\Client::openSocket("wss://gateway.example.com/bad", {headers: ["X-Note" => $value]});
+        echo "opened", "\n";
+    } catch (RuntimeError $error) {
+        echo "refused", "\n";
+    }
+}
+try {
+    Core\Http\Client::openSocket("wss://gateway.example.com/bad", {headers: ["X:Note" => "a"]});
+    echo "opened", "\n";
+} catch (RuntimeError $error) {
+    echo "refused a colon in the name", "\n";
+}
+--EXPECT--
+opened
+refused
+refused
+refused
+refused
+refused a colon in the name
