@@ -1181,6 +1181,9 @@ impl CoreTy {
             // in. See [`Self::Entry`].
             Self::Entry => Some(Qual::Sink),
             Self::Union(members) => Self::union_classification(members, None),
+            // `?T` is `null|T`, and `null` has no cell, so the mark is the inner type's — as a
+            // union's is its text arm's.
+            Self::Nullable(inner) => inner.classification(),
             _ => None,
         }
     }
