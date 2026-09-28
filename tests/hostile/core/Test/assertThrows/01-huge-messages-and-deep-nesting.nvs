@@ -1,0 +1,63 @@
+<?nvs
+// Attack: the checked code throws huge messages, the class name is huge or empty,
+// and checks are nested very deep. Each check should pass or throw a `Core\Test\Failure`.
+
+class Deep
+{
+    // Each level checks that the level below throws, and then throws itself.
+    public static function nest(int $depth): void
+    {
+        if ($depth > 0) {
+            Core\Test::assertThrows(fn (): void => { Deep::nest($depth - 1); }, LogicError::class);
+        }
+        throw new LogicError('level');
+    }
+}
+
+// Step 1: the code throws an error with a message of ten million characters.
+string $long = Core\Str::repeat('a', 10000000);
+Core\Test::assertThrows(fn (): void => { throw new LogicError($long); }, LogicError::class);
+echo "long message, right class\n";
+
+// Step 2: the same error, but the check expects another class.
+// The failure message contains the long message.
+try {
+    Core\Test::assertThrows(fn (): void => { throw new LogicError($long); }, IOError::class);
+} catch (Core\Test\Failure $failure) {
+    echo 'long message, wrong class: ', Core\Str::length($failure->message), "\n";
+}
+
+// Step 3: the expected class name is ten million characters, and then empty.
+try {
+    Core\Test::assertThrows(fn (): void => { throw new LogicError('x'); }, $long);
+} catch (Core\Test\Failure $failure) {
+    echo "long class name\n";
+}
+try {
+    Core\Test::assertThrows(fn (): void => { throw new LogicError('x'); }, '');
+} catch (Core\Test\Failure $failure) {
+    echo "empty class name\n";
+}
+
+// Step 4: the code throws a `Core\Test\Failure` itself.
+try {
+    Core\Test::assertThrows(fn (): void => { Core\Test::assertSame(1, 2); }, LogicError::class);
+} catch (Core\Test\Failure $failure) {
+    echo "a failed check inside\n";
+}
+
+// Step 5: a hundred thousand checks in a row, each one catching an error.
+int $i = 0;
+while ($i < 100000) {
+    Core\Test::assertThrows(fn (): void => { throw new LogicError('again'); }, Throwable::class);
+    $i = $i + 1;
+}
+echo "many checks\n";
+
+// Step 6: checks nested one hundred thousand levels deep. The deepest call throws a
+// `RecursionError`, so each check above it throws a `Core\Test\Failure`.
+try {
+    Deep::nest(100000);
+} catch (Core\Test\Failure $failure) {
+    echo "deep nesting\n";
+}

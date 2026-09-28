@@ -1,26 +1,30 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Test (2/2) has been taken yet.",
+  "state": "Goal `core-test-2-2` is met. `Core\\Test::assertNull`, `Core\\Test::assertSame` and `Core\\Test::assertThrows`\neach have `about.md`, three examples, one attack, one bench with a recorded figure in\n`docs/perf/members.ndjson`, and a Rust test carrying its `covers:` marker in `crates/nvs-stdlib/src/test.rs`.\n`bun nv proofs --only` over the three reports nothing owed. No gap was recorded.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "feature proofs, closed",
+    "files": [
+      "crates/nvs-stdlib/src/test.rs",
+      "docs/examples/core/Test/"
+    ],
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Test::assertNull`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:550`"
+        "done": true,
+        "text": "**`Core\\Test::assertNull`** — `crates/nvs-stdlib/src/test.rs:610`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Test::assertSame`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:514`"
+        "done": true,
+        "text": "**`Core\\Test::assertSame`** — `crates/nvs-stdlib/src/test.rs:575`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Test::assertThrows`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:598`"
+        "done": true,
+        "text": "**`Core\\Test::assertThrows`** — `crates/nvs-stdlib/src/test.rs:659`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`benches/members/core/Test/assertNull.nvs` counts 2 allocations per iteration, and `assertSame`'s bench counts 0. Where they come from is not checked (the bench's `array<?string>` read, or the member) — `rule:testing/member-perf-ledger`.",
+    "Nested `Core\\Test::assertThrows` calls quote each inner failure, so N nested levels build messages whose total size grows with N². The recursion limit bounds it; `tests/hostile/core/Test/assertThrows/01-huge-messages-and-deep-nesting.nvs` step 6 is the shape.",
+    "The reference cards `ASSERT_NULL_DOC`, `ASSERT_SAME_DOC` and `ASSERT_THROWS_DOC` in `crates/nvs-stdlib/src/test.rs` name PHPUnit and use the essay voice; goal `plain-comments` owns the sweep."
   ]
 }

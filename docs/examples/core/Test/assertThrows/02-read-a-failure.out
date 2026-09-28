@@ -1,0 +1,3 @@
+Core\Test::assertThrows failed: `$body` returned without throwing LogicError
+Core\Test::assertThrows failed: `$body` threw LogicError, not IOError: not a number: ten
+an age is never negative: Core\Test::assertThrows failed: `$body` returned without throwing LogicError

@@ -5539,6 +5539,107 @@ mod tests {
         );
     }
 
+    /// `assertNull` holds for `null` alone: `0`, `false`, `""` and an empty
+    /// array are falsy and still fail. `assertSame` compares by
+    /// `nvs_runtime::identity`'s rows, so two separately built equal strings
+    /// and arrays hold, and `1` beside `1.0` holds because the numeric row is
+    /// one domain, where PHP's `===` says `false`. Both failures render the
+    /// subjects they judged.
+    // covers: Core\Test::assertNull, Core\Test::assertSame
+    #[test]
+    fn assert_null_holds_for_null_alone_and_assert_same_reads_one_numeric_domain() {
+        fn asserted(
+            ctx: &mut Ctx,
+            member: nvs_runtime::NvsFn,
+            args: &[Value],
+        ) -> Result<(), String> {
+            let answered = nvs_runtime::call(member, ctx, args);
+            for arg in args {
+                dropped(*arg);
+            }
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a failed assertion says why")
+                    .into_owned()),
+            }
+        }
+        fn text(of: &str) -> Value {
+            Value::str(nvs_runtime::NvsStr::new(of.as_bytes()))
+        }
+        fn list(of: &[i64]) -> Value {
+            let mut list = nvs_runtime::NvsArray::new();
+            for n in of {
+                list.append(Value::int(*n));
+            }
+            Value::array(list)
+        }
+
+        let mut ctx = Ctx::buffered();
+        asserted(
+            &mut ctx,
+            nvs_core_test_assert_null,
+            &[Value::null(), Value::null()],
+        )
+        .expect("null is null");
+        type Subject = fn() -> Value;
+        let falsy: [(Subject, &str); 4] = [
+            (|| Value::int(0), "`$actual` is 0"),
+            (|| Value::bool(false), "`$actual` is false"),
+            (|| text(""), "`$actual` is \"\""),
+            (|| list(&[]), "`$actual` is an array of 0"),
+        ];
+        for (subject, reported) in falsy {
+            let why = asserted(
+                &mut ctx,
+                nvs_core_test_assert_null,
+                &[subject(), Value::null()],
+            )
+            .expect_err("a falsy value is not null");
+            assert!(why.contains(reported), "{why}");
+        }
+
+        asserted(
+            &mut ctx,
+            nvs_core_test_assert_same,
+            &[text("10"), text("10"), Value::null()],
+        )
+        .expect("two strings with the same bytes are identical");
+        asserted(
+            &mut ctx,
+            nvs_core_test_assert_same,
+            &[list(&[1, 2, 3]), list(&[1, 2, 3]), Value::null()],
+        )
+        .expect("two arrays with identical entries are identical");
+        let why = asserted(
+            &mut ctx,
+            nvs_core_test_assert_same,
+            &[text("010"), text("10"), Value::null()],
+        )
+        .expect_err("the strings differ");
+        assert!(
+            why.contains("`$actual` is \"010\", `$expected` is \"10\""),
+            "{why}"
+        );
+        asserted(
+            &mut ctx,
+            nvs_core_test_assert_same,
+            &[Value::int(1), Value::float(1.0), Value::null()],
+        )
+        .expect("1 and 1.0 are one value of the numeric domain");
+        let why = asserted(
+            &mut ctx,
+            nvs_core_test_assert_same,
+            &[Value::int(1), Value::float(1.5), Value::null()],
+        )
+        .expect_err("1 is not 1.5");
+        assert!(why.contains("`$actual` is 1, `$expected` is 1.5"), "{why}");
+    }
+
     /// `assertMatchesInline` holds when `Core\Debug::render`'s text is the
     /// snapshot byte for byte, and records nothing. A mismatch, including the
     /// empty snapshot the `--update` workflow starts from, quotes both texts
@@ -5590,14 +5691,17 @@ mod tests {
         );
     }
 
-    /// Both members that take a `callable` judge how it ended. `assertDoesNotThrow`
-    /// holds for a body that returned and turns a body's throw into its own
-    /// failure quoting the message. `assertCompletes` throws before it calls the
-    /// body where no clock is fixed, and where one is, moves it by `within`
-    /// before the body reads it.
-    // covers: Core\Test::assertDoesNotThrow, Core\Test::assertCompletes
+    /// The three members that take a `callable` judge how it ended.
+    /// `assertDoesNotThrow` holds for a body that returned and turns a body's
+    /// throw into its own failure quoting the message. `assertCompletes` throws
+    /// before it calls the body where no clock is fixed, and where one is, moves
+    /// it by `within` before the body reads it. `assertThrows` fails a body that
+    /// returned, naming the class it expected. Judging a throw's class needs an
+    /// exception class table, so the examples and the hostile case pin that half
+    /// from Novis.
+    // covers: Core\Test::assertDoesNotThrow, Core\Test::assertCompletes, Core\Test::assertThrows
     #[test]
-    fn assert_does_not_throw_and_assert_completes_judge_a_body_by_how_it_ended() {
+    fn every_member_taking_a_body_judges_it_by_how_it_ended() {
         use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 
         static RAN: AtomicUsize = AtomicUsize::new(0);
@@ -5749,5 +5853,19 @@ mod tests {
             "the clock moved first"
         );
         assert_eq!(ctx.fixed_clock(), Some(50_000_000));
+
+        let mut bare = Ctx::buffered();
+        let expected = || Value::str(nvs_runtime::NvsStr::new(b"LogicError"));
+        let why = judged(
+            &mut bare,
+            nvs_core_test_assert_throws,
+            &[body_of(returns), expected(), Value::null()],
+        )
+        .expect_err("the body returned");
+        assert!(
+            why.contains("`$body` returned without throwing LogicError"),
+            "{why}"
+        );
+        assert_eq!(RAN.load(Ordering::SeqCst), 3);
     }
 }

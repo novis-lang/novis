@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check that a piece of code throws an error.
+
+class Age {
+    public static function parse(string $text): int {
+        ?int $age = $text as ?int;
+        if ($age == null) {
+            throw new LogicError("not a number: " . $text);
+        }
+        if ($age < 0) {
+            throw new LogicError("an age is never negative: " . $text);
+        }
+        return $age;
+    }
+}
+
+// The function is the code to run. `LogicError::class` is the class of error you expect.
+// "-4" is not an age, so the code throws a `LogicError` and the check passes.
+Core\Test::assertThrows(fn (): void => { Age::parse("-4"); }, LogicError::class);
+echo "the check passed\n";

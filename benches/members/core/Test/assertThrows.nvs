@@ -1,0 +1,21 @@
+<?nvs
+// Checks that bad input throws an error, as a test does for each input a function must not accept.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Test::assertThrows(
+                fn (): void => { throw new LogicError("bad input"); },
+                LogicError::class,
+            );
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";
