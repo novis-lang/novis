@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a test sends a real HTTP request to its own program.
+
+use Core\Http\Client;
+use Core\Test;
+
+class PingTest {
+    // `server: true` starts a server for this test only.
+    #[Test(server: true)]
+    public function itAnswersOverTheNetwork(): void {
+        string $base = Test::serverUrl() ?? "";
+
+        // The address has no `/` at the end, so the path is added directly.
+        var $response = Client::get($base . "/ping");
+        Test::assertEquals($response->status(), 200);
+        Test::assertSame($response->text(), "pong");
+    }
+}
+
+try {
+    // The server runs this file for each request, and this part writes the answer.
+    var $path = Core\Request::path();
+    echo $path == "/ping" ? "pong" : "unknown page";
+} catch (LogicError $noRequest) {
+    // `nvs test` runs the test above. Under `nvs run` there is no request,
+    // so `Core\Request::path()` throws and this prints `no server`.
+    echo Test::serverUrl() ?? "no server", "\n";
+}

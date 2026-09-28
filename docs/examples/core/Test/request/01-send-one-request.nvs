@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to send one request to your own program and read the answer.
+
+use Core\Http\Method;
+use Core\Test;
+
+// `Core\Test::request` runs this file a second time to answer the request.
+// In that run, `Core\Request::path()` returns the path of the request.
+try {
+    var $path = Core\Request::path();
+    echo "Hello from ", $path;
+} catch (LogicError $noRequest) {
+    // In the first run there is no request, so `Core\Request::path()` throws.
+    // This part sends the request and reads the answer.
+    var $response = Test::request(Method::Get, "/hello");
+
+    // The program set no status, so this prints `200`.
+    echo $response->status(), "\n";
+
+    // `body()` returns what the program wrote. This prints `Hello from /hello`.
+    echo $response->body(), "\n";
+}

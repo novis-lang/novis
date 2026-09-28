@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to test an HTTP client class against a real server that your test starts.
+
+use Core\Http\Client;
+use Core\Test;
+
+class HealthCheck {
+    // Returns "up" when the page answers with the status 200, and "down" otherwise.
+    public static function check(string $url): string {
+        var $response = Client::get($url);
+        return $response->status() == 200 ? "up" : "down";
+    }
+}
+
+class HealthCheckTest {
+    #[Test(server: true)]
+    public function itSeesAWorkingPageAndABrokenOne(): void {
+        string $base = Test::serverUrl() ?? "";
+        Test::assertSame(HealthCheck::check($base . "/health"), "up");
+        Test::assertSame(HealthCheck::check($base . "/broken"), "down");
+    }
+}
+
+try {
+    // The server runs this file for each request. `/health` works,
+    // and every other page answers with the status 503.
+    var $path = Core\Request::path();
+    if ($path == "/health") {
+        echo "ok";
+    } else {
+        Core\Response::setStatus(503);
+        echo "failing";
+    }
+} catch (LogicError $noRequest) {
+    // `nvs test` runs the test above. Under `nvs run` there is no server,
+    // so this prints `no server`.
+    echo Test::serverUrl() ?? "no server", "\n";
+}

@@ -1,0 +1,24 @@
+<?nvs
+// Sends one request to the program itself and reads the status, as a test of a web page does.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["/users/7", "/orders", "/products/3"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $response = Core\Test::request(Core\Http\Method::Get, $paths[$total % 3]);
+            $total = $total + $response->status() + Core\Str::length($response->body());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part writes the answer.
+try {
+    echo Core\Str::length(Core\Request::path());
+} catch (LogicError $noRequest) {
+    echo Bench::run(2000), "\n";
+}

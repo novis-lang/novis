@@ -1039,12 +1039,13 @@ const ADVANCE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::serverUrl`'s reference card — `rule:core-api/reference-card`.
 const SERVER_URL_DOC: MethodDoc = MethodDoc {
-    short: "The base URL of the listener a `#[Test(server: true)]` case was given — a real socket \
-            on a port the operating system chose, for the cases that genuinely need the wire \
-            rather than an in-process request.",
+    short: "Returns the address of the test server that a `#[Test(server: true)]` test starts. \
+            The server runs on this computer, on a free port. Use it when a test needs a real \
+            network connection.",
     params: &[],
-    ret: "`http://127.0.0.1:<port>` with no trailing slash, so a path appends directly; `null` \
-          anywhere no listener was bound, which is every context but a `server: true` test.",
+    ret: "An address such as `http://127.0.0.1:52341`, with no `/` at the end, so you can add a \
+          path directly. The result is `null` everywhere else, which includes a test without \
+          `server: true` and a program started with `nvs run`.",
     errors: &[],
 };
 
@@ -1067,54 +1068,49 @@ const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::request`'s reference card — `rule:core-api/reference-card`.
 const REQUEST_DOC: MethodDoc = MethodDoc {
-    short: "Runs one request through the program under test in this process — the compiled route \
-            table and the real handler chain, with no socket and no port — and answers with what \
-            the program wrote.",
+    short: "Sends one request to your own program and returns the answer. It opens no network \
+            connection. The request goes through the same route table and the same code as a \
+            real request.",
     params: &[
         ParamDoc {
             name: "method",
-            desc: "The verb the synthetic request carries, matched against the table exactly as \
-                   an arrived one is.",
+            desc: "The HTTP method of the request, such as `Core\\Http\\Method::Get`.",
             shape: &[],
         },
         ParamDoc {
             name: "path",
-            desc: "The path to ask for, mount prefix already stripped — what a handler's \
-                   `#[Route]` is declared against. A `?` and everything after it is the query.",
+            desc: "The path of the request, such as `/orders/7`. A `?` and the text after it \
+                   are the query string.",
             shape: &[],
         },
         ParamDoc {
             name: "headers",
-            desc: "The field lines the request carries, keyed by name and spelled as the program \
-                   under test will read them back. A `content-type` or a `content-length` written \
-                   here stands; one written for neither is derived from `body`.",
+            desc: "The headers of the request, with the header name as the key. If you give no \
+                   `content-type` or `content-length`, the length is set from `body`.",
             shape: &[],
         },
         ParamDoc {
             name: "body",
-            desc: "The octets the request carries, framed by nothing and typed by nothing. Text \
-                   goes as it is written, and a body that is not text at all — the kind \
-                   `Core\\Request::bytes` exists for — goes as `bytes`. A call naming no body \
-                   describes a request carrying none, which is not a request carrying an empty \
-                   one.",
+            desc: "The body of the request, as a `string` or as `bytes`. If you give no body, \
+                   the request has no body. An empty string is a body of length 0.",
             shape: &[],
         },
         ParamDoc {
             name: "mount",
-            desc: "The prefix the door is to have stripped off `path` before the program saw it — \
-                   what `Core\\Request::mount()` answers, and what `Core\\Router::url` writes in \
-                   front of every link the request builds. A call naming none describes a request \
-                   served at the root, which is what a program run off the command line is too.",
+            desc: "The prefix the program is served under, such as `/shop`. \
+                   `Core\\Request::mount()` returns it, and `Core\\Router::url` adds it in front \
+                   of each link. The default is `\"\"`, which means the root.",
             shape: &[],
         },
     ],
-    ret: "The status the program declared and the bytes it wrote. A path the table does not claim \
-          is still answered: nothing here dispatches, so the program decides what a miss means.",
+    ret: "A `Core\\Test\\Response`. `status()` returns the status the program set, or `200` if \
+          it set none. `body()` returns the text the program wrote. A path that no route matches \
+          still gets an answer, because your program decides what to do with it.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "There is no program under test — the call is outside a `nvs test` or `nvs run` \
-               invocation — or the call is already inside an in-process request, which is \
-               refused because the program answering one is the program that asked.",
+        desc: "There is no program to answer, because the call is not in `nvs test` or \
+               `nvs run`. The call is also an error inside a request that `request` sent, \
+               because a request cannot send another request.",
     }],
 };
 
@@ -5522,6 +5518,143 @@ mod tests {
             expected,
             "reading the record does not consume it"
         );
+    }
+
+    /// `request` hands the unit under test one request built from its
+    /// arguments, and returns a `Core\Test\Response` carrying the status and
+    /// the bytes the unit wrote. A unit that declares no status gives `200`.
+    /// With no unit under test, and from inside a request, the call throws and
+    /// says why.
+    // covers: Core\Test::request
+    #[test]
+    fn request_returns_the_units_status_and_bytes_and_throws_with_no_unit() {
+        /// A unit that writes back the request it was handed, and declares the
+        /// status it was built with.
+        #[derive(Debug)]
+        struct Echo(Option<u16>);
+
+        impl nvs_runtime::inproc::Answering for Echo {
+            fn answer(
+                &self,
+                _ctx: &mut Ctx,
+                inbound: Box<nvs_runtime::Inbound>,
+            ) -> Result<nvs_runtime::host::Completion, String> {
+                let written = format!(
+                    "{} {} query={} mount={} headers={}",
+                    inbound.method(),
+                    inbound.path(),
+                    inbound.query(),
+                    inbound.mount_prefix(),
+                    inbound.headers().len(),
+                );
+                Ok(nvs_runtime::host::Completion {
+                    ok: true,
+                    value: Value::null(),
+                    output: written.into_bytes(),
+                    content_type: None,
+                    file_body: None,
+                    status: self.0,
+                    headers: Vec::new(),
+                    error: None,
+                    wall: None,
+                    trace: Vec::new(),
+                })
+            }
+        }
+
+        fn asked(ctx: &mut Ctx, verb: &str, target: &str, mount: &str) -> Result<Value, i32> {
+            let args = [
+                Value::int(crate::router::method_case(verb).expect("a verb the roster names")),
+                Value::str(nvs_runtime::NvsStr::new(target.as_bytes())),
+                Value::array(nvs_runtime::NvsArray::new()),
+                Value::null(),
+                Value::str(nvs_runtime::NvsStr::new(mount.as_bytes())),
+            ];
+            let answered = nvs_runtime::call(nvs_core_test_request, ctx, &args);
+            for arg in args {
+                dropped(arg);
+            }
+            answered
+        }
+        fn read(answered: Value) -> (i64, String) {
+            let object = answered.obj_ptr().expect("a `Core\\Test\\Response`");
+            let status = crate::instance::slot(object, STATUS_SLOT)
+                .as_int()
+                .expect("the status is an integer");
+            let body = crate::instance::slot(object, BODY_SLOT)
+                .as_text()
+                .expect("the body is a string")
+                .to_owned();
+            dropped(answered);
+            (status, body)
+        }
+
+        let mut ctx = Ctx::buffered();
+        let silent = nvs_runtime::inproc::scoped(&Echo(None), || {
+            asked(&mut ctx, "GET", "/users/7?tab=2", "/shop")
+        })
+        .expect("an installed unit answers");
+        assert_eq!(
+            read(silent),
+            (
+                200,
+                "GET /users/7 query=tab=2 mount=/shop headers=0".to_owned()
+            ),
+            "the target splits at `?`, the mount crosses, and no status reads as `200`"
+        );
+        let declared = nvs_runtime::inproc::scoped(&Echo(Some(201)), || {
+            asked(&mut ctx, "POST", "/orders", "")
+        })
+        .expect("an installed unit answers");
+        assert_eq!(
+            read(declared),
+            (201, "POST /orders query= mount= headers=0".to_owned()),
+            "the status the unit declared is the one returned"
+        );
+
+        assert!(
+            asked(&mut ctx, "GET", "/", "").is_err(),
+            "a run with no unit under test throws"
+        );
+        let message = ctx.take_pending().unwrap_or_default();
+        assert!(
+            message.starts_with("Core\\Test::request could not run the request: there is no unit"),
+            "the error names the missing unit: {message}"
+        );
+
+        ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/served", ""));
+        let inside =
+            nvs_runtime::inproc::scoped(&Echo(None), || asked(&mut ctx, "GET", "/again", ""));
+        assert!(inside.is_err(), "a request made inside a request throws");
+        let message = ctx.take_pending().unwrap_or_default();
+        assert!(
+            message.contains("may not be made from inside one"),
+            "the error names the re-entry: {message}"
+        );
+    }
+
+    /// `serverUrl` returns the address the runner armed on this context, and
+    /// `null` on a context nobody armed one on.
+    // covers: Core\Test::serverUrl
+    #[test]
+    fn server_url_returns_the_armed_address_and_null_without_one() {
+        let mut ctx = Ctx::buffered();
+        let unarmed = nvs_runtime::call(nvs_core_test_server_url, &mut ctx, &[] as &[Value])
+            .expect("reading the address cannot fail");
+        assert!(
+            matches!(unarmed.tag(), Some(Tag::Null)),
+            "a context nobody armed has no address"
+        );
+
+        ctx.set_test_server("http://127.0.0.1:49152".to_owned());
+        let armed = nvs_runtime::call(nvs_core_test_server_url, &mut ctx, &[] as &[Value])
+            .expect("reading the address cannot fail");
+        assert_eq!(
+            armed.as_text(),
+            Some("http://127.0.0.1:49152"),
+            "the address is the one the runner armed, unchanged"
+        );
+        dropped(armed);
     }
 
     /// `assertCalled` and `assertNeverCalled` read one record and agree on it.

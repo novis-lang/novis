@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program sends itself many requests, very large requests and requests with
+// strange paths and headers. Each one should get an answer or an error, and the program must not crash.
+// hostile: timeout-ms 60000
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. It writes the length of the path and the
+    // number of headers.
+    var $path = Core\Request::path();
+    echo Core\Str::length($path), ' ', Core\Arr::count(Core\Request::headers());
+} catch (LogicError $noRequest) {
+    // Step 1: ten thousand small requests, one after another.
+    uint $count = 0;
+    uint $total = 0;
+    while ($count < 10000) {
+        $total = $total + Test::request(Method::Get, '/items/' . $count)->status();
+        $count = $count + 1;
+    }
+    echo $total, "\n";
+
+    // Step 2: a path of one million characters.
+    echo Test::request(Method::Get, '/' . Core\Str::repeat('a', 1000000))->body(), "\n";
+
+    // Step 3: two thousand headers and a body of sixteen megabytes.
+    array<string> $headers = [];
+    uint $index = 0;
+    while ($index < 2000) {
+        $headers['x-extra-' . $index] = Core\Str::repeat('h', 1000);
+        $index = $index + 1;
+    }
+    var $large = Test::request(Method::Post, '/upload', {
+        headers: $headers,
+        body: Core\Str::repeat('x', 16777216),
+    });
+    echo $large->status(), ' ', $large->body(), "\n";
+
+    // Step 4: paths that are empty, have no `/`, go up with `..`, contain a zero
+    // byte or a new line, or are only question marks.
+    array<string> $odd = ['', 'no-slash', '/../../etc/passwd', '/a%00b', "/a\0b", "/a\r\nb", '????'];
+    foreach ($odd as string $target) {
+        try {
+            echo Test::request(Method::Get, $target)->status(), "\n";
+        } catch (Throwable $error) {
+            echo "error\n";
+        }
+    }
+
+    // Step 5: a mount prefix longer than the path, and one with no `/`.
+    try {
+        echo Test::request(Method::Get, '/a', { mount: Core\Str::repeat('/m', 100000) })->status(), "\n";
+        echo Test::request(Method::Get, '/a', { mount: 'mount' })->status(), "\n";
+    } catch (Throwable $error) {
+        echo "error\n";
+    }
+
+    // Step 6: header names that are empty or contain a new line, and a value with a new line.
+    try {
+        var $bad = Test::request(Method::Get, '/', {
+            headers: ['' => 'x', "bad\nname" => 'y', 'x-split' => "one\r\nx-injected: two"],
+        });
+        echo $bad->status(), "\n";
+    } catch (Throwable $error) {
+        echo "error\n";
+    }
+
+    // Step 7: a body given as bytes that are not valid UTF-8.
+    try {
+        echo Test::request(Method::Put, '/raw', { body: Core\Encoding::fromHex('fffe00') })->status(), "\n";
+    } catch (Throwable $error) {
+        echo "error\n";
+    }
+}

@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program that is not a server test tries to get a test server address and use it.
+// Every call should return `null`, and every request built without an address should fail with an error.
+
+use Core\Http\Client;
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers the request of step 4. It writes what `serverUrl` returns there.
+    var $path = Core\Request::path();
+    echo Test::serverUrl() ?? 'none';
+} catch (LogicError $noRequest) {
+    // Step 1: one million calls. Each call should return `null`, so this prints `0`.
+    uint $found = 0;
+    uint $i = 0;
+    while ($i < 1000000) {
+        if (Test::serverUrl() != null) {
+            $found = $found + 1;
+        }
+        $i = $i + 1;
+    }
+    echo $found, "\n";
+
+    // Step 2: a request to the empty address that `?? ""` gives, with a very long path.
+    try {
+        Client::get((Test::serverUrl() ?? '') . '/' . Core\Str::repeat('a', 1000000));
+        echo "sent\n";
+    } catch (Throwable $error) {
+        echo "error\n";
+    }
+
+    // Step 3: a port on this computer that the program guessed. No grant allows it.
+    try {
+        Client::get('http://127.0.0.1:1/admin');
+        echo "sent\n";
+    } catch (Throwable $error) {
+        echo "error\n";
+    }
+
+    // Step 4: the call from inside a request that the program sends to itself.
+    // The request should also see no address, so this prints `none`.
+    echo Test::request(Method::Get, '/inside')->body(), "\n";
+}

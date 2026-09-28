@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to test that a shop answers a product page, and answers 404 for a path it does not know.
+
+use Core\Http\Method;
+use Core\Test;
+
+class Shop {
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(uint $id): string {
+        return "product";
+    }
+}
+
+try {
+    // This part answers each request. A path with no route gets the status 404.
+    ?Core\Router\Match $matched = Core\Request::route();
+    if ($matched == null) {
+        Core\Response::setStatus(404);
+        echo "not found";
+    } else {
+        echo "product page";
+    }
+} catch (LogicError $noRequest) {
+    // This part is the test. It sends two requests and checks each answer.
+    var $found = Test::request(Method::Get, "/products/7");
+    Test::assertEquals($found->status(), 200);
+    Test::assertSame($found->body(), "product page");
+
+    var $missing = Test::request(Method::Get, "/basket/7");
+    Test::assertEquals($missing->status(), 404);
+    Test::assertSame($missing->body(), "not found");
+
+    // Both checks passed, so this prints `both pages answer correctly`.
+    echo "both pages answer correctly\n";
+}
