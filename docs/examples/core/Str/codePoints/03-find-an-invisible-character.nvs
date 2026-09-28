@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to find an invisible character in a user name that somebody pasted into a form.
+
+// The second name has a zero-width space (code point 8203) after "ad". You cannot see it.
+array<string> $names = ["admin", "ad\u{200B}min"];
+
+// This prints `admin: ok` and then `admin: invisible character at position 2`.
+foreach ($names as string $name) {
+    string $result = "ok";
+    uint $position = 0;
+    foreach (Core\Str::codePoints($name) as uint $point) {
+        if ($point == 8203) {
+            $result = "invisible character at position {$position}";
+        }
+        $position = $position + 1;
+    }
+    echo $name, ": ", $result, "\n";
+}

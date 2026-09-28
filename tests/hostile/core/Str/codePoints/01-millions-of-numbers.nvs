@@ -1,0 +1,56 @@
+<?nvs
+// Attack: `Core\Str::codePoints` reads very long strings that give millions of numbers, and code points at both ends of Unicode.
+// Each call should return an array or throw an error, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Reads 4 MiB of single-byte letters, which gives four million numbers.
+    public static function manyPoints(uint $mib): uint
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        return Core\Arr::count(Core\Str::codePoints($s));
+    }
+
+    /// 2. Reads one character with a hundred thousand accents on it.
+    public static function oneCharacterManyPoints(uint $marks): uint
+    {
+        var $s = 'e' . Core\Str::repeat("\u{301}", $marks);
+        return Core\Arr::count(Core\Str::codePoints($s));
+    }
+
+    /// 3. Reads the largest code point, U+10FFFF, many times, and adds them up.
+    public static function largestPoint(uint $count): uint
+    {
+        uint $total = 0;
+        foreach (Core\Str::codePoints(Core\Str::repeat("\u{10FFFF}", $count)) as uint $point) {
+            $total = $total + $point;
+        }
+        return $total;
+    }
+
+    /// 4. Reads code point 0 and the code points just before and after the surrogate range.
+    public static function edges(uint $count): uint
+    {
+        var $s = Core\Str::repeat("\u{0}\u{D7FF}\u{E000}\u{FFFF}\u{10000}", $count);
+        return Core\Arr::count(Core\Str::codePoints($s));
+    }
+
+    /// 5. Reads a short string one million times and keeps none of the arrays.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count(Core\Str::codePoints('é€🇩🇪'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::manyPoints(4), "\n";
+echo Attack::oneCharacterManyPoints(100000), "\n";
+echo Attack::largestPoint(1000000), "\n";
+echo Attack::edges(200000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows that one letter a person sees can be one code point or two.
+
+// The first "é" is one code point. The second is "e" followed by an accent code point.
+string $together = "\u{e9}";
+string $separate = "e\u{301}";
+
+// Both look the same and both are one character long. This prints `1` twice.
+echo Core\Str::length($together), "\n";
+echo Core\Str::length($separate), "\n";
+
+// Their code points are different. This prints `233` and then `101 769`.
+echo Core\Str::join(Core\Arr::map(Core\Str::codePoints($together), fn(uint $p): string => "{$p}"), " "), "\n";
+echo Core\Str::join(Core\Arr::map(Core\Str::codePoints($separate), fn(uint $p): string => "{$p}"), " "), "\n";
