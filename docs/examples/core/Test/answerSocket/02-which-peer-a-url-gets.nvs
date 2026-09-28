@@ -1,0 +1,32 @@
+<?nvs
+// Shows which scripted peer a socket gets, and how a peer chooses a subprotocol.
+
+use Core\Http\Client;
+use Core\Test;
+
+// A URL that ends in `*` matches every URL that starts with the text before it.
+Test::answerSocket("wss://feed.example.com/*", ["any feed"]);
+Test::answerSocket("wss://feed.example.com/prices", ["prices feed"], {protocol: "prices.v2"});
+
+// The whole URL matches the second peer. An exact match always wins.
+// The call offers two subprotocols, and the peer chooses `prices.v2`.
+var $prices = Client::openSocket("wss://feed.example.com/prices", {
+    protocols: ["prices.v1", "prices.v2"],
+});
+// This prints `prices feed` and `prices.v2`.
+echo $prices->receive()?->text() ?? "-", "\n";
+echo $prices->protocol() ?? "none", "\n";
+
+// Only the prefix matches. That peer chooses no subprotocol.
+// This prints `any feed` and `none`.
+var $news = Client::openSocket("wss://feed.example.com/news");
+echo $news->receive()?->text() ?? "-", "\n";
+echo $news->protocol() ?? "none", "\n";
+
+// No peer matches this URL, so `openSocket` throws a `LogicError`.
+// The program does not use the network for it.
+try {
+    var $other = Client::openSocket("wss://other.example.com/");
+} catch (LogicError $error) {
+    echo "LogicError\n";
+}

@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a program scripts peers with very many messages, one very large message
+// and many URL patterns. The program should not crash, and a bad handshake should throw an error.
+
+use Core\Http\Client;
+use Core\Test;
+
+// Step 1: one peer that sends two hundred thousand messages.
+array<string> $many = [];
+uint $count = 0;
+while ($count < 200000) {
+    $many[] = 'm';
+    $count = $count + 1;
+}
+Test::answerSocket('wss://feed.example.com/many', $many);
+var $socket = Client::openSocket('wss://feed.example.com/many');
+uint $received = 0;
+while ($socket->receive() != null) {
+    $received = $received + 1;
+}
+echo $received, "\n";
+
+// Step 2: `receive` is called again after the peer closed. It returns `null` each time.
+uint $after = 0;
+while ($after < 1000) {
+    if ($socket->receive() != null) {
+        echo "a message after the close\n";
+    }
+    $after = $after + 1;
+}
+
+// Step 3: one text message of sixteen megabytes.
+Test::answerSocket('wss://feed.example.com/large', [Core\Str::repeat('x', 16777216)]);
+var $large = Client::openSocket('wss://feed.example.com/large');
+echo Core\Str::length($large->receive()?->text() ?? ''), "\n";
+
+// Step 4: a peer with no messages at all. The first `receive` returns `null`.
+Test::answerSocket('wss://feed.example.com/empty', []);
+var $empty = Client::openSocket('wss://feed.example.com/empty');
+echo $empty->receive() == null ? "empty\n" : "not empty\n";
+
+// Step 5: two sockets to one URL. Each one reads the messages from the start.
+Test::answerSocket('wss://feed.example.com/twice', ['first', 'second']);
+var $one = Client::openSocket('wss://feed.example.com/twice');
+var $two = Client::openSocket('wss://feed.example.com/twice');
+echo $one->receive()?->text() ?? '-', ' ', $two->receive()?->text() ?? '-', "\n";
+
+// Step 6: a peer that chooses a subprotocol the call did not offer.
+Test::answerSocket('wss://feed.example.com/stray', ['x'], { protocol: 'not.offered' });
+try {
+    var $stray = Client::openSocket('wss://feed.example.com/stray', { protocols: ['chat.v1'] });
+    echo "accepted stray\n";
+} catch (RuntimeError $error) {
+    echo "refused stray\n";
+}
+
+// Step 7: a peer scripted for an `https` URL, written in capital letters.
+Test::answerSocket('HTTPS://feed.example.com/web', ['x']);
+try {
+    var $web = Client::openSocket('HTTPS://feed.example.com/web');
+    echo "accepted https\n";
+} catch (RuntimeError $error) {
+    echo "refused https\n";
+}
+
+// Step 8: fifty thousand prefix peers, then one socket that each of them matches.
+uint $row = 0;
+string $url = 'wss://prefix.example.com/';
+while ($row < 50000) {
+    Test::answerSocket($url . '*', ['row']);
+    $row = $row + 1;
+}
+var $matched = Client::openSocket($url . 'last');
+echo $matched->receive()?->text() ?? '-', "\n";

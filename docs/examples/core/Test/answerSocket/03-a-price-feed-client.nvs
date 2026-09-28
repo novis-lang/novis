@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to test code that uses a WebSocket service, with no real server.
+
+use Core\Http\Client;
+use Core\Socket\Message;
+use Core\Test;
+
+class PriceFeed {
+    // Subscribes to one product and returns the last price the service sends.
+    // The price comes from outside the program, so its type is `tainted string`.
+    public static function lastPrice(string $sku): tainted string {
+        var $socket = Client::openSocket("wss://prices.example.com/live");
+        $socket->send("subscribe " . $sku);
+        tainted string $last = "none";
+        var $message = $socket->receive();
+        while ($message != null) {
+            $last = $message->text() ?? $last;
+            $message = $socket->receive();
+        }
+        $socket->close();
+        return $last;
+    }
+}
+
+// The test service sends three prices. Then it closes the connection.
+Test::answerSocket("wss://prices.example.com/live", ["12.00", "12.50", "11.75"]);
+
+// This prints `11.75`.
+echo PriceFeed::lastPrice("mug"), "\n";
+
+// `Test::sentSocket` returns the messages the code sent.
+// This prints `subscribe mug`.
+foreach (Test::sentSocket() as Message $frame) {
+    echo $frame->text() ?? "-", "\n";
+}

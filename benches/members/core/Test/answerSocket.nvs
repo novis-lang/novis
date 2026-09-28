@@ -1,0 +1,20 @@
+<?nvs
+// Scripts a WebSocket peer, as a test does before it runs code that opens a socket.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $urls = ["wss://chat.example.com/room", "wss://feed.example.com/*", "wss://prices.example.com/live"];
+        array<string> $frames = ["ready", "tick", "done"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Test::answerSocket($urls[$total % 3], $frames);
+            $total = $total + 1 + ($total % 5);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

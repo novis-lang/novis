@@ -4880,6 +4880,109 @@ mod tests {
         assert!(ctx.faked_http_mut().is_armed());
     }
 
+    /// `answerSocket`'s frames keep the kind each element was written as and
+    /// the order they were written in, and the protocol option reaches the
+    /// peer. A peer with no frames still arms the table, and the selection
+    /// agrees with `answerHttp`'s: exact first, then the longest prefix.
+    // covers: Core\Test::answerSocket
+    #[test]
+    fn answer_socket_keeps_each_frame_kind_in_order_and_selects_exact_before_the_longest_prefix() {
+        use nvs_runtime::SocketFrame::{Bytes, Text};
+
+        fn peer(
+            ctx: &mut Ctx,
+            url: &str,
+            frames: &[nvs_runtime::SocketFrame],
+            protocol: Option<&str>,
+        ) {
+            let mut list = nvs_runtime::NvsArray::new();
+            for frame in frames {
+                list.append(match frame {
+                    Text(text) => Value::str(nvs_runtime::NvsStr::new(text.as_bytes())),
+                    Bytes(octets) => Value::bytes(nvs_runtime::NvsStr::new(octets)),
+                });
+            }
+            let args = [
+                Value::str(nvs_runtime::NvsStr::new(url.as_bytes())),
+                Value::array(list),
+                protocol.map_or_else(Value::null, |name| {
+                    Value::str(nvs_runtime::NvsStr::new(name.as_bytes()))
+                }),
+            ];
+            let answered = nvs_runtime::call(nvs_core_test_answer_socket, ctx, &args)
+                .expect("every peer a program can write is registered");
+            dropped(answered);
+            for arg in args {
+                dropped(arg);
+            }
+        }
+        fn kinds(ctx: &mut Ctx, url: &str) -> Vec<String> {
+            ctx.faked_http_mut()
+                .socket_for(url)
+                .expect("a peer answers this URL")
+                .frames
+                .iter()
+                .map(|frame| match frame {
+                    Text(text) => format!("text {text}"),
+                    Bytes(octets) => format!("bytes {}", octets.len()),
+                })
+                .collect()
+        }
+
+        let mut ctx = Ctx::buffered();
+        peer(&mut ctx, "wss://feed.example.com/quiet", &[], None);
+        assert!(
+            ctx.faked_http_mut().is_armed(),
+            "a peer with nothing to say still takes the test off the network"
+        );
+        assert!(kinds(&mut ctx, "wss://feed.example.com/quiet").is_empty());
+
+        peer(
+            &mut ctx,
+            "wss://feed.example.com/*",
+            &[Text("any".into())],
+            None,
+        );
+        peer(
+            &mut ctx,
+            "wss://feed.example.com/prices/*",
+            &[Text("prefix".into())],
+            None,
+        );
+        peer(
+            &mut ctx,
+            "wss://feed.example.com/prices/live",
+            &[
+                Text("ready".into()),
+                Bytes(vec![0, 1, 0xff]),
+                Text("done".into()),
+            ],
+            Some("prices.v2"),
+        );
+        assert_eq!(
+            kinds(&mut ctx, "wss://feed.example.com/prices/live"),
+            ["text ready", "bytes 3", "text done"],
+            "the exact URL wins, and its frames keep their kind and order"
+        );
+        let chosen = ctx
+            .faked_http_mut()
+            .socket_for("wss://feed.example.com/prices/live")
+            .and_then(|peer| peer.protocol.clone());
+        assert_eq!(chosen.as_deref(), Some("prices.v2"));
+        assert_eq!(
+            kinds(&mut ctx, "wss://feed.example.com/prices/old"),
+            ["text prefix"],
+            "the longest prefix wins among prefixes"
+        );
+        assert_eq!(kinds(&mut ctx, "wss://feed.example.com/news"), ["text any"]);
+        assert!(
+            ctx.faked_http_mut()
+                .socket_for("wss://other.example.com/")
+                .is_none(),
+            "a URL no peer names is answered by none"
+        );
+    }
+
     /// § 5's own row, which is deliberately not shaped like § 4's: it takes the
     /// body whose failure is expected and nothing else — no `{message?:}`,
     /// because what it reports on is the ledger rather than a comparison, and
@@ -5143,6 +5246,114 @@ mod tests {
                 "recorded as the value the call site passed"
             );
         }
+        dropped(double);
+    }
+
+    /// `assertCalled` and `assertNeverCalled` read one record and agree on it.
+    /// After two calls to `send` and none to `purge`, `times` holds at the
+    /// exact count and fails one either side of it, `with` finds the one call
+    /// it names among two, and the pair gives opposite answers for each method.
+    // covers: Core\Test::assertCalled, Core\Test::assertNeverCalled
+    #[test]
+    fn assert_called_and_assert_never_called_agree_over_one_record() {
+        fn text(of: &str) -> Value {
+            Value::str(nvs_runtime::NvsStr::new(of.as_bytes()))
+        }
+        fn outcome(ctx: &mut Ctx, answered: Result<Value, i32>) -> Result<(), String> {
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a failed assertion says why")
+                    .into_owned()),
+            }
+        }
+        fn called(
+            ctx: &mut Ctx,
+            double: Value,
+            method: &str,
+            times: Option<u64>,
+            with: Option<&str>,
+        ) -> Result<(), String> {
+            let with = with.map_or_else(Value::null, |argument| {
+                let mut list = nvs_runtime::NvsArray::new();
+                list.append(text(argument));
+                Value::array(list)
+            });
+            let args = [
+                double,
+                text(method),
+                times.map_or_else(Value::null, Value::uint),
+                with,
+                Value::null(),
+            ];
+            let answered = nvs_runtime::call(nvs_core_test_assert_called, ctx, &args);
+            for arg in &args[1..] {
+                dropped(*arg);
+            }
+            outcome(ctx, answered)
+        }
+        fn never_called(ctx: &mut Ctx, double: Value, method: &str) -> Result<(), String> {
+            let args = [double, text(method), Value::null()];
+            let answered = nvs_runtime::call(nvs_core_test_assert_never_called, ctx, &args);
+            dropped(args[1]);
+            outcome(ctx, answered)
+        }
+
+        let mut interface = nvs_runtime::ClassTable::new();
+        let id = interface.define("Mailer", &[] as &[&str], &[]);
+        let interface: &'static nvs_runtime::ClassTable = Box::leak(Box::new(interface));
+        let class = descriptor_for(
+            "double",
+            interface.desc(id),
+            None,
+            &[Answer {
+                name: "send".to_owned(),
+                arity: 1,
+                params: u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY),
+                delegated: false,
+            }],
+        )
+        .expect("one method is well under the ceiling");
+
+        let mut ctx = Ctx::buffered();
+        let double = double_of(
+            class,
+            Value::null(),
+            vec![("send".to_owned(), closure_of())],
+        );
+        for recipient in ["a@example.test", "b@example.test"] {
+            let to = text(recipient);
+            let answered = nvs_runtime::call_method(&mut ctx, double, "send", &[to], "a test")
+                .expect("the trampoline answers")
+                .expect("`send` is a row of the double's own class");
+            dropped(answered);
+            dropped(to);
+        }
+
+        called(&mut ctx, double, "send", None, None).expect("called at all");
+        called(&mut ctx, double, "send", Some(2), None).expect("called exactly twice");
+        for wrong in [1, 3] {
+            let why = called(&mut ctx, double, "send", Some(wrong), None)
+                .expect_err("the count is exact");
+            assert!(
+                why.contains(&format!("expected {wrong} call(s) to `send`")),
+                "{why}"
+            );
+        }
+        called(&mut ctx, double, "send", Some(1), Some("b@example.test"))
+            .expect("one of the two calls names the second address");
+        let why = called(&mut ctx, double, "send", None, Some("c@example.test"))
+            .expect_err("no call names this address");
+        assert!(why.contains("found 0"), "{why}");
+
+        let why = never_called(&mut ctx, double, "send").expect_err("`send` was called");
+        assert!(why.contains("`send` was called 2 time(s)"), "{why}");
+        never_called(&mut ctx, double, "purge").expect("`purge` never was");
+        called(&mut ctx, double, "purge", None, None).expect_err("so it was not called");
         dropped(double);
     }
 }
