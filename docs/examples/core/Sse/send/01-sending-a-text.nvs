@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to send a text to the client as one event.
+
+Core\Sse $sse = Core\Sse::stream();
+// This prints `data: Your order has shipped.` and an empty line.
+// The empty line ends the event.
+$sse->send("Your order has shipped.");
+
+// A text with a line break is still one event. Each line gets its own `data:` line.
+$sse->send("Line one\nLine two");

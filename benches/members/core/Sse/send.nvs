@@ -1,0 +1,21 @@
+<?nvs
+// Sends a short named event, as a live feed does for each update.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(Core\Sse $sse, int $rounds): int {
+        array<string> $names = ["price", "order", "status"];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            $sse->send("update", event: $names[$total % 3]);
+            $total = $total + ($total % 7) + 1;   // chained: each name depends on the last
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// `send()` writes to an open stream, so the program opens one first.
+Core\Sse $sse = Core\Sse::stream();
+echo Bench::run($sse, 20000), "\n";

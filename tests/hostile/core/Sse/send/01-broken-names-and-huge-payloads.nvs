@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program sends events with line breaks in every field, very large payloads
+// and deeply nested values. Each one should be sent or throw an error, and none should crash.
+
+Core\Sse $sse = Core\Sse::stream();
+
+// 1. A payload that is only line breaks, in all three forms the protocol knows.
+try {
+    $sse->send("\n\r\n\r\r\n\n");
+} catch (LogicError $e) {
+    $sse->send('step 1: refused');
+}
+
+// 2. An event name and an id with each kind of line break, and with a NUL byte.
+array<string> $breaks = ["\n", "\r", "\r\n", "\u{0}", "a\nretry: 1", "\rdata: forged"];
+int $refused = 0;
+foreach ($breaks as string $break) {
+    try {
+        $sse->send('x', event: $break);
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+    try {
+        $sse->send('x', id: 'id' . $break);
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+}
+$sse->send('step 2: ' . $refused . ' refused');
+
+// 3. An event name and an id of one million characters each.
+string $long = Core\Str::repeat('n', 1000000);
+$sse->send('long', event: $long, id: $long);
+
+// 4. A payload of one million characters with a line break every ten characters.
+$sse->send(Core\Str::repeat("123456789\n", 100000));
+
+// 5. An array nested 100,000 levels deep, which is deeper than JSON allows.
+mixed $deep = 1;
+int $n = 0;
+while ($n < 100000) {
+    $deep = [$deep];
+    $n = $n + 1;
+}
+try {
+    $sse->send($deep);
+} catch (LogicError $e) {
+    $sse->send('step 5: refused');
+}
+
+// 6. One hundred thousand events, one after another.
+$n = 0;
+while ($n < 100000) {
+    $sse->send($n, event: 'tick', id: 'e' . $n);
+    $n = $n + 1;
+}
