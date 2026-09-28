@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to give a fake reply a TLS session, so your program can read it.
+
+use Core\Test;
+
+// The `tls` option of `answerHttp` takes the session. Every reply
+// for this URL then reports it.
+Test::answerHttp("https://legacy.example.com/status", 200, {
+    tls: Test::tlsSession({
+        version: "TLSv1.2",
+        verified: false,
+        subject: "CN=legacy.example.com, O=Shop",
+    }),
+});
+
+?Core\Http\TlsInfo $info = Core\Http\Client::get("https://legacy.example.com/status")->tls();
+if ($info != null) {
+    // This prints `TLSv1.2 CN=legacy.example.com, O=Shop`.
+    echo $info->version(), " ", $info->subject(), "\n";
+
+    // This prints `not verified`.
+    echo $info->verified() ? "verified" : "not verified", "\n";
+}

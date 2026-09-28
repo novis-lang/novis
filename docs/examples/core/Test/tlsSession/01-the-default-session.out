@@ -1,0 +1,5 @@
+TLSv1.3 TLS_AES_128_GCM_SHA256
+verified: yes
+CN=example.com
+CN=Novis Test CA
+2

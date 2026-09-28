@@ -1,0 +1,20 @@
+<?nvs
+// Builds a TLS session for a fake server, as a test does before it answers a request.
+// bench: iterations 200
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $subjects = ["CN=api.example.com", "CN=shop.example.com, O=Shop"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The subject in each round depends on the length read in the round before.
+            Core\Http\TlsInfo $session = Core\Test::tlsSession({subject: $subjects[($total % 2) as int]});
+            $total = $total + Core\Str::length($session->subject());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200), "\n";
