@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-str-2-3`: `Core\\Str::graphemes`, `indexOf`, `isEmpty`, `join`, `lastIndexOf`, `lines`, `lower` and `lowerFirst` are complete (`bun nv proofs --id` says so for each). `lines` and `Core\\IO::lines` now build their list through `crate::str::lines_array`, which counts the lines, asks `nvs_runtime::affordable` for the whole list and reserves it. Before that, a text of line breaks alone grew the list to many times the memory limit before the breach was reported. The `2/3` check still names `normalize`, `padEnd`, `padStart`, `repeat` and `replace` with no proofs. Gaps `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` and `nvs-stdlib/case-conversion-builds-its-result-outside-the` (both M12) are open. Any change to the code of `crates/nvs-stdlib/src/str.rs` makes every `Core\\Str` perf record stale. Re-measure them all in the same session with `bun nv proofs --record-perf --only …`, naming each `benches/members/core/Str/*.nvs` except `length.scale`. A change to a card or a test does not make a record stale.",
+  "state": "Goal `core-str-2-3`: `Core\\Str::graphemes`, `indexOf`, `isEmpty`, `join`, `lastIndexOf`, `lines`, `lower`, `lowerFirst`, `normalize`, `padStart`, `padEnd` and `repeat` are complete (`bun nv proofs --id` says so for each). The `2/3` check now names only `replace` with no proofs. `normalize` now builds its result through `normalized`, which asks `nvs_runtime::affordable` at every doubling of the buffer. Before that, a compatibility form of a text of `ﷺ` built a result eleven times the text, with no ask, before the copy into an `NvsStr`. Every `Core\\IO` and `Core\\Str` perf record was re-measured this session. Gaps `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` and `nvs-stdlib/case-conversion-builds-its-result-outside-the` (both M12) are open. Any change to the code of `crates/nvs-stdlib/src/str.rs` makes every `Core\\Str` perf record stale; a change to `crates/nvs-stdlib/src/io.rs` does the same for every `Core\\IO`, `Core\\IO\\File` and `Core\\IO\\Metadata` record. Re-measure them all in the same session with `bun nv proofs --record-perf --only …`, naming each bench under `benches/members/core/Str/` (except `length.scale`) or `benches/members/core/IO*/`. A change to a card or a test does not make a record stale.",
   "next": {
     "stage": 1,
     "title": "feature proofs, one member per slice",
@@ -12,24 +12,20 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::normalize`** — owes about.md, three examples, an attack, a bench, a Rust `covers:` test and a card in plain words (`rule:testing/feature-proofs`); its card is `NORMALIZE_DOC`, near `crates/nvs-stdlib/src/str.rs:1416`. `crates/nvs-stdlib/src/str.rs:3487`"
+        "text": "**`Core\\Str::replace`** — owes about.md, three examples, an attack, a bench, a Rust `covers:` test and a card in plain words (`rule:testing/feature-proofs`); its card is `REPLACE_DOC`, near `crates/nvs-stdlib/src/str.rs:1058`. `crates/nvs-stdlib/tests/allocation_policy.rs:222` already calls it and may take the `covers:` marker. `crates/nvs-stdlib/src/str.rs:2471`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::padStart`** — the same proofs. `crates/nvs-stdlib/tests/allocation_policy.rs:234` already calls it and may take the `covers:` marker. `crates/nvs-stdlib/src/str.rs:3280`"
+        "text": "**`Core\\Str::replaceAll`** — the same proofs; card `REPLACE_ALL_DOC`. `crates/nvs-stdlib/src/str.rs:2542`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::padEnd`** — the same proofs, and the same Rust test file. `crates/nvs-stdlib/src/str.rs:3296`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Str::repeat`** — the same proofs. `crates/nvs-stdlib/tests/allocation_policy.rs:244` calls it. `crates/nvs-stdlib/src/str.rs:3380`"
+        "text": "**`Core\\Str::replaceRange`** — the same proofs; card `REPLACE_RANGE_DOC`. `crates/nvs-stdlib/src/str.rs:2727`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Str::replace` owes the same proofs, and after it the `3/3` check's members (`data/goals/core-str-2-3.json`).",
-    "Other members that append to an array in a loop over their input (`split`, `chunk`, `graphemes`, `codePoints`) may grow past the ceiling the way `lines` did. `lines_array` in `crates/nvs-stdlib/src/str.rs` is the pattern. The runtime-wide fix is gap `nvs-stdlib/regex-split-builds-its-array-past-the` (M12)."
+    "`Core\\Str::normalize` could return the subject unchanged when `unicode_normalization::is_nfc_quick` says it is already in the form, and skip the buffer (`crates/nvs-stdlib/src/str.rs`, `nvs_core_str_normalize`).",
+    "`Core\\Str::startsWith`, `slice`, `split`, `trim`, `trimStart`, `trimEnd`, `reverse` and `wrap` still owe every proof (`bun nv proofs --owed`)."
   ]
 }

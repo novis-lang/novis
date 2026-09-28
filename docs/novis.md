@@ -7383,17 +7383,17 @@ Puts `$replacement` in place of the window `slice` would answer for the same `$o
 Core\Str::padStart(string $s, uint $length, string $padding = " "): string
 ```
 
-Prepends copies of `$padding` to `$s` until it is `$length` characters long, as `str_pad` with `STR_PAD_LEFT` does — counted in graphemes.
+Adds copies of `$padding` before `$s` until the result is `$length` characters long. Replaces PHP's `str_pad` with `STR_PAD_LEFT`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to pad. |
-| `$length` | `uint` | The length to reach. |
-| `$padding` | `string` (default `" "`) | The text repeated to fill the shortfall, cut at its own end when it does not divide evenly; the default is one space. |
+| `$length` | `uint` | The length to reach, in characters as a person counts them. |
+| `$padding` | `string` (default `" "`) | The text to add. The last copy is cut short when only part of it fits. The default is one space. |
 
-**Returns** `string` — The padded string; `$s` unchanged when it is already `$length` long or longer.
+**Returns** `string` — The padded string. If `$s` already has `$length` characters or more, it is returned unchanged.
 
-**Throws** `RuntimeError` — `$padding` is empty while `$s` is shorter than `$length`, or the result would be larger than this process can hold.
+**Throws** `RuntimeError` — `$padding` is empty and `$s` is shorter than `$length`. It is also thrown when the result is larger than this process can hold.
 
 <a id="core-core-str-padend"></a>
 #### `Core\Str::padEnd`
@@ -7402,17 +7402,17 @@ Prepends copies of `$padding` to `$s` until it is `$length` characters long, as 
 Core\Str::padEnd(string $s, uint $length, string $padding = " "): string
 ```
 
-Appends copies of `$padding` to `$s` until it is `$length` characters long, as `str_pad` with `STR_PAD_RIGHT` does — counted in graphemes.
+Adds copies of `$padding` after `$s` until the result is `$length` characters long. Replaces PHP's `str_pad` with `STR_PAD_RIGHT`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to pad. |
-| `$length` | `uint` | The length to reach. |
-| `$padding` | `string` (default `" "`) | The text repeated to fill the shortfall, cut at its own end when it does not divide evenly; the default is one space. |
+| `$length` | `uint` | The length to reach, in characters as a person counts them. |
+| `$padding` | `string` (default `" "`) | The text to add. The last copy is cut short when only part of it fits. The default is one space. |
 
-**Returns** `string` — The padded string; `$s` unchanged when it is already `$length` long or longer.
+**Returns** `string` — The padded string. If `$s` already has `$length` characters or more, it is returned unchanged.
 
-**Throws** `RuntimeError` — `$padding` is empty while `$s` is shorter than `$length`, or the result would be larger than this process can hold.
+**Throws** `RuntimeError` — `$padding` is empty and `$s` is shorter than `$length`. It is also thrown when the result is larger than this process can hold.
 
 <a id="core-core-str-trim"></a>
 #### `Core\Str::trim`
@@ -7469,14 +7469,14 @@ Strips every trailing character drawn from `characters` off `$s`, as `rtrim` and
 Core\Str::repeat(string $s, uint $times): string
 ```
 
-Concatenates `$times` copies of `$s`, as `str_repeat` does.
+Returns `$times` copies of `$s`, joined into one string. Replaces PHP's `str_repeat`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to repeat. |
 | `$times` | `uint` | How many copies to write. |
 
-**Returns** `string` — The repeated string; `""` when `$times` is `0` or `$s` is empty.
+**Returns** `string` — The repeated string. It is `""` when `$times` is `0` or `$s` is empty.
 
 **Throws** `RuntimeError` — The result would be larger than this process can hold.
 
@@ -7597,14 +7597,14 @@ Case-folds `$s`: every letter changes to one fixed form, so text that differs on
 Core\Str::normalize(string $s, Core\NormalForm $form): string
 ```
 
-Rewrites `$s` into the UAX #15 normal form `$form`, as `Normalizer::normalize` does, so two encodings of the same text compare equal.
+Changes `$s` into one of the four Unicode normal forms. Two ways to write the same text then give the same string. Replaces PHP's `Normalizer::normalize`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to normalize. |
-| `$form` | `Core\NormalForm` | Which of the four forms: `Nfc` or `Nfd` for a canonical one, `Nfkc` or `Nfkd` for a compatibility one. |
+| `$form` | `Core\NormalForm` | Which form to use. `Nfc` and `Nfd` keep every character's meaning. `Nfkc` and `Nfkd` also replace look-alike characters: `ﬁ` becomes `fi`. |
 
-**Returns** `string` — The normalized string; an ASCII subject comes back unchanged under every form.
+**Returns** `string` — The normalized string. `Nfc` is the form to store and compare text in. A string of ASCII characters is returned unchanged.
 
 <a id="core-core-str-fromcodepoint"></a>
 #### `Core\Str::fromCodePoint`
