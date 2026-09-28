@@ -1255,12 +1255,12 @@ const TLS_SESSION_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::sentHttp`'s reference card — `rule:core-api/reference-card`.
 const SENT_HTTP_DOC: MethodDoc = MethodDoc {
-    short: "Every outbound call the program under test has made since the answer table was \
-            armed, oldest first — what was sent, rather than what came back.",
+    short: "Returns every HTTP request the program sent after the first `Core\\Test::answerHttp` \
+            call. The oldest request comes first.",
     params: &[],
-    ret: "One `Core\\Test\\SentRequest` per call, in the order the program made them, and an \
-          empty array for a test that registered answers nobody asked for. Nothing on a record \
-          is `tainted`: it is the program's own text.",
+    ret: "One `Core\\Test\\SentRequest` for each request, in the order the program sent them. \
+          The list is empty when the program sent nothing. Nothing in a request is `tainted`, \
+          because the program wrote all of it.",
     errors: &[],
 };
 
@@ -5439,6 +5439,83 @@ mod tests {
             sent(&mut ctx),
             expected,
             "each frame keeps its kind and its place"
+        );
+        assert_eq!(
+            sent(&mut ctx),
+            expected,
+            "reading the record does not consume it"
+        );
+    }
+
+    /// `sentHttp` returns one `Core\Test\SentRequest` per recorded call, oldest
+    /// first, with the verb as its `Core\Http\Method` case, the URL unchanged,
+    /// the headers read case-insensitively and the body as the call carried
+    /// it. Before any call the list is empty, and reading it twice returns the
+    /// same records both times.
+    // covers: Core\Test::sentHttp
+    #[test]
+    fn sent_http_returns_one_record_per_call_in_the_order_they_were_made() {
+        fn text(of: &str) -> Value {
+            Value::str(nvs_runtime::NvsStr::new(of.as_bytes()))
+        }
+        fn sent(ctx: &mut Ctx) -> Vec<String> {
+            let answered = nvs_runtime::call(nvs_core_test_sent_http, ctx, &[] as &[Value])
+                .expect("reading the record cannot fail");
+            let list = crate::arr::borrowed(answered.array_ptr().expect("a list of records"));
+            let mut seen = Vec::new();
+            let mut index = 0_i64;
+            while let Some(record) = list.get_index(index) {
+                let object = record.obj_ptr().expect("a `Core\\Test\\SentRequest`");
+                let verb = crate::instance::slot(object, SENT_METHOD_SLOT)
+                    .as_int()
+                    .expect("the verb is a case ordinal");
+                let url = crate::instance::slot(object, SENT_URL_SLOT);
+                let body = crate::instance::slot(object, SENT_BODY_SLOT);
+                let name = text("Authorization");
+                let header = nvs_runtime::call(nvs_core_test_sent_header, ctx, &[record, name])
+                    .expect("reading a header cannot fail");
+                dropped(name);
+                seen.push(format!(
+                    "{verb} {} {:?} {:?}",
+                    url.as_text().expect("the URL is a string"),
+                    header.as_text(),
+                    body.as_bytes().expect("the body is bytes"),
+                ));
+                dropped(header);
+                index += 1;
+            }
+            dropped(answered);
+            seen
+        }
+
+        let mut ctx = Ctx::buffered();
+        assert!(sent(&mut ctx).is_empty(), "nothing was sent yet");
+
+        ctx.faked_http_mut().record(nvs_runtime::HttpSent {
+            verb: "GET".into(),
+            url: "https://shop.example.com/items?page=2".into(),
+            headers: vec![("authorization".into(), "Bearer abc".into())],
+            body: Vec::new(),
+        });
+        ctx.faked_http_mut().record(nvs_runtime::HttpSent {
+            verb: "POST".into(),
+            url: "https://shop.example.com/orders".into(),
+            headers: vec![("content-type".into(), "application/json".into())],
+            body: b"{\"sku\":\"mug\"}".to_vec(),
+        });
+        let get = crate::router::method_case("GET").expect("a verb the roster names");
+        let post = crate::router::method_case("POST").expect("a verb the roster names");
+        let expected = [
+            format!("{get} https://shop.example.com/items?page=2 Some(\"Bearer abc\") []"),
+            format!(
+                "{post} https://shop.example.com/orders None {:?}",
+                b"{\"sku\":\"mug\"}"
+            ),
+        ];
+        assert_eq!(
+            sent(&mut ctx),
+            expected,
+            "each call keeps its fields and its place"
         );
         assert_eq!(
             sent(&mut ctx),

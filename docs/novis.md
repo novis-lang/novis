@@ -16551,9 +16551,9 @@ Builds a TLS session for a test, with a real certificate chain, so a test can re
 Core\Test::sentHttp(): array<Core\Test\SentRequest>
 ```
 
-Every outbound call the program under test has made since the answer table was armed, oldest first — what was sent, rather than what came back.
+Returns every HTTP request the program sent after the first `Core\Test::answerHttp` call. The oldest request comes first.
 
-**Returns** `array<Core\Test\SentRequest>` — One `Core\Test\SentRequest` per call, in the order the program made them, and an empty array for a test that registered answers nobody asked for. Nothing on a record is `tainted`: it is the program's own text.
+**Returns** `array<Core\Test\SentRequest>` — One `Core\Test\SentRequest` for each request, in the order the program sent them. The list is empty when the program sent nothing. Nothing in a request is `tainted`, because the program wrote all of it.
 
 <a id="core-core-test-answersocket"></a>
 #### `Core\Test::answerSocket`

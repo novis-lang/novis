@@ -1,0 +1,22 @@
+<?nvs
+// Shows that the list has one item for each request, in the order they were sent.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+// A URL that ends in `*` answers every URL that starts with the same text.
+Test::answerHttp("https://api.example.com/users/*", 200, {json: ["name" => "Ada"]});
+
+// Before the program sends a request, the list is empty. This prints `0`.
+echo Core\Arr::count(Test::sentHttp()), "\n";
+
+Client::get("https://api.example.com/users/7");
+Client::get("https://api.example.com/users/12");
+Client::delete("https://api.example.com/users/7");
+
+// `url()` is the whole URL the program used, not the URL with `*`.
+// This prints the three URLs, the oldest first.
+foreach (Test::sentHttp() as SentRequest $request) {
+    echo $request->url(), "\n";
+}
