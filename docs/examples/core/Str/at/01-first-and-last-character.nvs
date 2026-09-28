@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read one character of a string, from the start or from the end.
+
+string $city = "Zürich";
+
+// Position `0` is the first character. This prints `Z`.
+echo Core\Str::at($city, 0), "\n";
+
+// `ü` is one character, so position 1 is `ü`. This prints `ü`.
+echo Core\Str::at($city, 1), "\n";
+
+// A negative position counts from the end. `-1` is the last character.
+// This prints `h`.
+echo Core\Str::at($city, -1), "\n";
+
+// An emoji made of several parts is still one character. This prints `👍🏽`.
+echo Core\Str::at("ok 👍🏽", 3), "\n";

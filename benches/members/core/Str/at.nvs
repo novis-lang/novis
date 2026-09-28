@@ -1,0 +1,20 @@
+<?nvs
+// Reads the first or the last character of a short word, as a program does when it builds initials.
+// bench: iterations 400000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $words = ["Ada", "Émile", "Grace", "Zoë"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $first = Core\Str::at($words[($total % 4) as int], ($i % 2) as int - 1);
+            $total = $total + Core\Str::length($first);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
