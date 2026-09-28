@@ -135,7 +135,8 @@ use subtle::ConstantTimeEq as _;
 
 use crate::keyring::KEY;
 use crate::registry::{
-    CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
+    ClassDoc, CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ShapeKeyDoc,
 };
 
 // ============================================================================
@@ -202,10 +203,17 @@ const KEYS_ARG: usize = 1;
 /// See [`PAYLOAD_ARG`].
 const UNTIL_ARG: usize = 2;
 
+/// `Core\Signature`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Signs a set of named values with a secret key, so your program can check later that \
+            nobody changed them. Signed links and password reset tokens are typical uses. The \
+            values are readable by anyone who has the token, so do not sign a secret.",
+};
+
 /// `rule:security/protocol-roster`'s fifth and final roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "sign",
@@ -247,84 +255,79 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Signature::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
-    short: "Signs `$payload` under the newest key in `$settings.keys` and answers a token. The \
-            payload is canonicalized here — keys sorted, every value written with the tag of its \
-            own type — so there is no assembled string for the two sides of a signature to \
-            disagree about.",
+    short: "Signs `$payload` with the newest key in `$settings.keys` and returns a token. The \
+            token contains the payload, and `Core\\Signature::verify` returns it again. The same \
+            payload, keys and `until` always give the same token.",
     params: &[
         ParamDoc {
             name: "payload",
-            desc: "The claims to sign, by name. Insertion order is not signed and does not come \
-                   back: a verified payload is in canonical order.",
+            desc: "The values to sign, each under a name. The order of the names is not signed. \
+                   `verify` returns the values sorted by name.",
             shape: &[],
         },
         ParamDoc {
             name: "settings",
-            desc: "The key ring and the lifetime, written as one literal because neither has a \
-                   sensible value this member could choose.",
+            desc: "The keys, and the time when the token stops being valid. You must write both.",
             shape: &[
                 ShapeKeyDoc {
                     key: "keys",
                     ty: "array<secret bytes>",
-                    desc: "The key ring, **newest first**: `$keys[0]` signs, and the rest exist \
-                           so that `verify` still accepts tokens minted before the last \
-                           rotation. A ring of one is `[$key]`.",
+                    desc: "The keys, newest first. `$keys[0]` signs the token. The older keys are \
+                           there so that `verify` still accepts tokens made before you added a \
+                           new key. A list of one key is `[$key]`.",
                 },
                 ShapeKeyDoc {
                     key: "until",
                     ty: "?Core\\Time\\Instant",
-                    desc: "When the signature stops being valid, inside the signed bytes where a \
-                           holder cannot edit it. `null` is the forever spelling, and it has to \
-                           be written — a permanent signed link is a permanent bearer credential.",
+                    desc: "The time after which `verify` throws an error for this token. The time \
+                           is part of the signed data, so nobody can change it. Write `null` for a \
+                           token that never expires.",
                 },
             ],
         },
     ],
-    ret: "Unpadded URL-safe base64 — `A-Za-z0-9-_`, every octet of which a query string and a \
-          `Set-Cookie` header carry unescaped. About `4/3 × (payload + 40)` characters, and the \
-          same token every time for the same inputs, because a signature is deterministic where a \
-          seal is not.",
+    ret: "The token. It contains only `A-Z`, `a-z`, `0-9`, `-` and `_`, so you can put it in a URL \
+          or a cookie without escaping it. It is about 4/3 × (payload + 40) characters long.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$settings.keys` is empty, so there is no newest key; or its first entry is not 32 \
-               octets long — a `bytes` that was never a key.",
+        desc: "`$settings.keys` is empty, or its first key is not 32 bytes long. \
+               `Core\\Crypto::generateKey()` returns a key of the right length.",
     }],
 };
 
 /// `Core\Signature::verify`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_DOC: MethodDoc = MethodDoc {
-    short: "Authenticates `$token` against every key in `$keys`, checks the lifetime it carries, \
-            and answers the payload that was signed, or throws. The payload comes back \
-            **`tainted`**: a signature proves origin, not safety for any sink.",
+    short: "Checks that `$token` was made by `Core\\Signature::sign` with a key in `$keys`, and \
+            that it has not expired. It returns the signed payload, or throws an error. Every \
+            value in the payload is `tainted` (treated as input from outside), because a \
+            signature shows who made the data, not that the data is safe to use.",
     params: &[
         ParamDoc {
             name: "token",
-            desc: "The token, as it arrived. A `tainted` value is accepted here — that is the \
-                   point of the member.",
+            desc: "The token as your program received it, for example from a URL. A `tainted` \
+                   string is allowed here.",
             shape: &[],
         },
         ParamDoc {
             name: "keys",
-            desc: "The same ring `sign` was given, newest first. A token minted under any key \
-                   still in the ring verifies; one minted under a key that has been dropped off \
-                   the end does not.",
+            desc: "The keys you gave `sign`, newest first. A token made with any key in this list \
+                   is accepted. A token made with a key you removed from the list is not.",
             shape: &[],
         },
     ],
-    ret: "The signed payload in canonical key order, every value a `tainted string`. Insertion \
-          order is not part of what was signed, so it is not part of what comes back.",
+    ret: "The signed payload, sorted by name. Every value is a `tainted string`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$keys` is empty, or one of its entries is not 32 octets long.",
+            desc: "`$keys` is empty, or one of its keys is not 32 bytes long.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$token` is not authentic under any key in `$keys` — it was altered, it is not \
-                   base64 at all, it was minted for another door, or the key it was minted under \
-                   has been retired. The four are one message on purpose. Expiry is the one \
-                   refusal with a sentence of its own, because only the holder of a genuinely \
-                   signed token ever reaches it.",
+            desc: "`$token` was not made with any key in `$keys`. This includes a changed token, \
+                   text that is not a token, and a token for a signed URL. All of these give the \
+                   same message, so an attacker learns nothing from it. An expired token also \
+                   throws `RuntimeError`, with a different message that gives the time it \
+                   expired.",
         },
     ],
 };
@@ -1829,6 +1832,7 @@ mod tests {
     /// Both sides, because a door that never read the lifetime at all would
     /// pass the first half alone, and one that refused every token would pass
     /// the second.
+    // covers: Core\Signature::verify
     #[test]
     fn a_token_past_its_until_throws_the_expired_error() {
         let keys = ring_of(&[&[3_u8; 32]]);
@@ -1917,6 +1921,7 @@ mod tests {
     /// another door, and a document whose payload is not what this door
     /// answers. Every one of them is reached with a live lifetime, so nothing
     /// here can be passing because the clock refused it first.
+    // covers: Core\Signature::verify
     #[test]
     fn every_other_way_of_not_being_authentic_raises_one_error_with_one_sentence() {
         let keys = ring_of(&[&[6_u8; 32]]);
@@ -1986,6 +1991,65 @@ mod tests {
         dropped(numeric);
         dropped(text);
         dropped(others);
+        dropped(keys);
+    }
+
+    /// The write half through the member itself rather than [`mint`]: the
+    /// token `sign` returns is the one `verify` opens under the same ring, and
+    /// an empty ring is a `LogicError` before any token is written.
+    ///
+    /// Compared by re-signing, for the round-trip test's reason: two payloads
+    /// that write the same document are the same payload here.
+    // covers: Core\Signature::sign
+    #[test]
+    fn sign_returns_a_token_verify_opens_and_an_empty_ring_is_refused() {
+        let keys = ring_of(&[&[8_u8; 32]]);
+        let held = payload(&[
+            ("doc", Value::str(NvsStr::new(b"7"))),
+            ("act", Value::str(NvsStr::new(b"download"))),
+        ]);
+
+        let mut ctx = Ctx::buffered();
+        let token = nvs_runtime::call(
+            nvs_core_signature_sign,
+            &mut ctx,
+            &[held, keys, Value::null()],
+        )
+        .expect("a ring of one well-formed key signs");
+        let text = token.as_text().expect("sign returns a string").to_owned();
+        assert!(
+            text.bytes()
+                .all(|octet| octet.is_ascii_alphanumeric() || octet == b'-' || octet == b'_'),
+            "the token is unpadded URL-safe base64: {text}"
+        );
+
+        let back = verified(UNTIL.second, &text, &keys).expect("verify opens what sign wrote");
+        assert_eq!(
+            signed(&back, None),
+            signed(&held, None),
+            "the payload verify returns is the one sign was given"
+        );
+        dropped(back);
+        dropped(token);
+
+        let empty = ring_of(&[]);
+        let refused = nvs_runtime::call(
+            nvs_core_signature_sign,
+            &mut ctx,
+            &[held, empty, Value::null()],
+        );
+        let sentence = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        assert!(
+            refused.is_err(),
+            "an empty ring has no newest key to sign with"
+        );
+        assert!(
+            sentence.is_some_and(|message| message.contains("$keys is empty")),
+            "the refusal names the empty ring"
+        );
+
+        dropped(empty);
+        dropped(held);
         dropped(keys);
     }
 }

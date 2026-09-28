@@ -1,0 +1,20 @@
+<?nvs
+// Measures signing two short values, as a server does when it builds a signed download link.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round signs a value that depends on the last token, so no round can be left out.
+            string $token = Core\Signature::sign(["doc" => "" . $total, "act" => "download"], { keys: $keys, until: null });
+            $total = $total + Core\Str::length($token) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

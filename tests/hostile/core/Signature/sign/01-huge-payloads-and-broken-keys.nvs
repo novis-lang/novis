@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program signs huge and tricky payloads with good and broken keys.
+// Each broken key should throw a `LogicError`. Nothing may crash or leak.
+// hostile: timeout-ms 30000
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// 1. An empty list of keys. There is no key to sign with.
+array<secret bytes> $none = [];
+try {
+    Core\Signature::sign(['user' => '42'], { keys: $none, until: null });
+    echo "signed with no key\n";
+} catch (LogicError $e) {
+    echo "no key: LogicError\n";
+}
+
+// 2. A key that is 7 bytes long. A key must be 32 bytes long.
+array<secret bytes> $short = ['raw-key' as bytes];
+try {
+    Core\Signature::sign(['user' => '42'], { keys: $short, until: null });
+    echo "signed with a short key\n";
+} catch (LogicError $e) {
+    echo "short key: LogicError\n";
+}
+
+// 3. One value of 5 million characters is signed and checked.
+array<string> $big = ['blob' => Core\Str::repeat('x', 5000000)];
+string $bigToken = Core\Signature::sign($big, { keys: $keys, until: null });
+array<tainted string> $bigBack = Core\Signature::verify($bigToken, $keys);
+echo 'big value: ', Core\Str::length($bigBack['blob']), "\n";
+
+// 4. A payload with 50000 names is signed and checked.
+array<string> $many = [];
+int $i = 0;
+while ($i < 50000) {
+    $many['name' . $i] = 'value' . $i;
+    $i = $i + 1;
+}
+string $manyToken = Core\Signature::sign($many, { keys: $keys, until: null });
+echo 'many names: ', Core\Arr::count(Core\Signature::verify($manyToken, $keys)), "\n";
+
+// 5. Two payloads that give the same text when names and values are joined.
+// They must still give two different tokens.
+string $a = Core\Signature::sign(['a' => 'b|c'], { keys: $keys, until: null });
+string $b = Core\Signature::sign(['a|b' => 'c'], { keys: $keys, until: null });
+echo $a == $b ? "joined text collides\n" : "joined text differs\n";
+
+// 6. The program signs 100000 times and keeps none of the tokens. All memory must be freed.
+int $j = 0;
+while ($j < 100000) {
+    Core\Signature::sign(['n' => '' . $j], { keys: $keys, until: null });
+    $j = $j + 1;
+}
+echo "after 100000 tokens\n";
