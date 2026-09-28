@@ -126,7 +126,8 @@
 //! and that answers two questions at once. Both halves of that are on disk —
 //! `nvs_runtime::Upgrade` is the prepared pair and `nvs_runtime::UpgradeSlot`
 //! the cell it is left in, offered by `nvs_server::serve_connection` to a
-//! request `hyper` framed an upgrade for and to no other — and the body below
+//! request `hyper` framed an upgrade for, and by `nvs run --request` to a
+//! request file whose `Upgrade` header names `websocket` — and the body below
 //! is the filling: it resolves the entry into one `Program`, crosses `args`,
 //! and leaves the pair in the slot. A connection is the only thing an
 //! upgrade can happen to, so a request that did not arrive on one — a CLI
@@ -324,42 +325,37 @@ const SEND_BYTES_SYMBOL: &str = "nvs_core_socket_send_bytes";
 
 /// `Core\Socket::upgrade`'s reference card — `rule:core-api/reference-card`.
 const UPGRADE_DOC: MethodDoc = MethodDoc {
-    short: "Turns this request into a WebSocket connection running `$entry` as a root isolate — \
-            its own arena, its own budget and its own grants, sharing nothing with the request \
-            that opened it but the values `$args` copied in.",
+    short: "Turns this request into a WebSocket connection that runs `$entry`. The connection \
+            starts when the request ends. It runs in its own isolate, which shares no memory \
+            with the request.",
     params: &[
         ParamDoc {
             name: "entry",
-            desc: "What the connection runs: a file path, resolved and root-checked exactly as \
-                   `spawn script`'s operand is, or a static method written `Chat::run(...)`. \
-                   Never a closure — an isolate shares nothing but compiled code, so a capture \
-                   would cross the boundary the isolate exists to be.",
+            desc: "What the connection runs: the path of a file, the same as `spawn script` \
+                   takes, or a static method written `Chat::run(...)`. A closure is not \
+                   allowed, because the connection shares no values with the request.",
             shape: &[],
         },
         ParamDoc {
             name: "args",
-            desc: "The values the connection starts with, bound to the entry's parameters by \
-                   name. They cross by the graph copy an isolate boundary already uses, so what \
-                   arrives is a value and never a shared reference; a `secret` may not cross and \
-                   a `tainted` value stays `tainted` on the other side.",
+            desc: "The values the connection starts with. They are copied into the connection. \
+                   For a method, each value goes to the parameter with the same name. A \
+                   `tainted` value is still `tainted` in the connection.",
             shape: &[],
         },
     ],
-    ret: "Nothing. Calling it performs the upgrade — this is not a response value a handler \
-          hands back, because nothing interprets a handler's return.",
+    ret: "Nothing. The call prepares the connection, and it starts when the request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A request that arrived on no connection a server could upgrade; an `$entry` \
-                   path `script.spawn` does not grant or that does not compile; a second call on \
-                   one request.",
+            desc: "The request did not ask for a WebSocket. The `$entry` file is not granted by \
+                   `script.spawn` or does not compile. Or this request already called `upgrade`.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "An `$args` value with no meaning on the other side of an isolate boundary — a \
-                   resource, or a `secret` the call site could not see through; and, for a static \
-                   method entry, an `$args` map that omits a parameter the method declares or \
-                   names one it does not.",
+            desc: "An `$args` value cannot be copied into the connection: a resource, a `secret`, \
+                   or an array nested too deep. For a method, `$args` is missing a parameter or \
+                   has a name the method does not declare.",
         },
     ],
 };
@@ -744,6 +740,12 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
     let statics = ctx.unit_statics();
     let errors = ctx.class_table();
     Ok(Box::new(move |child: &mut Ctx, argument: Value| {
+        // The whole guard is moved into the closure here. The body reads only
+        // `held.0`, a `Copy` field, and a closure that names only a field
+        // captures only that field: the guard would then be dropped when
+        // `method_program` returns, releasing the reference before the
+        // connection ever runs.
+        let held = held;
         // Before the call and before the binding, in the order a path entry's
         // `install_in` runs in: a `static` the entry touches is read out of the
         // store this arms, and a throw raised by the call needs the tree to
@@ -1904,6 +1906,48 @@ mod tests {
         }
 
         release_crossed(entry);
+    }
+
+    /// A method entry's program keeps the callable alive after the request has
+    /// let go of it. The request ends before the connection starts, so the
+    /// request's own reference is gone by the time the program runs.
+    ///
+    /// The count is asserted, and not only the answer, because reading a freed
+    /// callable often still gives the right answer in a test. A program that
+    /// held nothing leaves the count at one here: the caller's.
+    // covers: Core\Socket::upgrade
+    #[test]
+    fn a_method_entry_still_runs_after_the_request_releases_its_callable() {
+        let _resolver = resolving();
+        let mut ctx = granting();
+        let slot = UpgradeSlot::new();
+        upgradable(&mut ctx, &slot);
+        let entry = a_callable("room", echoes_room);
+        let mine = a_room();
+        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[entry, mine])
+            .expect("a static method entry fills the slot");
+        let object = entry.obj_ptr().expect("the entry is an object");
+        #[expect(
+            unsafe_code,
+            reason = "the test still holds its own reference, so the object is live"
+        )]
+        // SAFETY: the test's reference is released only below this read.
+        let count = unsafe { nvs_runtime::NvsObj::refcount_of(object.cast()) };
+        assert_eq!(
+            count, 2,
+            "the prepared program holds no reference of its own to the callable"
+        );
+
+        // The request's frame ends, and its reference goes with it.
+        release_crossed(entry);
+        release_crossed(mine);
+        let (program, crossed) = slot.take().expect("the slot was filled").into_parts();
+        let mut connection = Ctx::buffered();
+        assert_eq!(
+            program(&mut connection, crossed).as_int(),
+            Some(7),
+            "the connection did not run the entry the request named"
+        );
     }
 
     /// ADR 0006 § *Decision* binds `args:` **by name**, so a map that names

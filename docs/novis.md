@@ -19322,16 +19322,16 @@ Keywords: upgrade, current, receive, send, sendBytes
 Core\Socket::upgrade(string $entry, mixed $args = null): void
 ```
 
-Turns this request into a WebSocket connection running `$entry` as a root isolate — its own arena, its own budget and its own grants, sharing nothing with the request that opened it but the values `$args` copied in.
+Turns this request into a WebSocket connection that runs `$entry`. The connection starts when the request ends. It runs in its own isolate, which shares no memory with the request.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$entry` | `string` (sink) | What the connection runs: a file path, resolved and root-checked exactly as `spawn script`'s operand is, or a static method written `Chat::run(...)`. Never a closure — an isolate shares nothing but compiled code, so a capture would cross the boundary the isolate exists to be. |
-| `$args` | `mixed` (default `null`) | The values the connection starts with, bound to the entry's parameters by name. They cross by the graph copy an isolate boundary already uses, so what arrives is a value and never a shared reference; a `secret` may not cross and a `tainted` value stays `tainted` on the other side. |
+| `$entry` | `string` (sink) | What the connection runs: the path of a file, the same as `spawn script` takes, or a static method written `Chat::run(...)`. A closure is not allowed, because the connection shares no values with the request. |
+| `$args` | `mixed` (default `null`) | The values the connection starts with. They are copied into the connection. For a method, each value goes to the parameter with the same name. A `tainted` value is still `tainted` in the connection. |
 
-**Returns** `void` — Nothing. Calling it performs the upgrade — this is not a response value a handler hands back, because nothing interprets a handler's return.
+**Returns** `void` — Nothing. The call prepares the connection, and it starts when the request ends.
 
-**Throws** `RuntimeError` — A request that arrived on no connection a server could upgrade; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through; and, for a static method entry, an `$args` map that omits a parameter the method declares or names one it does not.
+**Throws** `RuntimeError` — The request did not ask for a WebSocket. The `$entry` file is not granted by `script.spawn` or does not compile. Or this request already called `upgrade`.; `LogicError` — An `$args` value cannot be copied into the connection: a resource, a `secret`, or an array nested too deep. For a method, `$args` is missing a parameter or has a name the method does not declare.
 
 <a id="core-core-socket-current"></a>
 #### `Core\Socket::current`
