@@ -125,7 +125,9 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
         // A bundle is a program, and a program answers a request only where
         // something handed it one: there is no `nvs run` in front of this to
         // have carried a `--request`, and a word on this command line is the
-        // bundled program's own.
+        // bundled program's own. It is no connection either, for the same
+        // reason: nothing in front of it carried a `--peer`.
+        None,
         None,
         &[],
         std::env::args().skip(1).collect(),

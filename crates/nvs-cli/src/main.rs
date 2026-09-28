@@ -147,6 +147,7 @@ mod fmt;
 mod info;
 mod meta;
 mod openapi;
+mod peer;
 mod queue;
 mod runner;
 mod schema;
@@ -341,6 +342,15 @@ enum Command {
         /// reproduced without standing a listener up in front of it.
         #[arg(long, value_name = "FILE")]
         request: Option<PathBuf>,
+        /// Run as a WebSocket connection whose peer sends the frames this
+        /// file lists, and print every frame the program sends.
+        ///
+        /// What makes `Core\Socket::current()` answer outside a server, so a
+        /// connection script can be run, shown and attacked from one file.
+        /// The format is `peer`'s module doc. A connection answers no
+        /// request, so the two flags are never given together.
+        #[arg(long, value_name = "FILE", conflicts_with = "request")]
+        peer: Option<PathBuf>,
         /// The program's own arguments, which `Core\Command::run()` matches
         /// against the program's compiled command table.
         ///
@@ -1291,6 +1301,7 @@ fn run_hosted(argv: &[String]) -> ExitCode {
             fault_inject,
             count,
             request,
+            peer,
             arguments,
         }) => run_run(
             &file,
@@ -1299,6 +1310,7 @@ fn run_hosted(argv: &[String]) -> ExitCode {
             fault_inject,
             count,
             request.as_deref(),
+            peer.as_deref(),
             &cli.config,
             arguments,
             init,
@@ -1434,6 +1446,7 @@ fn main() -> ExitCode {
             fault_inject,
             count,
             request,
+            peer,
             arguments,
         } => run_run(
             &file,
@@ -1442,6 +1455,7 @@ fn main() -> ExitCode {
             fault_inject,
             count,
             request.as_deref(),
+            peer.as_deref(),
             &cli.config,
             arguments,
             init,
@@ -2351,6 +2365,7 @@ fn run_run(
     fault_inject: Option<FaultSiteArg>,
     count: bool,
     request: Option<&std::path::Path>,
+    peer: Option<&std::path::Path>,
     config: &[PathBuf],
     arguments: Vec<String>,
     init: config::Init,
@@ -2517,6 +2532,18 @@ fn run_run(
             }
             Err(error) => {
                 eprintln!("error: --request {}: {error}", file.display());
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    // `--peer`: the socket a served connection's isolate is handed, read off a
+    // file instead, and moved onto the context at the point
+    // `nvs_host::Isolate::over_socket` moves a real one.
+    if let Some(file) = peer {
+        match peer::from_file(file) {
+            Ok(scripted) => ctx.set_peer(Box::new(scripted)),
+            Err(error) => {
+                eprintln!("error: --peer {}: {error}", file.display());
                 return ExitCode::FAILURE;
             }
         }

@@ -168,6 +168,16 @@ line after it. A multipart body
 writes `--BODY_CRLF--` instead, which sends each line ending as CRLF. `tests/hostile/` and
 `benches/members/` read a `.nvsr` file the same way.
 
+## A WebSocket peer for the program — `<name>.nvsp`
+
+An example runs as a command-line program, which is no WebSocket connection, so `Core\Socket::current()`
+throws a `LogicError` there. An example that shows a connection puts a peer beside it, under its own
+name with `.nvsp` in place of `.nvs`. `--bless` and the sweep then run the program with
+`nvs run --peer <file>`: each `text:` or `bytes:` line of the file is one frame the peer sends, and the
+end of the file is the peer closing. Every frame the program sends prints as a `sent:` line, between
+the lines the program itself prints. The whole format is the module doc of `crates/nvs-cli/src/peer.rs`.
+`tests/hostile/` and `benches/members/` read a `.nvsp` file the same way.
+
 ## A grant the examples need — `nvs.toml`
 
 An example runs from the repository root under its `nvs.toml`, which grants no capability. A
