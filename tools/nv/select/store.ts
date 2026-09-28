@@ -313,7 +313,10 @@ export class SelectStore {
    * `*` stands for a run whose use could not be read, not for a use, so a run whose use was read takes
    * it out of the footprint and keeps every key the earlier runs recorded. A `bun nv` check's run
    * whose reads log was read is its whole footprint: the log names every path the run read, listed or
-   * tested, so what an earlier run read and this one did not is dropped.
+   * tested, so what an earlier run read and this one did not is dropped. So is a run that records a
+   * configuration file by part (`config:<path>`) where the footprint holds the whole file from a run
+   * before configuration files were recorded that way: the whole file, and every block path its roster
+   * tested, would otherwise stay in the footprint for good.
    */
   recordRun(id: string, run: { def: string; verdict: Verdict; keys: Keyed; at?: number }): void {
     this.transaction(() => {
@@ -321,7 +324,7 @@ export class SelectStore {
       const n = this.atomN(id)!;
       const was = this.stmt("SELECT def, keys FROM atoms WHERE n = ?").get(n) as { def: string; keys: Uint8Array | null };
       const old = was.keys ? unpack(was.keys) : [];
-      const fresh = was.def !== run.def || (id.startsWith("nv:") && !run.keys.has(WILD));
+      const fresh = was.def !== run.def || (id.startsWith("nv:") && !run.keys.has(WILD)) || this.byPartNow(run.keys, old);
       const ids = new Set<number>(fresh ? [] : old);
       const wild = run.keys.has(WILD) ? null : (this.keyIdsOf([WILD]).get(WILD) ?? null);
       if (wild !== null) ids.delete(wild);
@@ -337,6 +340,15 @@ export class SelectStore {
         .query("UPDATE atoms SET def = ?, verdict = ?, last_run = ?, nkeys = ?, keys = ? WHERE n = ?")
         .run(run.def, run.verdict, run.at ?? Date.now(), sorted.length, pack(sorted), n);
     });
+  }
+
+  /** Whether `keys` read a configuration file by part that the footprint `old` holds whole, and the run
+   * did not also read it whole. */
+  private byPartNow(keys: Keyed, old: number[]): boolean {
+    const wholes = [...keys.keys()].filter((k) => k.startsWith("config:")).map((k) => `file:${k.slice(7)}`).filter((f) => !keys.has(f));
+    if (wholes.length === 0 || old.length === 0) return false;
+    const held = new Set(old);
+    return [...this.keyIdsOf(wholes).values()].some((k) => held.has(k));
   }
 
   /** Sets an atom's verdict without touching its footprint. */

@@ -85,7 +85,7 @@ pub fn canonicalize(
             .unwrap_or(Path::new("."));
         let named = crate::resolve::absolute(base, Path::new(&written));
 
-        let canonical = files.canonical(&named).map_err(|err| {
+        let canonical = files.canonical_block(&named).map_err(|err| {
             crate::resolve::unreadable(
                 &named,
                 &err,
@@ -247,11 +247,30 @@ pub fn matching(apps: &[App], entry: &Path, files: &dyn Files) -> Result<Vec<usi
             "it is the entry file whose `[[app]]` blocks were being looked up",
         )
     })?;
+    // A block keyed on the entry file or on any directory above it would apply here, whether or
+    // not one is written today, so each of those paths is what this program uses of the roster.
+    for above in entry.ancestors() {
+        nvs_footprint::app(above);
+    }
     let mut matched: Vec<usize> = (0..apps.len())
         .filter(|index| covers(&apps[*index], &entry))
         .collect();
     matched.sort_by_key(|index| key_of(&apps[*index]).map_or(0, |key| key.components().count()));
     Ok(matched)
+}
+
+/// Records that the caller uses every `[[app]]` block of `config`, which must have come through
+/// [`canonicalize`]: the whole roster, and the path each block is keyed on, since a key whose path
+/// is gone refuses the boot. A reader that prints or compares the roster calls this, and so does
+/// the test that resolves the repository's own configuration. A program run for one entry file
+/// records only the paths [`matching`] could match.
+pub fn record_roster(config: &Config) {
+    nvs_footprint::every_app();
+    for block in &config.app {
+        if let Some(key) = key_of(block) {
+            nvs_footprint::exists(key);
+        }
+    }
 }
 
 /// What § 2's layering produced for one entry file.

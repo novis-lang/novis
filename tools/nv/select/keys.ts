@@ -13,6 +13,8 @@
 // | `exists:<path>` | a path tested for existence |
 // | `tree:<path>` | a file or a directory a test asked `nvs_repo` for: everything beneath it; `tree:.` is the whole tree |
 // | `named:<name>` | every file called `<name>`, anywhere |
+// | `config:<path>` | a configuration file's global tables: everything in it but its `[[app]]` blocks |
+// | `app:<path>` | an `[[app]]` block keyed on this path, lowercased, that would apply to the program; `app:~` is a path outside the tree, `app:*` every block |
 // | `ext:<ext>` | every file whose name ends `.<ext>`, anywhere, as a `git grep -- *.<ext>` reads them |
 // | `mod:<path>` | a TypeScript module a `bun nv` process loaded, other than one its bookkeeping first loaded `loadUnrecorded` |
 // | `tests:<package>/<kind>/<target>` | computed: held by what ran that test binary, moved by a test added to a file compiled into it; a `use` is no test |
@@ -23,6 +25,10 @@
 // Paths are repo-relative with `/`. A path outside the repository, or under a directory that is never
 // an input (`target`, `.agent-tmp`, `.git`, ...), is no key: nothing a change to the tree can move.
 // Class and card names are lowercased because the compiler compares them without regard to ASCII case.
+// An `app:` path is lowercased because Windows matches a block's key to an entry file without regard to
+// case, and a path outside the tree or under a directory that is never an input is `app:~`: a block
+// keyed there can still cover a program's entry file, since every program's key list reaches past the
+// repository root. `config.ts` says which keys an edit of the repository's `nvs.toml` moves.
 
 import { closeSync, openSync, readSync } from "node:fs";
 import { isAbsolute, posix, resolve } from "node:path";
@@ -43,6 +49,14 @@ export const testsKey = (name: string) => `tests:${name.split(" ").join("/")}`;
 /** One key for every test binary of `pkg`, which a footprint that names no binary of its own holds.
  * `query` reads it as the binaries that atom is known to run (`QueryOptions.ran`). */
 export const pkgTestsKey = (pkg: string) => `tests:${pkg}`;
+export const configKey = (path: string) => `config:${path}`;
+/** Held by a reader of every `[[app]]` block, and moved by an edit of any block. */
+export const EVERY_APP = "app:*";
+/** An `[[app]]` block keyed on `path`, repo-relative, or on a path no change to the tree can name when null. */
+export const appKey = (path: string | null) => (path === null ? "app:~" : `app:${path.toLowerCase()}`);
+/** The repository's own configuration, which a program run from the root reads and a change keys by
+ * part (`config.ts`). */
+export const ROOT_CONFIG = "nvs.toml";
 export const ALL_CLASSES = "class:*";
 export const ALL_CARDS = "card:*";
 export const WHOLE_TREE = "tree:.";
@@ -181,6 +195,14 @@ function lineKey(keys: Set<string>, raw: string, root: string): void {
     case "named":
       keys.add(`named:${value}`);
       break;
+    case "config": {
+      const p = repoPath(value, root);
+      if (p !== null) keys.add(configKey(p));
+      break;
+    }
+    case "app":
+      keys.add(value === WILD ? EVERY_APP : appKey(repoPath(value, root)));
+      break;
     case "file":
     case "dir":
     case "exists":
@@ -259,12 +281,15 @@ export function readsKeys(reads: Reads, modules: string[] = []): Set<string> {
   return keys;
 }
 
-/** The keys a changed path moves, other than its Rust items: the file itself, every directory it sits
- * in as a `tree:`, its name and its extension, and, for a path that came or went, the test for it and
- * its directory's listing. A `.ts` file is also a module. */
+/** The keys a changed path moves, other than its Rust items: the file itself, as a whole file and as a
+ * configuration file, every directory it sits in as a `tree:`, its name and its extension, and, for a
+ * path that came or went, the test for it and its directory's listing. A `.ts` file is also a module.
+ * The repository's own configuration moves only the `config:` and `app:` keys of the parts that changed,
+ * which `configKeys` reads from its text. */
 export function pathKeys(path: string, cameOrWent: boolean): string[] {
   const name = posix.basename(path);
   const keys = [`file:${path}`, `named:${name}`, WHOLE_TREE];
+  if (path !== ROOT_CONFIG) keys.push(configKey(path));
   const dot = name.lastIndexOf(".");
   if (dot >= 0 && dot < name.length - 1) keys.push(extKey(name.slice(dot + 1)));
   const parts = path.split("/");

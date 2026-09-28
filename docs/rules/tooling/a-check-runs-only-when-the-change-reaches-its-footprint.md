@@ -3,7 +3,10 @@ change reaches, read from what each atom's green runs were observed to use. An a
 thing that runs on its own: one `.nvst` case, one proof program, one Rust test binary, one `bun nv`
 command, one tools test file, one other plan check. Every run of one records its footprint in
 `.cache/select.sqlite`: the Rust items that ran, from coverage, and the `Core` classes, cards, files,
-directories and paths it looked up, from the log `nvs` and the test binaries write. A selection turns
+directories and paths it looked up, from the log `nvs` and the test binaries write. A configuration file
+is recorded by part: its global tables, and the paths an `[[app]]` block that applies to the entry file
+could be keyed on. An edit of the repository's own `nvs.toml` moves only the parts it changed, and the
+test that resolves that file whole runs on every edit of it. A selection turns
 the change since the recorded tree into keys and looks the atoms up under them. An atom that is new,
 last red, owed or diverged runs too, and so does every atom when a global file changes. Nothing else
 starts. `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and

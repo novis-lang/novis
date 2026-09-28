@@ -87,12 +87,43 @@ pub trait Files {
     /// Whatever the underlying reader says; [`mod@crate::app`] wraps it in `E0605`.
     fn canonical(&self, path: &Path) -> Result<PathBuf, String>;
 
+    /// [`canonical`](Files::canonical) for the path an `[[app]]` block is keyed on, which
+    /// [`crate::app::canonicalize`] asks for every block of the roster.
+    ///
+    /// Separate because a program uses only the blocks that match its own entry file. [`Disk`]
+    /// records nothing here: a block that applies to the program is recorded where it matches, and
+    /// a block path that comes or goes changes whether the roster resolves at all, which the test
+    /// resolving the repository's own configuration is keyed on. The default records what
+    /// [`canonical`](Files::canonical) records, which is more and never less.
+    ///
+    /// # Errors
+    ///
+    /// As [`canonical`](Files::canonical).
+    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+        self.canonical(path)
+    }
+
     /// The file's text, or a message describing why not.
     ///
     /// # Errors
     ///
     /// Whatever the underlying reader says; the resolver wraps it in `E0605`.
     fn read(&self, path: &Path) -> Result<String, String>;
+
+    /// [`read`](Files::read) for a configuration file of the tree, which [`resolve`] reads through
+    /// this and nothing else.
+    ///
+    /// Separate because a program uses only part of a configuration file. [`Disk`] records the file
+    /// as a `config` line rather than a `file` line: its global tables here, and its `[[app]]` blocks
+    /// where [`crate::app::matching`] matches them. The default records what [`read`](Files::read)
+    /// records, which is more and never less.
+    ///
+    /// # Errors
+    ///
+    /// As [`read`](Files::read).
+    fn read_config(&self, path: &Path) -> Result<String, String> {
+        self.read(path)
+    }
 
     /// The file's bytes, unvalidated — what `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret file is read through.
     ///
@@ -142,8 +173,17 @@ impl Files for Disk {
         trust::canonical(path).map_err(|err| err.to_string())
     }
 
+    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+        trust::canonical(path).map_err(|err| err.to_string())
+    }
+
     fn read(&self, path: &Path) -> Result<String, String> {
         nvs_footprint::file(path);
+        std::fs::read_to_string(path).map_err(|err| err.to_string())
+    }
+
+    fn read_config(&self, path: &Path) -> Result<String, String> {
+        nvs_footprint::config(path);
         std::fs::read_to_string(path).map_err(|err| err.to_string())
     }
 
@@ -424,7 +464,7 @@ fn read_into(
     }
 
     let text = files
-        .read(path)
+        .read_config(path)
         .map_err(|err| unreadable(path, &err, "the configuration reads it"))?;
     let (source, parsed) =
         crate::file::parse::<Config>(sources, &path.display().to_string(), &text);

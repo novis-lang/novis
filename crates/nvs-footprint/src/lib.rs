@@ -17,9 +17,19 @@
 //! | `exists\t<path>` | a path was tested for existence, whether or not something was there |
 //! | `tree\t<path>` | a test asked for a file or a directory through `nvs_repo`: everything beneath it |
 //! | `named\t<name>` | a test read every file called `<name>` anywhere in the tree, through `nvs_repo` |
+//! | `config\t<path>` | a configuration file was read, and everything in it outside its `[[app]]` blocks was used |
+//! | `app\t<path>` | an `[[app]]` block keyed on this path, in any configuration file read, applies to the entry file being configured |
+//! | `app\t*` | every `[[app]]` block of every configuration file read was used |
 //!
 //! A card is a line of its own because a card is documentation: an edit to one changes what the
 //! readers of cards print, and no program's behaviour.
+//!
+//! A configuration file is not a `file` line, because one program uses only part of it. Its global
+//! tables are the `config` line. Its `[[app]]` blocks are the `app` lines: a program writes one for
+//! its entry file and one for each directory above it, since a block keyed on any of those paths
+//! applies to that program, and a block keyed anywhere else does not. Whether the blocks the program
+//! does not use are valid is the same question for every program that reads the file, and a test
+//! that resolves the repository's own configuration answers it.
 //!
 //! A path is absolute, `/`-separated on every platform and without Windows' `\\?\` prefix, and it
 //! is not canonicalized: a link reads as the path that was named. A path longer than the
@@ -64,6 +74,10 @@ pub enum Kind {
     Tree,
     /// Every file with this name, anywhere in the tree.
     Named,
+    /// A configuration file whose global tables were used.
+    Config,
+    /// A path an `[[app]]` block may be keyed on to apply, or `*` for every block.
+    App,
 }
 
 impl Kind {
@@ -78,6 +92,8 @@ impl Kind {
             Self::Exists => "exists",
             Self::Tree => "tree",
             Self::Named => "named",
+            Self::Config => "config",
+            Self::App => "app",
         }
     }
 }
@@ -360,6 +376,30 @@ pub fn exists(path: &Path) {
     }
 }
 
+/// Records that the configuration file at `path` was read and its global tables used: everything
+/// in it but its `[[app]]` blocks, which [`app`] records.
+pub fn config(path: &Path) {
+    if enabled() {
+        write_path(Kind::Config, path);
+    }
+}
+
+/// Records that an `[[app]]` block keyed on `path` would apply to the entry file being configured.
+/// A reader records its canonical entry file and every directory above it.
+pub fn app(path: &Path) {
+    if enabled() {
+        write_path(Kind::App, path);
+    }
+}
+
+/// Records that every `[[app]]` block was used, as a reader that prints or compares the whole
+/// roster does.
+pub fn every_app() {
+    if enabled() {
+        write(Kind::App, "*");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,6 +431,24 @@ mod tests {
         assert_eq!(line(Kind::Card, "*"), "card\t*\n");
         assert_eq!(line(Kind::Tree, "/srv/tests"), "tree\t/srv/tests\n");
         assert_eq!(line(Kind::Named, "nvs.toml"), "named\tnvs.toml\n");
+        assert_eq!(
+            line(Kind::Config, "/srv/nvs.toml"),
+            "config\t/srv/nvs.toml\n"
+        );
+        assert_eq!(line(Kind::App, "/srv/app"), "app\t/srv/app\n");
+    }
+
+    #[test]
+    fn a_configuration_read_is_its_own_kind_of_line() {
+        let ((), lines) = capture(|| {
+            config(Path::new("/srv/nvs.toml"));
+            app(Path::new("/srv/app"));
+            every_app();
+        });
+        assert_eq!(lines.len(), 3);
+        assert!(lines[0].starts_with("config\t") && lines[0].ends_with("/srv/nvs.toml"));
+        assert!(lines[1].starts_with("app\t") && lines[1].ends_with("/srv/app"));
+        assert_eq!(lines[2], "app\t*");
     }
 
     #[test]

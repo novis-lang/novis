@@ -710,6 +710,7 @@ pub(crate) fn check(process: &Arc<Process>) {
 /// each written in the same file, from the same files. A publish of it would
 /// change nothing but the generation, which empties the process cache.
 fn same_tree(next: &Snapshot, serving: &Snapshot) -> bool {
+    nvs_footprint::every_app();
     next.table == serving.table
         && next.roster == serving.roster
         && next.blocks == serving.blocks

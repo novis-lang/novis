@@ -3,7 +3,8 @@
 //     changed = diff(recorded tree, working tree incl. untracked)
 //            -> each .rs file: item diff -> reference-graph closure -> fn:, class:, card: keys
 //            -> each build script whose inputs moved: the items that include what it generated
-//            -> every path: file:, tree:, named:, ext:, and exists:/dir: for a path that came or went
+//            -> every path: file:, config:, tree:, named:, ext:, and exists:/dir: for a path that came or went
+//            -> the repository's nvs.toml: config: and app: for the parts that changed (`config.ts`)
 //     run = atoms never recorded on this platform, last red, or owed from an earlier change
 //         + atoms marked diverged: a recording run that ended differently from the judged run
 //         + atoms whose definition changed
@@ -29,7 +30,8 @@ import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { elsewhereOnly, gitTexts, platformOf, profileReader } from "./profile.ts";
-import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, testsKey, WILD } from "./keys.ts";
+import { ALL_CARDS, ALL_CLASSES, configKey, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, ROOT_CONFIG, testsKey, WILD } from "./keys.ts";
+import { blockPaths, configKeys } from "./config.ts";
 import { type AtomKind, kindOfAtom, type Overlay, type SelectStore } from "./store.ts";
 
 /** Files whose change selects every atom: the toolchain, the lock file, a manifest, and the two tools
@@ -157,6 +159,46 @@ export async function scanAt(rev: string, files: string[], root: string = ROOT):
   }
 }
 
+/**
+ * The keys `changes` move in the repository's `nvs.toml`: the parts an edit of it changed, from its text
+ * at `since` and at `until` or on disk. The text a recorded overlay stands for is not kept, so a change
+ * read from one moves the file whole. A block that an edit moved, or whose path a deleted file was or
+ * sat under, is keyed on a path that must still be there: one that is not stops every program that
+ * reads the file, so the file moves whole.
+ */
+async function rootConfigKeys(store: SelectStore, changes: Change[], since: string, until: string | null, fromBase: boolean, root: string): Promise<string[]> {
+  const edited = changes.some((c) => c.path === ROOT_CONFIG);
+  const gone = changes.filter((c) => c.status === "deleted").map((c) => c.path.toLowerCase());
+  if (!edited && gone.length === 0) return [];
+  const text = (bytes: Uint8Array | null) => (bytes === null ? null : new TextDecoder().decode(bytes));
+  const onDisk = join(root, ROOT_CONFIG);
+  const after = until ? text(await blobAt(until, ROOT_CONFIG, root)) : existsSync(onDisk) ? readFileSync(onDisk, "utf8") : null;
+  let keys: string[] = [];
+  if (edited) {
+    const before = fromBase && ROOT_CONFIG in store.overlay() ? null : text(await blobAt(since, ROOT_CONFIG, root));
+    keys = configKeys(ROOT_CONFIG, before, after, root);
+  }
+  const blocks = after === null ? null : blockPaths(ROOT_CONFIG, after, root);
+  if (blocks === null) return keys;
+  const whole = configKey(ROOT_CONFIG);
+  for (const [key, path] of blocks) {
+    const lower = path.toLowerCase();
+    const named = keys.includes(key) || gone.some((g) => g === lower || g.startsWith(`${lower}/`));
+    if (named && !keys.includes(whole) && !(await pathAt(until, path, root))) return [whole, ...keys];
+  }
+  return keys;
+}
+
+/** Whether `path`, repo-relative or absolute, is there at commit `until`, or on disk when there is none.
+ * A path outside the tree is looked for on disk either way. */
+async function pathAt(until: string | null, path: string, root: string): Promise<boolean> {
+  if (path === ".") return true;
+  if (path.startsWith("/") || /^[A-Za-z]:\//.test(path)) return existsSync(path);
+  if (!until) return existsSync(join(root, path));
+  const p = Bun.spawn(["git", "cat-file", "-e", `${until}:${path}`], { cwd: root, stdout: "ignore", stderr: "ignore" });
+  return (await p.exited) === 0;
+}
+
 export interface ChangeOptions {
   /** The commit to compare the working tree with; the store's base when omitted. */
   since?: string;
@@ -189,6 +231,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   };
   const global = changes.find((c) => isGlobal(c.path))?.path ?? null;
   for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) emit(k, { path: c.path, how: "path" });
+  for (const k of await rootConfigKeys(store, changes, since, until, fromBase, root)) emit(k, { path: ROOT_CONFIG, how: "path" });
   if (global) emit(WILD, { path: global, how: "global" });
   for (const [k, origin] of await scanKeys(store, changes, since, until, fromBase, root)) emit(k, origin);
 

@@ -5,7 +5,10 @@
 //! parse rather than reading one off a line — a tree that grew a typo in one block header still
 //! deserializes every other block plausibly.
 
-use nvs_config::{Config, Setting};
+use std::path::{Path, PathBuf};
+
+use nvs_config::resolve::{Disk, Files};
+use nvs_config::{Config, Roots, Setting};
 use nvs_diagnostics::{SourceMap, code};
 
 /// Parses `text` as the typed tree, panicking with the refusal's message when it does not.
@@ -275,6 +278,113 @@ fn the_repositorys_own_config_deserializes() {
         Some(Setting::Text("512M".to_string())),
         "and the ceiling `examples/config.nvs` is written around",
     );
+}
+
+/// The disk, as `nvs run` reads it: the canonical path in place of the ownership check, which a
+/// checkout on a Windows data drive fails, and every other question asked of the real disk.
+struct Checkout;
+
+impl nvs_config::resolve::Files for Checkout {
+    fn trust(&self, path: &Path) -> Result<PathBuf, nvs_config::trust::Untrusted> {
+        Disk.canonical(path)
+            .map_err(nvs_config::trust::Untrusted::Unreadable)
+    }
+
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        Disk.canonical(path)
+    }
+
+    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+        Disk.canonical_block(path)
+    }
+
+    fn read(&self, path: &Path) -> Result<String, String> {
+        Disk.read(path)
+    }
+
+    fn read_config(&self, path: &Path) -> Result<String, String> {
+        Disk.read_config(path)
+    }
+
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        Disk.read_bytes(path)
+    }
+
+    fn exposure(&self, path: &Path) -> Option<String> {
+        Disk.exposure(path)
+    }
+
+    fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+        Disk.list(dir)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        Disk.exists(path)
+    }
+}
+
+/// The repository's own `nvs.toml` resolves as a run from the repository root resolves it: every
+/// `[[app]]` block is keyed on a path that is there, no two blocks share a path, none asks for more
+/// than the global ceiling, and nothing is only advised. A program records the blocks that could
+/// match its own entry file and no others, so this test is what runs when a block that no program
+/// matches is added or changed, or when the path a block names is removed.
+#[test]
+fn the_repositorys_own_config_resolves_every_block_without_a_warning() {
+    let mut sources = SourceMap::new();
+    let roots = Roots::Files(vec![nvs_repo::path("nvs.toml")]);
+    let resolved =
+        nvs_config::resolve::resolve(&roots, &mut sources, &Checkout).unwrap_or_else(|err| {
+            panic!(
+                "the repository's nvs.toml does not resolve: {}",
+                err.message
+            )
+        });
+    nvs_config::app::record_roster(&resolved.config);
+
+    assert!(
+        !resolved.config.app.is_empty(),
+        "the file has `[[app]]` blocks"
+    );
+    let warnings: Vec<&str> = resolved
+        .warnings
+        .iter()
+        .map(|warning| warning.message.as_str())
+        .collect();
+    assert!(
+        warnings.is_empty(),
+        "the repository's nvs.toml raises advisories: {warnings:?}"
+    );
+}
+
+/// A run records the repository's `nvs.toml` by part: a `config` line for its global tables, and an
+/// `app` line for its entry file and each directory above it. It records no `file` line for the
+/// configuration, and no test of the paths the other `[[app]]` blocks are keyed on.
+#[test]
+fn a_run_records_the_configuration_by_part() {
+    let config = nvs_repo::path("nvs.toml");
+    let entry = nvs_repo::path("examples/hello.nvs");
+    let other = nvs_repo::path("examples/capability.nvs");
+    let (matched, lines) = nvs_footprint::capture(|| {
+        let mut sources = SourceMap::new();
+        let resolved = nvs_config::resolve::resolve(
+            &Roots::Files(vec![config.clone()]),
+            &mut sources,
+            &Checkout,
+        )
+        .expect("the repository's nvs.toml resolves");
+        nvs_config::app::matching(&resolved.config.app, &entry, &Checkout)
+            .expect("the entry file is there")
+    });
+    assert!(!matched.is_empty(), "the `root = \".\"` block matches");
+
+    let shown = |path: &Path| nvs_footprint::shown(&Disk.canonical(path).expect("there"));
+    let line = |kind: &str, path: &Path| format!("{kind}\t{}", shown(path));
+    assert!(lines.contains(&line("config", &config)), "{lines:#?}");
+    assert!(!lines.contains(&line("file", &config)), "{lines:#?}");
+    assert!(lines.contains(&line("app", &entry)), "{lines:#?}");
+    let above = entry.parent().expect("the entry file is in a directory");
+    assert!(lines.contains(&line("app", above)), "{lines:#?}");
+    assert!(!lines.contains(&line("exists", &other)), "{lines:#?}");
 }
 
 /// An empty file is a legal configuration, which is what makes an `[[include]]` of a placeholder

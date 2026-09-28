@@ -233,8 +233,17 @@ impl Files for Stamping {
         LocalFiles.canonical(path)
     }
 
+    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+        self.above(path);
+        LocalFiles.canonical_block(path)
+    }
+
     fn read(&self, path: &Path) -> Result<String, String> {
         LocalFiles.read(path)
+    }
+
+    fn read_config(&self, path: &Path) -> Result<String, String> {
+        LocalFiles.read_config(path)
     }
 
     fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {

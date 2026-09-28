@@ -1,5 +1,6 @@
 //! `NVS_FOOTPRINT_LOG` and `NOVIS_NO_FILE_CACHE`, driven through the built binary: a run records
-//! the `Core` classes it looked up and the files, directories and paths it read, `nvs agent show`
+//! the `Core` classes it looked up, the files, directories and paths it read, and its configuration
+//! by part, `nvs agent show`
 //! records the cards it printed, and a run with the switch set compiles without an artifact cache.
 //!
 //! The fixture under `tests/fixtures/footprint/` requires a second file, reads a data file, lists a
@@ -52,9 +53,15 @@ fn run(env: &[(&str, &Path)]) {
     run_with(&[], env);
 }
 
-/// The path a log line spells for `name` inside the fixture.
+/// The path a log line spells for `name` inside the fixture, or for the fixture itself when `name`
+/// is empty.
 fn shown(name: &str) -> String {
-    let path = std::path::absolute(fixture().join(name)).expect("an absolute path");
+    let path = if name.is_empty() {
+        fixture()
+    } else {
+        fixture().join(name)
+    };
+    let path = std::path::absolute(path).expect("an absolute path");
     let text = path.to_string_lossy().replace('\\', "/");
     text.strip_prefix("//?/").unwrap_or(&text).to_string()
 }
@@ -70,7 +77,9 @@ fn a_run_records_the_classes_it_looked_up_and_what_it_read() {
     for want in [
         format!("file\t{}", shown("main.nvs")),
         format!("file\t{}", shown("helper.nvs")),
-        format!("file\t{}", shown("nvs.toml")),
+        format!("config\t{}", shown("nvs.toml")),
+        format!("app\t{}", shown("main.nvs")),
+        format!("app\t{}", shown("")),
         format!("file\t{}", shown("data.txt")),
         format!("dir\t{}", shown("listed")),
         format!("exists\t{}", shown("absent.txt")),
@@ -80,6 +89,10 @@ fn a_run_records_the_classes_it_looked_up_and_what_it_read() {
     ] {
         assert!(lines.contains(&want.as_str()), "`{want}` in:\n{text}");
     }
+    assert!(
+        !lines.contains(&format!("file\t{}", shown("nvs.toml")).as_str()),
+        "a configuration file is recorded by part, never whole:\n{text}"
+    );
     assert!(
         !text.contains("Core\\Uuid"),
         "a class the program never names is not recorded:\n{text}"

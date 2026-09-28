@@ -88,8 +88,16 @@ impl nvs_config::resolve::Files for LocalFiles {
         nvs_config::resolve::Disk.canonical(path)
     }
 
+    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+        nvs_config::resolve::Disk.canonical_block(path)
+    }
+
     fn read(&self, path: &Path) -> Result<String, String> {
         nvs_config::resolve::Disk.read(path)
+    }
+
+    fn read_config(&self, path: &Path) -> Result<String, String> {
+        nvs_config::resolve::Disk.read_config(path)
     }
 
     fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
@@ -602,6 +610,8 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    // The verdict is about every block of the roster, not the blocks one entry file matches.
+    nvs_config::app::record_roster(&resolved.config);
 
     // An advisory is printed in full and does not change the verdict — `rule:config/a-secret-is-a-file-whose-content-is-the-value`
     // says so, and `Resolved::warnings`' own doc says a refusal is never
@@ -664,6 +674,8 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
             return ExitCode::FAILURE;
         }
     };
+    // The dump prints every block of the roster, not the blocks one entry file matches.
+    nvs_config::app::record_roster(&resolved.config);
 
     // `--toml` is one canonical file for diffing two environments, so it is the
     // table serialized and nothing else: no origins, no alignment, no advisory

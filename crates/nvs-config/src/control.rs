@@ -390,6 +390,7 @@ fn leaves(snapshot: &Snapshot) -> BTreeMap<String, toml::Value> {
     let mut out = BTreeMap::new();
     walk(&snapshot.table, "", &mut out);
     if let Some(roster) = &snapshot.roster {
+        nvs_footprint::every_app();
         out.insert("app".to_string(), roster.clone());
     }
     out
