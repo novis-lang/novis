@@ -1,28 +1,27 @@
 {
-  "state": "Goal `core-session`, stage 2. `Core\\Session::clear` has all its feature proofs: about, three examples, an attack, a bench with a recorded figure, a Rust test and its card. `Core\\Session` now has a class card, and is off `CLASSES_STILL_OWING_A_CARD`. The other eight members still owe examples, hostile, perf and a Rust `covers:` test.\n\nEvery Session proof needs a real store and a real request. The shape is on disk under `docs/examples/core/Session/clear/`: an `nvs.toml` in the feature directory that grants `[capabilities.cache] shared`, sets `[session] backend = \"shared\"` and `[cache.shared] url = \"redis://127.0.0.1:16379\"`, and a `.nvsr` beside each program. `tests/hostile/core/Session/clear/` has the same pair. `benches/members/core/Session/nvs.toml` already serves every Session bench, so a new bench needs only its own `.nvsr`. Redis is `tests/db/compose.yaml`'s service, which the goal's `env.docker` brings up.\n\nA bench's figure goes stale whenever `crates/nvs-stdlib/src/session.rs` changes. Any slice that edits that file re-owes the perf of every Session member already measured, `clear` included. Run `bun nv proofs --record-perf --id '<member>'` for each of them after the last Rust edit.",
+  "state": "Goal `core-session`, stage 2. `Core\\Session::clear`, `destroy` and `get` have all their feature proofs: about, three examples, an attack, a bench with a recorded figure, a Rust `covers:` test and a card in the plain voice. `Core\\Session` has a class card. Six members still owe examples, hostile, perf and a Rust `covers:` test: `start`, `set`, `remove`, `regenerate`, `setSecret`, `getSecret`.\n\nEvery Session proof needs a real store and a real request. The shape is on disk under `docs/examples/core/Session/clear/`: an `nvs.toml` in the feature directory that grants `[capabilities.cache] shared`, sets `[session] backend = \"shared\"` and `[cache.shared] url = \"redis://127.0.0.1:16379\"`, and a `.nvsr` beside each program. `tests/hostile/core/Session/<member>/` has the same pair. `benches/members/core/Session/nvs.toml` already serves every Session bench, so a new bench needs only its own `.nvs` and `.nvsr`. Redis is `tests/db/compose.yaml`'s service, which the goal's `env.docker` brings up.\n\nA member that talks to the store can still be tested from Rust through the real member: `destroy_forgets_the_record_before_it_closes_the_session` sets `crate::tests::granting` with a `[cache.shared] url` pointing at the loopback `serving` fake, and `open_configured` dials it. A member that talks to the store costs a round trip per call on this host (about 0.7 ms), so its bench uses a few thousand iterations, not a hundred thousand.\n\nA bench's figure goes stale whenever `crates/nvs-stdlib/src/session.rs` changes. After the last Rust edit, run `bun nv proofs --verify --group 'Core\\Session'` and `--record-perf --id '<member>'` for each member it names stale.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/session.rs`, the proof trees under `core/Session/`, `docs/novis.md`.",
+    "note": "one file set: `crates/nvs-stdlib/src/session.rs`, the proof trees under `core/Session/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Session::destroy`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). The card is `crates/nvs-stdlib/src/session.rs:447` and the member is `crates/nvs-stdlib/src/session.rs:1357`. Rewrite the card in the plain voice, as `CLEAR_DOC` now is. The Rust test cannot reach the store through `nvs_runtime::call`; drive `destroy` over the loopback `serving` fake at `crates/nvs-stdlib/src/session.rs:1520` or test the closed session only. Then re-record `clear`'s perf."
+        "text": "**`Core\\Session::remove`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). The card is `crates/nvs-stdlib/src/session.rs:380` and the member `crates/nvs-stdlib/src/session.rs:1249`. Rewrite the card in the plain voice, as `GET_DOC` now is. A Rust test through `nvs_runtime::call` needs no store, as `get_answers_a_held_key_and_null_for_the_rest_and_earns_no_write` shows; assert that removing a key the record does not hold earns no write."
       },
       {
         "done": false,
-        "text": "**`Core\\Session::get`** — owes examples, hostile, perf, tests. The card is `crates/nvs-stdlib/src/session.rs:317`, the member `crates/nvs-stdlib/src/session.rs:1116`. `clear_empties_the_record_and_keeps_the_session_open` at `crates/nvs-stdlib/src/session.rs:1727` is the shape of a Rust test over an opened `Ctx` session. `get` returns `mixed`, so its bench can declare no allocation count."
+        "text": "**`Core\\Session::set`** — owes examples, hostile, perf, tests. The card is `crates/nvs-stdlib/src/session.rs:342`, the member `crates/nvs-stdlib/src/session.rs:1152`. The attack should try a value the cross-boundary copy refuses (a closure, deep nesting), which throws `LogicError`."
       },
       {
         "done": false,
-        "text": "**`Core\\Session::remove`** — owes examples, hostile, perf, tests. The member is at `crates/nvs-stdlib/src/session.rs:1251`."
+        "text": "**`Core\\Session::setSecret` and `getSecret`** — owe the same. The cards are `crates/nvs-stdlib/src/session.rs:468` and `crates/nvs-stdlib/src/session.rs:513`, the members `crates/nvs-stdlib/src/session.rs:1193` and `crates/nvs-stdlib/src/session.rs:1225`. `session_secret_is_stored_as_ciphertext_in_the_record` exists and may take a `covers:` marker for both if it calls both members; read it first."
       }
-    ],
-    "after": "After each Rust edit, `bun nv reference --no-examples` regenerates `docs/novis.md` from the new cards. It needs a fresh build first (`bun nv verify -p nvs-stdlib`)."
+    ]
   },
   "backlog": [
-    "`getSecret`, `regenerate`, `set`, `setSecret`, `start` still owe the same four proofs (`docs/agent/goals/core-session.md` § *The item list*).",
-    "The other member cards in `crates/nvs-stdlib/src/session.rs` are still in the dense voice. Rewrite each one in the slice that proves its member."
+    "`Core\\Session::start` and `regenerate` owe the same proofs, and both reach the store; drive them over `serving` as the `destroy` test does (`crates/nvs-stdlib/src/session.rs`).",
+    "`Core\\Session::get` decodes the whole record on every call (13 allocations for a three-key record in its bench); a cached decode is a perf question for `rule:http-server/a-session-is-loaded-once-and-written-whole`, not a proof gap."
   ]
 }

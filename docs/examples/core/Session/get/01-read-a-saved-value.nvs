@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read a value that was saved in the session.
+
+Core\Session::start();
+Core\Session::set("language", "de");
+
+// `get()` returns the saved value. This prints `de`.
+echo "language: ", Core\Session::get("language") ?? "en", "\n";
+
+// No value was saved under "currency", so `??` gives the default "EUR".
+// Write `??` before `as string`, because `null as string` is an empty string.
+string $currency = (Core\Session::get("currency") ?? "EUR") as string;
+echo "currency: ", $currency, "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a missing key and a key set to `null` give the same result.
+
+Core\Session::start();
+Core\Session::set("coupon", null);
+
+// Both lines print `(none)`, because `get()` returns `null` for both keys.
+echo "coupon: ", Core\Session::get("coupon") ?? "(none)", "\n";
+echo "gift:   ", Core\Session::get("gift") ?? "(none)", "\n";
+
+// To remove a key, use `remove()`. The result of `get()` is also `null`.
+Core\Session::set("gift", "card");
+Core\Session::remove("gift");
+echo "gift:   ", Core\Session::get("gift") ?? "(none)", "\n";

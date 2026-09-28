@@ -19181,15 +19181,15 @@ Opens the session the store issued, taking the identifier from the session cooki
 Core\Session::get(string $key): mixed
 ```
 
-Reads one key of the record this request's session holds, answering `null` where the record does not hold it.
+Returns the value saved under one key in the session of this request.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `string` (neutral) | The key to read. One the record does not hold is `null` rather than a refusal, so a session that stored a `null` and one that stored nothing read alike. |
+| `$key` | `string` (neutral) | The key to read. If the session has no value under it, the result is `null`. A key that was set to `null` gives the same result. |
 
-**Returns** `mixed` — The value stored under `$key`, or `null`. Reading never marks the record changed, so a request that starts a session and only reads it makes no second round trip.
+**Returns** `mixed` — The value saved under `$key`, or `null`. Reading does not change the session, so a request that only reads its session does not write it back to the store.
 
-**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to read.; `ParseError` — The stored record names a class this program cannot resolve — what a record written by a unit that declared the class and read by one that does not looks like.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to read.; `ParseError` — The saved session contains an object of a class this program does not declare. This happens when another program saved it.
 
 <a id="core-core-session-set"></a>
 #### `Core\Session::set`
@@ -19259,11 +19259,11 @@ Issues a new identifier, moves the record to it and forgets the old entry — wh
 Core\Session::destroy(): void
 ```
 
-Forgets the record in the store and closes the session on this request, which is what signing out is.
+Ends the session of this request and deletes its data from the store. Call it when a user signs out.
 
-**Returns** `void` — Nothing. Afterwards this request has no session at all, so every member of this class throws again until `start()` opens one — the same answer they give before the first `start()`, because it is the same state.
+**Returns** `void` — Nothing. After it, this request has no session. The other methods of this class throw a `RuntimeError` until you call `start()` again, and that call opens a new, empty session.
 
-**Throws** `RuntimeError` — This request has not called `start()`, so there is no session to forget; or the shared store is unconfigured or refused by capability.; `IOError` — The configured store cannot be reached, so the record is still there. It throws rather than closing the session quietly, because a program told the sign-out succeeded would stop trying.
+**Throws** `RuntimeError` — This request has not called `start()`, or it already called `destroy()`. It is also thrown when `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The data is still in the store, and the session stays open, so you can try again.
 
 <a id="core-core-session-setsecret"></a>
 #### `Core\Session::setSecret`

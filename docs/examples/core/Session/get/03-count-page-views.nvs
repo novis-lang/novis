@@ -1,0 +1,13 @@
+<?nvs
+// Shows a counter of how many pages a visitor has opened in this session.
+
+Core\Session::start();
+
+// On the first page there is no saved count, so `get()` returns `null`
+// and the count starts at 0. `as ?int` converts the saved value to a whole number.
+int $views = Core\Session::get("views") as ?int ?? 0;
+$views = $views + 1;
+Core\Session::set("views", $views);
+
+// This is the visitor's first request, so it prints `1`.
+echo "pages opened: ", $views, "\n";

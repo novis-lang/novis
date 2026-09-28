@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request reads its session with strange keys, and reads a large value
+// many times. Every read must free its memory, and nothing may crash.
+// hostile: timeout-ms 60000
+
+// 1. The request reads a session it never started. This throws a `RuntimeError`.
+try {
+    echo Core\Session::get('user') ?? '(none)', "\n";
+} catch (RuntimeError $e) {
+    echo "not started: RuntimeError\n";
+}
+
+Core\Session::start();
+
+// 2. The request reads with an empty key, a key of 1 MB and a key with a zero byte.
+// Nothing was saved under them, so each read returns `null`.
+string $long = Core\Str::repeat('k', 1048576);
+echo 'empty key: ', Core\Session::get('') ?? '(none)', "\n";
+echo 'long key: ', Core\Session::get($long) ?? '(none)', "\n";
+echo 'zero byte: ', Core\Session::get("user\0admin") ?? '(none)', "\n";
+
+// 3. The request saves one value of 1 MB and reads it 500 times.
+Core\Session::set('big', Core\Str::repeat('x', 1048576));
+uint $length = 0;
+uint $i = 0;
+while ($i < 500) {
+    string $read = Core\Session::get('big') as ?string ?? '';
+    $length = Core\Str::length($read);
+    $i = $i + 1;
+}
+echo 'big value length: ', $length, "\n";
+
+// 4. The request saves 500 keys and reads each one, and a missing one, 100 times.
+uint $key = 0;
+while ($key < 500) {
+    Core\Session::set('item-' . $key, $key);
+    $key = $key + 1;
+}
+uint $found = 0;
+uint $round = 0;
+while ($round < 100) {
+    uint $k = 0;
+    while ($k < 501) {
+        if (Core\Session::get('item-' . $k) != null) {
+            $found = $found + 1;
+        }
+        $k = $k + 1;
+    }
+    $round = $round + 1;
+}
+echo 'keys found: ', $found, "\n";

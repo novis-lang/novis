@@ -1,0 +1,22 @@
+<?nvs
+// Reads one value from a session that has three, as a page does to show who is signed in.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $keys = ["user", "language", "cart"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + (Core\Session::get($keys[$total % 3]) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::start();
+Core\Session::set("user", 17);
+Core\Session::set("language", 2);
+Core\Session::set("cart", 5);
+echo Bench::run(100000), "\n";
