@@ -18018,13 +18018,13 @@ Keywords: onShutdown
 Core\Signal::onShutdown(callable(): mixed $handler): void
 ```
 
-Registers the closure this request runs when the process is asked to stop — a terminating signal, or an operator's graceful shutdown. It runs as ordinary code between two statements, once, while `Core\Server::isDraining()` already answers `true`.
+Registers a function that runs when the process is asked to stop, for example by Ctrl-C, `SIGTERM` or an operator who stops the server. The function runs once, between two statements. At that time `Core\Server::isDraining()` already returns `true`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$handler` | `callable(): mixed` | What to run. It is handed nothing and answers nothing: which signal arrived is not a question this class answers, because every terminating signal means the same thing to a program that may only shut down gracefully. A handler that throws, or that exhausts what the request has left, is abandoned where it stands. |
+| `$handler` | `callable(): mixed` | The function to run. It gets no arguments and returns nothing. Every stop signal has the same effect, so the function cannot tell which one arrived. If it throws an error or reaches the request's memory limit, the rest of it does not run. |
 
-**Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it. It does not stop the shutdown or delay it — the drain has already begun by the time the handler runs.
+**Returns** `void` — Nothing. Each request has its own function, and a second call replaces the first. The function is deleted when the request ends, and other requests cannot see it. It cannot stop the shutdown or delay it.
 
 <a id="core-core-budget"></a>
 ### `Core\Budget`

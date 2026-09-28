@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program registers many large shutdown functions, and functions that
+// register other functions. Nothing may crash, and no replaced function may leak.
+// hostile: timeout-ms 30000
+
+// 1. The program registers 2000 functions. Each one contains 1 MB of text. Each call
+// replaces the one before, so the old text must be freed.
+uint $i = 0;
+while ($i < 2000) {
+    string $big = Core\Str::repeat('x', 1000000);
+    Core\Signal::onShutdown(fn (): void => {
+        echo Core\Str::length($big), "\n";
+    });
+    $i = $i + 1;
+}
+echo "after 2000 large functions\n";
+
+// 2. A function registers a new function each time it is called. The program calls it 10000 times.
+var $again = fn (): void => {
+    Core\Signal::onShutdown(fn (): void => {
+        echo "inner\n";
+    });
+};
+uint $j = 0;
+while ($j < 10000) {
+    Core\Signal::onShutdown($again);
+    $again();
+    $j = $j + 1;
+}
+echo "after 10000 nested registrations\n";
+
+// 3. The program registers a function that throws, and calls it itself. The error is caught.
+var $throws = fn (): void => {
+    throw new RuntimeError('failed during shutdown');
+};
+Core\Signal::onShutdown($throws);
+try {
+    $throws();
+} catch (RuntimeError $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 4. The same function is registered 100000 times in a row. It must be kept once, and freed once.
+var $same = fn (): void => {
+    echo "same\n";
+};
+uint $k = 0;
+while ($k < 100000) {
+    Core\Signal::onShutdown($same);
+    $k = $k + 1;
+}
+$same();

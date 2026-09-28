@@ -64,17 +64,24 @@
 
 use nvs_runtime::{Fault, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = "Core\\Signal";
 
+/// `Core\Signal`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Runs a function of your program when the process is asked to stop, so the program can \
+            finish its work cleanly. `Core\\Server::isDraining()` tells whether a shutdown has \
+            started.",
+};
+
 /// `Core\Signal`'s registry rows — one member, and the module docs above own
 /// why the rest of `pcntl` is not beside it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "onShutdown",
         names: &["handler"],
@@ -91,22 +98,20 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Signal::onShutdown`'s reference card — `rule:core-api/reference-card`.
 const ON_SHUTDOWN_DOC: MethodDoc = MethodDoc {
-    short: "Registers the closure this request runs when the process is asked to stop — a \
-            terminating signal, or an operator's graceful shutdown. It runs as ordinary code \
-            between two statements, once, while `Core\\Server::isDraining()` already answers \
+    short: "Registers a function that runs when the process is asked to stop, for example by \
+            Ctrl-C, `SIGTERM` or an operator who stops the server. The function runs once, \
+            between two statements. At that time `Core\\Server::isDraining()` already returns \
             `true`.",
     params: &[ParamDoc {
         name: "handler",
-        desc: "What to run. It is handed nothing and answers nothing: which signal arrived is not \
-               a question this class answers, because every terminating signal means the same \
-               thing to a program that may only shut down gracefully. A handler that throws, or \
-               that exhausts what the request has left, is abandoned where it stands.",
+        desc: "The function to run. It gets no arguments and returns nothing. Every stop signal \
+               has the same effect, so the function cannot tell which one arrived. If it throws an \
+               error or reaches the request's memory limit, the rest of it does not run.",
         shape: &[],
     }],
-    ret: "Nothing. Registering is request-local and a second call replaces the first: the handler \
-          is gone when the request ends, and no other request on this core can see it. It does not \
-          stop the shutdown or delay it — the drain has already begun by the time the handler \
-          runs.",
+    ret: "Nothing. Each request has its own function, and a second call replaces the first. The \
+          function is deleted when the request ends, and other requests cannot see it. It cannot \
+          stop the shutdown or delay it.",
     errors: &[],
 };
 
@@ -288,6 +293,7 @@ mod tests {
         reason = "`nvs_safepoint`'s pointer contract is discharged by the \
                   borrow, which is live for the whole call"
     )]
+    // covers: Core\Signal::onShutdown
     #[test]
     fn a_handler_runs_as_ordinary_novis_code_at_a_safepoint_and_never_in_a_signal_context() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -330,6 +336,7 @@ mod tests {
         reason = "`nvs_safepoint`'s pointer contract is discharged by the \
                   borrow, which is live for the whole call"
     )]
+    // covers: Core\Signal::onShutdown
     #[test]
     fn a_handler_enters_the_existing_drain_rather_than_a_second_state_machine() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -362,6 +369,7 @@ mod tests {
     /// take. A constant would be the same addition written as data, which is why
     /// the class's constant list is asserted empty rather than left to the
     /// member check.
+    // covers: Core\Signal::onShutdown
     #[test]
     fn there_is_no_kill_no_alarm_and_no_signal_number_as_an_integer() {
         let names: Vec<&str> = CLASS.methods.iter().map(|method| method.name).collect();
