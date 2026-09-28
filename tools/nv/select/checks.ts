@@ -7,7 +7,7 @@
 // | a fixture (`exact`, `ordered`, `contains`, `min-bytes`) | `check:<id>` | `nvs run`, recorded |
 // | `nvs-suite`, `nvs test <tree>` | the cases under the tree it names (`case:`) | the picked cases, through `nvs test --cases` |
 // | `cargo-named`, `cargo test -p <crate>` narrowed to a target, or `--workspace` | the test binaries it names (`test:`) | each picked binary, whole |
-// | `bun nv proofs --verify` or `--run` over groups | `nv:<id>` and the proof programs of its groups (`proof:`) | the command, which runs only its picked programs |
+// | `bun nv proofs --verify` or `--run` over groups, or over features (`--only`) | `nv:<id>` and the proof programs of its groups or features (`proof:`), as the last run over each recorded them | the command, which runs only its picked programs |
 // | `bun nv selftest` | `step:nv`, `tsc` over the tools, and every tools test file (`nvtest:`) | `tsc` and each picked test file |
 // | `bun test <file>` of the tools | `nvtest:<file>` | that file |
 // | any other `bun nv` command | `nv:<id>` | the command, its reads recorded |
@@ -50,7 +50,7 @@ import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { caseFiles, caseId, nvTestFiles, nvTestId, proofFiles, proofId } from "./atoms.ts";
 import { fileWild, PLATFORM_ONLY, PROFILE_ONLY, spawnKeys, WILD } from "./keys.ts";
-import { type Keyed, proofReadsSlot, type SelectStore } from "./store.ts";
+import { featureGroup, type Keyed, proofReadsSlot, type SelectStore } from "./store.ts";
 
 /** How the sweep runs a check. */
 export type How = "fixture" | "cases" | "tests" | "proofs" | "selftest" | "nvtest" | "nv" | "command" | "heavy";
@@ -72,8 +72,10 @@ export interface Grouped {
   tests?: string[];
   /** `proofs`: its groups. */
   groups?: string[];
-  /** `proofs`: a group `nv proofs` has never recorded, or a new program no group's directory holds, so
-   * which programs it runs is not known yet. */
+  /** `proofs` over named features (`--only`): the features. */
+  features?: string[];
+  /** `proofs`: a group or feature `nv proofs` has never recorded, or a new program no recorded directory
+   * holds, so which programs it runs is not known yet. */
   unknown?: boolean;
   /** `nvtest`: the file. */
   file?: string;
@@ -190,12 +192,14 @@ export function grouped(c: Check, ctx: PlanContext): Grouped {
   const cwd = c.cwd ?? ".";
   if (argv[0] === "bun" && argv[1] === "nv" && cwd === ".") {
     const groups = proofGroups(c) ?? runGroups(c);
-    if (groups !== null) {
-      const dirs = groups.map((g) => ctx.groupDirs.get(g));
+    const features = groups === null ? onlyFeatures(c) : null;
+    if (groups !== null || features !== null) {
+      const dirs = groups !== null ? groups.map((g) => ctx.groupDirs.get(g)) : features!.map((f) => ctx.groupDirs.get(featureGroup(f)));
       const known = dirs.flatMap((d) => d ?? []);
       const programs = ctx.proofs.filter((p) => known.some((d) => p.startsWith(`${d}/`)));
       const o = own("nv");
-      return { how: "proofs", atoms: [o.id, ...programs.map(proofId)], own: o, groups, unknown: ctx.homeless === true || dirs.some((d) => d === undefined) };
+      const unknown = ctx.homeless === true || dirs.some((d) => d === undefined);
+      return { how: "proofs", atoms: [o.id, ...programs.map(proofId)], own: o, ...(groups !== null ? { groups } : { features: features! }), unknown };
     }
     if (argv.length === 3 && argv[2] === "selftest") return { how: "selftest", atoms: ["step:nv", ...ctx.nvTests.map(nvTestId)] };
     return single("nv", "nv");
@@ -205,6 +209,15 @@ export function grouped(c: Check, ctx: PlanContext): Grouped {
     return { how: "nvtest", atoms: [nvTestId(file)], file };
   }
   return single("command", "check");
+}
+
+/** The features a `bun nv proofs --verify --only ...` or `--run --only ...` check runs the programs of;
+ * null for any other check. */
+function onlyFeatures(c: Check): string[] | null {
+  const argv = c.argv ?? [];
+  if (c.kind !== "command" || argv.slice(0, 3).join(" ") !== "bun nv proofs" || (argv[3] !== "--verify" && argv[3] !== "--run") || argv[4] !== "--only") return null;
+  const ids = argv.slice(5);
+  return ids.length > 0 && ids.every((a) => !a.startsWith("-")) ? ids : null;
 }
 
 /** The groups a `bun nv proofs --run --group ...` check runs whole; null for any other check. */
@@ -511,7 +524,7 @@ export function describeGroup(c: Check, g: Grouped, graph: Graph | null, root: s
     case "tests":
       return [`${head} the test binaries ${(g.tests ?? []).join(", ")}, which nv verify runs too -- ${g.atoms.length} atom(s)`];
     case "proofs":
-      return [`${head} its own atom ${own}, keyed on what the command was seen to read, and the proof programs of ${(g.groups ?? []).join(", ")} -- ${g.atoms.length - 1} program(s)${g.unknown ? "; a group has never run, so it runs whole once" : ""}`];
+      return [`${head} its own atom ${own}, keyed on what the command was seen to read, and the proof programs of ${(g.groups ?? g.features ?? []).join(", ")} -- ${g.atoms.length - 1} program(s)${g.unknown ? "; a group or feature has never run, so it runs whole once" : ""}`];
     case "selftest":
       return [`${head} tsc (step:nv) and every tools test file, which nv verify runs too -- ${g.atoms.length} atom(s)`];
     case "nvtest":

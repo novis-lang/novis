@@ -49,6 +49,7 @@ import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, noteRoster, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { bless, namedBinary, type Pass, PROOF_BINARY, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
+import { featureGroup } from "../select/store.ts";
 import { type Diverged, runSelected } from "../proofs/select.ts";
 
 export const summary =
@@ -535,9 +536,12 @@ export async function run(args: string[]): Promise<number> {
     } else {
       scopes = [{ label, entries: scope }];
     }
-    // A narrowed group reads less than the whole of it, so only a whole group's paths are recorded.
+    // A narrowed group reads less than the whole of it, so a run over whole groups records each group's
+    // paths, and a run over named features each feature's own.
     if (fid === undefined && only === null) {
       saveReads(scopes.filter((s) => s.label !== null && groups.includes(s.label)).map((s) => [s.label!, groupReads(s.entries)]));
+    } else if (fid === undefined) {
+      saveReads(scope.map((e) => [featureGroup(e.id), groupReads([e])]));
     }
     return flush(await runScopes(out, bin!, scopes, flags.has("--verify"), flags, proofs, policy, skips, parted));
   }

@@ -18,8 +18,9 @@
 // counters go to `DISCARD_PROFILE`, never into the working directory.
 //
 // A run over whole groups records each group's example and attack directories and bench file in the
-// selection store (`proofReadsSlot`), which is how `select/checks.ts` knows which proof programs a
-// `bun nv proofs --group <group>` check is made of.
+// selection store (`proofReadsSlot`), and a run over named features each feature's (`featureGroup`),
+// which is how `select/checks.ts` knows which proof programs a `bun nv proofs --group <group>` or
+// `--only <feature>...` check is made of.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";

@@ -534,6 +534,10 @@ const divergedSlot = (platform: string, id: string) => `diverged:${platform}:${i
  * file, which a `proofs: <group>` unit keys on. */
 export const proofReadsSlot = (group: string) => `proof-reads:${group}`;
 
+/** The group name one feature's own paths are kept under, beside the groups': what a `bun nv proofs
+ * --only <feature>...` run records, and a check of that shape is made of. */
+export const featureGroup = (id: string) => `feature:${id}`;
+
 /** Sorted key numbers as a blob: each gap from the one before as an unsigned LEB128 varint. */
 export function pack(sorted: number[]): Uint8Array {
   const out: number[] = [];

@@ -6,7 +6,7 @@ import { describe, expect, test } from "bun:test";
 import type { Check } from "../driver/accept.ts";
 import type { Graph, Package } from "../keys/graph.ts";
 import { checkDef, commandKeys, grouped, harnessArgs, heavyCrates, heavyKeys, heavyTwin, legAtoms, type PlanContext, planContext, predicted, twinWork } from "../select/checks.ts";
-import { proofReadsSlot, SelectStore } from "../select/store.ts";
+import { featureGroup, proofReadsSlot, SelectStore } from "../select/store.ts";
 import { scratch } from "./scratch.ts";
 
 const pkg = (name: string, dir: string, deps: [string, "normal" | "dev"][] = [], targets = [{ kind: "lib", name: name.replace(/-/g, "_"), src: `${dir}/src/lib.rs`, test: true }]): [string, Package] => [name, { name, dir, deps: new Map(deps), targets }];
@@ -55,6 +55,14 @@ describe("a check as atoms", () => {
     const g = grouped(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Str"] }), ctx);
     expect(g).toMatchObject({ how: "proofs", atoms: ["nv:c", "proof:docs/examples/core/Str/length/01-basics.nvs", "proof:tests/hostile/core/Str/length/01-x.nvs"], unknown: false });
     expect(grouped(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Arr"] }), ctx)).toMatchObject({ how: "proofs", atoms: ["nv:c"], unknown: true });
+  });
+
+  test("a proofs check over named features is the programs of each, so an owed one reaches it", () => {
+    const named = { ...ctx, groupDirs: new Map([[featureGroup("Core\\Str::length"), ["docs/examples/core/Str/length", "tests/hostile/core/Str/length"]]]) };
+    const c = check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "Core\\Str::length"] });
+    expect(grouped(c, named)).toMatchObject({ how: "proofs", atoms: ["nv:c", "proof:docs/examples/core/Str/length/01-basics.nvs", "proof:tests/hostile/core/Str/length/01-x.nvs"], features: ["Core\\Str::length"], unknown: false });
+    expect(grouped(check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "Core\\Arr::map"] }), named)).toMatchObject({ how: "proofs", atoms: ["nv:c"], unknown: true });
+    expect(grouped(check({ argv: ["bun", "nv", "proofs", "--only", "Core\\Str::length", "--gate"] }), named).how).toBe("nv");
   });
 
   test("a proofs check's programs are read from disk: a new one in a group's directory is its atom, and one in no group's directory makes every group unknown", () => {
