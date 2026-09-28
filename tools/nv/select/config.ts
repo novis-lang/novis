@@ -1,7 +1,7 @@
 // The keys an edit of the repository's own `nvs.toml` moves.
 //
-// Every program run from the repository root reads that file, and dossier goals add an `[[app]]` block to
-// it for nearly every example they write. A program therefore records it by part (`nvs_footprint`'s
+// Every program run from the repository root reads that file, and feature-proof goals add an `[[app]]`
+// block to it for nearly every example they write. A program therefore records it by part (`nvs_footprint`'s
 // `config` and `app` lines): `config:nvs.toml` for the global tables, and `app:<path>` for its entry file
 // and each directory above it, the paths a block that applies to it can be keyed on. An edit moves
 // `config:nvs.toml` when anything outside the `[[app]]` blocks changed, and `app:<path>` with `app:*` for
