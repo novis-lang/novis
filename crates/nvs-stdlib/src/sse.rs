@@ -420,6 +420,13 @@ pub(crate) const MESSAGE_NAME: &str = r"Core\Sse\Message";
 const MESSAGE_TOPIC: usize = 0;
 const MESSAGE_VALUE: usize = 1;
 
+/// `Core\Sse\Message`'s class card — `rule:core-api/reference-card`.
+const MESSAGE_CARD: ClassDoc = ClassDoc {
+    short: "One value that arrived on an event stream's script, returned by `Core\\Sse->receive`. \
+            `topic` returns the name of the topic it was published to, and `value` returns what \
+            was published.",
+};
+
 /// `rule:concurrency/a-connection-is-a-loop`'s message for the door that has no
 /// peer: what a publisher put on a topic this stream subscribed to.
 ///
@@ -449,7 +456,7 @@ const MESSAGE_VALUE: usize = 1;
 /// does.
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
-    doc: None,
+    doc: Some(&MESSAGE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1110,6 +1117,7 @@ mod tests {
     ///
     /// One claim and not three, because a member that declared the media type
     /// and wrote its events somewhere else would pass any of them alone.
+    // covers: Core\Sse::stream, Core\Sse::send
     #[test]
     fn an_event_stream_declares_its_head_and_its_events_reach_the_connections_half() {
         let slot = offered_cell();
@@ -1294,6 +1302,7 @@ mod tests {
     /// context directly, because what is claimed is that the *bus* reaches a
     /// door it was written before: § 4's table holds a handle onto the queue,
     /// and a stream that subscribed is an entry in it like any connection.
+    // covers: Core\Sse\Message::topic, Core\Sse\Message::value
     #[test]
     fn a_published_value_reaches_a_subscribed_event_stream_as_a_message() {
         let slot = offered_cell();
@@ -1333,6 +1342,75 @@ mod tests {
         assert_eq!(carried.as_text(), Some("the board changed"));
 
         for value in [topic, published, message, name, carried, handle] {
+            dropped(value);
+        }
+    }
+
+    /// Two subscriptions on one stream, each message naming the topic it
+    /// arrived on in the order the values were published, and a value that is
+    /// not a `string` arriving as the value it was rather than as text.
+    // covers: Core\Sse\Message::topic, Core\Sse\Message::value
+    #[test]
+    fn each_message_names_its_own_topic_and_carries_a_value_that_is_not_text() {
+        let slot = offered_cell();
+        let mut stream = upgraded(&slot);
+        let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
+            .expect("an event stream's isolate answers `current()`");
+
+        let prices = Value::str(NvsStr::new(b"prices"));
+        let orders = Value::str(NvsStr::new(b"orders"));
+        for topic in [prices, orders] {
+            nvs_runtime::call(
+                crate::topic::nvs_core_topic_subscribe,
+                &mut stream,
+                &[topic],
+            )
+            .expect("an event stream's isolate may subscribe");
+        }
+
+        let mut publisher = Ctx::buffered();
+        let price = Value::int(1842);
+        let order = Value::str(NvsStr::new(b"order 1042"));
+        for (topic, value) in [(orders, order), (prices, price)] {
+            nvs_runtime::call(
+                crate::topic::nvs_core_topic_publish,
+                &mut publisher,
+                &[topic, value],
+            )
+            .expect("a publish answers how many it reached");
+        }
+
+        let mut received = Vec::new();
+        for (want_topic, want_value) in [("orders", "order 1042"), ("prices", "")] {
+            let message = nvs_runtime::call(super::nvs_core_sse_receive, &mut stream, &[handle])
+                .expect("a queued delivery is answered without waiting for anything");
+            let name =
+                nvs_runtime::call(super::nvs_core_sse_message_topic, &mut stream, &[message])
+                    .expect("a message names its topic");
+            assert_eq!(
+                name.as_text(),
+                Some(want_topic),
+                "a message named the wrong topic"
+            );
+            let carried =
+                nvs_runtime::call(super::nvs_core_sse_message_value, &mut stream, &[message])
+                    .expect("a message carries the value");
+            if want_value.is_empty() {
+                assert_eq!(
+                    carried.as_int(),
+                    Some(1842),
+                    "an `int` did not arrive as one"
+                );
+            } else {
+                assert_eq!(carried.as_text(), Some(want_value));
+            }
+            received.extend([message, name, carried]);
+        }
+
+        for value in received
+            .into_iter()
+            .chain([prices, orders, price, order, handle])
+        {
             dropped(value);
         }
     }

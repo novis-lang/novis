@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check a value before the program uses it as a number.
+
+// The `.nvse` file beside this example publishes `5` and then `many` on `queue`.
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe("queue");
+
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    // `as ?int` converts the value to a whole number. For `many` that is not
+    // possible, so the result is `null`. This prints `5 jobs` and then `not a number`.
+    ?int $waiting = $message->value() as ?int;
+    if ($waiting == null) {
+        echo "not a number\n";
+    } else {
+        echo $waiting, " jobs\n";
+    }
+    $message = $sse->receive();
+}

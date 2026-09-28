@@ -1,0 +1,27 @@
+<?nvs
+// Reads the value of a message, as a stream does before it sends the value to its client.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(Core\Sse $sse, uint $rounds): uint {
+        Core\Topic::subscribe("prices");
+        Core\Topic::publish("prices", 1);
+        Core\Topic::publish("prices", 2);
+        array<Core\Sse\Message> $messages = [];
+        ?Core\Sse\Message $message = $sse->receive();
+        while ($message != null) {
+            $messages[] = $message;
+            $message = $sse->receive();
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the next message depends on this one
+            $total = $total + ($messages[$total % 2]->value() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(Core\Sse::current(), 200000), "\n";

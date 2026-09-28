@@ -1,0 +1,6 @@
+event: notification
+data: Your invoice is ready
+
+event: announcement
+data: The site is down for maintenance at 22:00
+

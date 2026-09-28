@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a stream subscribes to very many topics, with very long and unusual names,
+// and reads the name of every message. Each step should work or throw an error, and nothing should crash.
+
+Core\Sse $sse = Core\Sse::current();
+
+// 1. A topic name of one million characters, a name with a line break, an empty name
+// and a name with letters outside English.
+array<string> $names = [Core\Str::repeat('t', 1000000), "a\nb", '', 'Größe:日本'];
+foreach ($names as string $name) {
+    try {
+        Core\Topic::subscribe($name);
+        Core\Topic::publish($name, 'x');
+        ?Core\Sse\Message $one = $sse->receive();
+        echo 'step 1: ', Core\Str::length($one?->topic() ?? ''), ' characters', "\n";
+    } catch (Throwable $e) {
+        echo 'step 1: refused', "\n";
+    }
+}
+
+// 2. Ten thousand topics. One value is published on each and read at once,
+// and the length of every topic name is added up.
+uint $length = 0;
+int $count = 0;
+int $n = 0;
+while ($n < 10000) {
+    try {
+        Core\Topic::subscribe('room:' . $n);
+        Core\Topic::publish('room:' . $n, $n);
+        ?Core\Sse\Message $message = $sse->receive();
+        if ($message != null) {
+            $length = $length + Core\Str::length($message->topic());
+            $count = $count + 1;
+        }
+    } catch (Throwable $e) {
+        echo 'step 2: refused at ', $n, "\n";
+        $n = 10000;
+    }
+    $n = $n + 1;
+}
+echo 'step 2: ', $count, ' messages, ', $length, ' characters', "\n";

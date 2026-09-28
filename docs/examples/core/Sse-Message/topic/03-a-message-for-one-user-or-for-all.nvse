@@ -1,0 +1,4 @@
+# A message for this user, one for everybody, and one for another user.
+publish: user:42 Your invoice is ready
+publish: everybody The site is down for maintenance at 22:00
+publish: user:7 Your password was changed

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the name of the topic a message was published to.
+
+// The `.nvse` file beside this example publishes two values on `orders`.
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe("orders");
+
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    // `topic()` returns the topic's name. This prints `orders` two times.
+    echo $message->topic(), "\n";
+    $message = $sse->receive();
+}

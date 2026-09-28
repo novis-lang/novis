@@ -1,28 +1,30 @@
 {
-  "state": "Goal `core-sse-and-2-more`. `Core\\Sse::current`, `Core\\Sse::retry` and now `Core\\Sse::receive` have all\ntheir feature proofs on disk under `docs/examples/core/Sse/`, `tests/hostile/core/Sse/`,\n`benches/members/core/Sse/` and a Rust `covers:` test in `crates/nvs-stdlib/src/sse.rs`. `nvs run\n--events <file>` runs a program as the isolate `Core\\Sse::upgrade` opens (`crates/nvs-cli/src/events.rs`\nis the format), and a `<name>.nvse` beside a proof is handed over as `--events` by `bun nv proofs`\n(`docs/examples/README.md` § *Values published to an event stream*). `Core\\Sse::receive` now returns\n`null` once the stream is closed, after anything already queued. `receive` and `retry` have fresh perf\nrecords. `Core\\Sse::send`, `Core\\Sse\\Message` and `Core\\Storage` are what the goal still owes.",
+  "state": "Goal `core-sse-and-2-more`. `Core\\Sse::current`, `retry`, `receive` and `send`, and both `Core\\Sse\\Message`\nmembers (`topic`, `value`), now have all their feature proofs on disk: examples under\n`docs/examples/core/Sse/` and `docs/examples/core/Sse-Message/`, attacks under `tests/hostile/core/Sse*/`,\nbenches under `benches/members/core/Sse*/` with fresh perf records, and `covers:` Rust tests in\n`crates/nvs-stdlib/src/sse.rs`. `Core\\Sse\\Message` has its class card. A proof that needs a connection\nisolate takes a `<name>.nvse` beside it (`docs/examples/README.md` § *Values published to an event stream*).\n`Core\\Sse::stream` and `Core\\Sse::upgrade` still owe examples, attack and bench (`stream` has its Rust\n`covers:` test; `upgrade` owes a third test case), and `Core\\Storage` owes everything but its Rust tests\nand a card. The rendered rules page is current again, and a hostile verdict now quotes the stderr line\nthat carried the crash marker (`tools/nv/proofs/run.ts`), because the one `Core\\Serialize` attack failure\nthe last sweep saw did not reproduce in three uncached runs.",
   "next": {
     "stage": 2,
-    "title": "the rest of `Core\\Sse` and `Core\\Sse\\Message`",
+    "title": "the rest of `Core\\Sse`",
     "files": [
       "crates/nvs-stdlib/src/sse.rs",
       "docs/examples/core/Sse/",
-      "docs/examples/core/Sse-Message/",
-      "tests/hostile/core/Sse*/",
-      "benches/members/core/Sse*/"
+      "tests/hostile/core/Sse/",
+      "benches/members/core/Sse/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Sse::send` proofs** — `rule:testing/feature-proofs`: examples, attack, bench and a Novis case; the member is `crates/nvs-stdlib/src/sse.rs:694` and its card `crates/nvs-stdlib/src/sse.rs:359`. `Core\\Sse::stream()` in a plain run prints the events, so most need no `.nvse`."
+        "text": "**`Core\\Sse::stream` proofs** — `rule:testing/feature-proofs`: `about.md`, three examples, one attack, one bench; the member is `crates/nvs-stdlib/src/sse.rs:597` and its card `crates/nvs-stdlib/src/sse.rs:306`. A plain run prints the stream's events to standard output, so no `.nvse` is needed; the status refusal is one example (`Core\\Response::setStatus` first)."
       },
       {
         "done": false,
-        "text": "**`Core\\Sse\\Message` class card, then `topic` and `value` proofs** — `rule:core-api/reference-card`: a `ClassDoc` above `crates/nvs-stdlib/src/sse.rs:450` and `Core\\Sse\\Message` struck from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`; the examples run under a `.nvse` file."
+        "text": "**`Core\\Sse::upgrade` proofs** — `rule:testing/feature-proofs`: the member is `crates/nvs-stdlib/src/sse.rs:535` and its card `crates/nvs-stdlib/src/sse.rs:264`. Off a server it throws `RuntimeError`, so an example can show that refusal. Check what `bun nv proofs --id 'Core\\Sse::upgrade'` says the third test case needs before writing it."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Storage` class card, then `get`, `delete` and `list` proofs** — `rule:core-api/reference-card`: a `ClassDoc` for `crates/nvs-stdlib/src/storage.rs:168` (its `doc: None` is at `crates/nvs-stdlib/src/storage.rs:170`), and drop `Core\\Storage` from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs:5283`. Members at `crates/nvs-stdlib/src/storage.rs:514`, `:534`, `:552`. This is a new file set, so it starts a session of its own."
       }
     ]
   },
   "backlog": [
-    "`Core\\Storage::get`, `delete` and `list` owe every proof and `Core\\Storage` its class card — `crates/nvs-stdlib/src/storage.rs:168`, a stage of its own after `Core\\Sse\\Message`.",
-    "`bun nv peek --locate a b` prints nothing but the misses when one name is not found, and exits 1 — `tools/nv/cmd/peek.ts`."
+    "The `Core\\Serialize` attack `tests/hostile/core/Serialize/encode/01-deep-chains-loops-and-hidden-closures.nvs` failed once in the driver's sweep with `stderr carries \"RUST_BACKTRACE\"` and no `panicked at`; if it shows again, the verdict now quotes the line — read it before touching the case (`tools/nv/proofs/run.ts`)."
   ]
 }

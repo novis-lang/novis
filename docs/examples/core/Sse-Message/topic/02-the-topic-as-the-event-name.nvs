@@ -1,0 +1,14 @@
+<?nvs
+// Shows one stream that listens to two topics and uses each topic as the event name.
+
+// The `.nvse` file beside this example publishes on `prices` and on `news`.
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe("prices");
+Core\Topic::subscribe("news");
+
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    // The browser can add one listener for `prices` and another one for `news`.
+    $sse->send($message->value() as string, event: $message->topic());
+    $message = $sse->receive();
+}

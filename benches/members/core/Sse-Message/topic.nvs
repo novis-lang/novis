@@ -1,0 +1,32 @@
+<?nvs
+// Reads the topic name of a message, as a stream does to decide which event to send.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(Core\Sse $sse, uint $rounds): uint {
+        Core\Topic::subscribe("prices");
+        Core\Topic::subscribe("alerts");
+        Core\Topic::publish("prices", 1);
+        Core\Topic::publish("alerts", 2);
+        array<Core\Sse\Message> $messages = [];
+        ?Core\Sse\Message $message = $sse->receive();
+        while ($message != null) {
+            $messages[] = $message;
+            $message = $sse->receive();
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the next message depends on this one
+            if ($messages[$total % 2]->topic() == "prices") {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(Core\Sse::current(), 200000), "\n";

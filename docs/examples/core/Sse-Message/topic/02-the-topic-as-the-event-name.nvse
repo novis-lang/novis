@@ -1,0 +1,3 @@
+# One value on each of the two topics the program subscribes to.
+publish: prices ACME 18.42
+publish: news The market opens at nine
