@@ -1,0 +1,24 @@
+<?nvs
+// Shows how two doubles of one interface test both results of a payment.
+
+interface Payments {
+    public function charge(int $cents): bool;
+}
+
+class Checkout {
+    public static function pay(Payments $payments, int $cents): string {
+        return $payments->charge($cents) ? "paid" : "declined";
+    }
+}
+
+// One double accepts every charge, and the other declines every charge.
+Payments $accepting = Core\Test::double<Payments>({
+    charge: fn(int $cents): bool => true,
+});
+Payments $declining = Core\Test::double<Payments>({
+    charge: fn(int $cents): bool => false,
+});
+
+// This prints `paid` and then `declined`.
+echo Checkout::pay($accepting, 1500), "\n";
+echo Checkout::pay($declining, 1500), "\n";

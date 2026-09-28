@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to test a report without a database, with a double of the order store.
+
+interface Orders {
+    public function countFor(string $customer): int;
+    public function totalFor(string $customer): int;
+}
+
+class Report {
+    public static function line(Orders $orders, string $customer): string {
+        int $count = $orders->countFor($customer);
+        if ($count == 0) {
+            return $customer . ": no orders";
+        }
+        return $customer . ": " . $count . " orders, " . $orders->totalFor($customer) . " cents";
+    }
+}
+
+// The closures use their argument, so each customer gets different numbers.
+Orders $orders = Core\Test::double<Orders>({
+    countFor: fn(string $customer): int => $customer == "ada" ? 3 : 0,
+    totalFor: fn(string $customer): int => $customer == "ada" ? 4200 : 0,
+});
+
+// This prints `ada: 3 orders, 4200 cents` and `bob: no orders`.
+echo Report::line($orders, "ada"), "\n";
+echo Report::line($orders, "bob"), "\n";
+
+// The report asked for the total once, only for the customer with orders.
+Core\Test::assertCalled($orders, Orders::totalFor, {times: 1, with: ["ada"]});
+echo "the total was read once\n";

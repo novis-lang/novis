@@ -1,0 +1,91 @@
+<?nvs
+// Attack: a program builds very many doubles, calls one double very often, and makes
+// a double call itself very deeply. Each step should work or throw an error, and the
+// program should not crash.
+
+interface Counter
+{
+    public function down(int $n): int;
+}
+
+interface Source
+{
+    public function text(): string;
+    public function fail(): int;
+}
+
+final class Holder
+{
+    public ?Counter $counter = null;
+
+    public static function down(): int
+    {
+        throw new RuntimeError('the source is down');
+    }
+}
+
+// Step 1: one hundred thousand doubles are built, and each one is called once.
+uint $built = 0;
+int $sum = 0;
+while ($built < 100000) {
+    Counter $one = Core\Test::double<Counter>({
+        down: fn(int $n): int => $n,
+    });
+    $sum = $sum + $one->down(1);
+    $built = $built + 1;
+}
+echo $sum, "\n";
+
+// Step 2: one double is called two hundred thousand times. It keeps a list of every call.
+Counter $busy = Core\Test::double<Counter>({
+    down: fn(int $n): int => $n + 1,
+});
+uint $calls = 0;
+while ($calls < 200000) {
+    $busy->down($calls as int);
+    $calls = $calls + 1;
+}
+Core\Test::assertCalled($busy, Counter::down, { times: 200000 });
+echo "200000 calls\n";
+
+// Step 3: a closure returns a text of sixteen megabytes, one hundred times.
+Source $source = Core\Test::double<Source>({
+    text: fn(): string => Core\Str::repeat('x', 16777216),
+    fail: fn(): int => Holder::down(),
+});
+uint $read = 0;
+uint $length = 0;
+while ($read < 100) {
+    $length = Core\Str::length($source->text());
+    $read = $read + 1;
+}
+echo $length, "\n";
+
+// Step 4: a closure throws an error. The caller of the method catches it.
+try {
+    $source->fail();
+    echo "no error\n";
+} catch (RuntimeError $error) {
+    echo 'caught: ', $error->message, "\n";
+}
+
+// Step 5: a double is compared with itself, with another double, and tested against
+// an interface it does not have.
+object $first = $busy;
+object $second = Core\Test::double<Counter>({
+    down: fn(int $n): int => $n + 1,
+});
+echo $first == $first ? 'same' : 'different', "\n";
+echo $first == $second ? 'same' : 'different', "\n";
+echo $first is Source ? 'a Source' : 'not a Source', "\n";
+
+// Step 6: the closure calls the same double again, one hundred thousand levels deep.
+Holder $holder = new Holder();
+$holder->counter = Core\Test::double<Counter>({
+    down: fn(int $n): int => $n == 0 ? 0 : ($holder->counter?->down($n - 1) ?? 0) + 1,
+});
+try {
+    echo $holder->counter?->down(100000) ?? -1, "\n";
+} catch (Throwable $tooDeep) {
+    echo "too deep\n";
+}
