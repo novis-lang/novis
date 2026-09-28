@@ -19930,18 +19930,18 @@ Keywords: put, get, delete, list
 Core\Storage::put(string $disk, string $key, bytes $contents, {overwrite?: bool}): void
 ```
 
-Writes `$contents` as the object `$key` on `$disk`, replacing whatever was there unless `overwrite` says not to.
+Saves `$contents` as the file `$key` on `$disk`. A file that is already there is replaced, unless `overwrite` is `false`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$disk` | `string` (sink) | Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
-| `$key` | `string` (neutral) | The object's name on that disk: one segment of ASCII letters, digits, `.`, `-` and `_`, at most 255 bytes, not beginning with a `.`. A separator is refused rather than resolved, so no key names anything but an object directly on the disk. |
-| `$contents` | `bytes` (neutral) | The object's octets, written whole. |
-| `{overwrite: …}` | `bool` (default `true`) | Whether an object already at `$key` may be replaced. `true` by default, which is the object-store contract; `false` claims the key instead, and fails if another writer already holds it. |
+| `$disk` | `string` (sink) | The name of a `[storage.<name>]` block in `nvs.toml`. That block sets the folder the files are saved in. A `tainted` value is not allowed here, because the program chooses the disk and user input never does. |
+| `$key` | `string` (neutral) | The name of the file on the disk. It is 1 to 255 ASCII letters, digits, `.`, `-` and `_`, and it does not start with a `.`. A `/` or a `\` throws an error, so a key never points into another folder. |
+| `$contents` | `bytes` (neutral) | The bytes to save. The whole value is written. |
+| `{overwrite: …}` | `bool` (default `true`) | Whether a file that already has this key may be replaced. The default is `true`. With `false`, `put` throws an `IOError` if the key is already used. |
 
-**Returns** `void` — Nothing. The object is on the disk once this returns.
+**Returns** `void` — Nothing. The file is on the disk when `put` returns.
 
-**Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is a deployment or a call that was written wrong.; `IOError` — The object could not be written — including `overwrite: false` against a key that already exists, which is what a refused claim is.
+**Throws** `RuntimeError` — No `[storage.<name>]` block with this name sets a `root`. Or `$key` is not a valid key. Or the `fs.read` or `fs.write` capability does not include the file's path.; `IOError` — The file could not be written. This includes `overwrite: false` for a key that is already used.
 
 <a id="core-core-storage-get"></a>
 #### `Core\Storage::get`
@@ -19950,16 +19950,16 @@ Writes `$contents` as the object `$key` on `$disk`, replacing whatever was there
 Core\Storage::get(string $disk, string $key): ?bytes
 ```
 
-Reads the object `$key` on `$disk`, or answers `null` where the disk holds no object of that name.
+Reads the file `$key` on `$disk`. If there is no file with that key, the result is `null`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$disk` | `string` (sink) | Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
-| `$key` | `string` (neutral) | The object's name on that disk: one segment of ASCII letters, digits, `.`, `-` and `_`, at most 255 bytes, not beginning with a `.`. A separator is refused rather than resolved, so no key names anything but an object directly on the disk. |
+| `$disk` | `string` (sink) | The name of a `[storage.<name>]` block in `nvs.toml`. That block sets the folder the files are saved in. A `tainted` value is not allowed here, because the program chooses the disk and user input never does. |
+| `$key` | `string` (neutral) | The name of the file on the disk. It is 1 to 255 ASCII letters, digits, `.`, `-` and `_`, and it does not start with a `.`. A `/` or a `\` throws an error, so a key never points into another folder. |
 
-**Returns** `?bytes` — The object's octets, or `null` for a key nothing was ever put at — absence is the return type's answer here, not an error.
+**Returns** `?bytes` — The file's bytes, or `null` if nothing was saved under this key.
 
-**Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is a deployment or a call that was written wrong.; `IOError` — The object is there and could not be read.
+**Throws** `RuntimeError` — No `[storage.<name>]` block with this name sets a `root`. Or `$key` is not a valid key. Or the `fs.read` or `fs.write` capability does not include the file's path.; `IOError` — The file is there, but it could not be read.
 
 <a id="core-core-storage-delete"></a>
 #### `Core\Storage::delete`
@@ -19968,16 +19968,16 @@ Reads the object `$key` on `$disk`, or answers `null` where the disk holds no ob
 Core\Storage::delete(string $disk, string $key): void
 ```
 
-Removes the object `$key` from `$disk`.
+Deletes the file `$key` from `$disk`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$disk` | `string` (sink) | Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
-| `$key` | `string` (neutral) | The object's name on that disk: one segment of ASCII letters, digits, `.`, `-` and `_`, at most 255 bytes, not beginning with a `.`. A separator is refused rather than resolved, so no key names anything but an object directly on the disk. |
+| `$disk` | `string` (sink) | The name of a `[storage.<name>]` block in `nvs.toml`. That block sets the folder the files are saved in. A `tainted` value is not allowed here, because the program chooses the disk and user input never does. |
+| `$key` | `string` (neutral) | The name of the file on the disk. It is 1 to 255 ASCII letters, digits, `.`, `-` and `_`, and it does not start with a `.`. A `/` or a `\` throws an error, so a key never points into another folder. |
 
-**Returns** `void` — Nothing. The object is gone once this returns.
+**Returns** `void` — Nothing. The file is gone when `delete` returns.
 
-**Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is a deployment or a call that was written wrong.; `IOError` — There is no object at `$key`, or it could not be removed. Deleting what was never there is a failure rather than a silent success: the key was computed by the caller, and a typo that succeeds is one nothing reports.
+**Throws** `RuntimeError` — No `[storage.<name>]` block with this name sets a `root`. Or `$key` is not a valid key. Or the `fs.read` or `fs.write` capability does not include the file's path.; `IOError` — There is no file with this key, or it could not be deleted. Deleting a missing file throws this error, so a typo in a key is reported.
 
 <a id="core-core-storage-list"></a>
 #### `Core\Storage::list`
@@ -19986,16 +19986,16 @@ Removes the object `$key` from `$disk`.
 Core\Storage::list(string $disk, {prefix?: string}): array<string>
 ```
 
-Answers the keys of the objects on `$disk`, sorted byte-ascending — every entry one that `get` hands octets back for.
+Returns the keys of the files on `$disk`, sorted by their bytes. `get` can read every key in the result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$disk` | `string` (sink) | Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
-| `{prefix: …}` | `string` (default `""`, neutral) | Which of the disk's keys to answer about: the ones beginning with this text. Empty by default, which is all of them. A prefix that is neither empty nor itself an object key is refused rather than answered with nothing, since no key the disk can hold could have begun with it. |
+| `$disk` | `string` (sink) | The name of a `[storage.<name>]` block in `nvs.toml`. That block sets the folder the files are saved in. A `tainted` value is not allowed here, because the program chooses the disk and user input never does. |
+| `{prefix: …}` | `string` (default `""`, neutral) | Only keys that start with this text are returned. The default is empty, which returns every key. A prefix that is not empty and not a valid key throws an error, because no key can start with it. |
 
-**Returns** `array<string>` — The matching keys, sorted byte-ascending; an empty array where the disk holds no object that matches. Only a regular file whose name is an object key is listed, so a subdirectory, a symlink and a name this class has no key for are all absent.
+**Returns** `array<string>` — The matching keys, sorted. An empty array if no file matches. Only regular files with a valid key are listed. A folder, a symlink and a file with any other name are not in the result.
 
-**Throws** `RuntimeError` — No `[storage.<name>]` block of that name sets a `root`; or `prefix` is neither empty nor an object key; or the `fs.read` capability does not cover the disk's own root.; `IOError` — The disk's root could not be read — it is not there, or it is not a directory.
+**Throws** `RuntimeError` — No `[storage.<name>]` block with this name sets a `root`. Or `prefix` is not empty and not a valid key. Or the `fs.read` capability does not include the disk's folder.; `IOError` — The disk's folder could not be read. It does not exist, or it is not a folder.
 
 <a id="core-core-cldr"></a>
 ### `Core\Cldr`

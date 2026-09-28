@@ -95,7 +95,7 @@ use std::path::PathBuf;
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// The class name, as `registry::CAPABILITIES` and every refusal both spell it.
@@ -164,10 +164,17 @@ const LIST_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Str(""),
 }];
 
+/// `Core\Storage`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Saves files by name in a folder that `nvs.toml` sets up as a disk. `put` writes a \
+            file, `get` reads it back, `delete` removes it and `list` returns the names on the \
+            disk. A name is one plain word such as `invoice-1042.pdf`, never a path.",
+};
+
 /// `Core\Storage`'s four rows — `rule:programs/framework-core-half`'s object storage.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "put",
@@ -219,120 +226,115 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// The `$disk` parameter's card, which all three rows share word for word.
 const DISK_DOC: ParamDoc = ParamDoc {
     name: "disk",
-    desc: "Which `[storage.<name>]` block in `nvs.toml` the object lives on. Refuses a `tainted` \
-           argument: it selects a deployment, so it is written at the call site and never read \
-           from input.",
+    desc: "The name of a `[storage.<name>]` block in `nvs.toml`. That block sets the folder the \
+           files are saved in. A `tainted` value is not allowed here, because the program \
+           chooses the disk and user input never does.",
     shape: &[],
 };
 
 /// The `$key` parameter's card, likewise shared.
 const KEY_DOC: ParamDoc = ParamDoc {
     name: "key",
-    desc: "The object's name on that disk: one segment of ASCII letters, digits, `.`, `-` and \
-           `_`, at most 255 bytes, not beginning with a `.`. A separator is refused rather than \
-           resolved, so no key names anything but an object directly on the disk.",
+    desc: "The name of the file on the disk. It is 1 to 255 ASCII letters, digits, `.`, `-` and \
+           `_`, and it does not start with a `.`. A `/` or a `\\` throws an error, so a key never \
+           points into another folder.",
     shape: &[],
 };
 
 /// The refusal all three rows share, in the one wording the three cards use.
 const REFUSAL_DOC: ErrorDoc = ErrorDoc {
     error: "RuntimeError",
-    desc: "No `[storage.<name>]` block of that name sets a `root`; or `$key` is not an object \
-           key; or the `fs.read`/`fs.write` capability does not cover the object's path. Each is \
-           a deployment or a call that was written wrong.",
+    desc: "No `[storage.<name>]` block with this name sets a `root`. Or `$key` is not a valid \
+           key. Or the `fs.read` or `fs.write` capability does not include the file's path.",
 };
 
 /// `Core\Storage::put`'s reference card — `rule:core-api/reference-card`.
 const PUT_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$contents` as the object `$key` on `$disk`, replacing whatever was there \
-            unless `overwrite` says not to.",
+    short: "Saves `$contents` as the file `$key` on `$disk`. A file that is already there is \
+            replaced, unless `overwrite` is `false`.",
     params: &[
         DISK_DOC,
         KEY_DOC,
         ParamDoc {
             name: "contents",
-            desc: "The object's octets, written whole.",
+            desc: "The bytes to save. The whole value is written.",
             shape: &[],
         },
         ParamDoc {
             name: "overwrite",
-            desc: "Whether an object already at `$key` may be replaced. `true` by default, which \
-                   is the object-store contract; `false` claims the key instead, and fails if \
-                   another writer already holds it.",
+            desc: "Whether a file that already has this key may be replaced. The default is \
+                   `true`. With `false`, `put` throws an `IOError` if the key is already used.",
             shape: &[],
         },
     ],
-    ret: "Nothing. The object is on the disk once this returns.",
+    ret: "Nothing. The file is on the disk when `put` returns.",
     errors: &[
         REFUSAL_DOC,
         ErrorDoc {
             error: "IOError",
-            desc: "The object could not be written — including `overwrite: false` against a key \
-                   that already exists, which is what a refused claim is.",
+            desc: "The file could not be written. This includes `overwrite: false` for a key \
+                   that is already used.",
         },
     ],
 };
 
 /// `Core\Storage::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Reads the object `$key` on `$disk`, or answers `null` where the disk holds no object \
-            of that name.",
+    short: "Reads the file `$key` on `$disk`. If there is no file with that key, the result is \
+            `null`.",
     params: &[DISK_DOC, KEY_DOC],
-    ret: "The object's octets, or `null` for a key nothing was ever put at — absence is the \
-          return type's answer here, not an error.",
+    ret: "The file's bytes, or `null` if nothing was saved under this key.",
     errors: &[
         REFUSAL_DOC,
         ErrorDoc {
             error: "IOError",
-            desc: "The object is there and could not be read.",
+            desc: "The file is there, but it could not be read.",
         },
     ],
 };
 
 /// `Core\Storage::delete`'s reference card — `rule:core-api/reference-card`.
 const DELETE_DOC: MethodDoc = MethodDoc {
-    short: "Removes the object `$key` from `$disk`.",
+    short: "Deletes the file `$key` from `$disk`.",
     params: &[DISK_DOC, KEY_DOC],
-    ret: "Nothing. The object is gone once this returns.",
+    ret: "Nothing. The file is gone when `delete` returns.",
     errors: &[
         REFUSAL_DOC,
         ErrorDoc {
             error: "IOError",
-            desc: "There is no object at `$key`, or it could not be removed. Deleting what was \
-                   never there is a failure rather than a silent success: the key was computed \
-                   by the caller, and a typo that succeeds is one nothing reports.",
+            desc: "There is no file with this key, or it could not be deleted. Deleting a \
+                   missing file throws this error, so a typo in a key is reported.",
         },
     ],
 };
 
 /// `Core\Storage::list`'s reference card — `rule:core-api/reference-card`.
 const LIST_DOC: MethodDoc = MethodDoc {
-    short: "Answers the keys of the objects on `$disk`, sorted byte-ascending — every entry one \
-            that `get` hands octets back for.",
+    short: "Returns the keys of the files on `$disk`, sorted by their bytes. `get` can read \
+            every key in the result.",
     params: &[
         DISK_DOC,
         ParamDoc {
             name: "prefix",
-            desc: "Which of the disk's keys to answer about: the ones beginning with this text. \
-                   Empty by default, which is all of them. A prefix that is neither empty nor \
-                   itself an object key is refused rather than answered with nothing, since no \
-                   key the disk can hold could have begun with it.",
+            desc: "Only keys that start with this text are returned. The default is empty, \
+                   which returns every key. A prefix that is not empty and not a valid key \
+                   throws an error, because no key can start with it.",
             shape: &[],
         },
     ],
-    ret: "The matching keys, sorted byte-ascending; an empty array where the disk holds no object \
-          that matches. Only a regular file whose name is an object key is listed, so a \
-          subdirectory, a symlink and a name this class has no key for are all absent.",
+    ret: "The matching keys, sorted. An empty array if no file matches. Only regular files with \
+          a valid key are listed. A folder, a symlink and a file with any other name are not in \
+          the result.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "No `[storage.<name>]` block of that name sets a `root`; or `prefix` is neither \
-                   empty nor an object key; or the `fs.read` capability does not cover the disk's \
-                   own root.",
+            desc: "No `[storage.<name>]` block with this name sets a `root`. Or `prefix` is not \
+                   empty and not a valid key. Or the `fs.read` capability does not include the \
+                   disk's folder.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The disk's root could not be read — it is not there, or it is not a directory.",
+            desc: "The disk's folder could not be read. It does not exist, or it is not a folder.",
         },
     ],
 };
@@ -672,5 +674,157 @@ mod tests {
             key_of(&format!("{long}a"), PUT).is_err(),
             "one byte past the bound was accepted"
         );
+    }
+
+    /// The disk name every case below configures.
+    const OBJECTS: &str = "objects";
+
+    /// A fresh folder configured as the disk [`OBJECTS`], and a context whose
+    /// `fs.read` and `fs.write` grants cover that folder and nothing else —
+    /// the two blocks an operator writes in `nvs.toml`.
+    fn disk(name: &str) -> (PathBuf, Ctx) {
+        let root = std::env::temp_dir().join(format!("nvs-storage-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("a temporary directory the tests own");
+        let path = root.display();
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(&format!(
+            "[storage.{OBJECTS}]\nroot = '{path}'\n\n\
+             [capabilities.fs]\nread = ['{path}']\nwrite = ['{path}']\n"
+        )));
+        (root, ctx)
+    }
+
+    fn text(value: &str) -> Value {
+        Value::str(NvsStr::new(value.as_bytes()))
+    }
+
+    /// `put` replaces an object by default, and `overwrite: false` claims a
+    /// key: the second claim throws and the bytes already there stay.
+    // covers: Core\Storage::put
+    #[test]
+    fn put_replaces_by_default_and_a_refused_claim_leaves_the_object_alone() {
+        let (root, mut ctx) = disk("put");
+        let put = |ctx: &mut Ctx, contents: &[u8], overwrite: bool| {
+            nvs_runtime::call(
+                nvs_core_storage_put,
+                ctx,
+                &[
+                    text(OBJECTS),
+                    text("note.txt"),
+                    Value::bytes(NvsStr::new(contents)),
+                    Value::bool(overwrite),
+                ],
+            )
+        };
+        put(&mut ctx, b"first", true).expect("a put onto a free key");
+        put(&mut ctx, b"second", true).expect("a put replaces by default");
+        assert_eq!(std::fs::read(root.join("note.txt")).unwrap(), b"second");
+
+        assert!(
+            put(&mut ctx, b"third", false).is_err(),
+            "a claim on a key already used is an error"
+        );
+        let _ = ctx.take_pending();
+        assert_eq!(
+            std::fs::read(root.join("note.txt")).unwrap(),
+            b"second",
+            "a refused claim wrote nothing over the object it found"
+        );
+        std::fs::remove_dir_all(&root).expect("the case removes its own disk");
+    }
+
+    /// `get` gives `null` for a key nothing was put at, the bytes for one
+    /// that was, and throws for a key that climbs out of the disk before it
+    /// asks the disk anything.
+    // covers: Core\Storage::get
+    #[test]
+    fn get_gives_null_for_a_missing_object_and_the_bytes_for_a_saved_one() {
+        let (root, mut ctx) = disk("get");
+        let get = |ctx: &mut Ctx, key: &str| {
+            nvs_runtime::call(nvs_core_storage_get, ctx, &[text(OBJECTS), text(key)])
+        };
+        let missing = get(&mut ctx, "report.csv").expect("absence is not an error");
+        assert_eq!(
+            missing.bits(),
+            Value::null().bits(),
+            "a missing object is `null`"
+        );
+
+        std::fs::write(root.join("report.csv"), b"id,total\n1,40\n").unwrap();
+        let found = get(&mut ctx, "report.csv").expect("a saved object is readable");
+        assert_eq!(found.as_bytes(), Some(&b"id,total\n1,40\n"[..]));
+
+        assert!(get(&mut ctx, "../report.csv").is_err());
+        assert!(
+            ctx.take_pending()
+                .is_some_and(|message| message.contains("is not an object key")),
+            "a key with a separator is refused by the grammar, not resolved"
+        );
+        std::fs::remove_dir_all(&root).expect("the case removes its own disk");
+    }
+
+    /// `delete` removes the file, and deleting it a second time throws: a key
+    /// that names nothing is reported rather than passed over.
+    // covers: Core\Storage::delete
+    #[test]
+    fn delete_removes_the_object_and_a_second_delete_throws() {
+        let (root, mut ctx) = disk("delete");
+        let delete = |ctx: &mut Ctx| {
+            nvs_runtime::call(
+                nvs_core_storage_delete,
+                ctx,
+                &[text(OBJECTS), text("draft.md")],
+            )
+        };
+        std::fs::write(root.join("draft.md"), b"# Draft\n").unwrap();
+        delete(&mut ctx).expect("an object that is there can be deleted");
+        assert!(
+            !root.join("draft.md").exists(),
+            "the file is gone from the disk"
+        );
+
+        assert!(
+            delete(&mut ctx).is_err(),
+            "deleting a missing object is an error"
+        );
+        let _ = ctx.take_pending();
+        std::fs::remove_dir_all(&root).expect("the case removes its own disk");
+    }
+
+    /// `list` gives the object keys sorted, leaves out every entry that is not
+    /// a regular file named by a key, filters by `prefix`, and throws for a
+    /// prefix no key can start with.
+    // covers: Core\Storage::list
+    #[test]
+    fn list_gives_sorted_keys_of_regular_files_and_filters_by_prefix() {
+        let (root, mut ctx) = disk("list");
+        for name in ["b.txt", "a.txt", "ab.txt", ".keep", "with space"] {
+            std::fs::write(root.join(name), b"x").unwrap();
+        }
+        std::fs::create_dir(root.join("folder")).unwrap();
+        let list = |ctx: &mut Ctx, prefix: &str| {
+            nvs_runtime::call(nvs_core_storage_list, ctx, &[text(OBJECTS), text(prefix)]).map(
+                |answer| {
+                    let keys = crate::arr::borrowed(answer.array_ptr().expect("an array"));
+                    let mut out = Vec::new();
+                    let mut slot = 0;
+                    while let Some(live) = keys.next_slot(slot) {
+                        slot = live + 1;
+                        let key = keys.value_at(live).expect("a live slot has a value");
+                        out.push(key.as_text().expect("a key is text").to_owned());
+                    }
+                    out
+                },
+            )
+        };
+        assert_eq!(list(&mut ctx, "").unwrap(), ["a.txt", "ab.txt", "b.txt"]);
+        assert_eq!(list(&mut ctx, "a").unwrap(), ["a.txt", "ab.txt"]);
+        assert!(
+            list(&mut ctx, "folder/").is_err(),
+            "a prefix with a separator is refused"
+        );
+        let _ = ctx.take_pending();
+        std::fs::remove_dir_all(&root).expect("the case removes its own disk");
     }
 }

@@ -5344,7 +5344,6 @@ mod tests {
         r"Core\Request\Files",
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
-        r"Core\Storage",
         r"Core\Str",
         r"Core\Taint",
         r"Core\Task",
