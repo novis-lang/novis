@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to answer a question from `Core\Cli::ask` without a person at the keyboard.
+
+// The next prompt gets the answer "Ana".
+Core\Test::scriptAnswers(["Ana"]);
+
+// `ask` takes the answer and does not wait for the terminal.
+// The result is a `tainted string`, because the text comes from outside the program.
+tainted string $name = Core\Cli::ask("What is your name? ");
+
+// This prints `Hello, Ana!`.
+echo "Hello, ", $name, "!\n";

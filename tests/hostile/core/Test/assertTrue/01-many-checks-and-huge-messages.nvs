@@ -1,0 +1,57 @@
+<?nvs
+// Attack: the check runs a million times, fails a hundred thousand times and gets a message
+// of ten million characters. Each check should pass or throw a `Core\Test\Failure`.
+// hostile: timeout-ms 60000
+
+// Step 1: one million checks that pass.
+uint $i = 0;
+while ($i < 1000000) {
+    Core\Test::assertTrue($i < 1000000);
+    $i = $i + 1;
+}
+echo "one million passed\n";
+
+// Step 2: one hundred thousand checks that fail. Each one is caught.
+$i = 0;
+while ($i < 100000) {
+    try {
+        Core\Test::assertTrue($i > 100000);
+    } catch (Core\Test\Failure $failure) {
+    }
+    $i = $i + 1;
+}
+echo "one hundred thousand failed\n";
+
+// Step 3: a message of ten million characters.
+string $long = Core\Str::repeat('m', 10000000);
+try {
+    Core\Test::assertTrue(false, { message: $long });
+} catch (Core\Test\Failure $failure) {
+    echo 'long message: ', Core\Str::length($failure->message), "\n";
+}
+
+// Step 4: a message with a zero byte, new lines and a terminal escape code.
+try {
+    Core\Test::assertTrue(false, { message: "a\0b\n\r\x1b[2J" });
+} catch (Core\Test\Failure $failure) {
+    echo 'strange message: ', Core\Str::length($failure->message), "\n";
+}
+
+// Step 5: a check inside a function that calls itself one hundred thousand times.
+// The deepest call throws a `RecursionError`.
+final class Deep
+{
+    public static function check(int $depth): void
+    {
+        Core\Test::assertTrue($depth >= 0);
+        if ($depth > 0) {
+            Deep::check($depth - 1);
+        }
+    }
+}
+try {
+    Deep::check(100000);
+    echo "deep: passed\n";
+} catch (Throwable $error) {
+    echo "deep: error\n";
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Gives one answer and reads it with a prompt, as a test of a program that asks questions does.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $answers = ["yes", "Ana", "postgres"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Test::scriptAnswers([$answers[$total % 3]]);
+            $total = $total + Core\Str::length(Core\Cli::ask("Answer?"));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

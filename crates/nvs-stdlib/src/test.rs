@@ -1051,18 +1051,18 @@ const SERVER_URL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::scriptAnswers`'s reference card — `rule:core-api/reference-card`.
 const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
-    short: "Writes down what the next `Core\\Cli` prompts will be answered with, so an \
-            interactive flow is assertable instead of untestable — each prompt takes the oldest \
-            line still queued rather than reading a terminal.",
+    short: "Gives the answers for the next `Core\\Cli` prompts, so you can test a program that \
+            asks questions. Each prompt takes the first answer that is still waiting. It does \
+            not read the terminal.",
     params: &[ParamDoc {
         name: "answers",
-        desc: "One line per prompt, in the order the subject asks them — what a person would \
-               have typed, without its ending. A `select` reads the menu number, a `confirm` \
-               reads `y` or `n`, and an empty line is an empty answer rather than a silence.",
+        desc: "One answer per prompt, in the order the program asks. Write what a person would \
+               type, without the line ending. A `select` reads the number of a choice, and a \
+               `confirm` reads `y` or `n`.",
         shape: &[],
     }],
-    ret: "Nothing. The lines join the tail of the queue, so scripting a flow in two calls reads \
-          in one order; what no prompt drained is discarded with the test.",
+    ret: "Nothing. A second call adds its answers after the ones still waiting. When no answer \
+          is left, a prompt returns its `default` or throws `Core\\Cli\\NotInteractive`.",
     errors: &[],
 };
 
@@ -1648,27 +1648,26 @@ const ASSERT_EQUALS_DEEP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertTrue`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_TRUE_DOC: MethodDoc = MethodDoc {
-    short: "Asserts `$actual` is `true`, as PHPUnit's `assertTrue` does; the subject is a \
-            declared `bool`, so anything else is refused at the checker rather than read \
-            through the truthy table.",
+    short: "Checks that `$actual` is `true`. The value must be a `bool`, so a call with a \
+            number or a string does not compile.",
     params: &[
         ParamDoc {
             name: "actual",
-            desc: "The `bool` under test.",
+            desc: "The `bool` to check.",
             shape: &[],
         },
         ParamDoc {
             name: "message",
-            desc: "A prefix written in front of the failure's own diagnosis; the default is \
-                   none.",
+            desc: "Your own text, added at the start of the failure message. The default is no \
+                   text.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    ret: "Nothing. The check is recorded as passed.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "`$actual` is `false`; the failure is recorded in the ledger before it is thrown, \
-               so a `catch` cannot erase it.",
+        desc: "`$actual` is `false`. The failure is recorded before it is thrown, so a `catch` \
+               does not remove it from the test's result.",
     }],
 };
 
@@ -1860,22 +1859,20 @@ const ASSERT_DOES_NOT_THROW_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::expectFailure`'s reference card — `rule:core-api/reference-card`.
 const EXPECT_FAILURE_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$body` and asserts that an assertion inside it failed, then discharges those \
-            failures from the test's ledger — the one greppable spelling for a failure that \
-            was on purpose, and the only way an entry ever leaves the ledger.",
+    short: "Runs `$body` and checks that a check inside it failed. Those failures then no \
+            longer count against the test. Use it to test a check you wrote yourself.",
     params: &[ParamDoc {
         name: "body",
-        desc: "The closure to run; what the ledger records decides the verdict, so a body that \
-               caught its own failed assertion and returned normally still counts as having \
-               failed.",
+        desc: "The function to run. A failed check counts even when `$body` catches the \
+               `Core\\Test\\Failure` itself.",
         shape: &[],
     }],
-    ret: "Nothing; the failed assertions inside `$body` are discharged and the throw carrying \
-          one is consumed, while a passing assertion inside it stays counted.",
+    ret: "Nothing. The failed checks inside `$body` are removed from the test's result, and \
+          the `Core\\Test\\Failure` it threw is caught. The checks that passed still count.",
     errors: &[ErrorDoc {
         error: "Core\\Test\\Failure",
-        desc: "`$body` ran without any assertion failing; that failure is recorded in the \
-               ledger before it is thrown, so a `catch` cannot erase it.",
+        desc: "No check inside `$body` failed. This failure is recorded before it is thrown, so \
+               a `catch` does not remove it from the test's result.",
     }],
 };
 
@@ -3211,13 +3208,13 @@ nvs_runtime::nvs_helper! {
     /// * Only the failures are discharged. A passing assertion inside `$body`
     ///   really ran, and § 20 counts it.
     ///
-    /// The pending throw is taken where a failure was discharged, because that
-    /// throw *is* the failure this member consumed. **Known gap:** a body that
-    /// swallowed a failed assertion and then raised something else has its
-    /// second throw consumed here too, this member having no way to tell the
-    /// two apart from the ledger alone; naming the class would need the
-    /// pending exception's descriptor, which is `nvs-runtime`'s and not a
-    /// question a `Fault` answers.
+    /// The pending throw is consumed only where a failure was discharged *and*
+    /// the throw is a `Core\Test\Failure`, because only then is it the failure
+    /// this member consumed. A body that caught its failed assertion and then
+    /// raised something else propagates that second throw: it is the subject
+    /// breaking, which the test has not said it expected. The class is read by
+    /// name through [`Ctx::pending_class`], which answers with or without an
+    /// exception class table installed.
     fn nvs_core_test_expect_failure(ctx, args: [1]) {
         let mark = ctx.assertion_count();
         let outcome = nvs_runtime::call_closure(ctx, args[0], &[]);
@@ -3231,11 +3228,11 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 result.release();
             }
-        } else if discharged == 0 {
+        } else if discharged == 0
+            || ctx.pending_class().as_deref() != Some(ThrownClass::TestFailure.name())
+        {
             return outcome;
         } else {
-            // The body's throw was the failure just discharged, so it is this
-            // member's to consume rather than to propagate.
             drop(ctx.take_pending());
         }
         if discharged == 0 {
@@ -6136,37 +6133,6 @@ mod tests {
             }
         }
 
-        fn body_of(invoke: nvs_runtime::NvsFn) -> Value {
-            let mut table = nvs_runtime::ClassTable::new();
-            let id = table.define("{closure}", &["arity", "params"], &[]);
-            table.set_methods(
-                id,
-                vec![nvs_runtime::MethodRow {
-                    name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
-                    code: (invoke as *const ()).cast(),
-                    arity: 0,
-                    param_tags: 0,
-                    param_names: Vec::new(),
-                    param_types: Vec::new(),
-                    public: true,
-                    protected: false,
-                    native: false,
-                }],
-            );
-            table.set_closure(id);
-            let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
-            #[expect(
-                unsafe_code,
-                reason = "the table above is leaked, so the descriptor outlives \
-                          every instance made from it — `NvsObj::new`'s whole \
-                          obligation"
-            )]
-            let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-            object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(0));
-            object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
-            Value::object(object)
-        }
-
         fn judged(ctx: &mut Ctx, member: nvs_runtime::NvsFn, args: &[Value]) -> Result<(), String> {
             let answered = nvs_runtime::call(member, ctx, args);
             for arg in args {
@@ -6251,5 +6217,249 @@ mod tests {
             "{why}"
         );
         assert_eq!(RAN.load(Ordering::SeqCst), 3);
+    }
+
+    /// A `fn (): void` closure whose body is `invoke`, over a leaked class
+    /// table: a descriptor's address is its identity.
+    fn body_of(invoke: nvs_runtime::NvsFn) -> Value {
+        let mut table = nvs_runtime::ClassTable::new();
+        let id = table.define("{closure}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                code: (invoke as *const ()).cast(),
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }],
+        );
+        table.set_closure(id);
+        let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
+        object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(0));
+        object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        Value::object(object)
+    }
+
+    /// `assertTrue` holds for `true` and fails for `false`, with the `message`
+    /// option in front of the failure. `expectFailure` discharges every failure
+    /// its body recorded, caught or thrown, keeps the passing entries, and
+    /// fails a body that failed nothing. `scriptAnswers` adds its lines to the
+    /// tail of the queue the `Core\Cli` prompts read.
+    // covers: Core\Test::assertTrue, Core\Test::expectFailure, Core\Test::scriptAnswers
+    #[test]
+    fn assert_true_expect_failure_and_script_answers_write_the_ledger_and_the_queue() {
+        /// How many failures [`fails_and_catches`] records.
+        const CAUGHT: usize = 20_000;
+
+        fn asserted(ctx: &mut Ctx, actual: bool, message: Option<&str>) -> Result<(), String> {
+            let message = message.map_or(Value::null(), |given| {
+                Value::str(nvs_runtime::NvsStr::new(given.as_bytes()))
+            });
+            let answered = nvs_runtime::call(
+                nvs_core_test_assert_true,
+                ctx,
+                &[Value::bool(actual), message],
+            );
+            dropped(message);
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a failed assertion says why")
+                    .into_owned()),
+            }
+        }
+
+        /// A body that fails and catches [`CAUGHT`] assertions, and holds one.
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` passes a live context and exactly one retained \
+                      value, the receiver, and `abi::call` passes the address of a \
+                      live `Value` for the result"
+        )]
+        unsafe extern "C" fn fails_and_catches(
+            ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            let ctx = unsafe { &mut *ctx };
+            unsafe { (*args).release() };
+            for _ in 0..CAUGHT {
+                assert!(asserted(ctx, false, None).is_err());
+            }
+            assert!(asserted(ctx, true, None).is_ok());
+            unsafe { out.write(Value::null()) };
+            nvs_runtime::OK
+        }
+
+        /// A body whose one failed assertion is thrown out of it.
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` passes a live context and exactly one retained \
+                      value, the receiver, and `abi::call` passes the address of a \
+                      live `Value` for the result"
+        )]
+        unsafe extern "C" fn throws_a_failure(
+            ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            let ctx = unsafe { &mut *ctx };
+            unsafe { (*args).release() };
+            match nvs_runtime::call(
+                nvs_core_test_assert_true,
+                ctx,
+                &[Value::bool(false), Value::null()],
+            ) {
+                Ok(value) => {
+                    unsafe { out.write(value) };
+                    nvs_runtime::OK
+                }
+                Err(status) => status,
+            }
+        }
+
+        /// A body that fails and catches one assertion, and then throws the
+        /// `LogicError` `Core\Test::advance(1ns)` throws with no fixed clock.
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` passes a live context and exactly one retained \
+                      value, the receiver, and `abi::call` passes the address of a \
+                      live `Value` for the result"
+        )]
+        unsafe extern "C" fn fails_then_throws(
+            ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            let ctx = unsafe { &mut *ctx };
+            unsafe { (*args).release() };
+            assert!(asserted(ctx, false, None).is_err());
+            let by = crate::time::duration_of(1);
+            let answered = nvs_runtime::call(nvs_core_test_advance, ctx, &[by]);
+            dropped(by);
+            match answered {
+                Ok(value) => {
+                    unsafe { out.write(value) };
+                    nvs_runtime::OK
+                }
+                Err(status) => status,
+            }
+        }
+
+        /// A body whose one assertion holds.
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` passes a live context and exactly one retained \
+                      value, the receiver, and `abi::call` passes the address of a \
+                      live `Value` for the result"
+        )]
+        unsafe extern "C" fn holds(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+            let ctx = unsafe { &mut *ctx };
+            unsafe { (*args).release() };
+            assert!(asserted(ctx, true, None).is_ok());
+            unsafe { out.write(Value::null()) };
+            nvs_runtime::OK
+        }
+
+        fn expected(ctx: &mut Ctx, invoke: nvs_runtime::NvsFn) -> Result<(), String> {
+            let body = body_of(invoke);
+            let answered = nvs_runtime::call(nvs_core_test_expect_failure, ctx, &[body]);
+            dropped(body);
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a failed assertion says why")
+                    .into_owned()),
+            }
+        }
+
+        let mut ctx = Ctx::buffered();
+        asserted(&mut ctx, true, None).expect("true holds");
+        let why = asserted(&mut ctx, false, None).expect_err("false fails");
+        assert_eq!(why, "Core\\Test::assertTrue failed: `$actual` is false");
+        let why = asserted(&mut ctx, false, Some("the cart is empty")).expect_err("false fails");
+        assert_eq!(
+            why,
+            "the cart is empty: Core\\Test::assertTrue failed: `$actual` is false"
+        );
+        let ledger = ctx.take_assertions();
+        assert_eq!(ledger.len(), 3, "a check that holds is recorded too");
+        assert!(ledger.iter().all(|entry| entry.member == "assertTrue"));
+        assert_eq!(
+            ledger
+                .iter()
+                .filter(|entry| entry.failure.is_some())
+                .count(),
+            2
+        );
+
+        expected(&mut ctx, fails_and_catches).expect("the body failed");
+        let ledger = ctx.take_assertions();
+        assert_eq!(
+            ledger
+                .iter()
+                .map(|entry| (entry.member, entry.failure.is_some()))
+                .collect::<Vec<_>>(),
+            [("assertTrue", false), ("expectFailure", false)],
+            "every caught failure is discharged and the check that held stays"
+        );
+
+        expected(&mut ctx, throws_a_failure).expect("the thrown failure is consumed");
+        assert!(ctx.take_pending().is_none(), "nothing is left pending");
+        let why = expected(&mut ctx, fails_then_throws)
+            .expect_err("a throw that is not the failure propagates");
+        assert!(why.contains("this test declared no `at:`"), "{why}");
+        let why = expected(&mut ctx, holds).expect_err("the body failed nothing");
+        assert_eq!(
+            why,
+            "Core\\Test::expectFailure failed: the callable ran without a failed assertion"
+        );
+        let ledger = ctx.take_assertions();
+        assert_eq!(
+            ledger
+                .iter()
+                .filter_map(|entry| entry.failure.as_ref().map(|_| entry.member))
+                .collect::<Vec<_>>(),
+            ["expectFailure"],
+            "the only failure left is the one expectFailure recorded itself"
+        );
+
+        fn scripted(ctx: &mut Ctx, lines: &[&str]) {
+            let mut list = nvs_runtime::NvsArray::new();
+            for line in lines {
+                list.append(Value::str(nvs_runtime::NvsStr::new(line.as_bytes())));
+            }
+            let list = Value::array(list);
+            let answered = nvs_runtime::call(nvs_core_test_script_answers, ctx, &[list]);
+            dropped(list);
+            dropped(answered.expect("scripting answers never throws"));
+        }
+        let mut ctx = Ctx::buffered();
+        assert!(!ctx.has_scripted_answer());
+        scripted(&mut ctx, &["Ana", ""]);
+        scripted(&mut ctx, &[]);
+        scripted(&mut ctx, &["y"]);
+        let drained: Vec<_> = std::iter::from_fn(|| ctx.take_scripted_answer()).collect();
+        assert_eq!(drained, ["Ana", "", "y"], "each call adds to the tail");
     }
 }

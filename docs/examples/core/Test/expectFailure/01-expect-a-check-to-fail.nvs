@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to say that a check is expected to fail.
+
+// 2 + 2 is not 5, so `assertSame` fails inside the function.
+// `expectFailure` catches the failure, and the program continues.
+Core\Test::expectFailure(fn (): void => Core\Test::assertSame(2 + 2, 5));
+echo "the check failed, as expected\n";
+
+// A failed check counts even when the code catches it.
+// So `expectFailure` passes here too.
+Core\Test::expectFailure(fn (): void => {
+    try {
+        Core\Test::assertTrue(false);
+    } catch (Core\Test\Failure $failure) {
+        echo "caught: ", $failure->message, "\n";
+    }
+});
+echo "the caught failure still counted\n";

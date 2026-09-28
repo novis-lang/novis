@@ -1,0 +1,45 @@
+--TEST--
+`Core\Test::expectFailure` consumes the `Core\Test\Failure` its body threw, and lets any other throw propagate even after a caught failure was discharged — rule:testing/failure-ledger
+--FILE--
+<?nvs
+// covers: Core\Test::expectFailure
+// A failure thrown out of the body is the failure expected, so it is consumed.
+Core\Test::expectFailure(fn (): void => Core\Test::assertTrue(false));
+echo "thrown failure consumed\n";
+
+// A failure caught inside the body still counts, and the body returned.
+Core\Test::expectFailure(fn (): void => {
+    try {
+        Core\Test::assertTrue(false);
+    } catch (Core\Test\Failure $failure) {
+    }
+});
+echo "caught failure counted\n";
+
+// The body caught its failure and then broke: that throw is not the failure.
+try {
+    Core\Test::expectFailure(fn (): void => {
+        try {
+            Core\Test::assertSame(1, 2);
+        } catch (Core\Test\Failure $failure) {
+        }
+        throw new RuntimeError("the subject broke");
+    });
+    echo "swallowed\n";
+} catch (RuntimeError $error) {
+    echo "propagated: ", $error->message, "\n";
+}
+
+// A throw from a body in which nothing failed propagates too.
+try {
+    Core\Test::expectFailure(fn (): void => {
+        throw new LogicError("nothing failed");
+    });
+} catch (LogicError $logic) {
+    echo "propagated: ", $logic->message, "\n";
+}
+--EXPECT--
+thrown failure consumed
+caught failure counted
+propagated: the subject broke
+propagated: nothing failed

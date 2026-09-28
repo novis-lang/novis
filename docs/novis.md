@@ -16296,16 +16296,16 @@ Asserts `$actual` and `$expected` agree structurally — arrays entry by entry, 
 Core\Test::assertTrue(bool $actual, {message?: string}): void
 ```
 
-Asserts `$actual` is `true`, as PHPUnit's `assertTrue` does; the subject is a declared `bool`, so anything else is refused at the checker rather than read through the truthy table.
+Checks that `$actual` is `true`. The value must be a `bool`, so a call with a number or a string does not compile.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$actual` | `bool` | The `bool` under test. |
-| `{message: …}` | `string` (default `null`, neutral) | A prefix written in front of the failure's own diagnosis; the default is none. |
+| `$actual` | `bool` | The `bool` to check. |
+| `{message: …}` | `string` (default `null`, neutral) | Your own text, added at the start of the failure message. The default is no text. |
 
-**Returns** `void` — Nothing; the assertion is recorded as held in the test's ledger.
+**Returns** `void` — Nothing. The check is recorded as passed.
 
-**Throws** `Core\Test\Failure` — `$actual` is `false`; the failure is recorded in the ledger before it is thrown, so a `catch` cannot erase it.
+**Throws** `Core\Test\Failure` — `$actual` is `false`. The failure is recorded before it is thrown, so a `catch` does not remove it from the test's result.
 
 <a id="core-core-test-assertnull"></a>
 #### `Core\Test::assertNull`
@@ -16426,15 +16426,15 @@ Runs `$body` and asserts it returns without throwing — the way out of the rule
 Core\Test::expectFailure(callable(): mixed $body): void
 ```
 
-Runs `$body` and asserts that an assertion inside it failed, then discharges those failures from the test's ledger — the one greppable spelling for a failure that was on purpose, and the only way an entry ever leaves the ledger.
+Runs `$body` and checks that a check inside it failed. Those failures then no longer count against the test. Use it to test a check you wrote yourself.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `callable(): mixed` | The closure to run; what the ledger records decides the verdict, so a body that caught its own failed assertion and returned normally still counts as having failed. |
+| `$body` | `callable(): mixed` | The function to run. A failed check counts even when `$body` catches the `Core\Test\Failure` itself. |
 
-**Returns** `void` — Nothing; the failed assertions inside `$body` are discharged and the throw carrying one is consumed, while a passing assertion inside it stays counted.
+**Returns** `void` — Nothing. The failed checks inside `$body` are removed from the test's result, and the `Core\Test\Failure` it threw is caught. The checks that passed still count.
 
-**Throws** `Core\Test\Failure` — `$body` ran without any assertion failing; that failure is recorded in the ledger before it is thrown, so a `catch` cannot erase it.
+**Throws** `Core\Test\Failure` — No check inside `$body` failed. This failure is recorded before it is thrown, so a `catch` does not remove it from the test's result.
 
 <a id="core-core-test-advance"></a>
 #### `Core\Test::advance`
@@ -16471,13 +16471,13 @@ Returns the address of the test server that a `#[Test(server: true)]` test start
 Core\Test::scriptAnswers(array<string> $answers): void
 ```
 
-Writes down what the next `Core\Cli` prompts will be answered with, so an interactive flow is assertable instead of untestable — each prompt takes the oldest line still queued rather than reading a terminal.
+Gives the answers for the next `Core\Cli` prompts, so you can test a program that asks questions. Each prompt takes the first answer that is still waiting. It does not read the terminal.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$answers` | `array<string>` | One line per prompt, in the order the subject asks them — what a person would have typed, without its ending. A `select` reads the menu number, a `confirm` reads `y` or `n`, and an empty line is an empty answer rather than a silence. |
+| `$answers` | `array<string>` | One answer per prompt, in the order the program asks. Write what a person would type, without the line ending. A `select` reads the number of a choice, and a `confirm` reads `y` or `n`. |
 
-**Returns** `void` — Nothing. The lines join the tail of the queue, so scripting a flow in two calls reads in one order; what no prompt drained is discarded with the test.
+**Returns** `void` — Nothing. A second call adds its answers after the ones still waiting. When no answer is left, a prompt returns its `default` or throws `Core\Cli\NotInteractive`.
 
 <a id="core-core-test-request"></a>
 #### `Core\Test::request`

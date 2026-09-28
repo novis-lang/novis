@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when no check fails, and when the code throws another error.
+
+// Every check inside the function passes.
+// So `expectFailure` throws a `Core\Test\Failure`.
+try {
+    Core\Test::expectFailure(fn (): void => Core\Test::assertSame("a", "a"));
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The function throws a `RuntimeError`.
+// The `RuntimeError` passes through `expectFailure` unchanged.
+try {
+    Core\Test::expectFailure(fn (): void => {
+        throw new RuntimeError("the file is missing");
+    });
+} catch (RuntimeError $error) {
+    echo "RuntimeError: ", $error->message, "\n";
+}

@@ -1,0 +1,22 @@
+<?nvs
+// Shows how several prompts take the answers in order, and what happens when none is left.
+
+// "maybe" is not a valid answer to `confirm`, so it asks again and takes "y".
+// `select` reads "2" and returns the second choice.
+Core\Test::scriptAnswers(["maybe", "y", "2"]);
+echo Core\Cli::confirm("Continue?") ? "yes" : "no", "\n";
+echo Core\Cli::select("Size?", ["small", "medium", "large"]), "\n";
+
+// A second call adds one more answer.
+Core\Test::scriptAnswers(["Oslo"]);
+echo Core\Cli::ask("City?"), "\n";
+
+// No answer is left. A prompt with a `default` returns it.
+echo Core\Cli::ask("Country?", {default: "Norway"}), "\n";
+
+// A prompt with no `default` throws `Core\Cli\NotInteractive`.
+try {
+    Core\Cli::ask("Street?");
+} catch (Core\Cli\NotInteractive $error) {
+    echo "no answer left\n";
+}

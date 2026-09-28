@@ -1,26 +1,20 @@
 {
-  "state": "Goal `core-test-2-2` is **not** met. Ten members of the stage 2 dossier have every proof: `assertNull`,\n`assertSame`, `assertThrows`, `sentSocket`, `double`, `partial`, `sentHttp`, `tlsSession`, `request` and\n`serverUrl`. Three still owe proofs (see the next group). `bun nv proofs --verify --only <the check's argv\nlist>` says what is owed.\n\n`nvs test` now puts the tree's configuration snapshot on the suite's context\n(`crates/nvs-cli/src/runner.rs`, pinned by `crates/nvs-cli/tests/test_grants.rs`), so a `[capabilities]`\ngrant reaches a test. Before that fix every grant was denied under `nvs test`.\n\nAny change to `crates/nvs-stdlib/src/test.rs` makes every `Core\\Test` bench stale, so the session that lands\nthe last proofs runs `bun nv proofs --record-perf --only <every Core\\Test member>` after its verify, and the\nstage 1 check then passes again.",
+  "state": "Goal `core-test-2-2` is met. Every member in both `Core\\Test` dossier checks has every proof. The last three were\n`scriptAnswers`, `expectFailure` and `assertTrue`. Both `bun nv proofs --verify --only <check argv>` runs say\nnothing owed, 0 failed. `bun nv verify --doc`, `bun nv owners --closes core-test-2-2` and `bun nv playbook --closes\ncore-test-2-2` are clean.\n\nThe `expectFailure` attack found two bugs, and both are fixed. Discharging the ledger was quadratic. A body that\ncaught its failure and then threw another error had that error swallowed. `Ctx::discharge_failures_from` now walks\nonly the entries after its mark. `Core\\Test::expectFailure` now consumes only a pending `Core\\Test\\Failure`.\n`tests/conformance/core/test-expect-failure-lets-an-error-after-a-caught-failure-propagate.nvst` pins it.\n\nEvery `Core\\Test` bench was measured again after the last Rust change to `crates/nvs-stdlib/src/test.rs`.",
   "next": {
     "stage": 2,
-    "title": "feature proofs, the rest of `Core\\Test`",
+    "title": "feature proofs, closed",
     "files": [
-      "crates/nvs-stdlib/src/test.rs",
-      "docs/examples/core/Test/",
-      "tests/hostile/core/Test/",
-      "benches/members/core/Test/"
+      "crates/nvs-stdlib/src/test.rs"
     ],
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Test::scriptAnswers`, `Core\\Test::expectFailure` and `Core\\Test::assertTrue`** — about.md, three examples, attack, bench and a Rust `covers:` test each (`rule:testing/feature-proofs`); registry rows at `crates/nvs-stdlib/src/test.rs:715` and `crates/nvs-stdlib/src/test.rs:690`. Model: the `request` proofs in `docs/examples/core/Test/request/` and its test `request_returns_the_units_status_and_bytes_and_throws_with_no_unit`. An example's `#[Test]` method is checked by hand with `nvs test` (playbook, *Writing a test case*)."
-      },
-      {
-        "done": false,
-        "text": "**Re-measure every `Core\\Test` bench** after the last Rust change, then run both dossier checks in `data/goals/core-test-2-2.json` (`rule:testing/member-perf-ledger`); the ledger is `docs/perf/members.ndjson`, and `crates/nvs-stdlib/src/test.rs:570` is the class whose members it covers."
+        "done": true,
+        "text": "**`Core\\Test::scriptAnswers`, `Core\\Test::expectFailure` and `Core\\Test::assertTrue`** have every proof (`rule:testing/feature-proofs`); registry rows at `crates/nvs-stdlib/src/test.rs:684`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Test::request` accepts a path that is empty, has no `/`, or contains a zero byte or a new line, and header names that are empty or contain a new line. Nothing is serialised, so nothing is injected; a real door refuses all of these. Owner if it matters: `rule:testing/in-process-request`."
+    "The ledger field doc says an assertion entry is \"charged to the request\". `record_assertion` pushes to a Rust `Vec` and charges no budget (not checked beyond `crates/nvs-runtime/src/ctx/error.rs:684`). A request that runs many `Core\\Test` checks outside a test grows memory outside its cap. Owner: the `assertions` field doc in `crates/nvs-runtime/src/ctx/mod.rs`.",
+    "`Ctx::script_answers` copies every answer into a `VecDeque<String>` the budget does not see either; same owner question, `crates/nvs-runtime/src/ctx/wiring.rs:602`."
   ]
 }

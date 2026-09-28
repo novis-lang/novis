@@ -1,0 +1,19 @@
+<?nvs
+// Shows what happens when the value is `false`, and how to add your own message.
+
+array<string> $cart = [];
+
+// The cart is empty, so the comparison is `false`.
+// The check throws a `Core\Test\Failure`.
+try {
+    Core\Test::assertTrue(Core\Arr::count($cart) > 0);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The option `message` adds your own text at the start of the message.
+try {
+    Core\Test::assertTrue(Core\Arr::count($cart) > 0, {message: "the cart has a product"});
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

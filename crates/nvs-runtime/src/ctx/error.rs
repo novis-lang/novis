@@ -699,19 +699,22 @@ impl Ctx {
     /// The passing entries in that range stay: they are assertions that really
     /// ran, and § 20 counts them. Only the failure is discharged, and only
     /// where the caller has said it expected one.
+    ///
+    /// One pass over the entries from `mark` onward and none before it, so the
+    /// cost is linear in what `$body` recorded: many failures inside one body,
+    /// or many calls in one test, stay linear rather than quadratic.
     pub fn discharge_failures_from(&mut self, mark: usize) -> usize {
-        let mark = mark.min(self.assertions.len());
-        let mut discharged = 0;
-        let mut index = mark;
-        while index < self.assertions.len() {
-            if self.assertions[index].failure.is_some() {
-                self.assertions.remove(index);
-                discharged += 1;
-            } else {
-                index += 1;
+        let len = self.assertions.len();
+        let start = mark.min(len);
+        let mut kept = start;
+        for index in start..len {
+            if self.assertions[index].failure.is_none() {
+                self.assertions.swap(kept, index);
+                kept += 1;
             }
         }
-        discharged
+        self.assertions.truncate(kept);
+        len - kept
     }
 
     /// The whole ledger, taken — what the runner reads at the end of a test.

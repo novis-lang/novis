@@ -1,0 +1,2 @@
+Core\Test::assertTrue failed: `$actual` is false
+the cart has a product: Core\Test::assertTrue failed: `$actual` is false
