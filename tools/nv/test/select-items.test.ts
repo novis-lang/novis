@@ -14,21 +14,38 @@ afterAll(() => tree.cleanup());
 
 const REGISTRY = `
 pub struct ClassDoc { pub short: &'static str }
-pub struct CoreClass { pub name: &'static str, pub doc: Option<&'static ClassDoc> }
+pub struct CoreClass { pub name: &'static str, pub flags: u8, pub doc: Option<&'static ClassDoc> }
 
 /// The card.
 pub const CARD: ClassDoc = ClassDoc { short: "Numbers." };
-pub const MATH: CoreClass = CoreClass { name: "Core\\\\Math", doc: Some(&CARD) };
+pub const MATH: CoreClass = CoreClass { name: "Core\\\\Math", flags: 0, doc: Some(&CARD) };
 pub const CLASSES: &[CoreClass] = &[
     MATH,
-    CoreClass { name: "Core\\\\Str", doc: None },
-    CoreClass { name: "Core\\\\Arr", doc: None },
+    CoreClass { name: "Core\\\\Str", flags: 0, doc: None },
+    CoreClass { name: "Core\\\\Arr", flags: 0, doc: None },
 ];
 
 pub fn class(name: &str) -> Option<&'static CoreClass> {
     CLASSES.iter().find(|c| c.name == name)
 }
+
+pub fn math() -> &'static CoreClass {
+    &MATH
+}
 `;
+
+/** A class of its own file, which imports what it builds from the registry. */
+const SCRIPT = `use crate::registry::CoreClass;
+
+pub const CLASS: CoreClass = CoreClass { name: "Core\\\\Script", flags: 0, doc: None };
+
+pub fn script() -> &'static CoreClass {
+    &CLASS
+}
+`;
+
+/** SCRIPT given a card: the card type imported, the card added, and the row linking it. */
+const SCRIPT_CARDED = SCRIPT.replace("use crate::registry::CoreClass;", "use crate::registry::{ClassDoc, CoreClass};\n\nconst CARD: ClassDoc = ClassDoc { short: \"Scripts.\" };").replace("doc: None", "doc: Some(&CARD)");
 
 const LIB = `
 pub const LIMIT: usize = 4;
@@ -122,14 +139,56 @@ describe("the item diff and the reference-graph closure", () => {
   });
 
   test("a registry row edit moves that row's class alone", () => {
-    const moved = movedBy("crates/reg/src/registry.rs", REGISTRY, REGISTRY.replace('name: "Core\\\\Arr", doc: None', 'name: "Core\\\\Arr", doc: Some(&CARD)'));
+    const moved = movedBy("crates/reg/src/registry.rs", REGISTRY, REGISTRY.replace('"Core\\\\Arr", flags: 0', '"Core\\\\Arr", flags: 1'));
     expect(moved).toEqual(["class:core\\arr", "fn:crates/reg/src/registry.rs#CLASSES"]);
   });
 
   test("a class item moves its class and the fns of its own file that name it", () => {
-    const moved = movedBy("crates/reg/src/registry.rs", REGISTRY, REGISTRY.replace("doc: Some(&CARD) };", "doc: None };"));
+    const moved = movedBy("crates/reg/src/registry.rs", REGISTRY, REGISTRY.replace('"Core\\\\Math", flags: 0', '"Core\\\\Math", flags: 1'));
     expect(moved).toContain("class:core\\math");
+    expect(moved).toContain("fn:crates/reg/src/registry.rs#math");
     expect(moved).not.toContain("class:core\\str");
+  });
+
+  test("a row or a class item that only links or unlinks a card moves that class's card and no class or program key", () => {
+    const registry = "crates/reg/src/registry.rs";
+    const row = movedBy(registry, REGISTRY, REGISTRY.replace('"Core\\\\Arr", flags: 0, doc: None', '"Core\\\\Arr", flags: 0, doc: Some(&CARD)'));
+    expect(row).toEqual(["card:core\\arr", "fn:crates/reg/src/registry.rs#CLASSES"]);
+    const item = movedBy(registry, REGISTRY, REGISTRY.replace("flags: 0, doc: Some(&CARD) };", "flags: 0, doc: None };"));
+    expect(item).toEqual(["card:core\\math", "fn:crates/reg/src/registry.rs#MATH"]);
+  });
+
+  test("a card link that comes with any other edit of the row moves the class as before", () => {
+    const moved = movedBy("crates/reg/src/registry.rs", REGISTRY, REGISTRY.replace("flags: 0, doc: Some(&CARD) };", "flags: 1, doc: None };"));
+    expect(moved).toContain("class:core\\math");
+    expect(moved).toContain("fn:crates/reg/src/registry.rs#math");
+    const renamed = movedBy("crates/reg/src/registry.rs", REGISTRY, REGISTRY.replace('"Core\\\\Arr", flags: 0, doc: None', '"Core\\\\Set", flags: 0, doc: Some(&CARD)'));
+    expect(renamed).toEqual(expect.arrayContaining(["class:core\\arr", "class:core\\set"]));
+  });
+
+  test("a new card, its import and its link reach the card's readers alone", () => {
+    const moved = movedBy("crates/reg/src/script.rs", SCRIPT, SCRIPT_CARDED);
+    expect(moved).toEqual(["card:core\\script", "fn:crates/reg/src/script.rs#CARD", "fn:crates/reg/src/script.rs#CLASS", "fn:crates/reg/src/script.rs#use:ClassDoc,CoreClass"]);
+    const back = movedBy("crates/reg/src/script.rs", SCRIPT_CARDED, SCRIPT);
+    expect(back).toEqual(["card:core\\script", "fn:crates/reg/src/script.rs#CARD", "fn:crates/reg/src/script.rs#CLASS", "fn:crates/reg/src/script.rs#use:CoreClass"]);
+  });
+
+  test("an import that changes more than its card types reaches what names it", () => {
+    const moved = movedBy("crates/reg/src/script.rs", SCRIPT, SCRIPT_CARDED.replace("{ClassDoc, CoreClass}", "{ClassDoc, CoreClass, CoreTy}"));
+    expect(moved).toContain("class:core\\script");
+    expect(moved).toContain("fn:crates/reg/src/script.rs#script");
+  });
+
+  test("a class added or taken out with its card moves its class", () => {
+    const registry = "crates/reg/src/registry.rs";
+    const withSet = REGISTRY.replace("];", '    CoreClass { name: "Core\\\\Set", flags: 0, doc: Some(&CARD) },\n];');
+    expect(movedBy(registry, REGISTRY, withSet)).toContain("class:core\\set");
+    expect(movedBy(registry, withSet, REGISTRY)).toContain("class:core\\set");
+    const added = movedBy("crates/reg/src/script.rs", "pub fn other() {}\n", SCRIPT_CARDED);
+    expect(added).toContain("class:core\\script");
+    expect(added).toContain("card:core\\script");
+    const removed = movedBy("crates/reg/src/script.rs", SCRIPT_CARDED, "pub fn other() {}\n");
+    expect(removed).toContain("class:core\\script");
   });
 
   test("an item of a package another does not depend on is not reached through a shared name", () => {

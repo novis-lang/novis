@@ -7,7 +7,8 @@
 //! ```text
 //! {"file": "crates/a/src/b.rs", "parsed": true, "raw": "<digest of the bytes>", "items": [
 //!   {"id": "Handle::wait", "kind": "fn", "start": 120, "end": 161, "test": false,
-//!    "digest": "<32 hex>", "refs": ["Fault", "child"], "defines": ["wait"],
+//!    "digest": "<32 hex>", "bare": "<32 hex>", "cardTypes": ["MethodDoc"],
+//!    "refs": ["Fault", "child"], "defines": ["wait"],
 //!    "parent": "Handle::{impl}", "includes": ["crates/a/src/data.txt"],
 //!    "class": ["Core\\Process"], "rows": [{"classes": ["Core\\Math"], "digest": "<32 hex>"}],
 //!    "cards": ["Core\\Math"]}]}
@@ -29,6 +30,12 @@
 //!   removing a doc comment is no change, and neither is layout or a plain comment. Each file an
 //!   `include_str!`, `include_bytes!` or `include!` with a literal path embeds is folded in by its
 //!   bytes, and is listed in `includes` relative to `<root>`; a missing one folds in as missing.
+//! - `bare` is the same digest with the item's links to reference cards taken out, and is set only
+//!   when it differs from `digest`. For a `const` or `static` that is not itself a card, a
+//!   `doc: Some(&CARD)` field naming a card of this file reads as `doc: None`; for a `use`, the card
+//!   types it imports are taken out of it, and `cardTypes` lists the names only those bind. Two
+//!   versions of an item whose `bare` (or, lacking one, `digest`) is the same differ in their cards
+//!   alone, which no program reads.
 //! - `refs` is every identifier the item's tokens name, keywords and primitive types left out, and
 //!   `defines` every name the item binds for others to name: a function's, a type's, a const's, the
 //!   names a `use` binds (`*` for a glob), and for a macro invocation the identifiers its body spells
@@ -59,9 +66,12 @@ use quote::ToTokens;
 use sha2::Digest;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
+use syn::visit_mut::VisitMut;
 use syn::{Attribute, Expr, ImplItem, Item, TraitItem, UseTree};
 
-use crate::{digest, doc_attr, feed, is_card_type, quote_json, test_only};
+use crate::{
+    Card, CardNames, digest, doc_attr, feed, is_card_type, quote_json, test_only, without_cards,
+};
 
 /// Identifiers that never name an item: the keywords and the primitive types.
 const NOT_NAMES: &[&str] = &[
@@ -160,6 +170,8 @@ struct Out {
     end: usize,
     test: bool,
     digest: String,
+    bare: Option<String>,
+    card_types: Vec<String>,
     refs: BTreeSet<String>,
     defines: Vec<String>,
     parent: Option<usize>,
@@ -212,10 +224,13 @@ fn scan_file(
     };
     let ctx = ctx_of(file);
     world.crates.insert(ctx.krate.clone());
+    let mut names = CardNames::default();
+    names.visit_file(&parsed);
     let mut walker = Walker {
         file,
         read,
         world,
+        card: Card { names: names.0 },
         out: Vec::new(),
     };
     walker.items(&parsed.items, &ctx, "", false);
@@ -274,6 +289,8 @@ struct Walker<'a> {
     file: &'a str,
     read: &'a dyn Fn(&str) -> Option<Vec<u8>>,
     world: &'a mut World,
+    /// Reads a link to one of this file's cards as no link, for an item's `bare` digest.
+    card: Card,
     out: Vec<Out>,
 }
 
@@ -315,6 +332,11 @@ impl Walker<'_> {
                         None,
                     );
                     self.value(at, ctx, &name, &c.expr, is_card_type(&c.ty));
+                    if !is_card_type(&c.ty) {
+                        let mut bare = c.clone();
+                        self.card.visit_item_const_mut(&mut bare);
+                        self.set_bare(at, c.to_token_stream(), bare.to_token_stream());
+                    }
                 }
                 Item::Static(s) => {
                     let name = s.ident.to_string();
@@ -328,6 +350,11 @@ impl Walker<'_> {
                         None,
                     );
                     self.value(at, ctx, &name, &s.expr, is_card_type(&s.ty));
+                    if !is_card_type(&s.ty) {
+                        let mut bare = s.clone();
+                        self.card.visit_item_static_mut(&mut bare);
+                        self.set_bare(at, s.to_token_stream(), bare.to_token_stream());
+                    }
                 }
                 Item::Struct(x) => {
                     let name = x.ident.to_string();
@@ -528,7 +555,26 @@ impl Walker<'_> {
                     names.dedup();
                     let t = test || is_test(&u.attrs);
                     let id = join(&format!("use:{}", names.join(",")));
-                    self.push(id, "use", span, t, u.to_token_stream(), names, None);
+                    let at = self.push(id, "use", span, t, u.to_token_stream(), names, None);
+                    // The same `use` with the card types taken out, and the names only those bind.
+                    let mut kept = Vec::new();
+                    let bare = match without_cards(u.tree.clone()).map(flatten) {
+                        Some(tree) => {
+                            use_bindings(&tree, &mut Vec::new(), &mut kept);
+                            let mut bare = u.clone();
+                            bare.tree = tree;
+                            bare.to_token_stream()
+                        }
+                        None => TokenStream::new(),
+                    };
+                    let item = &mut self.out[at];
+                    item.card_types = item
+                        .defines
+                        .iter()
+                        .filter(|n| !kept.iter().any(|(k, _)| k == *n))
+                        .cloned()
+                        .collect();
+                    self.set_bare(at, u.to_token_stream(), bare);
                 }
                 Item::ExternCrate(x) => {
                     let name = x
@@ -613,8 +659,34 @@ impl Walker<'_> {
             .iter()
             .map(|lit| resolve_include(self.file, lit))
             .collect();
+        let digest = self.digest_of(stripped, &includes);
+        self.out.push(Out {
+            id,
+            kind,
+            start,
+            end,
+            test,
+            digest,
+            bare: None,
+            card_types: Vec::new(),
+            refs,
+            defines,
+            parent,
+            scope: "",
+            includes,
+            value: None,
+            class: Vec::new(),
+            rows: Vec::new(),
+            card: false,
+            cards: BTreeSet::new(),
+        });
+        self.out.len() - 1
+    }
+
+    /// The digest of `stripped` with the bytes of each file in `includes` folded in.
+    fn digest_of(&self, stripped: &TokenStream, includes: &[String]) -> String {
         let contents: Vec<Option<Vec<u8>>> = includes.iter().map(|p| (self.read)(p)).collect();
-        let digest = digest(|h| {
+        digest(|h| {
             feed(h, stripped.clone(), true);
             for (path, bytes) in includes.iter().zip(&contents) {
                 h.update(b"\0include\0");
@@ -628,26 +700,19 @@ impl Walker<'_> {
                     None => h.update(b"\0missing\0"),
                 }
             }
-        });
-        self.out.push(Out {
-            id,
-            kind,
-            start,
-            end,
-            test,
-            digest,
-            refs,
-            defines,
-            parent,
-            scope: "",
-            includes,
-            value: None,
-            class: Vec::new(),
-            rows: Vec::new(),
-            card: false,
-            cards: BTreeSet::new(),
-        });
-        self.out.len() - 1
+        })
+    }
+
+    /// Gives the item at `at` a `bare` digest over `bare`, its tokens with the links to cards taken
+    /// out, when that is another digest than its own over `own`.
+    fn set_bare(&mut self, at: usize, own: TokenStream, bare: TokenStream) {
+        if own.to_string() == bare.to_string() {
+            return;
+        }
+        let digest = self.digest_of(&strip_docs(bare), &self.out[at].includes);
+        if digest != self.out[at].digest {
+            self.out[at].bare = Some(digest);
+        }
     }
 
     /// Records what a `const` or `static` at `at` refers to: the class a struct literal's `name`
@@ -762,6 +827,27 @@ fn type_name(ty: &syn::Type) -> String {
             .map_or_else(|| "?".into(), |s| s.ident.to_string()),
         syn::Type::Reference(r) => type_name(&r.elem),
         other => other.to_token_stream().to_string().replace(' ', ""),
+    }
+}
+
+/// `tree` with each group of one entry written as that entry, so taking the card types out of
+/// `{ClassDoc, CoreClass}` reads as the `CoreClass` it was before one was added. A lone `self` keeps
+/// its braces, since `a::{self}` and `a::self` are not the same import.
+fn flatten(tree: UseTree) -> UseTree {
+    match tree {
+        UseTree::Path(mut p) => {
+            p.tree = Box::new(flatten(*p.tree));
+            UseTree::Path(p)
+        }
+        UseTree::Group(mut g) => {
+            let lone_self = matches!(g.items.first(), Some(UseTree::Name(n)) if n.ident == "self");
+            if g.items.len() == 1 && !lone_self {
+                return flatten(g.items.pop().expect("one entry").into_value());
+            }
+            g.items = g.items.into_iter().map(flatten).collect();
+            UseTree::Group(g)
+        }
+        other => other,
     }
 }
 
@@ -1295,6 +1381,12 @@ impl Out {
             list(&self.refs),
             list(&self.defines),
         );
+        if let Some(bare) = &self.bare {
+            s.push_str(&format!(r#","bare":"{bare}""#));
+        }
+        if !self.card_types.is_empty() {
+            s.push_str(&format!(r#","cardTypes":{}"#, list(&self.card_types)));
+        }
         if let Some(parent) = self.parent {
             s.push_str(&format!(r#","parent":{}"#, quote_json(&all[parent].id)));
         }
@@ -1594,6 +1686,70 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].classes, [r"Core\Db"]);
         assert_eq!(item(&scanned[3], "TEXT").class, [r"Core\Cli\Text"]);
+    }
+
+    #[test]
+    fn a_link_to_a_card_is_outside_the_bare_digest_and_every_other_field_is_inside() {
+        let src = |doc: &str, name: &str| {
+            format!(
+                "use crate::registry::{{ClassDoc, CoreClass}};\n\
+                 const CARD: ClassDoc = ClassDoc {{ short: \"A class.\" }};\n\
+                 pub const CLASS: CoreClass = CoreClass {{ name: r\"{name}\", doc: {doc} }};\n"
+            )
+        };
+        let none = one(&src("None", r"Core\A"));
+        let linked = one(&src("Some(&CARD)", r"Core\A"));
+        let renamed = one(&src("Some(&CARD)", r"Core\B"));
+        let foreign = one(&src("Some(&other::CARD)", r"Core\A"));
+        let bare = |file: &FileScan| {
+            let class = item(file, "CLASS");
+            class.bare.clone().unwrap_or_else(|| class.digest.clone())
+        };
+        assert!(item(&none, "CLASS").bare.is_none());
+        assert_ne!(item(&none, "CLASS").digest, item(&linked, "CLASS").digest);
+        assert_eq!(bare(&none), bare(&linked), "a new link to a card");
+        assert_ne!(bare(&linked), bare(&renamed), "the name moved as well");
+        assert_ne!(bare(&none), bare(&foreign), "a card of another file");
+        assert!(
+            item(&linked, "CARD").bare.is_none(),
+            "a card has no bare digest"
+        );
+        assert!(linked.json().contains(r#""bare":""#));
+    }
+
+    #[test]
+    fn a_use_s_bare_digest_leaves_out_the_card_types_it_imports() {
+        let before = one("use crate::registry::{CaseDoc, CoreClass, MethodDoc};\n");
+        let after =
+            one("use crate::registry::{\n    CaseDoc, ClassDoc, CoreClass, MethodDoc,\n};\n");
+        let other =
+            one("use crate::registry::{CaseDoc, ClassDoc, CoreClass, CoreTy, MethodDoc};\n");
+        let only = |file: &FileScan| file.items[0].bare.clone().expect("a bare digest");
+        assert_eq!(only(&before), only(&after));
+        assert_ne!(only(&after), only(&other));
+        assert_eq!(
+            after.items[0].card_types,
+            ["CaseDoc", "ClassDoc", "MethodDoc"]
+        );
+        assert!(
+            after
+                .json()
+                .contains(r#""cardTypes":["CaseDoc","ClassDoc","MethodDoc"]"#)
+        );
+        let plain = one("use crate::registry::CoreClass;\n");
+        assert!(plain.items[0].bare.is_none());
+        assert!(plain.items[0].card_types.is_empty());
+        let grown = one("use crate::registry::{ClassDoc, CoreClass};\n");
+        assert_eq!(
+            only(&grown),
+            plain.items[0].digest,
+            "a group of one is its entry"
+        );
+        let kept = one("use crate::a::{self};\n");
+        assert!(
+            kept.items[0].bare.is_none(),
+            "a lone `self` keeps its braces"
+        );
     }
 
     #[test]

@@ -109,6 +109,10 @@ export interface Item {
   end: number;
   test: boolean;
   digest: string;
+  /** The digest with the item's links to cards taken out, when that differs from `digest`. */
+  bare?: string;
+  /** For a `use`: the names only the card types it imports bind. */
+  cardTypes?: string[];
   refs: string[];
   defines: string[];
   parent?: string;

@@ -10,6 +10,11 @@
 //
 // - a `fn` stops there: its callers ran it, so their atoms hold its key already;
 // - a card (`cards`) moves `card:` keys and nothing else, so a card edit re-runs no program;
+// - an item whose tokens moved only in its links to cards (`bare`, compared by `cardsOnly`) moves the
+//   `card:` keys of the classes it or its moved rows name, or `card:*` when it names none, and no
+//   `class:` key; a `use` whose card imports alone changed is paired across its new id (`pairUses`)
+//   and moves only what names those card types. Such an item is still reached like any other when
+//   something it names moved beside it;
 // - a class table (`rows`) moves the `class:` key of each row whose digest moved, compared by position;
 //   a table reached through an item that names a class adds nothing, since the rows naming that item
 //   are its class's, and one reached through any other name moves every row's class, since which row
@@ -87,7 +92,45 @@ export function diffFile(base: FileItems | null, head: FileItems | null): { chan
     else if (was.digest !== item.digest || JSON.stringify(was.rows ?? []) !== JSON.stringify(item.rows ?? [])) changes.push({ file, id, how: "changed", item, was });
   }
   for (const [id, was] of before) if (!after.has(id)) changes.push({ file, id, how: "removed", item: was, was });
-  return { changes, wide: false };
+  return { changes: pairUses(changes), wide: false };
+}
+
+/** An item's digest without its links to cards. */
+const plain = (i: Item) => i.bare ?? i.digest;
+
+/** Whether `item` differs from `was` in its links to cards alone: the tokens moved, the tokens without
+ * those links did not, and neither did the classes it names. */
+export function cardsOnly(was: Item | undefined, item: Item): boolean {
+  if (!was || was.digest === item.digest || plain(was) !== plain(item)) return false;
+  const classes = (i: Item) => JSON.stringify([i.class ?? [], (i.rows ?? []).map((r) => r.classes)]);
+  return classes(was) === classes(item);
+}
+
+/** A `use` whose card imports changed binds other names, so its id moved and the diff reads it as one
+ * `use` removed and another added. Paired by what they import besides the cards, in the same module,
+ * the two are one `use` that changed. A pair that is not the only one of its kind is left apart. */
+function pairUses(changes: ItemChange[]): ItemChange[] {
+  const carded = (c: ItemChange) => c.item.kind === "use" && (c.item.cardTypes?.length ?? 0) > 0;
+  const key = (c: ItemChange) => `${c.id.slice(0, c.id.lastIndexOf("use:"))}\0${c.item.test}\0${plain(c.item)}`;
+  const removed = new Map<string, ItemChange[]>();
+  const added = new Map<string, ItemChange[]>();
+  for (const c of changes) {
+    if (c.item.kind !== "use" || (c.how !== "removed" && c.how !== "added")) continue;
+    const side = c.how === "removed" ? removed : added;
+    (side.get(key(c)) ?? side.set(key(c), []).get(key(c))!).push(c);
+  }
+  const paired = new Map<ItemChange, ItemChange | null>();
+  for (const [k, gone] of removed) {
+    const came = added.get(k);
+    if (gone.length !== 1 || came?.length !== 1 || !(carded(gone[0]!) || carded(came[0]!))) continue;
+    paired.set(came[0]!, { file: came[0]!.file, id: came[0]!.id, how: "changed", item: came[0]!.item, was: gone[0]!.item });
+    paired.set(gone[0]!, null);
+  }
+  if (paired.size === 0) return changes;
+  return changes.flatMap((c) => {
+    const p = paired.get(c);
+    return p === undefined ? [c] : p === null ? [] : [p];
+  });
 }
 
 /** Which packages can name an item of which file. */
@@ -350,6 +393,20 @@ export function closure(
     }
     if (shipped && (e.item.cards?.length || e.was?.cards?.length)) {
       for (const c of [...(e.item.cards ?? []), ...(e.was?.cards ?? [])]) emit(cardKey(c), origin);
+      continue;
+    }
+    if (shipped && e.how === "changed" && cardsOnly(e.was, e.item)) {
+      // Only its links to cards moved, and a program reads no card: a `use` moves what names the card
+      // types it imports, and anything else the cards of the classes it or its moved rows name.
+      if (e.item.kind === "use") reach(e, [...new Set([...(e.was?.cardTypes ?? []), ...(e.item.cardTypes ?? [])])], true);
+      else {
+        const classes = e.item.rows?.length ? rowClasses(e.was?.rows, e.item.rows) : new Set(e.item.class ?? []);
+        for (const c of classes) emit(cardKey(c), origin);
+        if (classes.size === 0) emit(ALL_CARDS, origin);
+      }
+      // What its tokens name may still have moved, as an import that changed beside the link does, and
+      // then it is reached like any other item.
+      seen.delete(id);
       continue;
     }
     if (shipped && (e.item.rows?.length || e.was?.rows?.length)) {
