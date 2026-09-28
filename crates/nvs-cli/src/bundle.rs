@@ -126,7 +126,8 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
         // something handed it one: there is no `nvs run` in front of this to
         // have carried a `--request`, and a word on this command line is the
         // bundled program's own. It is no connection either, for the same
-        // reason: nothing in front of it carried a `--peer`.
+        // reason: nothing in front of it carried a `--peer` or an `--events`.
+        None,
         None,
         None,
         &[],

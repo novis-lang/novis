@@ -576,6 +576,34 @@ pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
     }
 }
 
+/// Publishes `text` on `topic` as `Core\Topic::publish($topic, $text)` does,
+/// and answers how many subscribers it reached.
+///
+/// For a publisher with no program behind it: `nvs run --events` reads its
+/// values off a file and puts them on the bus through this, so the program it
+/// runs meets the same fan-out, the same copy and the same bound as a
+/// connection published to by another. A name the member would refuse reaches
+/// nobody and answers `0`.
+#[must_use]
+pub fn publish_text(topic: &str, text: &str) -> u64 {
+    let mut publisher = Ctx::buffered();
+    let name = Value::str(nvs_runtime::NvsStr::new(topic.as_bytes()));
+    let payload = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+    let reached = nvs_runtime::call(nvs_core_topic_publish, &mut publisher, &[name, payload]);
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns the two references it built for the arguments, \
+                  and the member borrows rather than takes them"
+    )]
+    // SAFETY: nothing else points at either value — each subscriber was queued
+    // a copy of its own.
+    unsafe {
+        name.release();
+        payload.release();
+    }
+    reached.ok().and_then(|count| count.as_uint()).unwrap_or(0)
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Topic::subscribe(string $topic): void` — `rule:core-classes/topic`'s first row.
     ///

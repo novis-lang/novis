@@ -338,6 +338,17 @@ impl Inbox {
     pub fn is_empty(&self) -> bool {
         self.queue.borrow().is_empty()
     }
+
+    /// Whether a task left a wake here that no push has fired yet — the
+    /// subscriber is parked on this queue, or was when it last looked.
+    ///
+    /// A hint, as the wake itself is. `nvs run --events` reads it to publish
+    /// the next value of its file only once the program waits for one, which
+    /// is the order a real publisher on another connection has no way to keep.
+    #[must_use]
+    pub fn is_waiting(&self) -> bool {
+        self.waiting.borrow().is_some()
+    }
 }
 
 /// What went wrong on the socket, as the one thing a `Core` member turns into a

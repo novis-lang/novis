@@ -804,6 +804,14 @@ nvs_runtime::nvs_helper! {
             if let Some(delivery) = ctx.take_delivery() {
                 return Ok(message_of_delivery(delivery));
             }
+            // The stream is over once nothing will read it: the client went
+            // away, a send met its bound, or the body was ended. A queued
+            // delivery is still answered first, as a socket's `receive` still
+            // answers the frames its peer sent before closing. The close wakes
+            // no one, so a parked stream sees it at the end of its tick.
+            if ctx.body_stream().is_some_and(|emit| emit.is_closed()) {
+                return Ok(Value::null());
+            }
             // In hand before the wait is committed to, which is
             // `nvs_runtime::host::Host::waker`'s ordering rule. Nothing can
             // publish between the look above and the park below — a publisher
@@ -1375,6 +1383,52 @@ mod tests {
         );
 
         dropped(handle);
+    }
+
+    /// The end of the stream is what ends a stream's `while` loop: once the
+    /// client has gone, a value published before it went is still answered,
+    /// and the wait after that is `null` rather than a wait for a value no
+    /// client would read.
+    ///
+    /// The published value goes through `crate::topic::publish_text`, which is
+    /// the publish `nvs run --events` makes, so this case pins that seam too.
+    // covers: Core\Sse::receive
+    #[test]
+    fn a_stream_whose_client_has_gone_answers_what_was_queued_and_then_null() {
+        let slot = offered_cell();
+        let mut stream = upgraded(&slot);
+        let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
+            .expect("an event stream's isolate answers `current()`");
+        let topic = Value::str(NvsStr::new(b"room:feed"));
+        nvs_runtime::call(
+            crate::topic::nvs_core_topic_subscribe,
+            &mut stream,
+            &[topic],
+        )
+        .expect("an event stream's isolate is a connection and may subscribe");
+        assert_eq!(crate::topic::publish_text("room:feed", "last word"), 1);
+
+        // The connection's half going away is the client disconnecting.
+        drop(
+            slot.take(std::task::Waker::noop())
+                .expect("the isolate was handed the body of a response"),
+        );
+
+        let message = nvs_runtime::call(super::nvs_core_sse_receive, &mut stream, &[handle])
+            .expect("a queued delivery is answered after the client has gone");
+        let carried = nvs_runtime::call(super::nvs_core_sse_message_value, &mut stream, &[message])
+            .expect("a message carries the value");
+        assert_eq!(carried.as_text(), Some("last word"));
+        let over = nvs_runtime::call(super::nvs_core_sse_receive, &mut stream, &[handle])
+            .expect("the end of a stream is answered rather than thrown on");
+        assert!(
+            over.tag() == Some(nvs_runtime::Tag::Null),
+            "a stream whose client has gone went on waiting for a value"
+        );
+
+        for value in [topic, message, carried, handle] {
+            dropped(value);
+        }
     }
 
     /// A wait with no scheduler under it is a fatal error rather than a core

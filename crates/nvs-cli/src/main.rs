@@ -143,6 +143,7 @@ mod ctl;
 )]
 mod dispatch;
 mod doc;
+mod events;
 mod fmt;
 mod info;
 mod meta;
@@ -353,6 +354,15 @@ enum Command {
         /// request has ended.
         #[arg(long, value_name = "FILE")]
         peer: Option<PathBuf>,
+        /// Run as an event-stream connection, and publish the values this
+        /// file lists to the topics the program subscribes to.
+        ///
+        /// What makes `Core\Sse::current()` and `receive()` answer outside a
+        /// server: the program is the script a `Core\Sse::upgrade` opens, and
+        /// the stream it writes is printed as a client reads it. The format is
+        /// `events`'s module doc.
+        #[arg(long, value_name = "FILE", conflicts_with_all = ["request", "peer"])]
+        events: Option<PathBuf>,
         /// The program's own arguments, which `Core\Command::run()` matches
         /// against the program's compiled command table.
         ///
@@ -1304,6 +1314,7 @@ fn run_hosted(argv: &[String]) -> ExitCode {
             count,
             request,
             peer,
+            events,
             arguments,
         }) => run_run(
             &file,
@@ -1313,6 +1324,7 @@ fn run_hosted(argv: &[String]) -> ExitCode {
             count,
             request.as_deref(),
             peer.as_deref(),
+            events.as_deref(),
             &cli.config,
             arguments,
             init,
@@ -1449,6 +1461,7 @@ fn main() -> ExitCode {
             count,
             request,
             peer,
+            events,
             arguments,
         } => run_run(
             &file,
@@ -1458,6 +1471,7 @@ fn main() -> ExitCode {
             count,
             request.as_deref(),
             peer.as_deref(),
+            events.as_deref(),
             &cli.config,
             arguments,
             init,
@@ -2368,6 +2382,7 @@ fn run_run(
     count: bool,
     request: Option<&std::path::Path>,
     peer: Option<&std::path::Path>,
+    events: Option<&std::path::Path>,
     config: &[PathBuf],
     arguments: Vec<String>,
     init: config::Init,
@@ -2565,6 +2580,26 @@ fn run_run(
             Ok(scripted) => ctx.set_peer(Box::new(scripted)),
             Err(error) => {
                 eprintln!("error: --peer {}: {error}", file.display());
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    // `--events`: the other door. The program is handed the writing half of a
+    // stream and marked as the connection `Core\Sse::upgrade` opens, which is
+    // what `nvs_host::Isolate::over_event_stream` does to a served one. The
+    // other half, the file's values and the program's queue go to the
+    // publisher spawned beside the program below.
+    let mut publisher = None;
+    if let Some(file) = events {
+        match events::from_file(file) {
+            Ok(feed) => {
+                let (emit, drain) = events::open();
+                ctx.set_body_stream(emit);
+                ctx.mark_event_stream(nvs_runtime::EventStreamDoor::Connection);
+                publisher = Some((feed, drain, ctx.inbox()));
+            }
+            Err(error) => {
+                eprintln!("error: --events {}: {error}", file.display());
                 return ExitCode::FAILURE;
             }
         }
@@ -2796,6 +2831,10 @@ fn run_run(
             }
         }
     });
+
+    if let Some((feed, drain, inbox)) = publisher {
+        events::start(&mut sched, feed, drain, inbox, std::rc::Rc::clone(&status));
+    }
 
     // And the workers, after the task above rather than before it. The order is
     // a cost and not a preference: a worker's first act is a database handshake

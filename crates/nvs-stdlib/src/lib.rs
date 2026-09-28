@@ -291,6 +291,11 @@ pub use cache::arm_process_tier;
 /// owns, and it belongs beside that connection.
 pub use cache::Lease;
 
+/// A publish with no program behind it, which `nvs run --events` is the one
+/// caller of. Re-exported rather than made public with its module, because the
+/// rest of `Core\Topic` is reached through [`registry`] like every other class.
+pub use topic::publish_text;
+
 use registry::CoreClass;
 
 /// Every `Core` implementation's symbol and address, for the JIT to resolve

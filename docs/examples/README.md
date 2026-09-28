@@ -178,6 +178,19 @@ end of the file is the peer closing. Every frame the program sends prints as a `
 the lines the program itself prints. The whole format is the module doc of `crates/nvs-cli/src/peer.rs`.
 `tests/hostile/` and `benches/members/` read a `.nvsp` file the same way.
 
+## Values published to an event stream — `<name>.nvse`
+
+An example runs as a command-line program, which is no event stream, so `Core\Sse::current()` throws
+a `LogicError` there. An example that shows the script a `Core\Sse::upgrade` opens puts an events
+file beside it, under its own name with `.nvse` in place of `.nvs`. `--bless` and the sweep then run
+the program with `nvs run --events <file>`. Each line `publish: <topic> <value>` is one string
+published on that topic. A value is published only when the program waits in `receive()` with
+nothing left to read, so a value reaches the program only if it subscribed to the topic before that
+wait. After the last value, the next wait returns `null`, because the client has gone. The stream
+the program writes prints as a client reads it, between the lines the program itself prints. The
+whole format is the module doc of `crates/nvs-cli/src/events.rs`. `tests/hostile/` and
+`benches/members/` read a `.nvse` file the same way.
+
 ## A grant the examples need — `nvs.toml`
 
 An example runs from the repository root under its `nvs.toml`, which grants no capability. A
