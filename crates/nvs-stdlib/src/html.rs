@@ -2630,6 +2630,7 @@ mod tests {
     /// itself the first time a program calls the member.
     #[test]
     fn sanitize_is_an_adr_0024_launderer_beside_escape() {
+        nvs_footprint::card(CLASS.name);
         let sanitize = CLASS
             .members()
             .find(|method| method.name == "sanitize")

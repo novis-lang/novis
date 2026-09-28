@@ -5134,6 +5134,7 @@ mod tests {
     /// name and a consumer looks a case up by it.
     #[test]
     fn every_enum_case_doc_names_a_real_case() {
+        nvs_footprint::every_card();
         for declared in ENUMS {
             let Some(doc) = declared.doc else {
                 continue;
@@ -5385,6 +5386,7 @@ mod tests {
     /// member that throws nothing has nothing to list.
     #[test]
     fn every_registry_row_carries_a_reference_card() {
+        nvs_footprint::every_card();
         let mut missing = Vec::new();
         for class in CLASSES {
             for method in class.members() {
@@ -5498,6 +5500,7 @@ mod tests {
             text.contains("ADR")
         }
 
+        nvs_footprint::every_card();
         let mut cited = Vec::new();
         let mut note = |place: String, text: &str| {
             if cites(text) {
@@ -5551,6 +5554,7 @@ mod tests {
     /// description hung off it, which is a thing a test can hold.
     #[test]
     fn a_documented_rows_param_docs_agree_with_its_names() {
+        nvs_footprint::every_card();
         for class in CLASSES {
             for method in class.members() {
                 let Some(doc) = method.doc else { continue };
