@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when the value is not `null`, and how to add your own message.
+
+// `0`, `""` and `false` are not `null`. Each check throws a `Core\Test\Failure`.
+// The message shows the value.
+array<mixed> $values = [0, "", false];
+foreach ($values as mixed $value) {
+    try {
+        Core\Test::assertNull($value);
+    } catch (Core\Test\Failure $failure) {
+        echo $failure->message, "\n";
+    }
+}
+
+// The option `message` adds your own text at the start of the message.
+try {
+    Core\Test::assertNull("admin", {message: "a guest has no role"});
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

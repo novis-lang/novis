@@ -1,0 +1,31 @@
+<?nvs
+// Shows a test of a search that must return `null` when nothing matches.
+
+final class User {
+    public function constructor(public string $email, public string $name) {}
+}
+
+final class Users {
+    // Returns the user with this email address, or `null` when there is none.
+    public static function findByEmail(array<User> $users, string $email): ?User {
+        foreach ($users as User $user) {
+            if (Core\Str::lower($user->email) == Core\Str::lower($email)) {
+                return $user;
+            }
+        }
+        return null;
+    }
+}
+
+array<User> $users = [
+    new User("ana@example.com", "Ana"),
+    new User("ben@example.com", "Ben"),
+];
+
+// The search finds Ben, even with capital letters in the address.
+?User $ben = Users::findByEmail($users, "Ben@Example.com");
+echo "found: ", $ben?->name ?? "nobody", "\n";
+
+// Nobody has this address, so the search returns `null` and the check passes.
+Core\Test::assertNull(Users::findByEmail($users, "carl@example.com"));
+echo "no user for carl@example.com\n";

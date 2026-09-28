@@ -1,0 +1,55 @@
+<?nvs
+// Attack: the check gets very large values, very deep values and many failures in a row.
+// Each check should pass or throw a `Core\Test\Failure`.
+
+// Step 1: a string of ten million characters. The message shows the value.
+string $long = Core\Str::repeat('a', 10000000);
+try {
+    Core\Test::assertNull($long);
+} catch (Core\Test\Failure $failure) {
+    echo 'long string: ', Core\Str::length($failure->message), "\n";
+}
+
+// Step 2: an array of one million entries.
+array<int> $big = [];
+int $i = 0;
+while ($i < 1000000) {
+    $big[] = $i;
+    $i = $i + 1;
+}
+try {
+    Core\Test::assertNull($big);
+} catch (Core\Test\Failure $failure) {
+    echo "big array\n";
+}
+
+// Step 3: an array nested ten thousand levels deep.
+array<mixed> $deep = [];
+$i = 0;
+while ($i < 10000) {
+    $deep = [$deep];
+    $i = $i + 1;
+}
+try {
+    Core\Test::assertNull($deep);
+} catch (Core\Test\Failure $failure) {
+    echo "deep array\n";
+}
+
+// Step 4: a message of ten million characters is added in front of the failure.
+try {
+    Core\Test::assertNull(0, { message: $long });
+} catch (Core\Test\Failure $failure) {
+    echo "long message\n";
+}
+
+// Step 5: a hundred thousand failed checks in a row. Each one is caught.
+$i = 0;
+while ($i < 100000) {
+    try {
+        Core\Test::assertNull($i);
+    } catch (Core\Test\Failure $failure) {
+    }
+    $i = $i + 1;
+}
+echo "many failures\n";

@@ -1,0 +1,3 @@
+Core\Test::assertSame failed: `$actual` is "010", `$expected` is "10"
+Core\Test::assertSame failed: `$actual` is a `Point`, `$expected` is a `Point`
+the cart has three items: Core\Test::assertSame failed: `$actual` is 3, `$expected` is 4

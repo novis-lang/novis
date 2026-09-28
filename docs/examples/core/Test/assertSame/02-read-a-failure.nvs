@@ -1,0 +1,29 @@
+<?nvs
+// Shows what happens when the values are not the same, and how to add your own message.
+
+final class Point {
+    public function constructor(public int $x, public int $y) {}
+}
+
+// "10" and "010" are different strings, so the check throws a `Core\Test\Failure`.
+// The message shows both values.
+try {
+    Core\Test::assertSame("010", "10");
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// Two objects are the same only when they are one object.
+// These two have equal properties, but they are two objects, so the check fails.
+try {
+    Core\Test::assertSame(new Point(1, 2), new Point(1, 2));
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The option `message` adds your own text at the start of the message.
+try {
+    Core\Test::assertSame(3, 4, {message: "the cart has three items"});
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

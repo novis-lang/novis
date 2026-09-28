@@ -1,0 +1,4 @@
+Core\Test::assertNull failed: `$actual` is 0
+Core\Test::assertNull failed: `$actual` is ""
+Core\Test::assertNull failed: `$actual` is false
+a guest has no role: Core\Test::assertNull failed: `$actual` is "admin"

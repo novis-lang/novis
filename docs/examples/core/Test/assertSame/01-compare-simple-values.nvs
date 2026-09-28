@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to check that a result is exactly the value you expect.
+
+// The first value is the result, the second is the value you expect.
+// Both are 15, so the check passes and nothing is thrown.
+int $total = 4 + 5 + 6;
+Core\Test::assertSame($total, 15);
+
+// Strings are the same when they have the same characters.
+string $name = Core\Str::upper("ada");
+Core\Test::assertSame($name, "ADA");
+
+echo "both checks passed\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to check that a value is `null`.
+
+array<string> $colors = ["red" => "#ff0000", "green" => "#00ff00"];
+
+// "blue" is not a key of the array, so the result is `null`.
+?string $blue = $colors["blue"] ?? null;
+
+// The value is `null`, so the check passes and nothing is thrown.
+Core\Test::assertNull($blue);
+echo "the check passed\n";
