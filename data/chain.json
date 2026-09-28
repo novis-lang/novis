@@ -1,5 +1,5 @@
 {
-  "live": "core-signal-and-4-more",
+  "live": "core-sse-and-2-more",
   "goals": [
     "core-depth",
     "concurrency",
