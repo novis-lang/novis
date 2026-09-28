@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to send each request path to the part of a web application that handles it.
+
+class Router
+{
+    public static function areaFor(string $path): string
+    {
+        // The more specific beginning is checked first, so "/api/admin/" does not
+        // count as a plain "/api/" path.
+        if (Core\Str::startsWith($path, "/api/admin/")) {
+            return "admin api";
+        }
+        if (Core\Str::startsWith($path, "/api/")) {
+            return "api";
+        }
+        if (Core\Str::startsWith($path, "/assets/")) {
+            return "static file";
+        }
+        return "page";
+    }
+}
+
+array<string> $paths = ["/api/orders/7", "/api/admin/users", "/assets/logo.png", "/about", "/apis"];
+
+// "/apis" does not start with "/api/", so it is a page.
+foreach ($paths as string $path) {
+    echo $path, " -> ", Router::areaFor($path), "\n";
+}

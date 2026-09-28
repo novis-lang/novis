@@ -1,0 +1,49 @@
+<?nvs
+// Attack: `Core\Str::startsWith` compares very long strings and beginnings that cut a character
+// in half. Each check should return `true` or `false`, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Compares a 32 MiB beginning that differs only in its last character.
+    public static function hugePrefixThatDiffersAtTheEnd(uint $mib): bool
+    {
+        var $head = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        return Core\Str::startsWith($head . 'x', $head . 'y');
+    }
+
+    /// 2. Asks whether a string starts with itself plus one more character.
+    public static function prefixLongerThanTheString(uint $count): bool
+    {
+        var $s = Core\Str::repeat("\u{1f469}\u{200d}\u{1f4bb}", $count);
+        return Core\Str::startsWith($s, $s . 'x');
+    }
+
+    /// 3. Checks for only the first part of a joined emoji, or only the first byte of a character.
+    public static function halfOfACharacter(uint $rounds): uint
+    {
+        uint $found = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Str::startsWith("\u{1f469}\u{200d}\u{1f4bb}", "\u{1f469}")) {
+                $found = $found + 1;
+            }
+            if (Core\Str::startsWith("\u{e9}t\u{e9}", 'e')) {
+                $found = $found + 1;
+            }
+            $i = $i + 1;
+        }
+        return $found;
+    }
+
+    /// 4. Checks an empty beginning against an empty string, and a beginning against nothing.
+    public static function emptyAgainstEmpty(): bool
+    {
+        return Core\Str::startsWith('', '') && !Core\Str::startsWith('', 'a');
+    }
+}
+
+echo Attack::hugePrefixThatDiffersAtTheEnd(32) ? 'yes' : 'no', "\n";
+echo Attack::prefixLongerThanTheString(1000000) ? 'yes' : 'no', "\n";
+echo Attack::halfOfACharacter(100000), "\n";
+echo Attack::emptyAgainstEmpty() ? 'yes' : 'no', "\n";

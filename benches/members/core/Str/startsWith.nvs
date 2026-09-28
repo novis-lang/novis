@@ -1,0 +1,22 @@
+<?nvs
+// Checks whether a request path starts with "/api/", as a program does when it routes a request.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["/api/orders", "/about", "/assets/logo.png", "/api/users"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Str::startsWith($paths[(($total + $i) % 4) as int], "/api/")) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

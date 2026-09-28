@@ -1,0 +1,4 @@
+command: /help
+message: hello everyone
+command: /join music
+message: see you at 5/6

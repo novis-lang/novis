@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to check whether a string starts with a piece of text.
+
+string $address = "https://example.com/shop";
+
+// The string starts with "https://". This prints `true`.
+echo Core\Str::startsWith($address, "https://") ? "true" : "false", "\n";
+
+// "example" is in the string, but not at its start. This prints `false`.
+echo Core\Str::startsWith($address, "example") ? "true" : "false", "\n";
+
+// The check is case-sensitive. This prints `false`.
+echo Core\Str::startsWith($address, "HTTPS://") ? "true" : "false", "\n";
+
+// An empty text is at the start of every string. This prints `true`.
+echo Core\Str::startsWith($address, "") ? "true" : "false", "\n";
