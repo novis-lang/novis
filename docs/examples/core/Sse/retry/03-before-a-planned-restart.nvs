@@ -1,0 +1,10 @@
+<?nvs
+// Shows a live price feed that asks its clients to come back later, before the server restarts.
+
+Core\Sse $sse = Core\Sse::stream();
+$sse->send(["symbol" => "ACME", "price" => 1842], event: "price");
+
+// The server restarts soon. Clients should wait ten minutes, so they do not all reconnect at once.
+// This prints `retry: 600000`, then the `closing` event.
+$sse->retry(Core\Time\Duration::minutes(10));
+$sse->send("back in ten minutes", event: "closing");

@@ -5,7 +5,8 @@
   "context": {
     "modules": [
       "crates/nvs-stdlib/src/sse.rs",
-      "crates/nvs-stdlib/src/storage.rs"
+      "crates/nvs-stdlib/src/storage.rs",
+      "crates/nvs-cli/src/peer.rs"
     ],
     "rules": [
       "testing/feature-proofs",

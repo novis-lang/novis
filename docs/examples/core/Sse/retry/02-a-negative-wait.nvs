@@ -1,0 +1,11 @@
+<?nvs
+// Shows what `retry()` does with a wait that is less than zero.
+
+Core\Sse $sse = Core\Sse::stream();
+// A negative wait throws a `LogicError`, and nothing is sent.
+// This prints `the wait cannot be negative`.
+try {
+    $sse->retry(Core\Time\Duration::seconds(-1));
+} catch (LogicError $e) {
+    echo "the wait cannot be negative\n";
+}
