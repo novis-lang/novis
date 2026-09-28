@@ -21093,16 +21093,16 @@ Keywords: sign, verify
 Core\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Core\Time\Instant} $settings): string
 ```
 
-Signs `$payload` under the newest key in `$settings.keys` and answers a token. The payload is canonicalized here — keys sorted, every value written with the tag of its own type — so there is no assembled string for the two sides of a signature to disagree about.
+Signs `$payload` with the newest key in `$settings.keys` and returns a token. The token contains the payload, and `Core\Signature::verify` returns it again. The same payload, keys and `until` always give the same token.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$payload` | `array<string>` | The claims to sign, by name. Insertion order is not signed and does not come back: a verified payload is in canonical order. |
-| `$settings` | `{keys: array<secret bytes>, until: ?Core\Time\Instant}` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that `verify` still accepts tokens minted before the last rotation. A ring of one is `[$key]`.; `until` (?Core\Time\Instant) When the signature stops being valid, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed link is a permanent bearer credential. |
+| `$payload` | `array<string>` | The values to sign, each under a name. The order of the names is not signed. `verify` returns the values sorted by name. |
+| `$settings` | `{keys: array<secret bytes>, until: ?Core\Time\Instant}` | The keys, and the time when the token stops being valid. You must write both. Keys: `keys` (array<secret bytes>) The keys, newest first. `$keys[0]` signs the token. The older keys are there so that `verify` still accepts tokens made before you added a new key. A list of one key is `[$key]`.; `until` (?Core\Time\Instant) The time after which `verify` throws an error for this token. The time is part of the signed data, so nobody can change it. Write `null` for a token that never expires. |
 
-**Returns** `string` — Unpadded URL-safe base64 — `A-Za-z0-9-_`, every octet of which a query string and a `Set-Cookie` header carry unescaped. About `4/3 × (payload + 40)` characters, and the same token every time for the same inputs, because a signature is deterministic where a seal is not.
+**Returns** `string` — The token. It contains only `A-Z`, `a-z`, `0-9`, `-` and `_`, so you can put it in a URL or a cookie without escaping it. It is about 4/3 × (payload + 40) characters long.
 
-**Throws** `LogicError` — `$settings.keys` is empty, so there is no newest key; or its first entry is not 32 octets long — a `bytes` that was never a key.
+**Throws** `LogicError` — `$settings.keys` is empty, or its first key is not 32 bytes long. `Core\Crypto::generateKey()` returns a key of the right length.
 
 <a id="core-core-signature-verify"></a>
 #### `Core\Signature::verify`
@@ -21111,16 +21111,16 @@ Signs `$payload` under the newest key in `$settings.keys` and answers a token. T
 Core\Signature::verify(string $token, array<secret bytes> $keys): array<tainted string>
 ```
 
-Authenticates `$token` against every key in `$keys`, checks the lifetime it carries, and answers the payload that was signed, or throws. The payload comes back **`tainted`**: a signature proves origin, not safety for any sink.
+Checks that `$token` was made by `Core\Signature::sign` with a key in `$keys`, and that it has not expired. It returns the signed payload, or throws an error. Every value in the payload is `tainted` (treated as input from outside), because a signature shows who made the data, not that the data is safe to use.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$token` | `string` (neutral) | The token, as it arrived. A `tainted` value is accepted here — that is the point of the member. |
-| `$keys` | `array<secret bytes>` | The same ring `sign` was given, newest first. A token minted under any key still in the ring verifies; one minted under a key that has been dropped off the end does not. |
+| `$token` | `string` (neutral) | The token as your program received it, for example from a URL. A `tainted` string is allowed here. |
+| `$keys` | `array<secret bytes>` | The keys you gave `sign`, newest first. A token made with any key in this list is accepted. A token made with a key you removed from the list is not. |
 
-**Returns** `array<tainted string>` — The signed payload in canonical key order, every value a `tainted string`. Insertion order is not part of what was signed, so it is not part of what comes back.
+**Returns** `array<tainted string>` — The signed payload, sorted by name. Every value is a `tainted string`.
 
-**Throws** `LogicError` — `$keys` is empty, or one of its entries is not 32 octets long.; `RuntimeError` — `$token` is not authentic under any key in `$keys` — it was altered, it is not base64 at all, it was minted for another door, or the key it was minted under has been retired. The four are one message on purpose. Expiry is the one refusal with a sentence of its own, because only the holder of a genuinely signed token ever reaches it.
+**Throws** `LogicError` — `$keys` is empty, or one of its keys is not 32 bytes long.; `RuntimeError` — `$token` was not made with any key in `$keys`. This includes a changed token, text that is not a token, and a token for a signed URL. All of these give the same message, so an attacker learns nothing from it. An expired token also throws `RuntimeError`, with a different message that gives the time it expired.
 
 <a id="core-core-html"></a>
 ### `Core\Html`
