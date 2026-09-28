@@ -1,0 +1,20 @@
+<?nvs
+// Trusts a checked value from a visitor, as a program does before it builds a sort order from it.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        tainted string $sort = "created_at" as tainted string;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $column = Core\Taint::assertTrusted($sort, "the column is one of the allowed ones");
+            $total = $total + Core\Str::length($column) % ($i % 3 + 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

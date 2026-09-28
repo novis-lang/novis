@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `assertTrusted` does not clean or escape the text.
+
+// This `tainted` value has characters that HTML treats in a special way.
+tainted string $title = "<b>Tom & Jerry</b>" as tainted string;
+
+// The reason can be a constant, so you can use the same reason in many places.
+class Reasons {
+    public const string EDITOR = "the editor typed this title in the admin area";
+}
+
+// `assertTrusted` returns exactly the same text. Only the type changes.
+// This prints "<b>Tom & Jerry</b>" and then 18.
+string $trusted = Core\Taint::assertTrusted($title, Reasons::EDITOR);
+echo $trusted, "\n";
+echo Core\Str::length($trusted), "\n";
+
+// If you need safe HTML, use an HTML function such as `Core\Html::escape`.

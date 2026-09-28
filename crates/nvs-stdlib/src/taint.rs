@@ -49,12 +49,19 @@
 //! answer, and **not** required to be a literal, since a `const` holding the
 //! reason is as greppable at the call site as the text would have been.
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+
+/// `Core\Taint`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A `tainted` value came from outside the program, such as a visitor's request. \
+            `assertTrusted()` returns it as a plain `string` after your own check. Each call needs \
+            a reason, which says what was checked.",
+};
 
 /// `rule:security/launderers-are-sink-named`'s escape hatch, and the one launderer that names no single sink.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Taint",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "assertTrusted",
         names: &["value", "reason"],
@@ -71,26 +78,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Taint::assertTrusted`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_TRUSTED_DOC: MethodDoc = MethodDoc {
-    short: "Answers `$value` with the `tainted` qualifier dropped, on the developer's own written \
-            authority — the escape hatch for the case no sink-named launderer fits, forbidden by \
-            default and greppable by its own name.",
+    short: "Returns a `tainted string` as a plain `string`. Use it only after your own check, when \
+            no function made for that one place fits, such as `Core\\Html::escape`.",
     params: &[
         ParamDoc {
             name: "value",
-            desc: "The value being asserted trustworthy. A plain `string` is accepted and \
-                   asserting it is the identity.",
+            desc: "The value your program has checked. A plain `string` is also allowed, and \
+                   the result is the same text.",
             shape: &[],
         },
         ParamDoc {
             name: "reason",
-            desc: "What was checked, and why the value can be trusted, written for the next \
-                   reader. Nothing reads it at run time.",
+            desc: "What was checked, and why the value can be trusted. It is written for the \
+                   people who read the code. The program never reads it.",
             shape: &[],
         },
     ],
-    ret: "The same text, with `tainted` gone and nothing else changed. The other axis never arrives \
-          here: a `secret` operand is refused outright, so a value carrying both passes \
-          `Core\\Secret::reveal` first and this member second.",
+    ret: "The same text as a plain `string`. Nothing is escaped or removed. A `secret` value does \
+          not compile here, so call `Core\\Secret::reveal` on it first.",
     errors: &[],
 };
 
@@ -133,5 +138,57 @@ nvs_runtime::nvs_helper! {
             args[0].retain();
         }
         Ok(args[0])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nvs_runtime::{Ctx, NvsStr, StrHeader, Value};
+
+    /// `assertTrusted` is the identity at run time: the answer is the
+    /// argument's own allocation with one more owner, and the reason is never
+    /// read, so a `null` in its slot is answered the same as a text. The
+    /// fixture carries the characters an escaper would rewrite, so a member
+    /// that sanitised anything would hand back a different allocation.
+    // covers: Core\Taint::assertTrusted
+    #[test]
+    fn assert_trusted_hands_back_the_argument_itself_and_reads_no_reason() {
+        for written in [Some("the column is one of three the program allows"), None] {
+            let value = Value::str(NvsStr::new("<a href='x'>Tom & Jerry</a> ünï".as_bytes()));
+            let header: *const StrHeader = value.buffer_ptr().expect("the value is a `string`");
+            let reason =
+                written.map_or_else(Value::null, |text| Value::str(NvsStr::new(text.as_bytes())));
+            let mut ctx = Ctx::buffered();
+            let answer = nvs_runtime::call(
+                super::nvs_core_taint_assert_trusted,
+                &mut ctx,
+                &[value, reason],
+            )
+            .expect("asserting a value trusted never throws");
+            assert!(
+                answer.bits() == value.bits() && answer.tag() == value.tag(),
+                "`assertTrusted` answers its own argument, with reason {written:?}"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "`value` keeps `header` live, the caller owns the one reference the \
+                          member handed back, and built both arguments, each released once"
+            )]
+            unsafe {
+                assert_eq!(
+                    NvsStr::refcount_of(header),
+                    2,
+                    "the answer is one more owner"
+                );
+                answer.release();
+                assert_eq!(
+                    NvsStr::refcount_of(header),
+                    1,
+                    "releasing it leaves the caller's"
+                );
+                value.release();
+                reason.release();
+            }
+        }
     }
 }

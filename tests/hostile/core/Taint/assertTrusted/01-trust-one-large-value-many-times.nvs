@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program trusts one tainted text of 16 million characters thousands of times
+// and keeps every result. Each result should share the same text, so memory stays
+// small, and changing one result must not change the original or the others.
+
+// A tainted text of 16 million characters.
+tainted string $big = Core\Str::repeat('v', 16000000) as tainted string;
+
+// Step 1: trust the text 100,000 times and free each result at once.
+uint $i = 0;
+uint $seen = 0;
+while ($i < 100000) {
+    string $plain = Core\Taint::assertTrusted($big, 'the loop checks every trusted value');
+    $seen = $seen + Core\Str::length($plain) % 7;
+    $i = $i + 1;
+}
+echo 'step 1: ', $seen, "\n";
+
+// Step 2: keep 10,000 results in one array. If each result were a copy,
+// this would need 160 gigabytes.
+array<string> $kept = [];
+$i = 0;
+while ($i < 10000) {
+    $kept[] = Core\Taint::assertTrusted($big, 'the cache keeps every trusted value');
+    $i = $i + 1;
+}
+echo 'step 2: ', Core\Arr::count($kept), "\n";
+
+// Step 3: change one kept result. The original and the other results stay the same length.
+$kept[0] = $kept[0] . '!';
+string $check = Core\Taint::assertTrusted($big, 'the test compares the lengths');
+echo 'step 3: ', Core\Str::length($kept[0]), ' ', Core\Str::length($kept[1]), ' ', Core\Str::length($check), "\n";
+
+// Step 4: the reason is 16 million characters long. The program never reads it.
+string $longReason = Core\Str::repeat('because ', 2000000);
+string $small = Core\Taint::assertTrusted('id-4821' as tainted string, $longReason);
+echo 'step 4: ', $small, "\n";
+
+// Step 5: a result is trusted a second time, and a second time again.
+string $twice = Core\Taint::assertTrusted(Core\Taint::assertTrusted($big, 'first'), 'second');
+echo 'step 5: ', Core\Str::length($twice), "\n";
+
+// Step 6: free the kept results, and trust an empty text.
+$kept = [];
+tainted string $empty = '' as tainted string;
+echo 'step 6: ', Core\Str::length(Core\Taint::assertTrusted($empty, 'an empty value is allowed')), "\n";

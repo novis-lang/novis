@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to use a search pattern that the site owner wrote in the settings.
+
+// The pattern is read from outside the program, so it is `tainted`.
+// `Core\Regex::compile` does not accept a `tainted` pattern.
+tainted string $fromSettings = "^ORD-[0-9]{4}$" as tainted string;
+
+// The site owner wrote this pattern, not a visitor, so the program trusts it.
+string $pattern = Core\Taint::assertTrusted($fromSettings, "only the site owner can edit this setting");
+Core\Regex\Pattern $orderId = Core\Regex::compile($pattern);
+
+// This prints "ORD-1042 yes", "ORD-12 no" and "ord-1042 no".
+array<string> $ids = ["ORD-1042", "ORD-12", "ord-1042"];
+foreach ($ids as string $id) {
+    echo $id, Core\Regex::matches($id, $orderId) ? " yes" : " no", "\n";
+}

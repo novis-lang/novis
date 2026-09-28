@@ -19786,14 +19786,14 @@ first, whose answer is still `tainted`, and asserts second; the other order does
 Core\Taint::assertTrusted(string $value, string $reason): string
 ```
 
-Answers `$value` with the `tainted` qualifier dropped, on the developer's own written authority — the escape hatch for the case no sink-named launderer fits, forbidden by default and greppable by its own name.
+Returns a `tainted string` as a plain `string`. Use it only after your own check, when no function made for that one place fits, such as `Core\Html::escape`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `string` (launder) | The value being asserted trustworthy. A plain `string` is accepted and asserting it is the identity. |
-| `$reason` | `string` (neutral) | What was checked, and why the value can be trusted, written for the next reader. Nothing reads it at run time. |
+| `$value` | `string` (launder) | The value your program has checked. A plain `string` is also allowed, and the result is the same text. |
+| `$reason` | `string` (neutral) | What was checked, and why the value can be trusted. It is written for the people who read the code. The program never reads it. |
 
-**Returns** `string` — The same text, with `tainted` gone and nothing else changed. The other axis never arrives here: a `secret` operand is refused outright, so a value carrying both passes `Core\Secret::reveal` first and this member second.
+**Returns** `string` — The same text as a plain `string`. Nothing is escaped or removed. A `secret` value does not compile here, so call `Core\Secret::reveal` on it first.
 
 <a id="core-core-secret"></a>
 ### `Core\Secret`
