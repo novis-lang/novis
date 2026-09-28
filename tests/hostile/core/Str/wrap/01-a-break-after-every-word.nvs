@@ -1,0 +1,66 @@
+<?nvs
+// Attack: `Core\Str::wrap` gets long texts, a width of 1 and long breaks, so the result is far longer than the text.
+// The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Wraps one hundred thousand short words at a width of 1, with a break of 100 characters.
+    public static function longBreaks(uint $words): uint
+    {
+        string $text = Core\Str::repeat('a ', $words);
+        return Core\Str::length(Core\Str::wrap($text, 1, { breakWith: Core\Str::repeat('-', 100) }));
+    }
+
+    /// 2. Cuts a word of one million characters after every character.
+    public static function cutEveryCharacter(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::wrap(Core\Str::repeat('é', $size), 1, { cutLongWords: true }));
+    }
+
+    /// 3. Wraps a text that is only breaks, so a new line starts at every one of them.
+    public static function onlyBreaks(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::wrap(Core\Str::repeat('<br>', $size), 0, { breakWith: '<br>' }));
+    }
+
+    /// 4. Uses a break that almost matches the text at every character, but never fully.
+    public static function almostABreak(uint $size): uint
+    {
+        string $break = Core\Str::repeat('a', 1000) . 'b';
+        return Core\Str::length(Core\Str::wrap(Core\Str::repeat('a', $size), 1, { breakWith: $break }));
+    }
+
+    /// 5. Uses the two arguments that are not allowed: an empty break, and a width of 0 with cutting.
+    public static function badArguments(): uint
+    {
+        uint $errors = 0;
+        try {
+            Core\Str::wrap('a b c', 1, { breakWith: '' });
+        } catch (RuntimeError $error) {
+            $errors = $errors + 1;
+        }
+        try {
+            Core\Str::wrap('a b c', 0, { cutLongWords: true });
+        } catch (RuntimeError $error) {
+            $errors = $errors + 1;
+        }
+        return $errors;
+    }
+
+    /// 6. Wraps two million words at a width of 1, with a break of 200 characters.
+    /// The result would be 400 MB, and the memory limit stops the program here.
+    public static function tooLarge(uint $words): uint
+    {
+        string $text = Core\Str::repeat('a ', $words);
+        return Core\Str::length(Core\Str::wrap($text, 1, { breakWith: Core\Str::repeat('-', 200) }));
+    }
+}
+
+echo Attack::longBreaks(100000), "\n";
+echo Attack::cutEveryCharacter(1000000), "\n";
+echo Attack::onlyBreaks(1000000), "\n";
+echo Attack::almostABreak(1000000), "\n";
+echo Attack::badArguments(), "\n";
+echo Attack::tooLarge(2000000), "\n";

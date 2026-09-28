@@ -1326,8 +1326,9 @@ const REVERSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::wrap`'s reference card — `rule:core-api/reference-card`.
 const WRAP_DOC: MethodDoc = MethodDoc {
-    short: "Breaks `$s` into lines no longer than `$width` characters by inserting `breakWith` \
-            at spaces, as `wordwrap` does — counted in graphemes.",
+    short: "Splits `$s` into lines of at most `$width` characters. It breaks a line at a space \
+            and writes `breakWith` in place of that space. A character is what a person sees \
+            as one character, so `\"é\"` counts as one. Replaces PHP's `wordwrap`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1336,26 +1337,28 @@ const WRAP_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "width",
-            desc: "The longest line allowed, in characters; `0` breaks at every space.",
+            desc: "The longest line, in characters. With `0`, every space is a line break.",
             shape: &[],
         },
         ParamDoc {
             name: "breakWith",
-            desc: "The text inserted at each break, and a line reset wherever it already occurs \
-                   in `$s`; the default is `\"\\n\"`, without `wordwrap`'s leading space.",
+            desc: "The text written at each line break. The default is `\"\\n\"`. Where `$s` \
+                   already contains this text, a new line starts there.",
             shape: &[],
         },
         ParamDoc {
             name: "cutLongWords",
-            desc: "Break a word longer than `$width` in the middle rather than letting it \
-                   overrun the line; the default is `false`.",
+            desc: "With `true`, a word longer than `$width` is cut into pieces of `$width` \
+                   characters. With `false`, the default, a long word stays whole on a line \
+                   of its own.",
             shape: &[],
         },
     ],
-    ret: "The wrapped text.",
+    ret: "The wrapped text. A text of at most `$width` characters is returned unchanged. A \
+          result over the memory limit stops the request.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`breakWith` is empty, or `$width` is `0` with `cutLongWords` set.",
+        desc: "`breakWith` is `\"\"`, or `$width` is `0` and `cutLongWords` is `true`.",
     }],
 };
 
@@ -1648,11 +1651,8 @@ const AROUND_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// `Core\Str::wrap`'s `{breakWith?: string, cutLongWords?: bool}` — PHP's
-/// `wordwrap` third and fourth arguments, named rather than positional.
-///
-/// `breakWith` defaults to `"\n"` and **not** to PHP's `" \n"`: that default of
-/// PHP's is a two-character break inserted verbatim, which leaves a trailing
-/// space on every wrapped line. [`nvs_core_str_wrap`] owns the rest.
+/// `wordwrap` third and fourth arguments, named rather than positional, with
+/// PHP's defaults: `"\n"` and `false`. [`nvs_core_str_wrap`] owns the rest.
 const WRAP_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "breakWith",
@@ -3290,79 +3290,84 @@ nvs_runtime::nvs_helper! {
                  would have to be broken both before and after",
             ));
         }
-        produced(&wrapped(subject, width, break_with, cut))
+        // The result is at least the subject, and the writer asks the memory
+        // limit before each growth past that: a width of 1 with a long
+        // `breakWith` makes a result many times the subject's length.
+        built(subject.len(), |out| {
+            wrapped(subject, width, break_with, cut, |piece| out.push_str(piece));
+        })
     }
 }
 
-/// `subject` with `break_with` inserted so no line exceeds `width` units —
-/// PHP's `wordwrap`, unit for unit.
+/// Writes `subject` to `out` with `break_with` inserted so no line exceeds
+/// `width` units — PHP's `wordwrap`, unit for unit.
 ///
 /// **The width counts in [`crate::granularity::DEFAULT`]**, not in bytes, which
 /// is the one thing this does not inherit from PHP: a wrapped column of text is
 /// exactly the place where counting `"é"` as two would misalign the output.
-/// That is what the `starts` table is for — one byte offset per unit, plus a
-/// sentinel for the end, so a unit-counted line has a byte-slicable range.
+/// The walk is one pass over the units, keeping byte offsets for slicing and a
+/// unit count for measuring, so it holds no memory of its own beyond `out`.
 ///
 /// A break string already present in the subject **resets the line**, so a
 /// paragraph that is already wrapped is re-wrapped rather than measured as one
 /// long line. It is matched by bytes and only accepted when it ends on a unit
 /// boundary — a break that splits a grapheme cluster is not a line ending.
-fn wrapped(subject: &str, width: usize, break_with: &str, cut: bool) -> String {
-    let unit = crate::granularity::DEFAULT;
-    let mut starts: Vec<usize> = Vec::new();
-    let mut at = 0usize;
-    for piece in unit.pieces(subject) {
-        starts.push(at);
-        at += piece.len();
-    }
-    starts.push(subject.len());
-    let total = starts.len() - 1;
-
-    let mut out = String::with_capacity(subject.len());
-    // Both are unit indices: where the line being measured began, and the last
-    // space seen on it. A `last_space` at or before `line_start` is one from a
-    // line already emitted, which is how "this line has no space to break at"
-    // is spelled.
+fn wrapped(subject: &str, width: usize, break_with: &str, cut: bool, mut out: impl FnMut(&str)) {
+    let mut pieces = crate::granularity::DEFAULT.pieces(subject);
+    // Byte offsets: where the line being measured began, and where the unit
+    // being looked at begins.
     let mut line_start = 0usize;
-    let mut last_space: Option<usize> = None;
-    let mut current = 0usize;
-    while current < total {
-        let byte = starts[current];
-        if subject[byte..].starts_with(break_with)
-            && let Ok(after) = starts.binary_search(&(byte + break_with.len()))
-        {
-            out.push_str(&subject[starts[line_start]..starts[after]]);
-            line_start = after;
-            last_space = None;
-            current = after;
-            continue;
+    let mut byte = 0usize;
+    // How many units lie between `line_start` and `byte`.
+    let mut line_units = 0usize;
+    // The last space on this line that is not its first unit, as its byte
+    // offset and how many units come before it on the line. PHP never breaks
+    // at a space that opens a line, so that one is not recorded.
+    let mut last_space: Option<(usize, usize)> = None;
+    while let Some(piece) = pieces.next() {
+        if subject[byte..].starts_with(break_with) {
+            let end = byte + break_with.len();
+            let mut ahead = pieces.clone();
+            let mut at = byte + piece.len();
+            while at < end
+                && let Some(next) = ahead.next()
+            {
+                at += next.len();
+            }
+            if at == end {
+                out(&subject[line_start..end]);
+                pieces = ahead;
+                (line_start, byte, line_units, last_space) = (end, end, 0, None);
+                continue;
+            }
         }
-        let over = current - line_start >= width;
-        if &subject[byte..starts[current + 1]] == " " {
+        let over = line_units >= width;
+        if piece == " " {
             if over {
-                out.push_str(&subject[starts[line_start]..byte]);
-                out.push_str(break_with);
-                line_start = current + 1;
+                out(&subject[line_start..byte]);
+                out(break_with);
+                (line_start, line_units, last_space) = (byte + 1, 0, None);
+            } else {
+                if line_units > 0 {
+                    last_space = Some((byte, line_units));
+                }
+                line_units += 1;
             }
-            last_space = Some(current);
-        } else if over && last_space.is_none_or(|space| line_start >= space) {
-            if cut {
-                out.push_str(&subject[starts[line_start]..byte]);
-                out.push_str(break_with);
-                line_start = current;
-                last_space = None;
-            }
-        } else if over {
-            let space = last_space.expect("the previous arm covered the absent case");
-            out.push_str(&subject[starts[line_start]..starts[space]]);
-            out.push_str(break_with);
-            line_start = space + 1;
-            last_space = None;
+        } else if let (true, Some((space, before))) = (over, last_space) {
+            out(&subject[line_start..space]);
+            out(break_with);
+            // The units after the space move to the new line, this one included.
+            (line_start, line_units, last_space) = (space + 1, line_units - before, None);
+        } else if over && cut {
+            out(&subject[line_start..byte]);
+            out(break_with);
+            (line_start, line_units) = (byte, 1);
+        } else {
+            line_units += 1;
         }
-        current += 1;
+        byte += piece.len();
     }
-    out.push_str(&subject[starts[line_start]..]);
-    out
+    out(&subject[line_start..]);
 }
 
 nvs_runtime::nvs_helper! {
@@ -5044,10 +5049,56 @@ mod tests {
         assert_eq!(status, nvs_runtime::FATAL);
     }
 
+    /// [`super::wrapped`]'s output, collected.
+    fn wrap_of(subject: &str, width: usize, break_with: &str, cut: bool) -> String {
+        let mut out = String::new();
+        super::wrapped(subject, width, break_with, cut, |piece| out.push_str(piece));
+        out
+    }
+
     /// Every row verified against PHP 8.5's `wordwrap`, which [`super::wrapped`]
     /// reproduces one unit at a time instead of one byte at a time.
+    // covers: Core\Str::wrap
     #[test]
     fn wrapping_matches_phps_wordwrap() {
+        for (subject, width, break_with, cut, want) in [
+            // A break already in the subject restarts the measurement, and
+            // PHP's default break is `"\n"`.
+            (
+                "one two<br>three four five",
+                9,
+                "<br>",
+                false,
+                "one two<br>three<br>four five",
+            ),
+            // A space that opens a line is not a place to break.
+            (" abcdef gh", 3, "\n", true, " ab\ncde\nf\ngh"),
+            // Every space breaks at a width of zero, so two spaces make an
+            // empty line.
+            ("ab  cd", 0, "\n", false, "ab\n\ncd"),
+            // The spaces before the last one stay on the line they end.
+            (
+                "word  with   spaces here",
+                6,
+                "\n",
+                false,
+                "word \nwith  \nspaces\nhere",
+            ),
+            (
+                "aaaa bbbb cccc",
+                1,
+                "--",
+                true,
+                "a--a--a--a--b--b--b--b--c--c--c--c",
+            ),
+            ("ab cdefgh ij", 4, "\n", true, "ab\ncdef\ngh\nij"),
+        ] {
+            assert_eq!(
+                wrap_of(subject, width, break_with, cut),
+                want,
+                "wrap({subject:?}, {width}, {break_with:?}, cut = {cut})"
+            );
+        }
         for (subject, width, cut, want) in [
             ("one two three four", 9, false, "one two\nthree\nfour"),
             (
@@ -5081,7 +5132,7 @@ mod tests {
             ("abc", 0, false, "abc"),
         ] {
             assert_eq!(
-                super::wrapped(subject, width, "\n", cut),
+                wrap_of(subject, width, "\n", cut),
                 want,
                 "wrap({subject:?}, {width}, cut = {cut})"
             );
@@ -5091,14 +5142,56 @@ mod tests {
     /// The width counts characters, not bytes — the one thing `wrap` does not
     /// inherit from PHP, and the reason a wrapped column of accented text lines
     /// up here and does not there.
+    // covers: Core\Str::wrap
     #[test]
     fn wrapping_measures_the_same_unit_length_counts() {
         // Each word is four characters and six bytes, so a byte-counting wrap
         // would break after the first one.
         assert_eq!(
-            super::wrapped("a\u{301}a\u{301} b\u{301}b\u{301}", 9, "\n", false),
+            wrap_of("a\u{301}a\u{301} b\u{301}b\u{301}", 9, "\n", false),
             "a\u{301}a\u{301} b\u{301}b\u{301}"
         );
+        // The `e` inside `é` is not where a line ends, because it splits the
+        // character, so the break is only written at the space.
+        assert_eq!(wrap_of("ae\u{301} bc", 1, "e", false), "ae\u{301}ebc");
+    }
+
+    /// A width of 1 with a long break makes a result far longer than the
+    /// subject. The request is stopped at its memory limit, and its peak stays
+    /// under that limit.
+    // covers: Core\Str::wrap
+    #[test]
+    fn wrap_refuses_a_result_past_the_memory_limit_while_building_it() {
+        const LIMIT: usize = 1 << 20;
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+        let args = [
+            s(&"a ".repeat(4096)),
+            Value::uint(1),
+            s(&"-".repeat(1024)),
+            Value::bool(false),
+        ];
+        let result = call(super::nvs_core_str_wrap, &mut ctx, &args);
+        assert!(ctx.over_memory_limit(), "4 MiB of result fit under 1 MiB");
+        assert!(
+            ctx.memory_peak() < LIMIT,
+            "the result was built past the limit before the refusal: {} bytes",
+            ctx.memory_peak()
+        );
+        if let Ok(prefix) = result {
+            assert!(taken(prefix).len() < LIMIT);
+        }
+        drop(ctx);
+        for arg in args {
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built for each \
+                          argument, and the helper borrowed it"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
     }
 
     /// An empty needle matches at every position, so a scan that advanced by
