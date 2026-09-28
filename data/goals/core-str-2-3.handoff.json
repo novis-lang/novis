@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-str-2-3`, 2 of 3 items done. `Core\\Str::graphemes` and `Core\\Str::indexOf` are complete\n(`bun nv proofs --id` says so for each): description, three examples, attack, bench with a perf record,\nRust test and a plain card each. The `indexOf` attack found a linear-time bug in the case-insensitive\nsearch. It is fixed in `find_from` (Knuth–Morris–Pratt over each character's lower-case mapping) and\npinned by `tests/conformance/core/str-index-of-case-insensitive-near-miss-is-linear.nvst`. A second\nfinding, a match that starts or ends inside one grapheme, is recorded as gap\n`nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` (owner M11), because the fix is a\nchoice between two semantics for the whole search family. `str.rs` now has a `# Known gaps` heading.",
+  "state": "Goal `core-str-2-3`: `Core\\Str::graphemes`, `indexOf` and `isEmpty` are complete (`bun nv proofs --id` says so for each). Every `Core\\Str` bench whose record went stale when `find_from` changed is re-measured, so the `dossier-core-str-1-3` check passes. The `2/3` and `3/3` checks still name many members with no proofs at all; that is the goal's remaining work, one member per slice. Gap `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` (owner M11) is open for the search family. A change to the code of `crates/nvs-stdlib/src/str.rs` makes every `Core\\Str` perf record stale; re-measure them all with `bun nv proofs --record-perf --only …` in the same session. A card or test edit does not.",
   "next": {
     "stage": 1,
     "title": "feature proofs, one member per slice",
@@ -12,13 +12,20 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::isEmpty`** — owes examples, hostile, perf, tests, and its `about.md` and a plain card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/str.rs:210`"
+        "text": "**`Core\\Str::join`** — owes about.md, examples, hostile, perf, a Rust `covers:` test and a plain card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/str.rs:345`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Str::lastIndexOf`** — the same proofs. Its attack should reuse the near-miss shapes of `tests/hostile/core/Str/indexOf/01-long-needles-that-almost-match.nvs`. `crates/nvs-stdlib/src/str.rs:284`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Str::lines`** — the same proofs. `crates/nvs-stdlib/src/str.rs:376`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Str::lastIndexOf` walks every overlapping match with a fresh `find_at`, so `\"a\"` × N with an `\"a\"` × M needle costs N·M in both modes; the attack for it will find this — `crates/nvs-stdlib/src/str.rs` `nvs_core_str_last_index_of`.",
-    "`Core\\Str::replaceAll` tries every needle at every position, so one long needle that almost matches costs text length × needle length in both modes — `crates/nvs-stdlib/src/str.rs` `nvs_core_str_replace_all`.",
-    "A match inside one grapheme: gap `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position`, owner M11."
+    "`Core\\Str::lower`, `lowerFirst`, `normalize` and the rest of the `2/3` and `3/3` lists owe every proof (`bun nv proofs --verify --only …` names them).",
+    "Gap `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` — owner M11, `data/gaps/nvs-stdlib/`."
   ]
 }

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a list that a user pasted, one entry per line, and skip the blank lines.
+
+string $pasted = "anna@example.com\n\nben@example.com\n   \ncarla@example.com\n";
+
+// `Core\Str::lines` splits the text into lines. A line that is empty
+// after `Core\Str::trim` is skipped. This prints the three addresses and `3 addresses`.
+uint $count = 0;
+foreach (Core\Str::lines($pasted) as string $line) {
+    string $address = Core\Str::trim($line);
+    if (Core\Str::isEmpty($address)) {
+        continue;
+    }
+    echo $address, "\n";
+    $count = $count + 1;
+}
+echo $count, " addresses\n";

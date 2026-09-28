@@ -650,13 +650,14 @@ const AT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$s` holds no characters at all — the `$s === \"\"` test.",
+    short: "Checks whether `$s` is the empty string `\"\"`. A string of spaces is not empty, and \
+            neither is `\"0\"`.",
     params: &[ParamDoc {
         name: "s",
-        desc: "The string to test.",
+        desc: "The string to check.",
         shape: &[],
     }],
-    ret: "`true` for the empty string, `false` for any other.",
+    ret: "`true` when `$s` has no characters, otherwise `false`.",
     errors: &[],
 };
 
@@ -4268,20 +4269,20 @@ mod tests {
         assert_eq!(status, nvs_runtime::FATAL);
     }
 
+    /// Only `""` is empty: a space, `"0"` and a zero-width character each
+    /// count as one character.
+    // covers: Core\Str::isEmpty
     #[test]
-    fn is_empty_answers_for_both_shapes() {
-        assert_eq!(
-            run(super::nvs_core_str_is_empty, &[s("")])
+    fn is_empty_is_true_for_the_empty_string_alone() {
+        let empty = |text: &str| {
+            run(super::nvs_core_str_is_empty, &[s(text)])
                 .expect("no failure")
-                .as_bool(),
-            Some(true)
-        );
-        assert_eq!(
-            run(super::nvs_core_str_is_empty, &[s("a")])
-                .expect("no failure")
-                .as_bool(),
-            Some(false)
-        );
+                .as_bool()
+        };
+        assert_eq!(empty(""), Some(true));
+        for text in ["a", " ", "0", "\0", "\u{200B}", "\u{301}"] {
+            assert_eq!(empty(text), Some(false), "{text:?} is not empty");
+        }
     }
 
     /// `length` counts characters, which is the answer PHP needs two functions

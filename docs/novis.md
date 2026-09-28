@@ -7045,13 +7045,13 @@ Returns the one character at position `$index` of `$s`. A character is what a pe
 Core\Str::isEmpty(string $s): bool
 ```
 
-Answers whether `$s` holds no characters at all — the `$s === ""` test.
+Checks whether `$s` is the empty string `""`. A string of spaces is not empty, and neither is `"0"`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` (neutral) | The string to test. |
+| `$s` | `string` (neutral) | The string to check. |
 
-**Returns** `bool` — `true` for the empty string, `false` for any other.
+**Returns** `bool` — `true` when `$s` has no characters, otherwise `false`.
 
 <a id="core-core-str-contains"></a>
 #### `Core\Str::contains`

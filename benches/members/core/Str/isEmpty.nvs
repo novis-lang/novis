@@ -1,0 +1,22 @@
+<?nvs
+// Checks whether a form field is empty, as a program does before it saves the form.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $fields = ["", "Anna", "anna@example.com"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Str::isEmpty($fields[(($total + $i) % 3) as int])) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
