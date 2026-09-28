@@ -1,0 +1,3 @@
+# One value on a topic the program does not subscribe to, and one on a topic it does.
+publish: news:weather rain in the afternoon
+publish: news:sport the match starts at 8

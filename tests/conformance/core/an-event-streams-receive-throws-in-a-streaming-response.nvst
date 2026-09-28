@@ -1,0 +1,21 @@
+--TEST--
+`Core\Sse->receive` throws a `LogicError` in a request that answers with its own events, and names the member — `rule:concurrency/two-doors-one-isolate`
+--FILE--
+<?nvs
+// covers: Core\Sse::receive
+// A request that opened its stream with `Core\Sse::stream` ends with its own
+// events, so nothing published could reach it. `null` here would read as "the
+// stream is over" and end a loop for a reason that was never true, so the
+// wait is refused instead.
+var $refused = "";
+try {
+    Core\Out::capture(fn (): void => {
+        var $sse = Core\Sse::stream();
+        $sse->receive();
+    });
+} catch (LogicError $caught) {
+    $refused = $caught->message;
+}
+echo Core\Str::contains($refused, "Core\\Sse::receive") ? "refused by name" : $refused, "\n";
+--EXPECT--
+refused by name

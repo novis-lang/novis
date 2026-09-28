@@ -1,0 +1,20 @@
+<?nvs
+// Shows a stream that sends the progress of one deployment to a status page.
+
+// The `.nvse` file beside this example publishes three steps of deployment 42.
+// Another script, such as the deploy job, publishes these in a real application.
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe("deploy:42");
+
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    string $step = $message->value() as string;
+    // This prints one `status` event for each step.
+    $sse->send($step, event: "status");
+    // The script stops by itself after the last step. It does not wait
+    // until the client closes the page.
+    if ($step == "done") {
+        break;
+    }
+    $message = $sse->receive();
+}

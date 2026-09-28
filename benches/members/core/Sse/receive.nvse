@@ -1,0 +1,1 @@
+# No values: the program publishes its own, so every `receive()` finds one waiting.

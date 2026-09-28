@@ -1,27 +1,28 @@
 {
-  "state": "Goal `core-sse-and-2-more`. `Core\\Sse::current` and `Core\\Sse::retry` have all their feature proofs on\ndisk: `about.md` and three examples each under `docs/examples/core/Sse/`, one attack each under\n`tests/hostile/core/Sse/`, one bench each under `benches/members/core/Sse/`, a Rust `#[test]` with a\n`covers:` marker in `crates/nvs-stdlib/src/sse.rs`, and `Core\\Sse`'s class card (removed from\n`CLASSES_STILL_OWING_A_CARD`). `Core\\Sse::receive` is the one member left, and it was skipped this\nsession because no harness can run it: `nvs run` has `--peer` for a WebSocket connection isolate and\nnothing that runs a program as the isolate `Core\\Sse::upgrade` opens (`EventStreamDoor::Connection`),\nso every `receive` call outside a `#[test]` throws `LogicError`.",
+  "state": "Goal `core-sse-and-2-more`. `Core\\Sse::current`, `Core\\Sse::retry` and now `Core\\Sse::receive` have all\ntheir feature proofs on disk under `docs/examples/core/Sse/`, `tests/hostile/core/Sse/`,\n`benches/members/core/Sse/` and a Rust `covers:` test in `crates/nvs-stdlib/src/sse.rs`. `nvs run\n--events <file>` runs a program as the isolate `Core\\Sse::upgrade` opens (`crates/nvs-cli/src/events.rs`\nis the format), and a `<name>.nvse` beside a proof is handed over as `--events` by `bun nv proofs`\n(`docs/examples/README.md` § *Values published to an event stream*). `Core\\Sse::receive` now returns\n`null` once the stream is closed, after anything already queued. `receive` and `retry` have fresh perf\nrecords. `Core\\Sse::send`, `Core\\Sse\\Message` and `Core\\Storage` are what the goal still owes.",
   "next": {
-    "stage": 1,
-    "title": "`Core\\Sse::receive`, and the run mode its examples need",
+    "stage": 2,
+    "title": "the rest of `Core\\Sse` and `Core\\Sse\\Message`",
     "files": [
-      "crates/nvs-cli/src/peer.rs",
-      "crates/nvs-cli/src/main.rs",
       "crates/nvs-stdlib/src/sse.rs",
-      "docs/examples/README.md"
+      "docs/examples/core/Sse/",
+      "docs/examples/core/Sse-Message/",
+      "tests/hostile/core/Sse*/",
+      "benches/members/core/Sse*/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A run mode for an event-stream connection** — `rule:testing/feature-proofs` needs examples that run: add a sibling of the `.nvsp` peer file (`crates/nvs-cli/src/main.rs:2561` reads it, `crates/nvs-cli/src/main.rs:2781` connects it, `crates/nvs-cli/src/peer.rs:1` is the format) that starts the program as a connection isolate with a body stream and the door marked `EventStreamDoor::Connection`, publishes the file's topic values, then ends the stream so `receive()` returns `null`. Document it in `docs/examples/README.md` beside § *A WebSocket peer*. If that is larger than a slice, record a gap under `data/gaps/nvs-cli/` and mark the proofs."
+        "text": "**`Core\\Sse::send` proofs** — `rule:testing/feature-proofs`: examples, attack, bench and a Novis case; the member is `crates/nvs-stdlib/src/sse.rs:694` and its card `crates/nvs-stdlib/src/sse.rs:359`. `Core\\Sse::stream()` in a plain run prints the events, so most need no `.nvse`."
       },
       {
         "done": false,
-        "text": "**`Core\\Sse::receive` proofs** — examples, hostile, bench, and a `covers:` marker on `a_published_value_reaches_a_subscribed_event_stream_as_a_message` near `crates/nvs-stdlib/src/sse.rs:1290`; the member is `crates/nvs-stdlib/src/sse.rs:778`. Its help also needs `Core\\Sse\\Message`'s class card (`crates/nvs-stdlib/src/registry.rs:5282`); model it on `crates/nvs-stdlib/src/socket.rs:538`."
+        "text": "**`Core\\Sse\\Message` class card, then `topic` and `value` proofs** — `rule:core-api/reference-card`: a `ClassDoc` above `crates/nvs-stdlib/src/sse.rs:450` and `Core\\Sse\\Message` struck from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`; the examples run under a `.nvse` file."
       }
     ]
   },
   "backlog": [
-    "`Core\\Sse::upgrade`, `stream` and `send` have no examples, attacks or benches either; they are not in this goal's list, so `bun nv proofs --owed` is where they show up.",
-    "The pack's `[context] modules` had only `sse.rs` and `storage.rs`; `crates/nvs-cli/src/peer.rs` is added now."
+    "`Core\\Storage::get`, `delete` and `list` owe every proof and `Core\\Storage` its class card — `crates/nvs-stdlib/src/storage.rs:168`, a stage of its own after `Core\\Sse\\Message`.",
+    "`bun nv peek --locate a b` prints nothing but the misses when one name is not found, and exits 1 — `tools/nv/cmd/peek.ts`."
   ]
 }

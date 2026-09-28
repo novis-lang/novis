@@ -1,0 +1,9 @@
+event: status
+data: building
+
+event: status
+data: testing
+
+event: status
+data: done
+
