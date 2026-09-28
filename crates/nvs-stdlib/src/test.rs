@@ -3683,12 +3683,15 @@ pub(crate) fn descriptor_for(
     real: Option<*const nvs_runtime::ClassDesc>,
     answers: &[Answer],
 ) -> Result<*const nvs_runtime::ClassDesc, Fault> {
+    let mut doubles = doubles();
+    let real = real.map(|desc| doubles.behind(desc));
     #[expect(
         unsafe_code,
         reason = "both descriptors belong to the compiled unit under test, \
                   which handed this call the first as argument 0 and the \
                   second as its receiver's class, so each is live for as long \
-                  as that unit is"
+                  as that unit is — and `Doubles::behind` only ever answers \
+                  the second or a class a key already held"
     )]
     let (name, behind) = unsafe {
         (
@@ -3722,7 +3725,6 @@ pub(crate) fn descriptor_for(
             .map(|answer| answer.name.clone())
             .collect(),
     };
-    let mut doubles = doubles();
     if let Some(id) = doubles.id_of(&key) {
         return Ok(doubles.table.desc(id));
     }
@@ -4333,6 +4335,23 @@ impl Doubles {
             .find(|(held, _)| held == key)
             .map(|(_, id)| *id)
     }
+
+    /// The class a partial over an instance of `real` is keyed and named by:
+    /// the class behind `real` when `real` is itself a partial's class, and
+    /// `real` otherwise.
+    ///
+    /// This is what keeps the table O(call sites) when a partial wraps a
+    /// partial. Keyed by the inner partial's own class, each wrap at one call
+    /// site would define a new class, and each label would contain the one
+    /// before it. The rows agree either way: a partial publishes a row for
+    /// every method of the class behind it, so the rows it delegates are the
+    /// rows that class delegates, and the key's overridden names are the rest.
+    fn behind(&self, real: *const nvs_runtime::ClassDesc) -> *const nvs_runtime::ClassDesc {
+        self.keys
+            .iter()
+            .find(|(key, id)| key.real != 0 && std::ptr::eq(self.table.desc(*id), real))
+            .map_or(real, |(key, _)| std::ptr::with_exposed_provenance(key.real))
+    }
 }
 
 /// What makes two doubles one class — the triple this module's *one descriptor
@@ -4540,6 +4559,19 @@ fn delegated(
     method: &str,
     args: &[Value],
 ) -> nvs_runtime::HelperResult {
+    // `rule:errors/on-limit`'s soft address, compared once per forward. A
+    // partial whose real object is another partial forwards natively, and a
+    // leaf method at the bottom of the chain runs no check of its own, so
+    // without this compare a chain of partials deep enough runs past the
+    // stack's floor and takes the process down with it. The address of a local
+    // is this frame's stack pointer to within the frame.
+    let here = 0_u8;
+    if (&raw const here).addr() < ctx.stack_bounds().0 {
+        return Err(Fault::thrown_as(
+            ThrownClass::Recursion,
+            "the call stack is too deep",
+        ));
+    }
     let real = crate::instance::slot(receiver, REAL_SLOT);
     // Unreachable from source: `double` publishes a row per field of the shape
     // it was given and `partial` one per method of `$real` besides, so a row
@@ -5207,6 +5239,7 @@ mod tests {
     /// `nvs_ir::ir::InstKind::CallVirtual` takes — so what is asserted is the
     /// row a compiled call site finds and the transfer it makes, rather than a
     /// trampoline called directly with slots nothing owned.
+    // covers: Core\Test::double
     #[test]
     fn a_double_records_every_call_it_answers() {
         let mut interface = nvs_runtime::ClassTable::new();
@@ -5271,6 +5304,147 @@ mod tests {
             );
         }
         dropped(double);
+    }
+
+    /// A partial publishes a delegated row for every method of the class
+    /// behind it that its shape does not answer, and none for the constructor
+    /// or for a method the shape overrides. Each delegated row keeps the real
+    /// method's arity, and the rows together build a descriptor.
+    // covers: Core\Test::partial
+    #[test]
+    fn a_partial_delegates_every_real_method_its_shape_leaves_out() {
+        fn row(name: &str, arity: u32) -> nvs_runtime::MethodRow {
+            nvs_runtime::MethodRow {
+                name: name.to_owned(),
+                code: (answering as *const ()).cast(),
+                arity,
+                param_tags: u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY),
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }
+        }
+
+        let mut table = nvs_runtime::ClassTable::new();
+        let interface = table.define("Prices", &[] as &[&str], &[]);
+        let real = table.define("Table", &["base"], &[interface]);
+        table.set_methods(
+            real,
+            vec![
+                row(nvs_runtime::CONSTRUCTOR, 1),
+                row("rate", 1),
+                row("total", 1),
+                row("currency", 0),
+            ],
+        );
+        let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor lives for the \
+                      rest of the process"
+        )]
+        let behind = unsafe { &*table.desc(real) };
+
+        let given: Vec<Given> = vec![("total".to_owned(), Value::null())];
+        let delegated = delegated_rows(behind, &given);
+        let mut names: Vec<(&str, u32)> = delegated
+            .iter()
+            .map(|answer| (answer.name.as_str(), answer.arity))
+            .collect();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            [("currency", 0), ("rate", 1)],
+            "every real method but the constructor and the overridden one"
+        );
+        assert!(
+            delegated.iter().all(|answer| answer.delegated),
+            "a row the shape did not answer forwards to the real object"
+        );
+
+        let mut rows = rows_of(&given);
+        assert!(
+            rows.iter().all(|answer| !answer.delegated),
+            "an overridden method answers from its own closure"
+        );
+        rows.extend(delegated);
+        let first = descriptor_for(
+            "partial",
+            table.desc(interface),
+            Some(std::ptr::from_ref(behind)),
+            &rows,
+        )
+        .expect("three methods are well under the ceiling");
+
+        // A partial whose real object is that partial, overriding the same
+        // method, is the same class, so a loop that wraps a partial again and
+        // again defines one class and not one per wrap.
+        #[expect(
+            unsafe_code,
+            reason = "the `DOUBLES` table is a `static`, so the class it \
+                      defined lives for the rest of the process"
+        )]
+        let inner = unsafe { &*first };
+        let mut again = rows_of(&given);
+        again.extend(delegated_rows(inner, &given));
+        let wrapped = descriptor_for("partial", table.desc(interface), Some(first), &again)
+            .expect("the same three methods");
+        assert!(
+            std::ptr::eq(first, wrapped),
+            "a partial of a partial is keyed by the class behind the inner one"
+        );
+    }
+
+    /// `sentSocket` returns one `Core\Socket\Message` per recorded frame,
+    /// oldest first. A text frame fills the `text` slot and a binary frame the
+    /// `bytes` slot, and the other slot is `null`. Before any frame the list is
+    /// empty, and reading it twice returns the same frames both times.
+    // covers: Core\Test::sentSocket
+    #[test]
+    fn sent_socket_returns_one_message_per_frame_in_the_order_they_were_sent() {
+        use nvs_runtime::SocketFrame::{Bytes, Text};
+
+        fn sent(ctx: &mut Ctx) -> Vec<String> {
+            let answered = nvs_runtime::call(nvs_core_test_sent_socket, ctx, &[] as &[Value])
+                .expect("reading the record cannot fail");
+            let list = crate::arr::borrowed(answered.array_ptr().expect("a list of messages"));
+            let mut seen = Vec::new();
+            let mut index = 0_i64;
+            while let Some(message) = list.get_index(index) {
+                let object = message.obj_ptr().expect("a `Core\\Socket\\Message`");
+                let text = crate::instance::slot(object, 1);
+                let bytes = crate::instance::slot(object, 2);
+                seen.push(match (text.as_text(), bytes.as_bytes()) {
+                    (Some(text), None) => format!("text {text}"),
+                    (None, Some(octets)) => format!("bytes {octets:?}"),
+                    _ => panic!("exactly one of `text` and `bytes` is filled"),
+                });
+                index += 1;
+            }
+            dropped(answered);
+            seen
+        }
+
+        let mut ctx = Ctx::buffered();
+        assert!(sent(&mut ctx).is_empty(), "nothing was sent yet");
+
+        ctx.faked_http_mut()
+            .record_frame(Text("subscribe mug".into()));
+        ctx.faked_http_mut().record_frame(Bytes(vec![0, 1, 0xff]));
+        ctx.faked_http_mut().record_frame(Text("bye".into()));
+        let expected = ["text subscribe mug", "bytes [0, 1, 255]", "text bye"];
+        assert_eq!(
+            sent(&mut ctx),
+            expected,
+            "each frame keeps its kind and its place"
+        );
+        assert_eq!(
+            sent(&mut ctx),
+            expected,
+            "reading the record does not consume it"
+        );
     }
 
     /// `assertCalled` and `assertNeverCalled` read one record and agree on it.

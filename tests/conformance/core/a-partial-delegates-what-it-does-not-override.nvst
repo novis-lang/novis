@@ -2,6 +2,7 @@
 A partial answers the methods its shape names and delegates every other one to the real implementation, receiver and arguments unchanged — `rule:testing/doubles`, `rule:classes/delegation-by-field`
 --FILE--
 <?nvs
+// covers: Core\Test::partial, Core\Test::double
 // The delegation is the claim: `total` is overridden and `rate` is not, so one
 // answer comes from the closure and the other from the object behind the
 // double — including the state that object holds, which is what makes the

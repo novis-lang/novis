@@ -2,6 +2,7 @@
 A double built from a shape of closures is the interface it names, and is passed where one is taken — `rule:testing/doubles`, `rule:types/shape-type`
 --FILE--
 <?nvs
+// covers: Core\Test::double, Core\Test::partial
 // ADR 0079 § 10's worked example: the interface, the double built from a shape
 // of closures, and the class that takes one. Nothing declares a stand-in
 // class and nothing is evaluated from source — the double *is* a `Clock`

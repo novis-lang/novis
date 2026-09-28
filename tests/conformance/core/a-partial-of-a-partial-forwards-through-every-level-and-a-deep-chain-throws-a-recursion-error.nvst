@@ -1,0 +1,71 @@
+--TEST--
+A partial whose real object is another partial answers what it overrides, forwards the rest down the chain, and a chain deep enough to reach the stack's soft limit throws a catchable `RecursionError` — `rule:testing/doubles`, `rule:errors/on-limit`
+--FILE--
+<?nvs
+// covers: Core\Test::partial
+// Each level overrides a different method, so one call is answered by the
+// outer closure, one by the inner closure and one by the real object. A
+// partial wrapping a partial with the same override reuses the inner one's
+// class, and still answers from its own closure.
+interface Prices {
+    public function rate(int $n): int;
+    public function total(int $n): int;
+    public function fee(): int;
+}
+
+final class Table implements Prices {
+    public function rate(int $n): int {
+        return $n + 1;
+    }
+
+    public function total(int $n): int {
+        return $n * 10;
+    }
+
+    public function fee(): int {
+        return 5;
+    }
+}
+
+Prices $inner = Core\Test::partial<Prices>(new Table(), {
+    fee: fn(): int => 7,
+});
+Prices $outer = Core\Test::partial<Prices>($inner, {
+    rate: fn(int $n): int => 100,
+});
+echo $outer->rate(1), " ", $outer->fee(), " ", $outer->total(3), "\n";
+
+Prices $again = Core\Test::partial<Prices>($inner, {
+    fee: fn(): int => 9,
+});
+echo $again->fee(), " ", $inner->fee(), "\n";
+
+// A direct partial of `Table` overriding `rate` alone forwards `fee` to
+// `Table`, even though a partial over `$inner` overrode the same name first.
+Prices $direct = Core\Test::partial<Prices>(new Table(), {
+    rate: fn(int $n): int => 200,
+});
+echo $direct->rate(1), " ", $direct->fee(), "\n";
+
+// A forward crosses no compiled frame until it reaches `Table`, whose `rate`
+// calls nothing: the forward itself is what compares against the soft limit.
+Prices $deep = new Table();
+int $level = 0;
+while ($level < 100000) {
+    $deep = Core\Test::partial<Prices>($deep, {
+        fee: fn(): int => 1,
+    });
+    $level = $level + 1;
+}
+try {
+    echo $deep->rate(41), "\n";
+} catch (RecursionError $tooDeep) {
+    echo "RecursionError: ", $tooDeep->message, "\n";
+}
+echo "still running\n";
+--EXPECT--
+100 7 30
+9 7
+200 5
+RecursionError: the call stack is too deep
+still running
