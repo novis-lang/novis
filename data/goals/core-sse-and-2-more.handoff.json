@@ -1,30 +1,29 @@
 {
-  "state": "Goal `core-sse-and-2-more`. `Core\\Sse::current`, `retry`, `receive` and `send`, and both `Core\\Sse\\Message`\nmembers (`topic`, `value`), now have all their feature proofs on disk: examples under\n`docs/examples/core/Sse/` and `docs/examples/core/Sse-Message/`, attacks under `tests/hostile/core/Sse*/`,\nbenches under `benches/members/core/Sse*/` with fresh perf records, and `covers:` Rust tests in\n`crates/nvs-stdlib/src/sse.rs`. `Core\\Sse\\Message` has its class card. A proof that needs a connection\nisolate takes a `<name>.nvse` beside it (`docs/examples/README.md` § *Values published to an event stream*).\n`Core\\Sse::stream` and `Core\\Sse::upgrade` still owe examples, attack and bench (`stream` has its Rust\n`covers:` test; `upgrade` owes a third test case), and `Core\\Storage` owes everything but its Rust tests\nand a card. The rendered rules page is current again, and a hostile verdict now quotes the stderr line\nthat carried the crash marker (`tools/nv/proofs/run.ts`), because the one `Core\\Serialize` attack failure\nthe last sweep saw did not reproduce in three uncached runs.",
+  "state": "Goal `core-sse-and-2-more`. Every `Core\\Sse` member but `upgrade` has all its feature proofs on disk:\n`stream` gained `about.md`, three examples, an attack and a bench with a fresh perf record, under\n`docs/examples/core/Sse/stream/`, `tests/hostile/core/Sse/stream/` and `benches/members/core/Sse/stream.nvs`.\n`upgrade` now has its Rust `covers:` test, and owes `about.md`, examples, attack and bench. Those\ncannot run yet: `nvs run --request` offers a request only the WebSocket slot, so `Core\\Sse::upgrade`\nunder a `.nvsr` throws the \"needs a request a server is answering\" `RuntimeError`. A server offers the\nSSE cell to every request (`crates/nvs-host/src/isolate.rs:416`). `Core\\Storage` still owes everything\nbut its Rust tests and a card. The last sweep's `Core\\Cli` to `Core\\Crypto` floor and selftest failures\ndid not reproduce; the one real red, `audit checks` finding the old proofs name in\n`tools/nv/select/config.ts`, is fixed. The goal's `[context] modules` now names\n`crates/nvs-cli/src/main.rs` and `crates/nvs-cli/src/events.rs`.",
   "next": {
     "stage": 2,
-    "title": "the rest of `Core\\Sse`",
+    "title": "`Core\\Sse::upgrade` runnable from `nvs run`, then its proofs",
     "files": [
-      "crates/nvs-stdlib/src/sse.rs",
-      "docs/examples/core/Sse/",
-      "tests/hostile/core/Sse/",
-      "benches/members/core/Sse/"
+      "crates/nvs-cli/src/main.rs",
+      "crates/nvs-cli/src/events.rs",
+      "docs/examples/core/Sse/upgrade/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Sse::stream` proofs** — `rule:testing/feature-proofs`: `about.md`, three examples, one attack, one bench; the member is `crates/nvs-stdlib/src/sse.rs:597` and its card `crates/nvs-stdlib/src/sse.rs:306`. A plain run prints the stream's events to standard output, so no `.nvse` is needed; the status refusal is one example (`Core\\Response::setStatus` first)."
+        "text": "**`nvs run --request` offers the SSE cell and starts the stream it was left** — `rule:concurrency/two-doors-one-isolate`: offer an `SseSlot` to every `--request` inbound beside the WebSocket one at `crates/nvs-cli/src/main.rs:2548`, and after a request that ended normally take it next to the socket arm at `crates/nvs-cli/src/main.rs:2814`, running the program with `nvs_host::Isolate::over_event_stream` (`crates/nvs-host/src/isolate.rs:498`) and printing the drain as `--events` does. The hard part is that the `--events` publisher (`crates/nvs-cli/src/events.rs:132`) needs the *connection* isolate's inbox, which exists only once that isolate is built inside the task; without `--events` the stream should end as a client that left does. A `-p nvs-cli` test and a `.nvst`-free example pin it; update `docs/examples/README.md` § *Values published to an event stream* to say `--events` beside a `.nvsr` feeds the upgraded stream."
       },
       {
         "done": false,
-        "text": "**`Core\\Sse::upgrade` proofs** — `rule:testing/feature-proofs`: the member is `crates/nvs-stdlib/src/sse.rs:535` and its card `crates/nvs-stdlib/src/sse.rs:264`. Off a server it throws `RuntimeError`, so an example can show that refusal. Check what `bun nv proofs --id 'Core\\Sse::upgrade'` says the third test case needs before writing it."
+        "text": "**`Core\\Sse::upgrade` proofs** — `rule:testing/feature-proofs`: `about.md`, three examples with a `.nvsr` each (a `GET` needs no upgrade headers), one attack modelled on `tests/hostile/core/Socket/upgrade/01-huge-and-deep-arguments-for-a-connection.nvs`, one bench modelled on `benches/members/core/Socket/upgrade.nvs` (`iterations 1`); the member is `crates/nvs-stdlib/src/sse.rs:535` and its card `crates/nvs-stdlib/src/sse.rs:264`."
       },
       {
         "done": false,
-        "text": "**`Core\\Storage` class card, then `get`, `delete` and `list` proofs** — `rule:core-api/reference-card`: a `ClassDoc` for `crates/nvs-stdlib/src/storage.rs:168` (its `doc: None` is at `crates/nvs-stdlib/src/storage.rs:170`), and drop `Core\\Storage` from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs:5283`. Members at `crates/nvs-stdlib/src/storage.rs:514`, `:534`, `:552`. This is a new file set, so it starts a session of its own."
+        "text": "**`Core\\Storage` class card, then `get`, `delete` and `list` proofs** — `rule:core-api/reference-card`: a `ClassDoc` above the class's `CLASS` row in `crates/nvs-stdlib/src/storage.rs:168`, and the class struck from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs:5283`."
       }
     ]
   },
   "backlog": [
-    "The `Core\\Serialize` attack `tests/hostile/core/Serialize/encode/01-deep-chains-loops-and-hidden-closures.nvs` failed once in the driver's sweep with `stderr carries \"RUST_BACKTRACE\"` and no `panicked at`; if it shows again, the verdict now quotes the line — read it before touching the case (`tools/nv/proofs/run.ts`)."
+    "`Core\\Sse::stream` allocates 6 times per call off a connection (`docs/perf/members.ndjson`); the declared headers are most of it. Not a bug, only worth a look if a request opens many streams."
   ]
 }

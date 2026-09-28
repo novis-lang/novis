@@ -6,7 +6,9 @@
     "modules": [
       "crates/nvs-stdlib/src/sse.rs",
       "crates/nvs-stdlib/src/storage.rs",
-      "crates/nvs-cli/src/peer.rs"
+      "crates/nvs-cli/src/peer.rs",
+      "crates/nvs-cli/src/events.rs",
+      "crates/nvs-cli/src/main.rs"
     ],
     "rules": [
       "testing/feature-proofs",

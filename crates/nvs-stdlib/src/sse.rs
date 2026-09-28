@@ -1013,6 +1013,7 @@ mod tests {
     /// What this adds over the sibling's assertion is the carrier it runs on —
     /// a plain `GET` no upgrade was framed for, which is the request § 5 says
     /// is offered a cell and § 1 says is not offered a slot.
+    // covers: Core\Sse::upgrade
     #[test]
     fn an_event_stream_leaves_the_resolvers_program_and_a_copy_of_its_argument_in_the_cell() {
         let _resolver = resolving();
