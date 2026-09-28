@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-test-2-2` is **not** met. Its dossier check covers 13 members. Six have every proof on disk:\n`assertNull`, `assertSame`, `assertThrows`, `sentSocket`, `double` and `partial`. Their benches are measured again in\n`docs/perf/members.ndjson` after this session's change to `crates/nvs-stdlib/src/test.rs`. Seven members own no\nproofs at all yet (see the next group). The earlier handoff that called the goal met read only the members it had\ntouched. `bun nv proofs --verify --only <the argv's list>` is what says what is owed.\n\nA chain of partials now shares one class descriptor per call site (`Doubles::behind`) and throws a `RecursionError`\nat depth (`delegated`'s stack compare), pinned by\n`tests/conformance/core/a-partial-of-a-partial-forwards-through-every-level-and-a-deep-chain-throws-a-recursion-error.nvst`.",
+  "state": "Goal `core-test-2-2` is **not** met. The stage 1 check (`dossier-core-test-1-2`) is green again: every `Core\\Test`\nbench that `crates/nvs-stdlib/src/test.rs` made stale is measured again in `docs/perf/members.ndjson`. Eight members\nof the stage 2 dossier now have every proof: `assertNull`, `assertSame`, `assertThrows`, `sentSocket`, `double`,\n`partial`, `sentHttp` and `tlsSession`. Five members still owe proofs (see the next group).\n`bun nv proofs --verify --only <the check's argv list>` says what is owed.\n\nAny change to `crates/nvs-stdlib/src/test.rs` can make every `Core\\Test` bench stale, so the session that lands the\nlast proofs runs `bun nv proofs --record-perf --only <every Core\\Test member>` after its verify, and the\nstage 1 check then passes again.",
   "next": {
     "stage": 2,
     "title": "feature proofs, the rest of `Core\\Test`",
@@ -12,23 +12,20 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Test::sentHttp`** — about.md, three examples, attack, bench, Rust `covers:` test (`rule:testing/feature-proofs`); registry row at `crates/nvs-stdlib/src/test.rs:772`. Model: the `sentSocket` proofs in `docs/examples/core/Test/sentSocket/`."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Test::tlsSession`** — about.md, three examples, attack, bench (it already has a Rust test) (`rule:testing/feature-proofs`); registry row at `crates/nvs-stdlib/src/test.rs:763`."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Test::request` and `Core\\Test::serverUrl`** — all proofs and a Rust `covers:` test each (`rule:testing/feature-proofs`); registry rows at `crates/nvs-stdlib/src/test.rs:724` and `crates/nvs-stdlib/src/test.rs:702`."
+        "text": "**`Core\\Test::request` and `Core\\Test::serverUrl`** — about.md, three examples, attack, bench and a Rust `covers:` test each (`rule:testing/feature-proofs`); registry rows at `crates/nvs-stdlib/src/test.rs:724` and `crates/nvs-stdlib/src/test.rs:702`. Model: the `sentHttp` proofs in `docs/examples/core/Test/sentHttp/` and its test `sent_http_returns_one_record_per_call_in_the_order_they_were_made`."
       },
       {
         "done": false,
         "text": "**`Core\\Test::scriptAnswers`, `Core\\Test::expectFailure` and `Core\\Test::assertTrue`** — all proofs and a Rust `covers:` test each (`rule:testing/feature-proofs`); registry rows at `crates/nvs-stdlib/src/test.rs:715`, `crates/nvs-stdlib/src/test.rs:684` and `crates/nvs-stdlib/src/test.rs:602`."
+      },
+      {
+        "done": false,
+        "text": "**Re-measure every `Core\\Test` bench** after the last Rust change, then run both dossier checks in `data/goals/core-test-2-2.json` (`rule:testing/member-perf-ledger`); the ledger is `docs/perf/members.ndjson:1`."
       }
     ]
   },
   "backlog": [
-    "A test in this file that edits `crates/nvs-stdlib/src/test.rs` makes every `Core\\Test` bench stale. Re-measure with `bun nv proofs --record-perf --only …` after a release build (`benches/members/README.md`)."
+    "`Core\\Time::fromIso` refuses `9999-12-31T23:59:59Z`, while the `Core\\Test::tlsSession` card says an expiry may reach \"the end of 9999\". The card or the range in `crates/nvs-stdlib/src/test.rs` should name the last date `Core\\Time` can hold (`rule:core-api/reference-card`).",
+    "`docs/examples/core/Test/sentSocket/03-a-chat-client-that-joins-a-room.nvs` passes the expected list first to `Core\\Test::assertSame`, whose card says the subject comes first (`rule:core-api/reference-card`)."
   ]
 }
