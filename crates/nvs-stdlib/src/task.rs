@@ -88,7 +88,7 @@ use nvs_runtime::host::{Bounds, Job, Outcome};
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsObj, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
 };
 use crate::time::DURATION_NAME;
 
@@ -126,10 +126,17 @@ const DEFERRED_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
+/// `Core\Task`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Runs work as tasks. `all()` and `map()` run several tasks at the same time and return \
+            when every one has finished. `afterResponse()` runs one closure after the response is \
+            sent.",
+};
+
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "all",
@@ -251,33 +258,31 @@ const MAP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Task::afterResponse`'s reference card — `rule:core-api/reference-card`.
 const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$fn` once the request's own execution is over, still charged to the request \
-            tree — for receipts, webhooks, cache warming and audit shipping. **This is not a \
-            queue**: nothing is durable, nothing retries, and a process that dies loses the work \
-            with no record.",
+    short: "Runs `$fn` after the response is sent, so the client does not wait for it. Use it for \
+            receipts, webhooks and audit logs. The work is not saved anywhere: if the process \
+            stops, the work is lost and nothing tries it again.",
     params: &[
         ParamDoc {
             name: "fn",
-            desc: "What to run. It takes no arguments and its answer is discarded; a throw out of \
-                   it is logged and reaches no `catch`, because the request that registered it is \
-                   over.",
+            desc: "The closure to run. It takes no arguments, and its return value is ignored. An \
+                   error it throws is written to the log, and no `catch` in the request sees it.",
             shape: &[],
         },
         ParamDoc {
             name: "deadline",
-            desc: "A wall-clock bound on this closure; omitted, `[deferred] deadline` is the \
-                   bound. `[limits] wall_time` is what the client waited for and no longer \
-                   applies, while every other `[limits]` value still bounds the tree.",
+            desc: "The longest time the closure may run. Without it, the `[deferred] deadline` \
+                   setting is the limit. The request's `[limits] wall_time` does not apply here, \
+                   but its other `[limits]` settings do.",
             shape: &[],
         },
     ],
-    ret: "Nothing. Registering is request-local, the registrations run in the order they were \
-          made, and a request that ended by a throw, an `exit` or a `FATAL` runs none of them.",
+    ret: "Nothing. The closures run one at a time, in the order you added them. They do not run \
+          if the request ends with an uncaught error, an `exit` or a fatal error.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When the call is not the request's own task — a `Core\\Task` child or deferred \
-               work itself, neither of which has a queue anything would drain. \
-               Hand the work back to the request that started you and register it there.",
+        desc: "When the call is made inside a task that `Core\\Task::all`, `Core\\Task::map` or \
+               `afterResponse` started. Only the request itself may call it, so return the work \
+               to the request and call `afterResponse` there.",
     }],
 };
 
@@ -572,11 +577,14 @@ nvs_runtime::nvs_helper! {
                 "Core\\Task::afterResponse expected a closure, got null".to_string(),
             ));
         }
-        // § 7: the option the call named, or the tree's own default. Both are
-        // nanoseconds by the time the queue sees them, and `0` is neither.
+        // § 7: the option the call named, or the tree's own default, both in
+        // nanoseconds, where the queue reads `0` as "no deadline". A named
+        // deadline of zero or less is out of time before the closure starts,
+        // as [`bounds`] reads it for a group, so it becomes the smallest one
+        // there is rather than that `0`.
         let deadline = if args[1].obj_ptr().is_some() {
             let nanos = crate::time::nanos_of(args, 1, "deadline")?;
-            u64::try_from(nanos).unwrap_or(0)
+            u64::try_from(nanos).unwrap_or(0).max(1)
         } else {
             ctx.deferred_deadline()
         };
@@ -652,4 +660,154 @@ fn receiver(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsOb
     Ok(std::mem::ManuallyDrop::new(unsafe {
         NvsObj::from_raw(ptr)
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use nvs_runtime::{
+        CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAGS_SLOT, ClassTable, Ctx, MethodRow,
+        NvsFn, NvsObj, Value,
+    };
+
+    /// How many times [`counts_a_run`] was called. Registering must never call
+    /// it: the closure runs at the drain, which no test here reaches.
+    static RUNS: AtomicUsize = AtomicUsize::new(0);
+
+    /// The registered closure, as the callee side of `call_closure`'s contract:
+    /// it counts, sweeps the receiver it was handed and answers nothing.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes one live value this callee owes a release, \
+                  and the address of a live `Value` for the result"
+    )]
+    unsafe extern "C" fn counts_a_run(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        RUNS.fetch_add(1, Ordering::SeqCst);
+        unsafe {
+            (*args).release();
+            *out = Value::null();
+        }
+        nvs_runtime::OK
+    }
+
+    /// A zero-parameter closure calling `invoke`, owned by the caller —
+    /// `crates/nvs-stdlib/tests/allocation_policy.rs`'s `closure_of`, whose
+    /// doc comment says why this is a whole closure and why the table leaks.
+    fn closure_of(invoke: NvsFn) -> Value {
+        let mut table = ClassTable::new();
+        let id = table.define("{closure}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![MethodRow {
+                name: CLOSURE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }],
+        );
+        table.set_closure(id);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { NvsObj::new(table.desc(id)) };
+        object.set_field(CLOSURE_ARITY_SLOT, Value::int(0));
+        object.set_field(CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        Value::object(object)
+    }
+
+    /// A registration on the request's own context keeps one reference of its
+    /// own, holds one of the core's tree slots, and runs nothing; the context
+    /// going down unrun releases both. The same call on a child context is
+    /// refused with the sentence that says what to do instead, and keeps
+    /// nothing — the queue it would have written is nobody's to drain.
+    // covers: Core\Task::afterResponse
+    #[test]
+    fn after_response_queues_one_reference_on_the_request_and_refuses_a_child() {
+        let closure = closure_of(counts_a_run);
+        let header = closure.obj_ptr().expect("the closure is an object");
+        let trees = nvs_runtime::deferred::trees_in_flight();
+        let refcount = || {
+            #[expect(
+                unsafe_code,
+                reason = "`closure` keeps the allocation live until the last line of this test"
+            )]
+            unsafe {
+                NvsObj::refcount_of(header)
+            }
+        };
+
+        let mut request = Ctx::buffered();
+        for _ in 0..2 {
+            let answer = nvs_runtime::call(
+                super::nvs_core_task_after_response,
+                &mut request,
+                &[closure, Value::null()],
+            )
+            .expect("the request's own task may defer work");
+            assert_eq!(
+                answer.tag(),
+                Some(nvs_runtime::Tag::Null),
+                "`afterResponse` returns nothing"
+            );
+        }
+        assert!(request.has_deferred(), "both registrations are queued");
+        assert_eq!(refcount(), 3, "each registration is one more owner");
+        assert_eq!(
+            nvs_runtime::deferred::trees_in_flight(),
+            trees + 1,
+            "two registrations hold one tree slot, not two"
+        );
+
+        {
+            #[expect(
+                unsafe_code,
+                reason = "`request` outlives the child, which is dropped at the end of this block"
+            )]
+            let mut child = unsafe { request.child() };
+            let refused = nvs_runtime::call(
+                super::nvs_core_task_after_response,
+                &mut child,
+                &[closure, Value::null()],
+            );
+            assert!(refused.is_err(), "a child task may not defer work");
+            let message = child.take_pending().expect("the refusal has a sentence");
+            assert!(
+                message.contains("only the request's own task may defer work")
+                    && message.contains("hand it back to the request that started you"),
+                "the refusal says what to do instead, got {message:?}"
+            );
+            assert!(!child.has_deferred(), "the child queued nothing");
+        }
+        assert_eq!(refcount(), 3, "a refused registration keeps no reference");
+
+        drop(request);
+        assert_eq!(
+            refcount(),
+            1,
+            "a context going down releases its unrun work"
+        );
+        assert_eq!(
+            nvs_runtime::deferred::trees_in_flight(),
+            trees,
+            "and gives its tree slot back"
+        );
+        assert_eq!(RUNS.load(Ordering::SeqCst), 0, "registering runs nothing");
+        #[expect(
+            unsafe_code,
+            reason = "the test built the closure and owns its last reference"
+        )]
+        unsafe {
+            closure.release();
+        }
+    }
 }

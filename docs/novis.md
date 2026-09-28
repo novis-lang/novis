@@ -16891,16 +16891,16 @@ Calls `$fn` once per element of `$items`, each call a concurrent child task, and
 Core\Task::afterResponse(callable(): mixed $fn, {deadline?: Core\Time\Duration}): void
 ```
 
-Runs `$fn` once the request's own execution is over, still charged to the request tree — for receipts, webhooks, cache warming and audit shipping. **This is not a queue**: nothing is durable, nothing retries, and a process that dies loses the work with no record.
+Runs `$fn` after the response is sent, so the client does not wait for it. Use it for receipts, webhooks and audit logs. The work is not saved anywhere: if the process stops, the work is lost and nothing tries it again.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable(): mixed` | What to run. It takes no arguments and its answer is discarded; a throw out of it is logged and reaches no `catch`, because the request that registered it is over. |
-| `{deadline: …}` | `Core\Time\Duration` (default `null`) | A wall-clock bound on this closure; omitted, `[deferred] deadline` is the bound. `[limits] wall_time` is what the client waited for and no longer applies, while every other `[limits]` value still bounds the tree. |
+| `$fn` | `callable(): mixed` | The closure to run. It takes no arguments, and its return value is ignored. An error it throws is written to the log, and no `catch` in the request sees it. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The longest time the closure may run. Without it, the `[deferred] deadline` setting is the limit. The request's `[limits] wall_time` does not apply here, but its other `[limits]` settings do. |
 
-**Returns** `void` — Nothing. Registering is request-local, the registrations run in the order they were made, and a request that ended by a throw, an `exit` or a `FATAL` runs none of them.
+**Returns** `void` — Nothing. The closures run one at a time, in the order you added them. They do not run if the request ends with an uncaught error, an `exit` or a fatal error.
 
-**Throws** `RuntimeError` — When the call is not the request's own task — a `Core\Task` child or deferred work itself, neither of which has a queue anything would drain. Hand the work back to the request that started you and register it there.
+**Throws** `RuntimeError` — When the call is made inside a task that `Core\Task::all`, `Core\Task::map` or `afterResponse` started. Only the request itself may call it, so return the work to the request and call `afterResponse` there.
 
 <a id="core-core-task-channel"></a>
 ### `Core\Task\Channel<T>`

@@ -5344,7 +5344,6 @@ mod tests {
         r"Core\Request\Files",
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
-        r"Core\Task",
         r"Core\Task\Channel",
         r"Core\Test",
         r"Core\Test\Response",

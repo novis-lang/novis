@@ -1,0 +1,51 @@
+--TEST--
+A `Core\Task::afterResponse` deadline of zero or less is already over, as it is for a group, and never reads as no deadline at all — `rule:concurrency/deferred-is-bounded-by-two-directives`
+--FILE--
+<?nvs
+// covers: Core\Task::afterResponse
+// Each closure prints, then waits, which is where a deadline is noticed. The
+// deferred queue reads a deadline of `0` nanoseconds as "none", so a member
+// that handed it a `0s` or a negative deadline unchanged would let both of the
+// first two closures print their second line.
+Core\Task::afterResponse(fn (): void => {
+    echo "zero: started\n";
+    Core\Time::sleep(50ms);
+    echo "zero: ran to the end\n";
+}, {deadline: 0s});
+Core\Task::afterResponse(fn (): void => {
+    echo "negative: started\n";
+    Core\Time::sleep(50ms);
+    echo "negative: ran to the end\n";
+}, {deadline: 5s->negated()});
+
+// The same bound on a group, which is what the two above must agree with.
+try {
+    var $group = Core\Task::all({
+        slow: fn (): string => {
+            Core\Time::sleep(50ms);
+            return "finished";
+        },
+    }, {deadline: 0s});
+    echo "group: ", $group->slow, "\n";
+} catch (TimeoutError $e) {
+    echo "group: timed out\n";
+}
+
+// A closure with no deadline and one with room to spare both finish, and
+// both run after the two that were stopped.
+Core\Task::afterResponse(fn (): void => {
+    Core\Time::sleep(1ms);
+    echo "none: ran to the end\n";
+});
+Core\Task::afterResponse(fn (): void => {
+    Core\Time::sleep(1ms);
+    echo "ample: ran to the end\n";
+}, {deadline: 30s});
+echo "the response\n";
+--EXPECT--
+group: timed out
+the response
+zero: started
+negative: started
+none: ran to the end
+ample: ran to the end

@@ -1,23 +1,22 @@
 {
-  "state": "Goal `core-taint-and-1-more`: `Core\\Taint::assertTrusted` is complete — about, a Rust test beside\nthe three `.nvst` cases, three examples, one attack, one bench with its record, and `Core\\Taint`'s\nclass card, so `Core\\Taint` is off `CLASSES_STILL_OWING_A_CARD`. `bun nv proofs --id` reads\n`complete.` for it. The two `Core\\Task` members are untaken, and `Core\\Task` still owes its class\ncard in the same list. Nothing is blocked.",
+  "state": "Goal `core-taint-and-1-more`: `Core\\Taint` is complete, and so is `Core\\Task::afterResponse` —\nabout, a Rust test beside the `.nvst` cases, three examples, one attack, one bench with its record,\nand `Core\\Task`'s class card, so `Core\\Task` is off `CLASSES_STILL_OWING_A_CARD`. Its attack found\nthat a `deadline` of `0s` or less on `afterResponse` meant no deadline at all; fixed in\n`crates/nvs-stdlib/src/task.rs`'s `nvs_core_task_after_response` and pinned by\n`tests/conformance/core/task-after-response-deadline-of-zero-or-less-is-already-over.nvst`.\n`Core\\Task::all` and `Core\\Task::map` are untaken. Nothing is blocked.",
   "next": {
     "stage": 1,
     "title": "feature proofs, one member per slice",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/task.rs`, the `Core\\Task` card row in `crates/nvs-stdlib/src/registry.rs`, and the trees under `core/Task/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/task.rs` (the `ALL_DOC` and `MAP_DOC` cards, and its `#[cfg(test)] mod tests`, whose `closure_of` both members can reuse) and the trees under `core/Task/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Task::afterResponse`** — owes examples, hostile, perf, tests, and `Core\\Task`'s class card (a `ClassDoc` above `CLASS`, and delete `Core\\Task` from `CLASSES_STILL_OWING_A_CARD`). `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/task.rs:156`, `crates/nvs-stdlib/src/registry.rs:5283`"
+        "text": "**`Core\\Task::all`** — owes examples, hostile, perf, tests, and a card rewritten in the plain voice the way `AFTER_RESPONSE_DOC` now is. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/task.rs:142`, `crates/nvs-stdlib/src/task.rs:213`"
       },
       {
         "done": false,
-        "text": "**`Core\\Task::all`** — owes examples, hostile, perf, tests. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/task.rs:134`"
+        "text": "**`Core\\Task::map`** — owes examples, hostile, perf, tests, and the same card rewrite. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/task.rs:151`, `crates/nvs-stdlib/src/task.rs:234`"
       }
     ]
   },
   "backlog": [
-    "`nvs agent show 'Core\\Taint'` prints `assertTrusted(string $value, …)`: the card drops the parameter's `tainted` qualifier, so the help does not say what the member takes. Not checked whether `Core\\Secret`'s card drops `secret` the same way. Owner: the card renderer behind `rule:core-api/reference-card`.",
-    "`Core\\Arr::contains($allowed, $sort)` does not compile for a `tainted string` needle against an `array<string>` (E0401), so the allowlist check `rule:security/launderers-are-sink-named` expects before `assertTrusted` must be written with `==`. A design question for the `tainted` axis, not this goal's to decide."
+    "A group `deadline` does not stop a child that never waits: `Core\\Task::all({busy: …}, {deadline: 1ms})` over a 300-million-step `while` runs the loop to its end and throws `TimeoutError` after it, and `afterResponse` logs the timeout the same way. The deadline is noticed only where the child waits (`Core\\Time::sleep`). Whether a group deadline should arm the back-edge poll that `[limits] wall_time` uses is a question for `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s owner; the attacks written so far wait rather than spin, so none is gap-marked. Owning doc: `crates/nvs-runtime/src/deferred.rs`'s module doc."
   ]
 }

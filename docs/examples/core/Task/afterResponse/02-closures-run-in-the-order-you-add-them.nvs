@@ -1,0 +1,14 @@
+<?nvs
+// Shows that the closures run one at a time, in the order you add them.
+
+array<string> $pages = ["/", "/shop", "/contact"];
+
+// Each closure fills the cache for one page.
+// They print in the same order as the array: "/" first, "/contact" last.
+foreach ($pages as string $page) {
+    Core\Task::afterResponse(fn (): void => {
+        echo "Cache filled for ", $page, "\n";
+    });
+}
+
+echo "Response sent.\n";
