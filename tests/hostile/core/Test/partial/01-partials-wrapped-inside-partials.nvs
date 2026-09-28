@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program wraps a partial inside another partial many thousands of times, and
+// the real object throws errors. Each step should work or throw an error, and the
+// program should not crash.
+
+interface Prices
+{
+    public function rate(int $n): int;
+    public function fail(): int;
+}
+
+final class Table implements Prices
+{
+    public function rate(int $n): int
+    {
+        return $n + 1;
+    }
+
+    public function fail(): int
+    {
+        throw new RuntimeError('the price table is down');
+    }
+}
+
+// Step 1: one hundred thousand partials of one real object, each called once.
+Table $real = new Table();
+uint $built = 0;
+int $sum = 0;
+while ($built < 100000) {
+    Prices $one = Core\Test::partial<Prices>($real, {
+        fail: fn(): int => 0,
+    });
+    $sum = $sum + $one->rate(0);
+    $built = $built + 1;
+}
+echo $sum, "\n";
+
+// Step 2: a method of the real object throws an error. The partial passes it on.
+Prices $passing = Core\Test::partial<Prices>($real, {
+    rate: fn(int $n): int => 0,
+});
+try {
+    $passing->fail();
+    echo "no error\n";
+} catch (RuntimeError $error) {
+    echo 'caught: ', $error->message, "\n";
+}
+
+// Step 3: a partial is the real object of the next partial, one hundred thousand times.
+// A call to `rate` then goes through every level before it reaches `Table`.
+Prices $inner = $real;
+uint $level = 0;
+while ($level < 100000) {
+    $inner = Core\Test::partial<Prices>($inner, {
+        fail: fn(): int => 1,
+    });
+    $level = $level + 1;
+}
+try {
+    echo $inner->rate(41), "\n";
+} catch (Throwable $tooDeep) {
+    echo "too deep\n";
+}

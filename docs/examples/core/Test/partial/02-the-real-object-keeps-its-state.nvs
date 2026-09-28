@@ -1,0 +1,41 @@
+<?nvs
+// Shows that a partial calls the real object, so the real object keeps its own state.
+
+interface Cart {
+    public function add(int $cents): void;
+    public function total(): int;
+    public function shipping(): int;
+}
+
+final class RealCart implements Cart {
+    private int $sum = 0;
+
+    public function add(int $cents): void {
+        $this->sum = $this->sum + $cents;
+    }
+
+    public function total(): int {
+        return $this->sum + $this->shipping();
+    }
+
+    public function shipping(): int {
+        return 500;
+    }
+}
+
+RealCart $real = new RealCart();
+Cart $free = Core\Test::partial<Cart>($real, {
+    shipping: fn(): int => 0,
+});
+
+// `add` is not replaced, so it adds to the sum inside `$real`.
+$free->add(1200);
+$free->add(300);
+
+// `shipping` is replaced, so this prints `0`.
+echo $free->shipping(), "\n";
+
+// `total` runs in the real object, and it calls the real `shipping`.
+// So this prints `2000`, and `$real->total()` prints the same.
+echo $free->total(), "\n";
+echo $real->total(), "\n";

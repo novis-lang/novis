@@ -1,0 +1,36 @@
+<?nvs
+// Builds a test double that replaces one method of a real object, as a test does before it runs the code.
+// bench: iterations 20000
+
+interface Shop {
+    public function name(): string;
+    public function openAt(): int;
+}
+
+final class RealShop implements Shop {
+    public function name(): string {
+        return "Corner Shop";
+    }
+
+    public function openAt(): int {
+        return 8;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): int {
+        RealShop $real = new RealShop();
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Shop $late = Core\Test::partial<Shop>($real, {
+                openAt: fn(): int => 10,
+            });
+            $total = $total + $late->openAt() + ($total % 3);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";
