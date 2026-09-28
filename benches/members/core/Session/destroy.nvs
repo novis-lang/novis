@@ -1,0 +1,20 @@
+<?nvs
+// Ends a session that has one value, as a sign-out page does.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Session::start();
+            Core\Session::set("user", $total);
+            Core\Session::destroy();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

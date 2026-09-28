@@ -1,0 +1,14 @@
+<?nvs
+// Shows a sign-out page that says goodbye and then ends the session.
+
+// The sign-in page saved the user's name in the session. This line shows that.
+Core\Session::start();
+Core\Session::set("name", "Ada");
+
+// The request below is for `/account/sign-out`. The program reads the name
+// first, because the session data is gone after `destroy()`.
+if (Core\Request::path() == "/account/sign-out") {
+    string $name = Core\Session::get("name") as ?string ?? "guest";
+    Core\Session::destroy();
+    echo "Goodbye, ", $name, ". You are signed out.\n";
+}

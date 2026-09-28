@@ -1,0 +1,20 @@
+<?nvs
+// Shows that the session methods throw an error after `destroy()`.
+
+Core\Session::start();
+Core\Session::set("cart", 3);
+Core\Session::destroy();
+
+// The request has no session now. `get()` throws a `RuntimeError`.
+try {
+    echo Core\Session::get("cart") ?? "(none)", "\n";
+} catch (RuntimeError $e) {
+    echo "get: RuntimeError\n";
+}
+
+// A second `destroy()` throws the same error, because there is no session to end.
+try {
+    Core\Session::destroy();
+} catch (RuntimeError $e) {
+    echo "destroy: RuntimeError\n";
+}

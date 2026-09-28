@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to end a session, as a program does when a user signs out.
+
+Core\Session::start();
+Core\Session::set("user", "ada");
+echo "before: ", Core\Session::get("user") ?? "(nobody)", "\n";
+
+// `destroy()` deletes the session data from the store.
+Core\Session::destroy();
+
+// `start()` opens a new, empty session. This prints `(nobody)`.
+Core\Session::start();
+echo "after:  ", Core\Session::get("user") ?? "(nobody)", "\n";

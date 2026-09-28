@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a request signs in and out many times, with large session values.
+// Each session must be deleted and its memory freed, and nothing may crash.
+// hostile: timeout-ms 60000
+
+// 1. The request ends a session it never started. This throws a `RuntimeError`.
+try {
+    Core\Session::destroy();
+    echo "destroyed a session that was never started\n";
+} catch (RuntimeError $e) {
+    echo "not started: RuntimeError\n";
+}
+
+// 2. The request starts a session, writes 1 MB into it and ends it. It does this 200 times.
+string $big = Core\Str::repeat('x', 1048576);
+uint $round = 0;
+while ($round < 200) {
+    Core\Session::start();
+    Core\Session::set('big', $big);
+    Core\Session::destroy();
+    $round = $round + 1;
+}
+echo 'after many sessions: done', "\n";
+
+// 3. The request ends the same session twice. The second call throws a `RuntimeError`.
+Core\Session::start();
+Core\Session::destroy();
+try {
+    Core\Session::destroy();
+    echo "destroyed a session twice\n";
+} catch (RuntimeError $e) {
+    echo "twice: RuntimeError\n";
+}
+
+// 4. The request uses every other method after `destroy()`. Each one throws a `RuntimeError`.
+uint $refused = 0;
+try { Core\Session::get('big'); } catch (RuntimeError $e) { $refused = $refused + 1; }
+try { Core\Session::set('big', 'y'); } catch (RuntimeError $e) { $refused = $refused + 1; }
+try { Core\Session::remove('big'); } catch (RuntimeError $e) { $refused = $refused + 1; }
+try { Core\Session::clear(); } catch (RuntimeError $e) { $refused = $refused + 1; }
+try { Core\Session::regenerate(); } catch (RuntimeError $e) { $refused = $refused + 1; }
+echo 'methods that threw: ', $refused, "\n";
