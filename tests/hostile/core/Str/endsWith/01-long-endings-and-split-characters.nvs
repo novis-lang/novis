@@ -1,0 +1,49 @@
+<?nvs
+// Attack: `Core\Str::endsWith` compares very long strings and endings that cut a character
+// in half. Each check should return `true` or `false`, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Compares a 32 MiB ending that differs only in its first character.
+    public static function hugeEndingThatDiffersAtTheStart(uint $mib): bool
+    {
+        var $tail = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        return Core\Str::endsWith('x' . $tail, 'y' . $tail);
+    }
+
+    /// 2. Asks whether a string ends with itself plus one more character.
+    public static function endingLongerThanTheString(uint $count): bool
+    {
+        var $s = Core\Str::repeat("\u{1f469}\u{200d}\u{1f4bb}", $count);
+        return Core\Str::endsWith($s, 'x' . $s);
+    }
+
+    /// 3. Checks for only the accent, or only the last byte, of a character.
+    public static function halfOfACharacter(uint $rounds): uint
+    {
+        uint $found = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Str::endsWith("cafe\u{301}", "\u{301}")) {
+                $found = $found + 1;
+            }
+            if (Core\Str::endsWith("\u{1f469}", "\u{200d}")) {
+                $found = $found + 1;
+            }
+            $i = $i + 1;
+        }
+        return $found;
+    }
+
+    /// 4. Checks an empty ending against an empty string.
+    public static function emptyAgainstEmpty(): bool
+    {
+        return Core\Str::endsWith('', '');
+    }
+}
+
+echo Attack::hugeEndingThatDiffersAtTheStart(32) ? 'yes' : 'no', "\n";
+echo Attack::endingLongerThanTheString(1000000) ? 'yes' : 'no', "\n";
+echo Attack::halfOfACharacter(100000), "\n";
+echo Attack::emptyAgainstEmpty() ? 'yes' : 'no', "\n";

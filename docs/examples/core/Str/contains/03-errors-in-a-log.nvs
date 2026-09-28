@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to keep only the lines of a log file that report an error.
+
+string $log = "10:00 INFO server started\n"
+    . "10:02 ERROR database is not reachable\n"
+    . "10:03 INFO retrying\n"
+    . "10:05 ERROR disk is full\n";
+
+uint $errors = 0;
+foreach (Core\Str::lines($log) as string $line) {
+    if (Core\Str::contains($line, " ERROR ")) {
+        echo $line, "\n";
+        $errors = $errors + 1;
+    }
+}
+// Two lines contain " ERROR ". This prints `2 errors`.
+echo $errors, " errors\n";

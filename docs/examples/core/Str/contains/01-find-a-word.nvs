@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to check whether a string contains a piece of text.
+
+string $subject = "Your order #1042 has shipped";
+
+// "#1042" is in the middle of the string. This prints `true`.
+echo Core\Str::contains($subject, "#1042") ? "true" : "false", "\n";
+
+// "cancelled" is not in the string. This prints `false`.
+echo Core\Str::contains($subject, "cancelled") ? "true" : "false", "\n";
+
+// The search is case-sensitive, so "your" does not find "Your".
+// This prints `false`.
+echo Core\Str::contains($subject, "your") ? "true" : "false", "\n";
+
+// An empty search text is in every string. This prints `true`.
+echo Core\Str::contains($subject, "") ? "true" : "false", "\n";

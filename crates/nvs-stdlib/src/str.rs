@@ -621,26 +621,26 @@ pub const CLASS: CoreClass = CoreClass {
 
 /// `Core\Str::at`'s reference card — `rule:core-api/reference-card`.
 const AT_DOC: MethodDoc = MethodDoc {
-    short: "Answers the one character at `$index`, as `$s[$i]` and `mb_substr($s, $i, 1)` do — \
-            counted in graphemes, the unit every `Core\\Str` member counts in, and never a \
-            byte.",
+    short: "Returns the one character at position `$index` of `$s`. A character is what a person \
+            sees as one letter, so `\"é\"` is one character. Replaces PHP's `mb_substr($s, $i, 1)`.",
     params: &[
         ParamDoc {
             name: "s",
-            desc: "The string to index into.",
+            desc: "The string to read from.",
             shape: &[],
         },
         ParamDoc {
             name: "index",
-            desc: "The position of the character; a negative one counts from the end.",
+            desc: "The position of the character. The first character is at `0`. A negative \
+                   position counts from the end, so `-1` is the last character.",
             shape: &[],
         },
     ],
-    ret: "The character, as a one-grapheme string.",
+    ret: "A string with exactly one character in it.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$index` addresses nothing — it lies at or past the string's length in either \
-               direction.",
+        desc: "There is no character at `$index`. The position is at or past the length of \
+               `$s`, counting from either end.",
     }],
 };
 
@@ -658,21 +658,22 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::contains`'s reference card — `rule:core-api/reference-card`.
 const CONTAINS_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does.",
+    short: "Checks whether `$needle` appears anywhere in `$haystack`. Replaces PHP's \
+            `str_contains`.",
     params: &[
         ParamDoc {
             name: "haystack",
-            desc: "The string searched in.",
+            desc: "The string to search in.",
             shape: &[],
         },
         ParamDoc {
             name: "needle",
-            desc: "The string searched for, matched case-sensitively.",
+            desc: "The text to search for. The search is case-sensitive.",
             shape: &[],
         },
     ],
-    ret: "`true` when it occurs; an empty needle is contained in every string, the empty one \
-          included.",
+    ret: "`true` when `$needle` is in `$haystack`, otherwise `false`. An empty `$needle` is in \
+          every string, so the result is `true`.",
     errors: &[],
 };
 
@@ -697,20 +698,21 @@ const STARTS_WITH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::endsWith`'s reference card — `rule:core-api/reference-card`.
 const ENDS_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$s` ends with `$suffix`, as `str_ends_with` does.",
+    short: "Checks whether `$s` ends with `$suffix`. Replaces PHP's `str_ends_with`.",
     params: &[
         ParamDoc {
             name: "s",
-            desc: "The string to test.",
+            desc: "The string to check.",
             shape: &[],
         },
         ParamDoc {
             name: "suffix",
-            desc: "The text it must end with, matched case-sensitively.",
+            desc: "The text `$s` must end with. The check is case-sensitive.",
             shape: &[],
         },
     ],
-    ret: "`true` when it does; an empty suffix ends every string.",
+    ret: "`true` when `$s` ends with `$suffix`, otherwise `false`. An empty `$suffix` is at the \
+          end of every string, so the result is `true`.",
     errors: &[],
 };
 
@@ -3930,6 +3932,63 @@ mod tests {
         assert_eq!(after("ab", "abc", true), None);
         // Multi-byte text is cut on the needle's own bytes.
         assert_eq!(after("größe: 5", "ß", false).as_deref(), Some("e: 5"));
+    }
+
+    /// `at` answers one grapheme, counting from the end for a negative index,
+    /// and throws for an index that addresses nothing — the far ends of `i64`
+    /// included, which must not overflow on the way to the refusal.
+    // covers: Core\Str::at
+    #[test]
+    fn at_answers_one_grapheme_from_either_end_and_throws_past_the_length() {
+        let at = |subject: &str, index: i64| -> Option<String> {
+            run(super::nvs_core_str_at, &[s(subject), Value::int(index)])
+                .ok()
+                .map(taken)
+        };
+        assert_eq!(at("Zürich", 0).as_deref(), Some("Z"));
+        assert_eq!(at("Zürich", 1).as_deref(), Some("ü"));
+        assert_eq!(at("Zürich", -1).as_deref(), Some("h"));
+        assert_eq!(at("Zürich", -6).as_deref(), Some("Z"));
+        // A letter with a combining accent is one character, not two.
+        assert_eq!(at("cafe\u{301}!", 3).as_deref(), Some("e\u{301}"));
+        assert_eq!(at("cafe\u{301}!", 4).as_deref(), Some("!"));
+        assert_eq!(at("abc", 3), None);
+        assert_eq!(at("abc", -4), None);
+        assert_eq!(at("", 0), None);
+        assert_eq!(at("", -1), None);
+        assert_eq!(at("abc", i64::MAX), None);
+        assert_eq!(at("abc", i64::MIN), None);
+    }
+
+    /// `contains` and `endsWith` compare bytes exactly: case matters, an empty
+    /// needle is found in every string, the empty one included, and a needle
+    /// longer than the subject is simply absent.
+    // covers: Core\Str::contains
+    // covers: Core\Str::endsWith
+    #[test]
+    fn contains_and_ends_with_match_exact_bytes_and_find_the_empty_needle_everywhere() {
+        let ask = |member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+                   subject: &str,
+                   needle: &str| {
+            run(member, &[s(subject), s(needle)])
+                .expect("contains and endsWith never fail")
+                .as_bool()
+                .expect("the member returned a bool")
+        };
+        let contains = super::nvs_core_str_contains;
+        let ends_with = super::nvs_core_str_ends_with;
+        assert!(ask(contains, "order #1042", "#10"));
+        assert!(!ask(contains, "order #1042", "Order"));
+        assert!(ask(contains, "", ""));
+        assert!(ask(contains, "abc", ""));
+        assert!(!ask(contains, "ab", "abc"));
+        assert!(ask(contains, "Größe", "öß"));
+        assert!(ask(ends_with, "report.PDF", ".PDF"));
+        assert!(!ask(ends_with, "report.PDF", ".pdf"));
+        assert!(!ask(ends_with, "report.pdf.exe", ".pdf"));
+        assert!(ask(ends_with, "", ""));
+        assert!(ask(ends_with, "abc", ""));
+        assert!(!ask(ends_with, "c", "abc"));
     }
 
     /// `before` is `after`'s mirror over the same `cut_at`: the slice up to the

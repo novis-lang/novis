@@ -1,0 +1,50 @@
+<?nvs
+// Attack: `Core\Str::contains` searches very long strings for text that almost matches
+// everywhere. Each search should return `true` or `false`, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Searches 32 MiB for one character that is not there.
+    public static function bigMiss(uint $mib): bool
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        return Core\Str::contains($s, 'b');
+    }
+
+    /// 2. Searches for a long text that matches at every position except its last character.
+    public static function nearMissEverywhere(uint $count): bool
+    {
+        var $s = Core\Str::repeat('a', $count);
+        var $needle = Core\Str::repeat('a', 5000) . 'b';
+        return Core\Str::contains($s, $needle);
+    }
+
+    /// 3. Searches for a text longer than the string, and for an empty text in an empty string.
+    public static function degenerateNeedles(uint $count): string
+    {
+        var $s = Core\Str::repeat("\u{e9}", $count);
+        bool $longer = Core\Str::contains($s, $s . 'x');
+        bool $empty = Core\Str::contains('', '');
+        return ($longer ? 'yes' : 'no') . ' ' . ($empty ? 'yes' : 'no');
+    }
+
+    /// 4. Searches for half of a character: only the accent of an accented letter.
+    public static function halfOfACharacter(uint $rounds): uint
+    {
+        uint $found = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Str::contains("cafe\u{301}", "\u{301}")) {
+                $found = $found + 1;
+            }
+            $i = $i + 1;
+        }
+        return $found;
+    }
+}
+
+echo Attack::bigMiss(32) ? 'yes' : 'no', "\n";
+echo Attack::nearMissEverywhere(2000000) ? 'yes' : 'no', "\n";
+echo Attack::degenerateNeedles(1000000), "\n";
+echo Attack::halfOfACharacter(100000), "\n";

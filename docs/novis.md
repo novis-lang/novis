@@ -7027,16 +7027,16 @@ Counts the graphemes in `$s` — user-perceived characters, the unit every `Core
 Core\Str::at(string $s, int $index): string
 ```
 
-Answers the one character at `$index`, as `$s[$i]` and `mb_substr($s, $i, 1)` do — counted in graphemes, the unit every `Core\Str` member counts in, and never a byte.
+Returns the one character at position `$index` of `$s`. A character is what a person sees as one letter, so `"é"` is one character. Replaces PHP's `mb_substr($s, $i, 1)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The string to index into. |
-| `$index` | `int` | The position of the character; a negative one counts from the end. |
+| `$s` | `string` | The string to read from. |
+| `$index` | `int` | The position of the character. The first character is at `0`. A negative position counts from the end, so `-1` is the last character. |
 
-**Returns** `string` — The character, as a one-grapheme string.
+**Returns** `string` — A string with exactly one character in it.
 
-**Throws** `RuntimeError` — `$index` addresses nothing — it lies at or past the string's length in either direction.
+**Throws** `RuntimeError` — There is no character at `$index`. The position is at or past the length of `$s`, counting from either end.
 
 <a id="core-core-str-isempty"></a>
 #### `Core\Str::isEmpty`
@@ -7060,14 +7060,14 @@ Answers whether `$s` holds no characters at all — the `$s === ""` test.
 Core\Str::contains(string $haystack, string $needle): bool
 ```
 
-Answers whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does.
+Checks whether `$needle` appears anywhere in `$haystack`. Replaces PHP's `str_contains`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$haystack` | `string` (neutral) | The string searched in. |
-| `$needle` | `string` (neutral) | The string searched for, matched case-sensitively. |
+| `$haystack` | `string` (neutral) | The string to search in. |
+| `$needle` | `string` (neutral) | The text to search for. The search is case-sensitive. |
 
-**Returns** `bool` — `true` when it occurs; an empty needle is contained in every string, the empty one included.
+**Returns** `bool` — `true` when `$needle` is in `$haystack`, otherwise `false`. An empty `$needle` is in every string, so the result is `true`.
 
 <a id="core-core-str-startswith"></a>
 #### `Core\Str::startsWith`
@@ -7092,14 +7092,14 @@ Answers whether `$s` begins with `$prefix`, as `str_starts_with` does.
 Core\Str::endsWith(string $s, string $suffix): bool
 ```
 
-Answers whether `$s` ends with `$suffix`, as `str_ends_with` does.
+Checks whether `$s` ends with `$suffix`. Replaces PHP's `str_ends_with`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` (neutral) | The string to test. |
-| `$suffix` | `string` (neutral) | The text it must end with, matched case-sensitively. |
+| `$s` | `string` (neutral) | The string to check. |
+| `$suffix` | `string` (neutral) | The text `$s` must end with. The check is case-sensitive. |
 
-**Returns** `bool` — `true` when it does; an empty suffix ends every string.
+**Returns** `bool` — `true` when `$s` ends with `$suffix`, otherwise `false`. An empty `$suffix` is at the end of every string, so the result is `true`.
 
 <a id="core-core-str-slice"></a>
 #### `Core\Str::slice`
