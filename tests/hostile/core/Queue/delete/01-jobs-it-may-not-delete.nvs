@@ -1,6 +1,8 @@
 <?nvs
 // Attack: the program deletes jobs it may not delete, a running job, and changed rows.
 // Each call should return `false` or throw an error. The program must not crash.
+// It sends about 25000 statements to the database, so it may run for up to 30 seconds.
+// hostile: timeout-ms 30000
 use Core\Queue;
 
 var $db = Core\Db::connect('jobs');
