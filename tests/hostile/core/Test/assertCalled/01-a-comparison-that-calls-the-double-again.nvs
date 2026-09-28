@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a double is called many thousands of times, and a check compares arguments
+// with a `compareTo` that calls the same double again. Each check should pass or throw
+// an error, and the program should not crash.
+
+interface Recorder
+{
+    public function note(mixed $value): void;
+}
+
+Recorder $recorder = Core\Test::double<Recorder>({
+    note: fn(mixed $value): void => {},
+});
+
+// This class calls the double each time it is compared. That adds a new call
+// while `assertCalled` is still reading the list of calls.
+final class Loud implements Comparable
+{
+    public Recorder $recorder;
+
+    public function constructor(Recorder $recorder)
+    {
+        $this->recorder = $recorder;
+    }
+
+    public function compareTo(Comparable $other): int
+    {
+        $this->recorder->note('compared');
+        return 1;
+    }
+}
+
+// Step 1: the double is called one hundred thousand times.
+uint $count = 0;
+while ($count < 100000) {
+    $recorder->note($count);
+    $count = $count + 1;
+}
+Core\Test::assertCalled($recorder, Recorder::note, { times: 100000 });
+echo "100000 calls\n";
+
+// Step 2: a wrong count. The error message lists every one of those calls.
+try {
+    Core\Test::assertCalled($recorder, Recorder::note, { times: 18446744073709551615 });
+} catch (Core\Test\Failure $failure) {
+    echo 'failed, message of ', Core\Str::length($failure->message) > 100000 ? 'many' : 'few', " characters\n";
+}
+
+// Step 3: two calls with a `Loud` object, then a check whose `with` is a `Loud`.
+// Every comparison adds a call to the list that is being read.
+$recorder->note(new Loud($recorder));
+$recorder->note(new Loud($recorder));
+try {
+    Core\Test::assertCalled($recorder, Recorder::note, { with: [new Loud($recorder)] });
+    echo "matched\n";
+} catch (Core\Test\Failure $failure) {
+    echo "not matched\n";
+}
+
+// Step 4: `with` is an array nested fifty thousand levels deep.
+mixed $deep = 0;
+uint $level = 0;
+while ($level < 50000) {
+    $deep = [$deep];
+    $level = $level + 1;
+}
+$recorder->note($deep);
+try {
+    Core\Test::assertCalled($recorder, Recorder::note, { with: [$deep] });
+    echo "deep matched\n";
+} catch (Throwable $tooDeep) {
+    echo "deep refused\n";
+}
+
+// Step 5: an ordinary object has no list of calls to read.
+try {
+    Core\Test::assertCalled(new Loud($recorder), Recorder::note);
+} catch (LogicError $error) {
+    echo "not a double\n";
+}

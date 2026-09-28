@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to check that your code did not call a method.
+
+interface Files {
+    public function list(): array<string>;
+    public function delete(string $path): void;
+}
+
+class Cleanup {
+    // With `$dryRun` set, this only prints what it would delete.
+    public static function run(Files $files, bool $dryRun): void {
+        foreach ($files->list() as string $path) {
+            if ($dryRun) {
+                echo "would delete ", $path, "\n";
+            } else {
+                $files->delete($path);
+            }
+        }
+    }
+}
+
+Files $files = Core\Test::double<Files>({
+    list: fn(): array<string> => ["cache/a.tmp", "cache/b.tmp"],
+    delete: fn(string $path): void => {},
+});
+
+Cleanup::run($files, true);
+
+// The check passes, because `delete` was not called.
+Core\Test::assertNeverCalled($files, Files::delete);
+echo "nothing was deleted\n";

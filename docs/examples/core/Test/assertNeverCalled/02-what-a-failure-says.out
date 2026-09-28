@@ -1,0 +1,2 @@
+Core\Test::assertNeverCalled failed: `clear` was called 2 time(s), the first as clear("users")
+a read must not clear the cache: Core\Test::assertNeverCalled failed: `clear` was called 2 time(s), the first as clear("users")

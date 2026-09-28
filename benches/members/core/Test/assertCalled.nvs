@@ -1,0 +1,29 @@
+<?nvs
+// Checks that a method was called with given arguments, as a test does after it runs the code.
+// bench: iterations 20000
+
+interface Mailer {
+    public function send(string $to): bool;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Mailer $mailer = Core\Test::double<Mailer>({
+            send: fn(string $to): bool => true,
+        });
+        array<string> $recipients = ["ada@example.com", "bob@example.com", "eve@example.com"];
+        foreach ($recipients as string $to) {
+            $mailer->send($to);
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Test::assertCalled($mailer, Mailer::send, {times: 1, with: [$recipients[$total % 3]]});
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

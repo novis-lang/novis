@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to test that a declined payment sends no order confirmation.
+
+interface Payments {
+    public function charge(int $cents): bool;
+}
+
+interface Mailer {
+    public function confirm(string $orderId): void;
+}
+
+class Orders {
+    public static function place(Payments $payments, Mailer $mailer, string $orderId, int $cents): string {
+        if (!$payments->charge($cents)) {
+            return "declined";
+        }
+        $mailer->confirm($orderId);
+        return "placed";
+    }
+}
+
+// This payment double declines every charge.
+Payments $payments = Core\Test::double<Payments>({
+    charge: fn(int $cents): bool => false,
+});
+Mailer $mailer = Core\Test::double<Mailer>({
+    confirm: fn(string $orderId): void => {},
+});
+
+// This prints `declined`.
+echo Orders::place($payments, $mailer, "order-1042", 2500), "\n";
+
+// The customer must not get a confirmation for an order that was not paid.
+Core\Test::assertCalled($payments, Payments::charge, {times: 1});
+Core\Test::assertNeverCalled($mailer, Mailer::confirm);
+echo "no confirmation was sent\n";

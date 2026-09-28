@@ -1,0 +1,2 @@
+3 calls
+Core\Test::assertCalled failed: expected 2 call(s) to `write`, found 3 — the record holds write("start"), write("working"), write("done")
