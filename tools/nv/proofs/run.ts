@@ -341,7 +341,10 @@ async function runHostile(nvs: string, path: string, valgrind: boolean, unlogged
 function judgeHostile(source: string, out: Ran, limit: number, valgrind: boolean): [Verdict, string] {
   if (out.timedOut) return ["fail", `still running after ${Math.round(limit / 1000)}s -- unbounded${reached(out.stdout)}`];
   const blob = out.stderr + out.stdout;
-  for (const marker of CRASH_MARKERS) if (blob.includes(marker)) return ["fail", `stderr carries ${JSON.stringify(marker)}`];
+  for (const marker of CRASH_MARKERS) {
+    const line = blob.split("\n").find((l) => l.includes(marker));
+    if (line !== undefined) return ["fail", `stderr carries ${JSON.stringify(marker)}: ${line.trim().slice(0, 300)}`];
+  }
   const refused = REFUSED_RE.test(out.stderr) && !out.stdout.trim();
   if (REFUSAL_EXPECTED_RE.test(source)) {
     return refused ? ["ok", ""] : ["fail", "declares `expect-refusal`, but the compiler accepted it"];
