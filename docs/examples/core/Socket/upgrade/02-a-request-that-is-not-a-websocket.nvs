@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when a normal page request calls `Core\Socket::upgrade`.
+
+// A browser that opens this address as a page sends no `Upgrade: websocket` header.
+// So there is no connection to upgrade, and the call throws a `RuntimeError`.
+try {
+    Core\Socket::upgrade("docs/examples/core/Socket/upgrade/sockets/echo.nvs");
+} catch (RuntimeError $error) {
+    // This prints `this address needs a WebSocket client`.
+    echo "this address needs a WebSocket client\n";
+}

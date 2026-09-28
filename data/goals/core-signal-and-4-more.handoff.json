@@ -1,20 +1,12 @@
 {
-  "state": "Goal `core-signal-and-4-more`. `Core\\Signal`, `Core\\Signature` and `Core\\SignedCookie` are green.\n`Core\\Socket\\Message` is green: `topic`, `text`, `bytes` and `value` each have `about.md`, three\nexamples, one attack and one bench, run through `nvs run --peer <file>`\n(`crates/nvs-cli/src/peer.rs` owns the `.nvsp` format). The class has a card and is off\n`CLASSES_STILL_OWING_A_CARD`, and the four member cards are in the plain voice. The Rust side is\n`each_message_reader_answers_null_for_the_kind_a_message_is_not` plus `covers:` lines on\n`receive_answers_a_peer_frame_and_a_topic_delivery_from_one_wait`. No attack found a runtime bug.\n`Core\\Socket::current`, `::receive`, `::send` and `::sendBytes` are done. The one thing still red in\nstage 2 is `Core\\Socket::upgrade`, everything but its card. When it is green the goal is met.",
+  "state": "Goal `core-signal-and-4-more` is met. All five stage-2 checks pass: `Core\\Signal`, `Core\\Signature`,\n`Core\\SignedCookie`, `Core\\Socket` and `Core\\Socket\\Message` owe nothing, and `bun nv verify --doc`,\n`bun nv owners --closes` and `bun nv playbook --closes` are clean.\n`Core\\Socket::upgrade` has `about.md`, three examples, one attack and one bench. They run through\n`nvs run --request <file>.nvsr --peer <file>.nvsp`: a request file whose `Upgrade` header names\n`websocket` is offered the upgrade slot, and the prepared connection runs over the scripted peer once\nthe request ends (`crates/nvs-cli/src/peer.rs`'s module doc § *Beside `--request`*).\nIts attack found a use-after-free in the method entry form (`Chat::run(...)`), in the server as well\nas the CLI. It is fixed, and `a_method_entry_still_runs_after_the_request_releases_its_callable` pins it.",
   "next": {
-    "stage": 2,
-    "title": "the dossier",
+    "stage": null,
     "files": [],
-    "note": "one file set: `nvs run`'s `--request` and `--peer` doors in `crates/nvs-cli/src/main.rs`, `crates/nvs-stdlib/src/socket.rs`'s upgrade tests, and the proof trees under `core/Socket/upgrade/`.",
-    "items": [
-      {
-        "done": false,
-        "text": "**`Core\\Socket::upgrade`** — owes examples, hostile, perf and a Rust `covers:` marker (the upgrade tests from `an_upgrade_leaves_the_resolvers_program_and_a_copy_of_its_argument_in_the_slot` onward call the member and only need the line). A CLI run offers no `nvs_runtime::UpgradeSlot`, so every upgrade throws there. The next step is to have `nvs run --request` offer a slot when the `.nvsr` carries `Upgrade: websocket`, and then run the prepared script with the `.nvsp` peer beside it, the way `nvs_server::serve_connection` offers one. That is a harness change, like `--peer`; it is not a language change. `rule:concurrency/an-upgrade-is-spawn-shaped`. `crates/nvs-cli/src/main.rs:2510`"
-      }
-    ]
+    "note": "None: the goal is met, and the next goal on the chain starts from its own handoff.",
+    "items": []
   },
   "backlog": [
-    "`Core\\Sse` and `Core\\Topic` owe every example, attack and bench; `nvs run --peer` gives `Core\\Topic` a subscriber, and `Core\\Sse` needs the same kind of harness for its stream (`crates/nvs-stdlib/src/sse.rs`).",
-    "A connection script's `echo` goes to standard output under `--peer`, where a served connection's goes to the socket; `crates/nvs-cli/src/peer.rs`'s module doc says what the harness prints.",
-    "A received binary frame can only be measured and compared, because `Core\\Bytes`'s `Contagious` members refuse `tainted` (`crates/nvs-stdlib/src/bytes.rs` module doc). Whether a gap record already owns propagation is not checked."
+    "A connection's `echo` output reaches standard output after every `sent:` line, because it is `Output::Inherit`'s. `crates/nvs-cli/src/peer.rs` `connect` documents it."
   ]
 }

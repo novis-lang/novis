@@ -1,0 +1,13 @@
+<?nvs
+// Upgrades a request to a WebSocket connection with a small argument, as a chat page does once per visitor.
+// bench: iterations 1
+
+class Chat {
+    public static function run(string $user, string $room): void {
+        Core\Socket::current()->send($user . " joined " . $room);
+    }
+}
+
+// A request can upgrade only once, so the measured operation happens one time per run.
+Core\Socket::upgrade(Chat::run(...), args: ["user" => "Ana", "room" => "support"]);
+echo "upgraded\n";

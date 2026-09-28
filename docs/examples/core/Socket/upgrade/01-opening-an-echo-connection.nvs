@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a request turns into a WebSocket connection that runs another file.
+
+// A path starts at the folder where you run the program.
+string $script = "docs/examples/core/Socket/upgrade/sockets/echo.nvs";
+
+// The connection starts when this request ends. The request can still print first.
+Core\Socket::upgrade($script);
+echo "upgrading ", Core\Request::path(), "\n";
+
+// The `.nvsp` file beside this example plays a client that sends two messages.
+// `echo.nvs` then prints `sent: you said hello` and `sent: you said bye`.
