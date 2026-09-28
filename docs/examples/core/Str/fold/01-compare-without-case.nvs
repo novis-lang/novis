@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to check whether two words are the same when upper and lower case do not matter.
+
+array<string> $answers = ["YES", "Yes", "yes", "no"];
+
+// `Core\Str::fold` gives the same result for "YES", "Yes" and "yes".
+// This prints `true` three times and then `false`.
+foreach ($answers as string $answer) {
+    bool $same = Core\Str::fold($answer) == Core\Str::fold("yes");
+    echo $answer, ": ", $same ? "true" : "false", "\n";
+}
