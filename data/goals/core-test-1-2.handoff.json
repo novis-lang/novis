@@ -1,23 +1,22 @@
 {
-  "state": "Goal `core-test-1-2`, stage 2. `Core\\Test::advance` has every proof: `about.md`, three examples, one\nattack, a Rust test (`advance_stops_at_the_last_instant_and_keeps_the_clock_it_refused_to_move`), and\na `perf` skip in `data/proofs/policy.json`, because a bench runs under `nvs run`, where no clock is fixed.\n`Core\\Test` now has its class card. The attack found a panic in `jiff`'s `Timestamp::from_nanosecond`\npast year 9999. `crates/nvs-stdlib/src/time.rs`'s `instant_at_nanos` now builds through\n`Timestamp::new`, and its doc comment says why.\n\nEvery `Core\\Test` member's proofs run under `nvs run`, not `nvs test` (see the playbook bullet in\n*Writing a test case*). Run each example and attack under `target/debug/nvs.exe test <file>` by hand\nbefore blessing.",
+  "state": "Goal `core-test-1-2`, stage 2. `Core\\Test::advance` and `Core\\Test::answerHttp` have every proof.\n`answerHttp` has `about.md`, three examples, one attack, a bench with a recorded figure in\n`docs/perf/members.ndjson`, and the Rust test\n`answer_http_takes_every_status_a_status_line_carries_and_a_refused_answer_arms_nothing`. Its attack\nfound no bug. `Core\\Test`'s class card is at `crates/nvs-stdlib/src/test.rs:560`, so `help` passes for\nevery member of the class.\n\nEvery `Core\\Test` member's proofs run under `nvs run`, not `nvs test` (see the playbook bullet in\n*Writing a test case*). `bun nv try <files>` runs them that way before blessing. `answerHttp` and\n`answerSocket` work at the top level of a program, with no `#[Test]` class. A bench needs\n`bun nv proofs --record-perf --only '<member>'`. Its first release build may exit 255 with no error;\nthe second run succeeded.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": ". The file set is `crates/nvs-stdlib/src/test.rs`, the two members' rows and helpers:",
+    "note": "one file set: `crates/nvs-stdlib/src/test.rs`, the socket member's row, doc and helper, and its Rust tests module.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Test::answerHttp`**: about, 3 examples, attack, Rust `covers:` test, bench (it has no fixed-clock precondition, so a bench may be possible; read its \"no refusal outside a test\" doc first). `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:742`"
+        "text": "**`Core\\Test::answerSocket`**: about, 3 examples, attack, Rust `covers:` test, bench. It uses `answerHttp`'s answer table, so the Rust test can follow `answer_http_takes_every_status_a_status_line_carries_and_a_refused_answer_arms_nothing` and read `ctx.faked_http_mut().socket_for(url)`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:780`"
       },
       {
         "done": false,
-        "text": "**`Core\\Test::answerSocket`**: the same proofs, sharing `answerHttp`'s session store. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:781`"
+        "text": "**`Core\\Test::assertCalled`** and **`Core\\Test::assertNeverCalled`**: the same proofs. Both read the doubles' call record, so they share a Rust test module. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:4588`"
       }
     ]
   },
   "backlog": [
-    "The proof sweep cannot run a `#[Test]` method, so no `Core\\Test` example's test body is checked by any gate. A `nvs test` mode for proofs would need a report with no timings in it (`tools/nv/proofs/run.ts`).",
-    "`Core\\Test\\Response` and `Core\\Test\\SentRequest` still owe class cards (`crates/nvs-stdlib/src/registry.rs` `CLASSES_STILL_OWING_A_CARD`)."
+    "`Core\\Test::assertCompletes`, then the `assert*` members the check lists — `rule:testing/feature-proofs`."
   ]
 }
