@@ -1125,33 +1125,35 @@ const REPLACE_ALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::replaceRange`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
-    short: "Puts `$replacement` in place of the window `slice` would answer for the same \
-            `$offset` and `$length`, as `substr_replace` does.",
+    short: "Replaces a part of `$s` with `$replacement`. The part is the text \
+            `Core\\Str::slice` returns for the same `$offset` and `$length`. Replaces PHP's \
+            `substr_replace`.",
     params: &[
         ParamDoc {
             name: "s",
-            desc: "The string to rewrite.",
+            desc: "The string to change.",
             shape: &[],
         },
         ParamDoc {
             name: "offset",
-            desc: "Where the window begins; a negative offset counts from the end.",
+            desc: "The character where the part starts. `0` is the first character. A negative \
+                   offset counts from the end.",
             shape: &[],
         },
         ParamDoc {
             name: "length",
-            desc: "How many characters the window covers; a negative one stops that many from \
-                   the end, and `null` runs to the end.",
+            desc: "How many characters the part has. A negative length stops that many \
+                   characters before the end. `null` means the part runs to the end.",
             shape: &[],
         },
         ParamDoc {
             name: "replacement",
-            desc: "The text put in the window's place; `\"\"` removes the window.",
+            desc: "The text that replaces the part. `\"\"` deletes the part.",
             shape: &[],
         },
     ],
-    ret: "The rewritten string; an empty window — a `$length` of `0`, or one reaching back past \
-          the offset — makes this an insertion at that position.",
+    ret: "The changed string. If the part is empty, for example with a `$length` of `0`, \
+          `$replacement` is inserted at `$offset`.",
     errors: &[],
 };
 
@@ -1304,15 +1306,15 @@ const REPEAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::reverse`'s reference card — `rule:core-api/reference-card`.
 const REVERSE_DOC: MethodDoc = MethodDoc {
-    short: "Reverses the order of the characters in `$s`, as `strrev` does — by grapheme rather \
-            than by byte, so `\"café\"` becomes `\"éfac\"` and a combining mark stays on its \
-            letter.",
+    short: "Reverses the order of the characters in `$s`. A character is what a person sees as \
+            one character, so `\"café\"` becomes `\"éfac\"` and an accent stays on its letter. \
+            Replaces PHP's `strrev`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to reverse.",
         shape: &[],
     }],
-    ret: "The reversed string; the same length as `$s`, and `\"\"` for the empty string.",
+    ret: "The reversed string. It has the same length as `$s`. The empty string gives `\"\"`.",
     errors: &[],
 };
 
@@ -2740,12 +2742,14 @@ nvs_runtime::nvs_helper! {
         let replacement = text(&args[3], "replaceRange", "the replacement")?;
         let (start, end) = window(subject, &args[1], &args[2], "replaceRange")?;
 
-        let mut out =
-            String::with_capacity(subject.len().saturating_sub(end - start) + replacement.len());
-        out.push_str(subject.get(..start).unwrap_or(subject));
-        out.push_str(replacement);
-        out.push_str(subject.get(end..).unwrap_or(""));
-        produced(&out)
+        // Written once, straight into the result: the capacity is exact, and
+        // both parts are already in memory, so the result is never larger
+        // than the two arguments together.
+        built(start + replacement.len() + (subject.len() - end), |out| {
+            out.push_str(&subject[..start]);
+            out.push_str(replacement);
+            out.push_str(&subject[end..]);
+        })
     }
 }
 
@@ -3155,17 +3159,16 @@ nvs_runtime::nvs_helper! {
     /// The unit is [`crate::granularity::DEFAULT`], so a combining mark stays
     /// attached to the letter it modifies.
     ///
-    /// Spends one `Vec` of borrowed pieces per call — [`crate::granularity`]'s
-    /// iterator is forward-only, and a reverse needs the last piece first. The
-    /// pieces are only ever *read* backwards, so that `Vec` is the whole of
-    /// what this member spends beyond its result: a reversal is the same bytes
-    /// in a different order, so the length is the subject's and [`built`]
-    /// writes them once.
+    /// Spends nothing beyond its result: [`crate::granularity`]'s pieces walk
+    /// from the back as well, so the last piece is written first with no list
+    /// of pieces kept aside — a list that would cost sixteen bytes per
+    /// character of the subject, outside the memory limit. A reversal is the
+    /// same bytes in a different order, so the length is the subject's and
+    /// [`built`] writes them once.
     fn nvs_core_str_reverse(_ctx, args: [1]) {
         let subject = text(&args[0], "reverse", "the subject")?;
-        let pieces: Vec<&str> = crate::granularity::DEFAULT.pieces(subject).collect();
         built(subject.len(), |out| {
-            for piece in pieces.iter().rev() {
+            for piece in crate::granularity::DEFAULT.pieces(subject).rev() {
                 out.push_str(piece);
             }
         })
@@ -4243,6 +4246,69 @@ mod tests {
             unsafe {
                 arg.release();
             }
+        }
+    }
+
+    /// `replaceRange` puts its replacement where `slice` reads its window: an
+    /// empty replacement removes exactly that window, an empty window inserts,
+    /// and every position counts graphemes, so a letter with a combining accent
+    /// is replaced whole.
+    // covers: Core\Str::replaceRange
+    #[test]
+    fn replace_range_writes_the_replacement_into_slices_window() {
+        let length = |n: Option<i64>| n.map_or_else(Value::null, Value::int);
+        let replaced_range = |subject: &str, offset: i64, n: Option<i64>, replacement: &str| {
+            taken(
+                run(
+                    super::nvs_core_str_replace_range,
+                    &[s(subject), Value::int(offset), length(n), s(replacement)],
+                )
+                .expect("replaceRange never fails under no limit"),
+            )
+        };
+        assert_eq!(replaced_range("Hello", 1, Some(3), "EL"), "HELo");
+        assert_eq!(replaced_range("Hello", -2, None, "p!"), "Help!");
+        assert_eq!(replaced_range("Hello", 1, Some(-1), ""), "Ho");
+        assert_eq!(replaced_range("Hello", 5, Some(0), "!"), "Hello!");
+        assert_eq!(replaced_range("Hello", 9, Some(3), "!"), "Hello!");
+        assert_eq!(replaced_range("Hello", -99, Some(0), ">"), ">Hello");
+        assert_eq!(replaced_range("Hello", 2, Some(-9), "-"), "He-llo");
+        assert_eq!(replaced_range("", 0, None, "x"), "x");
+        assert_eq!(replaced_range("cafe\u{301}!", 3, Some(1), "é"), "café!");
+
+        // The removed window is the one `slice` returns, for both signs of both.
+        for (offset, n) in [(1, Some(2)), (-3, Some(2)), (2, Some(-1)), (-4, None)] {
+            let sliced = taken(
+                run(
+                    super::nvs_core_str_slice,
+                    &[s("naïve café"), Value::int(offset), length(n)],
+                )
+                .expect("slice never fails"),
+            );
+            let kept = replaced_range("naïve café", offset, n, "");
+            // "naïve café" is ten characters, so this is where the window began.
+            let start = if offset < 0 { 10 + offset } else { offset };
+            let rebuilt = replaced_range(&kept, start, Some(0), &sliced);
+            assert_eq!(rebuilt, "naïve café", "offset {offset}, length {n:?}");
+        }
+    }
+
+    /// `reverse` turns the graphemes around, never the bytes or the code
+    /// points, so an accent, a skin tone and a flag each stay whole; reversing
+    /// twice gives the subject back.
+    // covers: Core\Str::reverse
+    #[test]
+    fn reverse_keeps_each_grapheme_whole() {
+        let reversed = |subject: &str| {
+            taken(run(super::nvs_core_str_reverse, &[s(subject)]).expect("reverse never fails"))
+        };
+        assert_eq!(reversed("abc"), "cba");
+        assert_eq!(reversed(""), "");
+        assert_eq!(reversed("cafe\u{301}"), "e\u{301}fac");
+        assert_eq!(reversed("a👍🏽b🇩🇪"), "🇩🇪b👍🏽a");
+        assert_eq!(reversed("x\r\ny"), "y\r\nx");
+        for subject in ["plain", "naïve café", "👨‍👩‍👧 and 🇫🇷"] {
+            assert_eq!(reversed(&reversed(subject)), subject);
         }
     }
 

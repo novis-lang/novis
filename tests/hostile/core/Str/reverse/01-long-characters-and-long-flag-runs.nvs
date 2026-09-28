@@ -1,0 +1,54 @@
+<?nvs
+// Attack: `Core\Str::reverse` gets 64 MiB of text, one character with 100000 accents, a long run
+// of flag letters, and many line breaks. Each call should return a string of the same length,
+// quickly and inside the memory limit.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Reverses 64 MiB of plain text, twice.
+    public static function largeText(): uint
+    {
+        string $text = Core\Str::repeat('ab', 33554432);
+        return Core\Str::length(Core\Str::reverse(Core\Str::reverse($text)));
+    }
+
+    /// 2. Reverses one character with 100000 accents. The result is the same character.
+    public static function oneLongCharacter(): uint
+    {
+        string $text = 'x' . Core\Str::repeat("\u{301}", 100000);
+        return Core\Str::length(Core\Str::reverse($text));
+    }
+
+    /// 3. Reverses 100001 flag letters. Two letters make one flag, so one letter is left over.
+    public static function longFlagRun(): uint
+    {
+        string $text = Core\Str::repeat("\u{1F1E9}", 100001);
+        return Core\Str::length(Core\Str::reverse($text));
+    }
+
+    /// 4. Reverses 100000 line breaks of two characters each. Each break stays one character.
+    public static function manyLineBreaks(): uint
+    {
+        string $text = Core\Str::repeat("\r\n", 100000);
+        return Core\Str::length(Core\Str::reverse($text . "\r"));
+    }
+
+    /// 5. Calls it one million times on a short text and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::reverse('café'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::largeText(), "\n";
+echo Attack::oneLongCharacter(), "\n";
+echo Attack::longFlagRun(), "\n";
+echo Attack::manyLineBreaks(), "\n";
+echo Attack::manySmallCalls(1000000), "\n";

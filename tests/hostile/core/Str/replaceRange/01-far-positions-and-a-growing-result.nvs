@@ -1,0 +1,62 @@
+<?nvs
+// Attack: `Core\Str::replaceRange` gets the largest and smallest offsets and lengths, one
+// character made of many accents, and many calls that insert at the start. Each call should
+// return a string. The last step doubles a text until the memory limit stops the program.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Uses the largest and smallest `int` values as the offset and as the length.
+    public static function farPositions(): uint
+    {
+        array<int> $values = [-9223372036854775807 - 1, 9223372036854775807, -1, 0];
+        uint $total = 0;
+        foreach ($values as int $offset) {
+            foreach ($values as int $length) {
+                $total = $total + Core\Str::length(Core\Str::replaceRange('Hello', $offset, $length, 'X'));
+            }
+            $total = $total + Core\Str::length(Core\Str::replaceRange('Hello', $offset, null, 'X'));
+        }
+        return $total;
+    }
+
+    /// 2. Replaces inside one character that has 10000 accents. The character is replaced whole.
+    public static function oneLongCharacter(): uint
+    {
+        string $text = 'a' . Core\Str::repeat("\u{301}", 10000) . 'b';
+        string $first = Core\Str::replaceRange($text, 0, 1, 'x');
+        string $last = Core\Str::replaceRange($text, 1, 1, 'y');
+        return Core\Str::length($first) + Core\Str::length($last);
+    }
+
+    /// 3. Inserts at the start 5000 times, so each call copies a longer text.
+    public static function manyInserts(): uint
+    {
+        string $text = '';
+        uint $i = 0;
+        while ($i < 5000) {
+            $text = Core\Str::replaceRange($text, 0, 0, 'ab');
+            $i = $i + 1;
+        }
+        return Core\Str::length($text);
+    }
+
+    /// 4. Inserts a text into itself 40 times, so it doubles each time and would reach 1 PiB.
+    /// The memory limit stops the program here.
+    public static function doubling(): uint
+    {
+        string $text = Core\Str::repeat('x', 1024);
+        uint $round = 0;
+        while ($round < 40) {
+            $text = Core\Str::replaceRange($text, 0, 0, $text);
+            $round = $round + 1;
+        }
+        return Core\Str::length($text);
+    }
+}
+
+echo Attack::farPositions(), "\n";
+echo Attack::oneLongCharacter(), "\n";
+echo Attack::manyInserts(), "\n";
+echo Attack::doubling(), "\n";

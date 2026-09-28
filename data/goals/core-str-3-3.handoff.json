@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-str-3-3`: `Core\\Str::replaceAll` has every feature proof on disk — description, three\nexamples, attack, bench record, two Rust tests with `covers:` markers, and a plain-words card.\n`nvs_core_str_replace_all` now writes its result through `built`/`StrWriter`, so a large result stops\nat the memory limit while it grows (the same fix `replace` got). `replaceRange` and `reverse` are untaken.",
+  "state": "Goal `core-str-3-3`: `Core\\Str::replaceRange` and `Core\\Str::reverse` have every feature proof on\ndisk — description, three examples, attack, bench record, Rust tests with `covers:` markers, and a\nplain-words card. `replaceRange` writes its result once through `built` at its exact length.\n`reverse` no longer collects a list of every grapheme first: `granularity::Pieces` walks from the\nback as well (`DoubleEndedIterator`). Every `Core\\Str` perf record was re-measured after `str.rs`\nchanged, so the three dossier checks are red only on the members still owed below.",
   "next": {
     "stage": 1,
     "title": "member proofs, file order",
@@ -8,16 +8,20 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::replaceRange`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Check whether it builds its result in a plain `String` the way `replaceAll` did, and move it onto `built` if so. `crates/nvs-stdlib/src/str.rs:429`"
+        "text": "**`Core\\Str::slice`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). It reads its window through `window`, the same one `replaceRange` uses, so the attack can reuse the far `int` offsets. `crates/nvs-stdlib/src/str.rs:2711`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::reverse`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/str.rs:503`"
+        "text": "**`Core\\Str::split`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Check whether it collects its parts outside the memory limit before it builds the array. `crates/nvs-stdlib/src/str.rs:2048`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Str::startsWith`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); a scalar result, so its bench declares `// bench: allocations 0`. `crates/nvs-stdlib/src/str.rs:1961`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Str::replaceAll` copies its whole table into owned Rust `String`s on every call: 5 of the bench's 6 allocations per call come from a two-pair table. A borrowed table with one release at the end would remove them (priority 3; owner: `crates/nvs-stdlib/src/str.rs` module doc if taken up).",
-    "`Core\\Str::replaceAll` checks every pair at every position, so its cost is text length × pair count × key length. Fine for small tables; the attack in `tests/hostile/core/Str/replaceAll/` sets the bound this goal measured."
+    "`Core\\Str::trim`, `trimStart`, `trimEnd`, `upper`, `upperFirst` and `wrap` still owe all of `rule:testing/feature-proofs` (`bun nv proofs --owed --group 'Core\\Str'`).",
+    "Every change to `crates/nvs-stdlib/src/str.rs` makes every `Core\\Str` perf record stale; end each session that touches it with `bun nv proofs --record-perf --group 'Core\\Str'` after verify is green."
   ]
 }

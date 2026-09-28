@@ -134,7 +134,11 @@ impl Unit {
                 subject,
                 indices: subject.char_indices(),
             },
-            Self::Grapheme if one_byte_per_cluster(subject) => Pieces::Bytes { subject, next: 0 },
+            Self::Grapheme if one_byte_per_cluster(subject) => Pieces::Bytes {
+                subject,
+                next: 0,
+                end: subject.len(),
+            },
             Self::Grapheme => Pieces::Graphemes(subject.graphemes(true)),
         }
     }
@@ -270,6 +274,8 @@ pub enum Pieces<'a> {
         subject: &'a str,
         /// The byte offset the next item starts at.
         next: usize,
+        /// The byte offset the last item not yet taken from the back ends at.
+        end: usize,
     },
     /// [`Unit::Grapheme`]: UAX #29's extended clusters, `unicode-segmentation`'s
     /// own iterator, which already yields `&str`.
@@ -285,9 +291,9 @@ impl<'a> Iterator for Pieces<'a> {
                 let (start, found) = indices.next()?;
                 Some(&subject[start..start + found.len_utf8()])
             }
-            Self::Bytes { subject, next } => {
+            Self::Bytes { subject, next, end } => {
                 let start = *next;
-                if start >= subject.len() {
+                if start >= *end {
                     return None;
                 }
                 *next = start + 1;
@@ -310,6 +316,28 @@ impl<'a> Iterator for Pieces<'a> {
             }
         }
         self.next()
+    }
+}
+
+/// The same pieces, last first — which is how `Core\Str::reverse` writes its
+/// result without first collecting every piece of the subject.
+impl<'a> DoubleEndedIterator for Pieces<'a> {
+    fn next_back(&mut self) -> Option<&'a str> {
+        match self {
+            Self::CodePoints { subject, indices } => {
+                let (start, found) = indices.next_back()?;
+                Some(&subject[start..start + found.len_utf8()])
+            }
+            Self::Bytes { subject, next, end } => {
+                if *end <= *next {
+                    return None;
+                }
+                *end -= 1;
+                // Every byte offset is a boundary here, as in `next`.
+                Some(&subject[*end..*end + 1])
+            }
+            Self::Graphemes(graphemes) => graphemes.next_back(),
+        }
     }
 }
 
@@ -459,6 +487,33 @@ mod tests {
                 reference,
                 "{subject:?} split differently from the segmenter"
             );
+        }
+    }
+
+    /// Walking the pieces from the back gives the forward pieces in reverse,
+    /// on all three arms, and the two ends meet without a piece taken twice.
+    // covers: Core\Str::reverse
+    #[test]
+    fn the_pieces_walk_from_the_back_as_they_walk_from_the_front() {
+        for subject in ["", "plain ascii", "line\r\nline", "cafe\u{301} 👍🏽 🇩🇪", "ß"] {
+            for unit in [Unit::Grapheme, Unit::CodePoint] {
+                let mut forward: Vec<&str> = unit.pieces(subject).collect();
+                forward.reverse();
+                assert_eq!(
+                    unit.pieces(subject).rev().collect::<Vec<&str>>(),
+                    forward,
+                    "{subject:?} walked back differently"
+                );
+                let mut both = unit.pieces(subject);
+                let mut taken = 0;
+                while both.next().is_some() {
+                    taken += 1;
+                    if both.next_back().is_some() {
+                        taken += 1;
+                    }
+                }
+                assert_eq!(taken, forward.len(), "{subject:?} met twice");
+            }
         }
     }
 

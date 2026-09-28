@@ -7365,16 +7365,16 @@ Replaces several texts in `$s` in one call. Each key of `$pairs` is a text to fi
 Core\Str::replaceRange(string $s, int $offset, ?int $length, string $replacement): string
 ```
 
-Puts `$replacement` in place of the window `slice` would answer for the same `$offset` and `$length`, as `substr_replace` does.
+Replaces a part of `$s` with `$replacement`. The part is the text `Core\Str::slice` returns for the same `$offset` and `$length`. Replaces PHP's `substr_replace`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The string to rewrite. |
-| `$offset` | `int` | Where the window begins; a negative offset counts from the end. |
-| `$length` | `?int` | How many characters the window covers; a negative one stops that many from the end, and `null` runs to the end. |
-| `$replacement` | `string` | The text put in the window's place; `""` removes the window. |
+| `$s` | `string` | The string to change. |
+| `$offset` | `int` | The character where the part starts. `0` is the first character. A negative offset counts from the end. |
+| `$length` | `?int` | How many characters the part has. A negative length stops that many characters before the end. `null` means the part runs to the end. |
+| `$replacement` | `string` | The text that replaces the part. `""` deletes the part. |
 
-**Returns** `string` — The rewritten string; an empty window — a `$length` of `0`, or one reaching back past the offset — makes this an insertion at that position.
+**Returns** `string` — The changed string. If the part is empty, for example with a `$length` of `0`, `$replacement` is inserted at `$offset`.
 
 <a id="core-core-str-padstart"></a>
 #### `Core\Str::padStart`
@@ -7487,13 +7487,13 @@ Returns `$times` copies of `$s`, joined into one string. Replaces PHP's `str_rep
 Core\Str::reverse(string $s): string
 ```
 
-Reverses the order of the characters in `$s`, as `strrev` does — by grapheme rather than by byte, so `"café"` becomes `"éfac"` and a combining mark stays on its letter.
+Reverses the order of the characters in `$s`. A character is what a person sees as one character, so `"café"` becomes `"éfac"` and an accent stays on its letter. Replaces PHP's `strrev`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to reverse. |
 
-**Returns** `string` — The reversed string; the same length as `$s`, and `""` for the empty string.
+**Returns** `string` — The reversed string. It has the same length as `$s`. The empty string gives `""`.
 
 <a id="core-core-str-wrap"></a>
 #### `Core\Str::wrap`

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to put a space after every three digits of a large number, counted from the right.
+
+array<string> $amounts = ["1250", "987654321", "42"];
+
+foreach ($amounts as string $amount) {
+    // The digits are reversed, so the groups of three start at the left.
+    // `Core\Str::chunk` then splits them into parts of three characters.
+    array<string> $groups = Core\Str::chunk(Core\Str::reverse($amount), 3);
+    // The parts are joined with a space and reversed back.
+    // This prints "1 250", "987 654 321" and "42".
+    echo Core\Str::reverse(Core\Str::join($groups, " ")), "\n";
+}

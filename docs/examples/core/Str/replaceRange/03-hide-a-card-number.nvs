@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to hide a card number on a receipt, so only the last four digits are visible.
+
+array<string> $cards = ["4111111111111111", "5500005555555559", "340000000000009"];
+
+foreach ($cards as string $card) {
+    // A length of -4 stops 4 characters before the end.
+    // Everything before the last four digits is replaced with the same number of "*".
+    uint $hidden = Core\Str::length($card) - 4;
+    echo Core\Str::replaceRange($card, 0, -4, Core\Str::repeat("*", $hidden)), "\n";
+}
