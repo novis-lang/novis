@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a failed check tells you where two values differ.
+
+array<array<int>> $stock = [
+    "apples" => ["shelf" => 12, "store" => 40],
+    "pears" => ["shelf" => 3, "store" => 0],
+];
+
+// Only one number is different. The message gives its path, the way you write
+// it in code, and the two values at that place.
+try {
+    Core\Test::assertEqualsDeep($stock, [
+        "apples" => ["shelf" => 12, "store" => 40],
+        "pears" => ["shelf" => 5, "store" => 0],
+    ]);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// When the arrays have a different number of entries, the message says so.
+try {
+    Core\Test::assertEqualsDeep(["a", "b"], ["a", "b", "c"]);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

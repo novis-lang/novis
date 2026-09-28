@@ -1,0 +1,19 @@
+<?nvs
+// Shows what happens when a check fails, and how to add your own message.
+
+int $itemsInCart = 2;
+
+// The values are different, so the check throws a `Core\Test\Failure`.
+// The message shows both values.
+try {
+    Core\Test::assertEquals($itemsInCart, 3);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The option `message` adds your own text at the start of the message.
+try {
+    Core\Test::assertEquals($itemsInCart, 3, {message: "the cart has three items after checkout"});
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

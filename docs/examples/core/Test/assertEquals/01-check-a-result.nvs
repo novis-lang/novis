@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check that a function returns the value you expect.
+
+class Prices {
+    public static function withShipping(int $cents): int {
+        if ($cents >= 5000) {
+            return $cents;
+        }
+        return $cents + 495;
+    }
+}
+
+// The first value is the result of your code. The second value is what you expect.
+// The check passes, so nothing is thrown.
+Core\Test::assertEquals(Prices::withShipping(1000), 1495);
+echo "1000 cents with shipping is 1495 cents\n";
+
+// Arrays are equal when they have the same keys and values in the same order.
+Core\Test::assertEquals([Prices::withShipping(500), Prices::withShipping(6000)], [995, 6000]);
+echo "shipping is free from 5000 cents\n";

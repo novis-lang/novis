@@ -2818,7 +2818,7 @@ nvs_runtime::nvs_helper! {
     /// — § 4's structural walk, which reports **where** the two differ rather
     /// than only that they do.
     fn nvs_core_test_assert_equals_deep(ctx, args: [3]) {
-        let Some(diff) = difference(args[0], args[1], 0, "")? else {
+        let Some(diff) = difference(args[0], args[1], 0, "", &mut Proven::new())? else {
             return Ok(held(ctx, "assertEqualsDeep"));
         };
         let at = if diff.path.is_empty() {
@@ -3357,6 +3357,7 @@ fn difference(
     expected: Value,
     depth: usize,
     path: &str,
+    proven: &mut Proven,
 ) -> Result<Option<Diff>, Fault> {
     if depth >= MAX_DEPTH {
         return Err(Fault::thrown(format!(
@@ -3366,14 +3367,32 @@ fn difference(
         )));
     }
     match (actual.tag(), expected.tag()) {
-        (Some(Tag::Array), Some(Tag::Array)) => array_difference(actual, expected, depth, path),
-        (Some(Tag::Object), Some(Tag::Object)) => object_difference(actual, expected, depth, path),
+        (Some(Tag::Array), Some(Tag::Array)) => {
+            array_difference(actual, expected, depth, path, proven)
+        }
+        (Some(Tag::Object), Some(Tag::Object)) => {
+            object_difference(actual, expected, depth, path, proven)
+        }
         _ => Ok(leaf(actual, expected, path)),
     }
 }
 
 /// How deep [`difference`] descends before it refuses to answer.
 const MAX_DEPTH: usize = 64;
+
+/// The pairs of objects one [`difference`] walk has already found equal, by
+/// address.
+///
+/// Two graphs that each reach one node along many paths — a node whose two
+/// properties hold the same child, repeated down [`MAX_DEPTH`] levels — would
+/// otherwise be walked once per path, which is exponential in the depth and
+/// hangs the assertion. With this set each pair of objects is walked once. It
+/// costs one entry per pair of objects found equal, for the length of one
+/// assertion call. An address is a sound key here because both arguments own
+/// their graphs for the whole walk and the walk runs no program code, so no
+/// object is freed and no address is reused while the set is alive. Only a
+/// finished comparison is recorded, so a cycle still reaches the depth cap.
+type Proven = std::collections::HashSet<(usize, usize)>;
 
 /// One difference: where it is, and what each side holds there.
 struct Diff {
@@ -3402,6 +3421,7 @@ fn array_difference(
     expected: Value,
     depth: usize,
     path: &str,
+    proven: &mut Proven,
 ) -> Result<Option<Diff>, Fault> {
     let (Some(left), Some(right)) = (entries(actual), entries(expected)) else {
         return Ok(leaf(actual, expected, path));
@@ -3422,7 +3442,7 @@ fn array_difference(
                 expected: format!("a key `{theirs_key}`"),
             }));
         }
-        if let Some(diff) = difference(mine, theirs, depth + 1, &at)? {
+        if let Some(diff) = difference(mine, theirs, depth + 1, &at, proven)? {
             return Ok(Some(diff));
         }
     }
@@ -3459,6 +3479,7 @@ fn object_difference(
     expected: Value,
     depth: usize,
     path: &str,
+    proven: &mut Proven,
 ) -> Result<Option<Diff>, Fault> {
     let (Some(left), Some(right)) = (actual.obj_ptr(), expected.obj_ptr()) else {
         return Ok(leaf(actual, expected, path));
@@ -3466,9 +3487,10 @@ fn object_difference(
     // The one shortcut, and the reason a shared sub-object in both graphs does
     // not spend the depth budget twice: one allocation is equal to itself under
     // every row of this walk.
-    if std::ptr::eq(left, right) {
+    if std::ptr::eq(left, right) || proven.contains(&(left as usize, right as usize)) {
         return Ok(None);
     }
+    let pair = (left as usize, right as usize);
     let left = handle(left);
     let right = handle(right);
     if left.class_name() != right.class_name() {
@@ -3489,7 +3511,8 @@ fn object_difference(
             .field_name(slot)
             .map_or_else(|| slot.to_string(), ToOwned::to_owned);
         let at = format!("{path}->{name}");
-        let Some(diff) = difference(left.field(slot), right.field(slot), depth + 1, &at)? else {
+        let Some(diff) = difference(left.field(slot), right.field(slot), depth + 1, &at, proven)?
+        else {
             continue;
         };
         // `rule:errors/record-transformations`'s redaction row, at the one place this module renders a
@@ -3506,6 +3529,7 @@ fn object_difference(
             diff
         }));
     }
+    proven.insert(pair);
     Ok(None)
 }
 
@@ -5355,5 +5379,85 @@ mod tests {
         never_called(&mut ctx, double, "purge").expect("`purge` never was");
         called(&mut ctx, double, "purge", None, None).expect_err("so it was not called");
         dropped(double);
+    }
+
+    /// `assertEquals` and `assertEqualsDeep` share one comparison below the
+    /// object row: over a table of scalar and list pairs they agree on every
+    /// verdict, `assertEquals` quotes both sides, and `assertEqualsDeep` names
+    /// the first index where two lists part.
+    // covers: Core\Test::assertEquals, Core\Test::assertEqualsDeep
+    #[test]
+    fn assert_equals_and_assert_equals_deep_agree_below_the_object_row() {
+        fn list(of: &[i64]) -> Value {
+            let mut list = nvs_runtime::NvsArray::new();
+            for n in of {
+                list.append(Value::int(*n));
+            }
+            Value::array(list)
+        }
+        fn asserted(
+            ctx: &mut Ctx,
+            member: nvs_runtime::NvsFn,
+            actual: Value,
+            expected: Value,
+        ) -> Result<(), String> {
+            let args = [actual, expected, Value::null()];
+            let answered = nvs_runtime::call(member, ctx, &args);
+            dropped(actual);
+            dropped(expected);
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a failed assertion says why")
+                    .into_owned()),
+            }
+        }
+
+        type Side = fn() -> Value;
+
+        let mut ctx = Ctx::buffered();
+        let pairs: [(Side, Side, bool); 6] = [
+            (|| Value::int(7), || Value::int(7), true),
+            (|| Value::int(7), || Value::int(8), false),
+            (|| Value::null(), || Value::null(), true),
+            (|| list(&[1, 2, 3]), || list(&[1, 2, 3]), true),
+            (|| list(&[1, 2, 3]), || list(&[1, 9, 3]), false),
+            (|| list(&[1, 2]), || list(&[1, 2, 3]), false),
+        ];
+        for (row, (actual, expected, equal)) in pairs.iter().enumerate() {
+            let flat = asserted(&mut ctx, nvs_core_test_assert_equals, actual(), expected());
+            let deep = asserted(
+                &mut ctx,
+                nvs_core_test_assert_equals_deep,
+                actual(),
+                expected(),
+            );
+            assert_eq!(flat.is_ok(), *equal, "row {row}: {flat:?}");
+            assert_eq!(deep.is_ok(), *equal, "row {row}: {deep:?}");
+        }
+
+        let why = asserted(
+            &mut ctx,
+            nvs_core_test_assert_equals,
+            Value::int(7),
+            Value::int(8),
+        )
+        .expect_err("7 is not 8");
+        assert!(why.contains("`$actual` is 7, `$expected` is 8"), "{why}");
+        let why = asserted(
+            &mut ctx,
+            nvs_core_test_assert_equals_deep,
+            list(&[1, 2, 3]),
+            list(&[1, 9, 3]),
+        )
+        .expect_err("the lists part at index 1");
+        assert!(
+            why.contains("differ at `$actual[\"1\"]`: `$actual` is 2, `$expected` is 9"),
+            "{why}"
+        );
     }
 }

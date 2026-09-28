@@ -1,0 +1,2 @@
+Core\Test::assertEquals failed: `$actual` is 2, `$expected` is 3
+the cart has three items after checkout: Core\Test::assertEquals failed: `$actual` is 2, `$expected` is 3

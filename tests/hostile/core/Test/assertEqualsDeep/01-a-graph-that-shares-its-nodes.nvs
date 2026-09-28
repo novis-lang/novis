@@ -1,0 +1,98 @@
+<?nvs
+// Attack: the check compares objects that point to the same nodes many times, objects
+// that point to themselves, and very large arrays. Each check should pass or throw an
+// error in a short time, and the program should not crash or hang.
+
+class Node
+{
+    public ?Node $left = null;
+    public ?Node $right = null;
+    public int $value = 0;
+}
+
+class Ring
+{
+    public ?Ring $next = null;
+    public int $value = 0;
+}
+
+// Builds a chain of nodes where both properties of a node point to the same next node.
+// A walk that follows every property visits the last node 2^depth times.
+class Graph
+{
+    public static function shared(int $depth, int $last): Node
+    {
+        Node $bottom = new Node();
+        $bottom->value = $last;
+        Node $top = $bottom;
+        int $level = 0;
+        while ($level < $depth) {
+            Node $above = new Node();
+            $above->left = $top;
+            $above->right = $top;
+            $top = $above;
+            $level = $level + 1;
+        }
+        return $top;
+    }
+}
+
+// Step 1: two separate graphs with shared nodes, 60 levels deep, that are equal.
+try {
+    Core\Test::assertEqualsDeep(Graph::shared(60, 1), Graph::shared(60, 1));
+    echo "shared graphs equal\n";
+} catch (Throwable $error) {
+    echo "shared graphs refused\n";
+}
+
+// Step 2: the same graphs, but the last value is different.
+try {
+    Core\Test::assertEqualsDeep(Graph::shared(60, 1), Graph::shared(60, 2));
+    echo "shared graphs equal\n";
+} catch (Throwable $error) {
+    echo "shared graphs differ\n";
+}
+
+// Step 3: two objects that each point to themselves.
+Ring $one = new Ring();
+$one->next = $one;
+Ring $two = new Ring();
+$two->next = $two;
+try {
+    Core\Test::assertEqualsDeep($one, $two);
+    echo "rings equal\n";
+} catch (Throwable $error) {
+    echo "rings refused\n";
+}
+
+// Step 4: two arrays of one million numbers that differ only in the last one.
+array<int> $wide = [];
+array<int> $other = [];
+int $i = 0;
+while ($i < 1000000) {
+    $wide[] = $i;
+    $other[] = $i;
+    $i = $i + 1;
+}
+$other[999999] = -1;
+try {
+    Core\Test::assertEqualsDeep($wide, $other);
+} catch (Core\Test\Failure $failure) {
+    echo "wide arrays differ\n";
+}
+
+// Step 5: arrays nested fifty thousand levels deep.
+mixed $deep = 0;
+mixed $deeper = 0;
+int $level = 0;
+while ($level < 50000) {
+    $deep = [$deep];
+    $deeper = [$deeper];
+    $level = $level + 1;
+}
+try {
+    Core\Test::assertEqualsDeep($deep, $deeper);
+    echo "deep equal\n";
+} catch (Throwable $error) {
+    echo "deep refused\n";
+}

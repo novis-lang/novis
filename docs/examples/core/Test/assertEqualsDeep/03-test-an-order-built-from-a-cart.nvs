@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to test an object that contains other objects, such as an order and its lines.
+
+class Line {
+    public function constructor(public string $sku, public int $quantity) {}
+}
+
+class Order {
+    public function constructor(public string $customer, public array<Line> $lines) {}
+}
+
+class Checkout {
+    // Adds up the quantities of each product in the cart.
+    public static function order(string $customer, array<string> $cart): Order {
+        array<int> $counts = [];
+        foreach ($cart as string $sku) {
+            $counts[$sku] = ($counts[$sku] ?? 0) + 1;
+        }
+        array<Line> $lines = [];
+        foreach ($counts as string $sku => int $quantity) {
+            $lines[] = new Line($sku, $quantity);
+        }
+        return new Order($customer, $lines);
+    }
+}
+
+Order $order = Checkout::order("customer-7", ["tea", "cup", "tea"]);
+
+// The objects have no `compareTo` method. This check compares the class
+// and every property, inside the lines as well.
+Core\Test::assertEqualsDeep($order, new Order("customer-7", [new Line("tea", 2), new Line("cup", 1)]));
+echo "the order has 2 tea and 1 cup\n";
+
+// A wrong quantity gives the path to the property that is different.
+try {
+    Core\Test::assertEqualsDeep($order, new Order("customer-7", [new Line("tea", 1), new Line("cup", 1)]));
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

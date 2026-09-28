@@ -1,0 +1,20 @@
+<?nvs
+// Checks that a computed number equals the expected one, as a test does after it calls the code.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<uint> $expected = [3, 5, 7];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $index = $total % 3;
+            Core\Test::assertEquals($index * 2 + 3, $expected[$index]);
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

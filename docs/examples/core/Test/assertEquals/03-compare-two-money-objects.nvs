@@ -1,0 +1,37 @@
+<?nvs
+// Shows how to test a value object. Two objects are equal when their `compareTo` method returns 0.
+
+class Money implements Comparable {
+    public function constructor(public int $cents, public string $currency) {}
+
+    // Money in different currencies is never equal, so this returns 1 for it.
+    public function compareTo(self $other): int {
+        if ($this->currency != $other->currency) {
+            return 1;
+        }
+        return $this->cents <=> $other->cents;
+    }
+}
+
+class Invoice {
+    public static function total(array<Money> $lines): Money {
+        int $cents = 0;
+        foreach ($lines as Money $line) {
+            $cents = $cents + $line->cents;
+        }
+        return new Money($cents, "EUR");
+    }
+}
+
+Money $total = Invoice::total([new Money(1999, "EUR"), new Money(501, "EUR")]);
+
+// These are two different objects. `compareTo` returns 0, so the check passes.
+Core\Test::assertEquals($total, new Money(2500, "EUR"));
+echo "the invoice total is 25.00 EUR\n";
+
+// The amount is the same, but the currency is not. The check fails.
+try {
+    Core\Test::assertEquals($total, new Money(2500, "USD"));
+} catch (Core\Test\Failure $failure) {
+    echo "not equal to 25.00 USD\n";
+}

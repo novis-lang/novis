@@ -1,22 +1,26 @@
 {
-  "state": "Goal `core-test-1-2`, stage 2. `Core\\Test::advance`, `answerHttp`, `answerSocket`, `assertCalled`\nand `assertNeverCalled` have every proof: `about.md`, three examples, one attack, a bench with a\nrecorded figure in `docs/perf/members.ndjson`, and a Rust `covers:` test in\n`crates/nvs-stdlib/src/test.rs`'s tests module. None of the attacks found a bug.\n\nThe seven members still owed are `assertEquals`, `assertEqualsDeep`, `assertCount`,\n`assertContains`, `assertMatchesInline`, `assertDoesNotThrow` and `assertCompletes`. Each owes\nexamples, hostile, perf and tests (`bun nv proofs --owed --only ...`). They all run at the top level\nof a program under `nvs run`, with no `#[Test]` class. `bun nv try <files>` runs them that way.\nA bench needs `bun nv proofs --record-perf --only '<member>'`.\n\nA Rust test of a failing assertion reads its sentence with `ctx.take_pending()`: `failed` throws\nthrough `Fault::thrown_as(ThrownClass::TestFailure, …)`, and that route keeps the message.\n`assert_called_and_assert_never_called_agree_over_one_record` is the shape. It drives members with\n`nvs_runtime::call`, passes `Value::null()` for an omitted option, and drops the arguments it built.",
+  "state": "Goal `core-test-1-2`, stage 2. `Core\\Test::advance`, `answerHttp`, `answerSocket`,\n`assertCalled`, `assertNeverCalled`, `assertEquals` and `assertEqualsDeep` have every proof:\n`about.md`, three examples, one attack, a bench, and a Rust `covers:` test in\n`crates/nvs-stdlib/src/test.rs`'s tests module.\n\nThe `assertEqualsDeep` attack found a hang: a graph of shared nodes was walked once per path.\nThe walk now keeps `Proven`, the pairs of objects already found equal, and\n`tests/conformance/core/test-assert-equals-deep-walks-a-shared-node-once.nvst` pins it.\n\nThe five members still owed are `assertCount`, `assertContains`, `assertMatchesInline`,\n`assertDoesNotThrow` and `assertCompletes`. Each owes examples, hostile, perf and tests\n(`bun nv proofs --owed --only ...`). They run at the top level of a program under `nvs run`,\nwith no `#[Test]` class; `bun nv try <files>` runs them that way. A bench needs\n`bun nv proofs --record-perf --only '<member>'`. Any edit to `test.rs` makes every\n`Core\\Test` bench figure stale, so a slice that changes Rust there re-records all of them. A keyed array is declared `array<int>`, never\n`array<string, int>`; there is no `intdiv` and no `!==`.\n\nA Rust test of a failing assertion reads its sentence with `ctx.take_pending()`.\n`assert_equals_and_assert_equals_deep_agree_below_the_object_row` is the shape for a member\ntaking plain values: an `asserted(ctx, member, actual, expected)` helper over\n`nvs_runtime::call`, passing `Value::null()` for the omitted `message`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/test.rs`, the value-comparison assertions and their tests module.",
+    "note": "one file set: `crates/nvs-stdlib/src/test.rs`, the predicate and throw assertions and their tests module.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Test::assertEquals`** and **`Core\\Test::assertEqualsDeep`**: about, 3 examples each, attack, bench, and one Rust test with `// covers: Core\\Test::assertEquals, Core\\Test::assertEqualsDeep`, because both read `equals`. An attack can reuse the `compareTo` that calls back, from `tests/hostile/core/Test/assertCalled/01-a-comparison-that-calls-the-double-again.nvs`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:2799`, `crates/nvs-stdlib/src/test.rs:2820`"
+        "text": "**`Core\\Test::assertCount`** and **`Core\\Test::assertContains`**: about, 3 examples each, attack, bench, and one Rust test with `// covers: Core\\Test::assertCount, Core\\Test::assertContains`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:2909`, `crates/nvs-stdlib/src/test.rs:2969`"
       },
       {
         "done": false,
-        "text": "**`Core\\Test::assertCount`** and **`Core\\Test::assertContains`**: the same proofs, one Rust test for both. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:2909`, `crates/nvs-stdlib/src/test.rs:2969`"
+        "text": "**`Core\\Test::assertDoesNotThrow`** and **`Core\\Test::assertCompletes`**: the same proofs, one Rust test for both if both take a `callable` (the playbook's `closure_of` bullet is how a test builds one). `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:3174`, `crates/nvs-stdlib/src/test.rs:1954`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Test::assertMatchesInline`**: the same proofs. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:3035`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Test::assertMatchesInline`, `assertDoesNotThrow` and `assertCompletes` owe every proof but the card — `crates/nvs-stdlib/src/test.rs:3035`, `crates/nvs-stdlib/src/test.rs:3174`, `crates/nvs-stdlib/src/test.rs:1954`. `rule:testing/feature-proofs`."
+    "None."
   ]
 }
