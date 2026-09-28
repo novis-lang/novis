@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to mark the search term in a product name, as a shop does in its search results.
+
+class Search {
+    // This puts `[` and `]` around the first match. If there is no match, the name stays the same.
+    public static function mark(string $name, string $term): string {
+        var $at = Core\Str::indexOf($name, $term, {caseInsensitive: true});
+        if ($at == null) {
+            return $name;
+        }
+        uint $end = $at + Core\Str::length($term);
+        return Core\Str::slice($name, 0, $at as int) . "["
+            . Core\Str::slice($name, $at as int, Core\Str::length($term) as int) . "]"
+            . Core\Str::slice($name, $end as int);
+    }
+}
+
+// The marked part keeps the case of the name. This prints `Crème [Brûlée] set`,
+// `[brûlée] torch` and `Coffee cup`.
+array<string> $products = ["Crème Brûlée set", "brûlée torch", "Coffee cup"];
+foreach ($products as string $product) {
+    echo Search::mark($product, "BRÛLÉE"), "\n";
+}

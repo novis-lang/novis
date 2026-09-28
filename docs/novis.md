@@ -7125,16 +7125,16 @@ Cuts the part of `$s` that starts at `$offset` and runs for `$length` characters
 Core\Str::indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint
 ```
 
-Finds the first occurrence of `$needle` in `$haystack` and answers its position, as `strpos`, `stripos`, `mb_strpos` and `mb_stripos` do.
+Finds the first place where `$needle` appears in `$haystack` and returns its position. The first character is position `0`. Replaces PHP's `strpos`, `stripos`, `mb_strpos` and `mb_stripos`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$haystack` | `string` (neutral) | The string searched in. |
-| `$needle` | `string` (neutral) | The string searched for; an empty one matches where the search starts. |
-| `{from: …}` | `int` (default `0`) | The position the search starts at; a negative one counts from the end, and the default is `0`. |
-| `{caseInsensitive: …}` | `bool` (default `false`) | Match through Unicode's simple lower-case mapping of each character rather than exactly; the default is `false`. |
+| `$haystack` | `string` (neutral) | The string to search in. |
+| `$needle` | `string` (neutral) | The string to search for. An empty needle matches where the search starts. |
+| `{from: …}` | `int` (default `0`) | The position where the search starts. A negative value counts from the end. The default is `0`. |
+| `{caseInsensitive: …}` | `bool` (default `false`) | When `true`, upper-case and lower-case letters match each other. Each character is compared by its lower-case form, so `ß` does not match `SS`. The default is `false`. |
 
-**Returns** `?uint` — The grapheme position of the first occurrence at or after `from`, usable as `slice`'s offset; `null` when the needle does not occur there — never `false`.
+**Returns** `?uint` — The position of the first match at or after `from`, counted in characters as `Core\Str::length` counts them. You can pass it to `Core\Str::slice`. The result is `null` when there is no match.
 
 <a id="core-core-str-lastindexof"></a>
 #### `Core\Str::lastIndexOf`
@@ -7299,13 +7299,13 @@ Splits `$s` into its lines, as `explode(PHP_EOL, …)` does — at `\n`, `\r\n` 
 Core\Str::graphemes(string $s): array<string>
 ```
 
-Splits `$s` into its extended grapheme clusters — the unit `length` counts and `at` indexes — as the split half of intl's `grapheme_*` family does.
+Divides `$s` into its characters, the way a person counts them. An accented letter, a flag or an emoji with a skin tone is one character, even when it is several code points. These are the characters `Core\Str::length` counts. Replaces PHP's `grapheme_str_split`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The string to split. |
+| `$s` | `string` | The string to divide. |
 
-**Returns** `array<string>` — One string per grapheme, in order; `[]` for the empty string.
+**Returns** `array<string>` — One string for each character, in order. An empty string gives `[]`.
 
 <a id="core-core-str-codepoints"></a>
 #### `Core\Str::codePoints`

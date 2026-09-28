@@ -1,26 +1,24 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Str (2/3) has been taken yet.",
+  "state": "Goal `core-str-2-3`, 2 of 3 items done. `Core\\Str::graphemes` and `Core\\Str::indexOf` are complete\n(`bun nv proofs --id` says so for each): description, three examples, attack, bench with a perf record,\nRust test and a plain card each. The `indexOf` attack found a linear-time bug in the case-insensitive\nsearch. It is fixed in `find_from` (Knuth–Morris–Pratt over each character's lower-case mapping) and\npinned by `tests/conformance/core/str-index-of-case-insensitive-near-miss-is-linear.nvst`. A second\nfinding, a match that starts or ends inside one grapheme, is recorded as gap\n`nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` (owner M11), because the fix is a\nchoice between two semantics for the whole search family. `str.rs` now has a `# Known gaps` heading.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "feature proofs, one member per slice",
+    "files": [
+      "crates/nvs-stdlib/src/str.rs",
+      "docs/examples/core/Str/",
+      "tests/hostile/core/Str/",
+      "benches/members/core/Str/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::graphemes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:373`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Str::indexOf`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:259`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Str::isEmpty`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:210`"
+        "text": "**`Core\\Str::isEmpty`** — owes examples, hostile, perf, tests, and its `about.md` and a plain card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/str.rs:210`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Str::lastIndexOf` walks every overlapping match with a fresh `find_at`, so `\"a\"` × N with an `\"a\"` × M needle costs N·M in both modes; the attack for it will find this — `crates/nvs-stdlib/src/str.rs` `nvs_core_str_last_index_of`.",
+    "`Core\\Str::replaceAll` tries every needle at every position, so one long needle that almost matches costs text length × needle length in both modes — `crates/nvs-stdlib/src/str.rs` `nvs_core_str_replace_all`.",
+    "A match inside one grapheme: gap `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position`, owner M11."
   ]
 }

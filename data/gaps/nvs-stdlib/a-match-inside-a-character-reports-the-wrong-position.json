@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/str.rs",
+  "title": "A `Core\\Str` search matches inside one grapheme, so `indexOf` can return a position that does not hold the match.",
+  "text": "[`find_from`] matches code points and never checks that a match starts and ends on a grapheme boundary, and [`position`] rounds a byte inside a cluster up to the next grapheme. So `indexOf(\"e\\u{301}x\", \"\\u{301}\")` returns `1`, the position of `x`; `indexOf(\"ab\\u{1F1E9}\\u{1F1EA}\", \"\\u{1F1EA}\")` returns `3`, which is the length and holds nothing; and `indexOf` of `\"\\u{1F1EA}\\u{1F1E9}\"` in two German flags returns `1`, a match across two flags. A needle that is a whole cluster's leading part, `\"e\"` in a decomposed `é`, returns `0`, where `Core\\Str::slice($s, 0, 1)` is `\"é\"`. The fix is one of two semantics for the whole search family (`indexOf`, `lastIndexOf`, `contains`, `countOf`, `before`, `after`, `split`, `replace`): matches only on cluster boundaries, as intl's `grapheme_strpos` does, or code-point matches that report a position no cluster rounds. The first diverges from `str_contains` and `str_replace` on decomposed text, the second gives up the rule that every position is a grapheme, so it is a decision on PHP compatibility and not a slice.",
+  "milestone": "M11"
+}

@@ -1,11 +1,15 @@
 <?nvs
+// Shows how to find a word in a text, and how to check that a word is not there.
+
 var $s = "The quick brown fox";
 
+// "quick" starts at position 4, so this prints `found at 4`.
 var $at = Core\Str::indexOf($s, "quick");
 if ($at != null) {
     echo "found at ", $at, "\n";
 }
 
+// "wolf" is not in the text, so the result is `null` and this prints `no wolf here`.
 if (Core\Str::indexOf($s, "wolf") == null) {
     echo "no wolf here\n";
 }

@@ -81,6 +81,10 @@
 //! behaviour has no surviving spelling to be compatible with — a deliberate
 //! divergence, and the shape a test case's `--ORACLE-DIVERGES--` section exists
 //! to record (`crates/nvs-test/src/lib.rs`).
+//!
+//! # Known gaps
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/str.rs` lists them.
 
 use std::cmp::Ordering;
 
@@ -746,34 +750,37 @@ const SLICE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::indexOf`'s reference card — `rule:core-api/reference-card`.
 const INDEX_OF_DOC: MethodDoc = MethodDoc {
-    short: "Finds the first occurrence of `$needle` in `$haystack` and answers its position, as \
-            `strpos`, `stripos`, `mb_strpos` and `mb_stripos` do.",
+    short: "Finds the first place where `$needle` appears in `$haystack` and returns its \
+            position. The first character is position `0`. Replaces PHP's `strpos`, `stripos`, \
+            `mb_strpos` and `mb_stripos`.",
     params: &[
         ParamDoc {
             name: "haystack",
-            desc: "The string searched in.",
+            desc: "The string to search in.",
             shape: &[],
         },
         ParamDoc {
             name: "needle",
-            desc: "The string searched for; an empty one matches where the search starts.",
+            desc: "The string to search for. An empty needle matches where the search starts.",
             shape: &[],
         },
         ParamDoc {
             name: "from",
-            desc: "The position the search starts at; a negative one counts from the end, and \
-                   the default is `0`.",
+            desc: "The position where the search starts. A negative value counts from the end. \
+                   The default is `0`.",
             shape: &[],
         },
         ParamDoc {
             name: "caseInsensitive",
-            desc: "Match through Unicode's simple lower-case mapping of each character rather \
-                   than exactly; the default is `false`.",
+            desc: "When `true`, upper-case and lower-case letters match each other. Each \
+                   character is compared by its lower-case form, so `ß` does not match `SS`. \
+                   The default is `false`.",
             shape: &[],
         },
     ],
-    ret: "The grapheme position of the first occurrence at or after `from`, usable as `slice`'s \
-          offset; `null` when the needle does not occur there — never `false`.",
+    ret: "The position of the first match at or after `from`, counted in characters as \
+          `Core\\Str::length` counts them. You can pass it to `Core\\Str::slice`. The result is \
+          `null` when there is no match.",
     errors: &[],
 };
 
@@ -1014,14 +1021,16 @@ const LINES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::graphemes`'s reference card — `rule:core-api/reference-card`.
 const GRAPHEMES_DOC: MethodDoc = MethodDoc {
-    short: "Splits `$s` into its extended grapheme clusters — the unit `length` counts and `at` \
-            indexes — as the split half of intl's `grapheme_*` family does.",
+    short: "Divides `$s` into its characters, the way a person counts them. An accented letter, \
+            a flag or an emoji with a skin tone is one character, even when it is several code \
+            points. These are the characters `Core\\Str::length` counts. Replaces PHP's \
+            `grapheme_str_split`.",
     params: &[ParamDoc {
         name: "s",
-        desc: "The string to split.",
+        desc: "The string to divide.",
         shape: &[],
     }],
-    ret: "One string per grapheme, in order; `[]` for the empty string.",
+    ret: "One string for each character, in order. An empty string gives `[]`.",
     errors: &[],
 };
 
@@ -2280,13 +2289,65 @@ nvs_runtime::nvs_helper! {
 /// simple lowercase mapping, not full case folding — so `ß` does not match
 /// `SS`. That is the same boundary [`map_first`] already sits on, and it is
 /// what keeps a match's byte length derivable from the subject alone.
+///
+/// The case-insensitive scan is Knuth–Morris–Pratt over those per-`char`
+/// mappings, so it is linear in the haystack plus the needle. Trying the needle
+/// at every start is the haystack's length times the needle's, which a request
+/// reaches with one long needle that almost matches. The tables cost about
+/// 28 bytes per needle `char`, per call, freed before it returns.
 fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(usize, usize)> {
     if !case_insensitive {
         return haystack.find(needle).map(|at| (at, needle.len()));
     }
-    haystack
-        .char_indices()
-        .find_map(|(at, _)| match_at(&haystack[at..], needle).map(|len| (at, len)))
+    let wanted: Vec<Lowered> = needle.chars().map(lowered).collect();
+    if wanted.is_empty() {
+        return Some((0, 0));
+    }
+    // `fallback[i]` is the length of the longest proper prefix of
+    // `wanted[..=i]` that is also its suffix.
+    let mut fallback = vec![0usize; wanted.len()];
+    let mut k = 0usize;
+    for i in 1..wanted.len() {
+        while k > 0 && wanted[i] != wanted[k] {
+            k = fallback[k - 1];
+        }
+        if wanted[i] == wanted[k] {
+            k += 1;
+        }
+        fallback[i] = k;
+    }
+    // The byte offsets of the last `wanted.len()` characters, so a match's
+    // start is known when its last character is read.
+    let mut starts = vec![0usize; wanted.len()];
+    let mut q = 0usize;
+    for (j, (at, found)) in haystack.char_indices().enumerate() {
+        starts[j % wanted.len()] = at;
+        let key = lowered(found);
+        while q > 0 && key != wanted[q] {
+            q = fallback[q - 1];
+        }
+        if key == wanted[q] {
+            q += 1;
+        }
+        if q == wanted.len() {
+            let start = starts[(j + 1 - wanted.len()) % wanted.len()];
+            return Some((start, at + found.len_utf8() - start));
+        }
+    }
+    None
+}
+
+/// One `char`'s simple lowercase mapping, which is at most three `char`s,
+/// padded with `'\0'`. Only `'\0'` maps to a mapping that contains `'\0'`, so
+/// the padding never makes two different mappings equal.
+type Lowered = [char; 3];
+
+fn lowered(c: char) -> Lowered {
+    let mut key = ['\0'; 3];
+    for (slot, mapped) in key.iter_mut().zip(c.to_lowercase()) {
+        *slot = mapped;
+    }
+    key
 }
 
 /// How many bytes of `rest` `needle` matches at its start, case-insensitively,
@@ -2296,7 +2357,7 @@ fn match_at(rest: &str, needle: &str) -> Option<usize> {
     let mut matched = 0usize;
     for wanted in needle.chars() {
         let (at, found) = subject.next()?;
-        if !found.to_lowercase().eq(wanted.to_lowercase()) {
+        if lowered(found) != lowered(wanted) {
             return None;
         }
         matched = at + found.len_utf8();
@@ -4556,6 +4617,106 @@ mod tests {
         assert!(chunk("", 2).is_empty());
         assert!(run(super::nvs_core_str_chunk, &[s("abc"), Value::uint(0)]).is_err());
         assert!(run(super::nvs_core_str_chunk, &[s(""), Value::uint(0)]).is_err());
+    }
+
+    /// `graphemes` keeps a combining mark, a flag's two halves, a skin tone,
+    /// an emoji joiner sequence, a Hangul syllable of jamo and `\r\n` whole,
+    /// pairs an odd run of flag letters from the left, and divides the empty
+    /// string into no pieces.
+    // covers: Core\Str::graphemes
+    #[test]
+    fn graphemes_keeps_every_multi_code_point_cluster_whole() {
+        let graphemes = |subject: &str| {
+            let answer =
+                run(super::nvs_core_str_graphemes, &[s(subject)]).expect("graphemes never fails");
+            let pieces: Vec<String> =
+                super::Elements::of(answer.array_ptr().expect("`graphemes` returns an array"))
+                    .map(|piece| piece.as_text().expect("a grapheme is a string").to_owned())
+                    .collect();
+            #[expect(
+                unsafe_code,
+                reason = "the case owns the one reference `graphemes` returned"
+            )]
+            unsafe {
+                answer.release();
+            }
+            pieces
+        };
+        assert_eq!(graphemes("Caf\u{e9}"), ["C", "a", "f", "\u{e9}"]);
+        assert_eq!(graphemes("e\u{301}\u{301}x"), ["e\u{301}\u{301}", "x"]);
+        assert_eq!(
+            graphemes("\u{1f1e9}\u{1f1ea}\u{1f1eb}"),
+            ["\u{1f1e9}\u{1f1ea}", "\u{1f1eb}"]
+        );
+        assert_eq!(
+            graphemes("\u{1f44d}\u{1f3fd}!"),
+            ["\u{1f44d}\u{1f3fd}", "!"]
+        );
+        assert_eq!(
+            graphemes("\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}"),
+            ["\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}"]
+        );
+        assert_eq!(
+            graphemes("\u{1100}\u{1161}\u{11a8}"),
+            ["\u{1100}\u{1161}\u{11a8}"]
+        );
+        assert_eq!(graphemes("a\r\n\n\r"), ["a", "\r\n", "\n", "\r"]);
+        assert!(graphemes("").is_empty());
+    }
+
+    /// `indexOf` counts its answer in graphemes, starts at `from` with a
+    /// negative one counted from the end and an out-of-range one clamped,
+    /// finds an empty needle at the end in both modes, returns `null` for no
+    /// match, and finds a near miss case-insensitively in linear time: a
+    /// search that tried the needle at every start would run for minutes here.
+    // covers: Core\Str::indexOf
+    #[test]
+    fn index_of_counts_graphemes_clamps_from_and_scans_case_insensitively_in_linear_time() {
+        let index_of = |haystack: &str, needle: &str, from: i64, case_insensitive: bool| {
+            let answer = run(
+                super::nvs_core_str_index_of,
+                &[
+                    s(haystack),
+                    s(needle),
+                    Value::int(from),
+                    Value::bool(case_insensitive),
+                ],
+            )
+            .expect("indexOf never fails");
+            match answer.tag() {
+                Some(nvs_runtime::Tag::Null) => None,
+                _ => Some(answer.as_uint().expect("a position is a uint")),
+            }
+        };
+        assert_eq!(index_of("The quick brown fox", "quick", 0, false), Some(4));
+        assert_eq!(index_of("The quick brown fox", "wolf", 0, false), None);
+        assert_eq!(
+            index_of("h\u{e9}llo w\u{f6}rld", "w\u{f6}", 0, false),
+            Some(6)
+        );
+        assert_eq!(index_of("\u{1f1e9}\u{1f1ea}-x", "x", 0, false), Some(2));
+        assert_eq!(index_of("one, two, one", "one", 5, false), Some(10));
+        assert_eq!(index_of("one, two, one", "one", -3, false), Some(10));
+        assert_eq!(index_of("one, two, one", "one", -100, false), Some(0));
+        assert_eq!(index_of("one", "o", i64::MAX, false), None);
+        assert_eq!(index_of("one", "", 3, false), Some(3));
+        assert_eq!(index_of("one", "", 3, true), Some(3));
+        assert_eq!(index_of("", "", 0, true), Some(0));
+        assert_eq!(index_of("one, TWO", "two", 0, true), Some(5));
+        assert_eq!(
+            index_of("Cr\u{e8}me BR\u{db}L\u{c9}E", "br\u{fb}l\u{e9}e", 0, true),
+            Some(6)
+        );
+        assert_eq!(index_of("STRASSE", "stra\u{df}e", 0, true), None);
+        assert_eq!(index_of("aabaabaaab", "aaab", 0, true), Some(6));
+
+        let haystack = "a".repeat(1 << 20);
+        let needle = format!("{}b", "a".repeat(1 << 12));
+        assert_eq!(index_of(&haystack, &needle, 0, true), None);
+        assert_eq!(
+            index_of(&format!("{haystack}b"), &needle, 0, true),
+            Some((1 << 20) - (1 << 12))
+        );
     }
 
     /// `codePoints` answers scalar values, not clusters: a combining mark and

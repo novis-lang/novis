@@ -1,0 +1,21 @@
+<?nvs
+// Finds the `@` in an email address, as a program does before it reads the domain.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $emails = ["anna@example.com", "support.team@example.org", "zoë@example.net"];
+        uint $total = 0;
+        uint $none = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + (Core\Str::indexOf($emails[(($total + $i) % 3) as int], "@") ?? $none);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

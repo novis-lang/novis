@@ -1,8 +1,13 @@
 <?nvs
+// Shows the two options: where the search starts, and whether upper and lower case must match.
+
 var $s = "one, two, one, two";
 
-// Start the search later in the string…
-echo Core\Str::indexOf($s, "one", {from: 5}) ?? 0, "\n";
+// `from: 5` starts the search at position 5, so this prints the second "one" at `10`.
+echo Core\Str::indexOf($s, "one", {from: 5}) ?? "none", "\n";
 
-// …or ignore case entirely.
-echo Core\Str::indexOf($s, "TWO", {caseInsensitive: true}) ?? 0, "\n";
+// A negative `from` counts from the end. This searches the last 3 characters and prints `15`.
+echo Core\Str::indexOf($s, "two", {from: -3}) ?? "none", "\n";
+
+// `caseInsensitive: true` finds "two" when you search for "TWO", so this prints `5`.
+echo Core\Str::indexOf($s, "TWO", {caseInsensitive: true}) ?? "none", "\n";
