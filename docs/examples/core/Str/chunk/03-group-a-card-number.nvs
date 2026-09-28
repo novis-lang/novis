@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to print a long number in groups of four digits, as a payment page does.
+
+string $cardNumber = "4111111111111111";
+
+// This prints `4111 1111 1111 1111`.
+echo Core\Str::join(Core\Str::chunk($cardNumber, 4), " "), "\n";
+
+// An IBAN is written the same way. The last group is shorter.
+// This prints `DE89 3704 0044 0532 0130 00`.
+echo Core\Str::join(Core\Str::chunk("DE89370400440532013000", 4), " "), "\n";

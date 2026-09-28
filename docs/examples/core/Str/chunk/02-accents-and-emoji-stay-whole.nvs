@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `Core\Str::chunk` counts characters, not bytes.
+
+// "é" and each flag are stored as several bytes, but each is one character.
+// This prints `Ré|su|mé` and then `🇩🇪🇫🇷|🇯🇵`.
+echo Core\Str::join(Core\Str::chunk("Résumé", 2), "|"), "\n";
+echo Core\Str::join(Core\Str::chunk("🇩🇪🇫🇷🇯🇵", 2), "|"), "\n";
+
+// A size of 0 is not allowed and throws an error.
+// This prints `Core\Str::chunk(): the chunk size must be at least 1`.
+try {
+    Core\Str::chunk("abc", 0);
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
