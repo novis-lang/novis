@@ -1,0 +1,64 @@
+<?nvs
+// Attack: `Core\Str::padStart` gets the largest lengths a `uint` can have, an empty padding, and a padding of
+// characters built from many parts. Each call should return a string or throw an error. The last step should stop the program at its memory limit.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Asks for the largest `uint` length, with a padding of one and of four characters.
+    public static function largestLength(): string
+    {
+        string $out = '';
+        array<string> $paddings = [' ', 'abcd'];
+        foreach ($paddings as string $padding) {
+            try {
+                $out = $out . Core\Str::padStart('x', 18446744073709551615, $padding);
+            } catch (RuntimeError $error) {
+                $out = $out . '!';
+            }
+        }
+        return $out;
+    }
+
+    /// 2. Pads with an empty padding, which can never reach the length.
+    public static function emptyPadding(): string
+    {
+        try {
+            return Core\Str::padStart('x', 1000000, '');
+        } catch (RuntimeError $error) {
+            return '!';
+        }
+    }
+
+    /// 3. Pads with a family emoji, one character made of seven parts, a million times.
+    public static function characterOfManyParts(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::padStart('x', $size, '👨‍👩‍👧‍👦'));
+    }
+
+    /// 4. Pads a short word one million times and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::padStart('42', 8, '0'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 5. Asks for a length that fits in memory on most computers, but not under the limit.
+    /// The memory limit stops the program here.
+    public static function tooLarge(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::padStart('x', $size, 'ab'));
+    }
+}
+
+echo Attack::largestLength(), "\n";
+echo Attack::emptyPadding(), "\n";
+echo Attack::characterOfManyParts(1000000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooLarge(1000000000), "\n";

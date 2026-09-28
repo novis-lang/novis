@@ -1,0 +1,4 @@
+Commands:
+  run     Runs a program.
+  test    Runs the tests of a project.
+  fmt     Formats the source files.

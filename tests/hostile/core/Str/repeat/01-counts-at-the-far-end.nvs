@@ -1,0 +1,61 @@
+<?nvs
+// Attack: `Core\Str::repeat` gets the largest count a `uint` can have, an empty text, and results that grow by
+// repeating a repeat. Each call should return a string or throw an error. The last step should stop the program at its memory limit.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Repeats a text the largest `uint` number of times.
+    public static function largestCount(): string
+    {
+        try {
+            return Core\Str::repeat('ab', 18446744073709551615);
+        } catch (RuntimeError $error) {
+            return '!';
+        }
+    }
+
+    /// 2. Repeats an empty text the largest `uint` number of times. The result is `""`.
+    public static function emptyText(): uint
+    {
+        return Core\Str::length(Core\Str::repeat('', 18446744073709551615));
+    }
+
+    /// 3. Repeats the result of a repeat, so the text doubles each time, up to 64 MiB.
+    public static function doubling(uint $steps): uint
+    {
+        string $text = 'x';
+        uint $i = 0;
+        while ($i < $steps) {
+            $text = Core\Str::repeat($text, 2);
+            $i = $i + 1;
+        }
+        return Core\Str::length($text);
+    }
+
+    /// 4. Repeats a short text one million times and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::repeat('-=', 4));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 5. Repeats a text of 1 KiB one million times. The result does not fit under the memory limit.
+    /// The memory limit stops the program here.
+    public static function tooLarge(uint $times): uint
+    {
+        return Core\Str::length(Core\Str::repeat(Core\Str::repeat('a', 1024), $times));
+    }
+}
+
+echo Attack::largestCount(), "\n";
+echo Attack::emptyText(), "\n";
+echo Attack::doubling(26), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooLarge(1000000), "\n";

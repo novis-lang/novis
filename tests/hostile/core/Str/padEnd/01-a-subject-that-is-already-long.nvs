@@ -1,0 +1,63 @@
+<?nvs
+// Attack: `Core\Str::padEnd` gets very long texts, the largest length a `uint` can have, and paddings that do
+// not fit a whole number of times. Each call should return a string or throw an error. The last step should stop the program at its memory limit.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Pads a text of ten million characters to a shorter length, so nothing may be added.
+    public static function alreadyLong(uint $size): uint
+    {
+        string $long = Core\Str::repeat('é', $size);
+        return Core\Str::length(Core\Str::padEnd($long, 5, '-'));
+    }
+
+    /// 2. Pads a text of ten million characters by exactly one more character.
+    public static function oneMore(uint $size): uint
+    {
+        string $long = Core\Str::repeat('é', $size);
+        return Core\Str::length(Core\Str::padEnd($long, $size + 1, '-'));
+    }
+
+    /// 3. Asks for the largest `uint` length with an empty and with a long padding.
+    public static function largestLength(): string
+    {
+        string $out = '';
+        array<string> $paddings = ['', Core\Str::repeat('ab', 1000)];
+        foreach ($paddings as string $padding) {
+            try {
+                $out = $out . Core\Str::padEnd('x', 18446744073709551615, $padding);
+            } catch (RuntimeError $error) {
+                $out = $out . '!';
+            }
+        }
+        return $out;
+    }
+
+    /// 4. Pads with a padding of 999 characters, so the last copy is almost always cut short.
+    public static function cutPadding(uint $rounds): uint
+    {
+        string $padding = Core\Str::repeat('xyz', 333);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::padEnd('a', 1000 + $i, $padding));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 5. Asks for a length whose result does not fit under the memory limit.
+    /// The memory limit stops the program here.
+    public static function tooLarge(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::padEnd('x', $size, 'é'));
+    }
+}
+
+echo Attack::alreadyLong(10000000), "\n";
+echo Attack::oneMore(10000000), "\n";
+echo Attack::largestLength(), "\n";
+echo Attack::cutPadding(10000), "\n";
+echo Attack::tooLarge(500000000), "\n";

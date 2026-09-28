@@ -1,0 +1,20 @@
+<?nvs
+// Repeats a short text a few times, as a program does when it indents a line or draws a bar.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $pieces = ["  ", "#", "-="];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $pick = ($total + $i) % 3;
+            $total = $total + Core\Str::length(Core\Str::repeat($pieces[$pick as int], 4 + $total % 8));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

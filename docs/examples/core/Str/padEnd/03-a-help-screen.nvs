@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a command-line program prints its list of commands, with every
+// description starting in the same column.
+
+array<string> $commands = [
+    "run" => "Runs a program.",
+    "test" => "Runs the tests of a project.",
+    "fmt" => "Formats the source files.",
+];
+
+echo "Commands:\n";
+foreach ($commands as string $name => string $description) {
+    echo "  ", Core\Str::padEnd($name, 8), $description, "\n";
+}

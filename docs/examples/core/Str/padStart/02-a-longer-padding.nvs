@@ -1,0 +1,10 @@
+<?nvs
+// Shows what happens when the padding has more than one character, and when
+// the text is already long enough.
+
+// The padding `-=` does not fit a whole number of times. The last copy is cut
+// short, so this prints `-=-=-Café`. `é` counts as one character.
+echo Core\Str::padStart("Café", 9, "-="), "\n";
+
+// "Restaurant" already has 10 characters, so this prints it unchanged.
+echo Core\Str::padStart("Restaurant", 6, "-="), "\n";

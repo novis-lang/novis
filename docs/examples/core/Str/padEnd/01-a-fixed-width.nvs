@@ -1,0 +1,8 @@
+<?nvs
+// Shows how `Core\Str::padEnd` fills a text up to a fixed width with spaces.
+
+// "Tea" has 3 characters. This adds 3 spaces and prints `[Tea   ]`.
+echo "[", Core\Str::padEnd("Tea", 6), "]\n";
+
+// "Chocolate" already has more than 6 characters. This prints `[Chocolate]`.
+echo "[", Core\Str::padEnd("Chocolate", 6), "]\n";
