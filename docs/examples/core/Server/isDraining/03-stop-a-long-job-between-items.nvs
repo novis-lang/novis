@@ -1,0 +1,18 @@
+<?nvs
+// Shows a long job that stops between two items when the server shuts down.
+
+array<string> $invoices = ["INV-1001", "INV-1002", "INV-1003", "INV-1004"];
+uint $sent = 0;
+
+foreach ($invoices as string $invoice) {
+    // The check runs before each item, so an item is never stopped halfway.
+    if (Core\Server::isDraining()) {
+        echo "The server is shutting down. The next run sends the rest.\n";
+        break;
+    }
+    echo "Sent ", $invoice, "\n";
+    $sent = $sent + 1;
+}
+
+// No server runs this program, so the loop sends all four invoices.
+echo $sent, " invoices sent\n";

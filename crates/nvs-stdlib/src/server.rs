@@ -29,12 +29,18 @@
 
 use nvs_runtime::Value;
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc};
+
+/// `Core\Server`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Tells a program about the server it runs under. `isDraining()` returns `true` when the \
+            server has started to shut down.",
+};
 
 /// `Core\Server`'s registry rows — § 15's `isDraining`, and so far nothing else.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Server",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "isDraining",
         names: &[],
@@ -51,11 +57,12 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Server::isDraining`'s reference card — `rule:core-api/reference-card`.
 const IS_DRAINING_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether this server has begun a graceful shutdown — the same fact `[server] \
-            health_path` answers a proxy with, for an application endpoint of its own.",
+    short: "Returns `true` when the server has started to shut down. From then on, the server \
+            accepts no new connections and finishes the requests it already has.",
     params: &[],
-    ret: "`true` once the server has stopped accepting connections, `false` while it is still \
-          accepting and in any process that is not serving.",
+    ret: "`true` after the server stopped accepting new connections. `false` while it still \
+          accepts them. A program that no server runs, such as a command-line program, always \
+          gets `false`.",
     errors: &[],
 };
 
@@ -83,7 +90,42 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::Ctx;
     use nvs_runtime::drain::Drain;
+
+    /// Calls the member the way a program does and answers its `bool`.
+    fn is_draining(ctx: &mut Ctx) -> bool {
+        nvs_runtime::call(super::nvs_core_server_is_draining, ctx, &[])
+            .expect("`isDraining` never throws")
+            .as_bool()
+            .expect("`isDraining` returns a `bool`")
+    }
+
+    /// The member agrees with the process's bit before a drain, and answers
+    /// `true` from the moment the process drain begins.
+    ///
+    /// Beginning the process drain cannot be undone, and this test binary
+    /// already begins it in `crate::signal`'s tests, so the first reading is
+    /// asserted as agreement rather than as `false`.
+    // covers: Core\Server::isDraining
+    #[test]
+    fn the_member_answers_true_once_the_process_drain_begins() {
+        let mut ctx = Ctx::buffered();
+        assert_eq!(
+            is_draining(&mut ctx),
+            nvs_runtime::drain::is_draining(),
+            "the member and the process's bit disagreed before a drain"
+        );
+        Drain::process().begin();
+        assert!(
+            is_draining(&mut ctx),
+            "the member answered `false` inside a process drain"
+        );
+        assert!(
+            is_draining(&mut ctx),
+            "a second reading inside the drain answered `false`"
+        );
+    }
 
     /// The member reads the *process's* bit and not one of its own.
     ///

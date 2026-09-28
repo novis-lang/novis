@@ -1,0 +1,12 @@
+<?nvs
+// Shows a health check that tells a load balancer to stop sending requests during a shutdown.
+
+// A load balancer calls this address every few seconds.
+// Status 503 tells it to send new requests to another server.
+if (Core\Server::isDraining()) {
+    Core\Response::setStatus(503);
+    Core\Response::text("shutting down\n");
+} else {
+    // The server is not shutting down, so the status is 200 and the body is "ok".
+    Core\Response::text("ok\n");
+}

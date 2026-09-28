@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program tries to start a shutdown of the server, or to change what
+// `Core\Server::isDraining` returns. Every answer should stay `false`, and the
+// runtime must not crash.
+// hostile: timeout-ms 60000
+
+class Ask
+{
+    // Returns 1 if `isDraining` returned `true`, and 0 if it returned `false`.
+    public static function once(): uint
+    {
+        if (Core\Server::isDraining()) {
+            return 1;
+        }
+        return 0;
+    }
+
+    // Calls itself `$depth` times and checks the server at every level.
+    public static function deep(uint $depth): uint
+    {
+        if ($depth == 0) {
+            return Ask::once();
+        }
+        return Ask::once() + Ask::deep($depth - 1);
+    }
+}
+
+// Step 1: the check runs 5,000,000 times in a loop.
+uint $true = 0;
+uint $i = 0;
+while ($i < 5000000) {
+    $true = $true + Ask::once();
+    $i = $i + 1;
+}
+echo 'step 1: ', $true, " answers were true\n";
+
+// Step 2: 100,000 shutdown handlers are registered. Registering a handler does not start a shutdown.
+$i = 0;
+while ($i < 100000) {
+    Core\Signal::onShutdown(fn (): void => {
+        echo "shutting down\n";
+    });
+    $i = $i + 1;
+}
+echo 'step 2: ', Ask::once(), " after the handlers\n";
+
+// Step 3: the check runs at every level of a function that calls itself until
+// the call stack is full. That throws a `RecursionError`, and the check runs again after it.
+try {
+    Ask::deep(10000000);
+} catch (RecursionError $e) {
+    echo "step 3: the call stack was full\n";
+}
+echo 'step 3: ', Ask::once(), " after the full stack\n";
+
+// Step 4: the check runs inside a closure that is called 1,000,000 times.
+$true = 0;
+$i = 0;
+while ($i < 1000000) {
+    $true = $true + (fn (): uint => Ask::once())();
+    $i = $i + 1;
+}
+echo 'step 4: ', $true, " answers were true\n";

@@ -1,18 +1,18 @@
 {
-  "state": "Goal `core-serialize-and-1-more`. `Core\\Serialize::encode` and `decode` are complete under `bun nv proofs --id`: the class card (off `CLASSES_STILL_OWING_A_CARD`), plain-English member cards, one Rust `covers:` test each in `crates/nvs-stdlib/src/serialize.rs`, an about, three examples, an attack and a bench each, and two perf records.\n`docs/examples/core/Serialize/decode/03-load-saved-jobs-from-a-file.nvs` has its own `[[app]]` block in the root `nvs.toml` for `fs.read`/`fs.write`, in the `Core\\Csv` blocks' shape.\nThe encode attack ends at the memory limit by design (`hostile: ends-early`): one shared string kept 10,000 times in an array is encoded once per copy.\nOnly `Core\\Server::isDraining` is left in this goal.",
+  "state": "Goal `core-serialize-and-1-more` is met: `bun nv proofs --verify --group` passes for both `Core\\Serialize` and `Core\\Server`, nothing owed and 0 failed.\n`Core\\Server::isDraining` has its class card (off `CLASSES_STILL_OWING_A_CARD`), a plain-English member card, a Rust `covers:` test in `crates/nvs-stdlib/src/server.rs`, an about, three examples, an attack and a bench with its perf record.\nThe Rust test begins the process drain, which cannot be undone; `crate::signal`'s tests already begin it in the same binary, so the first reading is asserted as agreement.\nEvery example runs with no server, so each one shows the `false` branch; the `true` branch is pinned from Rust only.\n`bun nv verify --doc`, `bun nv owners --closes` and `bun nv playbook --closes` are green for this goal.",
   "next": {
-    "stage": 1,
-    "title": "feature proofs, `Core\\Server`",
+    "stage": null,
+    "title": "Goal met",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/server.rs`, `crates/nvs-stdlib/src/registry.rs`, and the three proof trees under `core/Server/isDraining`.",
+    "note": "the driver moves the chain to the next goal, which starts from its own handoff record.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Server::isDraining`** — owes examples, hostile, perf, tests, and the class card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/server.rs:37`; the class leaves the owing list at `crates/nvs-stdlib/src/registry.rs:5343`. `Core\\Serialize`'s slice is the shape: `ClassDoc` above `CLASS`, a `#[cfg(test)] mod tests` driving the helper through `nvs_runtime::call`. After it, `DONE` needs the gates in the loop prompt's step 6."
+        "done": true,
+        "text": "**`Core\\Server::isDraining`** — all proofs written (`rule:testing/feature-proofs`), `crates/nvs-stdlib/src/server.rs:35`."
       }
     ]
   },
   "backlog": [
-    "The graph copy writes a string once per reference rather than once per value, so a small array of one shared text encodes to many times its memory size; the memory limit stops it cleanly. Owner: `crates/nvs-runtime/src/graph.rs`'s module doc, if it is ever worth a known gap."
+    "`Core\\Server`'s request environment and `traceId()` are still a known gap in `crates/nvs-stdlib/src/server.rs`'s module doc."
   ]
 }

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to check whether the server has started to shut down.
+
+// No server runs this program, so `Core\Server::isDraining` returns `false`.
+// This prints "The server accepts new requests."
+if (Core\Server::isDraining()) {
+    echo "The server is shutting down.\n";
+} else {
+    echo "The server accepts new requests.\n";
+}

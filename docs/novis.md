@@ -17998,9 +17998,9 @@ Keywords: isDraining
 Core\Server::isDraining(): bool
 ```
 
-Reports whether this server has begun a graceful shutdown — the same fact `[server] health_path` answers a proxy with, for an application endpoint of its own.
+Returns `true` when the server has started to shut down. From then on, the server accepts no new connections and finishes the requests it already has.
 
-**Returns** `bool` — `true` once the server has stopped accepting connections, `false` while it is still accepting and in any process that is not serving.
+**Returns** `bool` — `true` after the server stopped accepting new connections. `false` while it still accepts them. A program that no server runs, such as a command-line program, always gets `false`.
 
 <a id="core-core-signal"></a>
 ### `Core\Signal`
