@@ -1154,8 +1154,8 @@ const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::padStart`'s reference card — `rule:core-api/reference-card`.
 const PAD_START_DOC: MethodDoc = MethodDoc {
-    short: "Prepends copies of `$padding` to `$s` until it is `$length` characters long, as \
-            `str_pad` with `STR_PAD_LEFT` does — counted in graphemes.",
+    short: "Adds copies of `$padding` before `$s` until the result is `$length` characters long. \
+            Replaces PHP's `str_pad` with `STR_PAD_LEFT`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1164,28 +1164,29 @@ const PAD_START_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "length",
-            desc: "The length to reach.",
+            desc: "The length to reach, in characters as a person counts them.",
             shape: &[],
         },
         ParamDoc {
             name: "padding",
-            desc: "The text repeated to fill the shortfall, cut at its own end when it does not \
-                   divide evenly; the default is one space.",
+            desc: "The text to add. The last copy is cut short when only part of it fits. The \
+                   default is one space.",
             shape: &[],
         },
     ],
-    ret: "The padded string; `$s` unchanged when it is already `$length` long or longer.",
+    ret: "The padded string. If `$s` already has `$length` characters or more, it is returned \
+          unchanged.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$padding` is empty while `$s` is shorter than `$length`, or the result would be \
-               larger than this process can hold.",
+        desc: "`$padding` is empty and `$s` is shorter than `$length`. It is also thrown when the \
+               result is larger than this process can hold.",
     }],
 };
 
 /// `Core\Str::padEnd`'s reference card — `rule:core-api/reference-card`.
 const PAD_END_DOC: MethodDoc = MethodDoc {
-    short: "Appends copies of `$padding` to `$s` until it is `$length` characters long, as \
-            `str_pad` with `STR_PAD_RIGHT` does — counted in graphemes.",
+    short: "Adds copies of `$padding` after `$s` until the result is `$length` characters long. \
+            Replaces PHP's `str_pad` with `STR_PAD_RIGHT`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1194,21 +1195,22 @@ const PAD_END_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "length",
-            desc: "The length to reach.",
+            desc: "The length to reach, in characters as a person counts them.",
             shape: &[],
         },
         ParamDoc {
             name: "padding",
-            desc: "The text repeated to fill the shortfall, cut at its own end when it does not \
-                   divide evenly; the default is one space.",
+            desc: "The text to add. The last copy is cut short when only part of it fits. The \
+                   default is one space.",
             shape: &[],
         },
     ],
-    ret: "The padded string; `$s` unchanged when it is already `$length` long or longer.",
+    ret: "The padded string. If `$s` already has `$length` characters or more, it is returned \
+          unchanged.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$padding` is empty while `$s` is shorter than `$length`, or the result would be \
-               larger than this process can hold.",
+        desc: "`$padding` is empty and `$s` is shorter than `$length`. It is also thrown when the \
+               result is larger than this process can hold.",
     }],
 };
 
@@ -1277,7 +1279,7 @@ const TRIM_END_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::repeat`'s reference card — `rule:core-api/reference-card`.
 const REPEAT_DOC: MethodDoc = MethodDoc {
-    short: "Concatenates `$times` copies of `$s`, as `str_repeat` does.",
+    short: "Returns `$times` copies of `$s`, joined into one string. Replaces PHP's `str_repeat`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1290,7 +1292,7 @@ const REPEAT_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The repeated string; `\"\"` when `$times` is `0` or `$s` is empty.",
+    ret: "The repeated string. It is `\"\"` when `$times` is `0` or `$s` is empty.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The result would be larger than this process can hold.",
@@ -1416,8 +1418,8 @@ const FOLD_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::normalize`'s reference card — `rule:core-api/reference-card`.
 const NORMALIZE_DOC: MethodDoc = MethodDoc {
-    short: "Rewrites `$s` into the UAX #15 normal form `$form`, as `Normalizer::normalize` does, \
-            so two encodings of the same text compare equal.",
+    short: "Changes `$s` into one of the four Unicode normal forms. Two ways to write the same \
+            text then give the same string. Replaces PHP's `Normalizer::normalize`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1426,12 +1428,13 @@ const NORMALIZE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "form",
-            desc: "Which of the four forms: `Nfc` or `Nfd` for a canonical one, `Nfkc` or `Nfkd` \
-                   for a compatibility one.",
+            desc: "Which form to use. `Nfc` and `Nfd` keep every character's meaning. `Nfkc` and \
+                   `Nfkd` also replace look-alike characters: `ﬁ` becomes `fi`.",
             shape: &[],
         },
     ],
-    ret: "The normalized string; an ASCII subject comes back unchanged under every form.",
+    ret: "The normalized string. `Nfc` is the form to store and compare text in. A string of \
+          ASCII characters is returned unchanged.",
     errors: &[],
 };
 
@@ -3494,12 +3497,38 @@ nvs_runtime::nvs_helper! {
             return produced(subject);
         }
         produced(&match form {
-            NormalForm::Nfc => subject.nfc().collect::<String>(),
-            NormalForm::Nfd => subject.nfd().collect::<String>(),
-            NormalForm::Nfkc => subject.nfkc().collect::<String>(),
-            NormalForm::Nfkd => subject.nfkd().collect::<String>(),
+            NormalForm::Nfc => normalized(subject.nfc(), subject.len())?,
+            NormalForm::Nfd => normalized(subject.nfd(), subject.len())?,
+            NormalForm::Nfkc => normalized(subject.nfkc(), subject.len())?,
+            NormalForm::Nfkd => normalized(subject.nfkd(), subject.len())?,
         })
     }
+}
+
+/// Collects one normal form's characters, asking `nvs_runtime::affordable`
+/// before every growth of the buffer.
+///
+/// A compatibility form can write eleven bytes for every byte it reads, so a
+/// plain `collect` would build a result many times the request's memory limit
+/// before the copy into an `NvsStr` made the first ask. Asking at each
+/// doubling keeps the buffer within one limit's worth of bytes, for a compare
+/// per character and an ask per doubling.
+///
+/// # Errors
+///
+/// The `FATAL` [`nvs_runtime::affordable`] reports when the next buffer would
+/// not fit under the request's memory limit.
+fn normalized(chars: impl Iterator<Item = char>, hint: usize) -> Result<String, Fault> {
+    const MEMBER: &str = r"Core\Str::normalize";
+    let mut out = String::with_capacity(nvs_runtime::affordable(Some(hint), MEMBER)?);
+    for c in chars {
+        if out.capacity() - out.len() < c.len_utf8() {
+            let grown = nvs_runtime::affordable(out.capacity().max(4).checked_mul(2), MEMBER)?;
+            out.reserve_exact(grown - out.len());
+        }
+        out.push(c);
+    }
+    Ok(out)
 }
 
 /// [`NORMAL_FORM`]'s cases, as the thing the implementation actually branches
@@ -3992,6 +4021,43 @@ mod tests {
         }
     }
 
+    /// `ﷺ` is three bytes that `Nfkd` writes as eighteen characters, so a
+    /// text of it grows the buffer through many doublings. The result must
+    /// equal a plain `collect`, and a text whose result does not fit under
+    /// the memory limit is refused.
+    // covers: Core\Str::normalize
+    #[test]
+    fn normalize_grows_its_buffer_to_the_whole_result_and_refuses_one_past_the_limit() {
+        use unicode_normalization::UnicodeNormalization as _;
+        let subject = "\u{fdfa}".repeat(1000);
+        assert_eq!(
+            taken(
+                run(super::nvs_core_str_normalize, &[s(&subject), Value::int(3)],)
+                    .expect("a small text fits")
+            ),
+            subject.nfkd().collect::<String>()
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(1 << 20);
+        let large = s(&"\u{fdfa}".repeat(100_000));
+        let result = call(
+            super::nvs_core_str_normalize,
+            &mut ctx,
+            &[large, Value::int(3)],
+        );
+        assert!(result.is_err(), "3.3 MB of result fit under 1 MiB");
+        drop(ctx);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built for the \
+                      subject, and the helper borrowed it"
+        )]
+        unsafe {
+            large.release();
+        }
+    }
+
     /// `chunk` counts in [`crate::granularity::DEFAULT`], so a chunk boundary
     /// never lands inside a cluster — which is the whole reason `str_split`
     /// cannot be used on text.
@@ -4310,6 +4376,7 @@ mod tests {
     }
 
     /// Every row verified against PHP 8.5's own `str_pad`.
+    // covers: Core\Str::padStart, Core\Str::padEnd
     #[test]
     fn padding_matches_php_including_the_truncated_run() {
         for (subject, length, padding, start, end) in [
@@ -4350,6 +4417,7 @@ mod tests {
         assert_eq!(status, nvs_runtime::THROWN);
     }
 
+    // covers: Core\Str::repeat
     #[test]
     fn repeating_zero_times_is_the_empty_string() {
         assert_eq!(

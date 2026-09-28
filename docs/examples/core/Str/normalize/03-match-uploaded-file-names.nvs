@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to find a file by its name when the names come from different
+// computers. Some computers store `é` as one character, and some store it as
+// `e` and an accent mark.
+
+class FileNames {
+    // Changes a name to `Nfc`, the form to store and compare text in.
+    public static function key(string $name): string {
+        return Core\Str::normalize($name, Core\NormalForm::Nfc);
+    }
+}
+
+// The names that users uploaded. The second one uses the separate accent mark.
+array<string> $uploaded = [
+    "Invoice March.pdf",
+    "R" . Core\Str::fromCodePoints([101, 769]) . "sum" . Core\Str::fromCodePoints([101, 769]) . ".pdf",
+    "Photo.jpg",
+];
+
+// This loop prints `match` for `Résumé.pdf` and `no match` for the other two.
+string $wanted = FileNames::key("Résumé.pdf");
+foreach ($uploaded as string $name) {
+    echo $name, ": ", FileNames::key($name) == $wanted ? "match" : "no match", "\n";
+}

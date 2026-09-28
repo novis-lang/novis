@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to search a text for a word with an accent. The text and the word
+// may store the accent in two different ways.
+
+// In this text, `é` is the letter `e` followed by a separate accent mark.
+string $review = "A great " . Core\Str::fromCodePoints([99, 97, 102, 101, 769]) . " near the station.";
+string $search = "café";
+
+// This prints `false`. The two strings look the same, but their characters differ.
+echo Core\Str::contains($review, $search) ? "true" : "false", "\n";
+
+// `Nfc` changes both strings to the same form. This prints `true`.
+string $text = Core\Str::normalize($review, Core\NormalForm::Nfc);
+string $word = Core\Str::normalize($search, Core\NormalForm::Nfc);
+echo Core\Str::contains($text, $word) ? "true" : "false", "\n";

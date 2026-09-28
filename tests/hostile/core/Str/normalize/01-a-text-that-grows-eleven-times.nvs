@@ -1,0 +1,53 @@
+<?nvs
+// Attack: `Core\Str::normalize` gets very long texts, and characters whose normal form is much longer.
+// The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Changes one million `ﷺ` with `Nfkd`. Each one becomes eighteen characters.
+    public static function aTextThatGrows(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::normalize(Core\Str::repeat('ﷺ', $size), Core\NormalForm::Nfkd));
+    }
+
+    /// 2. Puts two million accent marks after one letter, so all of them must be sorted as one group.
+    public static function manyAccentsOnOneLetter(uint $size): uint
+    {
+        string $marks = Core\Str::repeat(Core\Str::fromCodePoints([769, 790]), $size);
+        return Core\Str::length(Core\Str::normalize('a' . $marks, Core\NormalForm::Nfc));
+    }
+
+    /// 3. Splits one million Korean syllables into their parts, and joins them again.
+    public static function koreanAndBack(uint $size): uint
+    {
+        string $parts = Core\Str::normalize(Core\Str::repeat('한글', $size), Core\NormalForm::Nfd);
+        return Core\Str::length(Core\Str::normalize($parts, Core\NormalForm::Nfc));
+    }
+
+    /// 4. Changes a short word one million times and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::normalize('ﬁancé', Core\NormalForm::Nfkc));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 5. Changes so many `ﷺ` with `Nfkd` that the result does not fit.
+    /// The memory limit stops the program here.
+    public static function tooLarge(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::normalize(Core\Str::repeat('ﷺ', $size), Core\NormalForm::Nfkd));
+    }
+}
+
+echo Attack::aTextThatGrows(1000000), "\n";
+echo Attack::manyAccentsOnOneLetter(1000000), "\n";
+echo Attack::koreanAndBack(500000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooLarge(30000000), "\n";

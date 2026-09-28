@@ -1,0 +1,20 @@
+<?nvs
+// Changes a short name to `Nfc`, as a program does before it stores or compares a name.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["Zoë Müller", "Ångström", "Crème brûlée"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $pick = ($total + $i) % 3;
+            $total = $total + Core\Str::length(Core\Str::normalize($names[$pick as int], Core\NormalForm::Nfc));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
