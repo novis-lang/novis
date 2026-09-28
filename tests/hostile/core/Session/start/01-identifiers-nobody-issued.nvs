@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a request sends session identifiers that are very long, empty, or contain a
+// store command, and opens many sessions. Each should give a new, empty session or an error.
+// hostile: timeout-ms 60000
+
+// 1. The identifier is 10 million characters long. The result is a new, empty session.
+Core\Session::start(Core\Str::repeat('A', 10000000));
+echo 'long: ', Core\Session::get('user') ?? '(empty)', "\n";
+Core\Session::destroy();
+
+// 2. The identifier contains line breaks and a store command. The result is a new, empty session.
+Core\Session::start("x\r\nFLUSHALL\r\nGET x");
+echo 'command: ', Core\Session::get('user') ?? '(empty)', "\n";
+Core\Session::destroy();
+
+// 3. The identifier is empty, then it has the right length and wrong characters.
+Core\Session::start('');
+echo 'empty: ', Core\Session::get('user') ?? '(empty)', "\n";
+Core\Session::destroy();
+Core\Session::start('!!!!!!!!!!!!!!!!!!!!!!');
+echo 'wrong characters: ', Core\Session::get('user') ?? '(empty)', "\n";
+Core\Session::destroy();
+
+// 4. The request calls `start()` twice. The second call throws a `RuntimeError`.
+Core\Session::start();
+Core\Session::set('user', 'ada');
+try {
+    Core\Session::start();
+    echo "started twice\n";
+} catch (RuntimeError $e) {
+    echo "twice: RuntimeError\n";
+}
+echo 'kept: ', Core\Session::get('user') ?? '(lost)', "\n";
+Core\Session::destroy();
+
+// 5. The request opens and ends 1000 sessions. Each one is new and empty.
+uint $i = 0;
+uint $empty = 0;
+while ($i < 1000) {
+    Core\Session::start();
+    if (Core\Session::get('user') == null) {
+        $empty = $empty + 1;
+    }
+    Core\Session::set('user', $i);
+    Core\Session::destroy();
+    $i = $i + 1;
+}
+echo 'empty sessions: ', $empty, "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to open a session when the client sends its identifier in a header, not in a cookie.
+
+// A mobile app sends the identifier in the `X-Session` header.
+// `start()` opens the session with that identifier.
+Core\Session::start(Core\Request::header("X-Session"));
+
+// The store has no session under this identifier. Somebody made it up.
+// So `start()` opened a new, empty session, and this prints `user: (nobody)`.
+echo "user: ", Core\Session::get("user") ?? "(nobody)", "\n";

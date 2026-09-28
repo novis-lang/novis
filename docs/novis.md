@@ -17763,7 +17763,7 @@ The usage page, generated from the table `#[Command]` built while compiling — 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `?string` | The command to describe, or `null` for the program's own page listing every command it declares. |
+| `$name` | `?string` (neutral) | The command to describe, or `null` for the program's own page listing every command it declares. |
 
 **Returns** `Core\Cli\Text` — The rendered page as a `Core\Cli\Text`, ending with a newline.
 
@@ -19164,15 +19164,15 @@ Keywords: start, get, set, remove, clear, regenerate, destroy, setSecret, getSec
 Core\Session::start(?string $presented = null): void
 ```
 
-Opens the session the store issued, taking the identifier from the session cookie unless one is given — and issuing a fresh one where the store has no record under it.
+Opens the session of this request. Call it once, before any other method of this class. The session identifier is read from the session cookie.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$presented` | `?string` (default `null`) | The identifier to open, for a client that carries it somewhere other than the cookie. Omitted — the ordinary case — it is read from the `[session] cookie` field of the request. An identifier this store did not issue, one that has expired and one an attacker minted are the same answer: a fresh session, with a new identifier in the response's cookie. |
+| `$presented` | `?string` (default `null`, neutral) | The identifier to open. Leave it out to read it from the cookie named by `[session] cookie`, which is `nvsid` by default. If the store has no session under the identifier, a new, empty session is opened. This happens when the identifier expired, and when somebody made it up. |
 
-**Returns** `void` — Nothing. Afterwards the other six members of this class operate on the record; before it, each of them throws.
+**Returns** `void` — Nothing. After it, the other methods of this class can read and change the session. When a new session is opened, the response sends its identifier in the session cookie.
 
-**Throws** `LogicError` — This program is answering no request — a CLI program, a scheduled script, a job worker, a test, or a spawned isolate inside a request rather than a request of its own. A session belongs to the client the request came from, so there is none to open here and none to issue.; `RuntimeError` — No `[session] backend` is configured, so there is no store a record could live in; the configured store is `db`, whose half of § 2 is not on disk; or `[cache.shared] url` is unset, unreachable by capability, or this request has already started a session.; `IOError` — The configured store cannot be reached. It throws rather than answering as though the record were absent, since a store that is down must not read as a forged identifier — the two have opposite responses.
+**Throws** `LogicError` — The program is not answering a request. A command-line program, a job and a test have no session.; `RuntimeError` — This request already called `start()`. It is also thrown when `[session] backend` is not set, or is `db`, which this version does not support. It is also thrown when `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability. The same happens when `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
 
 <a id="core-core-session-get"></a>
 #### `Core\Session::get`
@@ -19595,8 +19595,8 @@ Writes one event to the client: the payload, and the optional name it dispatches
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `mixed` | What the client's data buffer receives. A `string` goes out as it was written and anything else is JSON-encoded by the encoder `Core\Json::encode` is. A `tainted` value is accepted: the payload is normalized and split into `data:` lines here, so it cannot reach any other field. |
-| `$event` | `?string` (default `null`) | The name the client dispatches this event on, or `null` for the default `message`. A sink — an attacker-chosen name is an instruction to the reader — so a `tainted` value is refused where it is written. |
-| `$id` | `?string` (default `null`) | The id the client echoes back in `Last-Event-ID` when it reconnects, or `null` for an event that sets none. A sink for the same reason, and there is no replay buffer behind it: resumption is the application's own event log, read off the header by the handler. |
+| `$event` | `?string` (default `null`, sink) | The name the client dispatches this event on, or `null` for the default `message`. A sink — an attacker-chosen name is an instruction to the reader — so a `tainted` value is refused where it is written. |
+| `$id` | `?string` (default `null`, sink) | The id the client echoes back in `Last-Event-ID` when it reconnects, or `null` for an event that sets none. A sink for the same reason, and there is no replay buffer behind it: resumption is the application's own event log, read off the header by the handler. |
 
 **Returns** `void` — Nothing, once the event is framed and handed to the body being written.
 
@@ -22573,7 +22573,7 @@ Ends the conversation: sends the close frame, waits for the peer's under the sen
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$code` | `?uint` (default `null`) | The close code to send. Left out, it is `1000` — a normal ending. |
-| `$reason` | `?string` (default `null`) | The text to send beside the code, for a peer that logs it. Left out, none is sent. |
+| `$reason` | `?string` (default `null`, neutral) | The text to send beside the code, for a peer that logs it. Left out, none is sent. |
 
 **Returns** `void` — Nothing. A peer that never answers its own close is closed anyway and that is not an error — the connection is gone either way, and a throw would put a `catch` around every normal ending. Closing a socket that is already closed does nothing.
 

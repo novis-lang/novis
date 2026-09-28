@@ -1,0 +1,20 @@
+<?nvs
+// Shows the first lines of a page that only signed-in users may see.
+
+class Account {
+    public static function page(): string {
+        // Every page that uses the session calls `start()` first.
+        Core\Session::start();
+
+        // The sign-in page saves the user's name under "user".
+        // `get()` returns `null` when nobody has signed in.
+        mixed $user = Core\Session::get("user");
+        if ($user == null) {
+            return "Please sign in first.";
+        }
+        return "Your account, " . ($user as string) . ".";
+    }
+}
+
+// This visitor has not signed in, so this prints `Please sign in first.`.
+echo Account::page(), "\n";

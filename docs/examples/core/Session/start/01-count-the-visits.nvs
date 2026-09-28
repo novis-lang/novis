@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to open the session of a request and save a number in it.
+
+// `start()` opens the session. Call it before any other method of `Core\Session`.
+Core\Session::start();
+
+// This visitor has no session yet, so `start()` opened a new, empty one.
+// `get()` returns `null`, and `??` gives 0.
+int $visits = (Core\Session::get("visits") ?? 0) as int;
+Core\Session::set("visits", $visits + 1);
+
+// This prints `visits: 1`.
+echo "visits: ", Core\Session::get("visits") as int, "\n";

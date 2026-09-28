@@ -1,0 +1,20 @@
+<?nvs
+// Opens a new session and ends it again, as the first visit to a site does.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // `start()` works once per session, so `destroy()` ends it for the next round.
+            Core\Session::start();
+            Core\Session::destroy();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

@@ -1,18 +1,18 @@
 {
-  "state": "Goal `core-session`, stage 2. Every `Core\\Session` member except `start` has all its feature proofs: about, three examples, an attack, a bench with a recorded figure, a Rust `covers:` test and a card in the plain voice. `Core\\Session` has a class card. `start` still owes examples, hostile, perf and a Rust `covers:` test, and its card is not yet in the plain voice. Once `start` lands, the `dossier-core-session` check should be green.\n\nEvery Session proof needs a real store and a real request. The shape is on disk under `docs/examples/core/Session/regenerate/`: an `nvs.toml` in the feature directory that grants `[capabilities.cache] shared`, sets `[session] backend = \"shared\"` and `[cache.shared] url = \"redis://127.0.0.1:16379\"`, and a `.nvsr` beside each program. `tests/hostile/core/Session/<member>/` has the same pair. `benches/members/core/Session/nvs.toml` already serves every Session bench, so a new bench needs only its own `.nvs` and `.nvsr`. Redis is `tests/db/compose.yaml`'s service, which the goal's `env.docker` brings up.\n\nA member that talks to the store (`start`, `regenerate`, `destroy`) is tested the way `regenerate_moves_the_record_to_a_new_id_and_forgets_the_old_one` does it: `crate::tests::granting` with a `[cache.shared] url` pointing at the loopback `serving` fake, asserting the refusal with no store first. Such a member costs a round trip per call, so its bench uses a few thousand iterations.\n\n`bun nv proofs --run --show --no-cache --no-perf --id '<member>'` prints what every example, attack and bench actually printed. Read the attack's output with it: the gate only says it survived. After the last Rust edit to `crates/nvs-stdlib/src/session.rs`, run `bun nv proofs --verify --id '<member>'` for each member, and `--record-perf --id '<member>'` for each it names stale.",
+  "state": "Goal `core-session` is reached. All 9 `Core\\Session` features have every feature proof, and `bun nv proofs --verify --group 'Core\\Session'` prints `nothing owed`, 27 examples and 9 attacks green. `bun nv verify`, `bun nv verify --doc`, `bun nv owners --closes core-session` and `bun nv playbook --closes core-session` are green.\n\n`Core\\Session::start`'s card is in the plain voice, and its proofs follow the shape of `regenerate`'s: an `nvs.toml` beside the examples and the attack, a `.nvsr` beside each program. Its bench opens and ends a session each round, because `start` works once per session.\n\nThe proofs found one bug, fixed in its own commit: `CoreTy::classification` gave a `Nullable` parameter no mark, so every `?T` row declared `Neutral` or `Contagious` refused a `tainted` argument. `Core\\Session::start(Core\\Request::header(...))` did not compile. `tests/conformance/core/a-nullable-core-parameter-keeps-the-mark-of-its-type.nvst` pins the fix.",
   "next": {
     "stage": 2,
-    "title": "the dossier",
+    "title": "the dossier, complete",
     "files": [],
     "note": "one file set: `crates/nvs-stdlib/src/session.rs`, the proof trees under `core/Session/`.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Session::start`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). The card is `crates/nvs-stdlib/src/session.rs:278`, the member `crates/nvs-stdlib/src/session.rs:769`. Rewrite the card in the plain voice, as `REGENERATE_DOC` now is. It talks to the store, so the Rust test has the shape of `regenerate_moves_the_record_to_a_new_id_and_forgets_the_old_one` at `crates/nvs-stdlib/src/session.rs:1927`. Then run the goal's `dossier-core-session` check and the goal's closing gates (`bun nv verify --doc`, `bun nv owners --closes core-session`, `bun nv playbook --closes core-session`)."
+        "done": true,
+        "text": "**`Core\\Session::start`** — all feature proofs landed (`rule:testing/feature-proofs`); the member is `crates/nvs-stdlib/src/session.rs:769`."
       }
     ]
   },
   "backlog": [
-    "Every `set`, `setSecret` and `remove` call decodes and re-encodes the whole session record, so a request with a large session pays O(record) per call. A request with a 10 MB value and 4000 `setSecret` calls took about 40 s. This is by design today (`crates/nvs-stdlib/src/session.rs` module doc); a latency question for whoever next owns the session write path, not this goal."
+    "`rule:expressions/nullable-conversion` says a `null` operand gives `null`. `tests/conformance/lang/a-nullable-conversion-to-string-answers-null-where-the-checked-one-throws.nvst` pins `\"\"` for `mixed null as ?string`. One of the two is wrong, and the owner is `docs/rules/expressions/nullable-conversion.md`."
   ]
 }

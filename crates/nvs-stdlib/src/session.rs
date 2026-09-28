@@ -276,39 +276,36 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Session::start`'s reference card — `rule:core-api/reference-card`.
 const START_DOC: MethodDoc = MethodDoc {
-    short: "Opens the session the store issued, taking the identifier from the session cookie \
-            unless one is given — and issuing a fresh one where the store has no record under it.",
+    short: "Opens the session of this request. Call it once, before any other method of this \
+            class. The session identifier is read from the session cookie.",
     params: &[ParamDoc {
         name: "presented",
-        desc: "The identifier to open, for a client that carries it somewhere other than the \
-               cookie. Omitted — the ordinary case — it is read from the `[session] cookie` \
-               field of the request. An identifier this store did not issue, one that has \
-               expired and one an attacker minted are the same answer: a fresh session, with a \
-               new identifier in the response's cookie.",
+        desc: "The identifier to open. Leave it out to read it from the cookie named by \
+               `[session] cookie`, which is `nvsid` by default. If the store has no session \
+               under the identifier, a new, empty session is opened. This happens when the \
+               identifier expired, and when somebody made it up.",
         shape: &[],
     }],
-    ret: "Nothing. Afterwards the other six members of this class operate on the record; before \
-          it, each of them throws.",
+    ret: "Nothing. After it, the other methods of this class can read and change the session. \
+          When a new session is opened, the response sends its identifier in the session cookie.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is answering no request — a CLI program, a scheduled script, a \
-                   job worker, a test, or a spawned isolate inside a request rather than a \
-                   request of its own. A session belongs to the client the request came from, so \
-                   there is none to open here and none to issue.",
+            desc: "The program is not answering a request. A command-line program, a job and a \
+                   test have no session.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "No `[session] backend` is configured, so there is no store a record could \
-                   live in; the configured store is `db`, whose half of § 2 is not on disk; or \
-                   `[cache.shared] url` is unset, unreachable by capability, or this request has \
-                   already started a session.",
+            desc: "This request already called `start()`. It is also thrown when `[session] \
+                   backend` is not set, or is `db`, which this version does not support. It is \
+                   also thrown when `[cache.shared] url` is not set, or the program does not have \
+                   the `cache.shared` capability. The same happens when `[session] cookie` is not \
+                   a valid cookie name.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The configured store cannot be reached. It throws rather than answering as \
-                   though the record were absent, since a store that is down must not read as a \
-                   forged identifier — the two have opposite responses.",
+            desc: "The store cannot be reached. The user may still have a session there, so do \
+                   not treat them as signed out.",
         },
     ],
 };
@@ -1979,6 +1976,107 @@ mod tests {
             entries.get(&key_of(&moved.id)).map(Vec::as_slice),
             Some(RECORD),
             "and the record is under the new id"
+        );
+    }
+
+    /// `Core\Session::start` as a program reaches it: an identifier the store holds opens that
+    /// record and writes no cookie, and one it does not hold opens a fresh, empty record under a
+    /// new identifier, written to the store and sent in a `Set-Cookie`.
+    ///
+    /// Both refusals come first, and neither leaves a session open: a context answering no
+    /// request, and a request whose tree configured no store. A second `start` on one request
+    /// throws and keeps the record the first one opened. The held identifier arrives in the
+    /// `nvsid` cookie and the forged one as the `$presented` argument, so both readings are
+    /// driven.
+    // covers: Core\Session::start
+    #[test]
+    fn start_opens_a_held_record_and_issues_a_new_id_for_one_the_store_does_not_hold() {
+        const HELD: &str = "PmA5tKz1QvR3sYbNcW8xLq";
+        const FORGED: &str = "AAAAAAAAAAAAAAAAAAAAAA";
+        let nothing = [Value::null()];
+
+        let mut ctx = Ctx::buffered();
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing).is_err(),
+            "a program answering no request has no session to open"
+        );
+        drop(ctx.take_pending());
+        assert!(ctx.session().is_none());
+
+        let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
+        inbound.push_header("cookie", format!("nvsid={HELD}").as_bytes());
+        ctx.set_inbound(inbound);
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing).is_err(),
+            "no `[session] backend`, so there is no store to open a record in"
+        );
+        drop(ctx.take_pending());
+        assert!(ctx.session().is_none());
+
+        let (listener, address) = listening();
+        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        held.lock()
+            .expect("the store")
+            .insert(key_of(HELD), RECORD.to_vec());
+        let store = Arc::clone(&held);
+        thread::spawn(move || serving(listener, store));
+        let config = crate::tests::granting(&format!(
+            "[capabilities.cache]\nshared = true\n[session]\nbackend = \"shared\"\n\
+             [cache.shared]\nurl = \"redis://{address}\"\n"
+        ));
+        ctx.set_config(Arc::clone(&config));
+
+        nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing)
+            .expect("the cookie names a record the store holds");
+        let opened = ctx.session().expect("the request has a session");
+        assert_eq!(opened.id, HELD, "the presented identifier is kept");
+        assert_eq!(opened.record, RECORD, "and its record is the stored one");
+        assert!(!opened.dirty, "opening a record is not a change");
+        assert!(
+            ctx.take_headers().is_empty(),
+            "the client already has this identifier, so no cookie is sent"
+        );
+
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing).is_err(),
+            "a second `start` on one request throws"
+        );
+        drop(ctx.take_pending());
+        assert_eq!(
+            ctx.session().expect("and the first session stays open").id,
+            HELD
+        );
+
+        let mut fresh = Ctx::buffered();
+        fresh.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        fresh.set_config(config);
+        let forged = [Value::str(NvsStr::new(FORGED.as_bytes()))];
+        let answer = nvs_runtime::call(super::nvs_core_session_start, &mut fresh, &forged);
+        forged.into_iter().for_each(dropped);
+        answer.expect("an identifier the store does not hold opens a fresh session");
+        let issued = fresh.session().expect("the request has a session");
+        assert_ne!(issued.id, FORGED, "the forged identifier is not used");
+        assert!(issued.record.is_empty(), "the fresh record is empty");
+        let issued = issued.id.clone();
+
+        let headers = fresh.take_headers();
+        assert_eq!(headers.len(), 1, "one cookie carries the new identifier");
+        assert_eq!(&*headers[0].name, crate::response::SET_COOKIE_HEADER);
+        assert!(
+            headers[0].value.starts_with(&format!("nvsid={issued};")),
+            "{:?} carries the new identifier",
+            headers[0].value
+        );
+
+        let entries = held.lock().expect("the store");
+        assert_eq!(
+            entries.get(&key_of(&issued)).map(Vec::as_slice),
+            Some(&[][..]),
+            "the fresh record is written to the store at once"
+        );
+        assert!(
+            !entries.contains_key(&key_of(FORGED)),
+            "and nothing is written under the forged identifier"
         );
     }
 

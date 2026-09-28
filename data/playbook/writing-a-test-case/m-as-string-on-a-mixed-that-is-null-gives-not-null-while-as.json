@@ -1,0 +1,12 @@
+{
+  "lead": "`$m as ?string` on a `mixed` that is `null` gives `\"\"`, not `null`, while `as ?int`, `as ?float` and `as ?array<T>` give `null`.",
+  "body": "`rule:types/conversion` makes `anything → string` total, and `a-nullable-conversion-to-string-answers-null-where-the-checked-one-throws.nvst` pins the empty string, so `Core\\Session::get(\"user\") as ?string` followed by `== null` takes the wrong branch and the example prints a blank name. Test the `mixed` for `null` first and convert after, as `docs/examples/core/Session/start/03-a-page-for-signed-in-users.nvs` does.",
+  "files": [
+    "docs/examples/core/Session/start/03-a-page-for-signed-in-users.nvs",
+    "tests/conformance/lang/a-nullable-conversion-to-string-answers-null-where-the-checked-one-throws.nvst"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tests/conformance/lang/a-nullable-conversion-to-string-answers-null-where-the-checked-one-throws.nvst:mixed $z = null;"
+  }
+}
