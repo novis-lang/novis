@@ -73,3 +73,53 @@ fn a_run_without_a_request_file_answers_no_request() {
         "nothing is answered before the refusal"
     );
 }
+
+/// Runs the event-stream fixture as the answer to the fixture request, with
+/// the events file beside it where `events` says so.
+fn stream(events: bool) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    command
+        .arg("run")
+        .arg("--request")
+        .arg(fixtures().join("reads-the-request.nvsr"));
+    if events {
+        command
+            .arg("--events")
+            .arg(fixtures().join("opens-an-event-stream.nvse"));
+    }
+    command
+        .arg(fixtures().join("opens-an-event-stream.nvs"))
+        .output()
+        .expect("the `nvs` binary this test was built beside runs")
+}
+
+/// `rule:concurrency/two-doors-one-isolate`: every request is offered the SSE
+/// cell, so the stream its `Core\Sse::upgrade` prepared starts once it has
+/// ended, and `--events` feeds that stream rather than the request. Only the
+/// topic the stream subscribed to reaches it, and the connection's own `echo`
+/// follows the stream.
+// covers: Core\Sse::upgrade
+#[test]
+fn a_request_that_upgrades_to_an_event_stream_runs_it_fed_from_the_events_file() {
+    let out = stream(true);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "the request ended normally: {stderr}");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "data: hello ada\n\nevent: news\ndata: first\n\nevent: news\ndata: second\n\nclient left\n"
+    );
+}
+
+/// With no `--events` the feed is empty, so the stream's first wait ends it
+/// as a client that left does, and the run still ends.
+// covers: Core\Sse::upgrade
+#[test]
+fn an_upgraded_event_stream_with_no_events_file_ends_at_its_first_wait() {
+    let out = stream(false);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "the request ended normally: {stderr}");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "data: hello ada\n\nclient left\n"
+    );
+}

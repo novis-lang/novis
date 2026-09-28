@@ -359,9 +359,11 @@ enum Command {
         ///
         /// What makes `Core\Sse::current()` and `receive()` answer outside a
         /// server: the program is the script a `Core\Sse::upgrade` opens, and
-        /// the stream it writes is printed as a client reads it. The format is
-        /// `events`'s module doc.
-        #[arg(long, value_name = "FILE", conflicts_with_all = ["request", "peer"])]
+        /// the stream it writes is printed as a client reads it. Beside a
+        /// `--request`, the file feeds the stream that request's
+        /// `Core\Sse::upgrade` opens instead. The format is `events`'s module
+        /// doc.
+        #[arg(long, value_name = "FILE", conflicts_with = "peer")]
         events: Option<PathBuf>,
         /// The program's own arguments, which `Core\Command::run()` matches
         /// against the program's compiled command table.
@@ -2545,7 +2547,12 @@ fn run_run(
     // `nvs_server::serve_connection` offers a request `hyper` framed an upgrade
     // for, so `Core\Socket::upgrade` prepares a connection here as it does
     // there. `peer::upgradable` owns why the header is the whole question.
+    //
+    // Every request is also offered `rule:concurrency/two-doors-one-isolate`'s
+    // SSE cell, as `nvs_host::Isolate::offering_sse` offers it to every request
+    // a server answers, so `Core\Sse::upgrade` prepares a stream here too.
     let mut offered = None;
+    let mut offered_sse = None;
     if let Some(file) = request {
         match inbound_from(file) {
             Ok(mut inbound) => {
@@ -2557,6 +2564,9 @@ fn run_run(
                     inbound.offer_upgrade(slot.clone());
                     offered = Some(slot);
                 }
+                let sse = nvs_runtime::SseSlot::new();
+                inbound.offer_sse(sse.clone());
+                offered_sse = Some(sse);
                 ctx.set_inbound(inbound);
             }
             Err(error) => {
@@ -2588,10 +2598,14 @@ fn run_run(
     // stream and marked as the connection `Core\Sse::upgrade` opens, which is
     // what `nvs_host::Isolate::over_event_stream` does to a served one. The
     // other half, the file's values and the program's queue go to the
-    // publisher spawned beside the program below.
+    // publisher spawned beside the program below. Beside a `--request` the
+    // file is kept for the stream that request's `Core\Sse::upgrade` opens,
+    // and `events::connect` publishes it there.
     let mut publisher = None;
+    let mut stream_feed = None;
     if let Some(file) = events {
         match events::from_file(file) {
+            Ok(feed) if request.is_some() => stream_feed = Some(feed),
             Ok(feed) => {
                 let (emit, drain) = events::open();
                 ctx.set_body_stream(emit);
@@ -2814,6 +2828,17 @@ fn run_run(
             if let Some(upgrade) = offered.as_ref().and_then(nvs_runtime::UpgradeSlot::take) {
                 if outcome.is_ok() || finished {
                     peer::connect(ctx, upgrade, connection_peer.take().unwrap_or_default());
+                } else {
+                    upgrade.discard();
+                }
+            }
+            // The other door, under the same rule: the event stream a request's
+            // `Core\Sse::upgrade` prepared starts once the request has ended
+            // normally, fed from `--events`. `events::connect` owns what the run
+            // prints of it.
+            if let Some(upgrade) = offered_sse.as_ref().and_then(nvs_runtime::SseSlot::take) {
+                if outcome.is_ok() || finished {
+                    events::connect(ctx, upgrade, stream_feed.take().unwrap_or_default());
                 } else {
                     upgrade.discard();
                 }

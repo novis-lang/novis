@@ -139,6 +139,22 @@ impl Ctx {
         )
     }
 
+    /// Makes `inbox` this connection's delivery queue, the one [`Self::inbox`]
+    /// would otherwise make on first use.
+    ///
+    /// For a host that watches the queue from outside the connection's task
+    /// and has to hold it before that task's context exists: `nvs run`'s
+    /// publisher asks it whether the program is waiting. Written before the
+    /// program's first statement, so there is no earlier queue whose
+    /// deliveries this could drop.
+    pub fn set_inbox(&mut self, inbox: std::rc::Rc<crate::peer::Inbox>) {
+        debug_assert!(
+            self.deliveries.is_none(),
+            "a delivery queue is set before anything subscribes"
+        );
+        self.deliveries = Some(inbox);
+    }
+
     /// Arms this request's static-property storage: one slot per entry in
     /// `defaults`, in that order, each materialized from its declared
     /// initializer.

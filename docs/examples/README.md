@@ -191,6 +191,11 @@ the program writes prints as a client reads it, between the lines the program it
 whole format is the module doc of `crates/nvs-cli/src/events.rs`. `tests/hostile/` and
 `benches/members/` read a `.nvse` file the same way.
 
+An example of `Core\Sse::upgrade` has a `.nvsr` file as well, because the program is the request that
+opens the stream. The stream then starts when the request ends, and the `.nvse` file feeds that stream.
+Without a `.nvse` file, the stream ends at its first `receive()`. What the stream script itself
+`echo`es prints after the stream.
+
 ## A grant the examples need — `nvs.toml`
 
 An example runs from the repository root under its `nvs.toml`, which grants no capability. A

@@ -11,6 +11,12 @@
 //! module is the second thing that does, so an example, an attack or a bench of
 //! those members has something to run against.
 //!
+//! With no `--request` the program *is* that isolate. Beside a `--request` the
+//! program is the request, which `nvs run` offers the SSE cell a server offers
+//! every request, and the file feeds the stream its `Core\Sse::upgrade` opens
+//! once the request has ended ([`connect`]). A request that opens one with no
+//! `--events` gets an empty feed.
+//!
 //! # The format
 //!
 //! One line per value, read top to bottom. A blank line and a line starting
@@ -139,24 +145,55 @@ pub(crate) fn start(
     sched.spawn(
         nvs_runtime::Ctx::stdout(),
         nvs_runtime::TaskRoot::Worker,
-        move |_| publish(feed, drain, &inbox, &ended),
+        move |_| publish(feed, drain, &inbox, || ended.get().is_some()),
     );
 }
 
-/// The publisher's whole task: print what the program wrote, and feed it the
-/// next value each time it waits for one.
-fn publish(
-    mut feed: Feed,
-    drain: Drain,
-    inbox: &nvs_runtime::Inbox,
-    ended: &Cell<Option<Result<(), i32>>>,
-) {
+/// Starts the event stream a request's `Core\Sse::upgrade` prepared, publishes
+/// `feed` to it, and waits for it to end.
+///
+/// A server starts that isolate once the request has ended, and so does this.
+/// The publisher here is the loop in the request's own task rather than a task
+/// beside it, because only a request that opened a stream needs one. Without
+/// `--events` the feed is empty, so the program's first wait ends the stream,
+/// as a client that left ends it. The stream prints as it is written, and what
+/// the connection `echo`es follows it, for `crate::peer::connect`'s reason.
+pub(crate) fn connect(ctx: &mut nvs_runtime::Ctx, upgrade: nvs_runtime::Upgrade, feed: Feed) {
+    let (program, args) = upgrade.into_parts();
+    let (emit, drain) = open();
+    let inbox = Rc::new(nvs_runtime::Inbox::default());
+    let started = nvs_host::Isolate::new(program, args, nvs_host::Output::Inherit)
+        .over_event_stream(emit)
+        .delivering_into(Rc::clone(&inbox))
+        .start(ctx);
+    let running = match started {
+        Ok(running) => running,
+        Err(refused) => {
+            eprintln!("error: the event stream could not start: {refused}");
+            return;
+        }
+    };
+    publish(feed, drain, &inbox, || running.finished());
+    let mut done = running.join(ctx);
+    done.discard_value();
+    if let Some(failure) = done.error {
+        eprintln!(
+            "error: the event stream ended with {}: {}",
+            failure.class, failure.message
+        );
+    }
+}
+
+/// The publisher's whole loop: print what the program wrote, and feed it the
+/// next value each time it waits for one, until `ended` says the program is
+/// over.
+fn publish(mut feed: Feed, drain: Drain, inbox: &nvs_runtime::Inbox, ended: impl Fn() -> bool) {
     let mut drain = Some(drain);
     loop {
         if let Some(drain) = drain.as_mut() {
             print_written(drain);
         }
-        if ended.get().is_some() {
+        if ended() {
             return;
         }
         if inbox.is_empty() && inbox.is_waiting() {

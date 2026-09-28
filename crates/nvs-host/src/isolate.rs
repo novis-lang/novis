@@ -129,6 +129,9 @@ pub struct Isolate {
     /// [`Isolate::over_event_stream`], and `None` for every isolate that is not
     /// a connection answering one.
     event_stream: Option<nvs_runtime::stream::Emit>,
+    /// The delivery queue its context starts with — [`Isolate::delivering_into`],
+    /// and `None` for every isolate whose context makes its own on first use.
+    inbox: Option<Rc<nvs_runtime::Inbox>>,
     /// Where this isolate publishes itself while it runs, so that a thread
     /// which is not this core can charge it against `rule:errors/on-limit`'s
     /// CPU ceiling — [`Isolate::watched_by`], and `None` for every isolate
@@ -203,6 +206,7 @@ impl Isolate {
             origin: None,
             peer: None,
             event_stream: None,
+            inbox: None,
             watch: None,
             narrowing: Narrowing::default(),
         }
@@ -500,6 +504,21 @@ impl Isolate {
         self
     }
 
+    /// Starts its context with `inbox` as the delivery queue, so that the
+    /// caller holds the queue before the child exists.
+    ///
+    /// `nvs run --request` is the one caller: its publisher feeds the event
+    /// stream a request's `Core\Sse::upgrade` opened, and a value is published
+    /// only while the program waits on this queue with nothing in it. A server
+    /// never asks, because its publishers are other requests and reach the
+    /// queue through `Core\Topic`'s subscriber table. `Ctx::set_inbox` owns the
+    /// write.
+    #[must_use]
+    pub fn delivering_into(mut self, inbox: Rc<nvs_runtime::Inbox>) -> Self {
+        self.inbox = Some(inbox);
+        self
+    }
+
     /// Charges it to `rule:errors/handler-script`'s engine-owned reserve instead of to the tree
     /// that spawned it.
     ///
@@ -561,6 +580,7 @@ impl Isolate {
             origin,
             peer,
             event_stream,
+            inbox,
             watch,
             narrowing,
         } = self;
@@ -712,6 +732,9 @@ impl Isolate {
         if let Some(events) = event_stream {
             isolate_ctx.set_body_stream(events);
             isolate_ctx.mark_event_stream(EventStreamDoor::Connection);
+        }
+        if let Some(inbox) = inbox {
+            isolate_ctx.set_inbox(inbox);
         }
         // `rule:observability/spawn-is-its-own-event`'s event, opened where the
         // child starts rather than where it is awaited, so a child that is
