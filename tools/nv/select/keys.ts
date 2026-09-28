@@ -14,7 +14,7 @@
 // | `tree:<path>` | a file or a directory a test asked `nvs_repo` for: everything beneath it; `tree:.` is the whole tree |
 // | `named:<name>` | every file called `<name>`, anywhere |
 // | `ext:<ext>` | every file whose name ends `.<ext>`, anywhere, as a `git grep -- *.<ext>` reads them |
-// | `mod:<path>` | a TypeScript module a `bun nv` process loaded |
+// | `mod:<path>` | a TypeScript module a `bun nv` process loaded, other than one its bookkeeping first loaded `loadUnrecorded` |
 // | `tests:<package>/<kind>/<target>` | computed: held by what ran that test binary, moved by a test added to a file compiled into it; a `use` is no test |
 // | `profile:optimized` | computed: moved by a change to code only an optimized build compiles, which selects every proof program |
 // | `platform:elsewhere` | computed: moved by a change to code Linux compiles and this platform does not, held by what runs on Linux |

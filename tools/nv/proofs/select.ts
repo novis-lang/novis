@@ -18,23 +18,47 @@
 //
 // A recording run costs a second process per program on a build many times slower than the judged one.
 // That time buys a verdict taken on the binary a person ships, under the time limit written for it.
+//
+// The selection engine, the crate graph and the recorder are loaded by `engine`, through
+// `loadUnrecorded`: they decide which programs run and what the store remembers, and none of them
+// judges a program, so a change to them does not reach the `nv:` atom of every proofs check. This module,
+// `run.ts` that judges and blesses, and the gate's modules stay in that footprint.
 
 import { join } from "node:path";
-import { type Graph, metadata } from "../keys/graph.ts";
+import type { Graph } from "../keys/graph.ts";
 import { buildCovws } from "../lib/covws.ts";
 import { cargoLines } from "../lib/progress.ts";
-import { unrecorded } from "../lib/reads.ts";
-import { proofDef, proofId } from "../select/atoms.ts";
-import { recordedIn } from "../select/extract.ts";
-import { advance, chunks, fullChange, pool, Recorder } from "../select/record.ts";
-import { type ChangeSet, computeChange, query, type Selection } from "../select/select.ts";
+import { loadUnrecorded, unrecorded } from "../lib/reads.ts";
+import type { Recorder } from "../select/record.ts";
+import type { ChangeSet, Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
 import { type Binary, divergence, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, type What } from "./run.ts";
 
 /** How many programs one recorded batch runs. */
 const BATCH = 96;
 
+async function load() {
+  const [graph, atoms, extract, record, select] = await Promise.all([
+    import("../keys/graph.ts"),
+    import("../select/atoms.ts"),
+    import("../select/extract.ts"),
+    import("../select/record.ts"),
+    import("../select/select.ts"),
+  ]);
+  const { advance, chunks, fullChange, pool, Recorder } = record;
+  return { metadata: graph.metadata, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, chunks, fullChange, pool, Recorder, computeChange: select.computeChange, query: select.query };
+}
+
+let loaded: ReturnType<typeof load> | undefined;
+
+/** The selection engine and the recorder, loaded once and `loadUnrecorded`. */
+function engine(): ReturnType<typeof load> {
+  loaded ??= loadUnrecorded(load);
+  return loaded;
+}
+
 async function selection(store: SelectStore, graph: Graph | null, programs: { path: string }[]): Promise<{ change: ChangeSet; sel: Selection }> {
+  const { computeChange, fullChange, proofId, query } = await engine();
   let change: ChangeSet;
   try {
     change = store.base() === null ? await fullChange() : await computeChange(store, { graph });
@@ -57,6 +81,7 @@ export interface Diverged {
  * Returns why it diverged, or null.
  */
 export async function recordProgram(rec: Recorder, nvs: string, dir: string, what: What, path: string, result: Result | undefined): Promise<string | null> {
+  const { proofDef, proofId, recordedIn } = await engine();
   const id = proofId(path);
   const verdict: Verdict = !result || result.verdict === "fail" ? "red" : "green";
   // A program skipped on this host ran nothing; it is selected again when its own file changes.
@@ -84,6 +109,7 @@ export async function recordProgram(rec: Recorder, nvs: string, dir: string, wha
  * log for the same reason, so the programs' reads never land in the footprint of the check that ran them.
  */
 export async function runSelected(bin: Binary, programs: Program[], opts: RunOptions, all: boolean): Promise<Pass & { ran: number; diverged: Diverged[] }> {
+  const { advance, chunks, metadata, pool, proofId, Recorder } = await engine();
   const store = new SelectStore();
   const { graph, change, sel, rec } = await unrecorded(async () => {
     const graph = await metadata();

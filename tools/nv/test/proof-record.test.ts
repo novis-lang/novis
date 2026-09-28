@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
+import { run } from "../lib/proc.ts";
+import { ENV as READS_ENV, readModules } from "../lib/reads.ts";
 import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, spawnProof } from "../proofs/run.ts";
 import { recordProgram } from "../proofs/select.ts";
 import { proofId } from "../select/atoms.ts";
@@ -51,6 +54,38 @@ describe("recording a proof program", () => {
       s.cleanup();
     }
   }, 120_000);
+});
+
+describe("the modules a recorded `nv proofs` names", () => {
+  const LOG = join(abs(".cache"), `proof-modules-${process.pid}.ndjson`);
+  // Code that judges a program, gates a feature or blesses an output: a change to any of it reaches
+  // every proofs check.
+  const JUDGING = ["tools/nv/cmd/proofs.ts", "tools/nv/proofs/run.ts", "tools/nv/proofs/select.ts", "tools/nv/proofs/collect.ts", "tools/nv/proofs/roster.ts", "tools/nv/proofs/markers.ts", "tools/nv/proofs/ledger.ts", "tools/nv/proofs/perf.ts"];
+  // The selection engine, the crate graph, the recorder and the driver, which decide what runs and what
+  // the store remembers.
+  const ENGINE = ["tools/nv/select/select.ts", "tools/nv/select/items.ts", "tools/nv/select/change.ts", "tools/nv/select/record.ts", "tools/nv/select/extract.ts", "tools/nv/select/atoms.ts", "tools/nv/keys/graph.ts", "tools/nv/driver/accept.ts", "tools/nv/driver/runner.ts"];
+
+  test("the command names the judging modules and none of the engine, and loading the engine for a recording names none of it", async () => {
+    const script = [
+      `import { install } from ${JSON.stringify(pathToFileURL(abs("tools/nv/lib/reads.ts")).href)};`,
+      `install(process.env.${READS_ENV});`,
+      `await import(${JSON.stringify(pathToFileURL(abs("tools/nv/cmd/proofs.ts")).href)});`,
+      `const { recordProgram } = await import(${JSON.stringify(pathToFileURL(abs("tools/nv/proofs/select.ts")).href)});`,
+      // A program skipped on this host is recorded without a run, which loads the engine and nothing else.
+      'const rec = { record() {} };',
+      'await recordProgram(rec, "", "", "examples", "docs/examples/core/Math/sqrt/01-square-roots.nvs", undefined);',
+    ].join("\n");
+    rmSync(LOG, { force: true });
+    try {
+      const r = await run([process.execPath, "-e", script], { cwd: abs("."), env: { [READS_ENV]: LOG } });
+      expect(r.stderr).toBe("");
+      const mods = readModules(LOG);
+      for (const m of JUDGING) expect(mods).toContain(m);
+      for (const m of ENGINE) expect(mods).not.toContain(m);
+    } finally {
+      rmSync(LOG, { force: true });
+    }
+  });
 });
 
 describe("the judged run and the recording run", () => {

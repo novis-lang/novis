@@ -17,6 +17,13 @@
 // groups. What it reads inside `inPart` is noted under those parts alone, and `readLog` with a part
 // gives what everything outside any part read together with what that part read. Without a part it gives
 // the union of everything, as a check that runs the process alone reads it.
+//
+// A command's bookkeeping is kept out the same way. `unrecorded` keeps out what it reads, and
+// `loadUnrecorded` keeps out the modules it loads: every module Bun's registry gains while it runs is
+// left out of the modules the command's line names, so a change to the selection engine that
+// `nv proofs --verify` loads to skip unreached programs does not reach every proofs check. A
+// `bun test` process names every module it loaded (`reads-preload.ts`), since a test's verdict reads
+// whatever its code runs.
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -92,6 +99,29 @@ export function unrecorded<T>(f: () => T): T {
   return quiet.run(true, f);
 }
 
+/** Every module `loadUnrecorded` brought into Bun's registry, as `require.cache` names it. */
+const unnoted = new Set<string>();
+/** Set by `install` for a `bun test` process, whose line names every module it loaded. */
+let everyModule = false;
+
+/**
+ * Runs `load`, which imports code that is no input to this process's verdict, `unrecorded`, and leaves
+ * every module Bun's registry gains while it runs out of the modules `flush` names. A module already
+ * loaded stays named, so one that the verdict's own code imports statically is kept whatever `load`
+ * imports. What is left out is decided by when a module first loads, so `load` imports only what the
+ * command's bookkeeping alone uses: a module it loads first and that code judging the verdict imports
+ * later, dynamically, is not named. Nothing else of the process should load a module while `load`
+ * runs; the window is the promise `load` returns.
+ */
+export async function loadUnrecorded<T>(load: () => Promise<T>): Promise<T> {
+  const before = new Set(Object.keys(require.cache));
+  try {
+    return await unrecorded(load);
+  } finally {
+    for (const m of Object.keys(require.cache)) if (!before.has(m)) unnoted.add(m);
+  }
+}
+
 /** Runs `f` with everything it reads, lists, tests, starts and names noted under each of `labels`
  * instead of the process as a whole. The scope is asynchronous, as `unrecorded`'s is, and inside
  * `unrecorded` nothing is noted at all. An empty `labels` notes for the process as a whole. */
@@ -128,8 +158,10 @@ const SHIMS = [join(import.meta.dir, "reads-fs.ts"), join(import.meta.dir, "read
 const SPECIFIER = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(["'])(?:node:)?fs(\/promises)?\2/g;
 
 /** Starts recording into `log`: every tools module loaded from here on is rewritten, and the process
- * appends its reads to `log` when it exits. */
-export function install(log: string): void {
+ * appends its reads to `log` when it exits. With `tests`, the process is a `bun test` run, and its line
+ * names every module it loaded, `loadUnrecorded`'s too. */
+export function install(log: string, tests = false): void {
+  everyModule = tests;
   // The shim's path goes in with the quote the specifier had, so a specifier spelled inside another
   // string literal leaves that literal whole.
   const [fsShim, fspShim] = SHIMS.map((s) => s.replace(/\\/g, "/"));
@@ -163,12 +195,14 @@ let flushed = false;
 const listed = (n: Noted): Reads => ({ files: [...n.files].sort(), exists: [...n.exists].sort(), dirs: [...n.dirs].sort(), spawns: n.spawns, keys: [...n.keys].sort() });
 
 /** Appends this process's line to `log`, once: what it read, listed, tested and started, what each part
- * read besides under `parts`, and every tools module Bun's registry holds by then. The exit handler calls
- * it; `bun test` fires no exit handler, so `reads-preload.ts` calls it after the last test. */
+ * read besides under `parts`, and every tools module Bun's registry holds by then other than those
+ * `loadUnrecorded` loaded. The exit handler calls it; `bun test` fires no exit handler, so
+ * `reads-preload.ts` calls it after the last test. */
 export function flush(log: string): void {
   if (flushed) return;
   flushed = true;
   const modules = Object.keys(require.cache)
+    .filter((m) => everyModule || !unnoted.has(m))
     .map((m) => inTree(m))
     .filter((m): m is string => m !== null && m.endsWith(".ts"))
     .sort();

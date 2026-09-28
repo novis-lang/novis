@@ -80,6 +80,26 @@ describe("what a `bun nv` process reads", () => {
     expect(readLog(LOG)).toEqual({ files: ["a.txt", "common.txt", "empty.txt"], exists: ["both"], dirs: ["b"], spawns: [], keys: ["card:*"] });
   });
 
+  test("a module `loadUnrecorded` loads first is not named, one loaded before it is, and a `bun test` process names both", async () => {
+    const reads = JSON.stringify(pathToFileURL(join(ROOT, "tools", "nv", "lib", "reads.ts")).href);
+    const url = (p: string) => JSON.stringify(pathToFileURL(join(ROOT, "tools", "nv", ...p.split("/"))).href);
+    for (const tests of [false, true]) {
+      rmSync(LOG, { force: true });
+      const script = [
+        `import { install, loadUnrecorded } from ${reads};`,
+        `install(process.env.${ENV}, ${tests});`,
+        `await import(${url("lib/py.ts")});`,
+        `await loadUnrecorded(() => Promise.all([import(${url("lib/py.ts")}), import(${url("keys/graph.ts")})]));`,
+      ].join("\n");
+      const r = await run([process.execPath, "-e", script], { cwd: ROOT, env: { [ENV]: LOG } });
+      expect(r.stderr).toBe("");
+      const mods = readModules(LOG);
+      expect(mods).toContain("tools/nv/lib/py.ts");
+      if (tests) expect(mods).toContain("tools/nv/keys/graph.ts");
+      else expect(mods).not.toContain("tools/nv/keys/graph.ts");
+    }
+  });
+
   test("a recorded run names the modules its process loaded: main.ts, its command's, and no other command's", async () => {
     rmSync(LOG, { force: true });
     const r = await run([process.execPath, join(ROOT, "tools", "nv", "main.ts"), "peek", "package.json"], { env: { [ENV]: LOG } });
