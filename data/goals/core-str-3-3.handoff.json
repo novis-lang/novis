@@ -1,23 +1,19 @@
 {
-  "state": "Goal `core-str-3-3`: `startsWith`, `trim`, `trimStart` and `trimEnd` now have every feature\nproof on disk: description, three examples each, an attack, a bench record, a Rust test with\ntheir `covers:` markers, and cards in plain words. The attack on `trim` found a quadratic cost:\n`trimmed` searched the whole `characters` set once for each character it removed, so a 1 MiB set\nagainst a 1 MiB subject took minutes. `trimmed` now reads the set once into a `TrimSet` (an\nASCII bitmask, and a sorted list of the other characters, paid for through\n`nvs_runtime::affordable`). `tests/conformance/core/str-trim-matches-a-long-or-multi-byte-set-by-character.nvst`\npins it. Every `Core\\Str` perf record was re-measured after `str.rs` changed. The members still\nowed in this goal are `upper`, `upperFirst` and `wrap`.",
+  "state": "Goal `core-str-3-3`: `upper` and `upperFirst` now have every feature proof on disk: description,\nthree examples each, an attack each, a bench record, a Rust test carrying their `covers:` markers,\nand cards in plain words. `upper` used to build a Rust `String` before its result, and the memory\nlimit never saw that buffer. `ΐ` triples in bytes, so it could reach about four times the input.\n`upper` now writes straight into the result, which asks the limit before each growth.\n`upperFirst`/`lowerFirst` are one allocation of exact length. The `lower`/`lowerFirst` benches only\never measured one or two of their three words, and are fixed. `benches/members/README.md` § *Chain\nthe inputs* now says why. Every `Core\\Str` perf record was re-measured after `str.rs` changed. The\nonly member this goal still owes is `wrap`.",
   "next": {
     "stage": 1,
     "title": "member proofs, file order",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/str.rs`, and each member's trees under `docs/examples/core/Str/`, `tests/hostile/core/Str/`, `benches/members/core/Str/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/str.rs`, and the member's trees under `docs/examples/core/Str/wrap`, `tests/hostile/core/Str/wrap`, `benches/members/core/Str/wrap.nvs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::upper`, `upperFirst`** — each owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `lower` and `lowerFirst` are the twins to copy the shape from. Check that a character whose upper case is longer (`ß` becomes `SS`) is paid for before the result is built. `crates/nvs-stdlib/src/str.rs:3514`, `crates/nvs-stdlib/src/str.rs:3526`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Str::wrap`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Its result can be much longer than its input (a width of 1 adds a break after every character), so check that the output is paid for before it is built, and attack it with a width of 1 on a long text. `crates/nvs-stdlib/src/str.rs:3276`"
+        "text": "**`Core\\Str::wrap`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Its result can be much longer than its input (a width of 1 adds a break after every character, and `break` can be long), so check that `wrapped` asks the memory limit before it grows its `String`, the way `upper` now writes through `built`. Attack it with a width of 1 and a long `break` on a long text. Give its bench inputs whose results all add a multiple of 3 (`benches/members/README.md` § *Chain the inputs*). Rewrite `WRAP_DOC` in plain words. `crates/nvs-stdlib/src/str.rs:3277`, `crates/nvs-stdlib/src/str.rs:3310`, `crates/nvs-stdlib/src/str.rs:1328`"
       }
-    ],
-    "after": "Once all three are green, the goal's check `dossier-core-str-3-3` should pass: run `bun nv verify --doc`, `bun nv owners --closes core-str-3-3` and `bun nv playbook --closes core-str-3-3` and write `DONE`."
+    ]
   },
   "backlog": [
-    "`trim`'s set matches by code point, not by grapheme: trimming `e` from `\"ee\\u{301}t\"` leaves a lone combining accent at the start (`tests/hostile/core/Str/trimStart/01-a-long-run-before-one-character.nvs` step 2). It is PHP's behaviour and the card says \"character\"; whether a grapheme-matched set is wanted belongs to `crates/nvs-stdlib/src/str.rs`'s `trimmed` doc, and no gap is recorded."
+    "`Core\\Str::lower` still builds a `String` through `str::to_lowercase` before its result, at most half as long again as the subject, to keep the final-sigma rule (`crates/nvs-stdlib/src/str.rs` `nvs_core_str_upper`'s doc says so). Writing it through `built` needs the sigma rule restated.",
+    "Other `Core\\Str` benches that chain with `% 3` may sit on one input too; each bench's word lengths decide it (`benches/members/README.md` § *Chain the inputs*)."
   ]
 }

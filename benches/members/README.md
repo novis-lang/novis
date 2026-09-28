@@ -59,7 +59,10 @@ The rules, of which the chained input and the `int` subscript are the ones that 
   subscript is `$total % 4`. A loop whose input never changes is a loop an optimiser may delete, and
   a bench that measures a deleted loop reads as a triumph. This is `benches/userland/README.md`'s
   rule for the same reason, and the symptom is the same: a figure indistinguishable from the empty
-  program's.
+  program's. **The chain must also reach every input.** Under `($total + $i) % 3`, an input whose
+  result adds a multiple of 3, less one, to `$total` is picked again on every later round, so the
+  bench measures that one input alone and nothing reports it. Inputs whose results all add a
+  multiple of 3 are visited in turn.
 - **Index with an `int`.** A `uint` subscript renders a decimal string key, on purpose — a `uint`
   past `i64::MAX` has no `i64` spelling naming the same element (`nvs_ir::lower::expr`'s
   `lower_array_key`) — and that render is two allocations per read, which a bench declaring

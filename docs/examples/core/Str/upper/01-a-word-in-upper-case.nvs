@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to change a text to upper case.
+
+// This prints `HELLO, WORLD!`. The comma, the space and the `!` do not change.
+echo Core\Str::upper("Hello, world!"), "\n";
+
+// `ß` becomes two letters, so the result is longer. This prints `STRASSE`.
+echo Core\Str::upper("straße"), "\n";
+
+// Digits have no case. This prints `ROOM 42B`.
+echo Core\Str::upper("room 42b"), "\n";

@@ -1375,27 +1375,28 @@ const LOWER_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::upper`'s reference card — `rule:core-api/reference-card`.
 const UPPER_DOC: MethodDoc = MethodDoc {
-    short: "Upper-cases `$s` through Unicode's full uppercase mapping, as `mb_strtoupper` does, \
-            so `straße` becomes `STRASSE`; there is no byte-wise `strtoupper` twin.",
+    short: "Changes every letter of `$s` to upper case. It uses Unicode's rules, so `straße` \
+            becomes `STRASSE`. Replaces PHP's `strtoupper` and `mb_strtoupper`.",
     params: &[ParamDoc {
         name: "s",
-        desc: "The string to upper-case.",
+        desc: "The string to change.",
         shape: &[],
     }],
-    ret: "The upper-cased string, possibly a different length from `$s`.",
+    ret: "The string in upper case. Characters that are not letters do not change. The result \
+          can be longer than `$s`.",
     errors: &[],
 };
 
 /// `Core\Str::upperFirst`'s reference card — `rule:core-api/reference-card`.
 const UPPER_FIRST_DOC: MethodDoc = MethodDoc {
-    short: "Upper-cases the first character of `$s` and copies the rest through, as `ucfirst` \
-            does — with Unicode's mapping, so a leading `ß` expands to `SS`.",
+    short: "Changes the first letter of `$s` to upper case and keeps the rest as it is. It uses \
+            Unicode's rules, so `ärger` becomes `Ärger`. Replaces PHP's `ucfirst`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string whose first character changes.",
         shape: &[],
     }],
-    ret: "The string with its first character upper-cased; `\"\"` for the empty string.",
+    ret: "The string with its first character in upper case. An empty string gives `\"\"`.",
     errors: &[],
 };
 
@@ -3511,8 +3512,28 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Str::upper(string $s): string` — replacing PHP's `strtoupper` and
     /// `mb_strtoupper`.
+    ///
+    /// Written straight into the result, starting at the subject's length:
+    /// Unicode's uppercase mapping can triple a text (`ΐ`, two bytes, becomes
+    /// three characters and six bytes), and the writer asks the request's
+    /// memory limit before each growth, so no buffer the limit never saw is
+    /// built first. `lower` still builds a `String` before its result, to keep
+    /// `str::to_lowercase`'s final-sigma rule; that buffer is at most half as
+    /// long again as the subject.
     fn nvs_core_str_upper(_ctx, args: [1]) {
-        produced(&text(&args[0], "upper", "the subject")?.to_uppercase())
+        let subject = text(&args[0], "upper", "the subject")?;
+        built(subject.len(), |out| {
+            let mut run = [0u8; 256];
+            let mut used = 0;
+            for mapped in subject.chars().flat_map(char::to_uppercase) {
+                if run.len() - used < 4 {
+                    out.push(&run[..used]);
+                    used = 0;
+                }
+                used += mapped.encode_utf8(&mut run[used..]).len();
+            }
+            out.push(&run[..used]);
+        })
     }
 }
 
@@ -3524,14 +3545,14 @@ nvs_runtime::nvs_helper! {
     /// note keeps out of `Core` entirely because word segmentation is
     /// locale-dependent).
     fn nvs_core_str_upper_first(_ctx, args: [1]) {
-        produced(&map_first(text(&args[0], "upperFirst", "the subject")?, true))
+        map_first(text(&args[0], "upperFirst", "the subject")?, true)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Str::lowerFirst(string $s): string` — replacing PHP's `lcfirst`.
     fn nvs_core_str_lower_first(_ctx, args: [1]) {
-        produced(&map_first(text(&args[0], "lowerFirst", "the subject")?, false))
+        map_first(text(&args[0], "lowerFirst", "the subject")?, false)
     }
 }
 
@@ -3859,19 +3880,27 @@ nvs_runtime::nvs_helper! {
 ///
 /// A character whose mapping is more than one character (`ß` → `SS`) expands,
 /// which is Unicode's answer and the one PHP's byte-wise `ucfirst` cannot
-/// give.
-fn map_first(subject: &str, upper: bool) -> String {
+/// give. The mapping is at most three characters, so it is written into a
+/// twelve-byte buffer first and the result is then one allocation of its exact
+/// length.
+fn map_first(subject: &str, upper: bool) -> HelperResult {
     let mut chars = subject.chars();
     let Some(first) = chars.next() else {
-        return String::new();
+        return produced("");
     };
-    let mut out: String = if upper {
-        first.to_uppercase().collect()
+    let rest = chars.as_str();
+    let mut head = [0u8; 12];
+    let mut used = 0;
+    let mut write = |mapped: char| used += mapped.encode_utf8(&mut head[used..]).len();
+    if upper {
+        first.to_uppercase().for_each(&mut write);
     } else {
-        first.to_lowercase().collect()
-    };
-    out.push_str(chars.as_str());
-    out
+        first.to_lowercase().for_each(&mut write);
+    }
+    built(used + rest.len(), |out| {
+        out.push(&head[..used]);
+        out.push_str(rest);
+    })
 }
 
 #[cfg(test)]
@@ -3926,7 +3955,29 @@ mod tests {
         Value::str(NvsStr::new(text.as_bytes()))
     }
 
-    // covers: Core\Str::lower, Core\Str::lowerFirst
+    /// `upper` writes through a small run buffer and `map_first` through a
+    /// twelve-byte head, so a text longer than the run, full of characters
+    /// that map to three, must still read exactly as `str::to_uppercase` says.
+    // covers: Core\Str::upper, Core\Str::upperFirst
+    #[test]
+    fn upper_case_that_grows_a_text_threefold_matches_unicodes_mapping() {
+        let subject = "ΐx".repeat(200);
+        assert_eq!(
+            taken(run(super::nvs_core_str_upper, &[s(&subject)]).expect("upper never fails")),
+            subject.to_uppercase()
+        );
+        assert_eq!(subject.to_uppercase().len(), 1400);
+        assert_eq!(
+            taken(run(super::nvs_core_str_upper_first, &[s("ΐx")]).expect("no failure")),
+            "\u{399}\u{308}\u{301}x"
+        );
+        assert_eq!(
+            taken(run(super::nvs_core_str_upper_first, &[s("ßen")]).expect("no failure")),
+            "SSen"
+        );
+    }
+
+    // covers: Core\Str::lower, Core\Str::lowerFirst, Core\Str::upper, Core\Str::upperFirst
     #[test]
     fn case_conversion_uses_unicodes_mapping_not_a_byte_wise_one() {
         assert_eq!(

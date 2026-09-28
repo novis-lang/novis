@@ -7537,13 +7537,13 @@ Changes every letter of `$s` to lower case. It uses Unicode's rules, so `ÄRGER`
 Core\Str::upper(string $s): string
 ```
 
-Upper-cases `$s` through Unicode's full uppercase mapping, as `mb_strtoupper` does, so `straße` becomes `STRASSE`; there is no byte-wise `strtoupper` twin.
+Changes every letter of `$s` to upper case. It uses Unicode's rules, so `straße` becomes `STRASSE`. Replaces PHP's `strtoupper` and `mb_strtoupper`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The string to upper-case. |
+| `$s` | `string` | The string to change. |
 
-**Returns** `string` — The upper-cased string, possibly a different length from `$s`.
+**Returns** `string` — The string in upper case. Characters that are not letters do not change. The result can be longer than `$s`.
 
 <a id="core-core-str-upperfirst"></a>
 #### `Core\Str::upperFirst`
@@ -7552,13 +7552,13 @@ Upper-cases `$s` through Unicode's full uppercase mapping, as `mb_strtoupper` do
 Core\Str::upperFirst(string $s): string
 ```
 
-Upper-cases the first character of `$s` and copies the rest through, as `ucfirst` does — with Unicode's mapping, so a leading `ß` expands to `SS`.
+Changes the first letter of `$s` to upper case and keeps the rest as it is. It uses Unicode's rules, so `ärger` becomes `Ärger`. Replaces PHP's `ucfirst`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string whose first character changes. |
 
-**Returns** `string` — The string with its first character upper-cased; `""` for the empty string.
+**Returns** `string` — The string with its first character in upper case. An empty string gives `""`.
 
 <a id="core-core-str-lowerfirst"></a>
 #### `Core\Str::lowerFirst`

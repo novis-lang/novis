@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `Core\Str::upper` works for every alphabet, not only for English letters.
+
+array<string> $words = ["école", "москва", "οδος"];
+
+// This prints `ÉCOLE`, `МОСКВА` and `ΟΔΟΣ`.
+// In Greek, both `σ` and `ς` become `Σ`.
+foreach ($words as string $word) {
+    echo Core\Str::upper($word), "\n";
+}

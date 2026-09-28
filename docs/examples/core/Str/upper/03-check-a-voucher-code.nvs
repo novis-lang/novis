@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to check a voucher code, whatever case the customer typed it in.
+
+array<string> $typed = ["summer24", " Summer24 ", "SUMMER24", "winter24"];
+string $valid = "SUMMER24";
+
+// `Core\Str::trim` removes the spaces around the code.
+// Then `Core\Str::upper` changes it to upper case, so one comparison is enough.
+foreach ($typed as string $code) {
+    string $clean = Core\Str::upper(Core\Str::trim($code));
+    // This prints `accepted` for the first three codes and `rejected` for `winter24`.
+    echo "[", $code, "]: ", $clean == $valid ? "accepted" : "rejected", "\n";
+}

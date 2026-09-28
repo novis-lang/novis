@@ -5,7 +5,7 @@
 
 class Bench {
     public static function run(uint $rounds): uint {
-        array<string> $names = ["OrderId", "Ärger", "ShippingAddress"];
+        array<string> $names = ["Status", "ÖffnungsZeit", "ShippingAddress"];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

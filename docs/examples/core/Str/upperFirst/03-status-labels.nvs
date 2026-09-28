@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to turn stored status values like `pending` into labels for a page, like `Pending`.
+
+array<string> $statuses = ["pending", "shipped", "on hold"];
+
+// Only the first letter changes, so `on hold` becomes `On hold`.
+// This prints `Pending`, `Shipped` and `On hold`, one on each line.
+foreach ($statuses as string $status) {
+    echo Core\Str::upperFirst($status), "\n";
+}
