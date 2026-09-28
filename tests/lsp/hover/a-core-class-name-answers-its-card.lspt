@@ -11,6 +11,8 @@ hover
 class Core\Str
 ```
 
+Functions for text: measure it, search it, cut it, change its case and build new strings. Every position and length counts characters the way a person sees them, so an accented letter or an emoji counts as one.
+
 Every member of `Core\Str` is a static function over a `string` that answers a new value; none
 changes its argument. Every position, length and count is in **graphemes** — user-perceived
 characters — so `length("👍🏽")` is `1`, no `slice` or `chunk` ever splits a character, and a byte

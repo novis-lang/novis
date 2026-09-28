@@ -1,0 +1,3 @@
+report.pdf: pdf / pdf
+archive.tar.gz: tar.gz / gz
+README: (none) / (none)

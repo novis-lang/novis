@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read the boundary out of a `Content-Type` header, as a program
+// does before it splits a file upload into its parts.
+
+array<string> $headers = [
+    "multipart/form-data; boundary=----form42",
+    "application/json",
+];
+
+foreach ($headers as string $header) {
+    ?string $boundary = Core\Str::after($header, "boundary=");
+    // A header without a boundary gives `null`, so the program can stop early.
+    if ($boundary == null) {
+        echo $header, ": not a file upload\n";
+        continue;
+    }
+    // This prints `----form42`.
+    echo $header, ": boundary is ", $boundary, "\n";
+}

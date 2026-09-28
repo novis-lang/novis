@@ -88,8 +88,8 @@ use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, StrWriter, Tag, Value};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -161,6 +161,13 @@ const NORMAL_FORM_DOC: EnumDoc = EnumDoc {
     ],
 };
 
+/// `Core\Str`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Functions for text: measure it, search it, cut it, change its case and build new \
+            strings. Every position and length counts characters the way a person sees them, \
+            so an accented letter or an emoji counts as one.",
+};
+
 /// `Core\Str`'s registry rows, in the spec's own order.
 ///
 /// Declared beside the implementations rather than in one flat table, so
@@ -187,7 +194,7 @@ const NORMAL_FORM_DOC: EnumDoc = EnumDoc {
 ///   variadic arguments it renders stay data.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Str",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "length",
@@ -860,9 +867,9 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::before`'s reference card — `rule:core-api/reference-card`.
 const BEFORE_DOC: MethodDoc = MethodDoc {
-    short: "Answers everything in `$s` up to the first occurrence of `$needle`, as \
-            `strstr($h, $n, true)` does; `{last: true}` cuts at the last occurrence instead, as \
-            `strrchr` does.",
+    short: "Returns the part of `$s` before the first `$needle`, without the needle. With \
+            `{last: true}`, it cuts at the last `$needle`. Replaces PHP's `strstr($s, $needle, \
+            true)`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -871,25 +878,26 @@ const BEFORE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "needle",
-            desc: "The separator to cut at, matched case-sensitively and left out of the answer.",
+            desc: "The separator to cut at. The search is case-sensitive. The needle is not part \
+                   of the result.",
             shape: &[],
         },
         ParamDoc {
             name: "last",
-            desc: "Cut at the last occurrence rather than the first; the default is `false`.",
+            desc: "When `true`, cuts at the last needle. The default is `false`, which cuts at \
+                   the first one.",
             shape: &[],
         },
     ],
-    ret: "The text before the occurrence, without the needle; `null` when the needle does not \
-          occur — never `false`.",
+    ret: "The text before the needle. If the needle is not in `$s`, the result is `null`. If \
+          the needle is at the start, the result is an empty string.",
     errors: &[],
 };
 
 /// `Core\Str::after`'s reference card — `rule:core-api/reference-card`.
 const AFTER_DOC: MethodDoc = MethodDoc {
-    short: "Answers everything in `$s` past the first occurrence of `$needle`, as `strstr` \
-            does minus the needle itself; `{last: true}` cuts at the last occurrence instead, \
-            as `strrchr` does.",
+    short: "Returns the part of `$s` after the first `$needle`, without the needle. With \
+            `{last: true}`, it cuts at the last `$needle`. Replaces PHP's `strstr` and `strrchr`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -898,17 +906,19 @@ const AFTER_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "needle",
-            desc: "The separator to cut at, matched case-sensitively and left out of the answer.",
+            desc: "The separator to cut at. The search is case-sensitive. The needle is not part \
+                   of the result.",
             shape: &[],
         },
         ParamDoc {
             name: "last",
-            desc: "Cut at the last occurrence rather than the first; the default is `false`.",
+            desc: "When `true`, cuts at the last needle. The default is `false`, which cuts at \
+                   the first one.",
             shape: &[],
         },
     ],
-    ret: "The text after the occurrence, without the needle; `null` when the needle does not \
-          occur — never `false`.",
+    ret: "The text after the needle. If the needle is not in `$s`, the result is `null`. If \
+          the needle is at the end, the result is an empty string.",
     errors: &[],
 };
 
@@ -3890,6 +3900,64 @@ mod tests {
         // An empty search replaces nothing rather than looping.
         assert_eq!(replaced("abc", "", "x"), "abc");
         assert_eq!(replaced("", "a", "b"), "");
+    }
+
+    /// `after` answers the slice past the first occurrence, or past the last
+    /// under `{last: true}`, with the needle left out; absence is `null` and a
+    /// needle at the very end is the empty string, so the two stay apart.
+    // covers: Core\Str::after
+    #[test]
+    fn after_cuts_past_the_first_or_last_needle_and_answers_null_when_absent() {
+        let after = |subject: &str, needle: &str, last: bool| -> Option<String> {
+            let result = run(
+                super::nvs_core_str_after,
+                &[s(subject), s(needle), Value::bool(last)],
+            )
+            .expect("after never fails");
+            match result.tag() {
+                Some(nvs_runtime::Tag::Null) => None,
+                _ => Some(taken(result)),
+            }
+        };
+        assert_eq!(after("key=a=b", "=", false).as_deref(), Some("a=b"));
+        assert_eq!(after("key=a=b", "=", true).as_deref(), Some("b"));
+        assert_eq!(after("key=", "=", false).as_deref(), Some(""));
+        assert_eq!(after("key", "=", false), None);
+        assert_eq!(after("key", "=", true), None);
+        // Case-sensitive: the option set is `last` alone.
+        assert_eq!(after("Name: x", "name", false), None);
+        // A needle longer than the subject is absent, not an error.
+        assert_eq!(after("ab", "abc", true), None);
+        // Multi-byte text is cut on the needle's own bytes.
+        assert_eq!(after("größe: 5", "ß", false).as_deref(), Some("e: 5"));
+    }
+
+    /// `before` is `after`'s mirror over the same `cut_at`: the slice up to the
+    /// first occurrence, or up to the last under `{last: true}`, and `null`
+    /// for absence while a needle at the very start answers the empty string.
+    // covers: Core\Str::before
+    #[test]
+    fn before_cuts_up_to_the_first_or_last_needle_and_answers_null_when_absent() {
+        let before = |subject: &str, needle: &str, last: bool| -> Option<String> {
+            let result = run(
+                super::nvs_core_str_before,
+                &[s(subject), s(needle), Value::bool(last)],
+            )
+            .expect("before never fails");
+            match result.tag() {
+                Some(nvs_runtime::Tag::Null) => None,
+                _ => Some(taken(result)),
+            }
+        };
+        assert_eq!(before("a.b.c", ".", false).as_deref(), Some("a"));
+        assert_eq!(before("a.b.c", ".", true).as_deref(), Some("a.b"));
+        assert_eq!(before(".hidden", ".", false).as_deref(), Some(""));
+        assert_eq!(before("abc", ".", false), None);
+        assert_eq!(before("abc", ".", true), None);
+        assert_eq!(before("Key: x", "key", false), None);
+        assert_eq!(before("größe: 5", "ß", true).as_deref(), Some("grö"));
+        // Overlapping occurrences are all walked, so the last "aa" starts at 2.
+        assert_eq!(before("aaaa", "aa", true).as_deref(), Some("aa"));
     }
 
     /// The `caseInsensitive` option is what makes this member subsume

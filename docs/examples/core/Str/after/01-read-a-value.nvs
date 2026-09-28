@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to take the part of a line that comes after a separator.
+
+// `Core\Str::after` finds the first ": " and returns the text after it.
+// This prints `Ada Lovelace`.
+echo Core\Str::after("name: Ada Lovelace", ": ") ?? "(none)", "\n";
+
+// Only the first ": " counts, so the second one stays in the result.
+// This prints `10:30: meeting`.
+echo Core\Str::after("time: 10:30: meeting", ": ") ?? "(none)", "\n";
+
+// The separator is at the end, so the result is an empty string.
+// This prints `[]`.
+echo "[", Core\Str::after("name: ", ": ") ?? "(none)", "]\n";
+
+// The separator is not in the string, so the result is `null`.
+// This prints `(none)`.
+echo Core\Str::after("no separator here", ": ") ?? "(none)", "\n";

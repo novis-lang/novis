@@ -1,0 +1,22 @@
+<?nvs
+// Takes the value after "=" in a short setting line, as a program does when it reads a config file.
+// bench: iterations 400000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lines = ["host=example.com", "port=8080", "user=admin", "mode=fast"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?string $value = Core\Str::after($lines[($total % 4) as int], "=");
+            if ($value != null) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

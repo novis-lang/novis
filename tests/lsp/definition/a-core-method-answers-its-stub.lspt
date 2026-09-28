@@ -7,4 +7,4 @@ echo $count;
 --REQUEST--
 definition
 --EXPECT--
-stubs/Core/Str.nvs:48:28
+stubs/Core/Str.nvs:50:28
