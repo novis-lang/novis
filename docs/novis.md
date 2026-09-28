@@ -19412,9 +19412,9 @@ Keywords: topic, text, bytes, value
 $message->topic(): ?string
 ```
 
-The topic this value was published to, and the one question that tells a bus delivery from a frame the peer sent.
+Returns the name of the topic the message was published to.
 
-**Returns** `?string` — The topic's name for a delivery, `null` for a peer frame. It is the name this connection subscribed under and not anything the peer chose, so it is not `tainted`.
+**Returns** `?string` — The topic name for a message from a topic. It is `null` for a message from the client. The name is not `tainted`, because your program chose it when it subscribed.
 
 <a id="core-core-socket-message-text"></a>
 #### `Core\Socket\Message->text`
@@ -19423,9 +19423,9 @@ The topic this value was published to, and the one question that tells a bus del
 $message->text(): ?tainted string
 ```
 
-A text frame's payload, as the peer sent it.
+Returns the text of a text message from the client.
 
-**Returns** `?tainted string` — The payload, `tainted` because it is untrusted input arriving over a network exactly as a request body is — `Core\Validate` is the only way to launder it. `null` for a binary frame and for a bus delivery, which carry `bytes` and `value` instead.
+**Returns** `?tainted string` — The text, exactly as the client sent it. It is `tainted`, because it comes from the client. It is `null` for a binary message and for a message from a topic.
 
 <a id="core-core-socket-message-bytes"></a>
 #### `Core\Socket\Message->bytes`
@@ -19434,9 +19434,9 @@ A text frame's payload, as the peer sent it.
 $message->bytes(): ?tainted bytes
 ```
 
-A binary frame's payload, unchecked bytes as the peer sent them.
+Returns the bytes of a binary message from the client.
 
-**Returns** `?tainted bytes` — The payload, `tainted` for `text`'s reason. `null` for a text frame and for a bus delivery.
+**Returns** `?tainted bytes` — The bytes, exactly as the client sent them. They are `tainted`, because they come from the client. It is `null` for a text message and for a message from a topic.
 
 <a id="core-core-socket-message-value"></a>
 #### `Core\Socket\Message->value`
@@ -19445,9 +19445,9 @@ A binary frame's payload, unchecked bytes as the peer sent them.
 $message->value(): mixed
 ```
 
-What a publisher put on the topic, copied across the isolate boundary the way every other value crosses one.
+Returns the value that was published to the topic.
 
-**Returns** `mixed` — The published value for a delivery, `null` for a peer frame. It is a copy and never a shared reference, so writing to it changes nothing the publisher can see.
+**Returns** `mixed` — A copy of the published value. Changing the copy does not change the value the publisher has. It is `null` for a message from the client.
 
 <a id="core-core-topic"></a>
 ### `Core\Topic`
