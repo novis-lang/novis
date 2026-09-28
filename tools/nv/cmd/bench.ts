@@ -80,7 +80,9 @@
 // process, and `php -S` is serial. Above 1 the figure is Novis against a queue, and the value is in every
 // record. Connections open before the clock starts, and both bodies must match before either number is
 // reported. `--record PATH` appends the run, both peers and the caveats that applied, to a JSON array
-// (`writeServeRecord`).
+// (`writeServeRecord`). `nvs serve` reads `SHIPPED_CONFIG`, for the warm-start figure's reason: the
+// databases, the queue and the `[[app]]` blocks of this tree's own `nvs.toml` belong to its fixtures, and
+// an edit of any of them would otherwise select this leg.
 //
 // # Records
 //
@@ -120,7 +122,7 @@ const USAGE = [
 const WINDOWS = process.platform === "win32";
 const CASE_DIR = join(ROOT, "benches", "userland");
 const BASELINE = "00-baseline";
-/** The configuration `--warm-start` measures against; the module doc says why it is named. */
+/** The configuration `--warm-start` and `--serve-vs-fpm` measure against; the module doc says why it is named. */
 const SHIPPED_CONFIG = join(ROOT, "crates", "nvs-config", "src", "default.toml");
 /** The engine every ratio is taken against, and the one that defines a case. */
 const PRIMARY = "nvs";
@@ -1298,7 +1300,7 @@ async function serveVsFpm(binary: string, o: Options, reps: number): Promise<num
     kind: "nvs-serve",
     label: "nvs serve",
     detail: "`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s development server, one core",
-    argv: [exe, "serve", entry, "--listen", `127.0.0.1:${port}`],
+    argv: [exe, "serve", entry, "--config", SHIPPED_CONFIG, "--listen", `127.0.0.1:${port}`],
     cwd: ROOT,
     port,
     executable: exe,
