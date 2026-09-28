@@ -19198,16 +19198,16 @@ Returns the value saved under one key in the session of this request.
 Core\Session::set(string $key, mixed $value): void
 ```
 
-Writes one key of the record this request's session holds, replacing whatever was under it.
+Saves a value under one key in the session of this request. If the key already has a value, it is replaced.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `string` (neutral) | The key to write. |
-| `$value` | `mixed` | What to store under it — any value the cross-boundary copy admits, which is the same carrier a `Core\Cache` entry crosses on. It is not `tainted`: a qualifier is a compile-time fact and a record is bytes, so nothing could carry one back out of `get()`. |
+| `$key` | `string` (neutral) | The key to save the value under. |
+| `$value` | `mixed` | The value to save: a string, a number, a bool, `null`, an array or an object. A `tainted` value (text that came from the request) is not allowed here, so the call does not compile. |
 
-**Returns** `void` — Nothing. The record is marked changed, which is what earns it a write back to the store when the request ends.
+**Returns** `void` — Nothing. The session is saved to the store once, when the request ends.
 
-**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to write.; `LogicError` — `$value` holds something the cross-boundary copy refuses — a closure, a resource, or an object holding one.; `ParseError` — As `get()`, because writing one key reads the whole record first.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to save into.; `LogicError` — `$value` cannot be saved: it is a closure or a resource, or it contains one.; `ParseError` — As `get()`, because `set()` reads the whole session first.
 
 <a id="core-core-session-remove"></a>
 #### `Core\Session::remove`
@@ -19216,15 +19216,15 @@ Writes one key of the record this request's session holds, replacing whatever wa
 Core\Session::remove(string $key): void
 ```
 
-Takes one key out of the record this request's session holds.
+Deletes one key and its value from the session of this request.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `string` (neutral) | The key to take out. One the record does not hold is not a refusal, and does not mark the record changed either — there is nothing to write back. |
+| `$key` | `string` (neutral) | The key to delete. If the session has no value under it, `remove()` does not throw an error and the session does not change. |
 
-**Returns** `void` — Nothing. Removing a key the record held marks it changed; removing one it did not hold leaves it exactly as it was.
+**Returns** `void` — Nothing. After it, `get()` returns `null` for `$key`. The other keys keep their values. To delete every key, use `clear()`.
 
-**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to change.; `LogicError` — As `set()`: what is left of the record is encoded again, and the carrier refuses the same graphs on the way out as on the way in.; `ParseError` — As `get()`, because removing one key reads the whole record first.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to change.; `LogicError` — As `set()`. The values that are left are saved again, and a value `set()` does not allow cannot be saved.; `ParseError` — As `get()`, because `remove()` reads the whole session first.
 
 <a id="core-core-session-clear"></a>
 #### `Core\Session::clear`

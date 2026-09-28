@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to save values in the session and read them back.
+
+Core\Session::start();
+
+// `set()` saves a string, a whole number and a bool under three keys.
+Core\Session::set("user", "ada");
+Core\Session::set("user-id", 42);
+Core\Session::set("is-admin", false);
+
+// This prints `ada`, `42` and `no`.
+echo "user: ", Core\Session::get("user") ?? "(none)", "\n";
+echo "user id: ", Core\Session::get("user-id") as ?int ?? 0, "\n";
+echo "admin: ", Core\Session::get("is-admin") as bool ? "yes" : "no", "\n";

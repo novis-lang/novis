@@ -340,66 +340,65 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Session::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
-    short: "Writes one key of the record this request's session holds, replacing whatever was \
-            under it.",
+    short: "Saves a value under one key in the session of this request. If the key already has a \
+            value, it is replaced.",
     params: &[
         ParamDoc {
             name: "key",
-            desc: "The key to write.",
+            desc: "The key to save the value under.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "What to store under it — any value the cross-boundary copy admits, which is the \
-                   same carrier a `Core\\Cache` entry crosses on. It is not `tainted`: a qualifier \
-                   is a compile-time fact and a record is bytes, so nothing could carry one back \
-                   out of `get()`.",
+            desc: "The value to save: a string, a number, a bool, `null`, an array or an object. \
+                   A `tainted` value (text that came from the request) is not allowed here, so \
+                   the call does not compile.",
             shape: &[],
         },
     ],
-    ret: "Nothing. The record is marked changed, which is what earns it a write back to the store \
-          when the request ends.",
+    ret: "Nothing. The session is saved to the store once, when the request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, so there is no record to write.",
+            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
+                   session to save into.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$value` holds something the cross-boundary copy refuses — a closure, a \
-                   resource, or an object holding one.",
+            desc: "`$value` cannot be saved: it is a closure or a resource, or it contains one.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "As `get()`, because writing one key reads the whole record first.",
+            desc: "As `get()`, because `set()` reads the whole session first.",
         },
     ],
 };
 
 /// `Core\Session::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
-    short: "Takes one key out of the record this request's session holds.",
+    short: "Deletes one key and its value from the session of this request.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The key to take out. One the record does not hold is not a refusal, and does not \
-               mark the record changed either — there is nothing to write back.",
+        desc: "The key to delete. If the session has no value under it, `remove()` does not throw \
+               an error and the session does not change.",
         shape: &[],
     }],
-    ret: "Nothing. Removing a key the record held marks it changed; removing one it did not hold \
-          leaves it exactly as it was.",
+    ret: "Nothing. After it, `get()` returns `null` for `$key`. The other keys keep their values. \
+          To delete every key, use `clear()`.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, so there is no record to change.",
+            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
+                   session to change.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "As `set()`: what is left of the record is encoded again, and the carrier \
-                   refuses the same graphs on the way out as on the way in.",
+            desc: "As `set()`. The values that are left are saved again, and a value `set()` does \
+                   not allow cannot be saved.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "As `get()`, because removing one key reads the whole record first.",
+            desc: "As `get()`, because `remove()` reads the whole session first.",
         },
     ],
 };
@@ -1981,6 +1980,110 @@ mod tests {
             "a record this unit cannot decode throws rather than reading as empty"
         );
         drop(ctx.take_pending());
+    }
+
+    /// `Core\Session::remove` through the member: a held key goes and earns a write, the other
+    /// keys stay, and a key the record does not hold earns no write at all.
+    ///
+    /// The flag is asserted on both sides because the second half is the member's own branch: a
+    /// `remove` that re-encoded the record regardless would leave every key correct and still put
+    /// a request that changed nothing back on the write path.
+    // covers: Core\Session::remove
+    #[test]
+    fn remove_takes_a_held_key_out_and_earns_no_write_for_an_absent_one() {
+        fn removed(ctx: &mut Ctx, key: &[u8]) -> Result<Value, i32> {
+            let key = Value::str(NvsStr::new(key));
+            let answer = nvs_runtime::call(super::nvs_core_session_remove, ctx, &[key]);
+            dropped(key);
+            answer
+        }
+
+        let mut ctx = Ctx::buffered();
+        assert!(
+            removed(&mut ctx, b"cart").is_err(),
+            "a request that never started a session has no record to change"
+        );
+        drop(ctx.take_pending());
+
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: Vec::new(),
+            dirty: false,
+            write_back: super::send_at_end,
+        });
+        let mut writing = record(&ctx, "set").expect("a started session has a record to write");
+        writing.set(NvsStr::new(b"cart"), Value::int(17));
+        writing.set(NvsStr::new(b"user"), Value::int(4));
+        write_back(&mut ctx, writing, "set").expect("the record encodes");
+        ctx.session_mut().expect("the session is open").dirty = false;
+
+        let before = ctx.session().expect("the session is open").record.clone();
+        dropped(removed(&mut ctx, b"missing").expect("an absent key is not an error"));
+        let session = ctx.session().expect("the session is open");
+        assert!(!session.dirty, "removing an absent key is not a change");
+        assert_eq!(
+            session.record, before,
+            "and leaves the record's bytes as they were"
+        );
+
+        dropped(removed(&mut ctx, b"cart").expect("a held key is removed"));
+        assert!(
+            ctx.session().expect("the session is open").dirty,
+            "removing a held key is a change, so it earns a write"
+        );
+        let held = record(&ctx, "get").expect("the record decodes");
+        assert!(!held.has_key(b"cart"), "the removed key is gone");
+        assert!(held.has_key(b"user"), "and the other key stays");
+        drop(held);
+    }
+
+    /// `Core\Session::set` through the member: the value is saved and earns a write, a second
+    /// `set` replaces it, and the caller's own reference to a heap value survives the call.
+    ///
+    /// The string is released by this test after each call, so a member that took the argument's
+    /// reference instead of retaining its own would free it twice here and panic.
+    // covers: Core\Session::set
+    #[test]
+    fn set_saves_a_value_replaces_it_and_earns_a_write() {
+        fn saved(ctx: &mut Ctx, key: &[u8], value: &[u8]) -> Result<Value, i32> {
+            let key = Value::str(NvsStr::new(key));
+            let value = Value::str(NvsStr::new(value));
+            let answer = nvs_runtime::call(super::nvs_core_session_set, ctx, &[key, value]);
+            dropped(key);
+            dropped(value);
+            answer
+        }
+        fn read(ctx: &Ctx, key: &[u8]) -> Option<String> {
+            let held = record(ctx, "get").expect("the record decodes");
+            let text = held
+                .get(key)
+                .and_then(|value| value.as_text().map(str::to_owned));
+            drop(held);
+            text
+        }
+
+        let mut ctx = Ctx::buffered();
+        assert!(
+            saved(&mut ctx, b"language", b"en").is_err(),
+            "a request that never started a session has no record to write"
+        );
+        drop(ctx.take_pending());
+
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: Vec::new(),
+            dirty: false,
+            write_back: super::send_at_end,
+        });
+        dropped(saved(&mut ctx, b"language", b"en").expect("a started session saves"));
+        assert!(
+            ctx.session().expect("the session is open").dirty,
+            "saving is a change, so it earns a write"
+        );
+        assert_eq!(read(&ctx, b"language").as_deref(), Some("en"));
+
+        dropped(saved(&mut ctx, b"language", b"de").expect("a second value replaces the first"));
+        assert_eq!(read(&ctx, b"language").as_deref(), Some("de"));
     }
 
     /// The key is prefixed and carries the id, so one store holding a cache, a limiter and a

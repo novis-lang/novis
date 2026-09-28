@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a request saves a closure, deeply nested arrays and large values in its
+// session. A closure must throw a `LogicError`, and nothing may crash or leak.
+// hostile: timeout-ms 60000
+
+// 1. The request saves a value in a session it never started. This throws a `RuntimeError`.
+try {
+    Core\Session::set('user', 'ada');
+    echo "saved in a session that was never started\n";
+} catch (RuntimeError $e) {
+    echo "not started: RuntimeError\n";
+}
+
+Core\Session::start();
+
+// 2. The request saves a closure. This throws a `LogicError`, and the session does not change.
+var $fn = fn(): int => 1;
+try {
+    Core\Session::set('handler', $fn);
+    echo "saved a closure\n";
+} catch (LogicError $closureError) {
+    echo "closure: LogicError\n";
+}
+echo 'handler: ', Core\Session::get('handler') ?? '(none)', "\n";
+
+// 3. The request saves an array inside an array, 200 levels deep.
+mixed $nested = 'bottom';
+uint $depth = 0;
+while ($depth < 200) {
+    $nested = [$nested];
+    $depth = $depth + 1;
+}
+try {
+    Core\Session::set('nested', $nested);
+    echo "nested: saved\n";
+} catch (LogicError $nestedError) {
+    echo "nested: LogicError\n";
+}
+
+// 4. The request replaces one value of 1 MB with another, 50 times.
+uint $i = 0;
+while ($i < 50) {
+    Core\Session::set('big', Core\Str::repeat('x', 1048576 + $i));
+    $i = $i + 1;
+}
+echo 'big length: ', Core\Str::length(Core\Session::get('big') as ?string ?? ''), "\n";
+
+// 5. The request saves 2000 keys, then saves a new value under each of them.
+uint $round = 0;
+while ($round < 2) {
+    uint $key = 0;
+    while ($key < 2000) {
+        Core\Session::set('item-' . $key, $key + $round);
+        $key = $key + 1;
+    }
+    $round = $round + 1;
+}
+echo 'item-1999: ', Core\Session::get('item-1999') ?? '(none)', "\n";
+
+// 6. The request ends the session and then saves a value. This throws a `RuntimeError`.
+Core\Session::destroy();
+try {
+    Core\Session::set('user', 'ada');
+    echo "saved in a session that was destroyed\n";
+} catch (RuntimeError $e) {
+    echo "destroyed: RuntimeError\n";
+}
