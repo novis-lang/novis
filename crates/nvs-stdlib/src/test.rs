@@ -4817,6 +4817,69 @@ mod tests {
         }
     }
 
+    /// `answerHttp`'s status, asserted on both sides: the floor and the ceiling
+    /// are registered, one past either throws. An answer that throws adds no
+    /// row, so refused answers alone leave the test on the network rather than
+    /// arming a table with nothing in it — and an answer naming both `json` and
+    /// `body` is refused the same way.
+    // covers: Core\Test::answerHttp
+    #[test]
+    fn answer_http_takes_every_status_a_status_line_carries_and_a_refused_answer_arms_nothing() {
+        fn answer(ctx: &mut Ctx, url: &str, status: u64, json: Value) -> Result<(), String> {
+            let args = [
+                Value::str(nvs_runtime::NvsStr::new(url.as_bytes())),
+                Value::uint(status),
+                json,
+                Value::str(nvs_runtime::NvsStr::new(b"ok")),
+                Value::array(nvs_runtime::NvsArray::new()),
+                Value::null(),
+            ];
+            let answered = nvs_runtime::call(nvs_core_test_answer_http, ctx, &args);
+            for arg in args {
+                dropped(arg);
+            }
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a refused answer says why")
+                    .into_owned()),
+            }
+        }
+        const URL: &str = "https://api.example.com/";
+
+        let mut ctx = Ctx::buffered();
+        for status in [STATUS_FLOOR - 1, STATUS_CEILING + 1, u64::MAX] {
+            let why = answer(&mut ctx, URL, status, Value::unset())
+                .expect_err("a status line carries three digits");
+            assert!(
+                why.contains(&format!("between {STATUS_FLOOR} and {STATUS_CEILING}")),
+                "{why}"
+            );
+        }
+        let why = answer(&mut ctx, URL, 200, Value::uint(1)).expect_err("one body, two spellings");
+        assert!(why.contains("two spellings of one body"), "{why}");
+        assert!(
+            !ctx.faked_http_mut().is_armed(),
+            "a refused answer registers no row"
+        );
+
+        for status in [STATUS_FLOOR, STATUS_CEILING] {
+            let url = format!("{URL}{status}");
+            answer(&mut ctx, &url, status, Value::unset()).expect("a status a line can carry");
+            let row = ctx
+                .faked_http_mut()
+                .answer_for(&url)
+                .expect("the row just registered");
+            assert_eq!(u64::from(row.status), status);
+            assert_eq!(row.body, b"ok");
+        }
+        assert!(ctx.faked_http_mut().is_armed());
+    }
+
     /// § 5's own row, which is deliberately not shaped like § 4's: it takes the
     /// body whose failure is expected and nothing else — no `{message?:}`,
     /// because what it reports on is the ledger rather than a comparison, and

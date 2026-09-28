@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to give a program a fixed reply from a web service. After the first
+// `Core\Test::answerHttp` call, the program makes no network connections.
+
+#[Core\Json\Derive]
+class Weather {
+    public int $celsius;
+    public int $humidity;
+
+    public function constructor(int $celsius, int $humidity) {
+        $this->celsius = $celsius;
+        $this->humidity = $humidity;
+    }
+}
+
+// `json` is the body of the reply. The reply also gets the header
+// `content-type: application/json`.
+Core\Test::answerHttp("https://weather.example.com/today", 200, {
+    json: ["celsius" => 21, "humidity" => 40],
+});
+
+Core\Http\Response $response = Core\Http\Client::get("https://weather.example.com/today");
+
+// This prints `200`.
+echo $response->status(), "\n";
+
+// `jsonAs<Weather>` reads the body into a `Weather`. This prints `21 C, 40 %`.
+Weather $weather = $response->jsonAs<Weather>();
+echo $weather->celsius, " C, ", $weather->humidity, " %\n";

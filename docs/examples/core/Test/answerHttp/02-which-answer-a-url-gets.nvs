@@ -1,0 +1,28 @@
+<?nvs
+// Shows which answer a call gets when several URLs could match it.
+
+use Core\Http\Client;
+use Core\Test;
+
+// A URL that ends in `*` answers every URL that starts with the text before it.
+Test::answerHttp("https://shop.example.com/*", 503, {body: "down"});
+Test::answerHttp("https://shop.example.com/products/*", 404, {body: "no such product"});
+Test::answerHttp("https://shop.example.com/products/7", 200, {body: "Blue mug"});
+
+// The whole URL matches the third answer. An exact match always wins.
+// This prints `200`.
+echo Client::get("https://shop.example.com/products/7")->status(), "\n";
+
+// Two prefixes match. The longer one wins, so this prints `404`.
+echo Client::get("https://shop.example.com/products/8")->status(), "\n";
+
+// Only the first prefix matches. This prints `503`.
+echo Client::get("https://shop.example.com/cart")->status(), "\n";
+
+// No answer matches this URL, so the call throws a `LogicError`.
+// The program does not use the network for it.
+try {
+    Client::get("https://api.example.com/users");
+} catch (LogicError $error) {
+    echo "LogicError\n";
+}
