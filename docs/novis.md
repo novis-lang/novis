@@ -7247,15 +7247,15 @@ Joins the strings in `$parts` into one string, with `$separator` between each tw
 Core\Str::split(string $s, string $separator, {limit?: int}): array<string>
 ```
 
-Splits `$s` at every occurrence of `$separator`, as `explode` does.
+Splits `$s` into parts at every place where `$separator` is found. Replaces PHP's `explode`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to split. |
-| `$separator` | `string` | The text to split at, matched case-sensitively; never empty. |
-| `{limit: …}` | `int` (default `9223372036854775807`) | At most this many pieces when positive, the last holding the unsplit remainder; every piece but the last `-limit` of them when negative; the subject unsplit when `0`. The default is no limit. |
+| `$separator` | `string` | The text to split at. Upper and lower case are different. It must not be empty. |
+| `{limit: …}` | `int` (default `9223372036854775807`) | A positive limit gives at most that many parts. The last part contains the rest of the string. A negative limit deletes that many parts from the end. `0` gives the whole string as one part. The default is no limit. |
 
-**Returns** `array<string>` — The pieces in order, without the separator; `[""]` for the empty string, and `[]` when a negative limit drops every piece.
+**Returns** `array<string>` — The parts in order, without the separator. The empty string gives `[""]`. A negative limit that deletes every part gives `[]`.
 
 **Throws** `RuntimeError` — `$separator` is empty.
 

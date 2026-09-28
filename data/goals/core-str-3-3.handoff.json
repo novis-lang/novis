@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-str-3-3`: `Core\\Str::slice` has every feature proof on disk: description, three\nexamples, attack, bench record, a Rust test with its `covers:` marker, and a card in plain words.\n`window` no longer counts the whole subject unless the length is negative, and a non-negative\nlength is walked from the start. `granularity::Unit::byte_of_index` reads only the prefix up to its\nindex, so a short slice at the start of a long text no longer scans all of it. Every `Core\\Str` perf\nrecord was re-measured after `str.rs` changed. The `Core\\Queue::delete` attack has a 30 s limit:\nit made about 25000 statements and ran past 10 s on a loaded machine; it takes about 4 s idle.\nThe members still owed in this goal are `split`, `startsWith`, `trim`, `trimStart`, `trimEnd`,\n`wrap`, `upper` and `upperFirst`.",
+  "state": "Goal `core-str-3-3`: `Core\\Str::split` has every feature proof on disk: description, three\nexamples, attack, bench record, two Rust tests with its `covers:` marker, and a card in plain words.\n`split` now counts its pieces first and pays for the whole list through `nvs_runtime::affordable`\nand `NvsArray::try_reserve`, the way `lines_array` does. Before this, a subject of separators alone\nbuilt an array about nine times the memory limit before the breach was reported. A negative limit\nno longer collects a `Vec<&str>` of every piece. Every `Core\\Str` perf record was re-measured after\n`str.rs` changed. `--record-perf` refused calibration twice on a busy machine and passed on the\nthird try. The members still owed in this goal are `startsWith`, `trim`, `trimStart`, `trimEnd`,\n`wrap`, `upper` and `upperFirst`.",
   "next": {
     "stage": 1,
     "title": "member proofs, file order",
@@ -8,20 +8,19 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::split`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Check whether it collects its parts outside the memory limit before it builds the array, as `reverse` did. `crates/nvs-stdlib/src/str.rs:2049`"
+        "text": "**`Core\\Str::startsWith`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); a scalar result, so its bench declares `// bench: allocations 0`. `crates/nvs-stdlib/src/str.rs:1964`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::startsWith`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); a scalar result, so its bench declares `// bench: allocations 0`. `crates/nvs-stdlib/src/str.rs:1962`"
+        "text": "**`Core\\Str::trim`, `trimStart`, `trimEnd`** — each owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); if the three share one helper, one Rust test with three `covers:` markers is enough. `crates/nvs-stdlib/src/str.rs:2321`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::trim`, `trimStart`, `trimEnd`** — each owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); if the three share one implementation (not checked), one attack shape fits all three. `crates/nvs-stdlib/src/str.rs:2301`"
+        "text": "**`Core\\Str::upper`, `upperFirst`, `wrap`** — each owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Check that each result is written through `built` and not a Rust `String` the budget never sees, as `replaceAll` was. `crates/nvs-stdlib/src/str.rs:3453`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Str::wrap`, `upper`, `upperFirst` still owe every proof but help (`rule:testing/feature-proofs`).",
-    "`window` still counts the whole subject for a negative offset or length. `Unit::length_of` would read the cached grapheme count, but `window` gets `&str` and not the `Value` (`crates/nvs-stdlib/src/str.rs` § `window`)."
+    "`Core\\Str::chunk`, `graphemes` and `codePoints` append one entry per piece and ask no budget, so a long subject builds its array past the memory limit before the breach is reported; `lines_array` and `split` pay first. `crates/nvs-stdlib/src/str.rs:2119` — owner: goal `core-str-3-3` if a slice fits, else a `# Known gaps` item in `str.rs`'s module doc."
   ]
 }
