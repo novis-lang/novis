@@ -19246,11 +19246,11 @@ Removes every value from the session of this request. The session stays open and
 Core\Session::regenerate(): void
 ```
 
-Issues a new identifier, moves the record to it and forgets the old entry — what to call the moment a request changes who the session speaks for.
+Gives the session a new identifier and deletes the old one from the store. Call it when a user signs in, so an identifier that somebody else knew stops working.
 
-**Returns** `void` — Nothing. The response carries the new identifier in its session cookie, and the record survives the move unchanged. There is no argument for keeping the old entry: one of the two answers is a fixation window and the other is a lost session.
+**Returns** `void` — Nothing. The data in the session does not change. The response sends the new identifier in the session cookie. The old identifier no longer finds the session.
 
-**Throws** `RuntimeError` — This request has not called `start()`, so there is no session to move; the shared store is unconfigured or refused by capability; or `[session] cookie` is not a cookie name.; `IOError` — The configured store cannot be reached. Unlike `start()`, this is not recoverable by issuing a fresh session: the old identifier is still live wherever the store is, which is the whole thing this member was called to end.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. It is also thrown when `[cache.shared] url` is not set, when the program does not have the `cache.shared` capability, or when `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The old identifier may still work, so do not treat the user as signed in.
 
 <a id="core-core-session-destroy"></a>
 #### `Core\Session::destroy`
@@ -19272,17 +19272,17 @@ Ends the session of this request and deletes its data from the store. Call it wh
 Core\Session::setSecret(string $key, secret string $value, array<secret bytes> $keys): void
 ```
 
-Writes one key of this request's session record sealed under a key ring, which is the only way a user's own secret is held in a session.
+Saves a secret, such as an access token, in the session of this request. The secret is encrypted with a key from `$keys`, so the store only sees encrypted bytes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `string` (neutral) | The key to write. It names a value no other member of this class can read: `get()` answers `null` there, and `getSecret()` under the same ring is the one door back. |
-| `$value` | `secret string` (neutral) | The secret to seal — an access or refresh token a request holds on the user's behalf. What reaches the store is ciphertext, and the record crosses it as the byte carrier it already was. |
-| `$keys` | `array<secret bytes>` | The key ring, newest first. The newest key seals; every key of it is tried when the value is read back, so a rotation leaves what it wrote readable. |
+| `$key` | `string` (neutral) | The key to save the secret under. `get()` returns `null` for this key. Only `getSecret()` with the same `$keys` can read the secret. |
+| `$value` | `secret string` (neutral) | The secret to save, for example an access token or a refresh token of the user. |
+| `$keys` | `array<secret bytes>` | A list of encryption keys, newest first. `Core\Crypto::generateKey()` creates one. The first key encrypts the secret. |
 
-**Returns** `void` — Nothing. The record is marked changed, as `set()` marks it, which is what earns it a write back to the store when the request ends.
+**Returns** `void` — Nothing. The session is saved to the store once, when the request ends.
 
-**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to write.; `LogicError` — `$keys` is empty or holds something that is not a key — a ring that cannot seal anything is the program's own bug rather than a value to write.; `ParseError` — As `get()`, because writing one key reads the whole record first.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to save into.; `LogicError` — `$keys` is empty, or its first key is not 32 bytes long.; `ParseError` — As `get()`, because `setSecret()` reads the whole session first.
 
 <a id="core-core-session-getsecret"></a>
 #### `Core\Session::getSecret`
@@ -19291,16 +19291,16 @@ Writes one key of this request's session record sealed under a key ring, which i
 Core\Session::getSecret(string $key, array<secret bytes> $keys): ?secret string
 ```
 
-Reads back a value `setSecret` sealed into this request's session record, answering `null` where the ring does not open one.
+Reads a secret that `setSecret()` saved in the session of this request. If the secret cannot be decrypted with `$keys`, the result is `null`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `string` (neutral) | The key `setSecret` wrote. The name is sealed in as well as looked up, so a value is not readable under a second one. |
-| `$keys` | `array<secret bytes>` | The key ring, newest first. Every key of it is tried, so a value sealed before a rotation stays readable until it is written again. |
+| `$key` | `string` (neutral) | The key the secret was saved under. A secret saved under one key cannot be read under another key. |
+| `$keys` | `array<secret bytes>` | A list of encryption keys, newest first. Every key in the list is tried. When you add a new key at the front, secrets saved with the older keys can still be read. |
 
-**Returns** `?secret string` — The secret sealed under `$key`, or `null`. Every way of not opening one is that same `null` — a ring that has rotated past it, a value moved to another name or another application, a tampered payload — so a caller learns nothing about the ring from a value it cannot read.
+**Returns** `?secret string` — The secret saved under `$key`, or `null`. The result is `null` when nothing is saved under `$key`, when no key in `$keys` decrypts it, and when the saved bytes were changed. Reading does not change the session.
 
-**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to read.; `LogicError` — `$keys` is empty or holds something that is not a key, which is the one thing here that is not a miss.; `ParseError` — As `get()`: the stored record names a class this program cannot resolve.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to read.; `LogicError` — `$keys` is empty, or a key in it is not 32 bytes long.; `ParseError` — As `get()`, because `getSecret()` reads the whole session first.
 
 <a id="core-core-socket"></a>
 ### `Core\Socket`

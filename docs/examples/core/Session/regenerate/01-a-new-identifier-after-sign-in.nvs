@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to give the session a new identifier when a user signs in.
+
+Core\Session::start();
+
+// The user signed in. `regenerate()` replaces the identifier in the session cookie.
+Core\Session::regenerate();
+Core\Session::set("user", "ada");
+
+// The session works as before. This prints `signed in as ada`.
+echo "signed in as ", Core\Session::get("user") ?? "(nobody)", "\n";

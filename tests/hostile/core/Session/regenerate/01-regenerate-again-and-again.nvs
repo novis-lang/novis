@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request changes its session identifier many times, with a large session
+// and after the session has ended. Nothing may crash or leak, and no value may be lost.
+// hostile: timeout-ms 60000
+
+// 1. The request changes the identifier of a session it never started. This throws a `RuntimeError`.
+try {
+    Core\Session::regenerate();
+    echo "regenerated a session that was never started\n";
+} catch (RuntimeError $e) {
+    echo "not started: RuntimeError\n";
+}
+
+Core\Session::start();
+Core\Session::set('user', 'ada');
+
+// 2. The request changes the identifier 1000 times in a row. The value must still be there.
+uint $i = 0;
+while ($i < 1000) {
+    Core\Session::regenerate();
+    $i = $i + 1;
+}
+echo 'after 1000: ', Core\Session::get('user') ?? '(lost)', "\n";
+
+// 3. The session holds 5 MB. Each change of identifier writes all of it to the store.
+Core\Session::set('big', Core\Str::repeat('x', 5000000));
+uint $j = 0;
+while ($j < 20) {
+    try {
+        Core\Session::regenerate();
+    } catch (Throwable $bigError) {
+        echo "big: stopped\n";
+    }
+    $j = $j + 1;
+}
+echo 'big length: ', Core\Str::length(Core\Session::get('big') as ?string ?? ''), "\n";
+
+// 4. The request changes a value and the identifier in turns. The last value must win.
+uint $k = 0;
+while ($k < 200) {
+    Core\Session::set('counter', $k);
+    Core\Session::regenerate();
+    $k = $k + 1;
+}
+echo 'counter: ', Core\Session::get('counter') ?? '(lost)', "\n";
+
+// 5. The request ends the session and then changes the identifier. This throws a `RuntimeError`.
+Core\Session::destroy();
+try {
+    Core\Session::regenerate();
+    echo "regenerated a session that was destroyed\n";
+} catch (RuntimeError $e) {
+    echo "destroyed: RuntimeError\n";
+}

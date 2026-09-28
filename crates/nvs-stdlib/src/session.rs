@@ -419,24 +419,22 @@ const CLEAR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Session::regenerate`'s reference card — `rule:core-api/reference-card`.
 const REGENERATE_DOC: MethodDoc = MethodDoc {
-    short: "Issues a new identifier, moves the record to it and forgets the old entry — what to \
-            call the moment a request changes who the session speaks for.",
+    short: "Gives the session a new identifier and deletes the old one from the store. Call it \
+            when a user signs in, so an identifier that somebody else knew stops working.",
     params: &[],
-    ret: "Nothing. The response carries the new identifier in its session cookie, and the record \
-          survives the move unchanged. There is no argument for keeping the old entry: one of the \
-          two answers is a fixation window and the other is a lost session.",
+    ret: "Nothing. The data in the session does not change. The response sends the new identifier \
+          in the session cookie. The old identifier no longer finds the session.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, so there is no session to move; the \
-                   shared store is unconfigured or refused by capability; or `[session] cookie` is \
-                   not a cookie name.",
+            desc: "This request has not called `start()`, or it called `destroy()`. It is also \
+                   thrown when `[cache.shared] url` is not set, when the program does not have the \
+                   `cache.shared` capability, or when `[session] cookie` is not a valid cookie name.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The configured store cannot be reached. Unlike `start()`, this is not \
-                   recoverable by issuing a fresh session: the old identifier is still live \
-                   wherever the store is, which is the whole thing this member was called to end.",
+            desc: "The store cannot be reached. The old identifier may still work, so do not \
+                   treat the user as signed in.",
         },
     ],
 };
@@ -465,84 +463,80 @@ const DESTROY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Session::setSecret`'s reference card — `rule:core-api/reference-card`.
 const SET_SECRET_DOC: MethodDoc = MethodDoc {
-    short: "Writes one key of this request's session record sealed under a key ring, which is the \
-            only way a user's own secret is held in a session.",
+    short: "Saves a secret, such as an access token, in the session of this request. The secret \
+            is encrypted with a key from `$keys`, so the store only sees encrypted bytes.",
     params: &[
         ParamDoc {
             name: "key",
-            desc: "The key to write. It names a value no other member of this class can read: \
-                   `get()` answers `null` there, and `getSecret()` under the same ring is the one \
-                   door back.",
+            desc: "The key to save the secret under. `get()` returns `null` for this key. Only \
+                   `getSecret()` with the same `$keys` can read the secret.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The secret to seal — an access or refresh token a request holds on the user's \
-                   behalf. What reaches the store is ciphertext, and the record crosses it as the \
-                   byte carrier it already was.",
+            desc: "The secret to save, for example an access token or a refresh token of the user.",
             shape: &[],
         },
         ParamDoc {
             name: "keys",
-            desc: "The key ring, newest first. The newest key seals; every key of it is tried \
-                   when the value is read back, so a rotation leaves what it wrote readable.",
+            desc: "A list of encryption keys, newest first. `Core\\Crypto::generateKey()` creates \
+                   one. The first key encrypts the secret.",
             shape: &[],
         },
     ],
-    ret: "Nothing. The record is marked changed, as `set()` marks it, which is what earns it a \
-          write back to the store when the request ends.",
+    ret: "Nothing. The session is saved to the store once, when the request ends.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, so there is no record to write.",
+            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
+                   session to save into.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$keys` is empty or holds something that is not a key — a ring that cannot \
-                   seal anything is the program's own bug rather than a value to write.",
+            desc: "`$keys` is empty, or its first key is not 32 bytes long.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "As `get()`, because writing one key reads the whole record first.",
+            desc: "As `get()`, because `setSecret()` reads the whole session first.",
         },
     ],
 };
 
 /// `Core\Session::getSecret`'s reference card — `rule:core-api/reference-card`.
 const GET_SECRET_DOC: MethodDoc = MethodDoc {
-    short: "Reads back a value `setSecret` sealed into this request's session record, answering \
-            `null` where the ring does not open one.",
+    short: "Reads a secret that `setSecret()` saved in the session of this request. If the \
+            secret cannot be decrypted with `$keys`, the result is `null`.",
     params: &[
         ParamDoc {
             name: "key",
-            desc: "The key `setSecret` wrote. The name is sealed in as well as looked up, so a \
-                   value is not readable under a second one.",
+            desc: "The key the secret was saved under. A secret saved under one key cannot be \
+                   read under another key.",
             shape: &[],
         },
         ParamDoc {
             name: "keys",
-            desc: "The key ring, newest first. Every key of it is tried, so a value sealed before \
-                   a rotation stays readable until it is written again.",
+            desc: "A list of encryption keys, newest first. Every key in the list is tried. When \
+                   you add a new key at the front, secrets saved with the older keys can still be \
+                   read.",
             shape: &[],
         },
     ],
-    ret: "The secret sealed under `$key`, or `null`. Every way of not opening one is that same \
-          `null` — a ring that has rotated past it, a value moved to another name or another \
-          application, a tampered payload — so a caller learns nothing about the ring from a \
-          value it cannot read.",
+    ret: "The secret saved under `$key`, or `null`. The result is `null` when nothing is saved \
+          under `$key`, when no key in `$keys` decrypts it, and when the saved bytes were \
+          changed. Reading does not change the session.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, so there is no record to read.",
+            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
+                   session to read.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$keys` is empty or holds something that is not a key, which is the one thing \
-                   here that is not a miss.",
+            desc: "`$keys` is empty, or a key in it is not 32 bytes long.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "As `get()`: the stored record names a class this program cannot resolve.",
+            desc: "As `get()`, because `getSecret()` reads the whole session first.",
         },
     ],
 };
@@ -1921,6 +1915,73 @@ mod tests {
         drop(ctx.take_pending());
     }
 
+    /// `Core\Session::regenerate` as a program reaches it: the record moves to a new identifier in
+    /// the store and the old entry is forgotten, before the request's own session changes.
+    ///
+    /// With no store configured the member throws and the request keeps the id and record it had,
+    /// so a login that did not harden is never reported as one. Over [`serving`] the store holds
+    /// the record under the new id alone, and the request holds the same record, not dirty, because
+    /// the move already wrote it.
+    // covers: Core\Session::regenerate
+    #[test]
+    fn regenerate_moves_the_record_to_a_new_id_and_forgets_the_old_one() {
+        let mut ctx = Ctx::buffered();
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_regenerate, &mut ctx, &[]).is_err(),
+            "a request that never started a session has nothing to move"
+        );
+        drop(ctx.take_pending());
+
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: RECORD.to_vec(),
+            dirty: false,
+            write_back: super::send_at_end,
+        });
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_regenerate, &mut ctx, &[]).is_err(),
+            "no `[cache.shared] url`, so no store can take the record"
+        );
+        drop(ctx.take_pending());
+        let kept = ctx
+            .session()
+            .expect("a refused regenerate leaves the session open");
+        assert_eq!(kept.id, ID);
+        assert_eq!(kept.record, RECORD);
+
+        let (listener, address) = listening();
+        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        held.lock()
+            .expect("the store")
+            .insert(key_of(ID), RECORD.to_vec());
+        let store = Arc::clone(&held);
+        thread::spawn(move || serving(listener, store));
+        ctx.set_config(crate::tests::granting(&format!(
+            "[capabilities.cache]\nshared = true\n[cache.shared]\nurl = \"redis://{address}\"\n"
+        )));
+
+        nvs_runtime::call(super::nvs_core_session_regenerate, &mut ctx, &[])
+            .expect("a configured store takes the record under a new id");
+        let moved = ctx.session().expect("the request keeps a session");
+        assert_ne!(moved.id, ID, "the identifier is new");
+        assert_eq!(moved.record, RECORD, "and the record is the one it had");
+        assert!(
+            !moved.dirty,
+            "the move wrote the record, so nothing is left to write"
+        );
+
+        let entries = held.lock().expect("the store");
+        assert!(
+            !entries.contains_key(&key_of(ID)),
+            "the old entry is gone from the store"
+        );
+        assert_eq!(
+            entries.get(&key_of(&moved.id)).map(Vec::as_slice),
+            Some(RECORD),
+            "and the record is under the new id"
+        );
+    }
+
     /// `Core\Session::get` through the member: a held key's value, `null` for a key the record
     /// does not hold and for one that holds `null`, and no write earned by any of them.
     ///
@@ -2084,6 +2145,154 @@ mod tests {
 
         dropped(saved(&mut ctx, b"language", b"de").expect("a second value replaces the first"));
         assert_eq!(read(&ctx, b"language").as_deref(), Some("de"));
+    }
+
+    /// A context with a session open over an empty record, as `start` leaves one.
+    fn started() -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_random_state(11);
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: Vec::new(),
+            dirty: false,
+            write_back: super::send_at_end,
+        });
+        ctx
+    }
+
+    /// Calls `setSecret(key, value, ring)` the way a program does, releasing what it built.
+    fn secret_set(ctx: &mut Ctx, key: &[u8], value: &[u8], ring: &[&[u8]]) -> Result<Value, i32> {
+        let args = [
+            Value::str(NvsStr::new(key)),
+            Value::str(NvsStr::new(value)),
+            crate::keyring::tests::ring_of(ring),
+        ];
+        let answer = nvs_runtime::call(super::nvs_core_session_set_secret, ctx, &args);
+        args.into_iter().for_each(dropped);
+        answer
+    }
+
+    /// Calls `getSecret(key, ring)` and reads the answer as text, `None` for `null`.
+    fn secret_got(ctx: &mut Ctx, key: &[u8], ring: &[&[u8]]) -> Result<Option<String>, i32> {
+        let args = [
+            Value::str(NvsStr::new(key)),
+            crate::keyring::tests::ring_of(ring),
+        ];
+        let answer = nvs_runtime::call(super::nvs_core_session_get_secret, ctx, &args);
+        args.into_iter().for_each(dropped);
+        answer.map(|value| {
+            let text = value.as_text().map(str::to_owned);
+            dropped(value);
+            text
+        })
+    }
+
+    const OLD: &[u8] = &[7; crate::crypto::KEY_LEN];
+    const NEW: &[u8] = &[9; crate::crypto::KEY_LEN];
+
+    /// `Core\Session::setSecret` through the member: the value lands sealed and earns a write, the
+    /// plain key stays empty so `get` cannot read it, and the stored bytes are not the plaintext.
+    ///
+    /// Both refusals are asserted before the write, because a member that checked the ring after
+    /// sealing would leave a half-written record behind a `LogicError`.
+    // covers: Core\Session::setSecret
+    #[test]
+    fn set_secret_seals_the_value_out_of_gets_reach_and_earns_a_write() {
+        let mut unstarted = Ctx::buffered();
+        assert!(
+            secret_set(&mut unstarted, b"refresh", b"sk-live-7", &[NEW]).is_err(),
+            "a request that never started a session has no record to write"
+        );
+        drop(unstarted.take_pending());
+
+        let mut ctx = started();
+        assert!(
+            secret_set(&mut ctx, b"refresh", b"sk-live-7", &[]).is_err(),
+            "an empty ring seals nothing"
+        );
+        drop(ctx.take_pending());
+        assert!(
+            !ctx.session().expect("the session is open").dirty,
+            "a refused ring changes nothing"
+        );
+
+        dropped(
+            secret_set(&mut ctx, b"refresh", b"sk-live-7", &[NEW])
+                .expect("a started session seals"),
+        );
+        assert!(
+            ctx.session().expect("the session is open").dirty,
+            "sealing a value is a change, so it earns a write"
+        );
+        let held = record(&ctx, "get").expect("the record decodes");
+        assert!(
+            !held.has_key(b"refresh"),
+            "`get` finds nothing under the plain key"
+        );
+        let sealed = held
+            .get(&sealed_key(b"refresh"))
+            .and_then(|value| value.as_bytes().map(<[u8]>::to_vec))
+            .expect("the sealed entry is bytes");
+        drop(held);
+        assert!(
+            !sealed.windows(9).any(|window| window == b"sk-live-7"),
+            "what the store receives is ciphertext"
+        );
+    }
+
+    /// `Core\Session::getSecret` through the member: the ring that sealed a value opens it, a ring
+    /// rotated with that key behind a newer one still does, and another ring or another name is
+    /// `null`. Reading is not a change, so it earns no write.
+    // covers: Core\Session::getSecret
+    #[test]
+    fn get_secret_opens_under_its_ring_after_a_rotation_and_misses_elsewhere() {
+        let mut unstarted = Ctx::buffered();
+        assert!(
+            secret_got(&mut unstarted, b"refresh", &[NEW]).is_err(),
+            "a request that never started a session has no record to read"
+        );
+        drop(unstarted.take_pending());
+
+        let mut ctx = started();
+        dropped(
+            secret_set(&mut ctx, b"refresh", b"sk-live-7", &[OLD])
+                .expect("a started session seals"),
+        );
+        ctx.session_mut().expect("the session is open").dirty = false;
+
+        assert_eq!(
+            secret_got(&mut ctx, b"refresh", &[OLD])
+                .expect("a key ring reads")
+                .as_deref(),
+            Some("sk-live-7"),
+            "the ring that sealed it opens it"
+        );
+        assert_eq!(
+            secret_got(&mut ctx, b"refresh", &[NEW, OLD])
+                .expect("a key ring reads")
+                .as_deref(),
+            Some("sk-live-7"),
+            "a rotated ring still holds the older key, and every key is tried"
+        );
+        assert_eq!(
+            secret_got(&mut ctx, b"refresh", &[NEW]).expect("a miss is not an error"),
+            None,
+            "a ring without the sealing key opens nothing"
+        );
+        assert_eq!(
+            secret_got(&mut ctx, b"never-written", &[OLD]).expect("a miss is not an error"),
+            None,
+            "a name nothing was sealed under is a miss"
+        );
+        assert!(
+            secret_got(&mut ctx, b"refresh", &[]).is_err(),
+            "an empty ring is the program's bug, and throws rather than missing"
+        );
+        drop(ctx.take_pending());
+        assert!(
+            !ctx.session().expect("the session is open").dirty,
+            "reading a secret changes nothing, so it earns no write"
+        );
     }
 
     /// The key is prefixed and carries the id, so one store holding a cache, a limiter and a

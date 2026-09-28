@@ -1,0 +1,25 @@
+<?nvs
+// Shows a sign-in page that gives the session a new identifier only when the password is right.
+
+class Login {
+    public static function signIn(string $user, string $password): string {
+        // A real program checks the password against its database here.
+        if ($password != "correct horse") {
+            return "wrong password";
+        }
+
+        // The user is now signed in, so the session gets a new identifier first.
+        Core\Session::regenerate();
+        Core\Session::set("user", $user);
+        return "welcome, " . $user;
+    }
+}
+
+Core\Session::start();
+
+// This prints `wrong password`. The session is not changed.
+echo Login::signIn("ada", "guess"), "\n";
+
+// This prints `welcome, ada`.
+echo Login::signIn("ada", "correct horse"), "\n";
+echo "user: ", Core\Session::get("user") ?? "(nobody)", "\n";
