@@ -976,8 +976,8 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::chunk`'s reference card — `rule:core-api/reference-card`.
 const CHUNK_DOC: MethodDoc = MethodDoc {
-    short: "Divides `$s` into pieces of `$size` characters each, as `str_split`, `mb_str_split` \
-            and `chunk_split` do — counted in graphemes, so no chunk ever splits a character.",
+    short: "Divides `$s` into pieces of `$size` characters each. A piece never cuts a character \
+            in half. Replaces PHP's `str_split`, `mb_str_split` and `chunk_split`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -986,12 +986,12 @@ const CHUNK_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "size",
-            desc: "How many characters each chunk holds; at least `1`.",
+            desc: "How many characters each piece has. It must be at least `1`.",
             shape: &[],
         },
     ],
-    ret: "The chunks in order, only the last of them possibly shorter; `[]` for the empty \
-          string.",
+    ret: "The pieces in order. Only the last piece can be shorter than `$size`. The result is \
+          `[]` for the empty string.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$size` is `0`.",
@@ -1027,15 +1027,16 @@ const GRAPHEMES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::codePoints`'s reference card — `rule:core-api/reference-card`.
 const CODE_POINTS_DOC: MethodDoc = MethodDoc {
-    short: "Lists the Unicode scalar values of `$s`, as `mb_str_split` plus `mb_ord` does — \
-            code points rather than graphemes, so a combining sequence is several.",
+    short: "Lists the code points of `$s`. A code point is the number Unicode gives to one \
+            symbol. One character a person sees can be several code points. Replaces PHP's \
+            `mb_str_split` followed by `mb_ord`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to read.",
         shape: &[],
     }],
-    ret: "One `uint` per code point, in order, each in `0..=0x10FFFF` and never a surrogate; \
-          `[]` for the empty string.",
+    ret: "One `uint` for each code point, in order. Each number is between `0` and `0x10FFFF` \
+          and is never a surrogate. The result is `[]` for the empty string.",
     errors: &[],
 };
 
@@ -1385,16 +1386,16 @@ const LOWER_FIRST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::fold`'s reference card — `rule:core-api/reference-card`.
 const FOLD_DOC: MethodDoc = MethodDoc {
-    short: "Case-folds `$s` through Unicode's default full folding, as \
-            `mb_convert_case($s, MB_CASE_FOLD)` does — a comparison key rather than text to \
-            show, so `ß` becomes `ss` and `ﬁ` becomes `fi`.",
+    short: "Case-folds `$s`: every letter changes to one fixed form, so text that differs only \
+            in upper and lower case gives the same result. Replaces PHP's \
+            `mb_convert_case($s, MB_CASE_FOLD)`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to fold.",
         shape: &[],
     }],
-    ret: "The folded string; two strings that differ only by case fold to the same one, which \
-          `compare`'s `{caseInsensitive: true}` cannot promise.",
+    ret: "The folded string. It is a key for comparing, not text to show: `ß` becomes `ss` and \
+          `ﬁ` becomes `fi`. `fold(\"STRASSE\") == fold(\"straße\")` is `true`.",
     errors: &[],
 };
 
@@ -4482,5 +4483,101 @@ mod tests {
                 "compare({left:?}, {right:?}, caseInsensitive: {fold})"
             );
         }
+    }
+
+    /// `fold` is Unicode's full case folding: it expands `ß`, ligatures and
+    /// `ΐ` into several characters, maps both Greek sigmas to one, and so
+    /// makes two spellings that differ only by case equal where `lower` does
+    /// not.
+    // covers: Core\Str::fold
+    #[test]
+    fn fold_expands_where_lower_does_not_so_caseless_spellings_meet() {
+        let fold = |text: &str| {
+            taken(run(super::nvs_core_str_fold, &[s(text)]).expect("fold never fails"))
+        };
+        assert_eq!(fold("Stra\u{df}e"), "strasse");
+        assert_eq!(fold("STRASSE"), fold("stra\u{df}e"));
+        assert_eq!(fold("\u{fb01}le"), "file");
+        assert_eq!(fold("\u{fb03}"), "ffi");
+        assert_eq!(fold("\u{390}"), "\u{3b9}\u{308}\u{301}");
+        assert_eq!(fold("\u{130}"), "i\u{307}");
+        assert_eq!(fold("\u{3a3}\u{3c2}\u{3c3}"), "\u{3c3}\u{3c3}\u{3c3}");
+        assert_eq!(fold("\u{1c5}ungla"), "\u{1c6}ungla");
+        assert_eq!(fold("Ada@Example.COM"), "ada@example.com");
+        assert_eq!(fold("already lower"), "already lower");
+        assert_eq!(fold(""), "");
+        let lower = taken(run(super::nvs_core_str_lower, &[s("Stra\u{df}e")]).expect("no failure"));
+        assert_eq!(lower, "stra\u{df}e");
+    }
+
+    /// `chunk` counts grapheme clusters, so a flag or an accented letter is
+    /// never cut; only the last chunk is short, the empty string is no chunks,
+    /// and a size of `0` throws.
+    // covers: Core\Str::chunk
+    #[test]
+    fn chunk_counts_clusters_leaves_only_the_last_short_and_refuses_a_zero_size() {
+        let chunk = |subject: &str, size: u64| {
+            let answer = run(super::nvs_core_str_chunk, &[s(subject), Value::uint(size)])
+                .expect("a size of at least 1 never fails");
+            let pieces: Vec<String> =
+                super::Elements::of(answer.array_ptr().expect("`chunk` returns an array"))
+                    .map(|piece| piece.as_text().expect("a chunk is a string").to_owned())
+                    .collect();
+            #[expect(
+                unsafe_code,
+                reason = "the case owns the one reference `chunk` returned"
+            )]
+            unsafe {
+                answer.release();
+            }
+            pieces
+        };
+        assert_eq!(chunk("abcdefg", 3), ["abc", "def", "g"]);
+        assert_eq!(chunk("abcdef", 3), ["abc", "def"]);
+        assert_eq!(chunk("abc", 9), ["abc"]);
+        assert_eq!(chunk("abc", u64::MAX), ["abc"]);
+        assert_eq!(chunk("R\u{e9}sum\u{e9}", 2), ["R\u{e9}", "su", "m\u{e9}"]);
+        assert_eq!(chunk("e\u{301}a", 1), ["e\u{301}", "a"]);
+        assert_eq!(
+            chunk("\u{1f1e9}\u{1f1ea}\u{1f1eb}\u{1f1f7}", 1),
+            ["\u{1f1e9}\u{1f1ea}", "\u{1f1eb}\u{1f1f7}"]
+        );
+        assert!(chunk("", 2).is_empty());
+        assert!(run(super::nvs_core_str_chunk, &[s("abc"), Value::uint(0)]).is_err());
+        assert!(run(super::nvs_core_str_chunk, &[s(""), Value::uint(0)]).is_err());
+    }
+
+    /// `codePoints` answers scalar values, not clusters: a combining mark and
+    /// each half of a flag are their own element, both ends of the scalar
+    /// range and both sides of the surrogate gap come back as written, and the
+    /// empty string is no elements.
+    // covers: Core\Str::codePoints
+    #[test]
+    fn code_points_answers_scalar_values_so_a_cluster_can_be_several() {
+        let points = |subject: &str| {
+            let answer = run(super::nvs_core_str_code_points, &[s(subject)])
+                .expect("codePoints never fails");
+            let numbers: Vec<u64> =
+                super::Elements::of(answer.array_ptr().expect("`codePoints` returns an array"))
+                    .map(|point| point.as_uint().expect("a code point is a uint"))
+                    .collect();
+            #[expect(
+                unsafe_code,
+                reason = "the case owns the one reference `codePoints` returned"
+            )]
+            unsafe {
+                answer.release();
+            }
+            numbers
+        };
+        assert_eq!(points("Hi \u{20ac}"), [72, 105, 32, 8364]);
+        assert_eq!(points("\u{e9}"), [0xe9]);
+        assert_eq!(points("e\u{301}"), [0x65, 0x301]);
+        assert_eq!(points("\u{1f1e9}\u{1f1ea}"), [0x1f1e9, 0x1f1ea]);
+        assert_eq!(
+            points("\u{0}\u{d7ff}\u{e000}\u{10ffff}"),
+            [0, 0xd7ff, 0xe000, 0x10ffff]
+        );
+        assert!(points("").is_empty());
     }
 }

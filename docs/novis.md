@@ -7266,14 +7266,14 @@ Splits `$s` at every occurrence of `$separator`, as `explode` does.
 Core\Str::chunk(string $s, uint $size): array<string>
 ```
 
-Divides `$s` into pieces of `$size` characters each, as `str_split`, `mb_str_split` and `chunk_split` do — counted in graphemes, so no chunk ever splits a character.
+Divides `$s` into pieces of `$size` characters each. A piece never cuts a character in half. Replaces PHP's `str_split`, `mb_str_split` and `chunk_split`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to divide. |
-| `$size` | `uint` | How many characters each chunk holds; at least `1`. |
+| `$size` | `uint` | How many characters each piece has. It must be at least `1`. |
 
-**Returns** `array<string>` — The chunks in order, only the last of them possibly shorter; `[]` for the empty string.
+**Returns** `array<string>` — The pieces in order. Only the last piece can be shorter than `$size`. The result is `[]` for the empty string.
 
 **Throws** `RuntimeError` — `$size` is `0`.
 
@@ -7314,13 +7314,13 @@ Splits `$s` into its extended grapheme clusters — the unit `length` counts and
 Core\Str::codePoints(string $s): array<uint>
 ```
 
-Lists the Unicode scalar values of `$s`, as `mb_str_split` plus `mb_ord` does — code points rather than graphemes, so a combining sequence is several.
+Lists the code points of `$s`. A code point is the number Unicode gives to one symbol. One character a person sees can be several code points. Replaces PHP's `mb_str_split` followed by `mb_ord`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The string to read. |
 
-**Returns** `array<uint>` — One `uint` per code point, in order, each in `0..=0x10FFFF` and never a surrogate; `[]` for the empty string.
+**Returns** `array<uint>` — One `uint` for each code point, in order. Each number is between `0` and `0x10FFFF` and is never a surrogate. The result is `[]` for the empty string.
 
 <a id="core-core-str-replace"></a>
 #### `Core\Str::replace`
@@ -7582,13 +7582,13 @@ Lower-cases the first character of `$s` and copies the rest through, as `lcfirst
 Core\Str::fold(string $s): string
 ```
 
-Case-folds `$s` through Unicode's default full folding, as `mb_convert_case($s, MB_CASE_FOLD)` does — a comparison key rather than text to show, so `ß` becomes `ss` and `ﬁ` becomes `fi`.
+Case-folds `$s`: every letter changes to one fixed form, so text that differs only in upper and lower case gives the same result. Replaces PHP's `mb_convert_case($s, MB_CASE_FOLD)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to fold. |
 
-**Returns** `string` — The folded string; two strings that differ only by case fold to the same one, which `compare`'s `{caseInsensitive: true}` cannot promise.
+**Returns** `string` — The folded string. It is a key for comparing, not text to show: `ß` becomes `ss` and `ﬁ` becomes `fi`. `fold("STRASSE") == fold("straße")` is `true`.
 
 <a id="core-core-str-normalize"></a>
 #### `Core\Str::normalize`

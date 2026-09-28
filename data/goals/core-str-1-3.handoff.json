@@ -1,27 +1,26 @@
 {
-  "state": "Goal `core-str-1-3`: 7 of the 13 members in `dossier-core-str-1-3` owe nothing. They are `Core\\Str::after`, `before`, `at`, `contains`, `endsWith`, `countOf` and `compare`. Each has `about.md`, three examples with blessed `.out`, one attack, one bench with a `docs/perf/members.ndjson` record, and a Rust `#[test]` with its `covers:` marker in `crates/nvs-stdlib/src/str.rs`'s `mod tests`. Their cards use the voice of AGENTS.md § *Text an end user reads*. The other cards in the file still say \"Answers …\".\n\n6 members still owe every proof: `chunk`, `codePoints`, `fold`, `format` (1 of 3 examples on disk), `fromCodePoint` and `fromCodePoints`. `bun nv proofs --verify --only <the check's 13 ids>` lists them. A new member's perf is recorded with `bun nv proofs --record-perf --only '<id>'`, and `--run --only '<id>'` runs its examples and attack. Novis has no `===`; an example compares with `==`. `Core\\Arr::sort($list, {comparator: fn(string $a, string $b): int => …})` is the sort with a comparator, and it is stable.",
+  "state": "Goal `core-str-1-3`: 10 of the 13 members in `dossier-core-str-1-3` owe nothing. They are `Core\\Str::after`, `before`, `at`, `contains`, `endsWith`, `countOf`, `compare`, `fold`, `chunk` and `codePoints`. Each has `about.md`, three examples with blessed `.out`, one attack, one bench with a `docs/perf/members.ndjson` record, and a Rust `#[test]` with its `covers:` marker in `crates/nvs-stdlib/src/str.rs`'s `mod tests`. Their cards use the voice of AGENTS.md § *Text an end user reads*. The other cards in the file still say \"Answers …\".\n\n3 members still owe every proof: `format` (1 of 3 examples on disk, `docs/examples/core/Str/format/01-basics.nvs`), `fromCodePoint` and `fromCodePoints`. When all three owe nothing the goal is met: run `bun nv verify --doc`, `bun nv owners --closes core-str-1-3` and `bun nv playbook --closes core-str-1-3` before writing `DONE`.\n\nHow to work a member: `bun nv proofs --id '<id>'` lists what it owes. `--bless <files>` writes the `.out` files, `--run --only '<id>'` runs the examples and the attack, and `--record-perf --only '<id>'` records the bench. Re-run `--record-perf` if the machine is busy and calibration fails. A Rust test reads an array result with `super::Elements::of(answer.array_ptr()…)` and a string result with `taken(…)`, as `chunk_counts_clusters_leaves_only_the_last_short_and_refuses_a_zero_size` does. An exception's text is `$error->message`, not `getMessage()`. A string-keyed array is `array<string>` checked with `Core\\Arr::hasKey`, and `map<…>` does not exist.",
   "next": {
     "stage": 1,
     "title": "member proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/str.rs` and the proof trees under `core/Str/fold`, `core/Str/chunk` and `core/Str/codePoints`.",
+    "note": "one file set: `crates/nvs-stdlib/src/str.rs` and the proof trees under `core/Str/fromCodePoint`, `core/Str/fromCodePoints` and `core/Str/format`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::fold`** — owes examples, hostile, perf, tests and `about.md` (`rule:testing/feature-proofs`). Card `FOLD_DOC` at `crates/nvs-stdlib/src/str.rs:1387`, body `nvs_core_str_fold` at `crates/nvs-stdlib/src/str.rs:3318`. Rewrite the card in the plain voice as `COUNT_OF_DOC` now is. Put the Rust test beside `compare_answers_the_sign_of_a_character_ordering_folded_or_not` at `crates/nvs-stdlib/src/str.rs:4457`."
+        "text": "**`Core\\Str::fromCodePoint`** — owes examples, hostile, perf, tests and `about.md` (`rule:testing/feature-proofs`). Card `FROM_CODE_POINT_DOC` at `crates/nvs-stdlib/src/str.rs:1424`, body `nvs_core_str_from_code_point` at `crates/nvs-stdlib/src/str.rs:3470`. Rewrite the card in the plain voice as `CODE_POINTS_DOC` now is. Put the Rust test after `code_points_answers_scalar_values_so_a_cluster_can_be_several` at `crates/nvs-stdlib/src/str.rs:4556`."
       },
       {
         "done": false,
-        "text": "**`Core\\Str::chunk`** — owes the same. Card `CHUNK_DOC` at `crates/nvs-stdlib/src/str.rs:978`, body `nvs_core_str_chunk` at `crates/nvs-stdlib/src/str.rs:2063`. Search `mod tests` for an existing test first: a marker on it may be the whole Rust edit, as it was for `compare`."
+        "text": "**`Core\\Str::fromCodePoints`** — owes the same. Card `FROM_CODE_POINTS_DOC` at `crates/nvs-stdlib/src/str.rs:1441`, body `nvs_core_str_from_code_points` at `crates/nvs-stdlib/src/str.rs:3491`. Its `about.md` should name `Core\\Str::codePoints` as the opposite, as `docs/examples/core/Str/codePoints/about.md` names it."
       },
       {
         "done": false,
-        "text": "**`Core\\Str::codePoints`** — owes the same. Card `CODE_POINTS_DOC` at `crates/nvs-stdlib/src/str.rs:1029`, body `nvs_core_str_code_points` at `crates/nvs-stdlib/src/str.rs:2197`."
+        "text": "**`Core\\Str::format`** — owes two more examples, hostile, perf, tests and `about.md`. Card `FORMAT_DOC` at `crates/nvs-stdlib/src/str.rs:1458`, body `nvs_core_str_format` at `crates/nvs-stdlib/src/str.rs:3549`. Bring `docs/examples/core/Str/format/01-basics.nvs` up to AGENTS.md § *Text an end user reads* while you are there."
       }
     ]
   },
   "backlog": [
-    "`Core\\Str::format`: card `FORMAT_DOC` at `crates/nvs-stdlib/src/str.rs:1457`, body at `crates/nvs-stdlib/src/str.rs:3548`, 1 of 3 examples on disk — `rule:testing/feature-proofs`.",
-    "`Core\\Str::fromCodePoint` and `fromCodePoints`: cards at `crates/nvs-stdlib/src/str.rs:1423` and `:1440`; a group of their own with `codePoints` if it does not fit above."
+    "The remaining `Core\\Str` cards that still say \"Answers …\" are goal `plain-comments`'s to sweep (AGENTS.md § *Text an end user reads*)."
   ]
 }
