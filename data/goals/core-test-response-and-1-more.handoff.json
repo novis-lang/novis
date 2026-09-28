@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-test-response-and-1-more` is reached: both stage-2 checks pass (`bun nv proofs --verify --group 'Core\\Test\\SentRequest'` and `--group 'Core\\Test\\Response'`), and `verify --doc`, `owners --closes` and `playbook --closes` are clear.\nEvery member of `Core\\Test\\Response` and `Core\\Test\\SentRequest` has its proofs, and both classes have their class cards.\nThe `header` attack found that the HTTP answer table and the scripted socket peer both accepted a header holding a control byte, where a real call throws before it connects. Both now run `transport::judged_field` first, and two conformance cases pin it.",
+  "state": "Goal `core-test-response-and-1-more` is reached: both stage-2 checks pass (`bun nv proofs --verify --group 'Core\\Test\\SentRequest'` and `--group 'Core\\Test\\Response'`), and `verify --doc`, `owners --closes` and `playbook --closes` are clear.\nThe `header` fix in `crates/nvs-stdlib/src/http.rs` and `crates/nvs-stdlib/src/http/socket.rs` made the floor's `Core\\Http*` perf figures stale. They are re-measured in `docs/perf/members.ndjson`, and all six `Core\\Http*` floor groups pass `bun nv proofs --verify`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -9,11 +9,11 @@
     "items": [
       {
         "done": false,
-        "text": "**Retry only if the driver's sweep refuses `DONE`** — re-run the check it names and fix what it prints. The members are rows at `crates/nvs-stdlib/src/test.rs:962`. `rule:testing/feature-proofs`."
+        "text": "**Retry only if the driver's sweep refuses `DONE`** — re-run the check it names and fix what it prints. A stale perf figure is `bun nv proofs --record-perf --only '<feature>'`. The members are rows at `crates/nvs-stdlib/src/test.rs:962`. `rule:testing/feature-proofs`."
       }
     ]
   },
   "backlog": [
-    "Nothing carried: the goal is reached."
+    "Nothing open for this goal."
   ]
 }
