@@ -16,7 +16,7 @@
 // hands in as `beside`, the Linux legs at a goal end, starts when the overlap tier does. The release
 // checks themselves run one at a time once every build, overlap command and `beside` run has ended, so a
 // perf guard measures on cores nothing else of the sweep is using. A sweep that stops at a red check
-// before the release tier tells the builds to stop: the cargo run in progress ends, and no other starts.
+// before the release tier stops the builds: the cargo run in progress is killed, and no other starts.
 //
 // A check is reached when the selection picks one of its atoms (`select/checks.ts`): something it was
 // seen to use changed, it is new, red or owed, or its record changed. A check with `memoize = false`
@@ -583,8 +583,8 @@ export interface AcceptanceOptions {
   label: (n: number) => string;
   /** What runs and judges one check: `driver/runner.ts`'s `Runner`, or a stand-in under test. `batch` is
    * told each tier's reached checks before the first of them runs. `prebuild` is handed the release
-   * tier's reached checks when the goal fixtures tier starts, and builds what they will build, starting
-   * no build once `stop` is aborted; its promise never rejects. */
+   * tier's reached checks when the goal fixtures tier starts, and builds what they will build. Once
+   * `stop` is aborted it kills the build in progress and starts no other; its promise never rejects. */
   sweep: { check(c: Check): Promise<Verdict>; batch?(checks: Check[]): void; prebuild?(checks: Check[], stop: AbortSignal): Promise<void> };
   /** Work that starts when the overlap tier does, beside the release builds, and that no measurement may
    * share the cores with: the release tier starts only once it ends, and the sweep never returns while it
@@ -622,8 +622,8 @@ export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise
   const pending = new Map<string, Promise<Verdict>>();
   // The release builds, started with the goal fixtures tier, and the caller's `beside` run, started with
   // the overlap tier. The sweep never returns while one still runs, so nothing it measures after them,
-  // and no other tree's sweep, shares the cores with them. Returning early stops the builds that have
-  // not started.
+  // and no other tree's sweep, shares the cores with them. Returning early kills the build in progress
+  // and starts no other.
   const stop = new AbortController();
   let prebuilt: Promise<void> = Promise.resolve();
   let besides: Promise<void> = Promise.resolve();

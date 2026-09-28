@@ -1,5 +1,6 @@
 // `proc.run` starts a program by its bare name wherever a shell would, handed an `env` or not, and
-// every program it starts is told where an instrumented binary writes its coverage counters.
+// every program it starts is told where an instrumented binary writes its coverage counters. An
+// aborted signal kills the program it was handed to.
 
 import { describe, expect, test } from "bun:test";
 import { DISCARD_PROFILE } from "../lib/paths.ts";
@@ -18,6 +19,30 @@ describe("proc", () => {
     const r = await run(["npm", "--version"], { env: { NV_PROC_TEST: "1" } });
     expect(r.code).toBe(0);
     expect(r.stdout.trim()).toMatch(/^\d+\.\d+/);
+  });
+
+  test("aborting the signal kills the program, and the run reports it as aborted", async () => {
+    const stop = new AbortController();
+    const started = Date.now();
+    const r = await run([process.execPath, "-e", "console.log('up'); setTimeout(() => {}, 60000)"], { signal: stop.signal, onLine: () => stop.abort() });
+    expect(r.aborted).toBe(true);
+    expect(r.timedOut).toBe(false);
+    expect(r.code).toBe(130);
+    expect(Date.now() - started).toBeLessThan(30000);
+  });
+
+  test("a run whose signal is already aborted starts nothing", async () => {
+    const stop = new AbortController();
+    stop.abort();
+    const r = await run(["no-such-program-anywhere"], { signal: stop.signal });
+    expect(r).toMatchObject({ aborted: true, code: 130, stdout: "" });
+  });
+
+  test("a run that ends before its signal is aborted is not aborted", async () => {
+    const stop = new AbortController();
+    const r = await run([process.execPath, "-e", "0"], { signal: stop.signal });
+    stop.abort();
+    expect(r).toMatchObject({ aborted: false, code: 0 });
   });
 });
 

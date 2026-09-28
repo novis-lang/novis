@@ -81,10 +81,12 @@ import {
 const TIMEOUT_MS = 1800 * 1000;
 
 /** Runs `argv` under `timeoutMs`, and turns a program that cannot start into exit -1 with the reason on
- * stderr. Whatever it started and left behind is killed with it. */
-async function capture(argv: string[], cwd: string, env?: Record<string, string>, timeoutMs: number = TIMEOUT_MS): Promise<Outcome> {
+ * stderr. Whatever it started and left behind is killed with it. Aborting `stop` kills it too, and
+ * the outcome is exit -1. */
+async function capture(argv: string[], cwd: string, env?: Record<string, string>, timeoutMs: number = TIMEOUT_MS, stop?: AbortSignal): Promise<Outcome> {
   try {
-    const r = await run(argv, { cwd, timeoutMs, reap: true, ...(env ? { env } : {}) });
+    const r = await run(argv, { cwd, timeoutMs, reap: true, ...(env ? { env } : {}), ...(stop ? { signal: stop } : {}) });
+    if (r.aborted) return { code: -1, out: r.stdout, err: "stopped: the sweep ended before it" };
     return { code: r.timedOut ? -1 : r.code, out: r.stdout, err: r.timedOut ? `timed out after ${timeoutMs / 1000}s` : r.stderr };
   } catch (e) {
     return { code: -1, out: "", err: String((e as Error).message ?? e) };
@@ -305,12 +307,16 @@ export class PlanSweep {
     return this.exes;
   }
 
-  private releaseCli(): Promise<Outcome> {
+  /** Builds the release `nvs` once per sweep. A build that `stop` killed is forgotten, so a later
+   * caller builds it again. */
+  private releaseCli(stop?: AbortSignal): Promise<Outcome> {
     this.release ??= (async () => {
       this.say("cargo build --release -p nvs-cli");
       // An editor running `nvs lsp` out of this tree holds the binary the link replaces;
       // `tools/nv/lib/relink.ts` moves it aside so the retry lands.
-      return linked(releaseCli(), () => capture(["cargo", "build", "--release", "-p", "nvs-cli"], ROOT), (r) => r.err);
+      const r = await linked(releaseCli(), () => capture(["cargo", "build", "--release", "-p", "nvs-cli"], ROOT, undefined, TIMEOUT_MS, stop), (r) => r.err);
+      if (stop?.aborted) this.release = undefined;
+      return r;
     })();
     return this.release;
   }
@@ -381,13 +387,13 @@ export class PlanSweep {
    * Builds what the release checks `checks` will build, one cargo run after another: the release `nvs`
    * for a check that measures it, and each release test with `--no-run`. The sweep calls it when its
    * goal fixtures tier starts, so the builds run beside that tier and the overlap commands, and the
-   * checks later find everything built. Once `stop` is aborted no further build starts. A build that
-   * fails is left for its check to build again and report, except the release `nvs`, whose one outcome
-   * every check that measures it shares.
+   * checks later find everything built. Aborting `stop` kills the build in progress, and no further
+   * build starts. A build that fails is left for its check to build again and report, except the
+   * release `nvs`, whose one outcome every check that measures it shares.
    */
   prebuild(checks: Check[], stop: AbortSignal): Promise<void> {
     return (async () => {
-      if (checks.some(measuresReleaseCli) && !stop.aborted) await this.releaseCli();
+      if (checks.some(measuresReleaseCli) && !stop.aborted) await this.releaseCli(stop);
       const seen = new Set<string>();
       for (const c of checks) {
         const argv = releaseBuildArgv(c);
@@ -395,7 +401,7 @@ export class PlanSweep {
         if (argv === null || seen.has(argv.join("\0"))) continue;
         seen.add(argv.join("\0"));
         this.say(`${argv.join(" ")} (built beside the goal fixtures and the overlap commands)`);
-        await capture(argv, ROOT);
+        await capture(argv, ROOT, undefined, TIMEOUT_MS, stop);
       }
     })().catch(() => undefined);
   }

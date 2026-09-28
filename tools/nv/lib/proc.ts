@@ -1,6 +1,7 @@
 // Running another program. An argument list goes to the program as it is, never through a shell, so
 // no quoting rule of any shell applies to it. Every run has a timeout, and a program that outlives it
-// is killed with every process it started, and reported as timed out.
+// is killed with every process it started, and reported as timed out. A run handed a `signal` is
+// killed the same way when the signal is aborted, and reported as aborted.
 //
 // A run that asks for `reap` also has the processes killed that its program started and left behind
 // when it failed: a test binary that panics beside the server it spawned would otherwise leave an
@@ -23,6 +24,9 @@ export interface RunOptions {
   onLine?: (line: string, stream: "stdout" | "stderr") => void;
   /** When the program exits with a failure, kill every process it started that is still running. */
   reap?: boolean;
+  /** When aborted, the program is killed with every process it started. A run whose signal is already
+   * aborted starts nothing. */
+  signal?: AbortSignal;
 }
 
 export interface RunResult {
@@ -31,6 +35,8 @@ export interface RunResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** The program was killed, or never started, because `signal` was aborted. */
+  aborted: boolean;
 }
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -60,6 +66,7 @@ export function childEnv(extra?: Record<string, string>): Record<string, string 
 /** Runs `argv` to completion and returns what it printed. A program that cannot be started throws. */
 export async function run(argv: string[], opts: RunOptions = {}): Promise<RunResult> {
   if (argv.length === 0) throw new Error("proc.run: an empty argument list");
+  if (opts.signal?.aborted) return { argv, code: 130, stdout: "", stderr: "", timedOut: false, aborted: true };
   const env = childEnv(opts.env);
   const child = Bun.spawn(resolved(argv, env), {
     cwd: opts.cwd ?? ROOT,
@@ -73,6 +80,12 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
     timedOut = true;
     killTree(child.pid);
   }, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  let aborted = false;
+  const abort = () => {
+    aborted = true;
+    killTree(child.pid);
+  };
+  opts.signal?.addEventListener("abort", abort, { once: true });
   try {
     // The exit status first: a process the program left running holds the pipes open, and reaping it is
     // what lets them close.
@@ -83,9 +96,10 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
     const code = await child.exited;
     if (opts.reap && (code !== 0 || timedOut)) reapOrphans(child.pid);
     const [stdout, stderr] = await reading;
-    return { argv, code: timedOut ? 124 : code, stdout, stderr, timedOut };
+    return { argv, code: timedOut ? 124 : aborted ? 130 : code, stdout, stderr, timedOut, aborted };
   } finally {
     clearTimeout(timer);
+    opts.signal?.removeEventListener("abort", abort);
   }
 }
 
