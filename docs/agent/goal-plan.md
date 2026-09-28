@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 180 goals. 146 are walked (120 of them retired), `core-sse-and-2-more` is live at 147 of 180, and 33 are ahead.
+The chain holds 180 goals. 147 are walked (120 of them retired), `core-str-1-3` is live at 148 of 180, and 32 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -159,8 +159,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 144 | [`core-serialize-and-1-more`](goals/core-serialize-and-1-more.md) | Core\Serialize and 1 more | walked |  | **2** the dossier |
 | 145 | [`core-session`](goals/core-session.md) | Core\Session | walked |  | **2** the dossier |
 | 146 | [`core-signal-and-4-more`](goals/core-signal-and-4-more.md) | Core\Signal and 4 more | walked |  | **2** the dossier |
-| 147 | [`core-sse-and-2-more`](goals/core-sse-and-2-more.md) | Core\Sse and 2 more | **live** |  | **2** the dossier |
-| 148 | [`core-str-1-3`](goals/core-str-1-3.md) | Core\Str (1/3) | ahead |  | **2** the dossier |
+| 147 | [`core-sse-and-2-more`](goals/core-sse-and-2-more.md) | Core\Sse and 2 more | walked |  | **2** the dossier |
+| 148 | [`core-str-1-3`](goals/core-str-1-3.md) | Core\Str (1/3) | **live** |  | **2** the dossier |
 | 149 | [`core-str-2-3`](goals/core-str-2-3.md) | Core\Str (2/3) | ahead |  | **2** the dossier |
 | 150 | [`core-str-3-3`](goals/core-str-3-3.md) | Core\Str (3/3) | ahead |  | **2** the dossier |
 | 151 | [`core-taint-and-1-more`](goals/core-taint-and-1-more.md) | Core\Taint and 1 more | ahead |  | **2** the dossier |
