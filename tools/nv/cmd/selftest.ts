@@ -6,6 +6,7 @@
 import { join } from "node:path";
 import { passthrough } from "../lib/proc.ts";
 import { ROOT } from "../lib/paths.ts";
+import { TEST_TIMEOUT_MS } from "../select/nvtests.ts";
 
 export const summary = "type-check the tools and run their tests";
 
@@ -25,7 +26,7 @@ export async function run(args: string[]): Promise<number> {
   console.log("nv selftest: the types check");
   // A recorded run records what the tests read too, which is what `nv verify` keys this step on.
   const preload = process.env.NV_READS_LOG ? ["--preload", "./tools/nv/lib/reads-preload.ts"] : [];
-  const test = await passthrough([process.execPath, "test", ...preload, "tools/nv/"], { timeoutMs: 5 * 60 * 1000 });
+  const test = await passthrough([process.execPath, "test", "--timeout", String(TEST_TIMEOUT_MS), ...preload, "tools/nv/"], { timeoutMs: 5 * 60 * 1000 });
   if (test !== 0) {
     console.log(`nv selftest: bun test failed with exit ${test}`);
     return 1;

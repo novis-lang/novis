@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { run } from "../lib/proc.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -39,19 +39,31 @@ const git = async (cwd: string, ...args: string[]) => {
   return r.stdout.trim();
 };
 
+/** The repository every `repo()` copies, made by the first call: git is started once for the file, not once per test. */
+let template: Promise<string> | undefined;
+
 /** A repository with one commit, `a.txt`, and `.loop/` ignored the way the real tree ignores it. */
 const repo = async () => {
+  template ??= (async () => {
+    const dir = scratch();
+    await git(dir, "init", "-q");
+    await git(dir, "config", "user.email", "loop@example.com");
+    await git(dir, "config", "user.name", "loop");
+    await git(dir, "config", "core.hooksPath", ".no-hooks");
+    writeFileSync(join(dir, ".gitignore"), ".loop/\n");
+    writeFileSync(join(dir, "a.txt"), "one\n");
+    await git(dir, "add", ".");
+    await git(dir, "commit", "-q", "-m", "start");
+    return dir;
+  })();
+  const from = await template;
   const dir = scratch();
-  await git(dir, "init", "-q");
-  await git(dir, "config", "user.email", "loop@example.com");
-  await git(dir, "config", "user.name", "loop");
-  await git(dir, "config", "core.hooksPath", ".no-hooks");
-  writeFileSync(join(dir, ".gitignore"), ".loop/\n");
-  writeFileSync(join(dir, "a.txt"), "one\n");
-  await git(dir, "add", ".");
-  await git(dir, "commit", "-q", "-m", "start");
+  cpSync(from, dir, { recursive: true });
   return dir;
 };
+
+/** Each test below starts git several times, and a loaded machine can take a second a start. */
+const GIT_TIMEOUT = 30_000;
 
 const toolUse = (name: string, input: Record<string, unknown>) => ({
   type: "assistant",
@@ -86,15 +98,16 @@ describe("markInterrupted", () => {
 
     const swept = await markInterrupted(7, "the CLI exited 1", t, dir);
     expect(swept).toEqual({ paths: 2, committed: true, left: 1 });
-    expect(await git(dir, "log", "-1", "--format=%s")).toBe(`${SWEEP_SUBJECT} session 0007`);
-    expect((await git(dir, "show", "--name-only", "--format=", "HEAD")).split("\n").sort()).toEqual(["a.txt", "new.txt"]);
+    const [subject, head, ...files] = (await git(dir, "show", "--name-only", "--format=%s%n%H", "HEAD")).split("\n").filter((l) => l !== "");
+    expect(subject).toBe(`${SWEEP_SUBJECT} session 0007`);
+    expect(files.sort()).toEqual(["a.txt", "new.txt"]);
     expect(await git(dir, "status", "--porcelain")).toBe("?? theirs.txt");
     const cut = JSON.parse(readFileSync(join(dir, INTERRUPTED), "utf8"));
     expect(cut.swept).toBe(true);
-    expect(cut.head).toBe(await git(dir, "rev-parse", "HEAD"));
+    expect(cut.head).toBe(head);
     expect(cut.why).toBe("the CLI exited 1");
     expect(cut.left).toEqual(["?? theirs.txt"]);
-  });
+  }, GIT_TIMEOUT);
 
   test("with nothing of its own dirty, it commits nothing and clears the interruption", async () => {
     const dir = await repo();
@@ -106,7 +119,7 @@ describe("markInterrupted", () => {
     expect(await markInterrupted(3, "it exited without wrapping", t, dir)).toEqual({ paths: 0, committed: false, left: 1 });
     expect(await git(dir, "rev-parse", "HEAD")).toBe(before);
     expect(existsSync(join(dir, INTERRUPTED))).toBe(false);
-  });
+  }, GIT_TIMEOUT);
 });
 
 describe("the usage wall", () => {

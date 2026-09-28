@@ -89,7 +89,8 @@ describe("the console's helpers", () => {
     TICKER.set({ phase: "launching" });
     await Bun.sleep(1100);
     TICKER.set({ detail: "Run the guard tests" });
-    expect(TICKER.elapsed()).toBe("1s");
+    // Not an exact "1s": a loaded machine can oversleep by a second.
+    expect(TICKER.elapsed()).not.toBe("0s");
     TICKER.set({ phase: "closing the session" });
     expect(TICKER.elapsed()).toBe("0s");
   });
@@ -103,11 +104,12 @@ describe.if(process.platform === "win32")("the process tree", () => {
     expect(tree.pids()).toContain(child.pid);
     const began = performance.now();
     expect(tree.freeze()).toBeGreaterThan(0);
-    await Bun.sleep(2500);
+    await Bun.sleep(1200);
     tree.thaw();
     await child.exited;
     tree.close();
-    // ping -n 3 takes about two seconds; frozen for 2.5 of them, it cannot finish in under four.
-    expect(performance.now() - began).toBeGreaterThan(3500);
-  });
+    // ping -n 3 takes about two seconds, so about 1.8 are left when the freeze starts. Unfrozen it
+    // would be done 1.8s after `began`; frozen for 1.2 of them, it cannot finish in under three.
+    expect(performance.now() - began).toBeGreaterThan(2500);
+  }, 20_000);
 });

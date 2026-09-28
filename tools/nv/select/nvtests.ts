@@ -27,6 +27,10 @@ const TSC = join(ROOT, "node_modules", "typescript", "bin", "tsc");
 const TSC_INPUTS = ["package.json", "bun.lock", "tsconfig.json", "bunfig.toml"];
 const BUN_TEST_RE = /^\s*(\d+) pass\s*$[\s\S]*?^\s*(\d+) fail\s*$/m;
 const TIMEOUT_MS = 10 * 60 * 1000;
+/** Each test's own limit, in place of bun's 5s, here and in `nv selftest`: verify runs these files a few
+ * at a time beside a cargo build, and on that loaded machine a test that starts processes can pass 5s
+ * and still be correct. A test that passes its own third argument to `test` keeps that. */
+export const TEST_TIMEOUT_MS = 30_000;
 
 export interface ToolRun {
   code: number;
@@ -53,7 +57,7 @@ export async function runNvTest(rec: Recorder, file: string): Promise<ToolRun & 
   const name = recordName(id);
   const log = join(rec.dir, `${name}.reads`);
   rmSync(log, { force: true });
-  const p = await run([process.execPath, "test", "--preload", "./tools/nv/lib/reads-preload.ts", file], {
+  const p = await run([process.execPath, "test", "--timeout", String(TEST_TIMEOUT_MS), "--preload", "./tools/nv/lib/reads-preload.ts", file], {
     env: { ...rec.env(name), NV_READS_LOG: log, NO_COLOR: "1" },
     timeoutMs: TIMEOUT_MS,
     reap: true,
