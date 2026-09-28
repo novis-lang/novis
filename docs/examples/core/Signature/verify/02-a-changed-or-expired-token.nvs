@@ -1,0 +1,26 @@
+<?nvs
+// Shows the errors `verify` throws for a changed token and for an expired token.
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+array<string> $claims = ["user" => "42"];
+
+// Somebody adds text to the end of a valid token.
+string $token = Core\Signature::sign($claims, { keys: $keys, until: null });
+try {
+    Core\Signature::verify($token . "AAAA", $keys);
+    echo "accepted\n";
+} catch (RuntimeError $e) {
+    echo "The changed token throws a RuntimeError.\n";
+}
+
+// This token expired one hour ago.
+Core\Time\Instant $hourAgo = Core\Time::now()->minus(1h);
+string $old = Core\Signature::sign($claims, { keys: $keys, until: $hourAgo });
+try {
+    Core\Signature::verify($old, $keys);
+    echo "accepted\n";
+} catch (RuntimeError $e) {
+    // Only an expired token has the word "expired" in its message.
+    echo Core\Str::contains($e->message, "expired") ? "The token has expired.\n" : "Other error.\n";
+}

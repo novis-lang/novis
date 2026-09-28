@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to start signing with a new key while old tokens still work.
+
+secret bytes $oldKey = Core\Crypto::generateKey();
+array<string> $claims = ["user" => "42"];
+string $oldToken = Core\Signature::sign($claims, { keys: [$oldKey], until: null });
+
+// The new key goes first, so `sign` uses it. The old key stays second.
+secret bytes $newKey = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$newKey, $oldKey];
+string $newToken = Core\Signature::sign($claims, { keys: $keys, until: null });
+
+// Both tokens are accepted, so this prints 42 two times.
+echo Core\Signature::verify($oldToken, $keys)["user"], "\n";
+echo Core\Signature::verify($newToken, $keys)["user"], "\n";
+
+// Later, the old key is removed. Tokens made with it now throw an error.
+array<secret bytes> $newOnly = [$newKey];
+try {
+    Core\Signature::verify($oldToken, $newOnly);
+    echo "accepted\n";
+} catch (RuntimeError $e) {
+    echo "The old token is no longer accepted.\n";
+}

@@ -1,0 +1,25 @@
+<?nvs
+// Measures checking a signed token, as a server does when somebody opens a signed link.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        array<string> $tokens = [
+            Core\Signature::sign(["doc" => "7", "act" => "download"], { keys: $keys, until: null }),
+            Core\Signature::sign(["doc" => "8", "act" => "download"], { keys: $keys, until: null }),
+            Core\Signature::sign(["doc" => "9", "act" => "preview"], { keys: $keys, until: null }),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round checks the token that the last result chose, so no round can be left out.
+            array<tainted string> $back = Core\Signature::verify($tokens[$total % 3], $keys);
+            $total = $total + Core\Str::length($back["act"]) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

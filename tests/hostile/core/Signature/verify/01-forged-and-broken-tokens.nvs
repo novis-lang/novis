@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a program checks forged, cut and random tokens, and uses broken keys.
+// Every forged token should throw a `RuntimeError`, and nothing may crash or leak.
+// hostile: timeout-ms 30000
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+string $token = Core\Signature::sign(['user' => '42', 'role' => 'admin'], { keys: $keys, until: null });
+int $size = Core\Str::length($token) as int;
+
+// 1. Each character of the token is replaced, one at a time. Every changed token must fail.
+int $accepted = 0;
+int $i = 0;
+while ($i < $size) {
+    string $letter = Core\Str::slice($token, $i, 1) == 'A' ? 'B' : 'A';
+    string $forged = Core\Str::slice($token, 0, $i) . $letter . Core\Str::slice($token, $i + 1);
+    try {
+        Core\Signature::verify($forged, $keys);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $changed) {
+    }
+    $i = $i + 1;
+}
+echo 'changed tokens accepted: ', $accepted, "\n";
+
+// 2. The token is cut after every length from 0 to its full size minus one.
+int $cut = 0;
+while ($cut < $size) {
+    try {
+        Core\Signature::verify(Core\Str::slice($token, 0, $cut), $keys);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $shortened) {
+    }
+    $cut = $cut + 1;
+}
+echo 'cut tokens accepted: ', $accepted, "\n";
+
+// 3. Text that is not a token: symbols, and 2 million characters.
+array<string> $junk = ['', '====', 'not a token!', '%00%00', Core\Str::repeat('A', 2000000)];
+foreach ($junk as string $text) {
+    try {
+        Core\Signature::verify($text, $keys);
+        echo "junk accepted\n";
+    } catch (RuntimeError $junked) {
+    }
+}
+echo "junk refused\n";
+
+// 4. An empty list of keys, and a key that is 7 bytes long. Both throw a `LogicError`.
+array<secret bytes> $none = [];
+try {
+    Core\Signature::verify($token, $none);
+} catch (LogicError $empty) {
+    echo "no key: LogicError\n";
+}
+array<secret bytes> $short = ['raw-key' as bytes];
+try {
+    Core\Signature::verify($token, $short);
+} catch (LogicError $tooShort) {
+    echo "short key: LogicError\n";
+}
+
+// 5. A list of 5000 wrong keys, with the right key last. Every key is tried in order.
+array<secret bytes> $ring = [];
+int $k = 0;
+while ($k < 5000) {
+    $ring[] = Core\Crypto::generateKey();
+    $k = $k + 1;
+}
+$ring[] = $key;
+echo 'found with the last key: ', Core\Signature::verify($token, $ring)['user'], "\n";

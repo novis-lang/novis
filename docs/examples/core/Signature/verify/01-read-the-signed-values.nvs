@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to check a token and read the values in it.
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+array<string> $cart = ["shop" => "7", "coupon" => "SPRING10"];
+string $token = Core\Signature::sign($cart, { keys: $keys, until: null });
+
+// `verify` returns the values. Each value is a `tainted string`.
+array<tainted string> $back = Core\Signature::verify($token, $keys);
+echo "Coupon ", $back["coupon"], " for shop ", $back["shop"], "\n";
+
+// The values come back sorted by name, so this loop prints `coupon` first and `shop` second.
+foreach ($back as string $name => tainted string $value) {
+    echo $name, "\n";
+}
