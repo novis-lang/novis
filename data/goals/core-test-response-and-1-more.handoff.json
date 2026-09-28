@@ -1,26 +1,21 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Test\\Response and 1 more has been taken yet.",
+  "state": "Goal `core-test-response-and-1-more`: `Core\\Test\\Response::body` and `::status` are complete (`bun nv proofs --id` says so for both), and `Core\\Test\\Response` has its class card.\nThe body attack found a bug, fixed in this slice: `Core\\Test::request` answered `200` and the partial output for a request whose program threw, where the server answers `500` and no body. It now matches the server. `tests/conformance/core/an-in-process-request-that-fails-answers-500-and-no-body-as-the-server-does.nvst` pins it.\nEvery `Core\\Test` bench is measured again, because `test.rs` changed.\nOne item is left: `Core\\Test\\SentRequest::body`.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "feature proofs",
+    "files": [
+      "crates/nvs-stdlib/src/test.rs",
+      "crates/nvs-stdlib/src/registry.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Test\\Response::body`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:846`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Test\\Response::status`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:837`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Test\\SentRequest::body`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:918`"
+        "text": "**`Core\\Test\\SentRequest::body`** — owes about, examples, hostile, perf, tests and the class card for `Core\\Test\\SentRequest` (add a `ClassDoc` beside `crates/nvs-stdlib/src/test.rs:955` and delete the class from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5348`). The row is `crates/nvs-stdlib/src/test.rs:987` and its card `crates/nvs-stdlib/src/test.rs:1542`, which needs the plain voice. `rule:testing/feature-proofs`. The Rust test `sent_http_returns_one_record_per_call_in_the_order_they_were_made` reads the body slot directly, so a `covers:` test must call `nvs_core_test_sent_body`. The examples need `Core\\Test::answerHttp` so the call is answered from the table, as `benches/members/core/Http-Response/status.nvs` does."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "Indexing an array with a `uint` expression allocates twice per read, and with an `int` it does not; a codegen or runtime cost on the request path. Owner: the playbook bullet under *Writing a test case* until a goal takes it.",
+    "A `Core\\Test::request` whose program runs out of memory ends the whole test program with a FATAL, because the child's output counts against the test's own memory limit. `rule:testing/in-process-request` does not say whether a test should see `500` there instead."
   ]
 }

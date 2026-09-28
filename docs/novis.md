@@ -16690,7 +16690,8 @@ The request runs in this process. There is no socket and no port: the program's 
 isolate with the compiled route table's match already on it, so `Core\Request::route()` inside the
 program reads the same match a served request would, and the handler chain that answers is the real one
 rather than a mock of it. What comes back is the status the program declared — `200` where it declared
-none — and every byte it echoed.
+none — and every byte it echoed. A program that throws an error it does not catch answers `500` and an
+empty body, which is what the server sends for a failed request.
 
 ```nvs skip
 #[Test]
@@ -16719,9 +16720,9 @@ there being no program under test to answer it.
 $response->status(): uint
 ```
 
-The status the program under test declared for this request.
+Returns the HTTP status code of the answer to this request.
 
-**Returns** `uint` — The declared code, or `200` where the program declared none — the same default the server writes for a program that only echoed.
+**Returns** `uint` — The code the program set with `Core\Response::setStatus`. If the program set no code, the result is `200`. If the program threw an error it did not catch, the result is `500`, the same code the server sends.
 
 <a id="core-core-test-response-body"></a>
 #### `Core\Test\Response->body`
@@ -16730,9 +16731,9 @@ The status the program under test declared for this request.
 $response->body(): string
 ```
 
-The bytes the program under test wrote while answering this request.
+Returns the text the program wrote while it answered this request.
 
-**Returns** `string` — Everything the program echoed, in order, and an empty string for a program that wrote nothing. A program that threw still answers with whatever it had written first.
+**Returns** `string` — Everything the program wrote with `echo`, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string, because the server sends no body for a failed request.
 
 <a id="core-core-test-sentrequest"></a>
 ### `Core\Test\SentRequest`
