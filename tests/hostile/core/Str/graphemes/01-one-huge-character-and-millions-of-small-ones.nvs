@@ -1,0 +1,56 @@
+<?nvs
+// Attack: `Core\Str::graphemes` divides very long strings, and strings where one character is very long.
+// Each call should return an array, and must not crash, hang or leak memory.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Divides 4 MiB of letters, which gives millions of strings.
+    public static function millionsOfPieces(uint $mib): uint
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        return Core\Arr::count(Core\Str::graphemes($s));
+    }
+
+    /// 2. Divides one letter with 200000 accents on it. It stays one piece.
+    public static function oneLongCharacter(uint $marks): uint
+    {
+        var $s = 'e' . Core\Str::repeat("\u{301}", $marks);
+        return Core\Arr::count(Core\Str::graphemes($s));
+    }
+
+    /// 3. Joins 100000 emoji with the invisible joiner character. Unicode keeps them as one piece.
+    public static function joinedEmoji(uint $count): uint
+    {
+        var $s = Core\Str::repeat("👨\u{200D}", $count) . '👨';
+        return Core\Arr::count(Core\Str::graphemes($s));
+    }
+
+    /// 4. Divides an odd number of flag letters. The last letter has no partner.
+    public static function oddFlagLetters(uint $pairs): uint
+    {
+        var $s = Core\Str::repeat("\u{1F1E9}\u{1F1EA}", $pairs) . "\u{1F1E9}";
+        return Core\Arr::count(Core\Str::graphemes($s));
+    }
+
+    /// 5. Divides a Korean syllable built from 300000 parts. It stays one piece.
+    public static function longKoreanSyllable(uint $parts): uint
+    {
+        var $s = Core\Str::repeat("\u{1100}", $parts) . Core\Str::repeat("\u{1161}", $parts) . Core\Str::repeat("\u{11A8}", $parts);
+        return Core\Arr::count(Core\Str::graphemes($s));
+    }
+
+    /// 6. Divides many line breaks, mixed in every order.
+    public static function lineBreaks(uint $count): uint
+    {
+        var $s = Core\Str::repeat("\r\r\n\n\n\r", $count);
+        return Core\Arr::count(Core\Str::graphemes($s));
+    }
+}
+
+echo Attack::millionsOfPieces(4), "\n";
+echo Attack::oneLongCharacter(200000), "\n";
+echo Attack::joinedEmoji(100000), "\n";
+echo Attack::oddFlagLetters(500000), "\n";
+echo Attack::longKoreanSyllable(100000), "\n";
+echo Attack::lineBreaks(500000), "\n";

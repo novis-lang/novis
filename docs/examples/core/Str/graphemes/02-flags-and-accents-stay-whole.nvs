@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a character made of several code points stays one piece.
+
+// The first "é" is one code point. The second is an "e" and a separate accent mark.
+// The flag is two code points, and the thumb is a thumb and a skin tone.
+array<string> $words = ["é", "e\u{0301}", "🇩🇪", "👍🏽"];
+
+// Each line prints the number of pieces and then the number of code points.
+// This prints `1 1`, `1 2`, `1 2` and `1 2`.
+foreach ($words as string $word) {
+    echo Core\Arr::count(Core\Str::graphemes($word)), " ";
+    echo Core\Arr::count(Core\Str::codePoints($word)), "\n";
+}
