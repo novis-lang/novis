@@ -1,0 +1,53 @@
+<?nvs
+// Attack: `Core\Str::lines` gets texts with millions of lines, mixed line breaks, and one line with no end.
+// The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Splits a text of two million lines of one character each.
+    public static function manyShortLines(uint $count): uint
+    {
+        return Core\Arr::count(Core\Str::lines(Core\Str::repeat("é\n", $count)));
+    }
+
+    /// 2. Splits a text where `\r` and `\n` follow each other in every order.
+    /// Each group of four gives three empty lines.
+    public static function mixedBreaks(uint $count): uint
+    {
+        return Core\Arr::count(Core\Str::lines(Core\Str::repeat("\r\r\n\n", $count)));
+    }
+
+    /// 3. Splits one line of ten million characters that has no line break at all.
+    public static function oneLongLine(uint $size): uint
+    {
+        array<string> $lines = Core\Str::lines(Core\Str::repeat('x', $size));
+        return Core\Str::length($lines[0]);
+    }
+
+    /// 4. Splits a short text one million times and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count(Core\Str::lines("a\nb\r\nc"));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 5. Splits a text of two hundred million line breaks.
+    /// The result would need many gigabytes, so the memory limit stops the program here.
+    public static function tooManyLines(uint $count): uint
+    {
+        return Core\Arr::count(Core\Str::lines(Core\Str::repeat("\n", $count)));
+    }
+}
+
+echo Attack::manyShortLines(2000000), "\n";
+echo Attack::mixedBreaks(500000), "\n";
+echo Attack::oneLongLine(10000000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooManyLines(200000000), "\n";

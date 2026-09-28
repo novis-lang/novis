@@ -1011,15 +1011,16 @@ const CHUNK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::lines`'s reference card — `rule:core-api/reference-card`.
 const LINES_DOC: MethodDoc = MethodDoc {
-    short: "Splits `$s` into its lines, as `explode(PHP_EOL, …)` does — at `\\n`, `\\r\\n` and \
-            a lone `\\r` alike, whatever the platform.",
+    short: "Splits `$s` into its lines. A line ends at `\\n`, at `\\r\\n` or at `\\r`, on every \
+            system. Replaces PHP's `explode(PHP_EOL, $s)`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to split.",
         shape: &[],
     }],
-    ret: "The lines without their terminators; a trailing terminator adds no final empty line, \
-          an interior empty line is still a line, and the empty string has no lines at all.",
+    ret: "One string for each line, without its line break. A line break at the very end does \
+          not add an empty line. An empty line in the middle is kept as `\"\"`. An empty string \
+          gives `[]`.",
     errors: &[],
 };
 
@@ -1347,14 +1348,15 @@ const WRAP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::lower`'s reference card — `rule:core-api/reference-card`.
 const LOWER_DOC: MethodDoc = MethodDoc {
-    short: "Lower-cases `$s` through Unicode's full lowercase mapping, as `mb_strtolower` does; \
-            there is no byte-wise `strtolower` twin.",
+    short: "Changes every letter of `$s` to lower case. It uses Unicode's rules, so `ÄRGER` \
+            becomes `ärger`. Replaces PHP's `strtolower` and `mb_strtolower`.",
     params: &[ParamDoc {
         name: "s",
-        desc: "The string to lower-case.",
+        desc: "The string to change.",
         shape: &[],
     }],
-    ret: "The lower-cased string, possibly a different length from `$s`.",
+    ret: "The string in lower case. Characters that are not letters do not change. The result \
+          can have a different length from `$s`.",
     errors: &[],
 };
 
@@ -1386,14 +1388,14 @@ const UPPER_FIRST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::lowerFirst`'s reference card — `rule:core-api/reference-card`.
 const LOWER_FIRST_DOC: MethodDoc = MethodDoc {
-    short: "Lower-cases the first character of `$s` and copies the rest through, as `lcfirst` \
-            does — with Unicode's mapping rather than a byte's.",
+    short: "Changes the first letter of `$s` to lower case and keeps the rest as it is. It uses \
+            Unicode's rules, so `Ärger` becomes `ärger`. Replaces PHP's `lcfirst`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string whose first character changes.",
         shape: &[],
     }],
-    ret: "The string with its first character lower-cased; `\"\"` for the empty string.",
+    ret: "The string with its first character in lower case. An empty string gives `\"\"`.",
     errors: &[],
 };
 
@@ -2122,11 +2124,7 @@ nvs_runtime::nvs_helper! {
     /// platform's own line ending is never consulted.
     fn nvs_core_str_lines(_ctx, args: [1]) {
         let subject = text(&args[0], "lines", "the subject")?;
-        let mut out = NvsArray::new();
-        for line in line_pieces(subject.as_bytes()) {
-            out.append(Value::str(NvsStr::new(line)));
-        }
-        Ok(Value::array(out))
+        Ok(Value::array(lines_array(subject.as_bytes(), "Core\\Str::lines")?))
     }
 }
 
@@ -2155,28 +2153,63 @@ nvs_runtime::nvs_helper! {
 /// are ASCII and no multi-byte sequence contains an ASCII byte, so the pieces
 /// of valid text are the same either way and this is the one place that
 /// decides what a line is.
-pub(crate) fn line_pieces(subject: &[u8]) -> Vec<&[u8]> {
-    let mut out = Vec::new();
+///
+/// **The pieces are yielded one at a time and nothing is collected**, so
+/// [`lines_array`] can walk them once to count and once to build, and neither
+/// walk allocates.
+pub(crate) fn line_pieces(subject: &[u8]) -> impl Iterator<Item = &[u8]> {
     let (mut start, mut at) = (0usize, 0usize);
-    while at < subject.len() {
-        match subject[at] {
-            b'\n' => {
-                out.push(&subject[start..at]);
-                at += 1;
-                start = at;
+    std::iter::from_fn(move || {
+        while at < subject.len() {
+            let end = at;
+            match subject[at] {
+                b'\n' => at += 1,
+                b'\r' => at += usize::from(subject.get(at + 1) == Some(&b'\n')) + 1,
+                _ => {
+                    at += 1;
+                    continue;
+                }
             }
-            b'\r' => {
-                out.push(&subject[start..at]);
-                at += usize::from(subject.get(at + 1) == Some(&b'\n')) + 1;
-                start = at;
-            }
-            _ => at += 1,
+            let line = &subject[start..end];
+            start = at;
+            return Some(line);
         }
+        if start < subject.len() {
+            let line = &subject[start..];
+            start = subject.len();
+            return Some(line);
+        }
+        None
+    })
+}
+
+/// `subject`'s lines as a list of strings, for `Core\Str::lines` and
+/// `Core\IO::lines`, with `member` the qualified name either one reports.
+///
+/// **The list is paid for before it is built.** Its lines are counted first
+/// and the whole entry storage goes through `nvs_runtime::affordable` and
+/// [`NvsArray::try_reserve`], `arr.rs`'s `append_copies` pair. An append asks
+/// no budget, so a list grown line by line passes the request's ceiling many
+/// times over before the breach is reported, and a text of line breaks alone
+/// costs sixteen times its own length in entries. The counting walk only reads
+/// bytes, and the reservation saves the list's own growth.
+///
+/// Each line's string still asks the budget as it is allocated, and their
+/// bytes together are never more than the subject's.
+pub(crate) fn lines_array(subject: &[u8], member: &str) -> Result<NvsArray, Fault> {
+    let count = line_pieces(subject).count();
+    let entries = count.checked_mul(std::mem::size_of::<Value>());
+    nvs_runtime::affordable(entries, member)?;
+    let mut out = NvsArray::new();
+    if !out.try_reserve(count) {
+        return Err(Fault::thrown(format!(
+            "{member}: the result is larger than any array this process could hold"
+        )));
     }
-    if start < subject.len() {
-        out.push(&subject[start..]);
+    for line in line_pieces(subject) {
+        out.append(Value::str(NvsStr::new(line)));
     }
-    out
+    Ok(out)
 }
 
 nvs_runtime::nvs_helper! {
@@ -3766,6 +3799,7 @@ mod tests {
         Value::str(NvsStr::new(text.as_bytes()))
     }
 
+    // covers: Core\Str::lower, Core\Str::lowerFirst
     #[test]
     fn case_conversion_uses_unicodes_mapping_not_a_byte_wise_one() {
         assert_eq!(
@@ -3895,11 +3929,11 @@ mod tests {
 
     /// The three terminators, the interior empty line that survives and the
     /// trailing one that does not — [`super::line_pieces`]'s own contract.
+    // covers: Core\Str::lines
     #[test]
     fn lines_end_on_any_of_the_three_terminators() {
         fn lines(subject: &str) -> Vec<&str> {
             super::line_pieces(subject.as_bytes())
-                .into_iter()
                 .map(|line| std::str::from_utf8(line).expect("a piece of valid text"))
                 .collect()
         }
@@ -3911,6 +3945,51 @@ mod tests {
         assert_eq!(lines("a\n"), ["a"]);
         assert_eq!(lines("\n"), [""]);
         assert!(lines("").is_empty());
+    }
+
+    /// Splitting allocates nothing, so a text of line breaks alone costs only
+    /// the lines a caller builds, which the request's ceiling counts and
+    /// refuses in time.
+    // covers: Core\Str::lines
+    #[test]
+    fn line_pieces_collect_no_list_of_their_own() {
+        let subject = "a\n\r\n".repeat(1000);
+        let before = nvs_runtime::budget::allocations();
+        let count = super::line_pieces(subject.as_bytes()).count();
+        assert_eq!(
+            nvs_runtime::budget::allocations() - before,
+            0,
+            "splitting into lines allocated"
+        );
+        assert_eq!(count, 2000);
+    }
+
+    /// A text of line breaks alone would need sixteen times its length in
+    /// entries, so `lines` refuses it before it builds the list rather than
+    /// passing the ceiling and being reported after it returns.
+    // covers: Core\Str::lines
+    #[test]
+    fn lines_refuses_a_list_past_the_memory_limit_before_building_it() {
+        const LIMIT: usize = 1 << 20;
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+        let subject = s(&"\n".repeat(200_000));
+        let result = call(super::nvs_core_str_lines, &mut ctx, &[subject]);
+        assert!(result.is_err(), "200000 lines fit under 1 MiB");
+        assert!(
+            ctx.memory_peak() < LIMIT,
+            "the list was built past the limit before the refusal: {} bytes",
+            ctx.memory_peak()
+        );
+        drop(ctx);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built for the \
+                      subject, and the helper borrowed it"
+        )]
+        unsafe {
+            subject.release();
+        }
     }
 
     /// `chunk` counts in [`crate::granularity::DEFAULT`], so a chunk boundary

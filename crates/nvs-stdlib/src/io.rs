@@ -2070,7 +2070,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\IO::lines(string $path): Iterable<string>` — replacing `file()`
     /// and the `while (fgets(…))` loop.
     ///
-    /// [`slurp`] and then [`crate::str::line_pieces`], which is the whole
+    /// [`slurp`] and then [`crate::str::lines_array`], which is the whole
     /// member. [`LINES`]'s own docs own the decision it rests on — the lines
     /// are held rather than streamed — and why the answer is still spelled
     /// `Iterable<string>`.
@@ -2083,7 +2083,6 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_io_lines(ctx, args: [1]) {
         let path = Path::new(text(&args[0], "lines", "path")?);
         let raw = slurp(ctx, path, "Core\\IO::lines")?;
-        let mut out = NvsArray::new();
         // The whole file is checked before any line is built, so a refusal
         // leaves no half-filled array to release. No case can reach this:
         // a conformance case runs with no `fs.read` grant, so
@@ -2095,9 +2094,7 @@ nvs_runtime::nvs_helper! {
                 err.valid_up_to()
             ))
         })?;
-        for line in crate::str::line_pieces(&raw) {
-            out.append(Value::str(NvsStr::new(line)));
-        }
+        let out = crate::str::lines_array(&raw, "Core\\IO::lines")?;
         Ok(crate::instance::build(&LINES, [Value::array(out)]))
     }
 }

@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `Core\Str::lines` finds the same lines whatever line break a text uses.
+
+// The same two lines, written the Linux way, the Windows way and the old Mac way.
+array<string> $texts = ["first\nsecond", "first\r\nsecond", "first\rsecond"];
+
+// Each text gives two lines, and no line keeps a `\r` at its end.
+// This prints `first|second` three times.
+foreach ($texts as string $text) {
+    echo Core\Str::join(Core\Str::lines($text), "|"), "\n";
+}
+
+// One text can mix all three. This prints `4`.
+echo Core\Arr::count(Core\Str::lines("a\nb\r\nc\rd")), "\n";
