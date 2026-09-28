@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to shorten a long product text for a preview without cutting a word in half.
+
+class Preview {
+    // `before: $max` searches only the first `$max` characters.
+    // The text is cut at the last space there, and "..." is added.
+    public static function short(string $text, uint $max): string {
+        if (Core\Str::length($text) <= $max) {
+            return $text;
+        }
+        var $at = Core\Str::lastIndexOf($text, " ", {before: $max as int});
+        if ($at == null) {
+            return Core\Str::slice($text, 0, $max as int) . "...";
+        }
+        return Core\Str::slice($text, 0, $at as int) . "...";
+    }
+}
+
+// This prints `Fresh roasted coffee beans...`, `Green tea` and `Extraordinarilylongproductname...`.
+echo Preview::short("Fresh roasted coffee beans from a small farm", 30), "\n";
+echo Preview::short("Green tea", 30), "\n";
+echo Preview::short("Extraordinarilylongproductnamewithoutspaces", 30), "\n";

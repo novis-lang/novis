@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to find where a piece of text appears for the last time in a string.
+
+var $path = "docs/guide/intro.md";
+
+// The last "/" is at position 10, so this prints `last slash at 10`.
+var $at = Core\Str::lastIndexOf($path, "/");
+if ($at != null) {
+    echo "last slash at ", $at, "\n";
+}
+
+// Matches may overlap. "ana" is in "banana" at 1 and at 3, so this prints `3`.
+echo Core\Str::lastIndexOf("banana", "ana") ?? 0, "\n";
+
+// There is no "\" in the path, so the result is `null` and this prints `no backslash`.
+if (Core\Str::lastIndexOf($path, "\\") == null) {
+    echo "no backslash\n";
+}

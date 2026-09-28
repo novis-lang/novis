@@ -1,0 +1,21 @@
+<?nvs
+// Finds the last `/` in a file path, as a program does before it reads the file name.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["docs/guide/intro.md", "src/app/Shop/Order.nvs", "images/café/logo.png"];
+        uint $total = 0;
+        uint $none = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + (Core\Str::lastIndexOf($paths[(($total + $i) % 3) as int], "/") ?? $none);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

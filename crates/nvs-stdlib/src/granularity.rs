@@ -235,6 +235,11 @@ impl Unit {
     /// composes with a loop.
     #[must_use]
     pub fn byte_of_index(self, subject: &str, index: usize) -> usize {
+        // Every unit is at least one byte, so an index at or past the byte
+        // length is past the end, and a default of "no bound" walks nothing.
+        if index >= subject.len() {
+            return subject.len();
+        }
         let mut consumed = 0;
         for (seen, piece) in self.pieces(subject).enumerate() {
             if seen == index {

@@ -7143,16 +7143,16 @@ Finds the first place where `$needle` appears in `$haystack` and returns its pos
 Core\Str::lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint
 ```
 
-Finds the last occurrence of `$needle` in `$haystack` and answers its position, as `strrpos`, `strripos` and `mb_strrpos` do.
+Finds the last place where `$needle` appears in `$haystack` and returns its position. The first character is position `0`. Replaces PHP's `strrpos`, `strripos` and `mb_strrpos`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$haystack` | `string` (neutral) | The string searched in. |
-| `$needle` | `string` (neutral) | The string searched for. |
-| `{before: …}` | `int` (default `9223372036854775807`) | Only an occurrence that ends at or before this position counts; a negative one counts from the end, and the default is the whole string. |
-| `{caseInsensitive: …}` | `bool` (default `false`) | Match through Unicode's simple lower-case mapping of each character rather than exactly; the default is `false`. |
+| `$haystack` | `string` (neutral) | The string to search in. |
+| `$needle` | `string` (neutral) | The string to search for. |
+| `{before: …}` | `int` (default `9223372036854775807`) | Searches only the characters in front of this position, so a match must end here or earlier. A negative position counts back from the end. The default is the whole string. |
+| `{caseInsensitive: …}` | `bool` (default `false`) | When `true`, upper-case and lower-case letters count as the same. The default is `false`. |
 
-**Returns** `?uint` — The grapheme position of the last such occurrence — occurrences may overlap, so `lastIndexOf("aaa", "aa")` is `1`; `null` when none occurs — never `false`.
+**Returns** `?uint` — The position of the last match, or `null` when there is none. Matches may overlap, so `lastIndexOf("aaa", "aa")` returns `1`.
 
 <a id="core-core-str-countof"></a>
 #### `Core\Str::countOf`
@@ -7231,14 +7231,14 @@ Returns the part of `$s` after the first `$needle`, without the needle. With `{l
 Core\Str::join(array<string> $parts, string $separator = ""): string
 ```
 
-Concatenates the strings in `$parts` with `$separator` between each neighbouring pair, as `implode` does.
+Joins the strings in `$parts` into one string, with `$separator` between each two neighbouring strings. Replaces PHP's `implode`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$parts` | `array<string>` | The strings to join, in slot order. |
-| `$separator` | `string` (default `""`) | What goes between two neighbouring parts; the default is the empty string. |
+| `$parts` | `array<string>` | The strings to join, in the order of the array. |
+| `$separator` | `string` (default `""`) | The text that goes between two neighbouring strings. The default is the empty string `""`. |
 
-**Returns** `string` — The joined string; `""` for an empty array.
+**Returns** `string` — The joined string. An empty array gives `""`.
 
 <a id="core-core-str-split"></a>
 #### `Core\Str::split`

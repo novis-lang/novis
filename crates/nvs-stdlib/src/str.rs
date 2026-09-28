@@ -787,34 +787,36 @@ const INDEX_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::lastIndexOf`'s reference card — `rule:core-api/reference-card`.
 const LAST_INDEX_OF_DOC: MethodDoc = MethodDoc {
-    short: "Finds the last occurrence of `$needle` in `$haystack` and answers its position, as \
-            `strrpos`, `strripos` and `mb_strrpos` do.",
+    short: "Finds the last place where `$needle` appears in `$haystack` and returns its \
+            position. The first character is position `0`. Replaces PHP's `strrpos`, `strripos` \
+            and `mb_strrpos`.",
     params: &[
         ParamDoc {
             name: "haystack",
-            desc: "The string searched in.",
+            desc: "The string to search in.",
             shape: &[],
         },
         ParamDoc {
             name: "needle",
-            desc: "The string searched for.",
+            desc: "The string to search for.",
             shape: &[],
         },
         ParamDoc {
             name: "before",
-            desc: "Only an occurrence that ends at or before this position counts; a negative \
-                   one counts from the end, and the default is the whole string.",
+            desc: "Searches only the characters in front of this position, so a match must end \
+                   here or earlier. A negative position counts back from the end. The default \
+                   is the whole string.",
             shape: &[],
         },
         ParamDoc {
             name: "caseInsensitive",
-            desc: "Match through Unicode's simple lower-case mapping of each character rather \
-                   than exactly; the default is `false`.",
+            desc: "When `true`, upper-case and lower-case letters count as the same. The \
+                   default is `false`.",
             shape: &[],
         },
     ],
-    ret: "The grapheme position of the last such occurrence — occurrences may overlap, so \
-          `lastIndexOf(\"aaa\", \"aa\")` is `1`; `null` when none occurs — never `false`.",
+    ret: "The position of the last match, or `null` when there is none. Matches may overlap, \
+          so `lastIndexOf(\"aaa\", \"aa\")` returns `1`.",
     errors: &[],
 };
 
@@ -934,21 +936,22 @@ const AFTER_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
-    short: "Concatenates the strings in `$parts` with `$separator` between each neighbouring \
-            pair, as `implode` does.",
+    short: "Joins the strings in `$parts` into one string, with `$separator` between each two \
+            neighbouring strings. Replaces PHP's `implode`.",
     params: &[
         ParamDoc {
             name: "parts",
-            desc: "The strings to join, in slot order.",
+            desc: "The strings to join, in the order of the array.",
             shape: &[],
         },
         ParamDoc {
             name: "separator",
-            desc: "What goes between two neighbouring parts; the default is the empty string.",
+            desc: "The text that goes between two neighbouring strings. The default is the empty \
+                   string `\"\"`.",
             shape: &[],
         },
     ],
-    ret: "The joined string; `\"\"` for an empty array.",
+    ret: "The joined string. An empty array gives `\"\"`.",
     errors: &[],
 };
 
@@ -2304,19 +2307,7 @@ fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(us
     if wanted.is_empty() {
         return Some((0, 0));
     }
-    // `fallback[i]` is the length of the longest proper prefix of
-    // `wanted[..=i]` that is also its suffix.
-    let mut fallback = vec![0usize; wanted.len()];
-    let mut k = 0usize;
-    for i in 1..wanted.len() {
-        while k > 0 && wanted[i] != wanted[k] {
-            k = fallback[k - 1];
-        }
-        if wanted[i] == wanted[k] {
-            k += 1;
-        }
-        fallback[i] = k;
-    }
+    let fallback = fallback_of(&wanted);
     // The byte offsets of the last `wanted.len()` characters, so a match's
     // start is known when its last character is read.
     let mut starts = vec![0usize; wanted.len()];
@@ -2336,6 +2327,59 @@ fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(us
         }
     }
     None
+}
+
+/// Where the **last** occurrence of `needle` that lies wholly inside
+/// `haystack` begins — [`find_from`] run from the end, with the same two
+/// matching modes.
+///
+/// A case-insensitive match compares one `char` with one `char`, so every
+/// match spans the needle's `char` count, and the match that ends last is also
+/// the one that starts last. The scan therefore runs Knuth–Morris–Pratt over
+/// the reversed needle and the haystack's characters read backwards, and stops
+/// at the first match it completes. That keeps it linear, where finding every
+/// overlapping match from the front and keeping the last costs the haystack's
+/// length times the needle's when the needle matches almost everywhere.
+fn rfind_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<usize> {
+    if !case_insensitive {
+        return haystack.rfind(needle);
+    }
+    let wanted: Vec<Lowered> = needle.chars().rev().map(lowered).collect();
+    if wanted.is_empty() {
+        return Some(haystack.len());
+    }
+    let fallback = fallback_of(&wanted);
+    let mut q = 0usize;
+    for (at, found) in haystack.char_indices().rev() {
+        let key = lowered(found);
+        while q > 0 && key != wanted[q] {
+            q = fallback[q - 1];
+        }
+        if key == wanted[q] {
+            q += 1;
+        }
+        if q == wanted.len() {
+            return Some(at);
+        }
+    }
+    None
+}
+
+/// Knuth–Morris–Pratt's failure table for `wanted`: entry `i` is the length of
+/// the longest proper prefix of `wanted[..=i]` that is also its suffix.
+fn fallback_of(wanted: &[Lowered]) -> Vec<usize> {
+    let mut fallback = vec![0usize; wanted.len()];
+    let mut k = 0usize;
+    for i in 1..wanted.len() {
+        while k > 0 && wanted[i] != wanted[k] {
+            k = fallback[k - 1];
+        }
+        if wanted[i] == wanted[k] {
+            k += 1;
+        }
+        fallback[i] = k;
+    }
+    fallback
 }
 
 /// One `char`'s simple lowercase mapping, which is at most three `char`s,
@@ -2677,8 +2721,7 @@ fn find_at(
 ///
 /// Always a character boundary, and always **past** `at`: an empty needle
 /// matches at every position, so advancing by the match's own length would
-/// never terminate. Pass `0` for `matched` to walk overlapping occurrences,
-/// which is what `lastIndexOf` needs and `countOf` must not do.
+/// never terminate.
 fn after_match(haystack: &str, at: usize, matched: usize) -> usize {
     if matched > 0 {
         return at + matched;
@@ -2739,7 +2782,9 @@ nvs_runtime::nvs_helper! {
     /// `before` bounds the search: only an occurrence that **ends at or before**
     /// that position is considered, so it names the end of the window rather
     /// than a place to start scanning from. [`LAST_INDEX_OF_OPTIONS`] owns why
-    /// its default is `int`'s maximum.
+    /// its default is `int`'s maximum. The search runs backwards from that end
+    /// through [`rfind_from`], so its cost is linear however many overlapping
+    /// occurrences the window holds.
     fn nvs_core_str_last_index_of(_ctx, args: [4]) {
         let subject = text(&args[0], "lastIndexOf", "the subject")?;
         let needle = text(&args[1], "lastIndexOf", "the needle")?;
@@ -2747,16 +2792,8 @@ nvs_runtime::nvs_helper! {
         let case_insensitive = boolean(&args[3], "lastIndexOf", "the `caseInsensitive` option")?;
 
         let bound = crate::granularity::DEFAULT.byte_of_signed_index(subject, before);
-        let mut best = None;
-        let mut cursor = 0usize;
-        while let Some((at, matched)) = find_at(subject, needle, case_insensitive, cursor) {
-            if at + matched > bound {
-                break;
-            }
-            best = Some(at);
-            cursor = after_match(subject, at, 0);
-        }
-        match best {
+        let window = subject.get(..bound).unwrap_or(subject);
+        match rfind_from(window, needle, case_insensitive) {
             None => Ok(Value::null()),
             Some(at) => position(subject, at),
         }
@@ -3022,13 +3059,7 @@ fn cut_at(subject: &str, needle: &str, last: bool) -> Option<(usize, usize)> {
     if !last {
         return find_from(subject, needle, false);
     }
-    let mut best = None;
-    let mut cursor = 0usize;
-    while let Some(found) = find_at(subject, needle, false, cursor) {
-        best = Some(found);
-        cursor = after_match(subject, found.0, 0);
-    }
-    best
+    rfind_from(subject, needle, false).map(|at| (at, needle.len()))
 }
 
 nvs_runtime::nvs_helper! {
@@ -3790,6 +3821,7 @@ mod tests {
         }
     }
 
+    // covers: Core\Str::join
     #[test]
     fn join_walks_the_array_in_insertion_order() {
         let mut parts = NvsArray::new();
@@ -4169,6 +4201,7 @@ mod tests {
 
     /// The separator lands between elements even when one of them is empty —
     /// the case a "have I written anything yet" flag would get wrong.
+    // covers: Core\Str::join
     #[test]
     fn join_separates_an_empty_leading_element_too() {
         let mut parts = NvsArray::new();
@@ -4182,6 +4215,7 @@ mod tests {
         );
     }
 
+    // covers: Core\Str::join
     #[test]
     fn joining_nothing_is_the_empty_string() {
         assert_eq!(
@@ -4466,6 +4500,54 @@ mod tests {
         let status = run(super::nvs_core_str_count_of, &[s("abc"), s("")])
             .expect_err("an empty needle is refused");
         assert_eq!(status, nvs_runtime::THROWN);
+    }
+
+    /// The backward search answers what finding every overlapping occurrence
+    /// from the front and keeping the last one answers: `before` ends the
+    /// window, and a case-insensitive match may be a different byte length
+    /// from the needle. The last row matches at every position.
+    // covers: Core\Str::lastIndexOf
+    #[test]
+    fn last_index_of_answers_the_last_occurrence_in_the_window() {
+        let long = "a".repeat(200_000);
+        let long_needle = "A".repeat(1_000);
+        for (haystack, needle, before, ci, want) in [
+            ("aaa", "aa", i64::MAX, false, Some(1u64)),
+            ("abcabc", "abc", i64::MAX, false, Some(3)),
+            ("abcabc", "abc", 6, false, Some(3)),
+            ("abcabc", "abc", 5, false, Some(0)),
+            ("abcabc", "abc", -1, false, Some(0)),
+            ("abcabc", "abc", 2, false, None),
+            ("abcabc", "x", i64::MAX, false, None),
+            ("abc", "", i64::MAX, false, Some(3)),
+            ("abc", "", 1, false, Some(1)),
+            ("ab", "abc", i64::MAX, true, None),
+            ("\u{e9}\u{c9}\u{e9}", "\u{c9}", i64::MAX, false, Some(1)),
+            ("\u{e9}\u{c9}\u{e9}", "\u{c9}", i64::MAX, true, Some(2)),
+            ("kelvin \u{212a}elvin", "KELVIN", i64::MAX, true, Some(7)),
+            ("kelvin \u{212a}elvin", "KELVIN", 12, true, Some(0)),
+            (
+                "stra\u{df}e STRASSE",
+                "STRA\u{df}E",
+                i64::MAX,
+                true,
+                Some(0),
+            ),
+            (
+                long.as_str(),
+                long_needle.as_str(),
+                i64::MAX,
+                true,
+                Some(199_000),
+            ),
+        ] {
+            let found = run(
+                super::nvs_core_str_last_index_of,
+                &[s(haystack), s(needle), Value::int(before), Value::bool(ci)],
+            )
+            .expect("no failure");
+            assert_eq!(found.as_uint(), want, "{needle:?} before {before}");
+        }
     }
 
     /// Padding measures in the same unit as `length`, so a target of 3 over a

@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-str-2-3`: `Core\\Str::graphemes`, `indexOf` and `isEmpty` are complete (`bun nv proofs --id` says so for each). Every `Core\\Str` bench whose record went stale when `find_from` changed is re-measured, so the `dossier-core-str-1-3` check passes. The `2/3` and `3/3` checks still name many members with no proofs at all; that is the goal's remaining work, one member per slice. Gap `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` (owner M11) is open for the search family. A change to the code of `crates/nvs-stdlib/src/str.rs` makes every `Core\\Str` perf record stale; re-measure them all with `bun nv proofs --record-perf --only …` in the same session. A card or test edit does not.",
+  "state": "Goal `core-str-2-3`: `Core\\Str::graphemes`, `indexOf`, `isEmpty`, `join` and `lastIndexOf` are complete (`bun nv proofs --id` says so for each). `lastIndexOf` and `before`/`after` with `{last: true}` now search backwards through `rfind_from`, so their cost is linear in the text. The old forward scan cost the text's length times the needle's when a long needle matched at many positions. Every `Core\\Str` bench record is re-measured after that change. The `2/3` check still names `lines`, `lower`, `lowerFirst`, `normalize`, `padEnd`, `padStart`, `repeat` and `replace` with no proofs. Gap `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` (owner M11) is open for the search family. A change to the code of `crates/nvs-stdlib/src/str.rs` makes every `Core\\Str` perf record stale. Re-measure them all with `bun nv proofs --record-perf --only …` in the same session; `--force` re-measures one whose record the tool thinks is current. A card or test edit does not make a record stale.",
   "next": {
     "stage": 1,
     "title": "feature proofs, one member per slice",
@@ -12,20 +12,24 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::join`** — owes about.md, examples, hostile, perf, a Rust `covers:` test and a plain card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/str.rs:345`"
+        "text": "**`Core\\Str::lines`** — owes about.md, examples, hostile, perf, a Rust `covers:` test and a plain card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/str.rs:376`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::lastIndexOf`** — the same proofs. Its attack should reuse the near-miss shapes of `tests/hostile/core/Str/indexOf/01-long-needles-that-almost-match.nvs`. `crates/nvs-stdlib/src/str.rs:284`"
+        "text": "**`Core\\Str::lower`** — the same proofs. Its Rust tests near `case_conversion_of_the_empty_string_is_the_empty_string` need only a `// covers:` marker. `crates/nvs-stdlib/src/str.rs:537`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::lines`** — the same proofs. `crates/nvs-stdlib/src/str.rs:376`"
+        "text": "**`Core\\Str::lowerFirst`** — the same proofs, and the same Rust tests. `crates/nvs-stdlib/src/str.rs:564`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Str::normalize`** — the same proofs. `crates/nvs-stdlib/src/str.rs:582`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Str::lower`, `lowerFirst`, `normalize` and the rest of the `2/3` and `3/3` lists owe every proof (`bun nv proofs --verify --only …` names them).",
-    "Gap `nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position` — owner M11, `data/gaps/nvs-stdlib/`."
+    "`padEnd`, `padStart`, `repeat` and `replace` still owe every proof for the `2/3` check (`rule:testing/feature-proofs`).",
+    "`Core\\Str::join` builds its result in a `String` and then copies it, 2 allocations per call. `crates/nvs-stdlib/src/str.rs` § *A result is written once* records why the other shapes measured slower."
   ]
 }
