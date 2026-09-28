@@ -7076,14 +7076,14 @@ Checks whether `$needle` appears anywhere in `$haystack`. Replaces PHP's `str_co
 Core\Str::startsWith(string $s, string $prefix): bool
 ```
 
-Answers whether `$s` begins with `$prefix`, as `str_starts_with` does.
+Checks whether `$s` starts with `$prefix`. Replaces PHP's `str_starts_with`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` (neutral) | The string to test. |
-| `$prefix` | `string` (neutral) | The text it must begin with, matched case-sensitively. |
+| `$s` | `string` (neutral) | The string to check. |
+| `$prefix` | `string` (neutral) | The text `$s` must start with. The check is case-sensitive. |
 
-**Returns** `bool` — `true` when it does; an empty prefix begins every string.
+**Returns** `bool` — `true` when `$s` starts with `$prefix`, otherwise `false`. An empty `$prefix` is at the start of every string, so the result is `true`.
 
 <a id="core-core-str-endswith"></a>
 #### `Core\Str::endsWith`
@@ -7421,14 +7421,14 @@ Adds copies of `$padding` after `$s` until the result is `$length` characters lo
 Core\Str::trim(string $s, {characters?: string}): string
 ```
 
-Strips every leading and trailing character drawn from `characters` off `$s`, as `trim` does — matched by character, and without `trim`'s `a..z` range syntax.
+Removes the given characters from both ends of `$s`. Replaces PHP's `trim`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to trim. |
-| `{characters: …}` | `string` (default `" \t\n\r\u0000\u000b"`) | The set of characters to strip, each one literal; the default is space, tab, newline, carriage return, NUL and vertical tab. |
+| `{characters: …}` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. |
 
-**Returns** `string` — The trimmed string; `$s` unchanged when neither end holds one of the characters.
+**Returns** `string` — `$s` without those characters at its start and its end. The middle of `$s` is not changed.
 
 <a id="core-core-str-trimstart"></a>
 #### `Core\Str::trimStart`
@@ -7437,14 +7437,14 @@ Strips every leading and trailing character drawn from `characters` off `$s`, as
 Core\Str::trimStart(string $s, {characters?: string}): string
 ```
 
-Strips every leading character drawn from `characters` off `$s`, as `ltrim` does — matched by character, and without `ltrim`'s `a..z` range syntax.
+Removes the given characters from the start of `$s`. Replaces PHP's `ltrim`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to trim. |
-| `{characters: …}` | `string` (default `" \t\n\r\u0000\u000b"`) | The set of characters to strip, each one literal; the default is space, tab, newline, carriage return, NUL and vertical tab. |
+| `{characters: …}` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. |
 
-**Returns** `string` — The trimmed string; `$s` unchanged when it does not begin with one of the characters.
+**Returns** `string` — `$s` without those characters at its start. The rest of `$s` is not changed.
 
 <a id="core-core-str-trimend"></a>
 #### `Core\Str::trimEnd`
@@ -7453,14 +7453,14 @@ Strips every leading character drawn from `characters` off `$s`, as `ltrim` does
 Core\Str::trimEnd(string $s, {characters?: string}): string
 ```
 
-Strips every trailing character drawn from `characters` off `$s`, as `rtrim` and `chop` do — matched by character, and without `rtrim`'s `a..z` range syntax.
+Removes the given characters from the end of `$s`. Replaces PHP's `rtrim` and `chop`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to trim. |
-| `{characters: …}` | `string` (default `" \t\n\r\u0000\u000b"`) | The set of characters to strip, each one literal; the default is space, tab, newline, carriage return, NUL and vertical tab. |
+| `{characters: …}` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. |
 
-**Returns** `string` — The trimmed string; `$s` unchanged when it does not end with one of the characters.
+**Returns** `string` — `$s` without those characters at its end. The rest of `$s` is not changed.
 
 <a id="core-core-str-repeat"></a>
 #### `Core\Str::repeat`

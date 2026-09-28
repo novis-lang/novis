@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read `name = value` lines from a settings file, with spaces around each part.
+
+string $file = "  title = My Shop  \nlanguage=en\n   \n currency =  EUR\n";
+
+foreach (Core\Str::split($file, "\n") as string $line) {
+    // A line with nothing but spaces is skipped.
+    if (Core\Str::trim($line) == "") {
+        continue;
+    }
+    // The line is cut at the first `=`, and both parts are trimmed.
+    array<string> $parts = Core\Str::split($line, "=", {limit: 2});
+    // This prints `title: My Shop`, `language: en` and `currency: EUR`.
+    echo Core\Str::trim($parts[0]), ": ", Core\Str::trim($parts[1]), "\n";
+}

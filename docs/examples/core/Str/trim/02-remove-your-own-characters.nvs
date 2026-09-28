@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to choose which characters `Core\Str::trim` removes.
+
+// Only the quotes are removed. This prints `[hello]`.
+echo "[", Core\Str::trim("\"hello\"", {characters: "\""}), "]\n";
+
+// Each character in the list counts on its own, so `-` and `/` are both removed.
+// This prints `[docs/intro]`.
+echo "[", Core\Str::trim("--/docs/intro/--", {characters: "-/"}), "]\n";
+
+// Your list replaces the default one, so the spaces stay. This prints `[ x ]`.
+echo "[", Core\Str::trim("- x -", {characters: "-"}), "]\n";

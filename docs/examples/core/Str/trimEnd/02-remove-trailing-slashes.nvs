@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to remove every `/` at the end of a web address before a path is added to it.
+
+array<string> $bases = ["https://example.com", "https://example.com/", "https://example.com///"];
+
+foreach ($bases as string $base) {
+    // All three lines print `https://example.com/api/orders`.
+    echo Core\Str::trimEnd($base, {characters: "/"}), "/api/orders\n";
+}

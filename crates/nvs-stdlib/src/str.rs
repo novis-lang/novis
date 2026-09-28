@@ -684,20 +684,21 @@ const CONTAINS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::startsWith`'s reference card — `rule:core-api/reference-card`.
 const STARTS_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$s` begins with `$prefix`, as `str_starts_with` does.",
+    short: "Checks whether `$s` starts with `$prefix`. Replaces PHP's `str_starts_with`.",
     params: &[
         ParamDoc {
             name: "s",
-            desc: "The string to test.",
+            desc: "The string to check.",
             shape: &[],
         },
         ParamDoc {
             name: "prefix",
-            desc: "The text it must begin with, matched case-sensitively.",
+            desc: "The text `$s` must start with. The check is case-sensitive.",
             shape: &[],
         },
     ],
-    ret: "`true` when it does; an empty prefix begins every string.",
+    ret: "`true` when `$s` starts with `$prefix`, otherwise `false`. An empty `$prefix` is at \
+          the start of every string, so the result is `true`.",
     errors: &[],
 };
 
@@ -1224,8 +1225,7 @@ const PAD_END_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::trim`'s reference card — `rule:core-api/reference-card`.
 const TRIM_DOC: MethodDoc = MethodDoc {
-    short: "Strips every leading and trailing character drawn from `characters` off `$s`, as \
-            `trim` does — matched by character, and without `trim`'s `a..z` range syntax.",
+    short: "Removes the given characters from both ends of `$s`. Replaces PHP's `trim`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1234,19 +1234,20 @@ const TRIM_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "characters",
-            desc: "The set of characters to strip, each one literal; the default is space, tab, \
-                   newline, carriage return, NUL and vertical tab.",
+            desc: "The characters to remove, in any order. `a..z` is the three characters `a`, \
+                   `.` and `z`. The default is space, tab, newline, carriage return, NUL and \
+                   vertical tab.",
             shape: &[],
         },
     ],
-    ret: "The trimmed string; `$s` unchanged when neither end holds one of the characters.",
+    ret: "`$s` without those characters at its start and its end. The middle of `$s` is not \
+          changed.",
     errors: &[],
 };
 
 /// `Core\Str::trimStart`'s reference card — `rule:core-api/reference-card`.
 const TRIM_START_DOC: MethodDoc = MethodDoc {
-    short: "Strips every leading character drawn from `characters` off `$s`, as `ltrim` does — \
-            matched by character, and without `ltrim`'s `a..z` range syntax.",
+    short: "Removes the given characters from the start of `$s`. Replaces PHP's `ltrim`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1255,19 +1256,20 @@ const TRIM_START_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "characters",
-            desc: "The set of characters to strip, each one literal; the default is space, tab, \
-                   newline, carriage return, NUL and vertical tab.",
+            desc: "The characters to remove, in any order. `a..z` is the three characters `a`, \
+                   `.` and `z`. The default is space, tab, newline, carriage return, NUL and \
+                   vertical tab.",
             shape: &[],
         },
     ],
-    ret: "The trimmed string; `$s` unchanged when it does not begin with one of the characters.",
+    ret: "`$s` without those characters at its start. The rest of `$s` is not changed.",
     errors: &[],
 };
 
 /// `Core\Str::trimEnd`'s reference card — `rule:core-api/reference-card`.
 const TRIM_END_DOC: MethodDoc = MethodDoc {
-    short: "Strips every trailing character drawn from `characters` off `$s`, as `rtrim` and \
-            `chop` do — matched by character, and without `rtrim`'s `a..z` range syntax.",
+    short: "Removes the given characters from the end of `$s`. Replaces PHP's `rtrim` and \
+            `chop`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1276,12 +1278,13 @@ const TRIM_END_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "characters",
-            desc: "The set of characters to strip, each one literal; the default is space, tab, \
-                   newline, carriage return, NUL and vertical tab.",
+            desc: "The characters to remove, in any order. `a..z` is the three characters `a`, \
+                   `.` and `z`. The default is space, tab, newline, carriage return, NUL and \
+                   vertical tab.",
             shape: &[],
         },
     ],
-    ret: "The trimmed string; `$s` unchanged when it does not end with one of the characters.",
+    ret: "`$s` without those characters at its end. The rest of `$s` is not changed.",
     errors: &[],
 };
 
@@ -2303,15 +2306,73 @@ nvs_runtime::nvs_helper! {
 ///   character can be trimmed and a lone continuation byte can never be.
 /// * PHP's `"a..z"` range syntax is **not** interpreted. A `.` in the set is a
 ///   `.`, and nothing else.
-fn trimmed<'a>(subject: &'a str, characters: &str, start: bool, end: bool) -> &'a str {
+///
+/// The set is read once into a [`TrimSet`], so each character of the subject
+/// costs one lookup whatever the set's length. Searching `characters` itself
+/// per character made a long set against a long subject quadratic.
+///
+/// # Errors
+///
+/// The `FATAL` [`nvs_runtime::affordable`] reports when the set's non-ASCII
+/// characters do not fit under the request's memory limit.
+fn trimmed<'a>(
+    subject: &'a str,
+    characters: &str,
+    start: bool,
+    end: bool,
+    member: &str,
+) -> Result<&'a str, Fault> {
+    let set = TrimSet::of(characters, member)?;
     let mut out = subject;
     if start {
-        out = out.trim_start_matches(|c| characters.contains(c));
+        out = out.trim_start_matches(|c| set.has(c));
     }
     if end {
-        out = out.trim_end_matches(|c| characters.contains(c));
+        out = out.trim_end_matches(|c| set.has(c));
     }
-    out
+    Ok(out)
+}
+
+/// The characters one trim removes: a bit per ASCII character, and every
+/// other character sorted for a binary search.
+///
+/// The sorted list spends four bytes per non-ASCII character of the set, for
+/// the length of one call, and asks the request's budget for them first. A set
+/// of ASCII characters alone, which the default is, allocates nothing.
+struct TrimSet {
+    ascii: u128,
+    other: Vec<char>,
+}
+
+impl TrimSet {
+    fn of(characters: &str, member: &str) -> Result<Self, Fault> {
+        let mut ascii = 0u128;
+        let mut wide = 0usize;
+        for c in characters.chars() {
+            if c.is_ascii() {
+                ascii |= 1u128 << u32::from(c);
+            } else {
+                wide += 1;
+            }
+        }
+        let mut other = Vec::new();
+        if wide > 0 {
+            nvs_runtime::affordable(wide.checked_mul(std::mem::size_of::<char>()), member)?;
+            other.reserve_exact(wide);
+            other.extend(characters.chars().filter(|c| !c.is_ascii()));
+            other.sort_unstable();
+            other.dedup();
+        }
+        Ok(Self { ascii, other })
+    }
+
+    fn has(&self, c: char) -> bool {
+        if c.is_ascii() {
+            self.ascii & (1u128 << u32::from(c)) != 0
+        } else {
+            self.other.binary_search(&c).is_ok()
+        }
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -2321,7 +2382,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_str_trim(_ctx, args: [2]) {
         let subject = text(&args[0], "trim", "the subject")?;
         let characters = text(&args[1], "trim", "the `characters` option")?;
-        produced(trimmed(subject, characters, true, true))
+        produced(trimmed(subject, characters, true, true, r"Core\Str::trim")?)
     }
 }
 
@@ -2331,7 +2392,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_str_trim_start(_ctx, args: [2]) {
         let subject = text(&args[0], "trimStart", "the subject")?;
         let characters = text(&args[1], "trimStart", "the `characters` option")?;
-        produced(trimmed(subject, characters, true, false))
+        produced(trimmed(subject, characters, true, false, r"Core\Str::trimStart")?)
     }
 }
 
@@ -2341,7 +2402,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_str_trim_end(_ctx, args: [2]) {
         let subject = text(&args[0], "trimEnd", "the subject")?;
         let characters = text(&args[1], "trimEnd", "the `characters` option")?;
-        produced(trimmed(subject, characters, false, true))
+        produced(trimmed(subject, characters, false, true, r"Core\Str::trimEnd")?)
     }
 }
 
@@ -4136,7 +4197,11 @@ mod tests {
 
     /// The three trims share one option bag, so they can only differ in which
     /// end they strip. The default set is PHP's, and a written one replaces it
-    /// rather than adding to it.
+    /// rather than adding to it. A set is matched by character, so a
+    /// multi-byte one is stripped whole and a long one is read once.
+    // covers: Core\Str::trim
+    // covers: Core\Str::trimStart
+    // covers: Core\Str::trimEnd
     #[test]
     fn the_three_trims_strip_the_ends_they_name() {
         let php_default = " \t\n\r\0\u{0b}";
@@ -4160,6 +4225,25 @@ mod tests {
         assert_eq!(trim(super::nvs_core_str_trim, " xhix ", "x"), " xhix ");
         // `rule:core-api/shape-rules` R13: `a..z` is three characters, not a range.
         assert_eq!(trim(super::nvs_core_str_trim, "abc", "a..z"), "bc");
+        // Non-ASCII characters, repeated in the set, next to ASCII ones.
+        assert_eq!(trim(super::nvs_core_str_trim, "«·Größe·»", "»·«·"), "Größe");
+        assert_eq!(
+            trim(
+                super::nvs_core_str_trim_start,
+                "\u{1f600}\u{1f600}ok\u{1f600}",
+                "\u{1f600}"
+            ),
+            "ok\u{1f600}"
+        );
+        assert_eq!(
+            trim(super::nvs_core_str_trim_end, "ok\u{a0}\u{a0}", "\u{a0}"),
+            "ok"
+        );
+        // A character absent from the set stops the trim, however long the set is.
+        let long_set: &'static str = format!("{}ö", "é".repeat(4096)).leak();
+        assert_eq!(trim(super::nvs_core_str_trim, "öüö", long_set), "ü");
+        assert_eq!(trim(super::nvs_core_str_trim, "", long_set), "");
+        assert_eq!(trim(super::nvs_core_str_trim, "abc", ""), "abc");
     }
 
     /// `replace` with both options at their defaults, which is what a call
@@ -4539,23 +4623,35 @@ mod tests {
         assert_eq!(at("abc", i64::MIN), None);
     }
 
-    /// `contains` and `endsWith` compare bytes exactly: case matters, an empty
-    /// needle is found in every string, the empty one included, and a needle
-    /// longer than the subject is simply absent.
+    /// `contains`, `startsWith` and `endsWith` compare bytes exactly: case
+    /// matters, an empty needle is found in every string, the empty one
+    /// included, a needle longer than the subject is simply absent, and a
+    /// prefix that is the first code point of a joined emoji still matches.
     // covers: Core\Str::contains
+    // covers: Core\Str::startsWith
     // covers: Core\Str::endsWith
     #[test]
-    fn contains_and_ends_with_match_exact_bytes_and_find_the_empty_needle_everywhere() {
+    fn contains_starts_with_and_ends_with_match_exact_bytes_and_find_the_empty_needle_everywhere() {
         let ask = |member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
                    subject: &str,
                    needle: &str| {
             run(member, &[s(subject), s(needle)])
-                .expect("contains and endsWith never fail")
+                .expect("contains, startsWith and endsWith never fail")
                 .as_bool()
                 .expect("the member returned a bool")
         };
         let contains = super::nvs_core_str_contains;
+        let starts_with = super::nvs_core_str_starts_with;
         let ends_with = super::nvs_core_str_ends_with;
+        assert!(ask(starts_with, "https://example.com", "https://"));
+        assert!(!ask(starts_with, "https://example.com", "HTTPS://"));
+        assert!(!ask(starts_with, "draft-report.pdf", "report"));
+        assert!(ask(starts_with, "", ""));
+        assert!(ask(starts_with, "abc", ""));
+        assert!(!ask(starts_with, "a", "abc"));
+        assert!(!ask(starts_with, "", "a"));
+        assert!(ask(starts_with, "Größe", "Grö"));
+        assert!(ask(starts_with, "\u{1f469}\u{200d}\u{1f4bb}", "\u{1f469}"));
         assert!(ask(contains, "order #1042", "#10"));
         assert!(!ask(contains, "order #1042", "Order"));
         assert!(ask(contains, "", ""));

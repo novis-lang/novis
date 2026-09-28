@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-str-3-3`: `Core\\Str::split` has every feature proof on disk: description, three\nexamples, attack, bench record, two Rust tests with its `covers:` marker, and a card in plain words.\n`split` now counts its pieces first and pays for the whole list through `nvs_runtime::affordable`\nand `NvsArray::try_reserve`, the way `lines_array` does. Before this, a subject of separators alone\nbuilt an array about nine times the memory limit before the breach was reported. A negative limit\nno longer collects a `Vec<&str>` of every piece. Every `Core\\Str` perf record was re-measured after\n`str.rs` changed. `--record-perf` refused calibration twice on a busy machine and passed on the\nthird try. The members still owed in this goal are `startsWith`, `trim`, `trimStart`, `trimEnd`,\n`wrap`, `upper` and `upperFirst`.",
+  "state": "Goal `core-str-3-3`: `startsWith`, `trim`, `trimStart` and `trimEnd` now have every feature\nproof on disk: description, three examples each, an attack, a bench record, a Rust test with\ntheir `covers:` markers, and cards in plain words. The attack on `trim` found a quadratic cost:\n`trimmed` searched the whole `characters` set once for each character it removed, so a 1 MiB set\nagainst a 1 MiB subject took minutes. `trimmed` now reads the set once into a `TrimSet` (an\nASCII bitmask, and a sorted list of the other characters, paid for through\n`nvs_runtime::affordable`). `tests/conformance/core/str-trim-matches-a-long-or-multi-byte-set-by-character.nvst`\npins it. Every `Core\\Str` perf record was re-measured after `str.rs` changed. The members still\nowed in this goal are `upper`, `upperFirst` and `wrap`.",
   "next": {
     "stage": 1,
     "title": "member proofs, file order",
@@ -8,19 +8,16 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::startsWith`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); a scalar result, so its bench declares `// bench: allocations 0`. `crates/nvs-stdlib/src/str.rs:1964`"
+        "text": "**`Core\\Str::upper`, `upperFirst`** — each owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `lower` and `lowerFirst` are the twins to copy the shape from. Check that a character whose upper case is longer (`ß` becomes `SS`) is paid for before the result is built. `crates/nvs-stdlib/src/str.rs:3514`, `crates/nvs-stdlib/src/str.rs:3526`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::trim`, `trimStart`, `trimEnd`** — each owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`); if the three share one helper, one Rust test with three `covers:` markers is enough. `crates/nvs-stdlib/src/str.rs:2321`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Str::upper`, `upperFirst`, `wrap`** — each owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Check that each result is written through `built` and not a Rust `String` the budget never sees, as `replaceAll` was. `crates/nvs-stdlib/src/str.rs:3453`"
+        "text": "**`Core\\Str::wrap`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Its result can be much longer than its input (a width of 1 adds a break after every character), so check that the output is paid for before it is built, and attack it with a width of 1 on a long text. `crates/nvs-stdlib/src/str.rs:3276`"
       }
-    ]
+    ],
+    "after": "Once all three are green, the goal's check `dossier-core-str-3-3` should pass: run `bun nv verify --doc`, `bun nv owners --closes core-str-3-3` and `bun nv playbook --closes core-str-3-3` and write `DONE`."
   },
   "backlog": [
-    "`Core\\Str::chunk`, `graphemes` and `codePoints` append one entry per piece and ask no budget, so a long subject builds its array past the memory limit before the breach is reported; `lines_array` and `split` pay first. `crates/nvs-stdlib/src/str.rs:2119` — owner: goal `core-str-3-3` if a slice fits, else a `# Known gaps` item in `str.rs`'s module doc."
+    "`trim`'s set matches by code point, not by grapheme: trimming `e` from `\"ee\\u{301}t\"` leaves a lone combining accent at the start (`tests/hostile/core/Str/trimStart/01-a-long-run-before-one-character.nvs` step 2). It is PHP's behaviour and the card says \"character\"; whether a grapheme-matched set is wanted belongs to `crates/nvs-stdlib/src/str.rs`'s `trimmed` doc, and no gap is recorded."
   ]
 }

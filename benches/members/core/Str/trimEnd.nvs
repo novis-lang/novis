@@ -1,0 +1,18 @@
+<?nvs
+// Removes the line break at the end of a line, as a program does with each line it reads.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lines = ["GET /index.html\r\n", "Host: example.com\n", "\n", "Accept: */*  \n"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::trimEnd($lines[(($total + $i) % 4) as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

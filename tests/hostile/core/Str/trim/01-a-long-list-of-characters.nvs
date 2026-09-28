@@ -1,0 +1,47 @@
+<?nvs
+// Attack: `Core\Str::trim` gets a very long list of characters and a very long string.
+// Each trim should finish in a few seconds at most, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Uses a 2 MiB list whose only match is its last character, on a 2 MiB string.
+    public static function longListWithTheMatchAtTheEnd(uint $count): uint
+    {
+        var $characters = Core\Str::repeat('é', $count) . 'ö';
+        var $subject = Core\Str::repeat('ö', $count) . 'x' . Core\Str::repeat('ö', $count);
+        return Core\Str::length(Core\Str::trim($subject, { characters: $characters }));
+    }
+
+    /// 2. Uses a list of every ASCII character, so the whole string is removed.
+    public static function everyAsciiCharacter(uint $count): uint
+    {
+        string $all = '';
+        uint $code = 0;
+        while ($code < 128) {
+            $all = $all . Core\Str::fromCodePoint($code);
+            $code = $code + 1;
+        }
+        var $subject = Core\Str::repeat('Hello, world! ', $count);
+        return Core\Str::length(Core\Str::trim($subject, { characters: $all }));
+    }
+
+    /// 3. Removes only the second half of emoji that are joined into one character.
+    public static function halfOfAJoinedEmoji(uint $count): uint
+    {
+        var $subject = Core\Str::repeat("\u{1f469}\u{200d}\u{1f4bb}", $count);
+        return Core\Str::length(Core\Str::trim($subject, { characters: "\u{1f4bb}" }));
+    }
+
+    /// 4. Trims a string that is empty, with an empty list and with the default list.
+    public static function emptyStrings(): uint
+    {
+        return Core\Str::length(Core\Str::trim('', { characters: '' }))
+            + Core\Str::length(Core\Str::trim(''));
+    }
+}
+
+echo Attack::longListWithTheMatchAtTheEnd(1048576), "\n";
+echo Attack::everyAsciiCharacter(1000000), "\n";
+echo Attack::halfOfAJoinedEmoji(1000000), "\n";
+echo Attack::emptyStrings(), "\n";

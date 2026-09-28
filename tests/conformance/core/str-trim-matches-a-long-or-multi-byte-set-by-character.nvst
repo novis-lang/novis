@@ -1,0 +1,23 @@
+--TEST--
+The three trims match their `characters` set by character: a multi-byte character in the set is removed whole, a set repeated or out of order means the same set, and a long set against a long subject finishes in one pass rather than one search of the set per character (`rule:core-api/shape-rules`)
+--FILE--
+<?nvs
+// A set of non-ASCII characters, repeated and out of order.
+echo "[", Core\Str::trim("«·Größe·»", {characters: "»·«·"}), "]\n";
+echo "[", Core\Str::trimStart("\u{a0}!\u{a0}ok!", {characters: "\u{a0}!"}), "]\n";
+echo "[", Core\Str::trimEnd("ok\u{1f600}\u{1f600}", {characters: "x\u{1f600}"}), "]\n";
+
+// A 1 MiB set whose only match is its last character, against a 1 MiB subject
+// of that character. Searching the set once per character took minutes.
+var $set = Core\Str::repeat("é", 524288) . "ö";
+var $subject = Core\Str::repeat("ö", 524288) . "ü" . Core\Str::repeat("ö", 524288);
+echo "[", Core\Str::trim($subject, {characters: $set}), "]\n";
+echo Core\Str::length(Core\Str::trimStart($subject, {characters: $set})), "\n";
+echo Core\Str::length(Core\Str::trimEnd($subject, {characters: $set})), "\n";
+--EXPECT--
+[Größe]
+[ok!]
+[ok]
+[ü]
+524289
+524289
