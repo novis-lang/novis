@@ -1,0 +1,30 @@
+<?nvs
+// Shows a sign-in that saves the user's refresh token from a login service in the session.
+
+class Login {
+    // A real program gets this token from the login service.
+    public static function exchangeCode(string $code): secret string {
+        return "rt-" . $code;
+    }
+
+    public static function signIn(string $code, array<secret bytes> $keys): void {
+        Core\Session::start();
+
+        // A new session identifier after sign-in protects the user from session fixation.
+        Core\Session::regenerate();
+        Core\Session::set("user", "ada");
+
+        // The token is a secret, so it is saved with `setSecret()` and not with `set()`.
+        Core\Session::setSecret("refresh-token", Login::exchangeCode($code), $keys);
+    }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+Login::signIn("c0de42", $keys);
+
+// This prints `signed in as ada` and `refresh token saved: yes`.
+echo "signed in as ", Core\Session::get("user") ?? "(nobody)", "\n";
+echo "refresh token saved: ",
+    Core\Session::getSecret("refresh-token", $keys) == null ? "no" : "yes", "\n";

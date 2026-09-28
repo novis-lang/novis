@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to save a secret in the session and read it back.
+
+// A real program loads its keys from its configuration. This example creates one.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+Core\Session::start();
+
+// `setSecret()` encrypts the token with the first key and saves it.
+secret string $token = "at-7f3c9b21";
+Core\Session::setSecret("access-token", $token, $keys);
+
+// `getSecret()` decrypts it with the same keys. This prints `the token is saved`.
+echo (Core\Session::getSecret("access-token", $keys) ?? "") == $token
+    ? "the token is saved"
+    : "the token is missing", "\n";

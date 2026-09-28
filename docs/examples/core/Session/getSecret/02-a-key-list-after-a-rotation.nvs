@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to replace an encryption key and still read the secrets the old key encrypted.
+
+secret bytes $oldKey = Core\Crypto::generateKey();
+secret bytes $newKey = Core\Crypto::generateKey();
+
+Core\Session::start();
+secret string $token = "at-91abf042";
+
+// Before the change the program has one key, so that key encrypts the token.
+array<secret bytes> $before = [$oldKey];
+Core\Session::setSecret("access-token", $token, $before);
+
+// After the change the new key is first, and the old key stays in the list.
+// Every key is tried, so this prints `with both keys: found`.
+array<secret bytes> $after = [$newKey, $oldKey];
+echo "with both keys: ",
+    (Core\Session::getSecret("access-token", $after) ?? "") == $token ? "found" : "null", "\n";
+
+// The new key alone cannot decrypt the old token. This prints `new key only: null`.
+array<secret bytes> $newOnly = [$newKey];
+echo "new key only: ",
+    (Core\Session::getSecret("access-token", $newOnly) ?? "") == $token ? "found" : "null", "\n";
