@@ -10,9 +10,10 @@
 // checks by stage, the goal's own fixtures, the `overlap` commands and the checks that build or measure
 // the release profile. A fixture tier runs to its end and reports its reds as one line, earliest stage
 // first. An `overlap` command starts when the setup tier ends and is judged after the goal's fixtures.
-// The release tier's builds start when the overlap tier does, beside those commands, and the release
-// checks themselves run one at a time once every build and overlap command has ended, so a perf guard
-// measures on cores nothing else of the sweep is using.
+// The release tier's builds start when the overlap tier does, beside those commands, and so does what
+// the caller hands in as `beside`, the Linux legs at a goal end. The release checks themselves run one
+// at a time once every build, overlap command and `beside` run has ended, so a perf guard measures on
+// cores nothing else of the sweep is using.
 //
 // A check is reached when the selection picks one of its atoms (`select/checks.ts`): something it was
 // seen to use changed, it is new, red or owed, or its record changed. A check with `memoize = false`
@@ -22,7 +23,7 @@
 // the store's last green runs. A suite below its `minPassing` is `short`, reported and never green.
 //
 // The floor gate is the turn's (`cmd/loop.ts`), and the WSL leg and the valgrind sweep are
-// `driver/legs.ts`'s, run after these tiers.
+// `driver/legs.ts`'s, which the turn starts as `beside`.
 
 import { dirname } from "node:path";
 
@@ -507,6 +508,11 @@ export interface AcceptanceOptions {
    * tier's reached checks when the overlap tier starts, and builds what they will build; its promise
    * never rejects. */
   sweep: { check(c: Check): Promise<Verdict>; batch?(checks: Check[]): void; prebuild?(checks: Check[]): Promise<void> };
+  /** Work that starts when the overlap tier does, beside the release builds, and that no measurement may
+   * share the cores with: the release tier starts only once it ends, and the sweep never returns while it
+   * runs. A sweep that stops at a red check before the overlap tier never starts it. Its promise never
+   * rejects. */
+  beside?: () => Promise<void>;
   /** Whether the change reaches `c`. A check it does not reach is not started and prints nothing. */
   reached: (c: Check) => boolean;
   /** The verdict of a check the change does not reach, from what the store holds; green when omitted. */
@@ -536,11 +542,17 @@ export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise
   let ran = 0;
   let answered = 0;
   const pending = new Map<string, Promise<Verdict>>();
-  // The release builds, started beside the overlap commands. The sweep never returns while one still
-  // runs, so nothing it measures after it, and no other tree's sweep, shares the cores with a build.
+  // The release builds and the caller's `beside` run, started beside the overlap commands. The sweep
+  // never returns while one still runs, so nothing it measures after them, and no other tree's sweep,
+  // shares the cores with them.
   let prebuilt: Promise<void> = Promise.resolve();
-  const done = async (fail: string): Promise<AcceptanceResult> => {
+  let besides: Promise<void> = Promise.resolve();
+  const settled = async () => {
     await prebuilt;
+    await besides;
+  };
+  const done = async (fail: string): Promise<AcceptanceResult> => {
+    await settled();
     return { fail, ran, answered, verdicts };
   };
 
@@ -549,12 +561,13 @@ export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise
     const fails: { c: Check; fail: string }[] = [];
     o.sweep.batch?.(tier.checks.filter(o.reached));
     // The overlap tier waits on commands that started with the setup tier. The release tier's builds
-    // start now, beside them, and its measurements start only once every build has finished.
-    if (tier.name === "overlap" && o.sweep.prebuild) {
+    // and `beside` start now, beside them, and its measurements start only once all of those have ended.
+    if (tier.name === "overlap") {
       const release = order.find((t) => t.name === "release")!.checks.filter(o.reached);
-      if (release.length > 0) prebuilt = o.sweep.prebuild(release);
+      if (o.sweep.prebuild && release.length > 0) prebuilt = o.sweep.prebuild(release);
+      if (o.beside) besides = o.beside();
     }
-    if (tier.name === "release") await prebuilt;
+    if (tier.name === "release") await settled();
     for (const c of tier.checks) {
       let v: Verdict;
       if (!o.reached(c)) {

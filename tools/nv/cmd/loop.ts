@@ -434,7 +434,8 @@ async function sweepOver(
   const c = sweep.change;
   const since = c.full ? (c.global ?? "everything") : `${c.changes.length} path(s) changed since the recorded tree`;
   p.note(`${since}; ${n} of ${checks.length} check(s) reached, the other ${checks.length - n} not started`);
-  // The two Linux legs, over the fixtures and suites this sweep reaches, run after its tiers.
+  // The two Linux legs, over the fixtures and suites this sweep reaches. They start with the overlap tier,
+  // beside the release builds, and the release tier measures only once they end (`acceptance`'s `beside`).
   const legs: LegsOptions = {
     programs: checks.filter((c) => PROGRAM_KINDS.has(c.kind)),
     suites: checks.filter((c) => c.kind === "nvs-suite"),
@@ -465,6 +466,7 @@ async function sweepOver(
   let result: AcceptanceResult;
   let owed = 0;
   let origin: Origin | null = null;
+  let legsRun: Promise<string> | null = null;
   try {
     if (runLegs) {
       p.count(legSteps(legs));
@@ -482,10 +484,23 @@ async function sweepOver(
       judged: (x) => sweep.judged(x),
       collect: o.collect,
       trace: p.trace,
+      ...(runLegs
+        ? {
+            beside: () => {
+              const run = linuxLegs(legs);
+              legsRun = run;
+              return run.then(
+                () => {},
+                () => {},
+              );
+            },
+          }
+        : {}),
     });
-    // A sweep that stopped at a red check stops here too, as it would have at any later tier.
+    // A sweep that stopped at a red check reports that red alone, as it would have at any later tier; a
+    // collecting sweep that returned before the overlap tier runs the legs now.
     if (runLegs && (result.fail === "" || o.collect)) {
-      const red = await linuxLegs(legs);
+      const red = await (legsRun ?? linuxLegs(legs));
       if (red) result = { ...result, fail: result.fail ? allReds([result.fail, red]) : red };
     }
   } finally {

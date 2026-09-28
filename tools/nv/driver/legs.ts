@@ -1,6 +1,7 @@
-// The acceptance sweep's two Linux legs, run after the native sweep is green: the WSL leg and the valgrind
-// sweep. `linuxLegs` runs both and returns the ledger's line, or "" when both are green, skipped or not
-// reached by the change.
+// The acceptance sweep's two Linux legs: the WSL leg and the valgrind sweep. `linuxLegs` runs both and
+// returns the ledger's line, or "" when both are green, skipped or not reached by the change. The turn
+// starts it when the native sweep reaches its overlap tier with every earlier tier green, beside the
+// release builds, and the release tier measures only once it has ended (`driver/accept.ts`).
 //
 // **The WSL leg** is Windows only. It builds the CLI inside the default WSL distro, into the goal's
 // `env.wsl.targetDir`, and runs every fixture the sweep reached and every `nvs-suite` check against that
@@ -312,7 +313,7 @@ async function buildWsl(s: LegsSeams, targetDir: string): Promise<string> {
  * Starts the WSL build in the background, beside the cargo tier, when `linuxLegs` will need it: the floor
  * gate is open, the sweep reaches a fixture, WSL is here and the change reaches a leg. The
  * build and nothing after it: the fixtures and the sweep reach the same database servers the cargo tier's
- * tests do, so they wait for `linuxLegs`.
+ * tests do, so they wait for `linuxLegs`, which starts once that tier has ended.
  */
 export function startWslBuild(o: Omit<LegsOptions, "suites" | "setups" | "files" | "valgrindSkip" | "label">): boolean {
   const s = seamsOf(o);
