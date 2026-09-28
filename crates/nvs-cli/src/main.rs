@@ -347,9 +347,11 @@ enum Command {
         ///
         /// What makes `Core\Socket::current()` answer outside a server, so a
         /// connection script can be run, shown and attacked from one file.
-        /// The format is `peer`'s module doc. A connection answers no
-        /// request, so the two flags are never given together.
-        #[arg(long, value_name = "FILE", conflicts_with = "request")]
+        /// The format is `peer`'s module doc. Given beside `--request`, the
+        /// program is the request and the peer is the client of the
+        /// connection its `Core\Socket::upgrade` opens, which runs once the
+        /// request has ended.
+        #[arg(long, value_name = "FILE")]
         peer: Option<PathBuf>,
         /// The program's own arguments, which `Core\Command::run()` matches
         /// against the program's compiled command table.
@@ -2522,11 +2524,23 @@ fn run_run(
     // includes the door's one match, taken here the way `runner.rs`'s
     // `UnderTest::answer` takes it, so `Core\Request::route()` answers what a
     // served request would. A program with no `#[Route]` claims nothing.
+    //
+    // A request whose `Upgrade` header names `websocket` is offered
+    // `rule:concurrency/an-upgrade-is-spawn-shaped`'s slot, the one
+    // `nvs_server::serve_connection` offers a request `hyper` framed an upgrade
+    // for, so `Core\Socket::upgrade` prepares a connection here as it does
+    // there. `peer::upgradable` owns why the header is the whole question.
+    let mut offered = None;
     if let Some(file) = request {
         match inbound_from(file) {
             Ok(mut inbound) => {
                 if let Some(matched) = routes.match_request(inbound.method(), inbound.path()) {
                     inbound.set_route(matched);
+                }
+                if peer::upgradable(&inbound) {
+                    let slot = nvs_runtime::UpgradeSlot::new();
+                    inbound.offer_upgrade(slot.clone());
+                    offered = Some(slot);
                 }
                 ctx.set_inbound(inbound);
             }
@@ -2537,10 +2551,17 @@ fn run_run(
         }
     }
     // `--peer`: the socket a served connection's isolate is handed, read off a
-    // file instead, and moved onto the context at the point
-    // `nvs_host::Isolate::over_socket` moves a real one.
+    // file instead. With no `--request` the program *is* the connection, and
+    // the socket is moved onto its context at the point
+    // `nvs_host::Isolate::over_socket` moves a real one. Beside a `--request`
+    // it is kept for the connection that request's upgrade opens, and a request
+    // that upgrades with no `--peer` gets a peer that closes at once.
+    let mut connection_peer = None;
     if let Some(file) = peer {
         match peer::from_file(file) {
+            Ok(scripted) if request.is_some() => {
+                connection_peer = Some(scripted);
+            }
             Ok(scripted) => ctx.set_peer(Box::new(scripted)),
             Err(error) => {
                 eprintln!("error: --peer {}: {error}", file.display());
@@ -2750,6 +2771,18 @@ fn run_run(
             // over the reactor this run installed, and the code below the spawn
             // does not run until that has been taken down.
             ctx.end_session();
+            // `rule:concurrency/a-connection-is-a-root-isolate`: the connection a
+            // request's `Core\Socket::upgrade` prepared starts once the request
+            // has ended, over the `--peer` socket, as `nvs_server::serve_connection`
+            // starts it over the real one. Only a request that ended normally
+            // opens one. `peer::connect` owns what the run prints of it.
+            if let Some(upgrade) = offered.as_ref().and_then(nvs_runtime::UpgradeSlot::take) {
+                if outcome.is_ok() || finished {
+                    peer::connect(ctx, upgrade, connection_peer.take().unwrap_or_default());
+                } else {
+                    upgrade.discard();
+                }
+            }
             // A finish is what the run reports, not what the frame answered:
             // the marker travelled the failure path and the ending is a success.
             status.set(Some(if finished { Ok(()) } else { outcome }));

@@ -37,6 +37,15 @@
 //! interleave in the order the program ran them and an example's `.out` reads
 //! as the conversation.
 //!
+//! # Beside `--request`
+//!
+//! Given with `--request`, the program is the request rather than the
+//! connection. A request file whose `Upgrade` header names `websocket` is
+//! offered the slot `Core\Socket::upgrade` fills ([`upgradable`]), and the
+//! connection it prepares runs over this file's peer once the request ends
+//! ([`connect`]). That is `nvs_server::serve_connection`'s order, with the
+//! `101` left out because there is no client to read it.
+//!
 //! **What it spends:** the file's frames, held for the run, and nothing per
 //! frame sent. A file is written by hand, so its size is the author's and no
 //! request's.
@@ -56,7 +65,10 @@ enum Incoming {
 }
 
 /// A peer whose frames were read off a file and whose sends are printed.
-#[derive(Debug, PartialEq, Eq)]
+///
+/// The default is the empty file: a peer that reads everything and closes
+/// before it sends anything.
+#[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct Scripted {
     /// What successive `receive` calls answer; an empty queue is the peer
     /// having closed.
@@ -131,6 +143,52 @@ pub(crate) fn read(text: &str) -> Result<Scripted, String> {
         sent: 0,
         closed: false,
     })
+}
+
+/// Whether `nvs run --request` offers this request an upgrade slot: its
+/// `Upgrade` header names `websocket`.
+///
+/// A served request is offered one when `hyper` framed an upgrade for it and
+/// it carries a `Sec-WebSocket-Key` of version 13. A request file describes a
+/// handshake that already succeeded, so the header that asks is the whole
+/// question here, and a file that leaves out the key still opens a connection.
+pub(crate) fn upgradable(inbound: &nvs_runtime::Inbound) -> bool {
+    inbound.headers().any(|(name, value)| {
+        name.eq_ignore_ascii_case("upgrade")
+            && value
+                .split(|&byte| byte == b',')
+                .any(|token| token.trim_ascii().eq_ignore_ascii_case(b"websocket"))
+    })
+}
+
+/// Starts the connection a request's `Core\Socket::upgrade` prepared, over
+/// `socket`, and waits for it to end.
+///
+/// What the connection `echo`es is `nvs_host::Output::Inherit`'s: it reaches
+/// standard output when the connection ends, so it follows every `sent:` line
+/// rather than interleaving with them. A server discards that output and has
+/// no one to tell of a connection that failed; a run has a terminal, so a
+/// failure is printed on standard error. The run's exit status stays the
+/// request's, because the request is what `nvs run` was asked to answer.
+pub(crate) fn connect(ctx: &mut nvs_runtime::Ctx, upgrade: nvs_runtime::Upgrade, socket: Scripted) {
+    let (program, args) = upgrade.into_parts();
+    match nvs_host::Isolate::new(program, args, nvs_host::Output::Inherit)
+        .over_socket(Box::new(socket))
+        .run(ctx)
+    {
+        Ok(mut done) => {
+            done.discard_value();
+            if let Some(failure) = done.error {
+                eprintln!(
+                    "error: the connection ended with {}: {}",
+                    failure.class, failure.message
+                );
+            }
+        }
+        Err(refused) => {
+            eprintln!("error: the connection could not start: {refused}");
+        }
+    }
 }
 
 /// Hex pairs, with any spacing between them.
