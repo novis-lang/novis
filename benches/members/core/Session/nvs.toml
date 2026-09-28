@@ -1,0 +1,10 @@
+# The session benches use the Redis server on this computer at port 16379 as
+# the session store, and allow the program to use it.
+[capabilities.cache]
+shared = true
+
+[session]
+backend = "shared"
+
+[cache.shared]
+url = "redis://127.0.0.1:16379"

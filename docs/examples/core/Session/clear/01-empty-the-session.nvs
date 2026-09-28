@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to remove every value from a session at once.
+
+Core\Session::start();
+Core\Session::set("theme", "dark");
+Core\Session::set("language", "de");
+
+// `clear()` removes all values. After it, `get()` returns `null` for each key.
+Core\Session::clear();
+echo "theme:    ", Core\Session::get("theme") ?? "(none)", "\n";
+echo "language: ", Core\Session::get("language") ?? "(none)", "\n";

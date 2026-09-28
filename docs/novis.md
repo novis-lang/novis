@@ -19233,11 +19233,11 @@ Takes one key out of the record this request's session holds.
 Core\Session::clear(): void
 ```
 
-Empties the record this request's session holds, keeping the session and its identifier.
+Removes every value from the session of this request. The session stays open and keeps its identifier.
 
-**Returns** `void` — Nothing. The session stays open under the same identifier, so what this clears is the record and not the client's claim to it — `destroy()` is the member that takes both.
+**Returns** `void` — Nothing. The client keeps the same session cookie, and `set()` works again at once. To end the session completely, for example when a user signs out, use `destroy()`.
 
-**Throws** `RuntimeError` — This request has not called `start()`, so there is no record to empty.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to empty.
 
 <a id="core-core-session-regenerate"></a>
 #### `Core\Session::regenerate`

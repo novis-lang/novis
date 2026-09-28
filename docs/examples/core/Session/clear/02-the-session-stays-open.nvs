@@ -1,0 +1,16 @@
+<?nvs
+// Shows that the session is still open after `clear()`.
+
+Core\Session::start();
+Core\Session::set("visits", 3);
+Core\Session::clear();
+
+// You do not call `start()` again. `set()` and `get()` work at once,
+// and the client keeps the same session cookie. This prints `1`.
+Core\Session::set("visits", 1);
+echo "visits: ", Core\Session::get("visits") as int, "\n";
+
+// Clearing a session that is already empty is allowed. Nothing changes.
+Core\Session::clear();
+Core\Session::clear();
+echo "visits: ", Core\Session::get("visits") ?? "(none)", "\n";

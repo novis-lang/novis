@@ -126,10 +126,19 @@ use nvs_syntax::duration;
 
 use crate::cache::redis::Connection;
 use crate::cache::{application, bound, configured, on_shared, open_configured, sealed_key};
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class name, once, for the messages that all name it.
 pub(crate) const NAME: &str = r"Core\Session";
+
+/// `Core\Session`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Keeps values for one visitor from one request to the next. Call `start()` first, then \
+            use `get()` and `set()`. The values are saved in the store that `[session] backend` \
+            names.",
+};
 
 /// § 1's roster, of which `start` is the member that talks to the store.
 ///
@@ -139,7 +148,7 @@ pub(crate) const NAME: &str = r"Core\Session";
 /// `rule:http-server/a-session-holds-a-secret-only-sealed` adds standing after it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "start",
@@ -398,14 +407,15 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Session::clear`'s reference card — `rule:core-api/reference-card`.
 const CLEAR_DOC: MethodDoc = MethodDoc {
-    short: "Empties the record this request's session holds, keeping the session and its \
-            identifier.",
+    short: "Removes every value from the session of this request. The session stays open and \
+            keeps its identifier.",
     params: &[],
-    ret: "Nothing. The session stays open under the same identifier, so what this clears is the \
-          record and not the client's claim to it — `destroy()` is the member that takes both.",
+    ret: "Nothing. The client keeps the same session cookie, and `set()` works again at once. To \
+          end the session completely, for example when a user signs out, use `destroy()`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "This request has not called `start()`, so there is no record to empty.",
+        desc: "This request has not called `start()`, or it called `destroy()`. There is no \
+               session to empty.",
     }],
 };
 
@@ -1702,6 +1712,58 @@ mod tests {
             emptied.record.is_empty(),
             "a record with no keys left is zero bytes again, not the encoding of an empty array — \
              `nvs_runtime::Session::record`'s own doc owns why, and `start` relies on it"
+        );
+    }
+
+    /// `clear` empties the record and keeps the session: the identifier is the one the request
+    /// had, the record is zero bytes and marked changed, and a clear of an empty record changes
+    /// nothing, the flag included.
+    ///
+    /// The record starts as bytes no decode accepts, because `clear` is the one member that does
+    /// not read the record, and a record this unit cannot decode is exactly what it recovers from.
+    /// Before a session is open, and after it, the member throws.
+    // covers: Core\Session::clear
+    #[test]
+    fn clear_empties_the_record_and_keeps_the_session_open() {
+        let mut ctx = Ctx::buffered();
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[]).is_err(),
+            "a request that never started a session has no record to empty"
+        );
+        drop(ctx.take_pending());
+
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: b"no decode accepts this".to_vec(),
+            dirty: false,
+            write_back: super::send_at_end,
+        });
+        nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[])
+            .expect("a record this unit cannot decode is still clearable");
+
+        let cleared = ctx.session().expect("the session is still open");
+        assert_eq!(
+            cleared.id, ID,
+            "clearing keeps the identifier the client holds"
+        );
+        assert!(cleared.record.is_empty(), "the record is zero bytes");
+        assert!(
+            cleared.dirty,
+            "an emptied record is a change the store must hear about"
+        );
+
+        ctx.session_mut().expect("the session is still open").dirty = false;
+        nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[])
+            .expect("an empty record is clearable too");
+        assert!(
+            !ctx.session().expect("the session is still open").dirty,
+            "clearing an empty record is not a change, so it earns no write"
+        );
+
+        ctx.close_session();
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[]).is_err(),
+            "a closed session throws again, as before `start`"
         );
     }
 

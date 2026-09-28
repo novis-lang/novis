@@ -1,26 +1,28 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Session has been taken yet.",
+  "state": "Goal `core-session`, stage 2. `Core\\Session::clear` has all its feature proofs: about, three examples, an attack, a bench with a recorded figure, a Rust test and its card. `Core\\Session` now has a class card, and is off `CLASSES_STILL_OWING_A_CARD`. The other eight members still owe examples, hostile, perf and a Rust `covers:` test.\n\nEvery Session proof needs a real store and a real request. The shape is on disk under `docs/examples/core/Session/clear/`: an `nvs.toml` in the feature directory that grants `[capabilities.cache] shared`, sets `[session] backend = \"shared\"` and `[cache.shared] url = \"redis://127.0.0.1:16379\"`, and a `.nvsr` beside each program. `tests/hostile/core/Session/clear/` has the same pair. `benches/members/core/Session/nvs.toml` already serves every Session bench, so a new bench needs only its own `.nvsr`. Redis is `tests/db/compose.yaml`'s service, which the goal's `env.docker` brings up.\n\nA bench's figure goes stale whenever `crates/nvs-stdlib/src/session.rs` changes. Any slice that edits that file re-owes the perf of every Session member already measured, `clear` included. Run `bun nv proofs --record-perf --id '<member>'` for each of them after the last Rust edit.",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/session.rs`, the proof trees under `core/Session/`, `docs/novis.md`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Session::clear`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:194`"
+        "text": "**`Core\\Session::destroy`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). The card is `crates/nvs-stdlib/src/session.rs:447` and the member is `crates/nvs-stdlib/src/session.rs:1357`. Rewrite the card in the plain voice, as `CLEAR_DOC` now is. The Rust test cannot reach the store through `nvs_runtime::call`; drive `destroy` over the loopback `serving` fake at `crates/nvs-stdlib/src/session.rs:1520` or test the closed session only. Then re-record `clear`'s perf."
       },
       {
         "done": false,
-        "text": "**`Core\\Session::destroy`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:215`"
+        "text": "**`Core\\Session::get`** — owes examples, hostile, perf, tests. The card is `crates/nvs-stdlib/src/session.rs:317`, the member `crates/nvs-stdlib/src/session.rs:1116`. `clear_empties_the_record_and_keeps_the_session_open` at `crates/nvs-stdlib/src/session.rs:1727` is the shape of a Rust test over an opened `Ctx` session. `get` returns `mixed`, so its bench can declare no allocation count."
       },
       {
         "done": false,
-        "text": "**`Core\\Session::get`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/session.rs:158`"
+        "text": "**`Core\\Session::remove`** — owes examples, hostile, perf, tests. The member is at `crates/nvs-stdlib/src/session.rs:1251`."
       }
     ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    "after": "After each Rust edit, `bun nv reference --no-examples` regenerates `docs/novis.md` from the new cards. It needs a fresh build first (`bun nv verify -p nvs-stdlib`)."
   },
   "backlog": [
-    "(nothing yet)"
+    "`getSecret`, `regenerate`, `set`, `setSecret`, `start` still owe the same four proofs (`docs/agent/goals/core-session.md` § *The item list*).",
+    "The other member cards in `crates/nvs-stdlib/src/session.rs` are still in the dense voice. Rewrite each one in the slice that proves its member."
   ]
 }

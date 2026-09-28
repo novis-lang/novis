@@ -5340,7 +5340,6 @@ mod tests {
         r"Core\Request\Files",
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
-        r"Core\Session",
         r"Core\Signal",
         r"Core\Signature",
         r"Core\SignedCookie",

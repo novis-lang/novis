@@ -1,0 +1,18 @@
+<?nvs
+// Shows a "Start over" button for an order form that has several steps.
+
+// The form saves each step in the session. These two lines show what the
+// earlier steps saved.
+Core\Session::start();
+Core\Session::set("step", 3);
+Core\Session::set("address", "12 Main Street");
+
+// The request below is for `/order/start-over`. The program removes all saved
+// answers and sends the user back to step 1.
+if (Core\Request::path() == "/order/start-over") {
+    Core\Session::clear();
+    Core\Session::set("step", 1);
+}
+
+echo "step:    ", Core\Session::get("step") as int, "\n";
+echo "address: ", Core\Session::get("address") ?? "(empty)", "\n";

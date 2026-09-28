@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request fills its session with many large values and empties it
+// again, many times. The memory must be freed each time, and nothing may crash.
+// hostile: timeout-ms 60000
+
+// 1. The request empties a session it never started. This throws a `RuntimeError`.
+try {
+    Core\Session::clear();
+    echo "cleared a session that was never started\n";
+} catch (RuntimeError $e) {
+    echo "not started: RuntimeError\n";
+}
+
+Core\Session::start();
+
+// 2. The request writes 200 keys, then empties the session. It does this 50 times.
+uint $round = 0;
+while ($round < 50) {
+    uint $key = 0;
+    while ($key < 200) {
+        Core\Session::set('item-' . $key, 'value ' . $round . '-' . $key);
+        $key = $key + 1;
+    }
+    Core\Session::clear();
+    $round = $round + 1;
+}
+echo 'after many keys: ', Core\Session::get('item-0') ?? '(none)', "\n";
+
+// 3. The request writes one value of 1 MB, then empties the session. It does this 20 times.
+string $big = Core\Str::repeat('x', 1048576);
+uint $i = 0;
+while ($i < 20) {
+    Core\Session::set('big', $big);
+    Core\Session::clear();
+    $i = $i + 1;
+}
+echo 'after large values: ', Core\Session::get('big') ?? '(none)', "\n";
+
+// 4. The request empties the session many times in a row, when it is already empty.
+uint $j = 0;
+while ($j < 100000) {
+    Core\Session::clear();
+    $j = $j + 1;
+}
+echo 'after empty clears: ', Core\Session::get('big') ?? '(none)', "\n";
+
+// 5. The request ends the session and then empties it. This throws a `RuntimeError`.
+Core\Session::destroy();
+try {
+    Core\Session::clear();
+    echo "cleared a session that was destroyed\n";
+} catch (RuntimeError $e) {
+    echo "destroyed: RuntimeError\n";
+}

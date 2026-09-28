@@ -1,0 +1,20 @@
+<?nvs
+// Empties a session that has one value, as a form with several steps does when the user starts over.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Session::set("user", $total);
+            Core\Session::clear();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::start();
+echo Bench::run(100000), "\n";
