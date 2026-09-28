@@ -1,0 +1,65 @@
+<?nvs
+// Attack: `Core\Str::format` gets templates with huge widths and precisions, and templates with many placeholders.
+// Each call should return text or throw an error. A width over the memory limit should stop the program with an error, and must not crash it.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Asks for a width and a precision larger than any string a process can hold.
+    public static function impossibleSizes(): uint
+    {
+        array<string> $templates = ['%9223372036854775808s', '%.18446744073709551615f', "%'é9223372036854775807s"];
+        uint $errors = 0;
+        foreach ($templates as string $template) {
+            try {
+                Core\Str::format($template, 1.5);
+            } catch (Throwable $error) {
+                $errors = $errors + 1;
+            }
+        }
+        return $errors;
+    }
+
+    /// 2. Uses one hundred thousand placeholders that all read the same value.
+    public static function manyPlaceholders(uint $count): uint
+    {
+        string $template = Core\Str::repeat("%1\$s,", $count);
+        return Core\Str::length(Core\Str::format($template, 'ab'));
+    }
+
+    /// 3. Uses a position far past the last value, and a template that ends with a lone `%`.
+    public static function badTemplates(): uint
+    {
+        array<string> $templates = ["%4294967296\$s", "%99999999999999999999\$s", 'abc%'];
+        uint $errors = 0;
+        foreach ($templates as string $template) {
+            try {
+                Core\Str::format($template, 'a');
+            } catch (LogicError $error) {
+                $errors = $errors + 1;
+            }
+        }
+        return $errors;
+    }
+
+    /// 4. Writes the largest and smallest floats with a high precision.
+    public static function extremeFloats(): uint
+    {
+        string $template = '%.500f %.500e %.500g';
+        return Core\Str::length(Core\Str::format($template, 1.7976931348623157e308, 5e-324, 1.7976931348623157e308));
+    }
+
+    /// 5. Asks for a width of 100 billion characters, which is over the memory limit.
+    public static function overTheLimit(): uint
+    {
+        string $template = '%99999999999s';
+        return Core\Str::length(Core\Str::format($template, 'a'));
+    }
+}
+
+echo Attack::impossibleSizes(), "\n";
+echo Attack::manyPlaceholders(100000), "\n";
+echo Attack::badTemplates(), "\n";
+echo Attack::extremeFloats(), "\n";
+echo Attack::overTheLimit(), "\n";

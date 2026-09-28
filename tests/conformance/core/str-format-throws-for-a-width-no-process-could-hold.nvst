@@ -1,0 +1,21 @@
+--TEST--
+`Core\Str::format` checks a template's width and float precision against what the request may allocate before it builds anything, so a size no process could hold throws a catchable `RuntimeError` instead of aborting on the allocation, and an ordinary width still pads (`rule:programs/memory-priority`)
+--FILE--
+<?nvs
+// covers: Core\Str::format
+// A template built at run time, so the compile-time check does not see its sizes.
+array<string> $templates = ["%9223372036854775808s", "%.18446744073709551615f", "%'é9223372036854775807s"];
+foreach ($templates as string $template) {
+    try {
+        echo Core\Str::format($template, 1.5), "\n";
+    } catch (RuntimeError $error) {
+        echo "RuntimeError: ", $error->message, "\n";
+    }
+}
+string $ordinary = "[%6s]";
+echo Core\Str::format($ordinary, "é"), "\n";
+--EXPECT--
+RuntimeError: Core\Str::format(): the requested allocation is larger than any this process could hold
+RuntimeError: Core\Str::format(): the requested allocation is larger than any this process could hold
+RuntimeError: Core\Str::format(): the requested allocation is larger than any this process could hold
+[     é]

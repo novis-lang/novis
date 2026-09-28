@@ -93,6 +93,7 @@ pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<String, Faul
                     Fault::thrown_as(ThrownClass::Logic, reads_missing(index, arguments.len()))
                 })?;
                 used[index] = true;
+                spec.afford()?;
                 let body = spec.convert(argument)?;
                 spec.pad_into(&body, &mut out);
             }
@@ -426,6 +427,29 @@ impl Spec {
                 index
             }
         }
+    }
+
+    /// Refuses a width or a precision the request cannot afford, before
+    /// anything is built.
+    ///
+    /// Both are counts written into the template, so `%99999999999s` asks
+    /// for that many bytes of padding and `%.99999999999f` for that many
+    /// digits. Without this the allocator meets them first and aborts the
+    /// process instead of the request. The bound is the padding at the pad
+    /// character's width, plus the digits of a float conversion and 400 bytes
+    /// for the widest `f64` in front of them; `%s` only truncates, so its
+    /// precision costs nothing.
+    fn afford(&self) -> Result<(), Fault> {
+        let digits = match self.conversion {
+            'f' | 'e' | 'g' => self.precision.unwrap_or(6).checked_add(400),
+            _ => Some(0),
+        };
+        let bytes = self
+            .width
+            .checked_mul(self.pad.len_utf8())
+            .zip(digits)
+            .and_then(|(padding, digits)| padding.checked_add(digits));
+        nvs_runtime::affordable(bytes, "Core\\Str::format()").map(drop)
     }
 
     /// This placeholder's argument rendered, before any padding.
