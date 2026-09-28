@@ -1,30 +1,34 @@
 {
-  "state": "Goal `core-test-2-2` is met. `Core\\Test::assertNull`, `Core\\Test::assertSame` and `Core\\Test::assertThrows`\neach have `about.md`, three examples, one attack, one bench with a recorded figure in\n`docs/perf/members.ndjson`, and a Rust test carrying its `covers:` marker in `crates/nvs-stdlib/src/test.rs`.\n`bun nv proofs --only` over the three reports nothing owed. No gap was recorded.",
+  "state": "Goal `core-test-2-2` is **not** met. Its dossier check covers 13 members. Six have every proof on disk:\n`assertNull`, `assertSame`, `assertThrows`, `sentSocket`, `double` and `partial`. Their benches are measured again in\n`docs/perf/members.ndjson` after this session's change to `crates/nvs-stdlib/src/test.rs`. Seven members own no\nproofs at all yet (see the next group). The earlier handoff that called the goal met read only the members it had\ntouched. `bun nv proofs --verify --only <the argv's list>` is what says what is owed.\n\nA chain of partials now shares one class descriptor per call site (`Doubles::behind`) and throws a `RecursionError`\nat depth (`delegated`'s stack compare), pinned by\n`tests/conformance/core/a-partial-of-a-partial-forwards-through-every-level-and-a-deep-chain-throws-a-recursion-error.nvst`.",
   "next": {
-    "stage": 1,
-    "title": "feature proofs, closed",
+    "stage": 2,
+    "title": "feature proofs, the rest of `Core\\Test`",
     "files": [
       "crates/nvs-stdlib/src/test.rs",
-      "docs/examples/core/Test/"
+      "docs/examples/core/Test/",
+      "tests/hostile/core/Test/",
+      "benches/members/core/Test/"
     ],
     "items": [
       {
-        "done": true,
-        "text": "**`Core\\Test::assertNull`** — `crates/nvs-stdlib/src/test.rs:610`"
+        "done": false,
+        "text": "**`Core\\Test::sentHttp`** — about.md, three examples, attack, bench, Rust `covers:` test (`rule:testing/feature-proofs`); registry row at `crates/nvs-stdlib/src/test.rs:772`. Model: the `sentSocket` proofs in `docs/examples/core/Test/sentSocket/`."
       },
       {
-        "done": true,
-        "text": "**`Core\\Test::assertSame`** — `crates/nvs-stdlib/src/test.rs:575`"
+        "done": false,
+        "text": "**`Core\\Test::tlsSession`** — about.md, three examples, attack, bench (it already has a Rust test) (`rule:testing/feature-proofs`); registry row at `crates/nvs-stdlib/src/test.rs:763`."
       },
       {
-        "done": true,
-        "text": "**`Core\\Test::assertThrows`** — `crates/nvs-stdlib/src/test.rs:659`"
+        "done": false,
+        "text": "**`Core\\Test::request` and `Core\\Test::serverUrl`** — all proofs and a Rust `covers:` test each (`rule:testing/feature-proofs`); registry rows at `crates/nvs-stdlib/src/test.rs:724` and `crates/nvs-stdlib/src/test.rs:702`."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Test::scriptAnswers`, `Core\\Test::expectFailure` and `Core\\Test::assertTrue`** — all proofs and a Rust `covers:` test each (`rule:testing/feature-proofs`); registry rows at `crates/nvs-stdlib/src/test.rs:715`, `crates/nvs-stdlib/src/test.rs:684` and `crates/nvs-stdlib/src/test.rs:602`."
       }
     ]
   },
   "backlog": [
-    "`benches/members/core/Test/assertNull.nvs` counts 2 allocations per iteration, and `assertSame`'s bench counts 0. Where they come from is not checked (the bench's `array<?string>` read, or the member) — `rule:testing/member-perf-ledger`.",
-    "Nested `Core\\Test::assertThrows` calls quote each inner failure, so N nested levels build messages whose total size grows with N². The recursion limit bounds it; `tests/hostile/core/Test/assertThrows/01-huge-messages-and-deep-nesting.nvs` step 6 is the shape.",
-    "The reference cards `ASSERT_NULL_DOC`, `ASSERT_SAME_DOC` and `ASSERT_THROWS_DOC` in `crates/nvs-stdlib/src/test.rs` name PHPUnit and use the essay voice; goal `plain-comments` owns the sweep."
+    "A test in this file that edits `crates/nvs-stdlib/src/test.rs` makes every `Core\\Test` bench stale. Re-measure with `bun nv proofs --record-perf --only …` after a release build (`benches/members/README.md`)."
   ]
 }
