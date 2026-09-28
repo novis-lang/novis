@@ -1,0 +1,11 @@
+<?nvs
+// Shows the error you get when the program sets a status before it starts an event stream.
+
+// An event stream always has the status `200`, so a program cannot set its own.
+Core\Response::setStatus(202);
+try {
+    Core\Sse::stream();
+} catch (LogicError $e) {
+    // This prints the error message. No stream was started.
+    echo $e->message, "\n";
+}
