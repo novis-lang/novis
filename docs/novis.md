@@ -7161,14 +7161,14 @@ Finds the last occurrence of `$needle` in `$haystack` and answers its position, 
 Core\Str::countOf(string $haystack, string $needle): uint
 ```
 
-Counts the non-overlapping occurrences of `$needle` in `$haystack`, as `substr_count` does.
+Counts how many times `$needle` appears in `$haystack`. Replaces PHP's `substr_count`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$haystack` | `string` (neutral) | The string searched in. |
-| `$needle` | `string` (neutral) | The string counted, matched case-sensitively; never empty. |
+| `$haystack` | `string` (neutral) | The string to search in. |
+| `$needle` | `string` (neutral) | The text to count. The search is case-sensitive. It must not be empty. |
 
-**Returns** `uint` — The count, `0` when the needle does not occur; `countOf("aaa", "aa")` is `1`, because a count partitions the subject where `lastIndexOf` does not.
+**Returns** `uint` — The number of times `$needle` appears, or `0` when it does not appear. Matches do not overlap, so `countOf("aaa", "aa")` is `1`.
 
 **Throws** `RuntimeError` — `$needle` is empty.
 
@@ -7179,16 +7179,16 @@ Counts the non-overlapping occurrences of `$needle` in `$haystack`, as `substr_c
 Core\Str::compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int
 ```
 
-Orders `$a` against `$b`, as `strcmp`, `strcasecmp`, `strnatcmp` and `strnatcasecmp` do — the two options pick which of the four.
+Compares two strings to sort them. Replaces PHP's `strcmp`, `strcasecmp`, `strnatcmp` and `strnatcasecmp`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `string` (neutral) | The first string. |
 | `$b` | `string` (neutral) | The second string. |
-| `{caseInsensitive: …}` | `bool` (default `false`) | Compare Unicode's simple lower-case mapping of each character instead, so `ß` and `SS` still differ; the default is `false`. |
-| `{natural: …}` | `bool` (default `false`) | Order embedded digit runs by their numeric value, so `"img2"` sorts before `"img12"` — a different ordering, not a variant of the default; the default is `false`. |
+| `{caseInsensitive: …}` | `bool` (default `false`) | When `true`, upper and lower case letters are equal. `ß` and `SS` are still different. The default is `false`. |
+| `{natural: …}` | `bool` (default `false`) | When `true`, digits inside the strings are compared as numbers, so `"img2"` comes before `"img12"`. The default is `false`. |
 
-**Returns** `int` — `-1`, `0` or `1` — the sign only, never a byte difference.
+**Returns** `int` — `-1` when `$a` comes first, `0` when the two are equal, and `1` when `$b` comes first.
 
 <a id="core-core-str-before"></a>
 #### `Core\Str::before`

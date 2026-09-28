@@ -812,22 +812,22 @@ const LAST_INDEX_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::countOf`'s reference card — `rule:core-api/reference-card`.
 const COUNT_OF_DOC: MethodDoc = MethodDoc {
-    short: "Counts the non-overlapping occurrences of `$needle` in `$haystack`, as \
-            `substr_count` does.",
+    short: "Counts how many times `$needle` appears in `$haystack`. Replaces PHP's \
+            `substr_count`.",
     params: &[
         ParamDoc {
             name: "haystack",
-            desc: "The string searched in.",
+            desc: "The string to search in.",
             shape: &[],
         },
         ParamDoc {
             name: "needle",
-            desc: "The string counted, matched case-sensitively; never empty.",
+            desc: "The text to count. The search is case-sensitive. It must not be empty.",
             shape: &[],
         },
     ],
-    ret: "The count, `0` when the needle does not occur; `countOf(\"aaa\", \"aa\")` is `1`, \
-          because a count partitions the subject where `lastIndexOf` does not.",
+    ret: "The number of times `$needle` appears, or `0` when it does not appear. Matches do \
+          not overlap, so `countOf(\"aaa\", \"aa\")` is `1`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$needle` is empty.",
@@ -836,8 +836,8 @@ const COUNT_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::compare`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_DOC: MethodDoc = MethodDoc {
-    short: "Orders `$a` against `$b`, as `strcmp`, `strcasecmp`, `strnatcmp` and \
-            `strnatcasecmp` do — the two options pick which of the four.",
+    short: "Compares two strings to sort them. Replaces PHP's `strcmp`, `strcasecmp`, \
+            `strnatcmp` and `strnatcasecmp`.",
     params: &[
         ParamDoc {
             name: "a",
@@ -851,19 +851,19 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "caseInsensitive",
-            desc: "Compare Unicode's simple lower-case mapping of each character instead, so \
-                   `ß` and `SS` still differ; the default is `false`.",
+            desc: "When `true`, upper and lower case letters are equal. `ß` and `SS` are still \
+                   different. The default is `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "natural",
-            desc: "Order embedded digit runs by their numeric value, so `\"img2\"` sorts before \
-                   `\"img12\"` — a different ordering, not a variant of the default; the \
-                   default is `false`.",
+            desc: "When `true`, digits inside the strings are compared as numbers, so \
+                   `\"img2\"` comes before `\"img12\"`. The default is `false`.",
             shape: &[],
         },
     ],
-    ret: "`-1`, `0` or `1` — the sign only, never a byte difference.",
+    ret: "`-1` when `$a` comes first, `0` when the two are equal, and `1` when `$b` comes \
+          first.",
     errors: &[],
 };
 
@@ -3991,6 +3991,30 @@ mod tests {
         assert!(!ask(ends_with, "c", "abc"));
     }
 
+    /// `countOf` counts non-overlapping, case-sensitive byte matches, answers
+    /// `0` for absence and for a needle longer than the subject, and throws
+    /// for an empty needle.
+    // covers: Core\Str::countOf
+    #[test]
+    fn count_of_counts_matches_that_do_not_overlap_and_refuses_an_empty_needle() {
+        let count = |subject: &str, needle: &str| {
+            run(super::nvs_core_str_count_of, &[s(subject), s(needle)])
+                .expect("a non-empty needle never fails")
+                .as_uint()
+                .expect("the member returned a uint")
+        };
+        assert_eq!(count("a,b,,c", ","), 3);
+        assert_eq!(count("aaa", "aa"), 1);
+        assert_eq!(count("aaaa", "aa"), 2);
+        assert_eq!(count("Error error ERROR", "error"), 1);
+        assert_eq!(count("abc", "z"), 0);
+        assert_eq!(count("", "a"), 0);
+        assert_eq!(count("ab", "abc"), 0);
+        assert_eq!(count("Größe größer", "öß"), 2);
+        assert!(run(super::nvs_core_str_count_of, &[s("abc"), s("")]).is_err());
+        assert!(run(super::nvs_core_str_count_of, &[s(""), s("")]).is_err());
+    }
+
     /// `before` is `after`'s mirror over the same `cut_at`: the slice up to the
     /// first occurrence, or up to the last under `{last: true}`, and `null`
     /// for absence while a needle at the very start answers the empty string.
@@ -4395,6 +4419,7 @@ mod tests {
     /// run that begins with `0` compares as a fraction, and a whitespace run
     /// is insignificant everywhere except where it ends one subject before the
     /// other.
+    // covers: Core\Str::compare
     #[test]
     fn natural_order_answers_what_strnatcmp_answers() {
         let rows: &[(&str, &str, i64)] = &[
@@ -4421,6 +4446,41 @@ mod tests {
             )
             .expect("no failure");
             assert_eq!(answer.as_int(), Some(want), "compare({left:?}, {right:?})");
+        }
+    }
+
+    /// Without `natural`, `compare` orders characters, which for UTF-8 is also
+    /// bytes, and answers only the sign; `caseInsensitive` folds each side
+    /// through the simple lower-case mapping, so `ß` and `SS` still differ.
+    // covers: Core\Str::compare
+    #[test]
+    fn compare_answers_the_sign_of_a_character_ordering_folded_or_not() {
+        let rows: &[(&str, &str, bool, i64)] = &[
+            ("apple", "banana", false, -1),
+            ("banana", "apple", false, 1),
+            ("same", "same", false, 0),
+            ("", "a", false, -1),
+            ("abc", "ab", false, 1),
+            ("Zebra", "apple", false, -1),
+            ("z", "a", false, 1),
+            ("img12", "img2", false, -1),
+            ("\u{e9}", "z", false, 1),
+            ("Zebra", "apple", true, 1),
+            ("HELLO", "hello", true, 0),
+            ("\u{c9}COLE", "\u{e9}cole", true, 0),
+            ("Stra\u{df}e", "STRASSE", true, 1),
+        ];
+        for &(left, right, fold, want) in rows {
+            let answer = run(
+                super::nvs_core_str_compare,
+                &[s(left), s(right), Value::bool(fold), Value::bool(false)],
+            )
+            .expect("no failure");
+            assert_eq!(
+                answer.as_int(),
+                Some(want),
+                "compare({left:?}, {right:?}, caseInsensitive: {fold})"
+            );
         }
     }
 }

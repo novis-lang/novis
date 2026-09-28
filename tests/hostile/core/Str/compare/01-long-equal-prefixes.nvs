@@ -1,0 +1,42 @@
+<?nvs
+// Attack: `Core\Str::compare` compares very long strings that differ only at the end.
+// Each comparison should return `-1`, `0` or `1`, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Compares two 16 MiB strings that differ only in the last character.
+    public static function lateDifference(uint $mib): int
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        return Core\Str::compare($s . 'a', $s . 'b', { caseInsensitive: true });
+    }
+
+    /// 2. Compares two numbers of one million digits each with `{natural: true}`.
+    public static function hugeNumbers(uint $count): int
+    {
+        var $digits = Core\Str::repeat('9', $count);
+        return Core\Str::compare('v' . $digits . '8', 'v' . $digits . '9', { natural: true });
+    }
+
+    /// 3. Compares long runs of zeros and spaces, which the natural order skips.
+    public static function zerosAndSpaces(uint $count): int
+    {
+        var $zeros = Core\Str::repeat('0', $count);
+        var $spaces = Core\Str::repeat(' ', $count);
+        return Core\Str::compare($spaces . 'x' . $zeros . '1', 'x0' . $spaces . '1',
+            { natural: true, caseInsensitive: true });
+    }
+
+    /// 4. Compares characters whose lower case form is longer than the character itself.
+    public static function growingCase(uint $count): int
+    {
+        var $s = Core\Str::repeat("\u{130}", $count);
+        return Core\Str::compare($s, Core\Str::lower($s), { caseInsensitive: true });
+    }
+}
+
+echo Attack::lateDifference(16), "\n";
+echo Attack::hugeNumbers(1000000), "\n";
+echo Attack::zerosAndSpaces(1000000), "\n";
+echo Attack::growingCase(1000000), "\n";

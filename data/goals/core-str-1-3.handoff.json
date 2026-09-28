@@ -1,27 +1,27 @@
 {
-  "state": "Goal `core-str-1-3`: 5 of the 13 members in `dossier-core-str-1-3` owe nothing. They are `Core\\Str::after`, `before`, `at`, `contains` and `endsWith`. Each has `about.md`, three examples with blessed `.out`, one attack, one bench with a `docs/perf/members.ndjson` record, and a Rust `#[test]` with its `covers:` marker in `crates/nvs-stdlib/src/str.rs`'s `mod tests`. Their cards (`AT_DOC`, `CONTAINS_DOC`, `ENDS_WITH_DOC`, `AFTER_DOC`, `BEFORE_DOC`) use the voice of AGENTS.md § *Text an end user reads*. The other cards in the file still say \"Answers …\".\n\n8 members still owe every proof: `chunk`, `codePoints`, `compare`, `countOf`, `fold`, `format` (1 of 3 examples on disk), `fromCodePoint` and `fromCodePoints`. `bun nv proofs --verify --only <the check's 13 ids>` lists them. A card or test edit in `str.rs` does not make another member's perf record stale. Only `nvs_core_str_*` bodies do.",
+  "state": "Goal `core-str-1-3`: 7 of the 13 members in `dossier-core-str-1-3` owe nothing. They are `Core\\Str::after`, `before`, `at`, `contains`, `endsWith`, `countOf` and `compare`. Each has `about.md`, three examples with blessed `.out`, one attack, one bench with a `docs/perf/members.ndjson` record, and a Rust `#[test]` with its `covers:` marker in `crates/nvs-stdlib/src/str.rs`'s `mod tests`. Their cards use the voice of AGENTS.md § *Text an end user reads*. The other cards in the file still say \"Answers …\".\n\n6 members still owe every proof: `chunk`, `codePoints`, `fold`, `format` (1 of 3 examples on disk), `fromCodePoint` and `fromCodePoints`. `bun nv proofs --verify --only <the check's 13 ids>` lists them. A new member's perf is recorded with `bun nv proofs --record-perf --only '<id>'`, and `--run --only '<id>'` runs its examples and attack. Novis has no `===`; an example compares with `==`. `Core\\Arr::sort($list, {comparator: fn(string $a, string $b): int => …})` is the sort with a comparator, and it is stable.",
   "next": {
     "stage": 1,
     "title": "member proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/str.rs` and the four proof trees under `core/Str/countOf` and `core/Str/compare`.",
+    "note": "one file set: `crates/nvs-stdlib/src/str.rs` and the proof trees under `core/Str/fold`, `core/Str/chunk` and `core/Str/codePoints`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::countOf`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). Card `COUNT_OF_DOC` at `crates/nvs-stdlib/src/str.rs:814`, body `nvs_core_str_count_of` at `crates/nvs-stdlib/src/str.rs:2701`. Rewrite the card in the plain voice as `CONTAINS_DOC` now is. Put the Rust test beside `after_cuts_past_the_first_or_last_needle_and_answers_null_when_absent` at `crates/nvs-stdlib/src/str.rs:3912`. `about.md` is also owed."
+        "text": "**`Core\\Str::fold`** — owes examples, hostile, perf, tests and `about.md` (`rule:testing/feature-proofs`). Card `FOLD_DOC` at `crates/nvs-stdlib/src/str.rs:1387`, body `nvs_core_str_fold` at `crates/nvs-stdlib/src/str.rs:3318`. Rewrite the card in the plain voice as `COUNT_OF_DOC` now is. Put the Rust test beside `compare_answers_the_sign_of_a_character_ordering_folded_or_not` at `crates/nvs-stdlib/src/str.rs:4457`."
       },
       {
         "done": false,
-        "text": "**`Core\\Str::compare`** — owes the same. Card `COMPARE_DOC` at `crates/nvs-stdlib/src/str.rs:838`, body `nvs_core_str_compare` at `crates/nvs-stdlib/src/str.rs:2923`. It takes four arguments (`caseInsensitive` and `natural` options), so read the row's defaults before building the test's argument slice."
+        "text": "**`Core\\Str::chunk`** — owes the same. Card `CHUNK_DOC` at `crates/nvs-stdlib/src/str.rs:978`, body `nvs_core_str_chunk` at `crates/nvs-stdlib/src/str.rs:2063`. Search `mod tests` for an existing test first: a marker on it may be the whole Rust edit, as it was for `compare`."
       },
       {
         "done": false,
-        "text": "**`Core\\Str::fold`**, then `chunk` — the same shape. `bun nv peek --locate FOLD_DOC nvs_core_str_fold` gives the anchors, starting at `crates/nvs-stdlib/src/str.rs:569`."
+        "text": "**`Core\\Str::codePoints`** — owes the same. Card `CODE_POINTS_DOC` at `crates/nvs-stdlib/src/str.rs:1029`, body `nvs_core_str_code_points` at `crates/nvs-stdlib/src/str.rs:2197`."
       }
     ]
   },
   "backlog": [
-    "`codePoints`, `format`, `fromCodePoint` and `fromCodePoints` owe every proof. `docs/examples/core/Str/format` already has one example (`rule:testing/feature-proofs`).",
-    "The `Core\\Str` cards not listed above still use the \"Answers …\" voice. Goal `plain-comments` owns that sweep."
+    "`Core\\Str::format`: card `FORMAT_DOC` at `crates/nvs-stdlib/src/str.rs:1457`, body at `crates/nvs-stdlib/src/str.rs:3548`, 1 of 3 examples on disk — `rule:testing/feature-proofs`.",
+    "`Core\\Str::fromCodePoint` and `fromCodePoints`: cards at `crates/nvs-stdlib/src/str.rs:1423` and `:1440`; a group of their own with `codePoints` if it does not fit above."
   ]
 }

@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to sort file names that contain numbers in the order a person expects.
+
+array<string> $files = ["file10.txt", "file2.txt", "file1.txt"];
+
+// By default, the characters are compared one by one. "1" comes before "2",
+// so this prints `file1.txt, file10.txt, file2.txt`.
+array<string> $plain = Core\Arr::sort($files,
+    {comparator: fn(string $a, string $b): int => Core\Str::compare($a, $b)});
+echo Core\Str::join($plain, ", "), "\n";
+
+// With `{natural: true}`, the digits are compared as numbers.
+// This prints `file1.txt, file2.txt, file10.txt`.
+array<string> $natural = Core\Arr::sort($files,
+    {comparator: fn(string $a, string $b): int => Core\Str::compare($a, $b, {natural: true})});
+echo Core\Str::join($natural, ", "), "\n";

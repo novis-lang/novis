@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to find out which of two strings comes first in sorted order.
+
+// "apple" comes before "banana". This prints `-1`.
+echo Core\Str::compare("apple", "banana"), "\n";
+
+// Two equal strings give `0`. This prints `0`.
+echo Core\Str::compare("apple", "apple"), "\n";
+
+// Upper case letters come before lower case letters. This prints `-1`.
+echo Core\Str::compare("Zebra", "apple"), "\n";
+
+// With `{caseInsensitive: true}`, "Zebra" is compared as "zebra". This prints `1`.
+echo Core\Str::compare("Zebra", "apple", {caseInsensitive: true}), "\n";
