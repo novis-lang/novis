@@ -26,7 +26,8 @@
 //
 // A sweep shares every process between the checks that ask for the same one. Two checks naming one
 // `argv` in one directory get one run, recorded under each check's atom, and each judges its own exit
-// and `want` against it; the same holds for a case, a test binary and a tools test file. The
+// and `want` against it; the same holds for a case, a test binary, a tools test file and a heavy check's
+// twin, which two heavy checks share when it runs the same work (`twinWork`). The
 // `nv proofs --verify --group` checks of one tier share a run too: the first one reached starts one
 // `nv proofs --verify` over every group the tier's reached checks name, and each check is judged on its
 // own groups' sections of what that run prints.
@@ -47,7 +48,7 @@ import { run } from "../lib/proc.ts";
 import { linked, releaseCli } from "../lib/relink.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
-import { commandKeys, crateKeys, grouped, type Grouped, heavyKeys, heavyTwin, LEG_KEYS, legAtoms, LEGS, legId, onDisk, planContext, predicted, type Twin } from "../select/checks.ts";
+import { commandKeys, crateKeys, grouped, type Grouped, heavyKeys, heavyTwin, LEG_KEYS, legAtoms, LEGS, legId, onDisk, planContext, predicted, type Twin, twinWork } from "../select/checks.ts";
 import { PLATFORM_ONLY, WILD } from "../select/keys.ts";
 import { NO_ADVANCE_ENV, advance, caseSkipped, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
 import { NV_TSC, runNvTest, runTsc, type ToolRun } from "../select/nvtests.ts";
@@ -145,6 +146,7 @@ export class PlanSweep {
   private files: Promise<string[]> | undefined;
   private readonly shared = new Map<string, Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }>>();
   private readonly exeRuns = new Map<string, Promise<{ o: Outcome; verdict: AtomVerdict }>>();
+  private readonly twinRuns = new Map<string, Promise<Keyed | null>>();
   private readonly toolRuns = new Map<string, Promise<ToolRun>>();
   private readonly casesDone = new Set<string>();
   private readonly exeShown = new Map<string, string>();
@@ -498,9 +500,22 @@ export class PlanSweep {
    * One run of `twin` on the covws build, recorded: each of its test binaries with its harness arguments,
    * then its command with `{nvs}` as the covws `nvs`. Its verdict counts for nothing, since a release
    * figure is not a debug one, but a command that fails may have stopped short, so it gives null, as does
-   * a binary the build did not make or a record that cannot be read.
+   * a binary the build did not make or a record that cannot be read. Checks whose twins run the same work
+   * (`twinWork`) share one run, and each gets its own copy of the keys it recorded.
    */
   private async twin(c: Check, twin: Twin): Promise<Keyed | null> {
+    const key = twinWork(twin);
+    let p = this.twinRuns.get(key);
+    if (p === undefined) {
+      p = this.runTwin(c, twin);
+      this.twinRuns.set(key, p);
+    }
+    const keys = await p;
+    return keys === null ? null : new Map(keys);
+  }
+
+  /** Runs the twin's work once, for `twin` to share; its log lines name `c`, the first check that asked. */
+  private async runTwin(c: Check, twin: Twin): Promise<Keyed | null> {
     const keys: Keyed = new Map();
     const scratch = mkdtempSync(join(this.rec.dir, "twin-"));
     const env = Object.fromEntries(Object.entries(twin.env).map(([k, v]) => [k, v.replaceAll("{scratch}", scratch)]));

@@ -5,7 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Check } from "../driver/accept.ts";
 import type { Graph } from "../keys/graph.ts";
-import { checkDef, commandKeys, grouped, harnessArgs, heavyCrates, heavyKeys, heavyTwin, legAtoms, type PlanContext, planContext, predicted } from "../select/checks.ts";
+import { checkDef, commandKeys, grouped, harnessArgs, heavyCrates, heavyKeys, heavyTwin, legAtoms, type PlanContext, planContext, predicted, twinWork } from "../select/checks.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { scratch } from "./scratch.ts";
 
@@ -157,6 +157,18 @@ describe("the heavy set's twins", () => {
     expect(twin?.env.NVS_DB_MATRIX_DRIVER).toBe("sqlite");
     expect(twin?.crates).toEqual(["nvs-db"]);
     expect(twin?.held).toContain("platform:elsewhere");
+  });
+
+  test("release checks over one test binary and filters run the same twin work, whatever tests each names", () => {
+    const release = (id: string, tests: string[]) => heavyTwin(check({ id, kind: "cargo-named", args: ["test", "--release", "-p", "nvs-cli", "--test", "live_config"], tests }), graph)!;
+    const a = release("a", ["one"]);
+    const b = release("b", ["two", "three"]);
+    expect(twinWork(a)).toBe(twinWork(b));
+    const filtered = heavyTwin(check({ kind: "cargo-named", args: ["test", "--release", "-p", "nvs-cli", "--test", "live_config", "worker::"] }), graph)!;
+    expect(twinWork(filtered)).not.toBe(twinWork(a));
+    expect(twinWork({ ...a, env: { B: "1", A: "2" } })).toBe(twinWork({ ...a, env: { A: "2", B: "1" } }));
+    expect(twinWork({ ...a, env: { A: "1" } })).not.toBe(twinWork(a));
+    expect(twinWork({ ...a, held: [], crates: ["nvs-db"] })).toBe(twinWork(a));
   });
 
   test("fuzz and TSan have no twin and keep the prediction, and a check never memoized has neither", () => {

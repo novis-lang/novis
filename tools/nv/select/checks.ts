@@ -32,7 +32,9 @@
 // | the database matrix | its SQLite leg (`db-matrix.ts` `sqliteLeg`) | every file of `nvs-db`, whose server drivers only a server leg runs, and `platform:elsewhere` for the socket legs |
 // | fuzz, TSan | none: they build inside WSL | `heavyKeys`, every file of the crates they build, and `platform:elsewhere` |
 //
-// A twin that cannot run or be read records `*`, which every change moves and the next run whose twin
+// Heavy checks that run the same work have one twin between them (`twinWork`): every release check over
+// one test binary and filters, and every database matrix check, runs its twin once per sweep, and each
+// records what that run used. A twin that cannot run or be read records `*`, which every change moves and the next run whose twin
 // was read drops again (`store.ts` `recordRun`). Fuzz and TSan keep the one prediction left
 // in the selection, and it is named as one: `heavyCrates` reads the crates off the fuzz target's source
 // file and the TSan script. The two Linux legs run every fixture and suite of the plan inside WSL, so a
@@ -381,6 +383,13 @@ export function heavyTwin(c: Check, graph: Graph): Twin | null {
     return { tests, argv: [], env: leg.env, held: [PLATFORM_ONLY, "tree:tests/db"], crates: ["nvs-db"] };
   }
   return null;
+}
+
+/** The work `twin` runs, as a key: two twins with the same test binaries and arguments, command and
+ * environment run the same processes, so a sweep runs them once. What it holds besides is left out, since
+ * each check adds its own to what the run recorded. */
+export function twinWork(twin: Twin): string {
+  return JSON.stringify([twin.tests.map((t) => [t.name, t.args]), twin.argv, Object.entries(twin.env).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))]);
 }
 
 /** Whether heavy check `c` is keyed on a prediction: fuzz and TSan, which build and run inside WSL. */
