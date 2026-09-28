@@ -1,0 +1,20 @@
+<?nvs
+// Checks the number of entries in a short list, as a test does after a function returns a list.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<string>> $lists = [["a"], ["a", "b"], ["a", "b", "c"]];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $index = $total % 3;
+            Core\Test::assertCount($lists[$index], $index + 1);
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

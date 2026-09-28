@@ -1,0 +1,25 @@
+<?nvs
+// Shows a test of a form check that returns a list of error messages.
+
+class SignupForm {
+    public static function errors(string $email, string $password): array<string> {
+        array<string> $errors = [];
+        if (!Core\Str::contains($email, "@")) {
+            $errors[] = "the email address has no @";
+        }
+        if (Core\Str::length($password) < 8) {
+            $errors[] = "the password is shorter than 8 characters";
+        }
+        return $errors;
+    }
+}
+
+// Both fields are wrong, so both messages are in the list.
+array<string> $errors = SignupForm::errors("ana.example.com", "secret");
+Core\Test::assertContains($errors, "the email address has no @");
+Core\Test::assertContains($errors, "the password is shorter than 8 characters");
+echo "both errors are reported\n";
+
+// A correct form gives an empty list.
+Core\Test::assertCount(SignupForm::errors("ana@example.com", "correct horse"), 0);
+echo "a correct form has no errors\n";

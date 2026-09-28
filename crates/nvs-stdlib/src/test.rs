@@ -5460,4 +5460,243 @@ mod tests {
             "{why}"
         );
     }
+
+    /// `assertCount` passes on the exact count and fails one entry either
+    /// side of it, and `assertContains` finds a value by the equality
+    /// semantics' numeric row, so `[1.0, 2.5]` contains `1` and not `3`. Both
+    /// failures name the subject's count.
+    // covers: Core\Test::assertCount, Core\Test::assertContains
+    #[test]
+    fn assert_count_bounds_the_count_and_assert_contains_finds_across_the_numeric_row() {
+        fn asserted(
+            ctx: &mut Ctx,
+            member: nvs_runtime::NvsFn,
+            actual: Value,
+            expected: Value,
+        ) -> Result<(), String> {
+            let args = [actual, expected, Value::null()];
+            let answered = nvs_runtime::call(member, ctx, &args);
+            dropped(actual);
+            dropped(expected);
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a failed assertion says why")
+                    .into_owned()),
+            }
+        }
+        fn floats(of: &[f64]) -> Value {
+            let mut list = nvs_runtime::NvsArray::new();
+            for n in of {
+                list.append(Value::float(*n));
+            }
+            Value::array(list)
+        }
+
+        let mut ctx = Ctx::buffered();
+        for (expected, holds) in [(1, false), (2, true), (3, false)] {
+            let answered = asserted(
+                &mut ctx,
+                nvs_core_test_assert_count,
+                floats(&[1.0, 2.5]),
+                Value::uint(expected),
+            );
+            assert_eq!(answered.is_ok(), holds, "{expected}: {answered:?}");
+        }
+        let why = asserted(
+            &mut ctx,
+            nvs_core_test_assert_count,
+            floats(&[]),
+            Value::uint(1),
+        )
+        .expect_err("an empty list has no entries");
+        assert!(
+            why.contains("`$actual` holds 0 entries, `$expected` is 1"),
+            "{why}"
+        );
+
+        asserted(
+            &mut ctx,
+            nvs_core_test_assert_contains,
+            floats(&[1.0, 2.5]),
+            Value::int(1),
+        )
+        .expect("1.0 is 1 under the numeric row");
+        let why = asserted(
+            &mut ctx,
+            nvs_core_test_assert_contains,
+            floats(&[1.0, 2.5]),
+            Value::int(3),
+        )
+        .expect_err("no entry is 3");
+        assert!(
+            why.contains("`$actual` holds 2 entries and none is `$expected`, which is 3"),
+            "{why}"
+        );
+    }
+
+    /// Both members that take a `callable` judge how it ended. `assertDoesNotThrow`
+    /// holds for a body that returned and turns a body's throw into its own
+    /// failure quoting the message. `assertCompletes` throws before it calls the
+    /// body where no clock is fixed, and where one is, moves it by `within`
+    /// before the body reads it.
+    // covers: Core\Test::assertDoesNotThrow, Core\Test::assertCompletes
+    #[test]
+    fn assert_does_not_throw_and_assert_completes_judge_a_body_by_how_it_ended() {
+        use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
+
+        static RAN: AtomicUsize = AtomicUsize::new(0);
+        static SAW: AtomicI64 = AtomicI64::new(-1);
+
+        /// `fn (): void => {}`, counting its calls and recording the fixed
+        /// clock it read.
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` passes a live context and exactly one retained \
+                      value, the receiver, and `abi::call` passes the address of a \
+                      live `Value` for the result"
+        )]
+        unsafe extern "C" fn returns(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+            let ctx = unsafe { &mut *ctx };
+            RAN.fetch_add(1, Ordering::SeqCst);
+            let nanos = ctx
+                .fixed_clock()
+                .map_or(-1, |at| i64::try_from(at).unwrap_or(-2));
+            SAW.store(nanos, Ordering::SeqCst);
+            unsafe {
+                (*args).release();
+                out.write(Value::null());
+            }
+            nvs_runtime::OK
+        }
+
+        /// A body that throws: `Core\Test::advance(1ns)` on a context with no
+        /// fixed clock, whose status it passes on.
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` passes a live context and exactly one retained \
+                      value, the receiver, and `abi::call` passes the address of a \
+                      live `Value` for the result"
+        )]
+        unsafe extern "C" fn throws(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+            let ctx = unsafe { &mut *ctx };
+            unsafe { (*args).release() };
+            let by = crate::time::duration_of(1);
+            let answered = nvs_runtime::call(nvs_core_test_advance, ctx, &[by]);
+            dropped(by);
+            match answered {
+                Ok(value) => {
+                    unsafe { out.write(value) };
+                    nvs_runtime::OK
+                }
+                Err(status) => status,
+            }
+        }
+
+        fn body_of(invoke: nvs_runtime::NvsFn) -> Value {
+            let mut table = nvs_runtime::ClassTable::new();
+            let id = table.define("{closure}", &["arity", "params"], &[]);
+            table.set_methods(
+                id,
+                vec![nvs_runtime::MethodRow {
+                    name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                    code: (invoke as *const ()).cast(),
+                    arity: 0,
+                    param_tags: 0,
+                    param_names: Vec::new(),
+                    param_types: Vec::new(),
+                    public: true,
+                    protected: false,
+                    native: false,
+                }],
+            );
+            table.set_closure(id);
+            let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
+            #[expect(
+                unsafe_code,
+                reason = "the table above is leaked, so the descriptor outlives \
+                          every instance made from it — `NvsObj::new`'s whole \
+                          obligation"
+            )]
+            let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
+            object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(0));
+            object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+            Value::object(object)
+        }
+
+        fn judged(ctx: &mut Ctx, member: nvs_runtime::NvsFn, args: &[Value]) -> Result<(), String> {
+            let answered = nvs_runtime::call(member, ctx, args);
+            for arg in args {
+                dropped(*arg);
+            }
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a failed assertion says why")
+                    .into_owned()),
+            }
+        }
+
+        let mut ctx = Ctx::buffered();
+        judged(
+            &mut ctx,
+            nvs_core_test_assert_does_not_throw,
+            &[body_of(returns), Value::null()],
+        )
+        .expect("a body that returned threw nothing");
+        assert_eq!(RAN.load(Ordering::SeqCst), 1);
+        let why = judged(
+            &mut ctx,
+            nvs_core_test_assert_does_not_throw,
+            &[body_of(throws), Value::null()],
+        )
+        .expect_err("the body threw");
+        assert!(
+            why.contains("`$body` threw: Core\\Test::advance(): this test declared no `at:`"),
+            "{why}"
+        );
+
+        let why = judged(
+            &mut ctx,
+            nvs_core_test_assert_completes,
+            &[
+                body_of(returns),
+                crate::time::duration_of(50_000_000),
+                Value::null(),
+            ],
+        )
+        .expect_err("no clock is fixed");
+        assert!(
+            why.contains("no fixed clock to spend `within` against"),
+            "{why}"
+        );
+        assert_eq!(RAN.load(Ordering::SeqCst), 1, "the refused body never ran");
+
+        ctx.set_fixed_clock(0);
+        judged(
+            &mut ctx,
+            nvs_core_test_assert_completes,
+            &[
+                body_of(returns),
+                crate::time::duration_of(50_000_000),
+                Value::null(),
+            ],
+        )
+        .expect("a body that returned left no task running");
+        assert_eq!(RAN.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            SAW.load(Ordering::SeqCst),
+            50_000_000,
+            "the clock moved first"
+        );
+        assert_eq!(ctx.fixed_clock(), Some(50_000_000));
+    }
 }

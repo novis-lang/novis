@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to check that a function returns the number of entries you expect.
+
+class Tags {
+    public static function fromText(string $text): array<string> {
+        return Core\Str::split($text, ",");
+    }
+}
+
+// The first value is the array. The second value is the number of entries you expect.
+// The array has three entries, so the check passes and nothing is thrown.
+Core\Test::assertCount(Tags::fromText("red,green,blue"), 3);
+echo "three tags\n";
+
+// An empty array has 0 entries.
+array<string> $none = [];
+Core\Test::assertCount($none, 0);
+echo "no tags\n";

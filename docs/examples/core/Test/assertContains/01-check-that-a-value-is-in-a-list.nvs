@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check that an array contains a value.
+
+class Roles {
+    public static function of(string $user): array<string> {
+        if ($user == "ana") {
+            return ["reader", "editor", "admin"];
+        }
+        return ["reader"];
+    }
+}
+
+// The first value is the array. The second value is the entry you look for.
+// "editor" is in the array, so the check passes and nothing is thrown.
+Core\Test::assertContains(Roles::of("ana"), "editor");
+echo "ana is an editor\n";
+
+// The position of the entry does not matter.
+Core\Test::assertContains(Roles::of("li"), "reader");
+echo "li is a reader\n";

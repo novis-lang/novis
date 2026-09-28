@@ -1,0 +1,50 @@
+<?nvs
+// Attack: the check looks for values that are very deep, very long, or missing from a
+// very large array. Each check should pass or throw a `Core\Test\Failure`.
+
+// Step 1: a value that is not in an array of one million entries.
+array<int> $big = [];
+int $i = 0;
+while ($i < 1000000) {
+    $big[] = $i;
+    $i = $i + 1;
+}
+try {
+    Core\Test::assertContains($big, -1);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// Step 2: a string of ten million characters that is not in the array.
+// The message shows only the start of the string.
+string $long = Core\Str::repeat('a', 10000000);
+array<string> $words = [$long . 'x', 'short'];
+try {
+    Core\Test::assertContains($words, $long . 'y');
+} catch (Core\Test\Failure $failure) {
+    echo 'message of ', Core\Str::length($failure->message) < 1000 ? 'few' : 'many', " characters\n";
+}
+
+// Step 3: two arrays nested 100000 levels deep, built one level at a time.
+// They are equal, but they are not the same array.
+array<mixed> $left = [];
+array<mixed> $right = [];
+$i = 0;
+while ($i < 100000) {
+    $left = [$left];
+    $right = [$right];
+    $i = $i + 1;
+}
+try {
+    Core\Test::assertContains([$left], $right);
+    echo "deep found\n";
+} catch (Throwable $error) {
+    echo "deep stopped\n";
+}
+
+// Step 4: the same deep array is missing, so the message has to show it.
+try {
+    Core\Test::assertContains([[1]], $right);
+} catch (Throwable $error) {
+    echo "deep missing\n";
+}

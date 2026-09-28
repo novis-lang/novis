@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when the value is not in the array.
+
+array<string> $sizes = ["S", "M", "L"];
+
+// "XL" is not in the array, so the check throws a `Core\Test\Failure`.
+// The message shows the number of entries and the value you looked for.
+try {
+    Core\Test::assertContains($sizes, "XL");
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The option `message` adds your own text at the start of the message.
+array<int> $ids = [1, 2, 3];
+try {
+    Core\Test::assertContains($ids, 4, {message: "order 4 is in the export"});
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Checks that a short list contains a value, as a test does after it collects errors or roles.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $roles = ["reader", "editor", "admin", "owner"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Test::assertContains($roles, $roles[$total % 4]);
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
