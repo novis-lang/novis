@@ -1,5 +1,5 @@
 {
-  "live": "core-taint-and-1-more",
+  "live": "core-test-1-2",
   "goals": [
     "core-depth",
     "concurrency",
