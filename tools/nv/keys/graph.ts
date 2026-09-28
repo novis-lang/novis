@@ -22,6 +22,8 @@ export interface Package {
   /** The package's directory, repo-relative. */
   dir: string;
   deps: Map<string, DepKind>;
+  /** The workspace dependencies its manifest renames: the crate name its code writes, to the package. */
+  renames?: Map<string, string>;
   targets: Target[];
 }
 
@@ -60,8 +62,10 @@ export async function metadata(manifest?: string): Promise<Graph | null> {
     const dir = rel(p.manifest_path.replace(/[\\/]Cargo\.toml$/, ""), ROOT);
     if (dir.startsWith("..")) return null;
     const deps = new Map<string, DepKind>();
+    const renames = new Map<string, string>();
     for (const d of p.dependencies) {
       if (!names.has(d.name)) continue;
+      if (d.rename) renames.set(d.rename.replace(/-/g, "_"), d.name);
       const kind = (d.kind ?? "normal") as DepKind;
       // One package named twice keeps the kind that reaches furthest.
       if (deps.get(d.name) !== "normal") deps.set(d.name, kind);
@@ -72,7 +76,7 @@ export async function metadata(manifest?: string): Promise<Graph | null> {
       src: rel(t.src_path, ROOT),
       test: t.test !== false,
     }));
-    out.set(p.name, { name: p.name, dir, deps, targets });
+    out.set(p.name, { name: p.name, dir, deps, ...(renames.size > 0 ? { renames } : {}), targets });
   }
   return out;
 }

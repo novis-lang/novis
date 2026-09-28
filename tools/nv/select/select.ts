@@ -72,31 +72,47 @@ export interface ChangeSet {
   full?: boolean;
 }
 
-/** The workspace graph as the closure's scope: a file's package is the one whose directory holds it. */
+/** The workspace graph as the closure's scope: a file's package is the one whose directory holds it, a
+ * package's crate name is its library target's, and a file under its package's `tests/`, `benches/` or
+ * `examples/`, or the root of a target of those kinds, is built only into that dev target. */
 export function graphScope(graph: Graph | null): Scope {
   if (!graph) return { pkgOf: () => null, sees: () => true, modDir: () => null };
   const dirs = [...graph.values()].map((p) => [p.dir, p.name] as const).sort((a, b) => b[0].length - a[0].length);
   const roots = new Set([...graph.values()].flatMap((p) => p.targets.map((t) => t.src)));
+  const devRoots = new Set([...graph.values()].flatMap((p) => p.targets.filter((t) => ["test", "bench", "example"].includes(t.kind)).map((t) => t.src)));
+  const crates = new Map([...graph.values()].map((p) => [(p.targets.find((t) => t.kind === "lib")?.name ?? p.name).replace(/-/g, "_"), p.name]));
   const cache = new Map<string, string | null>();
   const deps = new Map<string, Set<string>>();
+  const pkgOf = (file: string): string | null => {
+    if (cache.has(file)) return cache.get(file)!;
+    const hit = dirs.find(([d]) => d === "" || d === "." || file === d || file.startsWith(`${d}/`));
+    const pkg = hit ? hit[1] : null;
+    cache.set(file, pkg);
+    return pkg;
+  };
   return {
+    crateNamed(ident, user) {
+      return graph.get(user)?.renames?.get(ident) ?? crates.get(ident) ?? null;
+    },
+    devFile(file) {
+      if (devRoots.has(file)) return true;
+      const pkg = pkgOf(file);
+      const dir = pkg === null ? "" : graph.get(pkg)!.dir;
+      const rest = dir === "" || dir === "." ? file : file.slice(dir.length + 1);
+      return /^(tests|benches|examples)\//.test(rest);
+    },
     modDir(file) {
       if (roots.has(file) || file.endsWith("/mod.rs")) return file.slice(0, file.lastIndexOf("/") + 1);
       return `${file.replace(/\.rs$/, "")}/`;
     },
-    pkgOf(file) {
-      if (cache.has(file)) return cache.get(file)!;
-      const hit = dirs.find(([d]) => d === "" || d === "." || file === d || file.startsWith(`${d}/`));
-      const pkg = hit ? hit[1] : null;
-      cache.set(file, pkg);
-      return pkg;
-    },
-    sees(user, owner) {
+    pkgOf,
+    sees(user, owner, dev = true) {
       if (user === owner) return true;
-      let seen = deps.get(user);
+      const key = `${dev ? "dev" : "ship"}\0${user}`;
+      let seen = deps.get(key);
       if (!seen) {
-        seen = pkgClosure(graph, user, true);
-        deps.set(user, seen);
+        seen = pkgClosure(graph, user, dev);
+        deps.set(key, seen);
       }
       return seen.has(owner);
     },

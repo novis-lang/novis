@@ -1,10 +1,12 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Graph } from "../keys/graph.ts";
 import { type FileItems, scanItems } from "../keys/scan.ts";
 import { buildScripts, generatedIncludes, isInput, parseOutput } from "../select/build.ts";
 import { closure, diffFile, rowClasses, type Scope, Universe } from "../select/items.ts";
 import { pathKeys } from "../select/keys.ts";
+import { graphScope } from "../select/select.ts";
 import { scratch } from "./scratch.ts";
 
 const tree = scratch();
@@ -170,6 +172,87 @@ describe("the item diff and the reference-graph closure", () => {
     expect(moved).not.toContain(`fn:${sibling}#own`);
     expect(moved).not.toContain(`fn:${other}#tier`);
     expect(moved).not.toContain(`fn:${vendored}#piece`);
+  });
+
+  /** The keys the edit of `owner` from `before` to `after` moves, over `files` scanned in a workspace of
+   * `pkgs`, each `[name, deps]` at `crates/<name>`. */
+  function reachedIn(pkgs: [string, [string, "normal" | "dev"][]][], files: Record<string, string>, owner: string, before: string, after: string): string[] {
+    const graph: Graph = new Map(
+      pkgs.map(([name, deps]) => [name, { name, dir: `crates/${name}`, deps: new Map(deps), targets: [{ kind: "lib", name, src: `crates/${name}/src/lib.rs`, test: true }] }]),
+    );
+    for (const [f, text] of Object.entries(files)) tree.put(f, text);
+    const all = [owner, ...Object.keys(files)];
+    tree.put(owner, before);
+    const base = scanned(all);
+    tree.put(owner, after);
+    const head = scanned(all);
+    const d = diffFile(base.get(owner)!, head.get(owner)!);
+    return [...closure(d.changes, new Universe(head, graphScope(graph))).keys()];
+  }
+
+  test("shipped code does not see a dev-dependency, and its tests and integration tests do", () => {
+    const moved = reachedIn(
+      [["t", []], ["s", [["t", "dev"]]]],
+      {
+        "crates/s/src/mail.rs": "use t::Wire;\npub fn send(w: &Wire) {}\n#[cfg(test)]\nmod tests {\n    use t::Wire;\n    #[test]\n    fn sends() { let _: Option<Wire> = None; }\n}\n",
+        "crates/s/tests/mail.rs": "use t::Wire;\n#[test]\nfn it() { let _: Option<Wire> = None; }\n",
+      },
+      "crates/t/src/lib.rs",
+      "pub struct Wire { pub a: u8 }\n",
+      "pub struct Wire { pub a: u16 }\n",
+    );
+    expect(moved).not.toContain("fn:crates/s/src/mail.rs#send");
+    expect(moved).toContain("fn:crates/s/src/mail.rs#tests::sends");
+    expect(moved).toContain("fn:crates/s/tests/mail.rs#it");
+  });
+
+  test("another package reaches an item only where it imports or qualifies it, directly or through a re-export", () => {
+    const moved = reachedIn(
+      [["a", []], ["r", [["a", "normal"]]], ["u", [["a", "normal"], ["r", "normal"]]]],
+      {
+        "crates/r/src/lib.rs": "pub use a::Call;\n",
+        "crates/u/src/lib.rs": "pub use a::Call as Again;\n",
+        "crates/u/src/used.rs": "use a::Call;\npub fn used() -> Call { todo!() }\n",
+        "crates/u/src/qualified.rs": "pub fn qualified() -> a::Call { todo!() }\n",
+        "crates/u/src/through.rs": "use r::Call;\npub fn through() -> Call { todo!() }\n",
+        "crates/u/src/own.rs": "pub enum Inst { Call(u8) }\npub fn own(i: Inst) -> u8 { match i { Inst::Call(n) => n } }\n",
+        "crates/u/src/local.rs": "use crate::Again as Call;\npub fn local() -> Call { todo!() }\n",
+      },
+      "crates/a/src/lib.rs",
+      "pub struct Call(pub u8);\n",
+      "pub struct Call(pub u16);\n",
+    );
+    expect(moved).toContain("fn:crates/u/src/used.rs#used");
+    expect(moved).toContain("fn:crates/u/src/qualified.rs#qualified");
+    expect(moved).toContain("fn:crates/u/src/through.rs#through");
+    expect(moved).toContain("fn:crates/u/src/local.rs#local");
+    expect(moved).not.toContain("fn:crates/u/src/own.rs#own");
+    expect(moved).not.toContain("fn:crates/u/src/own.rs#Inst");
+  });
+
+  test("a glob binds an item only when it is from a crate that leads to it", () => {
+    const owner = "crates/a/src/lib.rs";
+    const before = "pub struct Call(pub u8);\n";
+    const after = "pub struct Call(pub u16);\n";
+    const moved = reachedIn(
+      [["a", []], ["u", [["a", "normal"]]]],
+      {
+        "crates/u/src/glob.rs": "use a::*;\npub fn globbed() -> Call { todo!() }\n",
+        "crates/u/src/parent.rs": "use a::Call;\npub fn outer() {}\n#[cfg(test)]\nmod tests {\n    use super::*;\n    #[test]\n    fn inner() { let _: Option<Call> = None; }\n}\n",
+      },
+      owner,
+      before,
+      after,
+    );
+    expect(moved).toContain("fn:crates/u/src/glob.rs#globbed");
+    expect(moved).toContain("fn:crates/u/src/parent.rs#tests::inner");
+    const ext = { "crates/v/src/ext.rs": "use cranelift::prelude::*;\npub fn external(i: Inst) -> u8 { match i { Inst::Call(n) => n } }\n" };
+    const pkgs: [string, [string, "normal" | "dev"][]][] = [["a", []], ["v", [["a", "normal"]]]];
+    expect(reachedIn(pkgs, ext, owner, before, after)).not.toContain("fn:crates/v/src/ext.rs#external");
+    // Once a module of `v` brings the name in from `a`, a glob of its own modules or of an external
+    // crate may be what binds it, so it is reached.
+    const imported = reachedIn(pkgs, { ...ext, "crates/v/src/lib.rs": "pub use a::*;\n" }, owner, before, after);
+    expect(imported).toContain("fn:crates/v/src/ext.rs#external");
   });
 
   test("a test-only class table moves no class, and a file that does not parse is taken whole", () => {

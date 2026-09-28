@@ -26,8 +26,15 @@
 // item (`scope`) is named from its own module's files alone, and a `crate` item from its own package;
 // another file's item of the same name is another item. A file of no package (vendored code, a tool
 // with a workspace of its own) names no item of the workspace, except under `fuzz/`, whose targets
-// depend on the workspace's crates. A `macro_rules!` is scoped by where it is defined and exported, not
-// by `scope`, and keeps the package rule alone.
+// depend on the workspace's crates. Code another package ships sees the packages its build depends on,
+// and its test code (`test`, or a file of a test, bench or example target) its dev-dependencies too.
+// There it reaches an item only with evidence it names that item and not one of its own spelled the
+// same (`Universe.canName`): its tokens spell a crate name that leads to the item, or a `use` of its
+// file binds the name, a glob or a `_` from such a crate, or from its own modules or an external crate
+// once some item of its package brings the name in from one. A crate leads to the item when it is the
+// item's own or one built against it that binds the name or a glob, since that may re-export it. A
+// `macro_rules!` is scoped by where it is defined and exported, not by `scope`, and keeps the package
+// rule alone, as do a macro invocation and what it generates, whose tokens may spell a path.
 //
 // An item compiled only for tests (`test`) is never a card or a class row a program reads: its cards,
 // classes and rows are ignored and it moves what names it, like any other item. A test that was added
@@ -87,8 +94,15 @@ export function diffFile(base: FileItems | null, head: FileItems | null): { chan
 export interface Scope {
   /** The package a file belongs to, or null for a file of no package. */
   pkgOf(file: string): string | null;
-  /** Whether code of `user` can name items of `owner`: the same package, or one that depends on it. */
-  sees(user: string, owner: string): boolean;
+  /** Whether code of `user` can name items of `owner`: the same package, or one it depends on. With
+   * `dev` false its own dev-dependencies are left out, which is what its shipped code is built against. */
+  sees(user: string, owner: string, dev?: boolean): boolean;
+  /** The package a crate name (`nvs_test`) is in code of `user`, or null for a name that is no
+   * workspace crate. Absent when crate names are not known, and then a package reaches every item of
+   * the packages it sees by name alone. */
+  crateNamed?(ident: string, user: string): string | null;
+  /** Whether `file` is built only into a test, bench or example target of its package. */
+  devFile?(file: string): boolean;
   /** The prefix every file of `file`'s module and the modules inside it starts with: `a/b/` for
    * `a/b.rs`, and the file's own directory for a crate root or a `mod.rs`. Null when the crate roots
    * are not known, and then a private item is reached as a `crate` one. */
@@ -136,6 +150,92 @@ export class Universe {
   twins(file: string, id: string): Item[] {
     const base = baseId(id);
     return (this.files.get(file)?.items ?? []).filter((i) => i.id !== id && baseId(i.id) === base);
+  }
+
+  private uses = new Map<string, Item[]>();
+  private pkgFiles: Map<string | null, FileItems[]> | null = null;
+  private memo = new Map<string, boolean>();
+
+  private remember(key: string, f: () => boolean): boolean {
+    const hit = this.memo.get(key);
+    if (hit !== undefined) return hit;
+    // A cycle of re-exports ends as "no" while it is being worked out.
+    this.memo.set(key, false);
+    const v = f();
+    this.memo.set(key, v);
+    return v;
+  }
+
+  private filesOf(pkg: string): FileItems[] {
+    if (!this.pkgFiles) {
+      this.pkgFiles = new Map();
+      for (const f of this.files.values()) {
+        const p = this.scope.pkgOf(f.file);
+        (this.pkgFiles.get(p) ?? this.pkgFiles.set(p, []).get(p)!).push(f);
+      }
+    }
+    return this.pkgFiles.get(pkg) ?? [];
+  }
+
+  private usesOf(file: string): Item[] {
+    let u = this.uses.get(file);
+    if (!u) this.uses.set(file, (u = (this.files.get(file)?.items ?? []).filter((i) => i.kind === "use")));
+    return u;
+  }
+
+  /** Whether crate name `ident` leads code of `user` to `names` of `owner`: true for `owner` itself, and
+   * for another crate built against `owner` that binds one of `names` or a glob in a `use` of its own,
+   * since that may re-export it; false for any other workspace crate; null for a name that is no
+   * workspace crate, which is a module of `user` or an external crate. */
+  private viaCrate(ident: string, user: string, owner: string, names: string[], key: string): boolean | null {
+    const pkg = this.scope.crateNamed!(ident, user);
+    if (pkg === null || pkg === user) return null;
+    if (pkg === owner) return true;
+    if (!this.scope.sees(pkg, owner, false)) return false;
+    return this.remember(`rebinds\0${pkg}\0${key}`, () =>
+      this.filesOf(pkg).some((f) => f.items.some((i) => !i.test && i.kind === "use" && i.defines.some((d) => d === "*" || names.includes(d)))),
+    );
+  }
+
+  /** Whether an item of `user` spells a crate name that leads to `owner` (`viaCrate`) beside one of
+   * `names`, as a `use` binding one of them, a glob, a `_` or a name of its own does: the evidence that
+   * a `use` of `user` rooted in its own modules can bind them. */
+  private pkgImports(user: string, owner: string, names: string[], key: string): boolean {
+    return this.remember(`pkg\0${user}\0${key}`, () =>
+      this.filesOf(user).some((f) =>
+        f.items.some(
+          (i) =>
+            (i.defines.some((d) => d === "*" || d === "_" || names.includes(d)) || i.refs.some((r) => names.includes(r))) &&
+            i.refs.some((r) => this.viaCrate(r, user, owner, names, key) === true),
+        ),
+      ),
+    );
+  }
+
+  /**
+   * Whether item `p` of package `user` can name what item `key` of another package `owner` binds as
+   * `names`. It can when its own tokens spell a crate name that leads there (a qualified path), or when a
+   * `use` of its file binds one of `names`, a glob or a `_`: from a crate name that leads there, or from
+   * a module of `user` or an external crate, when some item of `user` brings one of `names` in from a
+   * crate that leads there. A glob from a crate that does not lead there binds none of them.
+   */
+  canName(p: Placed, user: string, owner: string, names: string[], key: string): boolean {
+    if (!this.scope.crateNamed) return true;
+    if (p.item.refs.some((r) => this.viaCrate(r, user, owner, names, key) === true)) return true;
+    return this.remember(`file\0${p.file}\0${key}`, () => {
+      for (const u of this.usesOf(p.file)) {
+        if (!u.defines.some((d) => d === "*" || d === "_" || names.includes(d))) continue;
+        let crate = false;
+        for (const r of u.refs) {
+          const v = this.viaCrate(r, user, owner, names, key);
+          if (v === null) continue;
+          crate = true;
+          if (v) return true;
+        }
+        if (!crate && this.pkgImports(user, owner, names, key)) return true;
+      }
+      return false;
+    });
   }
 }
 
@@ -210,6 +310,8 @@ export function closure(
   const reach = (from: { file: string; item: Item }, names: string[], sameFile: boolean) => {
     const viaClasses = from.item.class ?? [];
     const owner = universe.scope.pkgOf(from.file);
+    const macro = from.item.kind === "macro-rules";
+    const key = `${from.file}#${from.item.id}`;
     for (const name of names) {
       if (name === "*" || name === "") continue;
       for (const p of universe.naming(name)) {
@@ -217,11 +319,16 @@ export function closure(
         if (sameFile && p.file !== from.file) continue;
         if (!sameFile && owner !== null && p.file !== from.file) {
           const user = universe.scope.pkgOf(p.file);
-          if (user === null ? !p.file.startsWith("fuzz/") : !universe.scope.sees(user, owner)) continue;
-          const scope = from.item.kind === "macro-rules" ? undefined : from.item.scope;
+          const dev = p.item.test || (universe.scope.devFile?.(p.file) ?? true);
+          if (user === null ? !p.file.startsWith("fuzz/") : !universe.scope.sees(user, owner, dev)) continue;
+          const scope = macro ? undefined : from.item.scope;
           if (scope !== undefined && user !== owner) continue;
           const dir = scope === "private" ? universe.scope.modDir(from.file) : null;
           if (dir !== null && !p.file.startsWith(dir)) continue;
+          // A macro's tokens may spell a path the reader cannot see, so an invocation and what it
+          // generates keep the package rule, and so does a `macro_rules!`, which is named unqualified.
+          const generated = p.item.kind === "macro" || (p.item.parent?.includes("!") ?? false);
+          if (user !== null && user !== owner && !macro && !generated && !universe.canName(p, user, owner, names, key)) continue;
         }
         queue.push({ file: p.file, item: p.item, how: "reached", via: `${from.file}#${from.item.id}`, viaClasses });
       }
