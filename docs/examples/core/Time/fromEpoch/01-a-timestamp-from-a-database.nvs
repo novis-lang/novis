@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to turn a Unix timestamp, such as one stored in a database, into a date and time.
+
+// 1715688000 is the number of seconds since 1 January 1970 in UTC.
+var $created = Core\Time::fromEpoch(1715688000);
+
+// `toIso` prints the moment in UTC. This prints 2024-05-14T12:00:00Z.
+echo $created->toIso(), "\n";
+
+// `in` shows the same moment in a time zone. This prints 14.05.2024 14:00 for Berlin.
+echo $created->in(Core\Time\Zone::of("Europe/Berlin"))->format("dd.MM.yyyy HH:mm"), "\n";

@@ -2276,8 +2276,9 @@ const TIME_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
     ret: "The `Instant`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`nanos` is not below `1000000000`, or `$seconds` lies outside the representable \
-               range, about ±9999 years.",
+        desc: "`nanos` is not below `1000000000`, or `$seconds` is outside \
+               `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to \
+               `9999-12-30T22:00:00Z`.",
     }],
 };
 
@@ -3585,8 +3586,17 @@ nvs_runtime::nvs_helper! {
                 "`nanos` is a subsecond count, so it is below 1000000000",
             ));
         }
-        let at = Timestamp::from_second(seconds)
-            .map_err(|err| out_of_range(r"Core\Time::fromEpoch", &err.to_string()))?;
+        // The range is the timestamp's own, named in seconds because that is
+        // what the caller passed. `nanos` cannot push an accepted second past
+        // it: the last representable instant is a whole second plus
+        // 999999999 nanoseconds, so the second failure is unreachable too.
+        let outside = || {
+            out_of_range(
+                r"Core\Time::fromEpoch",
+                "`seconds` is outside -377705023201..=253402207200",
+            )
+        };
+        let at = Timestamp::from_second(seconds).map_err(|_| outside())?;
         #[expect(
             clippy::cast_possible_wrap,
             reason = "the bound checked one line above puts `nanos` below \
@@ -3595,7 +3605,7 @@ nvs_runtime::nvs_helper! {
         let offset = SignedDuration::from_nanos(nanos as i64);
         at.checked_add(offset)
             .map(instant_built)
-            .map_err(|err| out_of_range(r"Core\Time::fromEpoch", &err.to_string()))
+            .map_err(|_| outside())
     }
 }
 
@@ -5189,6 +5199,72 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// `Core\Time::fromEpoch` called the way a compiled call site calls it. It
+    /// answers the built `Instant`'s seconds and nanoseconds, or the sentence it
+    /// threw.
+    fn built_from_epoch(seconds: i64, nanos: u64) -> Result<(i64, i64), String> {
+        let mut ctx = Ctx::buffered();
+        let args = [Value::int(seconds), Value::uint(nanos)];
+        match nvs_runtime::call(nvs_core_time_from_epoch, &mut ctx, &args) {
+            Ok(built) => {
+                let held = crate::instance::receiver(built, &INSTANT, "test")
+                    .expect("`fromEpoch` answers an `Instant`");
+                let read = (
+                    crate::instance::slot(held, INSTANT_SECONDS_SLOT)
+                        .as_int()
+                        .expect("the seconds slot is an int"),
+                    crate::instance::slot(held, INSTANT_NANOS_SLOT)
+                        .as_int()
+                        .expect("the nanos slot is an int"),
+                );
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns the `Instant` the member answered"
+                )]
+                unsafe {
+                    built.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        }
+    }
+
+    /// `fromEpoch` adds `nanos` after the second, accepts exactly the
+    /// timestamp range at both ends, and refuses past it in its own sentence.
+    // covers: Core\Time::fromEpoch
+    #[test]
+    fn from_epoch_adds_nanos_after_the_second_and_refuses_past_the_range_plainly() {
+        assert_eq!(
+            built_from_epoch(1_700_000_000, 0),
+            Ok((second_of("2023-11-14T22:13:20Z"), 0))
+        );
+        // One nanosecond after `-1` is still inside second `-1`.
+        assert_eq!(built_from_epoch(-1, 1), Ok((-1, 1)));
+        assert_eq!(
+            built_from_epoch(253_402_207_200, 999_999_999),
+            Ok((253_402_207_200, 999_999_999))
+        );
+        assert_eq!(
+            built_from_epoch(-377_705_023_201, 0),
+            Ok((-377_705_023_201, 0))
+        );
+
+        let past = r"Core\Time::fromEpoch(): `seconds` is outside -377705023201..=253402207200";
+        for seconds in [253_402_207_201, -377_705_023_202, i64::MAX, i64::MIN] {
+            assert_eq!(built_from_epoch(seconds, 0), Err(past.to_owned()));
+        }
+        for nanos in [1_000_000_000, u64::MAX] {
+            assert_eq!(
+                built_from_epoch(0, nanos),
+                Err(r"Core\Time::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000".to_owned())
+            );
         }
     }
 }

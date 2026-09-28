@@ -1,0 +1,9 @@
+<?nvs
+// Shows how a negative timestamp gives a time before 1970, and how `nanos` adds part of a second.
+
+// The first Moon landing was 14182940 seconds before 1970. This prints 1969-07-20T20:17:40Z.
+echo Core\Time::fromEpoch(-14182940)->toIso(), "\n";
+
+// `nanos` is added after the second, also for a negative second.
+// -1 is 23:59:59 on the last day of 1969. Half a second later is 23:59:59.5.
+echo Core\Time::fromEpoch(-1, {nanos: 500000000})->toIso(), "\n";
