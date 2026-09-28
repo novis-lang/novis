@@ -5539,6 +5539,57 @@ mod tests {
         );
     }
 
+    /// `assertMatchesInline` holds when `Core\Debug::render`'s text is the
+    /// snapshot byte for byte, and records nothing. A mismatch, including the
+    /// empty snapshot the `--update` workflow starts from, quotes both texts
+    /// and leaves one `SnapshotMismatch` per failure for the runner to join.
+    // covers: Core\Test::assertMatchesInline
+    #[test]
+    fn assert_matches_inline_compares_the_rendering_and_records_each_mismatch() {
+        fn matched(ctx: &mut Ctx, actual: Value, snapshot: &str) -> Result<(), String> {
+            let expected = Value::str(nvs_runtime::NvsStr::new(snapshot.as_bytes()));
+            let args = [actual, expected, Value::null()];
+            let answered = nvs_runtime::call(nvs_core_test_assert_matches_inline, ctx, &args);
+            dropped(actual);
+            dropped(expected);
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    Ok(())
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a failed assertion says why")
+                    .into_owned()),
+            }
+        }
+
+        let mut ctx = Ctx::buffered();
+        matched(&mut ctx, Value::int(7), "int(7)").expect("7 renders as int(7)");
+        assert!(ctx.take_snapshot_mismatches().is_empty());
+
+        let why = matched(&mut ctx, Value::int(7), "int(8)").expect_err("7 is not int(8)");
+        assert!(
+            why.contains("the rendering is \"int(7)\", and the snapshot holds \"int(8)\""),
+            "{why}"
+        );
+        let why = matched(&mut ctx, Value::bool(true), "").expect_err("nothing matches \"\"");
+        assert!(why.contains("the snapshot holds \"\""), "{why}");
+
+        let recorded: Vec<(String, String)> = ctx
+            .take_snapshot_mismatches()
+            .into_iter()
+            .map(|m| (m.expected, m.produced))
+            .collect();
+        assert_eq!(
+            recorded,
+            [
+                ("int(8)".to_owned(), "int(7)".to_owned()),
+                (String::new(), "bool(true)".to_owned()),
+            ]
+        );
+    }
+
     /// Both members that take a `callable` judge how it ended. `assertDoesNotThrow`
     /// holds for a body that returned and turns a body's throw into its own
     /// failure quoting the message. `assertCompletes` throws before it calls the

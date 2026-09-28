@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to check simple values against the text `Core\Debug::render` prints for them.
+
+// The text of a number has its type and its value.
+Core\Test::assertMatchesInline(42, "int(42)");
+
+// The text of a string has its length and the string in quotes.
+// The quotes inside the snapshot are written as `\"`.
+Core\Test::assertMatchesInline("ready", "string(5) \"ready\"");
+
+// The text of an array has one line for each entry. `\n` is a line break.
+Core\Test::assertMatchesInline([10, 20], "array(2) [\n  0 => int(10)\n  1 => int(20)\n]");
+
+// Every check passed, so this prints the line below.
+echo "all three snapshots match\n";

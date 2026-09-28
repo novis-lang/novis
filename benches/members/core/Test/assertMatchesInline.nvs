@@ -1,0 +1,19 @@
+<?nvs
+// Checks a small value against its snapshot, as a test does after it builds a result.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $snapshots = ["uint(0)", "uint(1)", "uint(2)"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Test::assertMatchesInline($total % 3, $snapshots[$total % 3]);
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

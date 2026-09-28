@@ -1,0 +1,3 @@
+Core\Test::assertMatchesInline failed: the rendering is "int(7)", and the snapshot holds "int(8)"
+Core\Test::assertMatchesInline failed: the rendering is "array(2) [\n  0 => string(3) \"red\"\n  1 => string(4) \"blue\"\n]", and the snapshot holds ""
+the feature flag is off: Core\Test::assertMatchesInline failed: the rendering is "bool(true)", and the snapshot holds "bool(false)"
