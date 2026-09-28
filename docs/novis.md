@@ -16460,9 +16460,9 @@ Moves the clock that `#[Test(at: ...)]` fixed forward by `$by`. A test of someth
 Core\Test::serverUrl(): ?string
 ```
 
-The base URL of the listener a `#[Test(server: true)]` case was given — a real socket on a port the operating system chose, for the cases that genuinely need the wire rather than an in-process request.
+Returns the address of the test server that a `#[Test(server: true)]` test starts. The server runs on this computer, on a free port. Use it when a test needs a real network connection.
 
-**Returns** `?string` — `http://127.0.0.1:<port>` with no trailing slash, so a path appends directly; `null` anywhere no listener was bound, which is every context but a `server: true` test.
+**Returns** `?string` — An address such as `http://127.0.0.1:52341`, with no `/` at the end, so you can add a path directly. The result is `null` everywhere else, which includes a test without `server: true` and a program started with `nvs run`.
 
 <a id="core-core-test-scriptanswers"></a>
 #### `Core\Test::scriptAnswers`
@@ -16486,19 +16486,19 @@ Writes down what the next `Core\Cli` prompts will be answered with, so an intera
 Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string}): Core\Test\Response
 ```
 
-Runs one request through the program under test in this process — the compiled route table and the real handler chain, with no socket and no port — and answers with what the program wrote.
+Sends one request to your own program and returns the answer. It opens no network connection. The request goes through the same route table and the same code as a real request.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$method` | `Core\Http\Method` | The verb the synthetic request carries, matched against the table exactly as an arrived one is. |
-| `$path` | `string` (neutral) | The path to ask for, mount prefix already stripped — what a handler's `#[Route]` is declared against. A `?` and everything after it is the query. |
-| `{headers: …}` | `array<string>` (default `[]`) | The field lines the request carries, keyed by name and spelled as the program under test will read them back. A `content-type` or a `content-length` written here stands; one written for neither is derived from `body`. |
-| `{body: …}` | `string\|bytes` (default `null`, neutral) | The octets the request carries, framed by nothing and typed by nothing. Text goes as it is written, and a body that is not text at all — the kind `Core\Request::bytes` exists for — goes as `bytes`. A call naming no body describes a request carrying none, which is not a request carrying an empty one. |
-| `{mount: …}` | `string` (default `""`, neutral) | The prefix the door is to have stripped off `path` before the program saw it — what `Core\Request::mount()` answers, and what `Core\Router::url` writes in front of every link the request builds. A call naming none describes a request served at the root, which is what a program run off the command line is too. |
+| `$method` | `Core\Http\Method` | The HTTP method of the request, such as `Core\Http\Method::Get`. |
+| `$path` | `string` (neutral) | The path of the request, such as `/orders/7`. A `?` and the text after it are the query string. |
+| `{headers: …}` | `array<string>` (default `[]`) | The headers of the request, with the header name as the key. If you give no `content-type` or `content-length`, the length is set from `body`. |
+| `{body: …}` | `string\|bytes` (default `null`, neutral) | The body of the request, as a `string` or as `bytes`. If you give no body, the request has no body. An empty string is a body of length 0. |
+| `{mount: …}` | `string` (default `""`, neutral) | The prefix the program is served under, such as `/shop`. `Core\Request::mount()` returns it, and `Core\Router::url` adds it in front of each link. The default is `""`, which means the root. |
 
-**Returns** `Core\Test\Response` — The status the program declared and the bytes it wrote. A path the table does not claim is still answered: nothing here dispatches, so the program decides what a miss means.
+**Returns** `Core\Test\Response` — A `Core\Test\Response`. `status()` returns the status the program set, or `200` if it set none. `body()` returns the text the program wrote. A path that no route matches still gets an answer, because your program decides what to do with it.
 
-**Throws** `RuntimeError` — There is no program under test — the call is outside a `nvs test` or `nvs run` invocation — or the call is already inside an in-process request, which is refused because the program answering one is the program that asked.
+**Throws** `RuntimeError` — There is no program to answer, because the call is not in `nvs test` or `nvs run`. The call is also an error inside a request that `request` sent, because a request cannot send another request.
 
 <a id="core-core-test-answerhttp"></a>
 #### `Core\Test::answerHttp`

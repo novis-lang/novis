@@ -1,0 +1,11 @@
+{
+  "lead": "An example's `#[Test]` method never runs in the proof sweep.",
+  "body": "Examples run with `nvs run <file>`, so only the top level is checked and a broken `#[Test(server: true)]` or `#[Test(at: …)]` method stays green. Run the file by hand with `target/debug/nvs.exe test --config <dir>/nvs.toml <file>` before committing it, and give the top level a line that prints under `nvs run`.",
+  "files": [
+    "docs/examples/README.md"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "docs/examples/README.md:nvs run <file>"
+  }
+}
