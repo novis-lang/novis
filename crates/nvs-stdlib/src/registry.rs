@@ -5343,7 +5343,6 @@ mod tests {
         r"Core\Request\Files",
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
-        r"Core\Sse",
         r"Core\Sse\Message",
         r"Core\Storage",
         r"Core\Str",

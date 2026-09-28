@@ -108,13 +108,23 @@ use nvs_runtime::{
     Ctx, Delivery, EventStreamDoor, Fault, NvsStr, Tag, ThrownClass, Upgrade, Value, copy_graph,
 };
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 use crate::socket::{entry_program, release_crossed, retained};
 
 /// `Core\Sse`'s fully-qualified name, written once, so the class's own row, the
 /// [`CoreTy::Instance`] its two doors answer with and every message quoting it
 /// cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Sse";
+
+/// `Core\Sse`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "An event stream from your server to a client, as a browser's `EventSource` reads it. \
+            A request calls `stream` to answer with events, or `upgrade` to start a script that \
+            keeps sending after the request ends. Code that did not open the stream calls \
+            `current` to get it, and `send` writes one event.",
+};
 
 /// `Core\Sse`'s registry rows — `rule:concurrency/two-doors-one-isolate`'s two
 /// doors, and the one member that writes onto whichever of them is open. See
@@ -129,7 +139,7 @@ pub(crate) const NAME: &str = r"Core\Sse";
 /// identical and have nothing to tell apart.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "upgrade",
@@ -1132,6 +1142,52 @@ mod tests {
         dropped(handle);
     }
 
+    /// A reconnection time reaching the connection as a `retry:` block of its
+    /// own, in whole milliseconds, and a negative one refused with nothing
+    /// written — so the connection never frames half a block it cannot take
+    /// back.
+    // covers: Core\Sse::retry
+    #[test]
+    fn a_reconnection_time_reaches_the_connection_and_a_negative_one_writes_nothing() {
+        let slot = offered_cell();
+        let mut ctx = framing(&slot);
+
+        let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+            .expect("an offered cell takes the stream");
+        let backwards = crate::time::duration_of(-1);
+        nvs_runtime::call(super::nvs_core_sse_retry, &mut ctx, &[handle, backwards])
+            .expect_err("a wait shorter than none is refused");
+        let message = ctx
+            .pending()
+            .expect("a throw carries the message it was raised with")
+            .into_owned();
+        assert!(
+            message.contains("cannot be negative"),
+            "the refusal does not say what was wrong: {message}"
+        );
+        drop(ctx.take_pending());
+        let later = crate::time::duration_of(3_000_000_000);
+        nvs_runtime::call(super::nvs_core_sse_retry, &mut ctx, &[handle, later])
+            .expect("a reconnection time goes into an empty cell without parking");
+
+        let mut head = slot
+            .take(std::task::Waker::noop())
+            .expect("the member filled the cell");
+        let nvs_runtime::stream::Drained::Chunk(framed) =
+            head.drain.next_chunk(std::task::Waker::noop())
+        else {
+            panic!("the reconnection time never reached the connection");
+        };
+        assert_eq!(
+            framed, b"retry: 3000\n\n",
+            "the refused call wrote something, or the block is not whole milliseconds"
+        );
+
+        dropped(later);
+        dropped(backwards);
+        dropped(handle);
+    }
+
     /// The cell's refusal reaching a program: a response has one body, so an
     /// event stream over a response already writing one is refused and the
     /// first body is what the connection still frames. Unreachable from a
@@ -1165,6 +1221,7 @@ mod tests {
     /// Asserted here as well as in a `.nvst` case because of the *carrier*: the
     /// program a stream-open question would wrongly admit is a request
     /// streaming a body of its own, and a case reaches neither cell.
+    // covers: Core\Sse::current
     #[test]
     fn current_outside_an_event_stream_is_refused_by_name() {
         let slot = offered_cell();

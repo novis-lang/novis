@@ -1,0 +1,20 @@
+<?nvs
+// Gets the event stream, as a helper does before it sends an event.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Sse $sse = Core\Sse::current();
+            $total = $total + ($total % 3) + 1;   // chained: each round depends on the last
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// `current()` needs an open stream, so the program opens one first.
+Core\Sse::stream();
+echo Bench::run(200000), "\n";

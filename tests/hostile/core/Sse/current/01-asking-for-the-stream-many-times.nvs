@@ -1,0 +1,35 @@
+<?nvs
+// Attack: a program asks for its event stream again and again, before and after it opens one.
+// Every error should be caught. Memory should grow only by what the program keeps, and every answer should still work.
+
+// 1. Ask one hundred thousand times before a stream is open, and catch every error.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 100000) {
+    try {
+        Core\Sse::current();
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+
+// 2. Open the stream, then ask one million times and keep nothing.
+Core\Sse::stream();
+$i = 0;
+while ($i < 1000000) {
+    Core\Sse::current();
+    $i = $i + 1;
+}
+
+// 3. Ask one hundred thousand times and keep every answer in an array.
+array<Core\Sse> $kept = [];
+$i = 0;
+while ($i < 100000) {
+    $kept[] = Core\Sse::current();
+    $i = $i + 1;
+}
+
+// 4. Send one event through the first answer and one through the last.
+$kept[0]->send('first');
+$kept[99999]->send('last ' . $refused);
