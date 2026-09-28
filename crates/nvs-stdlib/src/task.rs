@@ -181,16 +181,16 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// § 3's two options, documented once — both members carry the same two.
 const LIMIT_DOC: ParamDoc = ParamDoc {
     name: "limit",
-    desc: "The most children running at once; omitted, every child runs at once, and a child \
-           past the limit is scheduled rather than refused.",
+    desc: "The most tasks that run at the same time. The other tasks wait until one finishes. \
+           Without it, every task starts at once.",
     shape: &[],
 };
 
 /// See [`LIMIT_DOC`].
 const DEADLINE_DOC: ParamDoc = ParamDoc {
     name: "deadline",
-    desc: "A wall-clock bound on the whole call, not per child; omitted, the request tree's own \
-           `wall_time` is the bound.",
+    desc: "The time limit for the whole call, not for each task. Without it, the request's \
+           `[limits] wall_time` setting is the limit.",
     shape: &[],
 };
 
@@ -199,34 +199,33 @@ const DEADLINE_DOC: ParamDoc = ParamDoc {
 const GROUP_ERRORS: &[ErrorDoc] = &[
     ErrorDoc {
         error: "LogicError",
-        desc: "When `limit` is `0`, which admits no child and so is a group that could never \
-               finish.",
+        desc: "When `limit` is `0`. No task could start, so the call could never finish.",
     },
     ErrorDoc {
         error: "TimeoutError",
-        desc: "When `deadline` expires before every child has returned; every child is \
-               cancelled first, and the call waits for those cancellations.",
+        desc: "When `deadline` runs out before every task has finished. Every task is stopped \
+               first, and the call waits until they have stopped.",
     },
 ];
 
 /// `Core\Task::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
-    short: "Runs every closure of the `$tasks` shape literal as a concurrent child task and \
-            answers a shape with the same field names, each carrying that closure's own declared \
-            return type — a fixed, heterogeneous set decided where the call is written.",
+    short: "Runs every closure in the `$tasks` shape at the same time, and waits until all of \
+            them have finished. The result is a shape with the same field names, and each field \
+            has the type its closure returns.",
     params: &[
         ParamDoc {
             name: "tasks",
-            desc: "A shape literal whose every field is a written zero-argument `fn` literal; a \
-                   `callable`-typed variable is a compile error naming the field.",
+            desc: "A shape whose fields are closures with no parameters, written as `fn` literals \
+                   in the call. A variable of type `callable` in a field does not compile.",
             shape: &[],
         },
         LIMIT_DOC,
         DEADLINE_DOC,
     ],
-    ret: "A shape whose fields hold what each closure returned; control never leaves the call \
-          with a child still running, and the first child to throw cancels every sibling and \
-          propagates as itself once they are gone.",
+    ret: "A shape with the value each closure returned. No task is still running when the call \
+          returns. If a task throws an error, the other tasks are stopped, and the call throws \
+          that same error.",
     errors: GROUP_ERRORS,
 };
 
@@ -665,7 +664,12 @@ fn receiver(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsOb
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
 
+    use nvs_runtime::host::{
+        Bounds, Entry, Host, Job, Narrowing, Outcome, Output, Placement, Running, StartError,
+        Waker, Woken,
+    };
     use nvs_runtime::{
         CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAGS_SLOT, ClassTable, Ctx, MethodRow,
         NvsFn, NvsObj, Value,
@@ -808,6 +812,179 @@ mod tests {
         )]
         unsafe {
             closure.release();
+        }
+    }
+
+    /// How many groups [`Serial`] was handed.
+    static GROUPS: AtomicUsize = AtomicUsize::new(0);
+
+    /// A host that runs every job of a group on the caller's own context, one
+    /// after the other and in the order given. That order is the only thing
+    /// `all`'s step 3 reads, so it is all a scheduler has to be here.
+    #[derive(Debug)]
+    struct Serial;
+
+    static SERIAL: Serial = Serial;
+
+    impl Host for Serial {
+        fn run_group(&self, ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds) -> Outcome {
+            GROUPS.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(bounds, Bounds::default(), "no option was named");
+            Outcome::Completed(jobs.into_iter().map(|job| job(ctx)).collect())
+        }
+
+        fn sleep(&self, _duration: Duration) -> Woken {
+            Woken::Elapsed
+        }
+
+        fn waker(&self) -> Option<Waker> {
+            None
+        }
+
+        fn park(&self, _deadline: Option<Instant>) -> Woken {
+            Woken::Elapsed
+        }
+
+        fn start_isolate(
+            &self,
+            _ctx: &mut Ctx,
+            _entry: Entry,
+            _args: Value,
+            _output: Output,
+            _placement: Placement,
+            _narrowing: Narrowing,
+        ) -> Result<Box<dyn Running>, StartError> {
+            unreachable!("`Core\\Task::all` starts no isolate")
+        }
+    }
+
+    /// The first field's closure: sweeps its receiver and answers `7`.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes one live value this callee owes a release, \
+                  and the address of a live `Value` for the result"
+    )]
+    unsafe extern "C" fn answers_seven(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        unsafe {
+            (*args).release();
+            *out = Value::int(7);
+        }
+        nvs_runtime::OK
+    }
+
+    /// The second field's closure: sweeps its receiver and answers `11`.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes one live value this callee owes a release, \
+                  and the address of a live `Value` for the result"
+    )]
+    unsafe extern "C" fn answers_eleven(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        unsafe {
+            (*args).release();
+            *out = Value::int(11);
+        }
+        nvs_runtime::OK
+    }
+
+    /// `all` answers an object of the argument's own class, each slot holding
+    /// what that slot's closure returned, and borrows the closures rather than
+    /// keeping them. A `limit` of `0` is refused before any host is asked, and
+    /// a thread with no host is a fatal that names the member.
+    // covers: Core\Task::all
+    #[test]
+    fn all_answers_the_arguments_shape_in_slot_order_and_refuses_a_limit_of_zero() {
+        let mut table = ClassTable::new();
+        let id = table.define("{shape}", &["size", "total"], &[]);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives the shape"
+        )]
+        let shape = unsafe { NvsObj::new(table.desc(id)) };
+        let seven = closure_of(answers_seven);
+        let eleven = closure_of(answers_eleven);
+        shape.set_field(0, seven);
+        shape.set_field(1, eleven);
+        let shape = Value::object(shape);
+        let refcounts = || {
+            #[expect(
+                unsafe_code,
+                reason = "`shape` holds both closures until the last line of this test"
+            )]
+            unsafe {
+                [
+                    NvsObj::refcount_of(seven.obj_ptr().expect("a closure is an object")),
+                    NvsObj::refcount_of(eleven.obj_ptr().expect("a closure is an object")),
+                ]
+            }
+        };
+
+        let mut ctx = Ctx::buffered();
+        let no_host = nvs_runtime::call(
+            super::nvs_core_task_all,
+            &mut ctx,
+            &[shape, Value::null(), Value::null()],
+        );
+        assert!(no_host.is_err(), "a thread with no host runs no group");
+        let message = ctx.take_pending().expect("the fatal has a sentence");
+        assert!(
+            message.contains("Core\\Task::all needs a scheduler"),
+            "the fatal names the member, got {message:?}"
+        );
+
+        let _installed = nvs_runtime::host::install(&SERIAL);
+        let mut ctx = Ctx::buffered();
+        let zero = nvs_runtime::call(
+            super::nvs_core_task_all,
+            &mut ctx,
+            &[shape, Value::uint(0), Value::null()],
+        );
+        assert!(zero.is_err(), "a limit of zero is refused");
+        let message = ctx.take_pending().expect("the refusal has a sentence");
+        assert!(
+            message.contains("`limit` is how many children may run at once"),
+            "the refusal says what `limit` means, got {message:?}"
+        );
+        assert_eq!(GROUPS.load(Ordering::SeqCst), 0, "no group was started");
+
+        let answer = nvs_runtime::call(
+            super::nvs_core_task_all,
+            &mut ctx,
+            &[shape, Value::null(), Value::null()],
+        )
+        .expect("a group whose children all return completes");
+        assert_eq!(GROUPS.load(Ordering::SeqCst), 1, "one call is one group");
+        {
+            let result = super::receiver(&[answer], "test").expect("the answer is an object");
+            let argument = super::receiver(&[shape], "test").expect("the shape is an object");
+            assert!(
+                std::ptr::eq(result.class(), argument.class()),
+                "the answer is the argument's own shape class"
+            );
+            assert_eq!(
+                result.field(0).as_int(),
+                Some(7),
+                "`size` is its closure's answer"
+            );
+            assert_eq!(
+                result.field(1).as_int(),
+                Some(11),
+                "`total` is its closure's answer"
+            );
+        }
+        assert_eq!(refcounts(), [1, 1], "the call kept no closure");
+
+        #[expect(
+            unsafe_code,
+            reason = "the test owns the answer and the shape, and the shape owns both closures"
+        )]
+        unsafe {
+            answer.release();
+            shape.release();
         }
     }
 }

@@ -1,22 +1,20 @@
 {
-  "state": "Goal `core-taint-and-1-more`: `Core\\Taint` is complete, and so is `Core\\Task::afterResponse` —\nabout, a Rust test beside the `.nvst` cases, three examples, one attack, one bench with its record,\nand `Core\\Task`'s class card, so `Core\\Task` is off `CLASSES_STILL_OWING_A_CARD`. Its attack found\nthat a `deadline` of `0s` or less on `afterResponse` meant no deadline at all; fixed in\n`crates/nvs-stdlib/src/task.rs`'s `nvs_core_task_after_response` and pinned by\n`tests/conformance/core/task-after-response-deadline-of-zero-or-less-is-already-over.nvst`.\n`Core\\Task::all` and `Core\\Task::map` are untaken. Nothing is blocked.",
+  "state": "Goal `core-taint-and-1-more`: `Core\\Taint` is complete, and so are `Core\\Task::afterResponse` and\n`Core\\Task::all`. `all` has about, a Rust test in `crates/nvs-stdlib/src/task.rs`'s `mod tests`\n(a `Serial` host that runs a group's jobs in order), three examples, three attacks, one bench with\nits record, and a card in the plain voice. The card rewrite also rewrote the rows `map` shares with\n`all`: `LIMIT_DOC`, `DEADLINE_DOC` and `GROUP_ERRORS`. Two of `all`'s attacks found bugs too large\nfor a slice, and each is a gap record owned by M10, marked on its attack:\n`nvs-host/a-task-stack-is-not-charged-to-its-request` (nested groups pass the memory limit) and\n`nvs-host/a-task-that-never-waits-outlives-its-groups-deadline` (a busy child ignores `deadline`).\n`Core\\Task::map` is untaken, and it is the last item of the goal. Nothing is blocked.",
   "next": {
     "stage": 1,
     "title": "feature proofs, one member per slice",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/task.rs` (the `ALL_DOC` and `MAP_DOC` cards, and its `#[cfg(test)] mod tests`, whose `closure_of` both members can reuse) and the trees under `core/Task/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/task.rs` (the `MAP_DOC` card and its `mod tests`, whose `closure_of`, `Serial` host and `GROUPS` counter `map`'s test can reuse) and the trees under `core/Task/map/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Task::all`** — owes examples, hostile, perf, tests, and a card rewritten in the plain voice the way `AFTER_RESPONSE_DOC` now is. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/task.rs:142`, `crates/nvs-stdlib/src/task.rs:213`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Task::map`** — owes examples, hostile, perf, tests, and the same card rewrite. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/task.rs:151`, `crates/nvs-stdlib/src/task.rs:234`"
+        "text": "**`Core\\Task::map`** — owes about, examples, hostile, perf, tests, and `MAP_DOC` rewritten in the plain voice the way `ALL_DOC` now is (the shared `LIMIT_DOC`, `DEADLINE_DOC` and `GROUP_ERRORS` are already done). The `Serial` host asserts `Bounds::default()`, so a test naming an option needs its own counter or a relaxed assert. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/task.rs:234`, `crates/nvs-stdlib/src/task.rs:492`"
       }
     ]
   },
   "backlog": [
-    "A group `deadline` does not stop a child that never waits: `Core\\Task::all({busy: …}, {deadline: 1ms})` over a 300-million-step `while` runs the loop to its end and throws `TimeoutError` after it, and `afterResponse` logs the timeout the same way. The deadline is noticed only where the child waits (`Core\\Time::sleep`). Whether a group deadline should arm the back-edge poll that `[limits] wall_time` uses is a question for `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s owner; the attacks written so far wait rather than spin, so none is gap-marked. Owning doc: `crates/nvs-runtime/src/deferred.rs`'s module doc."
+    "The busy-child and stack-charge gaps are security findings (priority 1): a request escapes its memory cap and a group escapes its `deadline`. `data/gaps/nvs-host/`, owner M10.",
+    "`tests/conformance/core/a-task-all-answers-a-shape-each-field-keeping-its-own-type.nvst`'s comment still says the scheduler half is not on disk; it is. Owner: goal `plain-comments`.",
+    "`[limits] max_tasks` is read by nothing (`crates/nvs-config/src/default.toml`), and `rule:security/isolate-budget-is-the-trees` counts child tasks against it. Owner: the stack-charge gap above."
   ]
 }

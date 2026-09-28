@@ -16852,17 +16852,17 @@ deadline hit
 Core\Task::all({name: callable(): T, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S
 ```
 
-Runs every closure of the `$tasks` shape literal as a concurrent child task and answers a shape with the same field names, each carrying that closure's own declared return type — a fixed, heterogeneous set decided where the call is written.
+Runs every closure in the `$tasks` shape at the same time, and waits until all of them have finished. The result is a shape with the same field names, and each field has the type its closure returns.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$tasks` | `{name: callable(): T, ...}` | A shape literal whose every field is a written zero-argument `fn` literal; a `callable`-typed variable is a compile error naming the field. |
-| `{limit: …}` | `uint` (default `null`) | The most children running at once; omitted, every child runs at once, and a child past the limit is scheduled rather than refused. |
-| `{deadline: …}` | `Core\Time\Duration` (default `null`) | A wall-clock bound on the whole call, not per child; omitted, the request tree's own `wall_time` is the bound. |
+| `$tasks` | `{name: callable(): T, ...}` | A shape whose fields are closures with no parameters, written as `fn` literals in the call. A variable of type `callable` in a field does not compile. |
+| `{limit: …}` | `uint` (default `null`) | The most tasks that run at the same time. The other tasks wait until one finishes. Without it, every task starts at once. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The time limit for the whole call, not for each task. Without it, the request's `[limits] wall_time` setting is the limit. |
 
-**Returns** `S` — A shape whose fields hold what each closure returned; control never leaves the call with a child still running, and the first child to throw cancels every sibling and propagates as itself once they are gone.
+**Returns** `S` — A shape with the value each closure returned. No task is still running when the call returns. If a task throws an error, the other tasks are stopped, and the call throws that same error.
 
-**Throws** `LogicError` — When `limit` is `0`, which admits no child and so is a group that could never finish.; `TimeoutError` — When `deadline` expires before every child has returned; every child is cancelled first, and the call waits for those cancellations.
+**Throws** `LogicError` — When `limit` is `0`. No task could start, so the call could never finish.; `TimeoutError` — When `deadline` runs out before every task has finished. Every task is stopped first, and the call waits until they have stopped.
 
 <a id="core-core-task-map"></a>
 #### `Core\Task::map`
@@ -16877,12 +16877,12 @@ Calls `$fn` once per element of `$items`, each call a concurrent child task, and
 |---|---|---|
 | `$items` | `array<T>` | The array whose elements are handed to `$fn`. |
 | `$fn` | `callable(T, string): U` | The callback, receiving `($value, $key)` and free to declare fewer parameters; its declared return type is `U`. |
-| `{limit: …}` | `uint` (default `null`) | The most children running at once; omitted, every child runs at once, and a child past the limit is scheduled rather than refused. |
-| `{deadline: …}` | `Core\Time\Duration` (default `null`) | A wall-clock bound on the whole call, not per child; omitted, the request tree's own `wall_time` is the bound. |
+| `{limit: …}` | `uint` (default `null`) | The most tasks that run at the same time. The other tasks wait until one finishes. Without it, every task starts at once. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The time limit for the whole call, not for each task. Without it, the request's `[limits] wall_time` setting is the limit. |
 
 **Returns** `array<U>` — An `array<U>` under `$items`'s keys in `$items`'s order, empty for an empty subject; control never leaves the call with a child still running, and the first child to throw cancels every sibling and propagates as itself once they are gone.
 
-**Throws** `LogicError` — When `limit` is `0`, which admits no child and so is a group that could never finish.; `TimeoutError` — When `deadline` expires before every child has returned; every child is cancelled first, and the call waits for those cancellations.
+**Throws** `LogicError` — When `limit` is `0`. No task could start, so the call could never finish.; `TimeoutError` — When `deadline` runs out before every task has finished. Every task is stopped first, and the call waits until they have stopped.
 
 <a id="core-core-task-afterresponse"></a>
 #### `Core\Task::afterResponse`

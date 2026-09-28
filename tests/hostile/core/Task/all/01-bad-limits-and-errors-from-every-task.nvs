@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a program calls `Core\Task::all` with limits that make no sense, and
+// with tasks that all throw at once. Each bad call should throw one error that
+// the program can catch, and the runtime must not crash or hang.
+
+class Nest
+{
+    // Each level starts one more `Core\Task::all` inside a task of the level above.
+    public static function down(uint $depth): uint
+    {
+        if ($depth == 0) {
+            return 0;
+        }
+        var $inner = Core\Task::all({
+            next: fn (): uint => Nest::down($depth - 1),
+        });
+        return $inner->next + 1;
+    }
+}
+
+// Step 1: `limit: 0` lets no task run. The call throws a `LogicError`.
+try {
+    var $none = Core\Task::all({ a: fn (): int => 1 }, { limit: 0 });
+    echo 'step 1: ', $none->a, "\n";
+} catch (LogicError $noTask) {
+    echo "step 1: not allowed\n";
+}
+
+// Step 2: time limits of zero and less than zero. Each call throws a `TimeoutError`.
+array<Core\Time\Duration> $limits = [0s, 1000000s->negated()];
+foreach ($limits as Core\Time\Duration $limit) {
+    try {
+        var $late = Core\Task::all({ a: fn (): int => 1 }, { deadline: $limit });
+        echo 'step 2: ', $late->a, "\n";
+    } catch (TimeoutError $noTime) {
+        echo "step 2: out of time\n";
+    }
+}
+
+// Step 3: every task throws. Only the first error comes out of the call.
+try {
+    var $all = Core\Task::all({
+        a: fn (): int => { throw new RuntimeError('a'); },
+        b: fn (): int => { throw new LogicError('b'); },
+        c: fn (): int => { throw new RuntimeError('c'); },
+    });
+    echo 'step 3: ', $all->a, "\n";
+} catch (Throwable $first) {
+    echo "step 3: one error\n";
+}
+
+// Step 4: `limit: 1` with tasks that each start a group of their own.
+// Every inner group must still finish.
+var $queued = Core\Task::all({
+    a: fn (): uint => Nest::down(50),
+    b: fn (): uint => Nest::down(50),
+    c: fn (): uint => Nest::down(50),
+}, { limit: 1 });
+echo 'step 4: ', $queued->a + $queued->b + $queued->c, "\n";
+
+// Step 5: groups nested 1,000 deep. Every level waits for the level below it.
+echo 'step 5: ', Nest::down(1000), "\n";

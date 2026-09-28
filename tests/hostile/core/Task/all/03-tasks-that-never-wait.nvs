@@ -1,0 +1,28 @@
+<?nvs
+// Attack: two tasks count in a loop that never ends and never waits. The call has
+// a time limit of 50 milliseconds, so it should stop both tasks and throw a
+// `TimeoutError`.
+// hostile: timeout-ms 5000
+// proof: gap nvs-host/a-task-that-never-waits-outlives-its-groups-deadline
+
+try {
+    var $busy = Core\Task::all({
+        a: fn (): uint => {
+            uint $n = 0;
+            while (true) {
+                $n = $n + 1;
+            }
+            return $n;
+        },
+        b: fn (): uint => {
+            uint $n = 0;
+            while (true) {
+                $n = $n + 1;
+            }
+            return $n;
+        },
+    }, { deadline: 50ms });
+    echo 'never: ', $busy->a, "\n";
+} catch (TimeoutError $stopped) {
+    echo "stopped at the time limit\n";
+}

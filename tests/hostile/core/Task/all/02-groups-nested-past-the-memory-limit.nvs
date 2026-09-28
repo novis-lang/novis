@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a program sets a small memory limit and then starts task groups inside
+// task groups, 20,000 deep. Every waiting task uses memory, so the program should
+// stop at its memory limit with an error.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+// proof: gap nvs-host/a-task-stack-is-not-charged-to-its-request
+
+class Nest
+{
+    // Each level starts one more `Core\Task::all` inside a task of the level above.
+    public static function down(uint $depth): uint
+    {
+        if ($depth == 0) {
+            return 0;
+        }
+        var $inner = Core\Task::all({
+            next: fn (): uint => Nest::down($depth - 1),
+        });
+        return $inner->next + 1;
+    }
+}
+
+// Step 1: the program lowers its own memory limit to 64 MB.
+echo 'step 1: ', Core\Config::set('limits.memory', '64M') ? 'limit set' : 'not allowed', "\n";
+
+// Step 2: 20,000 levels of groups. This should stop at the memory limit.
+// It is the last step because the program ends here.
+echo 'step 2: ', Nest::down(20000), "\n";

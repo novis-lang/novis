@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to load a dashboard from slow services with a time limit.
+
+class Dashboard {
+    public static function load(Core\Time\Duration $limit): string {
+        try {
+            // `limit: 2` runs at most two tasks at the same time.
+            // `deadline` is the time limit for all three tasks together.
+            var $data = Core\Task::all({
+                visits:  fn (): int => {
+                    Core\Time::sleep(20ms);
+                    return 5120;
+                },
+                signups: fn (): int => {
+                    Core\Time::sleep(20ms);
+                    return 48;
+                },
+                revenue: fn (): int => {
+                    Core\Time::sleep(20ms);
+                    return 73100;
+                },
+            }, {limit: 2, deadline: $limit});
+            return "visits " . $data->visits . ", signups " . $data->signups
+                . ", revenue " . $data->revenue;
+        } catch (TimeoutError $e) {
+            // When the time is over, every task is stopped and
+            // `Core\Task::all` throws a `TimeoutError`.
+            return "the dashboard is not available right now";
+        }
+    }
+}
+
+// Two seconds is enough time, so this prints the numbers.
+echo Dashboard::load(2s), "\n";
+// Five milliseconds is not enough, so this prints the error text.
+echo Dashboard::load(5ms), "\n";
