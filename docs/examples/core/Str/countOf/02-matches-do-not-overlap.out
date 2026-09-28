@@ -1,0 +1,4 @@
+1
+2
+1
+cannot count: Core\Str::countOf(): the needle must not be empty

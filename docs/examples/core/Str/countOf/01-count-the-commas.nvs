@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to count the separators in a line to find out how many fields it has.
+
+string $line = "1042,Ada,Lovelace,London";
+
+// The line has 3 commas. This prints `3`.
+uint $commas = Core\Str::countOf($line, ",");
+echo $commas, "\n";
+
+// A line has one field more than it has commas. This prints `4 fields`.
+echo $commas + 1, " fields\n";
+
+// When the text does not appear, the result is `0`. This prints `0`.
+echo Core\Str::countOf($line, ";"), "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to check that an email template uses each placeholder exactly once.
+
+string $template = "Hello {name},\n"
+    . "your order {order} has shipped.\n"
+    . "Thank you, {name}!\n";
+
+array<string> $placeholders = ["{name}", "{order}", "{date}"];
+
+// `{name}` appears twice, `{order}` once and `{date}` never.
+// This prints `used 2 times`, `ok` and `missing`.
+foreach ($placeholders as string $placeholder) {
+    uint $found = Core\Str::countOf($template, $placeholder);
+    if ($found == 0) {
+        echo $placeholder, ": missing\n";
+    } else if ($found == 1) {
+        echo $placeholder, ": ok\n";
+    } else {
+        echo $placeholder, ": used ", $found, " times\n";
+    }
+}

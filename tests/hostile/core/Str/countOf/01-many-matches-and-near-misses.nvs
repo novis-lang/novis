@@ -1,0 +1,56 @@
+<?nvs
+// Attack: `Core\Str::countOf` counts in very long strings with millions of matches or near misses.
+// Each count should return a number or throw an error, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Counts one character in 32 MiB where every character matches.
+    public static function everyCharacterMatches(uint $mib): uint
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        return Core\Str::countOf($s, 'a');
+    }
+
+    /// 2. Counts a long text that matches at every position except its last character.
+    public static function nearMissEverywhere(uint $count): uint
+    {
+        var $s = Core\Str::repeat('a', $count);
+        var $needle = Core\Str::repeat('a', 5000) . 'b';
+        return Core\Str::countOf($s, $needle);
+    }
+
+    /// 3. Counts overlapping candidates: "aa" in a string of an odd number of "a".
+    public static function overlapping(uint $count): uint
+    {
+        return Core\Str::countOf(Core\Str::repeat('a', $count), 'aa');
+    }
+
+    /// 4. Counts half of a character: only the accent of many accented letters.
+    public static function halfOfACharacter(uint $count): uint
+    {
+        return Core\Str::countOf(Core\Str::repeat("e\u{301}", $count), "\u{301}");
+    }
+
+    /// 5. Counts an empty text many times. Each call throws an error.
+    public static function emptyNeedle(uint $rounds): uint
+    {
+        uint $thrown = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                Core\Str::countOf('abc', '');
+            } catch (RuntimeError $error) {
+                $thrown = $thrown + 1;
+            }
+            $i = $i + 1;
+        }
+        return $thrown;
+    }
+}
+
+echo Attack::everyCharacterMatches(32), "\n";
+echo Attack::nearMissEverywhere(2000000), "\n";
+echo Attack::overlapping(1000001), "\n";
+echo Attack::halfOfACharacter(1000000), "\n";
+echo Attack::emptyNeedle(100000), "\n";
