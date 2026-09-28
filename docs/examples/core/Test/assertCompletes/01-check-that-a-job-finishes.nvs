@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to check that a job finishes within a time limit.
+
+use Core\Test;
+
+class Report {
+    public static function build(array<int> $sales): int {
+        int $total = 0;
+        foreach ($sales as int $amount) {
+            $total = $total + $amount;
+        }
+        return $total;
+    }
+}
+
+class ReportTest {
+    // The check needs a fixed clock, so the test sets one with `at:`.
+    #[Test(at: "2026-03-01T09:00:00Z")]
+    public function theReportFinishesInFiveSeconds(): void {
+        // `within` is the time limit. The check moves the clock forward by 5 seconds,
+        // then runs the function. It fails if the function leaves a task still running.
+        Test::assertCompletes(fn (): void => { Report::build([120, 80, 45]); }, {within: 5s});
+    }
+}
+
+// `nvs test` runs the test above. This line runs under `nvs run` and prints `245`.
+echo Report::build([120, 80, 45]), "\n";

@@ -1,0 +1,11 @@
+{
+  "lead": "`nvs test` takes one program per call, and two `.nvs` paths are refused with a sentence about `.nvst` cases.",
+  "body": "`crates/nvs-cli/src/main.rs` answers any second program path with \"a program's `#[Test]` methods and `.nvst` cases are run separately\", which reads as a wrong file kind rather than a wrong count. To check the `#[Test]` class an example carries, run `target/covws/<triple>/debug/nvs.exe test <one file>` once per file.",
+  "files": [
+    "crates/nvs-cli/src/main.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/main.rs:cases are run separately"
+  }
+}

@@ -1,0 +1,20 @@
+<?nvs
+// Checks that a small function runs without an error, as a test does when the call itself is the point.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $labels = ["order", "customer", "shipping address"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $label = $labels[$total % 3];
+            Core\Test::assertDoesNotThrow(fn (): void => { Core\Str::length($label); });
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

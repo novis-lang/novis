@@ -1,0 +1,23 @@
+<?nvs
+// Shows a test of an import that must skip bad lines without an error.
+
+class Import {
+    // Returns the sum of the numbers in the lines. Lines that are not numbers are skipped.
+    public static function total(array<string> $lines): int {
+        int $total = 0;
+        foreach ($lines as string $line) {
+            ?int $amount = $line as ?int;
+            if ($amount != null) {
+                $total = $total + $amount;
+            }
+        }
+        return $total;
+    }
+}
+
+array<string> $lines = ["120", "", "abc", "80", "12.5"];
+
+// The import gets empty and broken lines. The check passes when the import
+// runs to the end without an error.
+Core\Test::assertDoesNotThrow(fn (): void => { Import::total($lines); });
+echo "total: ", Import::total($lines), "\n";

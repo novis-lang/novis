@@ -1,0 +1,47 @@
+<?nvs
+// Attack: the check gets a function that never ends, the largest and smallest time
+// limits, and a check inside itself. This program has no fixed clock, so every check
+// should throw a `LogicError` before it runs the function. The program must not hang.
+
+int $refused = 0;
+
+// Step 1: a function that never ends. It must not run.
+try {
+    Core\Test::assertCompletes(fn (): void => { while (true) {} }, { within: 1s });
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// Step 2: a time limit of about 290 years, the largest that fits in a `Duration`.
+try {
+    Core\Test::assertCompletes(fn (): void => {}, { within: 106751d });
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// Step 3: a time limit of zero.
+try {
+    Core\Test::assertCompletes(fn (): void => {}, { within: 0s });
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// Step 4: a check inside the function. The outer check throws first.
+try {
+    Core\Test::assertCompletes(
+        fn (): void => { Core\Test::assertCompletes(fn (): void => {}, { within: 1s }); },
+        { within: 1s },
+    );
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+// Step 5: a `message` option of ten million characters.
+string $long = Core\Str::repeat('a', 10000000);
+try {
+    Core\Test::assertCompletes(fn (): void => { while (true) {} }, { within: 1s }, { message: $long });
+} catch (LogicError $error) {
+    $refused = $refused + 1;
+}
+
+echo 'refused ', $refused, " of 5\n";

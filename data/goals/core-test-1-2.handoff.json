@@ -1,26 +1,18 @@
 {
-  "state": "Goal `core-test-1-2`, stage 2. `Core\\Test::advance`, `answerHttp`, `answerSocket`,\n`assertCalled`, `assertNeverCalled`, `assertEquals` and `assertEqualsDeep` have every proof:\n`about.md`, three examples, one attack, a bench, and a Rust `covers:` test in\n`crates/nvs-stdlib/src/test.rs`'s tests module.\n\nThe `assertEqualsDeep` attack found a hang: a graph of shared nodes was walked once per path.\nThe walk now keeps `Proven`, the pairs of objects already found equal, and\n`tests/conformance/core/test-assert-equals-deep-walks-a-shared-node-once.nvst` pins it.\n\nThe five members still owed are `assertCount`, `assertContains`, `assertMatchesInline`,\n`assertDoesNotThrow` and `assertCompletes`. Each owes examples, hostile, perf and tests\n(`bun nv proofs --owed --only ...`). They run at the top level of a program under `nvs run`,\nwith no `#[Test]` class; `bun nv try <files>` runs them that way. A bench needs\n`bun nv proofs --record-perf --only '<member>'`. Any edit to `test.rs` makes every\n`Core\\Test` bench figure stale, so a slice that changes Rust there re-records all of them. A keyed array is declared `array<int>`, never\n`array<string, int>`; there is no `intdiv` and no `!==`.\n\nA Rust test of a failing assertion reads its sentence with `ctx.take_pending()`.\n`assert_equals_and_assert_equals_deep_agree_below_the_object_row` is the shape for a member\ntaking plain values: an `asserted(ctx, member, actual, expected)` helper over\n`nvs_runtime::call`, passing `Value::null()` for the omitted `message`.",
+  "state": "Goal `core-test-1-2`, stage 2. Eleven of the twelve members the dossier check names have every\nproof: `advance`, `answerHttp`, `answerSocket`, `assertCalled`, `assertNeverCalled`,\n`assertEquals`, `assertEqualsDeep`, `assertCount`, `assertContains`, `assertDoesNotThrow` and\n`assertCompletes`. Each Rust `covers:` test is in `crates/nvs-stdlib/src/test.rs`'s tests module.\n`assertCompletes` and `advance` carry a `perf` skip in `data/proofs/policy.json`: a bench runs\nunder `nvs run`, where no clock is fixed.\n\nThe one member still owed is `assertMatchesInline`: about, examples, hostile, perf and tests\n(`bun nv proofs --id 'Core\\Test::assertMatchesInline'`). It needs no fixed clock, so it runs at\nthe top level under `nvs run` and `bun nv try <files>` runs it. A bench needs\n`bun nv proofs --record-perf --only '<member>'`. A member that only works inside\n`#[Test(at: ...)]` is shown the way `docs/examples/core/Test/assertCompletes/` does: a `#[Test]`\nclass for the use, and top-level lines that print.\n\nA Rust test of a failing assertion reads its sentence with `ctx.take_pending()`;\n`assert_count_bounds_the_count_and_assert_contains_finds_across_the_numeric_row` is the shape for\nplain values, and `assert_does_not_throw_and_assert_completes_judge_a_body_by_how_it_ended` for a\n`callable` built in Rust.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/test.rs`, the predicate and throw assertions and their tests module.",
+    "note": "one file set: `crates/nvs-stdlib/src/test.rs`, the snapshot member and its tests module.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Test::assertCount`** and **`Core\\Test::assertContains`**: about, 3 examples each, attack, bench, and one Rust test with `// covers: Core\\Test::assertCount, Core\\Test::assertContains`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:2909`, `crates/nvs-stdlib/src/test.rs:2969`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Test::assertDoesNotThrow`** and **`Core\\Test::assertCompletes`**: the same proofs, one Rust test for both if both take a `callable` (the playbook's `closure_of` bullet is how a test builds one). `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:3174`, `crates/nvs-stdlib/src/test.rs:1954`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Test::assertMatchesInline`**: the same proofs. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:3035`"
+        "text": "**`Core\\Test::assertMatchesInline`**: about, 3 examples, attack, bench, and one Rust test with `// covers: Core\\Test::assertMatchesInline`. The text it compares is `Core\\Debug::render`'s, so an example can show a mismatch message and a `secret` property rendered as its placeholder. Then run the whole `dossier-core-test-1-2` check and close any red line it prints. `rule:testing/feature-proofs`, `rule:testing/inline-snapshots`. `crates/nvs-stdlib/src/test.rs:3035`"
       }
     ]
   },
   "backlog": [
-    "None."
+    "`assertDoesNotThrow` quotes a thrown message whole: a message of ten million characters gives a failure message of the same length, while `assertEquals` shows only the start of a long value (`tests/hostile/core/Test/assertDoesNotThrow/01-bodies-that-throw-in-every-way.nvs`, step 2). The runtime survives; whether to shorten it is `crates/nvs-stdlib/src/test.rs`'s call."
   ]
 }

@@ -29,6 +29,9 @@
     "Core\\Test::advance": {
       "perf": "A bench runs under `nvs run`, where no `#[Test(at: ...)]` fixes a clock, so every iteration would measure the `LogicError` rather than the move."
     },
+    "Core\\Test::assertCompletes": {
+      "perf": "A bench runs under `nvs run`, where no `#[Test(at: ...)]` fixes a clock, so every iteration would measure the `LogicError` thrown before the body runs rather than the check."
+    },
     "lang:attributes/core-api-and-the-openapi-document": {
       "perf": "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."
     },
