@@ -7502,18 +7502,18 @@ Reverses the order of the characters in `$s`. A character is what a person sees 
 Core\Str::wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string
 ```
 
-Breaks `$s` into lines no longer than `$width` characters by inserting `breakWith` at spaces, as `wordwrap` does — counted in graphemes.
+Splits `$s` into lines of at most `$width` characters. It breaks a line at a space and writes `breakWith` in place of that space. A character is what a person sees as one character, so `"é"` counts as one. Replaces PHP's `wordwrap`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The text to wrap. |
-| `$width` | `uint` | The longest line allowed, in characters; `0` breaks at every space. |
-| `{breakWith: …}` | `string` (default `"\n"`) | The text inserted at each break, and a line reset wherever it already occurs in `$s`; the default is `"\n"`, without `wordwrap`'s leading space. |
-| `{cutLongWords: …}` | `bool` (default `false`) | Break a word longer than `$width` in the middle rather than letting it overrun the line; the default is `false`. |
+| `$width` | `uint` | The longest line, in characters. With `0`, every space is a line break. |
+| `{breakWith: …}` | `string` (default `"\n"`) | The text written at each line break. The default is `"\n"`. Where `$s` already contains this text, a new line starts there. |
+| `{cutLongWords: …}` | `bool` (default `false`) | With `true`, a word longer than `$width` is cut into pieces of `$width` characters. With `false`, the default, a long word stays whole on a line of its own. |
 
-**Returns** `string` — The wrapped text.
+**Returns** `string` — The wrapped text. A text of at most `$width` characters is returned unchanged. A result over the memory limit stops the request.
 
-**Throws** `RuntimeError` — `breakWith` is empty, or `$width` is `0` with `cutLongWords` set.
+**Throws** `RuntimeError` — `breakWith` is `""`, or `$width` is `0` and `cutLongWords` is `true`.
 
 <a id="core-core-str-lower"></a>
 #### `Core\Str::lower`

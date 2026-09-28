@@ -1,19 +1,18 @@
 {
-  "state": "Goal `core-str-3-3`: `upper` and `upperFirst` now have every feature proof on disk: description,\nthree examples each, an attack each, a bench record, a Rust test carrying their `covers:` markers,\nand cards in plain words. `upper` used to build a Rust `String` before its result, and the memory\nlimit never saw that buffer. `ΐ` triples in bytes, so it could reach about four times the input.\n`upper` now writes straight into the result, which asks the limit before each growth.\n`upperFirst`/`lowerFirst` are one allocation of exact length. The `lower`/`lowerFirst` benches only\never measured one or two of their three words, and are fixed. `benches/members/README.md` § *Chain\nthe inputs* now says why. Every `Core\\Str` perf record was re-measured after `str.rs` changed. The\nonly member this goal still owes is `wrap`.",
+  "state": "Goal `core-str-3-3` is reached: its one check, `dossier-core-str-3-3`, reports nothing owed and\n0 failed over all twelve members. `wrap` was the last. It used to build a Rust `String` and a\ntable of one `usize` per character before its result, and the memory limit saw neither. `wrapped`\nis now one pass that keeps byte offsets and a character count, and writes through `built`, which\nasks the limit before each growth (`crates/nvs-stdlib/src/str.rs` `wrapped`'s doc). Its card and\nthe `WRAP_OPTIONS` comment claimed PHP's default break is `\" \\n\"`; PHP's is `\"\\n\"`, and both now\nsay so. Every `Core\\Str` perf record was re-measured after `str.rs` changed. `wrap` measures one\nallocation per call.",
   "next": {
-    "stage": 1,
-    "title": "member proofs, file order",
+    "stage": 2,
+    "title": "goal reached",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/str.rs`, and the member's trees under `docs/examples/core/Str/wrap`, `tests/hostile/core/Str/wrap`, `benches/members/core/Str/wrap.nvs`.",
+    "note": "one file set: `crates/nvs-stdlib/src/str.rs`, and nothing is left in it for this goal.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Str::wrap`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Its result can be much longer than its input (a width of 1 adds a break after every character, and `break` can be long), so check that `wrapped` asks the memory limit before it grows its `String`, the way `upper` now writes through `built`. Attack it with a width of 1 and a long `break` on a long text. Give its bench inputs whose results all add a multiple of 3 (`benches/members/README.md` § *Chain the inputs*). Rewrite `WRAP_DOC` in plain words. `crates/nvs-stdlib/src/str.rs:3277`, `crates/nvs-stdlib/src/str.rs:3310`, `crates/nvs-stdlib/src/str.rs:1328`"
+        "done": true,
+        "text": "**`Core\\Str::wrap`** — about, three examples, an attack, a bench, three Rust tests with `covers:`, and a plain card (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/str.rs:3315`, `crates/nvs-stdlib/src/str.rs:1328`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Str::lower` still builds a `String` through `str::to_lowercase` before its result, at most half as long again as the subject, to keep the final-sigma rule (`crates/nvs-stdlib/src/str.rs` `nvs_core_str_upper`'s doc says so). Writing it through `built` needs the sigma rule restated.",
-    "Other `Core\\Str` benches that chain with `% 3` may sit on one input too; each bench's word lengths decide it (`benches/members/README.md` § *Chain the inputs*)."
+    "`wrapped` tests the break with `starts_with` at every character, as PHP does, so a long break that almost matches everywhere costs text × break; the attack's 1 MB × 1 KB case finishes at once — `crates/nvs-stdlib/src/str.rs` `wrapped`."
   ]
 }
