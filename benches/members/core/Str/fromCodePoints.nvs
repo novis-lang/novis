@@ -1,0 +1,19 @@
+<?nvs
+// Builds a short word from its code points, as a program does after it removes characters from a name.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<uint>> $words = [[97, 100, 97], [106, 252, 114, 103, 101, 110], [122, 111, 235, 95, 49]];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::fromCodePoints($words[(($total + $i) % 3) as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

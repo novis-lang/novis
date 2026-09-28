@@ -1,0 +1,71 @@
+<?nvs
+// Attack: `Core\Str::fromCodePoints` gets lists of millions of numbers, and long lists where only the last number is bad.
+// Each call should return a string or throw a `RuntimeError`, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Builds a string from two million numbers that each take four bytes.
+    public static function manyLargePoints(uint $count): uint
+    {
+        array<uint> $numbers = [];
+        uint $i = 0;
+        while ($i < $count) {
+            $numbers[] = 0x10FFFF - $i % 1000;
+            $i = $i + 1;
+        }
+        return Core\Bytes::length(Core\Str::fromCodePoints($numbers) as bytes);
+    }
+
+    /// 2. Puts a reserved number, one past the largest code point and the largest `uint` at the end of a long list.
+    public static function badAtTheEnd(uint $count): uint
+    {
+        array<uint> $lastNumbers = [0xDFFF, 0x110000, 18446744073709551615];
+        uint $errors = 0;
+        foreach ($lastNumbers as uint $last) {
+            array<uint> $numbers = [];
+            uint $i = 0;
+            while ($i < $count) {
+                $numbers[] = 0x1F600;
+                $i = $i + 1;
+            }
+            $numbers[] = $last;
+            try {
+                Core\Str::fromCodePoints($numbers);
+            } catch (RuntimeError $error) {
+                $errors = $errors + 1;
+            }
+        }
+        return $errors;
+    }
+
+    /// 3. Builds one character with a hundred thousand accents on it.
+    public static function oneCharacterManyAccents(uint $marks): uint
+    {
+        array<uint> $numbers = [101];
+        uint $i = 0;
+        while ($i < $marks) {
+            $numbers[] = 0x301;
+            $i = $i + 1;
+        }
+        return Core\Str::length(Core\Str::fromCodePoints($numbers));
+    }
+
+    /// 4. Builds a short string one million times and keeps none of them.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        array<uint> $numbers = [0xE9, 0x20AC, 0x1F1E9, 0x1F1EA];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::fromCodePoints($numbers));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::manyLargePoints(2000000), "\n";
+echo Attack::badAtTheEnd(500000), "\n";
+echo Attack::oneCharacterManyAccents(100000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to build a string from a list of Unicode numbers, and how to get the numbers back.
+
+// This prints `Grüße`.
+array<uint> $numbers = [71, 114, 252, 223, 101];
+string $word = Core\Str::fromCodePoints($numbers);
+echo $word, "\n";
+
+// `Core\Str::codePoints` returns the same numbers. This prints `true`.
+echo Core\Str::codePoints($word) == $numbers ? "true" : "false", "\n";

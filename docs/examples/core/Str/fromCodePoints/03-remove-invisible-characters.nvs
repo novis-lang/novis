@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to remove invisible characters from a user name that somebody pasted into a form.
+
+// 8203 is a zero-width space and 65279 is a byte order mark. You cannot see either of them.
+array<uint> $invisible = [8203, 65279];
+
+// The pasted name has both. It looks like "admin" but it is 7 code points long.
+string $pasted = "\u{FEFF}ad\u{200B}min";
+
+// This keeps every code point that is not invisible, and builds the name again.
+array<uint> $kept = [];
+foreach (Core\Str::codePoints($pasted) as uint $point) {
+    if (!Core\Arr::contains($invisible, $point)) {
+        $kept[] = $point;
+    }
+}
+string $clean = Core\Str::fromCodePoints($kept);
+
+// This prints `admin` and then `true`.
+echo $clean, "\n";
+echo $clean == "admin" ? "true" : "false", "\n";
