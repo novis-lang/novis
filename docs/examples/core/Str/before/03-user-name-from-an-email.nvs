@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to take the user name out of an email address, as a sign-up form
+// does to suggest a display name.
+
+array<string> $emails = ["ada@example.com", "grace.hopper@example.com", "not-an-email"];
+
+foreach ($emails as string $email) {
+    ?string $user = Core\Str::before($email, "@");
+    // An address without "@" gives `null`, so the form can show an error.
+    if ($user == null) {
+        echo $email, ": please enter a valid email address\n";
+        continue;
+    }
+    // This prints `ada` for the first address.
+    echo $email, ": hello, ", $user, "\n";
+}

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how `{last: true}` cuts at the last separator, to remove a file's extension.
+
+array<string> $files = ["report.pdf", "archive.tar.gz", "README"];
+
+foreach ($files as string $file) {
+    // With `{last: true}`, "archive.tar.gz" gives `archive.tar`.
+    ?string $name = Core\Str::before($file, ".", {last: true});
+    // "README" has no dot, so the result is `null` and `??` keeps the whole name.
+    echo $file, " -> ", $name ?? $file, "\n";
+}
