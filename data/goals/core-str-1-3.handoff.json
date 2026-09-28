@@ -1,26 +1,18 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Str (1/3) has been taken yet.",
+  "state": "Goal `core-str-1-3`: `Core\\Str::after` and `Core\\Str::before` have every feature proof on disk — `about.md`, three examples with blessed `.out`, one attack, one bench with a `docs/perf/members.ndjson` record, and a Rust `#[test]` carrying its `covers:` marker in `crates/nvs-stdlib/src/str.rs`'s `mod tests`. `Core\\Str` now carries its class card (`CARD` above `CLASS`) and is off `CLASSES_STILL_OWING_A_CARD`, so the help proof no longer names it. `AFTER_DOC` and `BEFORE_DOC` were rewritten in the voice of AGENTS.md § *Text an end user reads*; the other cards in the file still use the older \"Answers …\" voice. One item of the group is left.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "member proofs",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/str.rs` and the four proof trees under `core/Str/at`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::after`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:320`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Str::at`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:201`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Str::before`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:307`"
+        "text": "**`Core\\Str::at`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Row at `crates/nvs-stdlib/src/str.rs:209`, card `AT_DOC` at `crates/nvs-stdlib/src/str.rs:623`, body `nvs_core_str_at` at `crates/nvs-stdlib/src/str.rs:1886`. Rewrite `AT_DOC` in the plain voice as `AFTER_DOC` now is. The Rust test goes in `mod tests` beside `after_cuts_past_the_first_or_last_needle_and_answers_null_when_absent`, whose shape (a closure over `run`, `result.tag()` for `null`) it can copy."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "The rest of `crates/nvs-stdlib/src/str.rs`'s cards still say \"Answers …\"; goal `plain-comments` owns the sweep."
   ]
 }

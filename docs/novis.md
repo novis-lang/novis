@@ -7197,15 +7197,15 @@ Orders `$a` against `$b`, as `strcmp`, `strcasecmp`, `strnatcmp` and `strnatcase
 Core\Str::before(string $s, string $needle, {last?: bool}): ?string
 ```
 
-Answers everything in `$s` up to the first occurrence of `$needle`, as `strstr($h, $n, true)` does; `{last: true}` cuts at the last occurrence instead, as `strrchr` does.
+Returns the part of `$s` before the first `$needle`, without the needle. With `{last: true}`, it cuts at the last `$needle`. Replaces PHP's `strstr($s, $needle, true)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to cut. |
-| `$needle` | `string` | The separator to cut at, matched case-sensitively and left out of the answer. |
-| `{last: …}` | `bool` (default `false`) | Cut at the last occurrence rather than the first; the default is `false`. |
+| `$needle` | `string` | The separator to cut at. The search is case-sensitive. The needle is not part of the result. |
+| `{last: …}` | `bool` (default `false`) | When `true`, cuts at the last needle. The default is `false`, which cuts at the first one. |
 
-**Returns** `?string` — The text before the occurrence, without the needle; `null` when the needle does not occur — never `false`.
+**Returns** `?string` — The text before the needle. If the needle is not in `$s`, the result is `null`. If the needle is at the start, the result is an empty string.
 
 <a id="core-core-str-after"></a>
 #### `Core\Str::after`
@@ -7214,15 +7214,15 @@ Answers everything in `$s` up to the first occurrence of `$needle`, as `strstr($
 Core\Str::after(string $s, string $needle, {last?: bool}): ?string
 ```
 
-Answers everything in `$s` past the first occurrence of `$needle`, as `strstr` does minus the needle itself; `{last: true}` cuts at the last occurrence instead, as `strrchr` does.
+Returns the part of `$s` after the first `$needle`, without the needle. With `{last: true}`, it cuts at the last `$needle`. Replaces PHP's `strstr` and `strrchr`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to cut. |
-| `$needle` | `string` | The separator to cut at, matched case-sensitively and left out of the answer. |
-| `{last: …}` | `bool` (default `false`) | Cut at the last occurrence rather than the first; the default is `false`. |
+| `$needle` | `string` | The separator to cut at. The search is case-sensitive. The needle is not part of the result. |
+| `{last: …}` | `bool` (default `false`) | When `true`, cuts at the last needle. The default is `false`, which cuts at the first one. |
 
-**Returns** `?string` — The text after the occurrence, without the needle; `null` when the needle does not occur — never `false`.
+**Returns** `?string` — The text after the needle. If the needle is not in `$s`, the result is `null`. If the needle is at the end, the result is an empty string.
 
 <a id="core-core-str-join"></a>
 #### `Core\Str::join`
