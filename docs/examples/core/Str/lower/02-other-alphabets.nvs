@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `Core\Str::lower` works for every alphabet, not only for English letters.
+
+array<string> $words = ["ÉCOLE", "МОСКВА", "ΟΔΟΣ"];
+
+// This prints `école`, `москва` and `οδος`.
+// In Greek, `Σ` at the end of a word becomes `ς`. Anywhere else it becomes `σ`.
+foreach ($words as string $word) {
+    echo Core\Str::lower($word), "\n";
+}

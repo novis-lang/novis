@@ -1,0 +1,20 @@
+<?nvs
+// Changes the first letter of a name to lower case, as a program does when it turns a column name into a JSON key.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["OrderId", "Ärger", "ShippingAddress"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $pick = ($total + $i) % 3;
+            $total = $total + Core\Str::length(Core\Str::lowerFirst($names[$pick as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -7284,13 +7284,13 @@ Divides `$s` into pieces of `$size` characters each. A piece never cuts a charac
 Core\Str::lines(string $s): array<string>
 ```
 
-Splits `$s` into its lines, as `explode(PHP_EOL, …)` does — at `\n`, `\r\n` and a lone `\r` alike, whatever the platform.
+Splits `$s` into its lines. A line ends at `\n`, at `\r\n` or at `\r`, on every system. Replaces PHP's `explode(PHP_EOL, $s)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The text to split. |
 
-**Returns** `array<string>` — The lines without their terminators; a trailing terminator adds no final empty line, an interior empty line is still a line, and the empty string has no lines at all.
+**Returns** `array<string>` — One string for each line, without its line break. A line break at the very end does not add an empty line. An empty line in the middle is kept as `""`. An empty string gives `[]`.
 
 <a id="core-core-str-graphemes"></a>
 #### `Core\Str::graphemes`
@@ -7522,13 +7522,13 @@ Breaks `$s` into lines no longer than `$width` characters by inserting `breakWit
 Core\Str::lower(string $s): string
 ```
 
-Lower-cases `$s` through Unicode's full lowercase mapping, as `mb_strtolower` does; there is no byte-wise `strtolower` twin.
+Changes every letter of `$s` to lower case. It uses Unicode's rules, so `ÄRGER` becomes `ärger`. Replaces PHP's `strtolower` and `mb_strtolower`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The string to lower-case. |
+| `$s` | `string` | The string to change. |
 
-**Returns** `string` — The lower-cased string, possibly a different length from `$s`.
+**Returns** `string` — The string in lower case. Characters that are not letters do not change. The result can have a different length from `$s`.
 
 <a id="core-core-str-upper"></a>
 #### `Core\Str::upper`
@@ -7567,13 +7567,13 @@ Upper-cases the first character of `$s` and copies the rest through, as `ucfirst
 Core\Str::lowerFirst(string $s): string
 ```
 
-Lower-cases the first character of `$s` and copies the rest through, as `lcfirst` does — with Unicode's mapping rather than a byte's.
+Changes the first letter of `$s` to lower case and keeps the rest as it is. It uses Unicode's rules, so `Ärger` becomes `ärger`. Replaces PHP's `lcfirst`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string whose first character changes. |
 
-**Returns** `string` — The string with its first character lower-cased; `""` for the empty string.
+**Returns** `string` — The string with its first character in lower case. An empty string gives `""`.
 
 <a id="core-core-str-fold"></a>
 #### `Core\Str::fold`

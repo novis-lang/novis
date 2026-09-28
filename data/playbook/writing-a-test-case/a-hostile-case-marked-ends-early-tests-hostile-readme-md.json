@@ -1,0 +1,11 @@
+{
+  "lead": "A hostile case marked `ends-early` (`tests/hostile/README.md`) passes whichever step reaches the memory limit, so a green run does not say the last step was the one.",
+  "body": "A step can be refused inside `Core\\Str::repeat` and never reach the member under attack. Run the case with `target/release/nvs.exe run <file>`, check that every step before the last printed, and read the `FATAL` line's \"bytes held\": it is what was still held when the report ran, so a temporary input already released shows only kilobytes, and a figure far past the ceiling means a member grew past the limit before the breach was reported.",
+  "files": [
+    "tests/hostile/README.md"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tests/hostile/README.md:ends-early"
+  }
+}

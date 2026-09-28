@@ -1,0 +1,51 @@
+<?nvs
+// Attack: `Core\Str::lower` gets very long texts, and letters that need more bytes in lower case.
+// The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Changes a text of ten million upper-case letters.
+    public static function aLongText(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::lower(Core\Str::repeat('ÄB', $size)));
+    }
+
+    /// 2. Changes a text of `İ`, which needs two bytes in upper case and three in lower case.
+    public static function aTextThatGrows(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::lower(Core\Str::repeat('İ', $size)));
+    }
+
+    /// 3. Changes a Greek word with `Σ` in every place, a million times over.
+    public static function sigmaEverywhere(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::lower(Core\Str::repeat('ΣΑΣ Σ', $size)));
+    }
+
+    /// 4. Changes a short word one million times and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::lower('Straße'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 5. Changes a text of `İ` so long that the text and its lower-case copy do not both fit.
+    /// The memory limit stops the program here.
+    public static function tooLarge(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::lower(Core\Str::repeat('İ', $size)));
+    }
+}
+
+echo Attack::aLongText(5000000), "\n";
+echo Attack::aTextThatGrows(5000000), "\n";
+echo Attack::sigmaEverywhere(1000000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooLarge(60000000), "\n";

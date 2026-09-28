@@ -1,0 +1,54 @@
+<?nvs
+// Attack: `Core\Str::lowerFirst` gets a letter that grows in lower case, and very long texts behind it.
+// The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Changes `İ`, which needs two bytes in upper case and three in lower case.
+    public static function aLetterThatGrows(): uint
+    {
+        return Core\Str::length(Core\Str::lowerFirst('İSTANBUL'));
+    }
+
+    /// 2. Changes a text that starts with a combining accent, which is not a letter on its own.
+    public static function anAccentFirst(): uint
+    {
+        return Core\Str::length(Core\Str::lowerFirst("\u{0301}ABC"));
+    }
+
+    /// 3. Changes the first letter of a text of ten million characters.
+    public static function aLongText(uint $size): uint
+    {
+        return Core\Str::length(Core\Str::lowerFirst(Core\Str::repeat('Ä', $size)));
+    }
+
+    /// 4. Changes a short word one million times and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::lowerFirst('OrderTotal'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 5. Changes the first letter of a very long text twice and keeps both results.
+    /// The three texts do not fit together, so the memory limit stops the program here.
+    public static function tooLarge(uint $size): uint
+    {
+        string $text = Core\Str::repeat('İ', $size);
+        string $once = Core\Str::lowerFirst($text);
+        string $twice = Core\Str::lowerFirst($once);
+        return Core\Str::length($text) + Core\Str::length($once) + Core\Str::length($twice);
+    }
+}
+
+echo Attack::aLetterThatGrows(), "\n";
+echo Attack::anAccentFirst(), "\n";
+echo Attack::aLongText(10000000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooLarge(60000000), "\n";

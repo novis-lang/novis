@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check the extension of an uploaded file name, whatever case the user typed it in.
+
+array<string> $uploads = ["holiday.jpg", "SCAN.JPG", "Report.Pdf", "notes.txt"];
+array<string> $allowed = [".jpg", ".png", ".pdf"];
+
+// `Core\Str::lower` changes the name to lower case first.
+// Then one list of lower-case extensions is enough.
+foreach ($uploads as string $name) {
+    string $lowered = Core\Str::lower($name);
+    bool $ok = false;
+    foreach ($allowed as string $extension) {
+        if (Core\Str::endsWith($lowered, $extension)) {
+            $ok = true;
+        }
+    }
+    // This prints `accepted` for the first three names and `rejected` for `notes.txt`.
+    echo $name, ": ", $ok ? "accepted" : "rejected", "\n";
+}
