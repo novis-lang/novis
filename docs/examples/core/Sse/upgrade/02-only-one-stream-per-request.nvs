@@ -1,0 +1,20 @@
+<?nvs
+// Shows that one request can open only one event stream.
+
+class Clock {
+    // The stream runs this method. It sends one event and then ends.
+    public static function run(): void {
+        Core\Sse::current()->send("12:00");
+    }
+}
+
+Core\Sse::upgrade(Clock::run(...));
+
+// A second call throws a `RuntimeError`. The first stream still starts.
+try {
+    Core\Sse::upgrade(Clock::run(...));
+} catch (RuntimeError $error) {
+    // This prints `second stream: not opened`.
+    echo "second stream: not opened\n";
+}
+// Then the stream prints `data: 12:00`.

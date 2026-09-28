@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a request hands its event stream a very deep argument and calls
+// `Core\Sse::upgrade` many times. Then the stream keeps sending after the client left.
+// Each extra call should throw an error, and nothing should crash or grow without limit.
+
+class Flood
+{
+    public static function run(array<mixed> $history): void
+    {
+        Core\Sse $sse = Core\Sse::current();
+        $sse->send('history has ' . Core\Arr::count($history) . ' entries');
+        // 3. The client leaves at the first wait. The stream then sends 100000 more events.
+        ?Core\Sse\Message $gone = $sse->receive();
+        uint $i = 0;
+        uint $failed = 0;
+        while ($i < 100000) {
+            try {
+                $sse->send('event ' . $i . ' ' . Core\Str::repeat('x', 1000));
+            } catch (Throwable $closed) {
+                $failed = $failed + 1;
+            }
+            $i = $i + 1;
+        }
+        echo 'failed sends: ', $failed, "\n";
+    }
+}
+
+// 1. Hand the stream an argument nested one hundred thousand arrays deep.
+array<mixed> $deep = [];
+uint $i = 0;
+while ($i < 100000) {
+    $deep = [$deep];
+    $i = $i + 1;
+}
+try {
+    Core\Sse::upgrade(Flood::run(...), args: ['history' => $deep]);
+} catch (Throwable $tooDeep) {
+    echo 'deep: ', $tooDeep->message, "\n";
+}
+
+// 2. Call it ten thousand more times, each time with a new argument to copy.
+$i = 0;
+uint $refused = 0;
+while ($i < 10000) {
+    try {
+        Core\Sse::upgrade(Flood::run(...), args: ['history' => ['entry ' . $i]]);
+    } catch (RuntimeError $again) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo 'refused: ', $refused, "\n";

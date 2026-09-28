@@ -1,0 +1,13 @@
+<?nvs
+// Opens an event stream with a small argument, as a page of live notifications does once per visitor.
+// bench: iterations 1
+
+class Notifications {
+    public static function run(string $user): void {
+        Core\Sse::current()->send("hello " . $user);
+    }
+}
+
+// A request can open only one stream, so the measured operation happens one time per run.
+Core\Sse::upgrade(Notifications::run(...), args: ["user" => "ana"]);
+echo "upgraded\n";
