@@ -1422,67 +1422,78 @@ const NORMALIZE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::fromCodePoint`'s reference card — `rule:core-api/reference-card`.
 const FROM_CODE_POINT_DOC: MethodDoc = MethodDoc {
-    short: "Builds the one-character string for the Unicode scalar value `$codePoint`, as \
-            `mb_chr` does; `chr`'s byte lives on `Core\\Bytes` instead.",
+    short: "Builds a string of one code point. A code point is the number Unicode gives to one \
+            symbol. Replaces PHP's `mb_chr`. To build one byte, as PHP's `chr` does, use \
+            `Core\\Bytes`.",
     params: &[ParamDoc {
         name: "codePoint",
-        desc: "The scalar value, at most `0x10FFFF` and never a surrogate.",
+        desc: "The number of the symbol. It is at most `0x10FFFF` and is not in the surrogate \
+               range `0xD800` to `0xDFFF`.",
         shape: &[],
     }],
-    ret: "A string of that one code point.",
+    ret: "A string that contains that one code point. `0x20AC` gives `\"€\"`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$codePoint` is not a Unicode scalar value — above `0x10FFFF`, in the surrogate \
-               range `0xD800..=0xDFFF`, or negative.",
+        desc: "`$codePoint` is above `0x10FFFF`, or it is in the surrogate range `0xD800` to \
+               `0xDFFF`. Unicode gives no symbol to these numbers.",
     }],
 };
 
 /// `Core\Str::fromCodePoints`'s reference card — `rule:core-api/reference-card`.
 const FROM_CODE_POINTS_DOC: MethodDoc = MethodDoc {
-    short: "Builds the string whose code points are `$codePoints`, in order — `codePoints`' \
-            inverse, as `implode(array_map(\"mb_chr\", …))` does.",
+    short: "Builds a string from a list of code points, in order. It does the opposite of \
+            `Core\\Str::codePoints`. Replaces PHP's `mb_chr` called on each number and joined \
+            with `implode`.",
     params: &[ParamDoc {
         name: "codePoints",
-        desc: "The scalar values, in order; each at most `0x10FFFF` and never a surrogate.",
+        desc: "The numbers of the symbols, in order. Each one is at most `0x10FFFF` and is not \
+               in the surrogate range `0xD800` to `0xDFFF`.",
         shape: &[],
     }],
-    ret: "The string; `\"\"` for an empty array, and nothing at all when an element is refused.",
+    ret: "The string. An empty array gives `\"\"`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "An element is not a Unicode scalar value — above `0x10FFFF`, in the surrogate \
-               range `0xD800..=0xDFFF`, or negative.",
+        desc: "An element is above `0x10FFFF`, or it is in the surrogate range `0xD800` to \
+               `0xDFFF`. No part of the string is returned.",
     }],
 };
 
 /// `Core\Str::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
-    short: "Fills the `printf` template `$template` from `$arguments`, as `sprintf` and \
-            `vsprintf` do — the closed conversion list `%s %d %u %f %e %g %x %X %o %b %%` with \
-            `printf`'s flags, width, precision and `%1$s` positions, and none of its locale \
-            reading.",
+    short: "Fills the placeholders in `$template` with `$arguments` and returns the text. The \
+            template syntax is the one PHP's `sprintf` uses: `%s %d %u %f %e %g %x %X %o %b %%`, \
+            with flags, a width, a precision and positions such as `%1$s`. The result never \
+            depends on the locale.",
     params: &[
         ParamDoc {
             name: "template",
-            desc: "The `printf` template — a taint sink, so it must be trusted text; a literal \
-                   one has its placeholders checked at compile time.",
+            desc: "The template. It must be trusted text, so a tainted string is not allowed. \
+                   When the template is a literal, its placeholders are checked when the \
+                   program compiles.",
             shape: &[],
         },
         ParamDoc {
             name: "arguments",
-            desc: "The values the placeholders consume, in order or by `%1$s` position; every \
-                   one must be read by at least one placeholder.",
+            desc: "The values for the placeholders, in order, or by position with `%1$s`. \
+                   Every value must be used by at least one placeholder.",
             shape: &[],
         },
     ],
-    ret: "The filled-in text; a width or precision counts graphemes, and `%f` always writes `.` \
-          as the decimal separator.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "The template holds a malformed or unknown placeholder, names more arguments than \
-               were passed, leaves an argument no placeholder reads, or reaches a value with no \
-               reading for its conversion — an array for `%d`, or a `decimal` that is not whole \
-               for an integer conversion.",
-    }],
+    ret: "The filled-in text. A width or a precision counts characters, as \
+          `Core\\Str::length` does. `%f` always writes `.` before the decimals.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "A placeholder is not valid, the template uses more arguments than were \
+                   passed, an argument is not used, or a value does not fit its placeholder. \
+                   For example, `%d` does not accept an array.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "A width or a precision is larger than any string this process can hold. A \
+                   smaller one that is over the memory limit stops the request.",
+        },
+    ],
 };
 
 /// `Core\Str::split`'s `{limit?: int}` — [`nvs_core_str_split`]'s own docs own
@@ -4579,5 +4590,107 @@ mod tests {
             [0, 0xd7ff, 0xe000, 0x10ffff]
         );
         assert!(points("").is_empty());
+    }
+
+    /// `fromCodePoint` builds one scalar value as UTF-8 of one to four bytes,
+    /// both ends of the scalar range and both sides of the surrogate gap
+    /// included, and throws for a surrogate, for one past `0x10FFFF` and for
+    /// the far end of `uint`.
+    // covers: Core\Str::fromCodePoint
+    #[test]
+    fn from_code_point_builds_every_scalar_value_and_throws_for_the_rest() {
+        let built = |point: u64| {
+            taken(
+                run(super::nvs_core_str_from_code_point, &[Value::uint(point)])
+                    .expect("a scalar value is built"),
+            )
+        };
+        assert_eq!(built(72), "H");
+        assert_eq!(built(0xe9), "\u{e9}");
+        assert_eq!(built(0x20ac), "\u{20ac}");
+        assert_eq!(built(0x1f600), "\u{1f600}");
+        assert_eq!(built(0), "\u{0}");
+        assert_eq!(built(0xd7ff), "\u{d7ff}");
+        assert_eq!(built(0xe000), "\u{e000}");
+        assert_eq!(built(0x10ffff), "\u{10ffff}");
+        assert_eq!(built(0x10ffff).len(), 4);
+        for refused in [0xd800, 0xdfff, 0x11_0000, u64::MAX] {
+            assert!(run(super::nvs_core_str_from_code_point, &[Value::uint(refused)]).is_err());
+        }
+        assert!(run(super::nvs_core_str_from_code_point, &[Value::int(-1)]).is_err());
+    }
+
+    /// `fromCodePoints` is `codePoints`' inverse over a combining mark and a
+    /// flag's two halves, builds `""` from no elements, and throws for a
+    /// surrogate or one past `0x10FFFF` however late in the list it comes.
+    // covers: Core\Str::fromCodePoints
+    #[test]
+    fn from_code_points_inverts_code_points_and_throws_for_any_bad_element() {
+        let points = |numbers: &[u64]| {
+            let mut array = NvsArray::new();
+            for &number in numbers {
+                array.append(Value::uint(number));
+            }
+            run(super::nvs_core_str_from_code_points, &[Value::array(array)])
+        };
+        let built = |numbers: &[u64]| taken(points(numbers).expect("scalar values are built"));
+        assert_eq!(built(&[72, 105, 32, 0x20ac]), "Hi \u{20ac}");
+        assert_eq!(built(&[0x65, 0x301]), "e\u{301}");
+        assert_eq!(built(&[0x1f1e9, 0x1f1ea]), "\u{1f1e9}\u{1f1ea}");
+        assert_eq!(
+            built(&[0, 0xd7ff, 0xe000, 0x10ffff]),
+            "\u{0}\u{d7ff}\u{e000}\u{10ffff}"
+        );
+        assert_eq!(built(&[]), "");
+        assert!(points(&[0xd800]).is_err());
+        assert!(points(&[65, 66, 67, 0x11_0000]).is_err());
+        assert!(points(&[65, 0xdfff, 67]).is_err());
+    }
+
+    /// `format` fills a template from the variadic array the call site
+    /// builds, pads by characters rather than bytes, reads a `%2$s` position,
+    /// and throws for a missing, an unused or an unknown placeholder and for a
+    /// width no process could hold, rather than aborting on the allocation.
+    // covers: Core\Str::format
+    #[test]
+    fn format_fills_a_template_and_throws_for_a_mismatch_or_an_impossible_width() {
+        let formatted = |template: &str, arguments: Vec<Value>| {
+            let mut array = NvsArray::new();
+            for argument in arguments {
+                array.append(argument);
+            }
+            run(
+                super::nvs_core_str_format,
+                &[s(template), Value::array(array)],
+            )
+        };
+        let filled = |template: &str, arguments: Vec<Value>| {
+            taken(formatted(template, arguments).expect("the template fits its arguments"))
+        };
+        assert_eq!(
+            filled("%s has %d items", vec![s("the cart"), Value::int(3)]),
+            "the cart has 3 items"
+        );
+        assert_eq!(
+            filled("[%5s|%-3s]", vec![s("\u{e9}"), s("a")]),
+            "[    \u{e9}|a  ]"
+        );
+        assert_eq!(
+            filled("%2$s %1$s", vec![s("world"), s("hello")]),
+            "hello world"
+        );
+        assert_eq!(
+            filled(
+                "%.2f|%05d|%x",
+                vec![Value::float(1234.5), Value::int(-42), Value::int(255)]
+            ),
+            "1234.50|-0042|ff"
+        );
+        assert_eq!(filled("100%%", vec![]), "100%");
+        assert!(formatted("%s %s", vec![s("a")]).is_err());
+        assert!(formatted("%s", vec![s("a"), s("b")]).is_err());
+        assert!(formatted("%q", vec![s("a")]).is_err());
+        assert!(formatted("%9223372036854775808s", vec![s("a")]).is_err());
+        assert!(formatted("%.18446744073709551615f", vec![Value::float(1.5)]).is_err());
     }
 }

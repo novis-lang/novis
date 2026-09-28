@@ -1,26 +1,28 @@
 {
-  "state": "Goal `core-str-1-3`: 10 of the 13 members in `dossier-core-str-1-3` owe nothing. They are `Core\\Str::after`, `before`, `at`, `contains`, `endsWith`, `countOf`, `compare`, `fold`, `chunk` and `codePoints`. Each has `about.md`, three examples with blessed `.out`, one attack, one bench with a `docs/perf/members.ndjson` record, and a Rust `#[test]` with its `covers:` marker in `crates/nvs-stdlib/src/str.rs`'s `mod tests`. Their cards use the voice of AGENTS.md § *Text an end user reads*. The other cards in the file still say \"Answers …\".\n\n3 members still owe every proof: `format` (1 of 3 examples on disk, `docs/examples/core/Str/format/01-basics.nvs`), `fromCodePoint` and `fromCodePoints`. When all three owe nothing the goal is met: run `bun nv verify --doc`, `bun nv owners --closes core-str-1-3` and `bun nv playbook --closes core-str-1-3` before writing `DONE`.\n\nHow to work a member: `bun nv proofs --id '<id>'` lists what it owes. `--bless <files>` writes the `.out` files, `--run --only '<id>'` runs the examples and the attack, and `--record-perf --only '<id>'` records the bench. Re-run `--record-perf` if the machine is busy and calibration fails. A Rust test reads an array result with `super::Elements::of(answer.array_ptr()…)` and a string result with `taken(…)`, as `chunk_counts_clusters_leaves_only_the_last_short_and_refuses_a_zero_size` does. An exception's text is `$error->message`, not `getMessage()`. A string-keyed array is `array<string>` checked with `Core\\Arr::hasKey`, and `map<…>` does not exist.",
+  "state": "Goal `core-str-1-3` is met. All 13 members in `dossier-core-str-1-3` owe nothing, and `bun nv proofs --verify --only …` over them prints `nothing owed`, `0 failed` and `0 failed`. Each member has `about.md`, three examples with blessed `.out`, one attack, one bench with a `docs/perf/members.ndjson` record, and a Rust `#[test]` with its `covers:` marker in `crates/nvs-stdlib/src/str.rs`'s `mod tests`.\n\nThe `format` attack found a bug and it is fixed. A template width or float precision was never checked against the memory limit, so `%99999999999s` aborted the process on the allocation. `Spec::afford` in `crates/nvs-stdlib/src/format.rs` now checks it with `nvs_runtime::affordable` first. `tests/conformance/core/str-format-throws-for-a-width-no-process-could-hold.nvst` pins the catchable half.\n\n`bun nv owners --closes core-str-1-3` and `bun nv playbook --closes core-str-1-3` name nothing. The cards for the 13 members use the voice of AGENTS.md § *Text an end user reads*; the other cards in `str.rs` still say \"Answers …\", which is goal `plain-comments`'s to sweep.",
   "next": {
-    "stage": 1,
-    "title": "member proofs",
-    "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/str.rs` and the proof trees under `core/Str/fromCodePoint`, `core/Str/fromCodePoints` and `core/Str/format`.",
+    "stage": 2,
+    "title": "the dossier gate",
+    "files": [
+      "crates/nvs-stdlib/src/str.rs",
+      "crates/nvs-stdlib/src/format.rs"
+    ],
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Str::fromCodePoint`** — owes examples, hostile, perf, tests and `about.md` (`rule:testing/feature-proofs`). Card `FROM_CODE_POINT_DOC` at `crates/nvs-stdlib/src/str.rs:1424`, body `nvs_core_str_from_code_point` at `crates/nvs-stdlib/src/str.rs:3470`. Rewrite the card in the plain voice as `CODE_POINTS_DOC` now is. Put the Rust test after `code_points_answers_scalar_values_so_a_cluster_can_be_several` at `crates/nvs-stdlib/src/str.rs:4556`."
+        "done": true,
+        "text": "**`Core\\Str::fromCodePoint`** — every proof on disk (`rule:testing/feature-proofs`); card at `crates/nvs-stdlib/src/str.rs:1424`."
       },
       {
-        "done": false,
-        "text": "**`Core\\Str::fromCodePoints`** — owes the same. Card `FROM_CODE_POINTS_DOC` at `crates/nvs-stdlib/src/str.rs:1441`, body `nvs_core_str_from_code_points` at `crates/nvs-stdlib/src/str.rs:3491`. Its `about.md` should name `Core\\Str::codePoints` as the opposite, as `docs/examples/core/Str/codePoints/about.md` names it."
+        "done": true,
+        "text": "**`Core\\Str::fromCodePoints`** — every proof on disk (`rule:testing/feature-proofs`); card at `crates/nvs-stdlib/src/str.rs:1443`."
       },
       {
-        "done": false,
-        "text": "**`Core\\Str::format`** — owes two more examples, hostile, perf, tests and `about.md`. Card `FORMAT_DOC` at `crates/nvs-stdlib/src/str.rs:1458`, body `nvs_core_str_format` at `crates/nvs-stdlib/src/str.rs:3549`. Bring `docs/examples/core/Str/format/01-basics.nvs` up to AGENTS.md § *Text an end user reads* while you are there."
+        "done": true,
+        "text": "**`Core\\Str::format`** — every proof on disk, and its width check fixed (`rule:testing/a-failing-proof-is-fixed-or-recorded`); `Spec::afford` at `crates/nvs-stdlib/src/format.rs:442`."
       }
     ]
   },
   "backlog": [
-    "The remaining `Core\\Str` cards that still say \"Answers …\" are goal `plain-comments`'s to sweep (AGENTS.md § *Text an end user reads*)."
+    "The remaining `Core\\Str` cards still say \"Answers …\" — goal `plain-comments` (`docs/agent/goals/plain-comments.md`)."
   ]
 }

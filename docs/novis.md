@@ -7613,15 +7613,15 @@ Rewrites `$s` into the UAX #15 normal form `$form`, as `Normalizer::normalize` d
 Core\Str::fromCodePoint(uint $codePoint): string
 ```
 
-Builds the one-character string for the Unicode scalar value `$codePoint`, as `mb_chr` does; `chr`'s byte lives on `Core\Bytes` instead.
+Builds a string of one code point. A code point is the number Unicode gives to one symbol. Replaces PHP's `mb_chr`. To build one byte, as PHP's `chr` does, use `Core\Bytes`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$codePoint` | `uint` | The scalar value, at most `0x10FFFF` and never a surrogate. |
+| `$codePoint` | `uint` | The number of the symbol. It is at most `0x10FFFF` and is not in the surrogate range `0xD800` to `0xDFFF`. |
 
-**Returns** `string` — A string of that one code point.
+**Returns** `string` — A string that contains that one code point. `0x20AC` gives `"€"`.
 
-**Throws** `RuntimeError` — `$codePoint` is not a Unicode scalar value — above `0x10FFFF`, in the surrogate range `0xD800..=0xDFFF`, or negative.
+**Throws** `RuntimeError` — `$codePoint` is above `0x10FFFF`, or it is in the surrogate range `0xD800` to `0xDFFF`. Unicode gives no symbol to these numbers.
 
 <a id="core-core-str-fromcodepoints"></a>
 #### `Core\Str::fromCodePoints`
@@ -7630,15 +7630,15 @@ Builds the one-character string for the Unicode scalar value `$codePoint`, as `m
 Core\Str::fromCodePoints(array<uint> $codePoints): string
 ```
 
-Builds the string whose code points are `$codePoints`, in order — `codePoints`' inverse, as `implode(array_map("mb_chr", …))` does.
+Builds a string from a list of code points, in order. It does the opposite of `Core\Str::codePoints`. Replaces PHP's `mb_chr` called on each number and joined with `implode`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$codePoints` | `array<uint>` | The scalar values, in order; each at most `0x10FFFF` and never a surrogate. |
+| `$codePoints` | `array<uint>` | The numbers of the symbols, in order. Each one is at most `0x10FFFF` and is not in the surrogate range `0xD800` to `0xDFFF`. |
 
-**Returns** `string` — The string; `""` for an empty array, and nothing at all when an element is refused.
+**Returns** `string` — The string. An empty array gives `""`.
 
-**Throws** `RuntimeError` — An element is not a Unicode scalar value — above `0x10FFFF`, in the surrogate range `0xD800..=0xDFFF`, or negative.
+**Throws** `RuntimeError` — An element is above `0x10FFFF`, or it is in the surrogate range `0xD800` to `0xDFFF`. No part of the string is returned.
 
 <a id="core-core-str-format"></a>
 #### `Core\Str::format`
@@ -7647,16 +7647,16 @@ Builds the string whose code points are `$codePoints`, in order — `codePoints`
 Core\Str::format(string $template, mixed ...$arguments): string
 ```
 
-Fills the `printf` template `$template` from `$arguments`, as `sprintf` and `vsprintf` do — the closed conversion list `%s %d %u %f %e %g %x %X %o %b %%` with `printf`'s flags, width, precision and `%1$s` positions, and none of its locale reading.
+Fills the placeholders in `$template` with `$arguments` and returns the text. The template syntax is the one PHP's `sprintf` uses: `%s %d %u %f %e %g %x %X %o %b %%`, with flags, a width, a precision and positions such as `%1$s`. The result never depends on the locale.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$template` | `string` (sink) | The `printf` template — a taint sink, so it must be trusted text; a literal one has its placeholders checked at compile time. |
-| `...$arguments` | `mixed` | The values the placeholders consume, in order or by `%1$s` position; every one must be read by at least one placeholder. |
+| `$template` | `string` (sink) | The template. It must be trusted text, so a tainted string is not allowed. When the template is a literal, its placeholders are checked when the program compiles. |
+| `...$arguments` | `mixed` | The values for the placeholders, in order, or by position with `%1$s`. Every value must be used by at least one placeholder. |
 
-**Returns** `string` — The filled-in text; a width or precision counts graphemes, and `%f` always writes `.` as the decimal separator.
+**Returns** `string` — The filled-in text. A width or a precision counts characters, as `Core\Str::length` does. `%f` always writes `.` before the decimals.
 
-**Throws** `LogicError` — The template holds a malformed or unknown placeholder, names more arguments than were passed, leaves an argument no placeholder reads, or reaches a value with no reading for its conversion — an array for `%d`, or a `decimal` that is not whole for an integer conversion.
+**Throws** `LogicError` — A placeholder is not valid, the template uses more arguments than were passed, an argument is not used, or a value does not fit its placeholder. For example, `%d` does not accept an array.; `RuntimeError` — A width or a precision is larger than any string this process can hold. A smaller one that is over the memory limit stops the request.
 
 <a id="core-core-arr"></a>
 ### `Core\Arr`
