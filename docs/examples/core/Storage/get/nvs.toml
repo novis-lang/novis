@@ -1,0 +1,8 @@
+# The `files` disk reads its files from the `disk` folder next to these examples.
+# The path is relative to the folder you run `nvs` from.
+[storage.files]
+root = "docs/examples/core/Storage/get/disk"
+
+# The program may read files in that folder, and nowhere else.
+[capabilities.fs]
+read = ["docs/examples/core/Storage/get/disk"]

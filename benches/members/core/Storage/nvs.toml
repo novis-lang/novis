@@ -1,0 +1,8 @@
+# The `bench` disk saves its files in the `disk` folder next to these benches.
+[storage.bench]
+root = "benches/members/core/Storage/disk"
+
+# The program may read and write files in that folder, and nowhere else.
+[capabilities.fs]
+read = ["benches/members/core/Storage/disk"]
+write = ["benches/members/core/Storage/disk"]

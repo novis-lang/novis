@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program tries to delete the `nvs.toml` next to the disk, and the disk's own folder.
+// Every such key should throw an error, and nothing outside the folder is deleted.
+// hostile: timeout-ms 60000
+
+final class Attack
+{
+    public static function tryKey(string $key): uint
+    {
+        try {
+            Core\Storage::delete('files', $key);
+            return 0;
+        } catch (RuntimeError $e) {
+            return 1;
+        }
+    }
+}
+
+// 1. Keys that point at the configuration file, at the folder, or at the file that keeps it.
+array<string> $keys = ['../nvs.toml', "..\\nvs.toml", 'disk/../../nvs.toml', '/', '.', '..', '.keep'];
+uint $refused = 0;
+foreach ($keys as string $key) {
+    $refused = $refused + Attack::tryKey($key);
+}
+echo $refused, ' of ', Core\Arr::count($keys), " keys throw an error\n";
+
+// 2. The same file is deleted twice. The second call throws an `IOError`.
+Core\Storage::put('files', 'twice.txt', 'x' as bytes);
+Core\Storage::delete('files', 'twice.txt');
+echo Attack::tryKey('twice.txt'), " second delete throws an error\n";
+
+// 3. One thousand keys that no file has. Each call throws an `IOError`.
+uint $failed = 0;
+uint $i = 0;
+while ($i < 1000) {
+    try {
+        Core\Storage::delete('files', "missing-{$i}.txt");
+    } catch (IOError $e) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo $failed, " missing files throw an error\n";

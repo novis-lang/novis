@@ -1,0 +1,7 @@
+<?nvs
+// Uses the `prefix` option to list only the invoices.
+
+array<string> $invoices = Core\Storage::list("files", {prefix: "invoice-"});
+
+// This prints `2 invoices: invoice-1001.pdf, invoice-1002.pdf`.
+echo Core\Arr::count($invoices), " invoices: ", Core\Str::join($invoices, ", "), "\n";

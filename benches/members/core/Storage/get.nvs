@@ -1,0 +1,25 @@
+<?nvs
+// Reads a small saved file by its key, as a program does when it sends a stored upload back.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $keys = ["bench-get-a.txt", "bench-get-b.txt", "bench-get-c.txt"];
+        foreach ($keys as string $key) {
+            Core\Storage::put("bench", $key, "a small saved file\n" as bytes);
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            bytes $saved = Core\Storage::get("bench", $keys[$total % 3]) ?? "" as bytes;
+            $total = $total + Core\Bytes::length($saved);
+            $i = $i + 1;
+        }
+        foreach ($keys as string $key) {
+            Core\Storage::delete("bench", $key);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

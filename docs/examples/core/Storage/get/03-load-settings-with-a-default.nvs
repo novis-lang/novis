@@ -1,0 +1,17 @@
+<?nvs
+// Loads the shop's settings from a saved file, and uses default settings when the file is missing.
+
+final class Settings {
+    public static function load(string $key): string {
+        bytes $defaults = '{"currency": "USD", "perPage": 10}' as bytes;
+        // `??` replaces a `null` result with the default settings.
+        bytes $saved = Core\Storage::get("files", $key) ?? $defaults;
+        return $saved as string;
+    }
+}
+
+// `settings.json` is on the disk. This prints the saved settings.
+echo Settings::load("settings.json"), "\n";
+
+// `old-settings.json` is not on the disk. This prints the default settings.
+echo Settings::load("old-settings.json"), "\n";

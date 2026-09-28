@@ -1,0 +1,9 @@
+<?nvs
+// Shows that `get` returns `null` when no file has the key.
+
+?bytes $logo = Core\Storage::get("files", "logo.png");
+
+// No file has this key. This prints `no logo yet`.
+if ($logo == null) {
+    echo "no logo yet\n";
+}

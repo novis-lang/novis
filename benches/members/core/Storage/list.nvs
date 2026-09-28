@@ -1,0 +1,25 @@
+<?nvs
+// Lists the keys that start with a prefix, as a program does when it shows a user's files.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $keys = ["bench-list-a.pdf", "bench-list-b.pdf", "bench-list-c.pdf"];
+        foreach ($keys as string $key) {
+            Core\Storage::put("bench", $key, "x" as bytes);
+        }
+        array<string> $prefixes = ["bench-list-", "bench-list-a", "bench-list-b"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count(Core\Storage::list("bench", {prefix: $prefixes[$total % 3]}));
+            $i = $i + 1;
+        }
+        foreach ($keys as string $key) {
+            Core\Storage::delete("bench", $key);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

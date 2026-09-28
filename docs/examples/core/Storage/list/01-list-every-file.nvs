@@ -1,0 +1,8 @@
+<?nvs
+// Lists the key of every file on the `files` disk.
+
+// The keys are sorted. This prints the two invoices, and then the receipt.
+// The folder also has a `.keep` file. A key cannot start with a `.`, so it is not listed.
+foreach (Core\Storage::list("files") as string $key) {
+    echo $key, "\n";
+}

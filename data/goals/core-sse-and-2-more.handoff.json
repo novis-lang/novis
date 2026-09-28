@@ -1,32 +1,12 @@
 {
-  "state": "Goal `core-sse-and-2-more`. Every `Core\\Sse` and `Core\\Sse\\Message` feature has all its proofs, and\n`bun nv proofs --verify --group 'Core\\Sse' --group 'Core\\Sse\\Message'` passes. `nvs run --request`\nnow offers every request the SSE cell, and a stream a request's `Core\\Sse::upgrade` opened starts\nonce the request ends, fed from `--events` when given (`crates/nvs-cli/src/events.rs` `connect`,\nmodule doc). `Core\\Storage` is the one group still red: it owes a class card, and `get`, `delete` and\n`list` each owe examples, an attack, a bench and a Rust `covers:` marker.",
+  "state": "Goal `core-sse-and-2-more` is reached. All three stage-2 checks pass:\n`bun nv proofs --verify --group 'Core\\Sse' --group 'Core\\Sse\\Message' --group 'Core\\Storage'`.\n`Core\\Storage` now has its class card, a Rust test with a `covers:` marker for each of its four members\n(`crates/nvs-stdlib/src/storage.rs` `mod tests`), and a description, three examples, an attack and a\nbench for each member. The proofs that write files use a committed `disk/` subdirectory, which the\ndirectory's own `nvs.toml` names relative to the repository root.\n`bun nv owners --closes` and `bun nv playbook --closes` name nothing for this goal.",
   "next": {
-    "stage": 2,
-    "title": "`Core\\Storage` card, then its proofs",
-    "files": [
-      "crates/nvs-stdlib/src/storage.rs",
-      "crates/nvs-stdlib/src/registry.rs",
-      "docs/examples/core/Storage/",
-      "tests/hostile/core/Storage/",
-      "benches/members/core/Storage/"
-    ],
-    "items": [
-      {
-        "done": false,
-        "text": "**`Core\\Storage` class card** — `rule:core-api/reference-card`: a `ClassDoc` above the class's `CLASS` row at `crates/nvs-stdlib/src/storage.rs:168`, and `Core\\Storage` struck from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283`. Check with `nvs agent find Storage` and `nvs agent show 'Core\\Storage'`."
-      },
-      {
-        "done": false,
-        "text": "**`covers:` markers on the Rust tests of `get`, `delete` and `list`** — `rule:testing/proof-attribution`: the members are `crates/nvs-stdlib/src/storage.rs:514`, `crates/nvs-stdlib/src/storage.rs:534` and `crates/nvs-stdlib/src/storage.rs:552`; mark the `#[test]`s in that file's test module that already exercise each."
-      },
-      {
-        "done": false,
-        "text": "**`get`, `delete` and `list` proofs** — `rule:testing/feature-proofs`: `about.md`, three examples, one attack and one bench each, paths from `bun nv proofs --id 'Core\\Storage::get'`, and each example calls the member at `crates/nvs-stdlib/src/storage.rs:514`, `crates/nvs-stdlib/src/storage.rs:534` or `crates/nvs-stdlib/src/storage.rs:552`. Whether a proof needs an `nvs.toml` beside it naming a disk is not checked; `put`'s landed proofs under `docs/examples/core/Storage/put/` are the model if it has them."
-      }
-    ]
+    "stage": null,
+    "files": [],
+    "note": "Nothing is open in this goal. The driver moves to the next goal on the chain, and that goal starts from its own handoff record.",
+    "items": []
   },
   "backlog": [
-    "`crates/nvs-cli/tests/live_config.rs:1389`'s `a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job` missed its 30s wait once beside the other test binaries and passes alone in about 10s; it needs its own time budget or a signal rather than a wait (`tools/nv/cmd/verify.ts` module doc).",
-    "Nothing else is open in this goal once `Core\\Storage` passes; then `DONE` after `bun nv verify --doc`, `bun nv owners --closes core-sse-and-2-more` and `bun nv playbook --closes core-sse-and-2-more`."
+    "None carried. A later finding about `Core\\Storage` goes in `crates/nvs-stdlib/src/storage.rs`'s module doc as a `# Known gaps` item with an owner."
   ]
 }

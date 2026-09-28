@@ -1,0 +1,10 @@
+<?nvs
+// Deletes a file from the `files` disk.
+
+Core\Storage::put("files", "old-report.csv", "id,total\n1,40\n" as bytes);
+Core\Storage::delete("files", "old-report.csv");
+
+// The file is gone, so `get` returns `null`. This prints `deleted`.
+if (Core\Storage::get("files", "old-report.csv") == null) {
+    echo "deleted\n";
+}

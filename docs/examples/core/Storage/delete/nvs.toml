@@ -1,0 +1,9 @@
+# The `files` disk saves its files in the `disk` folder next to these examples.
+# The path is relative to the folder you run `nvs` from.
+[storage.files]
+root = "docs/examples/core/Storage/delete/disk"
+
+# The program may read and write files in that folder, and nowhere else.
+[capabilities.fs]
+read = ["docs/examples/core/Storage/delete/disk"]
+write = ["docs/examples/core/Storage/delete/disk"]

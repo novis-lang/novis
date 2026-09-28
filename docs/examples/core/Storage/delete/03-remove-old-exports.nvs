@@ -1,0 +1,17 @@
+<?nvs
+// Deletes every export file on the disk, as a nightly cleanup job does.
+
+Core\Storage::put("files", "export-monday.csv", "id,total\n" as bytes);
+Core\Storage::put("files", "export-tuesday.csv", "id,total\n" as bytes);
+Core\Storage::put("files", "invoice-7.pdf", "%PDF" as bytes);
+
+// `list` returns the keys that start with `export-`. The loop deletes each one.
+foreach (Core\Storage::list("files", {prefix: "export-"}) as string $key) {
+    Core\Storage::delete("files", $key);
+    echo "deleted ", $key, "\n";
+}
+
+// Only the invoice is left. This prints `left: invoice-7.pdf`.
+echo "left: ", Core\Str::join(Core\Storage::list("files"), ", "), "\n";
+
+Core\Storage::delete("files", "invoice-7.pdf");

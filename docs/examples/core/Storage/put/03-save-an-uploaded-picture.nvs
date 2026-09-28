@@ -1,0 +1,20 @@
+<?nvs
+// Saves a profile picture under a key made from the user's id, as an upload form does.
+
+final class Avatars {
+    public static function save(int $userId, bytes $picture): string {
+        string $key = "avatar-{$userId}.png";
+        Core\Storage::put("files", $key, $picture);
+        return $key;
+    }
+}
+
+// The second upload uses the same key, so it replaces the first picture.
+string $key = Avatars::save(42, "first picture" as bytes);
+Avatars::save(42, "new picture" as bytes);
+
+// The disk has one file for this user. This prints `avatar-42.png: 11 bytes`.
+bytes $saved = Core\Storage::get("files", $key) ?? "" as bytes;
+echo $key, ": ", Core\Bytes::length($saved), " bytes\n";
+
+Core\Storage::delete("files", $key);

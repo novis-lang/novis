@@ -1,0 +1,24 @@
+<?nvs
+// Saves a small file under one of three keys, as a program does when a user uploads a picture.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $keys = ["bench-put-a.bin", "bench-put-b.bin", "bench-put-c.bin"];
+        array<bytes> $contents = ["small picture" as bytes, "a larger picture" as bytes];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            bytes $picture = $contents[$total % 2];
+            Core\Storage::put("bench", $keys[$total % 3], $picture);
+            $total = $total + Core\Bytes::length($picture);
+            $i = $i + 1;
+        }
+        foreach ($keys as string $key) {
+            Core\Storage::delete("bench", $key);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";
