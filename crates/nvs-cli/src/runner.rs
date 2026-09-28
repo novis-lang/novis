@@ -356,6 +356,13 @@ pub(crate) fn run(
         Format::Json | Format::Junit => nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Stderr),
     };
     unit.install_in(&mut ctx);
+    // The tree's snapshot goes on the suite's context before anything runs, as
+    // `nvs run` puts it on the script's: every test's isolate is built from this
+    // context and asks it for its grants, so a `[capabilities]` block reaches a
+    // test exactly as it reaches the program. A context with no snapshot denies
+    // every grant, which would leave a `#[Test(server: true)]` unable to connect
+    // to its own listener. It spends one copy of the snapshot per run.
+    ctx.set_config(std::sync::Arc::new(snapshot.clone()));
 
     // Read out before `checked` is moved into the suite's task, which is where
     // it is dropped: the rows are the compiler's and the run cannot produce
