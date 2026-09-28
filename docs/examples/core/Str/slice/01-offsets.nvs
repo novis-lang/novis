@@ -1,6 +1,11 @@
 <?nvs
+// Shows how to take a part of a text by its position.
+
 var $s = "Hello, World!";
 
-echo Core\Str::slice($s, 7), "\n";      // from offset 7 to the end
-echo Core\Str::slice($s, 0, 5), "\n";   // the first five graphemes
-echo Core\Str::slice($s, -6, 5), "\n";  // negative offset counts from the end
+// Without a length, the part runs to the end. This prints `World!`.
+echo Core\Str::slice($s, 7), "\n";
+// The first five characters. This prints `Hello`.
+echo Core\Str::slice($s, 0, 5), "\n";
+// A negative offset counts from the end. This prints `World`.
+echo Core\Str::slice($s, -6, 5), "\n";

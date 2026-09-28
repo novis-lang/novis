@@ -244,14 +244,27 @@ impl Unit {
         if index >= subject.len() {
             return subject.len();
         }
-        let mut consumed = 0;
-        for (seen, piece) in self.pieces(subject).enumerate() {
-            if seen == index {
-                return consumed;
+        match self {
+            Self::CodePoint => subject
+                .char_indices()
+                .nth(index)
+                .map_or(subject.len(), |(at, _)| at),
+            Self::Grapheme => {
+                // Unit `index` starts at byte `index` when every byte up to and
+                // including it is a cluster of its own. Only that prefix is
+                // read, and the walk below is lazy, so the cost follows the
+                // index and never the subject's length: a short window at the
+                // start of a long text reads only its start. [`Self::pieces`]
+                // would scan the whole subject first.
+                if subject.get(..=index).is_some_and(one_byte_per_cluster) {
+                    return index;
+                }
+                subject
+                    .grapheme_indices(true)
+                    .nth(index)
+                    .map_or(subject.len(), |(at, _)| at)
             }
-            consumed += piece.len();
         }
-        consumed
     }
 }
 
@@ -597,7 +610,18 @@ mod tests {
     /// resulting match back in that unit.
     #[test]
     fn a_byte_offset_and_a_unit_index_convert_both_ways() {
-        for subject in ["", "ascii", "cafe\u{301}", "a\u{1f1e6}\u{1f1f9}b", "日本語"] {
+        // The later subjects begin with plain ASCII and turn into something
+        // else, so `byte_of_index` meets both its prefix answer and its walk.
+        for subject in [
+            "",
+            "ascii",
+            "cafe\u{301}",
+            "a\u{1f1e6}\u{1f1f9}b",
+            "日本語",
+            "ab\u{301}cd",
+            "x\r\ny",
+            "ok \u{1f1e9}\u{1f1ea}!",
+        ] {
             for unit in [Unit::CodePoint, Unit::Grapheme] {
                 let mut byte = 0;
                 for (index, piece) in unit.pieces(subject).enumerate() {

@@ -7108,15 +7108,15 @@ Checks whether `$s` ends with `$suffix`. Replaces PHP's `str_ends_with`.
 Core\Str::slice(string $s, int $offset, ?int $length = null): string
 ```
 
-Cuts the part of `$s` that starts at `$offset` and runs for `$length` characters, as `substr` and `mb_substr` do — counted in graphemes, so no slice ever splits a character.
+Returns the part of `$s` that starts at `$offset` and has `$length` characters. Positions count characters as a person sees them, so "é" is one character. Replaces PHP's `substr` and `mb_substr`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The string to cut from. |
-| `$offset` | `int` | Where the slice begins; a negative offset counts from the end. |
-| `$length` | `?int` (default `null`) | How many characters to take; a negative one stops that many from the end, and `null` runs to the end. |
+| `$s` | `string` | The string to take the part from. |
+| `$offset` | `int` | Where the part starts. The first character is at `0`. A negative offset counts from the end. |
+| `$length` | `?int` (default `null`) | How many characters to take. A negative length stops that many characters before the end. `null` takes everything to the end. |
 
-**Returns** `string` — The selected text, or `""` for a window that is empty or lies past either end; `$s` is unchanged.
+**Returns** `string` — The part as a new string. It is `""` when the part is empty or the offset is past the end. `$s` does not change.
 
 <a id="core-core-str-indexof"></a>
 #### `Core\Str::indexOf`

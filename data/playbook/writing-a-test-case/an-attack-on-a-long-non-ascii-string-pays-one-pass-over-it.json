@@ -1,0 +1,11 @@
+{
+  "lead": "An attack on a long non-ASCII string pays one pass over it per `Core` call in the proof binary, whatever the member does.",
+  "body": "`NvsStr::text_of` runs a `debug_assert!` UTF-8 check on every string argument, and std's check is fast only on ASCII, so 100000 calls over 8 MB of \"é\" never finish even for `Core\\Str::isEmpty`, while the same text of \"x\" takes a fraction of a second. Size a hostile step over accented text by bytes × calls for the debug build (1 MB × 5000 is about two seconds), and time an algorithmic fix on an ASCII subject or the release binary.",
+  "files": [
+    "crates/nvs-runtime/src/string.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-runtime/src/string.rs:std::str::from_utf8(bytes).is_ok()"
+  }
+}

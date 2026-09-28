@@ -1,0 +1,65 @@
+<?nvs
+// Attack: `Core\Str::slice` gets the largest and smallest offsets and lengths, one character
+// made of many accents, and many short slices of a very long text. Each call should return a
+// string. The last step keeps copies of a long slice until the memory limit stops the program.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Uses the largest and smallest `int` values as the offset and as the length.
+    public static function farPositions(): uint
+    {
+        array<int> $values = [-9223372036854775807 - 1, 9223372036854775807, -1, 0, 1];
+        uint $total = 0;
+        foreach ($values as int $offset) {
+            foreach ($values as int $length) {
+                $total = $total + Core\Str::length(Core\Str::slice('Hello', $offset, $length));
+            }
+            $total = $total + Core\Str::length(Core\Str::slice('Hello', $offset, null));
+        }
+        return $total;
+    }
+
+    /// 2. Takes one character from a text whose first character has 10000 accents.
+    /// The slice contains the whole character.
+    public static function oneLongCharacter(): uint
+    {
+        string $text = 'a' . Core\Str::repeat("\u{301}", 10000) . 'b';
+        string $first = Core\Str::slice($text, 0, 1);
+        string $last = Core\Str::slice($text, -1);
+        return Core\Str::length($first) + Core\Str::length($last);
+    }
+
+    /// 3. Takes the first three characters of a text of 500000 characters, 5000 times.
+    public static function shortSlicesOfALongText(): uint
+    {
+        string $text = Core\Str::repeat('é', 500000);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 5000) {
+            $total = $total + Core\Str::length(Core\Str::slice($text, 0, 3));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 4. Keeps 100000 slices of one mebibyte each, which would need 100 GiB.
+    /// The memory limit stops the program here.
+    public static function keptCopies(): uint
+    {
+        string $text = Core\Str::repeat('x', 2097152);
+        array<string> $kept = [];
+        uint $i = 0;
+        while ($i < 100000) {
+            $kept[] = Core\Str::slice($text, 1, 1024 * 1024);
+            $i = $i + 1;
+        }
+        return Core\Arr::count($kept);
+    }
+}
+
+echo Attack::farPositions(), "\n";
+echo Attack::oneLongCharacter(), "\n";
+echo Attack::shortSlicesOfALongText(), "\n";
+echo Attack::keptCopies(), "\n";

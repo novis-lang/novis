@@ -723,29 +723,30 @@ const ENDS_WITH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::slice`'s reference card — `rule:core-api/reference-card`.
 const SLICE_DOC: MethodDoc = MethodDoc {
-    short: "Cuts the part of `$s` that starts at `$offset` and runs for `$length` characters, as \
-            `substr` and `mb_substr` do — counted in graphemes, so no slice ever splits a \
-            character.",
+    short: "Returns the part of `$s` that starts at `$offset` and has `$length` characters. \
+            Positions count characters as a person sees them, so \"é\" is one character. \
+            Replaces PHP's `substr` and `mb_substr`.",
     params: &[
         ParamDoc {
             name: "s",
-            desc: "The string to cut from.",
+            desc: "The string to take the part from.",
             shape: &[],
         },
         ParamDoc {
             name: "offset",
-            desc: "Where the slice begins; a negative offset counts from the end.",
+            desc: "Where the part starts. The first character is at `0`. A negative offset \
+                   counts from the end.",
             shape: &[],
         },
         ParamDoc {
             name: "length",
-            desc: "How many characters to take; a negative one stops that many from the end, and \
-                   `null` runs to the end.",
+            desc: "How many characters to take. A negative length stops that many characters \
+                   before the end. `null` takes everything to the end.",
             shape: &[],
         },
     ],
-    ret: "The selected text, or `\"\"` for a window that is empty or lies past either end; `$s` \
-          is unchanged.",
+    ret: "The part as a new string. It is `\"\"` when the part is empty or the offset is past the \
+          end. `$s` does not change.",
     errors: &[],
 };
 
@@ -2674,7 +2675,6 @@ fn window(
 ) -> Result<(usize, usize), Fault> {
     let offset = integer(offset, member, "the offset")?;
     let unit = crate::granularity::DEFAULT;
-    let total = unit.length(subject);
 
     let start = unit.byte_of_signed_index(subject, offset);
     let end = match length.tag() {
@@ -2685,14 +2685,17 @@ fn window(
                 // Counted from the *end*, not from the start: this is the one
                 // place R8's sign rule means "stop short of" rather than
                 // "begin at".
-                let from_end = i64::try_from(total).unwrap_or(i64::MAX) + length;
+                let total = i64::try_from(unit.length(subject)).unwrap_or(i64::MAX);
+                let from_end = total.saturating_add(length);
                 unit.byte_of_index(subject, usize::try_from(from_end).unwrap_or(0))
             } else {
-                let from = unit.index_of_byte(subject, start);
-                let to = usize::try_from(length)
-                    .unwrap_or(usize::MAX)
-                    .saturating_add(from);
-                unit.byte_of_index(subject, to)
+                // Walked from the start rather than from the subject's first
+                // byte, so a short window near the start of a long subject
+                // reads only the characters up to its end. `start` is a unit
+                // boundary, and segmenting from one finds the same boundaries
+                // the whole subject has.
+                let length = usize::try_from(length).unwrap_or(usize::MAX);
+                start + unit.byte_of_index(&subject[start..], length)
             }
         }
     };
@@ -4309,6 +4312,53 @@ mod tests {
         assert_eq!(reversed("x\r\ny"), "y\r\nx");
         for subject in ["plain", "naïve café", "👨‍👩‍👧 and 🇫🇷"] {
             assert_eq!(reversed(&reversed(subject)), subject);
+        }
+    }
+
+    /// `slice` reads its window in graphemes under both signs of both
+    /// arguments, clamps a window past either end to what is there, and a
+    /// window read from its start agrees with the one counted over the whole
+    /// subject — flags and combining accents included.
+    // covers: Core\Str::slice
+    #[test]
+    fn slice_reads_a_grapheme_window_under_both_signs() {
+        let sliced = |subject: &str, offset: i64, n: Option<i64>| {
+            let length = n.map_or_else(Value::null, Value::int);
+            taken(
+                run(
+                    super::nvs_core_str_slice,
+                    &[s(subject), Value::int(offset), length],
+                )
+                .expect("slice never fails under no limit"),
+            )
+        };
+        assert_eq!(sliced("Hello, World!", 7, None), "World!");
+        assert_eq!(sliced("Hello, World!", 0, Some(5)), "Hello");
+        assert_eq!(sliced("Hello, World!", -6, Some(5)), "World");
+        assert_eq!(sliced("Hello", 1, Some(-1)), "ell");
+        assert_eq!(sliced("Hello", 3, Some(-3)), "");
+        assert_eq!(sliced("Hello", 9, None), "");
+        assert_eq!(sliced("Hello", -99, Some(2)), "He");
+        assert_eq!(sliced("Hello", 2, Some(i64::MAX)), "llo");
+        assert_eq!(sliced("Hello", i64::MIN, Some(i64::MIN)), "");
+        assert_eq!(sliced("", 0, None), "");
+        assert_eq!(sliced("cafe\u{301}!", 3, Some(1)), "e\u{301}");
+        assert_eq!(sliced("🇩🇪🇫🇷🇮🇹", 1, Some(1)), "🇫🇷");
+
+        // Every window of a mixed subject is its characters `offset..offset + n`.
+        let subject = "a🇩🇪é\u{301}👨‍👩‍👧 x";
+        let units: Vec<&str> =
+            unicode_segmentation::UnicodeSegmentation::graphemes(subject, true).collect();
+        for offset in 0..=units.len() {
+            for n in 0..=units.len() - offset {
+                let want = units[offset..offset + n].concat();
+                let (at, count) = (i64::try_from(offset).unwrap(), i64::try_from(n).unwrap());
+                assert_eq!(
+                    sliced(subject, at, Some(count)),
+                    want,
+                    "offset {offset}, length {n}"
+                );
+            }
         }
     }
 

@@ -1,0 +1,20 @@
+<?nvs
+// Shortens long titles for a list, and adds "…" to each title that was cut.
+
+class Preview
+{
+    public static function shorten(string $title, int $max): string
+    {
+        if (Core\Str::length($title) <= $max) {
+            return $title;
+        }
+        // Takes the first `$max - 1` characters, so the result with "…" has `$max` characters.
+        return Core\Str::slice($title, 0, $max - 1) . "…";
+    }
+}
+
+array<string> $titles = ["Café opening hours", "Größenwahn: a short history of big plans", "News"];
+// "é" and "ö" count as one character each, so no character is cut in half.
+foreach ($titles as string $title) {
+    echo Preview::shorten($title, 16), "\n";
+}
