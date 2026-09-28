@@ -1,0 +1,15 @@
+<?nvs
+// Shows a connection that answers every message the client sends.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends two messages and then closes the connection.
+Core\Socket $conn = Core\Socket::current();
+
+// Each `sent:` line in the output is a message the client received.
+// This prints `sent: you said: hello` and `sent: you said: how are you?`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    $conn->send("you said: " . ($message->text() ?? ""));
+    $message = $conn->receive();
+}
+echo "the client closed the connection\n";

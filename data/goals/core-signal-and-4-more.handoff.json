@@ -1,22 +1,23 @@
 {
-  "state": "Goal `core-signal-and-4-more`. `Core\\Signal`, `Core\\Signature` and now `Core\\SignedCookie` are green.\n`Core\\SignedCookie::seal` and `::open` have all their feature proofs: an `about.md` each, three\nexamples each, one attack each, one bench each, and a member-level Rust test each carrying `covers:`\nat the foot of `crates/nvs-stdlib/src/signed_cookie.rs`. The class has a card, is off\n`CLASSES_STILL_OWING_A_CARD`, and both member cards are rewritten in the plain voice. Neither attack\nfound a bug. `open` checks an older key's length only when the walk reaches it; the card and the\nhelper's doc now say so. Nothing is blocked. Still red in stage 2: `Core\\Socket` and\n`Core\\Socket\\Message`.",
+  "state": "Goal `core-signal-and-4-more`. `Core\\Signal`, `Core\\Signature` and `Core\\SignedCookie` are green.\n`Core\\Socket::current`, `::receive`, `::send` and `::sendBytes` now have all their feature proofs:\nan `about.md`, three examples, one attack and one bench each, plus Rust tests carrying `covers:` in\n`crates/nvs-stdlib/src/socket.rs`. `Core\\Socket` has a class card and is off\n`CLASSES_STILL_OWING_A_CARD`; the four member cards are in the plain voice. They run a real\nconnection through `nvs run --peer <file>`, the scripted WebSocket peer this session added\n(`crates/nvs-cli/src/peer.rs` owns the `.nvsp` format; `docs/examples/README.md` § *A WebSocket\npeer* is the reader's half). No attack found a runtime bug. Still red in stage 2:\n`Core\\Socket::upgrade` (everything but the card) and all of `Core\\Socket\\Message`.",
   "next": {
-    "stage": 1,
-    "title": "one slice per feature",
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/socket.rs` and its proof trees under `core/Socket/` and `core/Socket-Message/`. Both classes live in the one file, so take the class cards together.",
+    "note": "one file set: `crates/nvs-stdlib/src/socket.rs`, its proof trees under `core/Socket/` and `core/Socket-Message/`, and `nvs run`'s `--peer` and `--request` doors in `crates/nvs-cli/src/main.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Socket::send`, `::sendBytes`, `::receive`** — owe examples, hostile, perf, and one more Novis case each (`receive` owes two), plus `Core\\Socket`'s class card (`doc: None`, and the class is on `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`). These are instance members, so a Rust test needs a `covers:` marker. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/socket.rs:223`"
+        "text": "**`Core\\Socket\\Message::text`, `::bytes`, `::value`, and `Core\\Socket\\Message`'s class card** — each owes `about.md`, three examples, one attack, one bench and two tests. A `.nvsp` peer gives `text` and `bytes` their frames, and a `Core\\Topic::publish` inside the same script gives `value` a delivery (the `Core\\Socket` examples show both). The Rust test `receive_answers_a_peer_frame_and_a_topic_delivery_from_one_wait` reads all four slots and only needs `covers:` lines. Write the class card above `MESSAGE` and delete `Core\\Socket\\Message` from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/socket.rs:476`"
       },
       {
         "done": false,
-        "text": "**`Core\\Socket\\Message::text`, `::bytes`, `::value`** — owe examples, hostile, perf, two tests each, and `Core\\Socket\\Message`'s class card. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/socket.rs:476`"
+        "text": "**`Core\\Socket::upgrade`** — owes examples, hostile, perf and a Rust `covers:` marker (the upgrade tests from `an_upgrade_leaves_the_resolvers_program_and_a_copy_of_its_argument_in_the_slot` onward call the member and only need the line). A CLI run offers no `nvs_runtime::UpgradeSlot`, so every upgrade throws there. The next step is to have `nvs run --request` offer a slot when the `.nvsr` carries `Upgrade: websocket`, and then run the prepared script with the `.nvsp` peer beside it, the way `nvs_server::serve_connection` offers one. That is a harness change, like `--peer`; it is not a language change. `rule:concurrency/an-upgrade-is-spawn-shaped`. `crates/nvs-cli/src/main.rs:2510`"
       }
     ]
   },
   "backlog": [
-    "`bun nv proofs --record-perf --group '<class>'` must run after the last edit to the implementing file, `fmt` included, or the gate reads the figure as stale — `rule:testing/member-perf-ledger`."
+    "`Core\\Sse` and `Core\\Topic` owe every example, attack and bench; `nvs run --peer` gives `Core\\Topic` a subscriber, and `Core\\Sse` needs the same kind of harness for its stream (`crates/nvs-stdlib/src/sse.rs`).",
+    "A connection script's `echo` goes to standard output under `--peer`, where a served connection's goes to the socket; `crates/nvs-cli/src/peer.rs`'s module doc says what the harness prints."
   ]
 }

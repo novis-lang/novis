@@ -1,0 +1,4 @@
+# The client sends three messages, then closes the connection.
+text: hello
+text: is anybody there?
+text: bye

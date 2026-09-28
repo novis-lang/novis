@@ -1,0 +1,4 @@
+sent: update number 1
+sent: update number 2
+error: `Core\Socket::send` failed on the connection: the client stopped reading, and the send wait expired
+stopped after 2 messages

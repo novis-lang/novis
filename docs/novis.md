@@ -19340,11 +19340,11 @@ Turns this request into a WebSocket connection running `$entry` as a root isolat
 Core\Socket::current(): Core\Socket
 ```
 
-This connection, inside the isolate the upgrade opened — the first line of every script a `Core\Socket::upgrade` runs.
+Returns the WebSocket connection this script is running for. It is the first line of every script that `Core\Socket::upgrade` starts.
 
-**Returns** `Core\Socket` — The connection, whose `receive` and `send` are the whole of what a program does with one. Two calls answer two objects rather than the same one: there is exactly one connection per isolate, so a handle carries no state and identity has nothing to distinguish.
+**Returns** `Core\Socket` — The connection. Call `receive` and `send` on it to talk to the client. Each call returns a new object for the same connection, so compare what the client sends, not the objects.
 
-**Throws** `LogicError` — This program is not a connection isolate — an ordinary request, a `spawn script` child and a command each get this, because none of them was handed a socket.
+**Throws** `LogicError` — The script is not running for a connection. An ordinary request, a `spawn script` child and a command line program all throw this.
 
 <a id="core-core-socket-receive"></a>
 #### `Core\Socket->receive`
@@ -19353,11 +19353,11 @@ This connection, inside the isolate the upgrade opened — the first line of eve
 $socket->receive(): ?Core\Socket\Message
 ```
 
-Waits for the next thing from either side — a frame the peer sent, or a value published to a topic this connection subscribed to — and answers it as one message.
+Waits for the next message and returns it. A message comes from the client, or from a topic this connection subscribed to.
 
-**Returns** `?Core\Socket\Message` — The next message, or `null` once the peer has closed, which is what ends the `while (var $msg = $conn->receive())` loop a connection script is written as. A peer frame's payload is `tainted`; a delivery carries the published value and the topic's name, which is how the loop tells the two apart. `null` is also what a connection that fell too far behind its topics is answered: its queue overflowed, so this connection is closed rather than a publisher being made to wait for it.
+**Returns** `?Core\Socket\Message` — The next message, or `null` when the client has closed the connection. A connection script reads in a loop that stops at `null`. `topic()` on the message is `null` for a message from the client, and what the client sent is `tainted`. A connection that falls too far behind its topics is closed, and then this returns `null` too.
 
-**Throws** `LogicError` — This program is not a connection isolate, so there is no peer to wait on.
+**Throws** `LogicError` — The script is not running for a connection, so there is no client to wait for.; `RuntimeError` — The connection broke, or the client sent something the WebSocket protocol does not allow.
 
 <a id="core-core-socket-send"></a>
 #### `Core\Socket->send`
@@ -19366,15 +19366,15 @@ Waits for the next thing from either side — a frame the peer sent, or a value 
 $socket->send(string $frame): void
 ```
 
-Sends one text frame to the peer, suspending until it is buffered.
+Sends one text message to the client, and waits until it is written.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$frame` | `string` (neutral) | The payload, which goes out as RFC 6455's text frame. A `tainted` one is accepted — a frame is not an instruction on this side of the wire — so forwarding what a peer sent needs no laundering that would change none of the bytes. |
+| `$frame` | `string` (neutral) | The text to send. The client receives it as one message. A `tainted` string is allowed, so you can send back what the client sent you. |
 
-**Returns** `void` — Nothing, once the frame is buffered for the peer.
+**Returns** `void` — Nothing.
 
-**Throws** `LogicError` — This program is not a connection isolate, so there is no peer to send to.; `RuntimeError` — The socket failed, or the send wait expired — a peer that has stopped reading is a throw at the call site and never an unbounded wait.
+**Throws** `LogicError` — The script is not running for a connection, so there is no client to send to.; `RuntimeError` — The connection broke, or the client stopped reading and the message could not be written in time. The wait always ends.
 
 <a id="core-core-socket-sendbytes"></a>
 #### `Core\Socket->sendBytes`
@@ -19383,15 +19383,15 @@ Sends one text frame to the peer, suspending until it is buffered.
 $socket->sendBytes(bytes $frame): void
 ```
 
-Sends one binary frame to the peer, suspending until it is buffered — `send`'s twin for the other payload kind RFC 6455 has.
+Sends one binary message to the client, and waits until it is written. `send` is the same method for text.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$frame` | `bytes` (neutral) | The payload, which goes out as a binary frame and is not checked for anything. |
+| `$frame` | `bytes` (neutral) | The bytes to send. They are sent as they are, and nothing checks them. |
 
-**Returns** `void` — Nothing, once the frame is buffered for the peer.
+**Returns** `void` — Nothing.
 
-**Throws** `LogicError` — This program is not a connection isolate, so there is no peer to send to.; `RuntimeError` — The socket failed, or the send wait expired, exactly as for a text frame.
+**Throws** `LogicError` — The script is not running for a connection, so there is no client to send to.; `RuntimeError` — The connection broke, or the client stopped reading and the message could not be written in time, as for `send`.
 
 <a id="core-core-socket-message"></a>
 ### `Core\Socket\Message`

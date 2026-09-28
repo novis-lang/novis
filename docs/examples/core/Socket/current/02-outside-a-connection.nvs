@@ -1,0 +1,11 @@
+<?nvs
+// Shows what `current()` does in a program that is not running for a connection.
+
+// This example has no `.nvsp` file, so it runs as an ordinary command line program.
+// `current()` throws a `LogicError`, and this prints `no connection here`.
+try {
+    Core\Socket $conn = Core\Socket::current();
+    echo "connected\n";
+} catch (LogicError $e) {
+    echo "no connection here\n";
+}

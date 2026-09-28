@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a connection keeps sending after its client stopped reading.
+// Every send after the first should throw an error at once. The script must not wait forever.
+Core\Socket $conn = Core\Socket::current();
+
+// 1. Send one hundred thousand messages and catch every error.
+uint $failed = 0;
+uint $i = 0;
+while ($i < 100000) {
+    try {
+        $conn->send('tick');
+    } catch (RuntimeError $e) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo $failed, " sends failed\n";
+
+// 2. Send an empty message and a message of one million characters.
+try {
+    $conn->send('');
+} catch (RuntimeError $e) {
+    echo "the empty message failed\n";
+}
+try {
+    $conn->send(Core\Str::repeat('x', 1000000));
+} catch (RuntimeError $e) {
+    echo "the long message failed\n";
+}

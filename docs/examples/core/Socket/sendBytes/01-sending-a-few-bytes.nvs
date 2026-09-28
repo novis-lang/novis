@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to send a few bytes to the client as one binary message.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and closes.
+Core\Socket $conn = Core\Socket::current();
+
+// Each `sent bytes:` line in the output is a binary message the client received,
+// written as hexadecimal digits. This prints `sent bytes: 4e 56 53`.
+$conn->sendBytes("NVS" as bytes);

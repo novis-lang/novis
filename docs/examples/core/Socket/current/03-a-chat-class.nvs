@@ -1,0 +1,17 @@
+<?nvs
+// Shows a connection script that hands its connection to a class that runs the chat.
+
+class Chat {
+    public static function run(Core\Socket $conn, string $room): void {
+        $conn->send("you joined " . $room);
+        ?Core\Socket\Message $message = $conn->receive();
+        while ($message != null) {
+            $conn->send($room . ": " . ($message->text() ?? ""));
+            $message = $conn->receive();
+        }
+    }
+}
+
+// The `.nvsp` file beside this example plays a client that sends one line and closes.
+// This prints `sent: you joined lobby` and then `sent: lobby: hi there`.
+Chat::run(Core\Socket::current(), "lobby");

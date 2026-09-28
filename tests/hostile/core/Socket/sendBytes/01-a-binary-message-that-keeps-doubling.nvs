@@ -1,0 +1,24 @@
+<?nvs
+// Attack: a connection sends back the client's binary message, twice as long each time.
+// The client stops reading, so every later send should throw an error at once.
+Core\Socket $conn = Core\Socket::current();
+?Core\Socket\Message $message = $conn->receive();
+tainted bytes $frame = $message?->bytes() ?? ('' as tainted bytes);
+
+// 1. Send an empty message, then the client's 16 bytes, which are not valid text.
+$conn->sendBytes('' as bytes);
+$conn->sendBytes($frame);
+
+// 2. Double the message twenty times and send each one. The last one is 16 MiB.
+uint $failed = 0;
+uint $i = 0;
+while ($i < 20) {
+    $frame = Core\Bytes::repeat($frame, 2);
+    try {
+        $conn->sendBytes($frame);
+    } catch (RuntimeError $e) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo $failed, ' sends failed, the last message had ', Core\Bytes::length($frame), " bytes\n";

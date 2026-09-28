@@ -1,0 +1,3 @@
+# The client sends two chat lines, then closes the connection.
+text: good morning
+text: who is here today?

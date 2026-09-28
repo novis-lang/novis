@@ -1,0 +1,4 @@
+# The client sends text, then four bytes, then text again.
+text: hi
+bytes: de ad be ef
+text: done

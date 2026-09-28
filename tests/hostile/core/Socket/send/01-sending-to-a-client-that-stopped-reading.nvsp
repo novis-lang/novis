@@ -1,0 +1,2 @@
+# The client reads the first message and then stops reading.
+reads: 1

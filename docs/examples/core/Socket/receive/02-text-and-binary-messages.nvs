@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to tell a text message from a binary message.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends a text message, a binary message and another text message.
+Core\Socket $conn = Core\Socket::current();
+
+// A message has either text or bytes. The other method returns `null`.
+// This prints `text: hi`, then `binary: 4 bytes`, then `text: done`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    ?tainted bytes $octets = $message->bytes();
+    if ($octets != null) {
+        echo "binary: ", Core\Bytes::length($octets), " bytes\n";
+    } else {
+        echo "text: ", $message->text() ?? "", "\n";
+    }
+    $message = $conn->receive();
+}

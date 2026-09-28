@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read every message from the client until the client closes the connection.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends three messages and then closes the connection.
+Core\Socket $conn = Core\Socket::current();
+
+// `receive()` returns `null` when the client has closed, so the loop stops there.
+// This prints the three messages, then `3 messages`.
+uint $count = 0;
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    echo "client: ", $message->text() ?? "", "\n";
+    $count = $count + 1;
+    $message = $conn->receive();
+}
+echo $count, " messages\n";

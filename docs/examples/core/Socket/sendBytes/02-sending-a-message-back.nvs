@@ -1,0 +1,19 @@
+<?nvs
+// Shows a connection that sends every message back to the client, binary or text.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends one binary message and one text message, then closes the connection.
+Core\Socket $conn = Core\Socket::current();
+
+// `bytes()` is `null` for a text message, so the check picks the right method.
+// This prints `sent bytes: 89 50 4e 47` and then `sent: ping`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    ?tainted bytes $octets = $message->bytes();
+    if ($octets != null) {
+        $conn->sendBytes($octets);
+    } else {
+        $conn->send($message->text() ?? "");
+    }
+    $message = $conn->receive();
+}

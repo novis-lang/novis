@@ -1,0 +1,2 @@
+# The client sends one line, then closes the connection.
+text: hi there

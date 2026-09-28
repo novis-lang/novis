@@ -194,11 +194,20 @@ use nvs_runtime::{
     Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, ThrownClass, Upgrade, Value, copy_graph,
 };
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// `Core\Socket`'s fully-qualified name, in one place so the row and every
 /// message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Socket";
+
+/// `Core\Socket`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A WebSocket connection from a client to your server. A request calls `upgrade` to \
+            turn itself into a connection that runs a script of its own. That script calls \
+            `current` to get the connection, then `receive` and `send` to talk to the client.",
+};
 
 /// `Core\Socket`'s registry rows — `rule:concurrency/an-upgrade-is-spawn-shaped`'s `upgrade` at the door, and
 /// § 3's three inside. See [`crate::registry::CLASSES`].
@@ -222,7 +231,7 @@ pub(crate) const NAME: &str = r"Core\Socket";
 /// from.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "upgrade",
@@ -357,79 +366,83 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Socket::current`'s reference card — `rule:core-api/reference-card`.
 const CURRENT_DOC: MethodDoc = MethodDoc {
-    short: "This connection, inside the isolate the upgrade opened — the first line of every \
-            script a `Core\\Socket::upgrade` runs.",
+    short: "Returns the WebSocket connection this script is running for. It is the first line of \
+            every script that `Core\\Socket::upgrade` starts.",
     params: &[],
-    ret: "The connection, whose `receive` and `send` are the whole of what a program does with \
-          one. Two calls answer two objects rather than the same one: there is exactly one \
-          connection per isolate, so a handle carries no state and identity has nothing to \
-          distinguish.",
+    ret: "The connection. Call `receive` and `send` on it to talk to the client. Each call \
+          returns a new object for the same connection, so compare what the client sends, not \
+          the objects.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not a connection isolate — an ordinary request, a `spawn script` \
-               child and a command each get this, because none of them was handed a socket.",
+        desc: "The script is not running for a connection. An ordinary request, a `spawn script` \
+               child and a command line program all throw this.",
     }],
 };
 
 /// `Core\Socket::receive`'s reference card — `rule:core-api/reference-card`.
 const RECEIVE_DOC: MethodDoc = MethodDoc {
-    short: "Waits for the next thing from either side — a frame the peer sent, or a value \
-            published to a topic this connection subscribed to — and answers it as one message.",
+    short: "Waits for the next message and returns it. A message comes from the client, or from \
+            a topic this connection subscribed to.",
     params: &[],
-    ret: "The next message, or `null` once the peer has closed, which is what ends the \
-          `while (var $msg = $conn->receive())` loop a connection script is written as. A peer \
-          frame's payload is `tainted`; a delivery carries the published value and the topic's \
-          name, which is how the loop tells the two apart. `null` is also what a connection that \
-          fell too far behind its topics is answered: its queue overflowed, so this connection is \
-          closed rather than a publisher being made to wait for it.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "This program is not a connection isolate, so there is no peer to wait on.",
-    }],
+    ret: "The next message, or `null` when the client has closed the connection. A connection \
+          script reads in a loop that stops at `null`. `topic()` on the message is `null` for a \
+          message from the client, and what the client sent is `tainted`. A connection that \
+          falls too far behind its topics is closed, and then this returns `null` too.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The script is not running for a connection, so there is no client to wait for.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The connection broke, or the client sent something the WebSocket protocol does \
+                   not allow.",
+        },
+    ],
 };
 
 /// `Core\Socket::send`'s reference card — `rule:core-api/reference-card`.
 const SEND_DOC: MethodDoc = MethodDoc {
-    short: "Sends one text frame to the peer, suspending until it is buffered.",
+    short: "Sends one text message to the client, and waits until it is written.",
     params: &[ParamDoc {
         name: "frame",
-        desc: "The payload, which goes out as RFC 6455's text frame. A `tainted` one is accepted \
-               — a frame is not an instruction on this side of the wire — so forwarding what a \
-               peer sent needs no laundering that would change none of the bytes.",
+        desc: "The text to send. The client receives it as one message. A `tainted` string is \
+               allowed, so you can send back what the client sent you.",
         shape: &[],
     }],
-    ret: "Nothing, once the frame is buffered for the peer.",
+    ret: "Nothing.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not a connection isolate, so there is no peer to send to.",
+            desc: "The script is not running for a connection, so there is no client to send to.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The socket failed, or the send wait expired — a peer that has stopped reading \
-                   is a throw at the call site and never an unbounded wait.",
+            desc: "The connection broke, or the client stopped reading and the message could not \
+                   be written in time. The wait always ends.",
         },
     ],
 };
 
 /// `Core\Socket::sendBytes`'s reference card — `rule:core-api/reference-card`.
 const SEND_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "Sends one binary frame to the peer, suspending until it is buffered — `send`'s twin \
-            for the other payload kind RFC 6455 has.",
+    short: "Sends one binary message to the client, and waits until it is written. `send` is the \
+            same method for text.",
     params: &[ParamDoc {
         name: "frame",
-        desc: "The payload, which goes out as a binary frame and is not checked for anything.",
+        desc: "The bytes to send. They are sent as they are, and nothing checks them.",
         shape: &[],
     }],
-    ret: "Nothing, once the frame is buffered for the peer.",
+    ret: "Nothing.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not a connection isolate, so there is no peer to send to.",
+            desc: "The script is not running for a connection, so there is no client to send to.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The socket failed, or the send wait expired, exactly as for a text frame.",
+            desc: "The connection broke, or the client stopped reading and the message could not \
+                   be written in time, as for `send`.",
         },
     ],
 };
@@ -1206,6 +1219,7 @@ mod tests {
     /// The bus is drained first, and the case pins that order: the peer's read
     /// is the operation that blocks, so a delivery behind it would wait for a
     /// frame that may never come.
+    // covers: Core\Socket::receive, Core\Socket::current
     #[test]
     fn receive_answers_a_peer_frame_and_a_topic_delivery_from_one_wait() {
         let peer = Peer::default();
@@ -1258,6 +1272,7 @@ mod tests {
     /// § 3's `null`: an orderly close ends the loop rather than throwing, which
     /// is what makes `while (var $msg = $conn->receive())` the whole of a
     /// connection script's control flow.
+    // covers: Core\Socket::receive
     #[test]
     fn receive_answers_null_when_the_peer_closes() {
         let peer = Peer::default();
@@ -1279,6 +1294,7 @@ mod tests {
     /// wait itself is the framing layer's, so what this crate owes is that the
     /// failure arrives as a *throw* at the call site — catchable, with the
     /// connection still the program's to close — and never as a fatal error.
+    // covers: Core\Socket::send, Core\Socket::sendBytes
     #[test]
     fn send_throws_on_the_send_timeout_rather_than_waiting() {
         let peer = Peer::default();
@@ -1315,9 +1331,41 @@ mod tests {
         dropped(conn);
     }
 
+    /// The two `send` rows are the two payload kinds on the wire: text goes out
+    /// as a text frame and bytes as a binary frame, in the order they were
+    /// sent, and neither is rewritten on the way.
+    // covers: Core\Socket::send, Core\Socket::sendBytes
+    #[test]
+    fn send_writes_a_text_frame_and_send_bytes_a_binary_frame_in_order() {
+        let peer = Peer::default();
+        let mut ctx = connected(&peer);
+
+        let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
+            .expect("a connection isolate answers `current()`");
+        let text = Value::str(NvsStr::new("héllo".as_bytes()));
+        nvs_runtime::call(nvs_core_socket_send, &mut ctx, &[conn, text])
+            .expect("a peer that reads takes a text frame");
+        let octets = Value::bytes(NvsStr::new(&[0x00, 0xff, 0x80]));
+        nvs_runtime::call(nvs_core_socket_send_bytes, &mut ctx, &[conn, octets])
+            .expect("a peer that reads takes a binary frame");
+
+        assert_eq!(
+            peer.0.borrow().sent,
+            [
+                PeerFrame::Text("héllo".to_owned()),
+                PeerFrame::Binary(vec![0x00, 0xff, 0x80]),
+            ],
+            "the frames did not reach the peer as sent"
+        );
+        dropped(text);
+        dropped(octets);
+        dropped(conn);
+    }
+
     /// A socket that failed under a wait is a throw as well, and for the same
     /// reason: § 3 tears a connection down through `rule:errors/escalation-ladder`'s ladder, so the
     /// script gets to see what happened before the isolate ends.
+    // covers: Core\Socket::receive
     #[test]
     fn receive_reports_a_failed_socket_as_a_throw() {
         let peer = Peer::default();
@@ -1344,6 +1392,7 @@ mod tests {
     /// Every § 3 member refuses a context that was handed no socket, and all
     /// three say so the same way — an ordinary request, a `spawn script` child
     /// and a command each reach this, because none of them is a connection.
+    // covers: Core\Socket::current, Core\Socket::receive, Core\Socket::send
     #[test]
     fn the_connection_members_refuse_a_context_with_no_peer() {
         let mut ctx = Ctx::buffered();

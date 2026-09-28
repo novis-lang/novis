@@ -1,0 +1,20 @@
+<?nvs
+// Sends a short binary message to the client, as a connection does for every packed reading it pushes.
+// bench: iterations 5000
+
+class Bench {
+    public static function run(Core\Socket $conn, uint $rounds): uint {
+        array<bytes> $readings = ["\x00\x01" as bytes, "\x00\x02\x00\x15" as bytes, "\x07" as bytes];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            bytes $reading = $readings[$total % 3];
+            $conn->sendBytes($reading);
+            $total = $total + Core\Bytes::length($reading);   // chained: the next reading depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(Core\Socket::current(), 5000), "\n";
