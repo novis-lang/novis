@@ -70,11 +70,12 @@
 // it built that `tools/data/impact-wide.txt` does not list, and on a listed one that is narrow now
 // (`tools/nv/keys/escape.ts`), from the paths its footprint says it asked `nvs_repo` for.
 //
-// Two stretches run at the same time and are still judged in list order. The script steps read nothing
-// `build` writes, so they run beside it. Once every test binary has started and at most half the cores
-// are busy, the steps after `test` start on one lane, one at a time; nothing starts there after a binary
-// has failed, and the lane stops before a failed binary is run again alone. A red `test` drops the
-// lane's verdicts.
+// Two stretches run at the same time and are still judged in list order. The script steps run beside
+// `build`: none needs what it writes, except a few of `selftest`'s bun tests that run the `covws` `nvs`,
+// so in a tree where that binary does not exist yet `selftest` moves to just after `build`. Once every
+// test binary has started and at most half the cores are busy, the steps after `test` start on one
+// lane, one at a time; nothing starts there after a binary has failed, and the lane stops before a
+// failed binary is run again alone. A red `test` drops the lane's verdicts.
 //
 // `-p` narrows which test binaries run, off the one build, and the steps that run `nvs` over the trees
 // do not run; what it leaves out is owed. `cargo doc` with broken intra-doc links denied is `--doc`, run
@@ -129,9 +130,12 @@ const STEP_TIMEOUT_MS = 60 * 60 * 1000;
 
 /** The steps that use what `build` leaves on disk. */
 const NEEDS_BINARY = new Set(["nvs-fmt", "test", "conformance", "differential", "reference", "extension"]);
+/** Whether step `name`, listed after `build`, uses what it leaves on disk: a script step is listed there
+ * only when it does and the binary is not built yet (`stepsFor`). */
+const usesBinary = (name: string) => NEEDS_BINARY.has(name) || BESIDE_BUILD.has(name);
 /** The steps that rewrite source, after which the change is read again. */
 const WRITES = new Set(["fmt", "nvs-fmt"]);
-/** The script steps, which run at the same time as `build`. */
+/** The script steps, which run at the same time as `build` when they are listed before it. */
 const BESIDE_BUILD = new Set(["lints", "directives", "template", "owners", "nv", "fuzz-lock"]);
 const NVS_FMT_TREES = ["tests", "examples"];
 const NVS_FMT_SKIPS = "tests/fmt/input/";
@@ -846,11 +850,14 @@ function docStep(r: () => Run): Step {
   });
 }
 
-function stepsFor(opts: Opts, r: () => Run): Step[] {
+/** `built` says whether the `covws` build's `nvs` is on disk; `stepNames` passes it so its answer does not
+ * depend on the tree it runs in. */
+function stepsFor(opts: Opts, r: () => Run, built = existsSync(covwsNvs())): Step[] {
   if (opts.doc) return [docStep(r)];
   const { env: covEnv, args: target } = covwsCargo();
   const nvs = covwsNvs();
   const steps: Step[] = [];
+  let selftest: Step | null = null;
   if (!opts.fast) {
     // `-l` names each file rustfmt rewrote, which the summary quotes.
     steps.push(step("fmt", ["fmt", "--all", "--", "-l"], summaries.fmt!, { atom: "step:fmt", footprint: fmtKeys }));
@@ -861,8 +868,11 @@ function stepsFor(opts: Opts, r: () => Run): Step[] {
     steps.push(bunStep(r, "template", ["nv", "directives", "--check-template"]));
     steps.push(bunStep(r, "owners", ["nv", "owners", "--check"]));
     if (existsSync(join(ROOT, "package.json"))) {
-      // `tsc` over every module under `tools/nv`, then each selected `bun test` file on its own.
-      steps.push(step("nv", ["nv", "selftest"], summaries.nv!, { exe: "bun", runner: (s) => runSelftest(r(), s) }));
+      // `tsc` over every module under `tools/nv`, then each selected `bun test` file on its own. Some of
+      // those files run the `covws` `nvs`, so in a tree that has never built it the step runs after
+      // `build` rather than beside it.
+      selftest = step("nv", ["nv", "selftest"], summaries.nv!, { exe: "bun", runner: (s) => runSelftest(r(), s) });
+      if (built) steps.push(selftest);
     }
     if (existsSync(join(FUZZ, "Cargo.toml"))) {
       steps.push(
@@ -881,6 +891,7 @@ function stepsFor(opts: Opts, r: () => Run): Step[] {
   }
   // Bare, whatever `-p` says: a `-p` build writes a second copy of every workspace crate.
   steps.push(step("build", ["build", ...target], summaries.build!, { env: covEnv, atom: "step:build", footprint: async () => buildKeys(r().graph) }));
+  if (selftest !== null && !built) steps.push(selftest);
   // Whole-workspace runs only from here on for the steps that run `nvs`: a scoped build leaves no
   // binary the tree can trust.
   if (!opts.fast && !opts.package) {
@@ -1081,7 +1092,7 @@ async function walk(r: Run): Promise<number> {
   const needed = (i: number, s: Step): boolean => {
     let run = wanted(r, s);
     // `build` also runs for any later step that uses what it leaves on disk.
-    if (!run && s.name === "build") run = steps.slice(i + 1).some((t) => NEEDS_BINARY.has(t.name) && wanted(r, t));
+    if (!run && s.name === "build") run = steps.slice(i + 1).some((t) => usesBinary(t.name) && wanted(r, t));
     if (!run) unchanged.set(s.name, s.name === "nvs-fmt" ? "nothing new to format" : (store.verdict(lastSlot(s.name))?.verdict ?? "the change reaches nothing it reads"));
     else unchanged.delete(s.name);
     return run;
@@ -1257,8 +1268,8 @@ async function walk(r: Run): Promise<number> {
 }
 
 /** The steps an unnarrowed run walks, in order. */
-export function stepNames(): string[] {
-  return stepsFor({ fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false }, noRun).map((s) => s.name);
+export function stepNames(built = true): string[] {
+  return stepsFor({ fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false }, noRun, built).map((s) => s.name);
 }
 
 /** What an unnarrowed `bun nv verify` would run over the tree as it stands: each step it would start,
@@ -1272,7 +1283,8 @@ export async function verifyPlan(graph: Graph | null): Promise<{ steps: string[]
     const steps = stepsFor(opts, () => r);
     for (const s of steps) if (s.name === "nvs-fmt") [s.todo, s.changed] = await unformatted(store);
     const run = steps.filter((s) => wanted(r, s)).map((s) => s.name);
-    if (!run.includes("build") && steps.some((s) => NEEDS_BINARY.has(s.name) && run.includes(s.name))) run.push("build");
+    const after = steps.slice(steps.findIndex((s) => s.name === "build") + 1);
+    if (!run.includes("build") && after.some((s) => usesBinary(s.name) && run.includes(s.name))) run.push("build");
     const order = steps.map((s) => s.name).filter((n) => run.includes(n));
     return { steps: order, tests: testsToRun(r), cases: Object.fromEntries(CASE_TREES.map((t) => [t, casesToRun(r, t)])), change: got.change, sel: got.sel };
   } finally {
