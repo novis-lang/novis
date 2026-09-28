@@ -150,9 +150,10 @@ What coverage cannot see is closed over the reference graph `tools/nv-scan --ite
 static, a type or a table moves every item whose name Rust can resolve to it, which in another package
 takes an import or a qualified path and in shipped code no dev-dependency, a `macro_rules!` every item
 that invokes it,
-a class table's changed row that row's class, and a card only what prints it. A doc-comment edit moves
-nothing. **Anything that cannot be attributed widens**: an unparseable file, an unmapped function or an
-unreadable record selects more, never less.
+a class table's changed row that row's class, and a card only what prints it. A row, a class or a `use`
+whose only change is its link to a card or its import of a card type moves only what prints that card.
+A doc-comment edit moves nothing. **Anything that cannot be attributed widens**: an unparseable file, an
+unmapped function or an unreadable record selects more, never less.
 
 The pipeline's one debug build is `covws` (`target/covws`, built by `tools/nv/lib/covws.ts` through
 `tools/covwrap`), which instruments the workspace's own crates and nothing else. Every debug `nvs` and
