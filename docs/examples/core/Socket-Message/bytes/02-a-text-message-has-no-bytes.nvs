@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `bytes()` returns `null` for a text message.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends a binary message, then a text message.
+Core\Socket $conn = Core\Socket::current();
+
+// This prints `binary: 2 bytes`, then `no bytes: this is a text message`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    ?tainted bytes $data = $message->bytes();
+    if ($data == null) {
+        echo "no bytes: this is a text message\n";
+    } else {
+        echo "binary: ", Core\Bytes::length($data), " bytes\n";
+    }
+    $message = $conn->receive();
+}

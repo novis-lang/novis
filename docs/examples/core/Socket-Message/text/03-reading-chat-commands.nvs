@@ -1,0 +1,26 @@
+<?nvs
+// Shows a chat connection that reads commands from the text the client sends.
+
+// The `.nvsp` file beside this example plays the client.
+// It picks a name, sends a chat line, and then types `/quit`.
+Core\Socket $conn = Core\Socket::current();
+tainted string $name = "guest";
+
+// A text that starts with `/` is a command. Any other text is a chat line.
+// Each `sent:` line in the output is a message the client received.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    tainted string $text = Core\Str::trim($message->text() ?? "");
+    if ($text == "/quit") {
+        $conn->send("goodbye, " . $name);
+        break;
+    }
+    if (Core\Str::startsWith($text, "/name ")) {
+        // The new name is everything after the first 6 characters, `/name `.
+        $name = Core\Str::slice($text, 6);
+        $conn->send("you are now " . $name);
+    } else {
+        $conn->send($name . ": " . $text);
+    }
+    $message = $conn->receive();
+}

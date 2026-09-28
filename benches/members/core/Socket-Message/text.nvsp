@@ -1,0 +1,4 @@
+# The client sends two text messages and one binary message, then closes.
+text: hello
+bytes: 01 02
+text: good night

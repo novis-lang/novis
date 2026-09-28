@@ -1,0 +1,2 @@
+# The client sends five bytes, then closes the connection.
+bytes: 48 65 6c 6c 6f

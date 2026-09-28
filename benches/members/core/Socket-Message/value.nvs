@@ -1,0 +1,28 @@
+<?nvs
+// Reads the value published to a topic, as a connection does for every update it forwards to its client.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(Core\Socket $conn, uint $rounds): uint {
+        Core\Topic::subscribe("prices");
+        Core\Topic::publish("prices", 1);
+        Core\Topic::publish("prices", 2);
+        Core\Topic::publish("prices", 3);
+        array<Core\Socket\Message> $messages = [];
+        ?Core\Socket\Message $message = $conn->receive();
+        while ($message != null) {
+            $messages[] = $message;
+            $message = $conn->receive();
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $price = $messages[$total % 3]->value() as uint;
+            $total = $total + $price;   // chained: the next message depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(Core\Socket::current(), 200000), "\n";

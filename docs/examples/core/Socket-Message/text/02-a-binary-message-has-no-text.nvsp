@@ -1,0 +1,3 @@
+# The client sends a text message, then three bytes.
+text: ping
+bytes: 01 02 03

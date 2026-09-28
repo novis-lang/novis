@@ -1,0 +1,26 @@
+<?nvs
+// Shows a connection that receives a PDF file from the client in several binary messages.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends a file in three pieces and then closes the connection.
+Core\Socket $conn = Core\Socket::current();
+
+// This adds up the size of every piece and sends the total to the client.
+// This prints `sent: received 3 pieces, 16 bytes`.
+uint $pieces = 0;
+uint $size = 0;
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    tainted bytes $piece = $message->bytes() ?? "" as bytes;
+    // A PDF file starts with the four bytes `%PDF`. The first piece must start with them.
+    if ($pieces == 0 && !Core\Bytes::startsWith($piece, "%PDF" as bytes)) {
+        $conn->send("this is not a PDF file");
+        break;
+    }
+    $pieces = $pieces + 1;
+    $size = $size + Core\Bytes::length($piece);
+    $message = $conn->receive();
+}
+if ($pieces > 0) {
+    $conn->send("received " . $pieces . " pieces, " . $size . " bytes");
+}

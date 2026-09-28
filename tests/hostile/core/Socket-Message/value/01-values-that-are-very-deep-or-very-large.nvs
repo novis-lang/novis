@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a script publishes values that are very deep or very large, and reads them back with `value()`.
+// Each step should give the value back or throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe('attack');
+
+// 1. A list nested 5000 levels deep is published and read back.
+try {
+    mixed $deep = [];
+    int $level = 0;
+    while ($level < 5000) {
+        $deep = [$deep];
+        $level = $level + 1;
+    }
+    Core\Topic::publish('attack', $deep);
+    ?Core\Socket\Message $message = $conn->receive();
+    echo 'deep: ', $message?->value() == null ? 'no value' : 'read', "\n";
+} catch (Throwable $error) {
+    echo 'deep: ', $error->message, "\n";
+}
+
+// 2. A list of 20000 long strings is published, and its value is read 100000 times.
+try {
+    array<string> $rows = [];
+    int $i = 0;
+    while ($i < 20000) {
+        $rows[] = 'order 1042, customer 77, shipping address line one, line two ' . $i;
+        $i = $i + 1;
+    }
+    Core\Topic::publish('attack', $rows);
+    ?Core\Socket\Message $large = $conn->receive();
+    uint $reads = 0;
+    while ($reads < 100000 && $large?->value() != null) {
+        $reads = $reads + 1;
+    }
+    echo 'large: read ', $reads, " times\n";
+} catch (Throwable $error) {
+    echo 'large: ', $error->message, "\n";
+}
+
+// 3. A value is published 5000 times before any is read. The connection falls too far
+// behind, so it should be closed, and `receive()` should return `null`.
+try {
+    int $n = 0;
+    while ($n < 5000) {
+        Core\Topic::publish('attack', ['count' => $n]);
+        $n = $n + 1;
+    }
+    uint $received = 0;
+    ?Core\Socket\Message $next = $conn->receive();
+    while ($next != null) {
+        $received = $received + 1;
+        $next = $conn->receive();
+    }
+    echo 'many: received ', $received, "\n";
+} catch (Throwable $error) {
+    echo 'many: ', $error->message, "\n";
+}

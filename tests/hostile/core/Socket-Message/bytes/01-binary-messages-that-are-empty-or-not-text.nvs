@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a client sends binary messages that are empty, or that are not valid text.
+// The program reads them in unusual ways. Each step should give the right answer or throw an error.
+Core\Socket $conn = Core\Socket::current();
+
+// 1. An empty binary message. `bytes()` should return empty `bytes`, not `null`.
+?Core\Socket\Message $empty = $conn->receive();
+?tainted bytes $nothing = $empty?->bytes();
+if ($nothing == null) {
+    echo "empty: null\n";
+} else {
+    echo 'empty: ', Core\Bytes::length($nothing), " bytes\n";
+}
+
+// 2. A message with every byte from 00 to ff. Search it from a position far past its end.
+?Core\Socket\Message $every = $conn->receive();
+tainted bytes $data = $every?->bytes() ?? '' as bytes;
+echo 'every byte: ', Core\Bytes::length($data), " bytes\n";
+try {
+    ?uint $found = Core\Bytes::indexOf($data, "\x00" as bytes, { from: 1000000 });
+    echo 'far past the end: ', $found == null ? 'not found' : 'found', "\n";
+} catch (Throwable $error) {
+    echo 'far past the end: ', $error->message, "\n";
+}
+
+// 3. Compare the empty message with the full one, and look for a prefix longer than the data.
+echo 'compare: ', Core\Bytes::compare($nothing ?? '' as bytes, $data), "\n";
+echo 'long prefix: ', Core\Bytes::startsWith($nothing ?? '' as bytes, $data) ? 'yes' : 'no', "\n";
+
+// 4. Read `bytes()` of the same message 100000 times after the client has closed the connection.
+?Core\Socket\Message $after = $conn->receive();
+echo $after == null ? "the client closed\n" : "still open\n";
+array<tainted bytes> $copies = [];
+uint $i = 0;
+while ($i < 100000) {
+    $copies[] = $every?->bytes() ?? '' as bytes;
+    $i = $i + 1;
+}
+echo 'kept ', $i, " copies\n";

@@ -1,0 +1,4 @@
+# The client sends a small PDF file in three pieces, then closes the connection.
+bytes: 25 50 44 46 2d 31 2e 37
+bytes: 0a 25 e2 e3
+bytes: cf d3 0a 0a

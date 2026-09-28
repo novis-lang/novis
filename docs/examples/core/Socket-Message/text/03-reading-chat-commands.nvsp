@@ -1,0 +1,4 @@
+# The client picks a name, says hello, and leaves.
+text: /name Ana
+text: hello everyone
+text: /quit

@@ -1,0 +1,28 @@
+<?nvs
+// Reads the data of a binary message, as a connection does for every reading a device sends.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(Core\Socket $conn, uint $rounds): uint {
+        array<Core\Socket\Message> $messages = [];
+        ?Core\Socket\Message $message = $conn->receive();
+        while ($message != null) {
+            $messages[] = $message;
+            $message = $conn->receive();
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the next message depends on this one
+            if ($messages[$total % 3]->bytes() == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(Core\Socket::current(), 200000), "\n";

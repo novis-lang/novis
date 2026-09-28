@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to tell a message from the client from a message from a topic.
+
+// The `.nvsp` file beside this example plays a client that sends one text message.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("news");
+Core\Topic::publish("news", "the shop opens at nine");
+
+// `topic()` returns the name of the topic, or `null` for a message from the client.
+// This prints `from news`, then `from the client`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    echo "from ", $message->topic() ?? "the client", "\n";
+    $message = $conn->receive();
+}

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a value that was published to a topic.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and closes.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("prices");
+
+// In a real application, another script publishes the price.
+// Here the same script publishes it, so the example runs alone.
+Core\Topic::publish("prices", 42);
+
+// `value()` returns the published value. This prints `prices: 42`.
+?Core\Socket\Message $message = $conn->receive();
+if ($message != null) {
+    int $price = $message->value() as int;
+    echo $message->topic() ?? "", ": ", $price, "\n";
+}

@@ -488,7 +488,7 @@ const MESSAGE_VALUE: usize = 3;
 /// already had and this row may not add one.
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
-    doc: None,
+    doc: Some(&MESSAGE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -538,42 +538,46 @@ const MESSAGE_TEXT_SYMBOL: &str = "nvs_core_socket_message_text";
 const MESSAGE_BYTES_SYMBOL: &str = "nvs_core_socket_message_bytes";
 const MESSAGE_VALUE_SYMBOL: &str = "nvs_core_socket_message_value";
 
+/// `Core\Socket\Message`'s class card — `rule:core-api/reference-card`.
+const MESSAGE_CARD: ClassDoc = ClassDoc {
+    short: "One message on a WebSocket connection, as `Core\\Socket::receive` returns it. A \
+            message from the client has `text` or `bytes`. A message from a topic has a `topic` \
+            and a `value`.",
+};
+
 /// `Core\Socket\Message::topic`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_TOPIC_DOC: MethodDoc = MethodDoc {
-    short: "The topic this value was published to, and the one question that tells a bus \
-            delivery from a frame the peer sent.",
+    short: "Returns the name of the topic the message was published to.",
     params: &[],
-    ret: "The topic's name for a delivery, `null` for a peer frame. It is the name this \
-          connection subscribed under and not anything the peer chose, so it is not `tainted`.",
+    ret: "The topic name for a message from a topic. It is `null` for a message from the \
+          client. The name is not `tainted`, because your program chose it when it subscribed.",
     errors: &[],
 };
 
 /// `Core\Socket\Message::text`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_TEXT_DOC: MethodDoc = MethodDoc {
-    short: "A text frame's payload, as the peer sent it.",
+    short: "Returns the text of a text message from the client.",
     params: &[],
-    ret: "The payload, `tainted` because it is untrusted input arriving over a network exactly \
-          as a request body is — `Core\\Validate` is the only way to launder it. `null` for a \
-          binary frame and for a bus delivery, which carry `bytes` and `value` instead.",
+    ret: "The text, exactly as the client sent it. It is `tainted`, because it comes from the \
+          client. It is `null` for a binary message and for a message from a topic.",
     errors: &[],
 };
 
 /// `Core\Socket\Message::bytes`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "A binary frame's payload, unchecked bytes as the peer sent them.",
+    short: "Returns the bytes of a binary message from the client.",
     params: &[],
-    ret: "The payload, `tainted` for `text`'s reason. `null` for a text frame and for a bus \
-          delivery.",
+    ret: "The bytes, exactly as the client sent them. They are `tainted`, because they come \
+          from the client. It is `null` for a text message and for a message from a topic.",
     errors: &[],
 };
 
 /// `Core\Socket\Message::value`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_VALUE_DOC: MethodDoc = MethodDoc {
-    short: "What a publisher put on the topic, copied across the isolate boundary the way every \
-            other value crosses one.",
+    short: "Returns the value that was published to the topic.",
     params: &[],
-    ret: "The published value for a delivery, `null` for a peer frame. It is a copy and never a \
-          shared reference, so writing to it changes nothing the publisher can see.",
+    ret: "A copy of the published value. Changing the copy does not change the value the \
+          publisher has. It is `null` for a message from the client.",
     errors: &[],
 };
 
@@ -1219,7 +1223,8 @@ mod tests {
     /// The bus is drained first, and the case pins that order: the peer's read
     /// is the operation that blocks, so a delivery behind it would wait for a
     /// frame that may never come.
-    // covers: Core\Socket::receive, Core\Socket::current
+    // covers: Core\Socket::receive, Core\Socket::current, Core\Socket\Message::topic
+    // covers: Core\Socket\Message::text, Core\Socket\Message::bytes, Core\Socket\Message::value
     #[test]
     fn receive_answers_a_peer_frame_and_a_topic_delivery_from_one_wait() {
         let peer = Peer::default();
@@ -1264,6 +1269,88 @@ mod tests {
 
         for value in [
             topic, carried, text, no_topic, no_bytes, delivery, frame, conn,
+        ] {
+            dropped(value);
+        }
+    }
+
+    /// A binary frame fills `bytes` alone, and a delivery leaves both payload
+    /// readers `null`: each reader answers `null` for the kind a message is
+    /// not, which is what lets a loop test one reader and fall through to the
+    /// next. The test above pins the other half, a text frame's `text`.
+    // covers: Core\Socket\Message::text, Core\Socket\Message::bytes, Core\Socket\Message::value
+    // covers: Core\Socket\Message::topic
+    #[test]
+    fn each_message_reader_answers_null_for_the_kind_a_message_is_not() {
+        let peer = Peer::default();
+        peer.0
+            .borrow_mut()
+            .incoming
+            .push_back(Ok(Some(PeerFrame::Binary(vec![0xde, 0xad]))));
+        let mut ctx = connected(&peer);
+        assert!(
+            ctx.deliver(Delivery::new("prices", Value::int(3)))
+                .is_none(),
+            "an empty queue takes the first delivery"
+        );
+        let null_tag = Value::null().tag_byte();
+
+        let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
+            .expect("a connection isolate answers `current()`");
+
+        let delivery = receive_on(&mut ctx, conn);
+        let delivered_text = nvs_runtime::call(nvs_core_socket_message_text, &mut ctx, &[delivery])
+            .expect("a delivery answers `text`");
+        assert_eq!(
+            delivered_text.tag_byte(),
+            null_tag,
+            "a delivery carried text"
+        );
+        let delivered_bytes =
+            nvs_runtime::call(nvs_core_socket_message_bytes, &mut ctx, &[delivery])
+                .expect("a delivery answers `bytes`");
+        assert_eq!(
+            delivered_bytes.tag_byte(),
+            null_tag,
+            "a delivery carried bytes"
+        );
+
+        let frame = receive_on(&mut ctx, conn);
+        let octets = nvs_runtime::call(nvs_core_socket_message_bytes, &mut ctx, &[frame])
+            .expect("a binary frame carries its payload");
+        assert_eq!(octets.as_bytes(), Some(&[0xde_u8, 0xad][..]));
+        let no_text = nvs_runtime::call(nvs_core_socket_message_text, &mut ctx, &[frame])
+            .expect("a binary frame answers `text`");
+        assert_eq!(
+            no_text.tag_byte(),
+            null_tag,
+            "a binary frame answered as text"
+        );
+        let no_value = nvs_runtime::call(nvs_core_socket_message_value, &mut ctx, &[frame])
+            .expect("a peer frame answers `value`");
+        assert_eq!(
+            no_value.tag_byte(),
+            null_tag,
+            "a peer frame carried a value"
+        );
+        let no_topic = nvs_runtime::call(nvs_core_socket_message_topic, &mut ctx, &[frame])
+            .expect("a binary frame answers `topic`");
+        assert_eq!(
+            no_topic.tag_byte(),
+            null_tag,
+            "a binary frame was reported as a delivery"
+        );
+
+        for value in [
+            delivered_text,
+            delivered_bytes,
+            octets,
+            no_text,
+            no_value,
+            no_topic,
+            delivery,
+            frame,
+            conn,
         ] {
             dropped(value);
         }
