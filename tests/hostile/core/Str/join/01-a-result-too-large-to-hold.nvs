@@ -1,0 +1,65 @@
+<?nvs
+// Attack: `Core\Str::join` gets very long lists, a very long separator, and a result far larger than the memory limit.
+// The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Joins two million one-character strings with a comma.
+    public static function manyTinyParts(uint $count): uint
+    {
+        array<string> $parts = [];
+        uint $i = 0;
+        while ($i < $count) {
+            $parts[] = 'é';
+            $i = $i + 1;
+        }
+        return Core\Str::length(Core\Str::join($parts, ','));
+    }
+
+    /// 2. Joins a thousand empty strings with a separator of fifty thousand characters.
+    public static function aLongSeparator(uint $count): uint
+    {
+        string $separator = Core\Str::repeat('-', 50000);
+        array<string> $parts = [];
+        uint $i = 0;
+        while ($i < $count) {
+            $parts[] = '';
+            $i = $i + 1;
+        }
+        return Core\Str::length(Core\Str::join($parts, $separator));
+    }
+
+    /// 3. Joins a short list one million times and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        array<string> $parts = ['2026', '09', '28'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::join($parts, '-'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 4. Joins ten thousand copies of one string of one million characters.
+    /// The result would need ten gigabytes, so the memory limit stops the program here.
+    public static function aResultTooLarge(uint $count): uint
+    {
+        string $large = Core\Str::repeat('x', 1000000);
+        array<string> $parts = [];
+        uint $i = 0;
+        while ($i < $count) {
+            $parts[] = $large;
+            $i = $i + 1;
+        }
+        return Core\Str::length(Core\Str::join($parts));
+    }
+}
+
+echo Attack::manyTinyParts(2000000), "\n";
+echo Attack::aLongSeparator(1000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::aResultTooLarge(10000), "\n";

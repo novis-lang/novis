@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to join pieces with nothing between them.
+
+// Without a separator, the pieces are joined directly.
+// This prints `report-20260928.csv`.
+array<string> $date = ["2026", "09", "28"];
+echo "report-", Core\Str::join($date), ".csv\n";
+
+// An empty list gives the empty string `""`.
+// This prints `[]`.
+array<string> $nothing = [];
+echo "[", Core\Str::join($nothing), "]\n";
+
+// An empty string in the list still gets a separator on each side.
+// This prints `a,,b`.
+array<string> $gap = ["a", "", "b"];
+echo Core\Str::join($gap, ","), "\n";
