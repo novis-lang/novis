@@ -1,0 +1,69 @@
+<?nvs
+// Attack: `Core\Str::fromCodePoint` is called with every code point, every reserved number and numbers far past the largest code point.
+// Each call should return a string or throw a `RuntimeError`, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Builds every code point from 0 to 0x10FFFF and adds up the bytes of the results.
+    public static function everyCodePoint(): uint
+    {
+        uint $total = 0;
+        uint $point = 0;
+        while ($point <= 0x10FFFF) {
+            if ($point < 0xD800 || $point > 0xDFFF) {
+                $total = $total + Core\Bytes::length(Core\Str::fromCodePoint($point) as bytes);
+            }
+            $point = $point + 1;
+        }
+        return $total;
+    }
+
+    /// 2. Tries every reserved number from 0xD800 to 0xDFFF, and counts the errors.
+    public static function everyReservedNumber(): uint
+    {
+        uint $errors = 0;
+        uint $point = 0xD800;
+        while ($point <= 0xDFFF) {
+            try {
+                Core\Str::fromCodePoint($point);
+            } catch (RuntimeError $error) {
+                $errors = $errors + 1;
+            }
+            $point = $point + 1;
+        }
+        return $errors;
+    }
+
+    /// 3. Tries one past the largest code point, a number that needs 32 bits, and the largest `uint`.
+    public static function pastTheEnd(): uint
+    {
+        array<uint> $numbers = [0x110000, 0xFFFFFFFF, 0x100000000, 18446744073709551615];
+        uint $errors = 0;
+        foreach ($numbers as uint $number) {
+            try {
+                Core\Str::fromCodePoint($number);
+            } catch (RuntimeError $error) {
+                $errors = $errors + 1;
+            }
+        }
+        return $errors;
+    }
+
+    /// 4. Joins one million symbols into one long string.
+    public static function oneLongString(uint $count): uint
+    {
+        array<string> $parts = [];
+        uint $i = 0;
+        while ($i < $count) {
+            $parts[] = Core\Str::fromCodePoint(0x1F600 + $i % 80);
+            $i = $i + 1;
+        }
+        return Core\Str::length(Core\Str::join($parts, ''));
+    }
+}
+
+echo Attack::everyCodePoint(), "\n";
+echo Attack::everyReservedNumber(), "\n";
+echo Attack::pastTheEnd(), "\n";
+echo Attack::oneLongString(1000000), "\n";

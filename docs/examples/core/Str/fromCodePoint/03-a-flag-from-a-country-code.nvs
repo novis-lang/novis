@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to turn a two-letter country code into its flag, for example in a list of shipping countries.
+
+// A flag is two special letters. The special "A" is code point 0x1F1E6, and "B" is the next number.
+// "A" is 65, so each letter of the code moves by the same distance.
+class Country {
+    public static function flag(string $code): string {
+        string $result = "";
+        foreach (Core\Str::codePoints($code) as uint $letter) {
+            $result = $result . Core\Str::fromCodePoint(0x1F1E6 + $letter - 65);
+        }
+        return $result;
+    }
+}
+
+// This prints `DE 🇩🇪`, `FR 🇫🇷` and `JP 🇯🇵`.
+array<string> $countries = ["DE", "FR", "JP"];
+foreach ($countries as string $code) {
+    echo $code, " ", Country::flag($code), "\n";
+}

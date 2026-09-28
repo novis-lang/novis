@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to build a symbol from its Unicode number.
+
+// This prints `H`, `é`, `€` and `😀`, one on each line.
+array<uint> $numbers = [72, 233, 8364, 0x1F600];
+foreach ($numbers as uint $number) {
+    echo Core\Str::fromCodePoint($number), "\n";
+}
