@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the fields of one line of a log file.
+
+string $line = "2026-09-28 14:03:11 ERROR Payment failed: card expired";
+
+// The first three fields have no spaces, but the message has.
+// `limit: 4` gives four parts, so the last part is the whole message.
+array<string> $fields = Core\Str::split($line, " ", {limit: 4});
+
+// This prints the level "ERROR" and then the message.
+echo "Level: ", $fields[2], "\n";
+echo "Message: ", $fields[3], "\n";

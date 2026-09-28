@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to remove the extension from a file name with a negative limit.
+
+array<string> $files = ["report.pdf", "backup.2026.tar", "README"];
+
+foreach ($files as string $file) {
+    // `limit: -1` deletes the last part, which is the extension.
+    array<string> $parts = Core\Str::split($file, ".", {limit: -1});
+    // `Core\Str::join` puts the other parts back together. This prints "report" and "backup.2026".
+    // "README" has only one part, so no part is left and this prints an empty line.
+    echo Core\Str::join($parts, "."), "\n";
+}

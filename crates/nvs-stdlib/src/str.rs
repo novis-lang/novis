@@ -958,7 +958,8 @@ const JOIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::split`'s reference card — `rule:core-api/reference-card`.
 const SPLIT_DOC: MethodDoc = MethodDoc {
-    short: "Splits `$s` at every occurrence of `$separator`, as `explode` does.",
+    short: "Splits `$s` into parts at every place where `$separator` is found. Replaces PHP's \
+            `explode`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -967,19 +968,20 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "separator",
-            desc: "The text to split at, matched case-sensitively; never empty.",
+            desc: "The text to split at. Upper and lower case are different. It must not be \
+                   empty.",
             shape: &[],
         },
         ParamDoc {
             name: "limit",
-            desc: "At most this many pieces when positive, the last holding the unsplit \
-                   remainder; every piece but the last `-limit` of them when negative; the \
-                   subject unsplit when `0`. The default is no limit.",
+            desc: "A positive limit gives at most that many parts. The last part contains the \
+                   rest of the string. A negative limit deletes that many parts from the end. \
+                   `0` gives the whole string as one part. The default is no limit.",
             shape: &[],
         },
     ],
-    ret: "The pieces in order, without the separator; `[\"\"]` for the empty string, and `[]` \
-          when a negative limit drops every piece.",
+    ret: "The parts in order, without the separator. The empty string gives `[\"\"]`. A \
+          negative limit that deletes every part gives `[]`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$separator` is empty.",
@@ -2056,17 +2058,35 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
+        // **The list is paid for before it is built**, as in [`lines_array`]:
+        // the pieces are counted first, and the whole entry storage goes
+        // through `nvs_runtime::affordable` and [`NvsArray::try_reserve`]. A
+        // subject of separators alone costs sixteen times its own length in
+        // entries, and an append asks no budget. Counting only reads the
+        // subject, and it keeps no list of pieces aside, so a negative limit
+        // walks the pieces a second time instead of collecting them.
+        // `split` yields one piece more than `matches` finds, since both search
+        // the same way, and a limit of `0` means one piece — see the docs above.
+        let found = subject.matches(separator).count() + 1;
+        let count = if limit >= 0 {
+            found.min(usize::try_from(limit).unwrap_or(usize::MAX).max(1))
+        } else {
+            found.saturating_sub(usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX))
+        };
+        let member = r"Core\Str::split";
+        nvs_runtime::affordable(count.checked_mul(std::mem::size_of::<Value>()), member)?;
         let mut out = NvsArray::new();
+        if !out.try_reserve(count) {
+            return Err(Fault::thrown(format!(
+                "{member}: the result is larger than any array this process could hold"
+            )));
+        }
         if limit >= 0 {
-            // A limit of `0` means one piece, not none — see the docs above.
-            let pieces = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
-            for piece in subject.splitn(pieces, separator) {
+            for piece in subject.splitn(count, separator) {
                 out.append(Value::str(NvsStr::new(piece.as_bytes())));
             }
         } else {
-            let dropped = usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX);
-            let all: Vec<&str> = subject.split(separator).collect();
-            for piece in all.get(..all.len().saturating_sub(dropped)).unwrap_or(&[]) {
+            for piece in subject.split(separator).take(count) {
                 out.append(Value::str(NvsStr::new(piece.as_bytes())));
             }
         }
@@ -4312,6 +4332,107 @@ mod tests {
         assert_eq!(reversed("x\r\ny"), "y\r\nx");
         for subject in ["plain", "naïve café", "👨‍👩‍👧 and 🇫🇷"] {
             assert_eq!(reversed(&reversed(subject)), subject);
+        }
+    }
+
+    /// `split` keeps all three of `explode`'s limits: a positive one leaves the
+    /// remainder in the last piece, zero is one piece, and a negative one drops
+    /// that many from the end, down to none. Every negative limit agrees with
+    /// the unlimited split cut short, and an empty separator throws.
+    // covers: Core\Str::split
+    #[test]
+    fn split_keeps_explodes_three_limits() {
+        let split = |subject: &str, separator: &str, limit: i64| -> Vec<String> {
+            let result = run(
+                super::nvs_core_str_split,
+                &[s(subject), s(separator), Value::int(limit)],
+            )
+            .expect("split answers an array");
+            #[expect(
+                unsafe_code,
+                reason = "the helper returned one fresh reference, which the \
+                          handle takes over and releases on drop"
+            )]
+            let array =
+                unsafe { NvsArray::from_raw(result.array_ptr().expect("split returns an array")) };
+            let mut out = Vec::new();
+            let mut from = 0usize;
+            while let Some(slot) = array.next_slot(from) {
+                let piece = array.value_at(slot).expect("a live slot holds a value");
+                out.push(
+                    String::from_utf8(
+                        piece
+                            .as_str_bytes()
+                            .expect("every piece is a string")
+                            .to_vec(),
+                    )
+                    .expect("every piece is UTF-8"),
+                );
+                from = slot + 1;
+            }
+            out
+        };
+        let all = i64::MAX;
+        assert_eq!(split("a,b,,c", ",", all), ["a", "b", "", "c"]);
+        assert_eq!(split("", ",", all), [""]);
+        assert_eq!(split(",", ",", all), ["", ""]);
+        assert_eq!(split("a::b::c", "::", all), ["a", "b", "c"]);
+        assert_eq!(split("aXbxc", "x", all), ["aXb", "c"]);
+        assert_eq!(split("a,b,c", ",", 2), ["a", "b,c"]);
+        assert_eq!(split("a,b,c", ",", 1), ["a,b,c"]);
+        assert_eq!(split("a,b,c", ",", 0), ["a,b,c"]);
+        assert_eq!(split("a,b,c", ",", -1), ["a", "b"]);
+        assert_eq!(split("a,b,c", ",", -3), Vec::<String>::new());
+        assert_eq!(split("a,b,c", ",", i64::MIN), Vec::<String>::new());
+        // Overlapping separators are found left to right, the way `matches` counts them.
+        assert_eq!(split("aaaaa", "aa", all), ["", "", "a"]);
+        assert_eq!(split("aaaaa", "aa", -1), ["", ""]);
+
+        for subject in ["", "one", "a,b", ",a,,b,", "é,👍🏽,,🇩🇪"] {
+            let whole = split(subject, ",", all);
+            for dropped in 1..=6_usize {
+                let limit = -i64::try_from(dropped).expect("a small count");
+                let expected = &whole[..whole.len().saturating_sub(dropped)];
+                assert_eq!(split(subject, ",", limit), expected, "{subject:?}, {limit}");
+            }
+        }
+
+        assert!(
+            run(
+                super::nvs_core_str_split,
+                &[s("abc"), s(""), Value::int(all)]
+            )
+            .is_err()
+        );
+    }
+
+    /// A subject of separators alone is refused before its list is built: the
+    /// entries cost sixteen times the subject, and the request's peak never
+    /// passes the limit on the way to the refusal.
+    // covers: Core\Str::split
+    #[test]
+    fn split_refuses_a_list_past_the_memory_limit_before_building_it() {
+        const LIMIT: usize = 4 << 20;
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+        let args = [s(&",".repeat(1 << 20)), s(","), Value::int(i64::MAX)];
+        let result = call(super::nvs_core_str_split, &mut ctx, &args);
+        assert!(result.is_err(), "16 MiB of entries fit under 4 MiB");
+        assert!(
+            ctx.memory_peak() < LIMIT,
+            "the list was built past the limit before the refusal: {} bytes",
+            ctx.memory_peak()
+        );
+        drop(ctx);
+        for arg in args {
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built for each \
+                          argument, and the helper borrowed it"
+            )]
+            unsafe {
+                arg.release();
+            }
         }
     }
 

@@ -1,0 +1,19 @@
+<?nvs
+// Splits a short list at its commas, as a program does when it reads tags or a line of CSV.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $lists = ["red,green,blue", "news,sport", "a,b,c,d,e"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count(Core\Str::split($lists[$total % 3], ","));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

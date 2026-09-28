@@ -1,0 +1,66 @@
+<?nvs
+// Attack: `Core\Str::split` gets texts made only of separators, extreme limits and a separator that
+// almost matches everywhere. Each call should finish quickly. The last call asks for more parts
+// than the memory limit allows, and the program should stop there with an error.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Splits one million commas. The result has 1000001 empty parts.
+    public static function manyEmptyParts(): uint
+    {
+        string $text = Core\Str::repeat(',', 1000000);
+        return Core\Arr::count(Core\Str::split($text, ','));
+    }
+
+    /// 2. Deletes all but two of those parts with a negative limit.
+    public static function negativeLimit(): uint
+    {
+        string $text = Core\Str::repeat(',', 1000000);
+        return Core\Arr::count(Core\Str::split($text, ',', { limit: -999999 }));
+    }
+
+    /// 3. Uses the largest and the smallest limit there is.
+    public static function extremeLimits(): uint
+    {
+        string $text = 'a,b,c';
+        uint $all = Core\Arr::count(Core\Str::split($text, ',', { limit: 9223372036854775807 }));
+        uint $none = Core\Arr::count(Core\Str::split($text, ',', { limit: -9223372036854775807 }));
+        return $all + $none;
+    }
+
+    /// 4. Searches 4 MiB of "a" for a separator of 1000 "a" and one "b". It is never found.
+    public static function almostMatches(): uint
+    {
+        string $text = Core\Str::repeat('a', 4194304);
+        string $separator = Core\Str::repeat('a', 1000) . 'b';
+        return Core\Arr::count(Core\Str::split($text, $separator));
+    }
+
+    /// 5. Calls it one million times on a short text and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count(Core\Str::split('a,b,c', ','));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 6. Splits 64 MiB of commas. The parts need far more memory than the limit allows.
+    public static function morePartsThanTheLimit(): uint
+    {
+        string $text = Core\Str::repeat(',', 67108864);
+        return Core\Arr::count(Core\Str::split($text, ','));
+    }
+}
+
+echo Attack::manyEmptyParts(), "\n";
+echo Attack::negativeLimit(), "\n";
+echo Attack::extremeLimits(), "\n";
+echo Attack::almostMatches(), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::morePartsThanTheLimit(), "\n";
