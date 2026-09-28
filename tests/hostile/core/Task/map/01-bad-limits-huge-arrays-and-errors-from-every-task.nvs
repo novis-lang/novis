@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a program calls `Core\Task::map` with limits that make no sense, with a very
+// large array, and with tasks that all throw at once. Each bad call should throw one
+// error that the program can catch, and the runtime must not crash or hang.
+
+class Nest
+{
+    // Each level calls `Core\Task::map` again, inside a task of the level above.
+    public static function down(uint $depth): uint
+    {
+        if ($depth == 0) {
+            return 0;
+        }
+        array<uint> $one = [$depth - 1];
+        var $inner = Core\Task::map($one, fn (uint $next): uint => Nest::down($next));
+        return $inner['0'] + 1;
+    }
+}
+
+array<int> $small = [1, 2, 3];
+
+// Step 1: `limit: 0` lets no task run. The call throws a `LogicError`.
+try {
+    var $none = Core\Task::map($small, fn (int $n): int => $n, { limit: 0 });
+    echo 'step 1: ', Core\Arr::count($none), "\n";
+} catch (LogicError $noTask) {
+    echo "step 1: not allowed\n";
+}
+
+// Step 2: time limits of zero and less than zero. Each call throws a `TimeoutError`.
+array<Core\Time\Duration> $limits = [0s, 1000000s->negated()];
+foreach ($limits as Core\Time\Duration $limit) {
+    try {
+        var $late = Core\Task::map($small, fn (int $n): int => $n, { deadline: $limit });
+        echo 'step 2: ', Core\Arr::count($late), "\n";
+    } catch (TimeoutError $noTime) {
+        echo "step 2: out of time\n";
+    }
+}
+
+// Step 3: every task throws. Only the first error comes out of the call.
+try {
+    var $thrown = Core\Task::map($small, fn (int $n): int => {
+        throw new RuntimeError('task ' . $n);
+    });
+    echo 'step 3: ', Core\Arr::count($thrown), "\n";
+} catch (RuntimeError $first) {
+    echo "step 3: one error\n";
+}
+
+// Step 4: one task for each of 20,000 elements, with no limit and then with `limit: 1`.
+array<int> $many = [];
+int $i = 0;
+while ($i < 20000) {
+    $many[] = $i;
+    $i = $i + 1;
+}
+var $wide = Core\Task::map($many, fn (int $n): int => $n % 7);
+var $narrow = Core\Task::map($many, fn (int $n, string $key): uint => Core\Str::length($key), { limit: 1 });
+echo 'step 4: ', Core\Arr::count($wide), ' ', Core\Arr::count($narrow), "\n";
+
+// Step 5: a task in the middle of a large array throws. The other tasks are stopped.
+try {
+    var $stopped = Core\Task::map($many, fn (int $n): int => {
+        if ($n == 10000) {
+            throw new RuntimeError('element 10000');
+        }
+        return $n;
+    }, { limit: 8 });
+    echo 'step 5: ', Core\Arr::count($stopped), "\n";
+} catch (RuntimeError $middle) {
+    echo "step 5: stopped\n";
+}
+
+// Step 6: calls nested 1,000 deep. Every level waits for the level below it.
+echo 'step 6: ', Nest::down(1000), "\n";

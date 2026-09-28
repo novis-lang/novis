@@ -1,20 +1,18 @@
 {
-  "state": "Goal `core-taint-and-1-more`: `Core\\Taint` is complete, and so are `Core\\Task::afterResponse` and\n`Core\\Task::all`. `all` has about, a Rust test in `crates/nvs-stdlib/src/task.rs`'s `mod tests`\n(a `Serial` host that runs a group's jobs in order), three examples, three attacks, one bench with\nits record, and a card in the plain voice. The card rewrite also rewrote the rows `map` shares with\n`all`: `LIMIT_DOC`, `DEADLINE_DOC` and `GROUP_ERRORS`. Two of `all`'s attacks found bugs too large\nfor a slice, and each is a gap record owned by M10, marked on its attack:\n`nvs-host/a-task-stack-is-not-charged-to-its-request` (nested groups pass the memory limit) and\n`nvs-host/a-task-that-never-waits-outlives-its-groups-deadline` (a busy child ignores `deadline`).\n`Core\\Task::map` is untaken, and it is the last item of the goal. Nothing is blocked.",
+  "state": "Goal `core-taint-and-1-more` is met: `Core\\Taint` and all three `Core\\Task` members have every\nfeature proof, and `bun nv proofs --verify` answers \"nothing owed\" with 0 failed for both groups.\n`Core\\Task::map` landed last: about, a Rust test in `crates/nvs-stdlib/src/task.rs`'s `mod tests`\n(the `Serial` host's `GROUPS` count is now per thread, so the `all` and `map` tests cannot mix\ntheir counts), three examples, one attack, one bench with its record, and `MAP_DOC` in the plain\nvoice. Two gaps found by `all`'s attacks stay open and owned by M10:\n`nvs-host/a-task-stack-is-not-charged-to-its-request` and\n`nvs-host/a-task-that-never-waits-outlives-its-groups-deadline`. Nothing is blocked.",
   "next": {
-    "stage": 1,
-    "title": "feature proofs, one member per slice",
+    "stage": 2,
+    "title": "the dossier — closed",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/task.rs` (the `MAP_DOC` card and its `mod tests`, whose `closure_of`, `Serial` host and `GROUPS` counter `map`'s test can reuse) and the trees under `core/Task/map/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/task.rs` and the trees under `core/Task/`.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Task::map`** — owes about, examples, hostile, perf, tests, and `MAP_DOC` rewritten in the plain voice the way `ALL_DOC` now is (the shared `LIMIT_DOC`, `DEADLINE_DOC` and `GROUP_ERRORS` are already done). The `Serial` host asserts `Bounds::default()`, so a test naming an option needs its own counter or a relaxed assert. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/task.rs:234`, `crates/nvs-stdlib/src/task.rs:492`"
+        "done": true,
+        "text": "**`Core\\Task::map`** — every proof of `rule:testing/feature-proofs` is on disk. `crates/nvs-stdlib/src/task.rs:233`"
       }
     ]
   },
   "backlog": [
-    "The busy-child and stack-charge gaps are security findings (priority 1): a request escapes its memory cap and a group escapes its `deadline`. `data/gaps/nvs-host/`, owner M10.",
-    "`tests/conformance/core/a-task-all-answers-a-shape-each-field-keeping-its-own-type.nvst`'s comment still says the scheduler half is not on disk; it is. Owner: goal `plain-comments`.",
-    "`[limits] max_tasks` is read by nothing (`crates/nvs-config/src/default.toml`), and `rule:security/isolate-budget-is-the-trees` counts child tasks against it. Owner: the stack-charge gap above."
+    "The two M10 gaps above, marked on `tests/hostile/core/Task/all/02-*` and `03-*` — `data/gaps/nvs-host/`."
   ]
 }

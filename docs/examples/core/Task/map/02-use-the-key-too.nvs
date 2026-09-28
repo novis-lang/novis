@@ -1,0 +1,14 @@
+<?nvs
+// Shows a function that uses both the value and the key of each element.
+
+// The keys are the names of the shops, and the values are their stock counts.
+array<int> $stock = ["north" => 12, "south" => 0, "west" => 7];
+
+// A function with a second parameter gets the key. The key is always a `string`.
+var $report = Core\Task::map($stock, fn (int $count, string $shop): string =>
+    $count > 0 ? $shop . " has " . $count : $shop . " is empty");
+
+// The result has the same keys. This prints `south is empty` on the second line.
+foreach ($report as string $shop => string $line) {
+    echo $line, "\n";
+}

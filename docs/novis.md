@@ -16871,16 +16871,16 @@ Runs every closure in the `$tasks` shape at the same time, and waits until all o
 Core\Task::map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Core\Time\Duration}): array<U>
 ```
 
-Calls `$fn` once per element of `$items`, each call a concurrent child task, and answers the results under the subject's own keys and in its order regardless of completion order — what `curl_multi_*` was for.
+Calls `$fn` once for each element of `$items`, and runs the calls at the same time. The result has the same keys in the same order as `$items`, whichever call finishes first.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$items` | `array<T>` | The array whose elements are handed to `$fn`. |
-| `$fn` | `callable(T, string): U` | The callback, receiving `($value, $key)` and free to declare fewer parameters; its declared return type is `U`. |
+| `$items` | `array<T>` | The array. Each element is given to `$fn` in a task of its own. |
+| `$fn` | `callable(T, string): U` | The function to call. It gets `($value, $key)`, and it may declare only `$value`. The key is always a `string`. Its return type is the type of each element of the result. |
 | `{limit: …}` | `uint` (default `null`) | The most tasks that run at the same time. The other tasks wait until one finishes. Without it, every task starts at once. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The time limit for the whole call, not for each task. Without it, the request's `[limits] wall_time` setting is the limit. |
 
-**Returns** `array<U>` — An `array<U>` under `$items`'s keys in `$items`'s order, empty for an empty subject; control never leaves the call with a child still running, and the first child to throw cancels every sibling and propagates as itself once they are gone.
+**Returns** `array<U>` — An array with what `$fn` returned for each element, under the element's own key. An empty `$items` gives an empty array. No task is still running when the call returns. If a task throws an error, the other tasks are stopped, and the call throws that same error.
 
 **Throws** `LogicError` — When `limit` is `0`. No task could start, so the call could never finish.; `TimeoutError` — When `deadline` runs out before every task has finished. Every task is stopped first, and the call waits until they have stopped.
 

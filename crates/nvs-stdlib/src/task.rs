@@ -231,27 +231,29 @@ const ALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Task::map`'s reference card — `rule:core-api/reference-card`.
 const MAP_DOC: MethodDoc = MethodDoc {
-    short: "Calls `$fn` once per element of `$items`, each call a concurrent child task, and \
-            answers the results under the subject's own keys and in its order regardless of \
-            completion order — what `curl_multi_*` was for.",
+    short: "Calls `$fn` once for each element of `$items`, and runs the calls at the same time. \
+            The result has the same keys in the same order as `$items`, whichever call finishes \
+            first.",
     params: &[
         ParamDoc {
             name: "items",
-            desc: "The array whose elements are handed to `$fn`.",
+            desc: "The array. Each element is given to `$fn` in a task of its own.",
             shape: &[],
         },
         ParamDoc {
             name: "fn",
-            desc: "The callback, receiving `($value, $key)` and free to declare fewer \
-                   parameters; its declared return type is `U`.",
+            desc: "The function to call. It gets `($value, $key)`, and it may declare only \
+                   `$value`. The key is always a `string`. Its return type is the type of each \
+                   element of the result.",
             shape: &[],
         },
         LIMIT_DOC,
         DEADLINE_DOC,
     ],
-    ret: "An `array<U>` under `$items`'s keys in `$items`'s order, empty for an empty subject; \
-          control never leaves the call with a child still running, and the first child to throw \
-          cancels every sibling and propagates as itself once they are gone.",
+    ret: "An array with what `$fn` returned for each element, under the element's own key. An \
+          empty `$items` gives an empty array. No task is still running when the call returns. \
+          If a task throws an error, the other tasks are stopped, and the call throws that same \
+          error.",
     errors: GROUP_ERRORS,
 };
 
@@ -663,6 +665,7 @@ fn receiver(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsOb
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{Duration, Instant};
 
@@ -671,8 +674,8 @@ mod tests {
         Waker, Woken,
     };
     use nvs_runtime::{
-        CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAGS_SLOT, ClassTable, Ctx, MethodRow,
-        NvsFn, NvsObj, Value,
+        CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
+        ClassTable, Ctx, MethodRow, NvsArray, NvsFn, NvsObj, NvsStr, Value,
     };
 
     /// How many times [`counts_a_run`] was called. Registering must never call
@@ -695,10 +698,11 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// A zero-parameter closure calling `invoke`, owned by the caller —
-    /// `crates/nvs-stdlib/tests/allocation_policy.rs`'s `closure_of`, whose
-    /// doc comment says why this is a whole closure and why the table leaks.
-    fn closure_of(invoke: NvsFn) -> Value {
+    /// A closure declaring `arity` parameters of any type and calling `invoke`,
+    /// owned by the caller — `crates/nvs-stdlib/tests/allocation_policy.rs`'s
+    /// `closure_of`, whose doc comment says why this is a whole closure and why
+    /// the table leaks.
+    fn closure_of(arity: u32, invoke: NvsFn) -> Value {
         let mut table = ClassTable::new();
         let id = table.define("{closure}", &["arity", "params"], &[]);
         table.set_methods(
@@ -724,8 +728,15 @@ mod tests {
                       obligation"
         )]
         let object = unsafe { NvsObj::new(table.desc(id)) };
-        object.set_field(CLOSURE_ARITY_SLOT, Value::int(0));
-        object.set_field(CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        let mut tags: u64 = 0;
+        for parameter in 0..arity {
+            tags |= u64::from(CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+        }
+        object.set_field(CLOSURE_ARITY_SLOT, Value::int(i64::from(arity)));
+        object.set_field(
+            CLOSURE_PARAM_TAGS_SLOT,
+            Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
+        );
         Value::object(object)
     }
 
@@ -737,7 +748,7 @@ mod tests {
     // covers: Core\Task::afterResponse
     #[test]
     fn after_response_queues_one_reference_on_the_request_and_refuses_a_child() {
-        let closure = closure_of(counts_a_run);
+        let closure = closure_of(0, counts_a_run);
         let header = closure.obj_ptr().expect("the closure is an object");
         let trees = nvs_runtime::deferred::trees_in_flight();
         let refcount = || {
@@ -815,12 +826,17 @@ mod tests {
         }
     }
 
-    /// How many groups [`Serial`] was handed.
-    static GROUPS: AtomicUsize = AtomicUsize::new(0);
+    thread_local! {
+        /// How many groups [`Serial`] was handed on this thread. A host is
+        /// installed per thread, and the test binary runs `all`'s test and
+        /// `map`'s at the same time, so one shared count would mix the two.
+        static GROUPS: Cell<usize> = const { Cell::new(0) };
+    }
 
     /// A host that runs every job of a group on the caller's own context, one
     /// after the other and in the order given. That order is the only thing
-    /// `all`'s step 3 reads, so it is all a scheduler has to be here.
+    /// `all` and `map` read their answers back in, so it is all a scheduler
+    /// has to be here.
     #[derive(Debug)]
     struct Serial;
 
@@ -828,7 +844,7 @@ mod tests {
 
     impl Host for Serial {
         fn run_group(&self, ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds) -> Outcome {
-            GROUPS.fetch_add(1, Ordering::SeqCst);
+            GROUPS.with(|groups| groups.set(groups.get() + 1));
             assert_eq!(bounds, Bounds::default(), "no option was named");
             Outcome::Completed(jobs.into_iter().map(|job| job(ctx)).collect())
         }
@@ -854,7 +870,7 @@ mod tests {
             _placement: Placement,
             _narrowing: Narrowing,
         ) -> Result<Box<dyn Running>, StartError> {
-            unreachable!("`Core\\Task::all` starts no isolate")
+            unreachable!("a task group starts no isolate")
         }
     }
 
@@ -905,8 +921,8 @@ mod tests {
             reason = "the table above is leaked, so the descriptor outlives the shape"
         )]
         let shape = unsafe { NvsObj::new(table.desc(id)) };
-        let seven = closure_of(answers_seven);
-        let eleven = closure_of(answers_eleven);
+        let seven = closure_of(0, answers_seven);
+        let eleven = closure_of(0, answers_eleven);
         shape.set_field(0, seven);
         shape.set_field(1, eleven);
         let shape = Value::object(shape);
@@ -949,7 +965,7 @@ mod tests {
             message.contains("`limit` is how many children may run at once"),
             "the refusal says what `limit` means, got {message:?}"
         );
-        assert_eq!(GROUPS.load(Ordering::SeqCst), 0, "no group was started");
+        assert_eq!(GROUPS.with(Cell::get), 0, "no group was started");
 
         let answer = nvs_runtime::call(
             super::nvs_core_task_all,
@@ -957,7 +973,7 @@ mod tests {
             &[shape, Value::null(), Value::null()],
         )
         .expect("a group whose children all return completes");
-        assert_eq!(GROUPS.load(Ordering::SeqCst), 1, "one call is one group");
+        assert_eq!(GROUPS.with(Cell::get), 1, "one call is one group");
         {
             let result = super::receiver(&[answer], "test").expect("the answer is an object");
             let argument = super::receiver(&[shape], "test").expect("the shape is an object");
@@ -985,6 +1001,161 @@ mod tests {
         unsafe {
             answer.release();
             shape.release();
+        }
+    }
+
+    /// A one-parameter callback: sweeps its receiver and its entry, and
+    /// answers ten times the entry.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and one argument, each \
+                  retained for this callee to release, and the address of a \
+                  live `Value` for the result"
+    )]
+    unsafe extern "C" fn times_ten(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        let entry = unsafe { *args.add(1) }
+            .as_int()
+            .expect("this test's entries are ints");
+        for index in 0..2 {
+            unsafe { (*args.add(index)).release() };
+        }
+        unsafe {
+            *out = Value::int(entry * 10);
+        }
+        nvs_runtime::OK
+    }
+
+    /// A two-parameter callback: sweeps its receiver and both arguments, and
+    /// answers the key it was shown, a `=` and the entry, as one text.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and two arguments, each \
+                  retained for this callee to release, and the address of a \
+                  live `Value` for the result"
+    )]
+    unsafe extern "C" fn names_the_key(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        let entry = unsafe { *args.add(1) }
+            .as_int()
+            .expect("this test's entries are ints");
+        let mut named = unsafe { *args.add(2) }
+            .as_str_bytes()
+            .expect("the key arrives as a text")
+            .to_vec();
+        named.extend_from_slice(format!("={entry}").as_bytes());
+        for index in 0..3 {
+            unsafe { (*args.add(index)).release() };
+        }
+        unsafe {
+            *out = Value::str(NvsStr::new(&named));
+        }
+        nvs_runtime::OK
+    }
+
+    /// Every entry of the array `answer` as `key => value`, in the array's own
+    /// order, releasing the one reference the member answered with.
+    fn entries_of(answer: Value) -> Vec<String> {
+        #[expect(
+            unsafe_code,
+            reason = "the handle takes over the one reference the member \
+                      answered with, and releases it on drop"
+        )]
+        let array =
+            unsafe { NvsArray::from_raw(answer.array_ptr().expect("map answers an array")) };
+        let mut entries = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let key = array.key_at(slot).expect("a live entry has a key");
+            let value = array.value_at(slot).expect("a live entry has a value");
+            let value = match value.as_int() {
+                Some(number) => number.to_string(),
+                None => String::from_utf8_lossy(value.as_str_bytes().expect("an int or a text"))
+                    .into_owned(),
+            };
+            entries.push(format!(
+                "{} => {value}",
+                String::from_utf8_lossy(key.as_bytes())
+            ));
+            from = slot + 1;
+        }
+        entries
+    }
+
+    /// `map` answers each callback's result under the subject's own key and in
+    /// the subject's own order, shows the key, as a text, only to a callback
+    /// that declares a second parameter, and answers an empty array for an
+    /// empty subject. It borrows the callback rather than keeping it, and a
+    /// `limit` of `0` is refused before any host is asked.
+    // covers: Core\Task::map
+    #[test]
+    fn map_keeps_the_subjects_keys_and_order_and_shows_the_key_only_when_asked() {
+        let mut subject = NvsArray::new();
+        for (key, value) in [(&b"b"[..], 2), (&b"a"[..], 1), (&b"10"[..], 5)] {
+            subject.set(NvsStr::new(key), Value::int(value));
+        }
+        let subject = Value::array(subject);
+        let empty = Value::array(NvsArray::new());
+        let by_value = closure_of(1, times_ten);
+        let by_key = closure_of(2, names_the_key);
+        let refcounts = || {
+            #[expect(
+                unsafe_code,
+                reason = "the test holds both closures until its last line"
+            )]
+            unsafe {
+                [
+                    NvsObj::refcount_of(by_value.obj_ptr().expect("a closure is an object")),
+                    NvsObj::refcount_of(by_key.obj_ptr().expect("a closure is an object")),
+                ]
+            }
+        };
+
+        let _installed = nvs_runtime::host::install(&SERIAL);
+        let mut ctx = Ctx::buffered();
+        let zero = nvs_runtime::call(
+            super::nvs_core_task_map,
+            &mut ctx,
+            &[subject, by_value, Value::uint(0), Value::null()],
+        );
+        assert!(zero.is_err(), "a limit of zero is refused");
+        let message = ctx.take_pending().expect("the refusal has a sentence");
+        assert!(
+            message.contains("Core\\Task::map: `limit` is how many children may run at once"),
+            "the refusal names the member and says what `limit` means, got {message:?}"
+        );
+        assert_eq!(GROUPS.with(Cell::get), 0, "no group was started");
+
+        let mut map = |items: Value, callback: Value| {
+            entries_of(
+                nvs_runtime::call(
+                    super::nvs_core_task_map,
+                    &mut ctx,
+                    &[items, callback, Value::null(), Value::null()],
+                )
+                .expect("a group whose children all return completes"),
+            )
+        };
+        assert_eq!(map(subject, by_value), ["b => 20", "a => 10", "10 => 50"]);
+        assert_eq!(map(subject, by_key), ["b => b=2", "a => a=1", "10 => 10=5"]);
+        assert!(
+            map(empty, by_value).is_empty(),
+            "an empty subject answers `[]`"
+        );
+        assert_eq!(
+            GROUPS.with(Cell::get),
+            3,
+            "one call is one group, an empty one included"
+        );
+        assert_eq!(refcounts(), [1, 1], "the call kept no callback");
+
+        #[expect(
+            unsafe_code,
+            reason = "the test built all four values and owns their last references"
+        )]
+        unsafe {
+            subject.release();
+            empty.release();
+            by_value.release();
+            by_key.release();
         }
     }
 }
