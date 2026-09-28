@@ -315,26 +315,25 @@ const START_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Session::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Reads one key of the record this request's session holds, answering `null` where the \
-            record does not hold it.",
+    short: "Returns the value saved under one key in the session of this request.",
     params: &[ParamDoc {
         name: "key",
-        desc: "The key to read. One the record does not hold is `null` rather than a refusal, so a \
-               session that stored a `null` and one that stored nothing read alike.",
+        desc: "The key to read. If the session has no value under it, the result is `null`. A key \
+               that was set to `null` gives the same result.",
         shape: &[],
     }],
-    ret: "The value stored under `$key`, or `null`. Reading never marks the record changed, so a \
-          request that starts a session and only reads it makes no second round trip.",
+    ret: "The value saved under `$key`, or `null`. Reading does not change the session, so a \
+          request that only reads its session does not write it back to the store.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, so there is no record to read.",
+            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
+                   session to read.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The stored record names a class this program cannot resolve — what a record \
-                   written by a unit that declared the class and read by one that does not looks \
-                   like.",
+            desc: "The saved session contains an object of a class this program does not declare. \
+                   This happens when another program saved it.",
         },
     ],
 };
@@ -445,23 +444,22 @@ const REGENERATE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Session::destroy`'s reference card — `rule:core-api/reference-card`.
 const DESTROY_DOC: MethodDoc = MethodDoc {
-    short: "Forgets the record in the store and closes the session on this request, which is what \
-            signing out is.",
+    short: "Ends the session of this request and deletes its data from the store. Call it when a \
+            user signs out.",
     params: &[],
-    ret: "Nothing. Afterwards this request has no session at all, so every member of this class \
-          throws again until `start()` opens one — the same answer they give before the first \
-          `start()`, because it is the same state.",
+    ret: "Nothing. After it, this request has no session. The other methods of this class throw \
+          a `RuntimeError` until you call `start()` again, and that call opens a new, empty session.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, so there is no session to forget; or \
-                   the shared store is unconfigured or refused by capability.",
+            desc: "This request has not called `start()`, or it already called `destroy()`. It is \
+                   also thrown when `[cache.shared] url` is not set, or the program does not have \
+                   the `cache.shared` capability.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The configured store cannot be reached, so the record is still there. It \
-                   throws rather than closing the session quietly, because a program told the \
-                   sign-out succeeded would stop trying.",
+            desc: "The store cannot be reached. The data is still in the store, and the session \
+                   stays open, so you can try again.",
         },
     ],
 };
@@ -1861,6 +1859,128 @@ mod tests {
 
         assert_eq!(before, Some(RECORD.to_vec()));
         assert_eq!(after, None);
+    }
+
+    /// `Core\Session::destroy` as a program reaches it: the store is told first, and only then
+    /// does the request forget.
+    ///
+    /// Both orders are asserted. With no store configured the member throws and the session is
+    /// still open, holding the id and the record it had, so a sign-out that did not happen is
+    /// never reported as one. With the store configured, over [`serving`], the entry is gone from
+    /// the map both cores share, the request has no session, and a second `destroy` throws as one
+    /// before `start` does.
+    // covers: Core\Session::destroy
+    #[test]
+    fn destroy_forgets_the_record_before_it_closes_the_session() {
+        let mut ctx = Ctx::buffered();
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[]).is_err(),
+            "a request that never started a session has nothing to destroy"
+        );
+        drop(ctx.take_pending());
+
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: RECORD.to_vec(),
+            dirty: false,
+            write_back: super::send_at_end,
+        });
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[]).is_err(),
+            "no `[cache.shared] url`, so no store heard the sign-out"
+        );
+        drop(ctx.take_pending());
+        let kept = ctx
+            .session()
+            .expect("a refused destroy leaves the session open");
+        assert_eq!(kept.id, ID);
+        assert_eq!(kept.record, RECORD);
+
+        let (listener, address) = listening();
+        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        held.lock()
+            .expect("the store")
+            .insert(key_of(ID), RECORD.to_vec());
+        let store = Arc::clone(&held);
+        thread::spawn(move || serving(listener, store));
+        ctx.set_config(crate::tests::granting(&format!(
+            "[capabilities.cache]\nshared = true\n[cache.shared]\nurl = \"redis://{address}\"\n"
+        )));
+
+        nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[])
+            .expect("a configured store forgets the record");
+        assert!(
+            !held.lock().expect("the store").contains_key(&key_of(ID)),
+            "the entry is gone from the store"
+        );
+        assert!(ctx.session().is_none(), "and the request has no session");
+
+        assert!(
+            nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[]).is_err(),
+            "a destroyed session throws again, as before `start`"
+        );
+        drop(ctx.take_pending());
+    }
+
+    /// `Core\Session::get` through the member: a held key's value, `null` for a key the record
+    /// does not hold and for one that holds `null`, and no write earned by any of them.
+    ///
+    /// The flag is asserted because it is the member's other half: a `get` that marked the record
+    /// changed would answer every key correctly and cost a read-only request a second round trip.
+    /// A record no decode accepts throws rather than answering `null`, so a session this unit
+    /// cannot read is never mistaken for an empty one.
+    // covers: Core\Session::get
+    #[test]
+    fn get_answers_a_held_key_and_null_for_the_rest_and_earns_no_write() {
+        fn got(ctx: &mut Ctx, key: &[u8]) -> Result<Value, i32> {
+            let key = Value::str(NvsStr::new(key));
+            let answer = nvs_runtime::call(super::nvs_core_session_get, ctx, &[key]);
+            dropped(key);
+            answer
+        }
+
+        let mut ctx = Ctx::buffered();
+        assert!(
+            got(&mut ctx, b"cart").is_err(),
+            "a request that never started a session has no record to read"
+        );
+        drop(ctx.take_pending());
+
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: Vec::new(),
+            dirty: false,
+            write_back: super::send_at_end,
+        });
+        let mut writing = record(&ctx, "set").expect("a started session has a record to write");
+        writing.set(NvsStr::new(b"cart"), Value::int(17));
+        writing.set(NvsStr::new(b"note"), Value::null());
+        write_back(&mut ctx, writing, "set").expect("the record encodes");
+        ctx.session_mut().expect("the session is open").dirty = false;
+
+        let cart = got(&mut ctx, b"cart").expect("a held key is read");
+        assert_eq!(cart.as_int(), Some(17));
+        dropped(cart);
+        for key in [&b"note"[..], b"missing"] {
+            let answer = got(&mut ctx, key).expect("an absent or null key is still an answer");
+            assert_eq!(
+                answer.tag(),
+                Some(nvs_runtime::Tag::Null),
+                "{} reads as null",
+                String::from_utf8_lossy(key)
+            );
+        }
+        assert!(
+            !ctx.session().expect("the session is open").dirty,
+            "reading is not a change, so it earns no write"
+        );
+
+        ctx.session_mut().expect("the session is open").record = b"no decode accepts this".to_vec();
+        assert!(
+            got(&mut ctx, b"cart").is_err(),
+            "a record this unit cannot decode throws rather than reading as empty"
+        );
+        drop(ctx.take_pending());
     }
 
     /// The key is prefixed and carries the id, so one store holding a cache, a limiter and a
