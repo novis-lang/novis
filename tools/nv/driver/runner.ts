@@ -379,20 +379,22 @@ export class PlanSweep {
 
   /**
    * Builds what the release checks `checks` will build, one cargo run after another: the release `nvs`
-   * for a check that measures it, and each release test with `--no-run`. The sweep calls it while the
-   * overlap commands still run, so the checks later find everything built. A build that fails is left
-   * for its check to build again and report, except the release `nvs`, whose one outcome every check
-   * that measures it shares.
+   * for a check that measures it, and each release test with `--no-run`. The sweep calls it when its
+   * goal fixtures tier starts, so the builds run beside that tier and the overlap commands, and the
+   * checks later find everything built. Once `stop` is aborted no further build starts. A build that
+   * fails is left for its check to build again and report, except the release `nvs`, whose one outcome
+   * every check that measures it shares.
    */
-  prebuild(checks: Check[]): Promise<void> {
+  prebuild(checks: Check[], stop: AbortSignal): Promise<void> {
     return (async () => {
-      if (checks.some(measuresReleaseCli)) await this.releaseCli();
+      if (checks.some(measuresReleaseCli) && !stop.aborted) await this.releaseCli();
       const seen = new Set<string>();
       for (const c of checks) {
         const argv = releaseBuildArgv(c);
+        if (stop.aborted) return;
         if (argv === null || seen.has(argv.join("\0"))) continue;
         seen.add(argv.join("\0"));
-        this.say(`${argv.join(" ")} (built beside the overlap commands)`);
+        this.say(`${argv.join(" ")} (built beside the goal fixtures and the overlap commands)`);
         await capture(argv, ROOT);
       }
     })().catch(() => undefined);

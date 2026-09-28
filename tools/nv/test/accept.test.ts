@@ -438,43 +438,59 @@ describe("the whole sweep", () => {
   const held = (red: string[] = []) => {
     const log: string[] = [];
     const end = { over: () => {}, build: () => {} };
+    const told: { stop: AbortSignal | null } = { stop: null };
     const sweep = {
       check: async (c: Check): Promise<Verdict> => {
         log.push(`run ${c.id}`);
         if (c.id === "over") await new Promise<void>((r) => (end.over = () => (log.push("over ends"), r())));
         return { fail: red.includes(c.id) ? `${c.id} red` : "", short: "" };
       },
-      prebuild: (checks: Check[]) => {
+      prebuild: (checks: Check[], stop: AbortSignal) => {
+        told.stop = stop;
         log.push(`build ${checks.map((c) => c.id).join(",")}`);
         return new Promise<void>((r) => (end.build = () => (log.push("build ends"), r())));
       },
     };
-    return { log, end, sweep };
+    return { log, end, sweep, told };
   };
   const until = async (f: () => boolean) => {
     while (!f()) await Bun.sleep(1);
   };
 
-  test("the release builds start beside the overlap command, and the release checks run once both end", async () => {
+  test("the release builds start with the goal fixtures tier, and the release checks run once they and the overlap command end", async () => {
     const h = held();
     const swept = acceptance(plan, { label, sweep: h.sweep, reached: everything, collect: false });
-    await until(() => h.log.includes("build rel"));
+    await until(() => h.log.includes("run goal-fix"));
     h.end.over();
     await Bun.sleep(5);
     expect(h.log).not.toContain("run rel");
     h.end.build();
     expect((await swept).fail).toBe("");
-    expect(h.log).toEqual(["run catch", "run setup", "run over", "run floor-fix", "run cmd2", "run cmd3", "run goal-fix", "build rel", "over ends", "build ends", "run rel"]);
+    expect(h.log).toEqual(["run catch", "run setup", "run over", "run floor-fix", "run cmd2", "run cmd3", "build rel", "run goal-fix", "over ends", "build ends", "run rel"]);
+  });
+
+  test("the release builds start after the cargo and command tier and before the goal's fixtures, and a release check waits for them", async () => {
+    const h = held();
+    const swept = acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "over", collect: false });
+    await until(() => h.log.includes("run goal-fix"));
+    expect(h.log).toEqual(["run catch", "run setup", "run floor-fix", "run cmd2", "run cmd3", "build rel", "run goal-fix"]);
+    await Bun.sleep(5);
+    expect(h.log).not.toContain("run rel");
+    expect(h.told.stop?.aborted).toBe(false);
+    h.end.build();
+    expect((await swept).fail).toBe("");
+    expect(h.log.slice(-2)).toEqual(["build ends", "run rel"]);
   });
 
   test("a sweep that stops at a red overlap command returns only once the release builds end", async () => {
     const h = held(["over"]);
     let returned = false;
     const swept = acceptance(plan, { label, sweep: h.sweep, reached: everything, collect: false }).then((r) => ((returned = true), r));
-    await until(() => h.log.includes("build rel"));
+    await until(() => h.log.includes("run goal-fix"));
     h.end.over();
     await Bun.sleep(5);
     expect(returned).toBe(false);
+    expect(h.told.stop?.aborted).toBe(true);
     h.end.build();
     expect((await swept).fail).toBe("over red");
     expect(h.log).not.toContain("run rel");
@@ -499,12 +515,12 @@ describe("the whole sweep", () => {
     return { end, beside };
   };
 
-  test("the legs start with the release builds, and the release checks run only once the legs end too", async () => {
+  test("the legs start with the overlap tier, and the release checks run only once the legs end too", async () => {
     const h = held();
     const l = legs(h.log);
     const swept = acceptance(plan, { label, sweep: h.sweep, reached: everything, collect: false, beside: l.beside });
     await until(() => h.log.includes("legs start"));
-    expect(h.log.slice(-2)).toEqual(["build rel", "legs start"]);
+    expect(h.log.slice(-2)).toEqual(["run goal-fix", "legs start"]);
     h.end.over();
     h.end.build();
     await Bun.sleep(5);
@@ -527,12 +543,27 @@ describe("the whole sweep", () => {
     expect((await swept).fail).toBe("");
   });
 
-  test("a sweep that stops at a red check before the overlap tier never starts the legs", async () => {
+  test("a sweep that stops at a red check in the cargo and command tier starts neither the legs nor a release build", async () => {
     const h = held(["cmd2"]);
     const l = legs(h.log);
     const r = await acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "over", collect: false, beside: l.beside });
     expect(r.fail).toBe("cmd2 red");
     expect(h.log).not.toContain("legs start");
+    expect(h.log.some((l) => l.startsWith("build"))).toBe(false);
+  });
+
+  test("a sweep that stops at a red goal fixture tells the release builds to stop, and returns once the one in progress ends", async () => {
+    const h = held(["goal-fix"]);
+    const l = legs(h.log);
+    let returned = false;
+    const swept = acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "over", collect: false, beside: l.beside }).then((r) => ((returned = true), r));
+    await until(() => h.told.stop?.aborted === true);
+    await Bun.sleep(5);
+    expect(returned).toBe(false);
+    h.end.build();
+    expect((await swept).fail).toContain("goal-fix red");
+    expect(h.log).not.toContain("legs start");
+    expect(h.log).not.toContain("run rel");
   });
 
   test("a short suite is reported, and its verdict is not green", async () => {
