@@ -179,6 +179,7 @@
     "tools-server",
     "plain-comments",
     "foreach-var",
+    "var-array-literal",
     "ci-green"
   ]
 }

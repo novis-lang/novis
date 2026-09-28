@@ -1,0 +1,228 @@
+{
+  "title": "`var` infers an array literal whose elements all have one type",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-types/src/expr/literals.rs",
+      "crates/nvs-types/src/locals.rs",
+      "crates/nvs-types/src/expr/iteration.rs",
+      "crates/nvs-diagnostics/src/lib.rs",
+      "crates/nvs-lsp/src/hints.rs",
+      "crates/nvs-ir/src/lower/tests.rs"
+    ],
+    "rules": [
+      "types/var-inference",
+      "types/arrays",
+      "ide/no-compile-path-calls-the-synthesis",
+      "types/declaration"
+    ],
+    "adrs": [],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the literal infers",
+      "summary": "Infers `array<T>` for a one-type array literal under `var`, and refuses every other literal with a help line naming the type.",
+      "context": {
+        "rules": [
+          "ide/narrow-an-annotation-to-its-literal",
+          "iteration/foreach-subjects"
+        ],
+        "adrs": [
+          "0037"
+        ],
+        "shapes": [
+          "A decision record",
+          "A rule fragment",
+          "A `.nvst` test case",
+          "A diagnostic"
+        ],
+        "playbook": [
+          "Writing a test case > a rule*",
+          "Writing a test case > a -p*"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "the later write, the editor and the lowering",
+      "summary": "Points a failed write at the `var` line that fixed the element type, shows the inferred type in the editor, and proves the lowering is the written type's.",
+      "context": {
+        "rules": [],
+        "adrs": []
+      }
+    },
+    {
+      "number": 4,
+      "title": "the proofs",
+      "summary": "Adds the tests, examples and reference text for an inferred array literal.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-types-var-infers-a-one-type-array-literal-and-refuses",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-types (`var` infers a one-type array literal, and refuses every other one naming the type to write)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "var_infers_an_array_literal_whose_elements_have_one_type",
+        "var_infers_a_nested_array_literal_from_the_inside_out",
+        "var_infers_through_a_spread_of_the_same_element_type",
+        "var_gives_each_element_the_type_a_var_local_would",
+        "var_refuses_an_array_literal_whose_elements_differ_and_names_the_union",
+        "var_refuses_an_array_literal_with_null_and_names_the_nullable_type",
+        "var_refuses_an_array_literal_of_two_classes_even_when_one_extends_the_other",
+        "var_refuses_elements_that_differ_only_in_a_qualifier",
+        "var_refuses_an_empty_array_literal_at_any_depth",
+        "foreach_var_over_a_one_type_array_literal_subject_infers",
+        "only_var_and_the_foreach_subject_call_the_synthesis"
+      ]
+    },
+    {
+      "id": "var-infers-a-one-type-array-literal-and-refuses-the-rest",
+      "kind": "nvs-suite",
+      "stage": 2,
+      "name": "a `var` array literal with one element type runs, and every other one does not compile",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/lang/var-infers-an-array-literal-whose-elements-have-one-type.nvst",
+        "tests/conformance/reject/var-refuses-an-array-literal-whose-elements-differ.nvst"
+      ]
+    },
+    {
+      "id": "nvs-types-a-later-write-names-the-var-line",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-types (a write that misses a `var`-inferred element type names the `var` line)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "a_write_that_misses_a_var_inferred_element_type_names_the_var_line"
+      ]
+    },
+    {
+      "id": "nvs-ir-a-var-array-literal-lowers-as-the-written-type",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-ir (a `var` array literal lowers to the IR the written type lowers to)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ir"
+      ],
+      "tests": [
+        "var_array_literal_lowers_as_the_written_type_does"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-var-array-literal-carries-its-inlay-hint",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-lsp (a `var` array literal is hinted with its inferred type)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "a_var_array_literal_is_hinted_with_its_inferred_type"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-the-inferred-literal",
+      "kind": "command",
+      "stage": 4,
+      "name": "proofs: the whole roster owes nothing with the inferred literal's proofs in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    },
+    {
+      "id": "dossier-the-programs-this-goal-added-carry-plain-comments",
+      "kind": "command",
+      "stage": 4,
+      "name": "proofs: the programs this goal added carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/lang/types/array-t",
+        "tests/hostile/lang/types/every-binding-has-a-type"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

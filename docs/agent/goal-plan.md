@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 179 goals. 146 are walked (120 of them retired), `core-sse-and-2-more` is live at 147 of 179, and 32 are ahead.
+The chain holds 180 goals. 146 are walked (120 of them retired), `core-sse-and-2-more` is live at 147 of 180, and 33 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -191,4 +191,5 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 176 | [`tools-server`](goals/tools-server.md) | tools:server | ahead |  | **2** the dossier |
 | 177 | [`plain-comments`](goals/plain-comments.md) | every landed comment reads plainly | ahead, pinned last |  | **2** the sweep · **3** the gate |
 | 178 | [`foreach-var`](goals/foreach-var.md) | `var` is a `foreach` binding's type wherever a local allows it | ahead, pinned last |  | **2** the binding · **3** lowering and the editor · **4** the proofs |
-| 179 | [`ci-green`](goals/ci-green.md) | CI is green on `main`, for the commit the run stands on | ahead, pinned last |  | **2** ci is green |
+| 179 | [`var-array-literal`](goals/var-array-literal.md) | `var` infers an array literal whose elements all have one type | ahead, pinned last |  | **2** the literal infers · **3** the later write, the editor and the lowering · **4** the proofs |
+| 180 | [`ci-green`](goals/ci-green.md) | CI is green on `main`, for the commit the run stands on | ahead, pinned last |  | **2** ci is green |
