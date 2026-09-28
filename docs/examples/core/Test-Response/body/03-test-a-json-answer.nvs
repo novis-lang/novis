@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to test the JSON that a shop sends for one product.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. `Core\Response::json` converts the
+    // array to JSON and sends it.
+    var $path = Core\Request::path();
+    Core\Response::json(["sku" => "mug-7", "name" => "Blue mug"]);
+} catch (LogicError $noRequest) {
+    // This part is the test. It sends the request and checks the whole body.
+    var $response = Test::request(Method::Get, "/products/mug-7");
+    Test::assertEquals($response->status(), 200);
+    Test::assertSame($response->body(), "{\"sku\":\"mug-7\",\"name\":\"Blue mug\"}");
+
+    // Both checks passed, so this prints `the product JSON is correct`.
+    echo "the product JSON is correct\n";
+}

@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the status code of the answer to one request.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers the request. It writes text and sets no status.
+    var $path = Core\Request::path();
+    echo "Hello";
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Get, "/hello");
+
+    // The program set no status, so `status()` returns 200. This prints `200`.
+    echo $response->status(), "\n";
+}

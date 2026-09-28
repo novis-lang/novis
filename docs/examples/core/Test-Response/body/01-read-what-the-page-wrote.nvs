@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read the text that your program wrote for one request.
+
+use Core\Http\Method;
+use Core\Test;
+
+// `Core\Test::request` runs this file a second time to answer the request.
+// In that run, this part writes the answer with two `echo` statements.
+try {
+    var $path = Core\Request::path();
+    echo "Welcome. ";
+    echo "You opened ", $path;
+} catch (LogicError $noRequest) {
+    // In the first run there is no request, so `Core\Request::path()` throws.
+    // This part sends the request and reads the answer.
+    var $response = Test::request(Method::Get, "/start");
+
+    // `body()` returns everything the program wrote, in order.
+    // This prints `Welcome. You opened /start`.
+    echo $response->body(), "\n";
+}

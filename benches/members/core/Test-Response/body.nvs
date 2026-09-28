@@ -1,0 +1,28 @@
+<?nvs
+// Reads the body of one test response, as a test does before it checks the text a page wrote.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Test\Response> $responses = [
+            Core\Test::request(Core\Http\Method::Get, "/a"),
+            Core\Test::request(Core\Http\Method::Get, "/bb"),
+            Core\Test::request(Core\Http\Method::Get, "/ccc"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($responses[($total % 3) as int]->body());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part writes the answer.
+try {
+    echo Core\Request::path();
+} catch (LogicError $noRequest) {
+    echo Bench::run(400000), "\n";
+}

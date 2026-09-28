@@ -900,7 +900,7 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 ///
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
-    doc: None,
+    doc: Some(&RESPONSE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -928,6 +928,13 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
     ],
     slots: &["status", "body"],
     constants: &[],
+};
+
+/// `Core\Test\Response`'s class card — `rule:core-api/reference-card`.
+const RESPONSE_CARD: ClassDoc = ClassDoc {
+    short: "The answer to one request that `Core\\Test::request` sent to your own program. \
+            `status()` returns the status code and `body()` returns the text the program wrote. \
+            You cannot create one yourself.",
 };
 
 /// [`RESPONSE`]'s first slot: the status the program declared, or `200`.
@@ -1116,19 +1123,21 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test\Response::status`'s reference card — `rule:core-api/reference-card`.
 const RESPONSE_STATUS_DOC: MethodDoc = MethodDoc {
-    short: "The status the program under test declared for this request.",
+    short: "Returns the HTTP status code of the answer to this request.",
     params: &[],
-    ret: "The declared code, or `200` where the program declared none — the same default the \
-          server writes for a program that only echoed.",
+    ret: "The code the program set with `Core\\Response::setStatus`. If the program set no code, \
+          the result is `200`. If the program threw an error it did not catch, the result is \
+          `500`, the same code the server sends.",
     errors: &[],
 };
 
 /// `Core\Test\Response::body`'s reference card — `rule:core-api/reference-card`.
 const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
-    short: "The bytes the program under test wrote while answering this request.",
+    short: "Returns the text the program wrote while it answered this request.",
     params: &[],
-    ret: "Everything the program echoed, in order, and an empty string for a program that wrote \
-          nothing. A program that threw still answers with whatever it had written first.",
+    ret: "Everything the program wrote with `echo`, in order. If the program wrote nothing, the \
+          result is an empty string. If the program threw an error it did not catch, the result \
+          is also an empty string, because the server sends no body for a failed request.",
     errors: &[],
 };
 
@@ -2715,6 +2724,16 @@ nvs_runtime::nvs_helper! {
         // its status and its bytes — so the reference is discharged rather than
         // leaked (`Completion::discard_value`).
         completion.discard_value();
+        // A request that failed answers what the server answers for one: `500`
+        // and no body, whatever it declared or wrote before it failed
+        // (`nvs-server`'s `answer`). A test of an error path then sees the
+        // response production sends.
+        if !completion.ok {
+            return Ok(crate::instance::build(
+                &RESPONSE,
+                [Value::int(500), Value::str(nvs_runtime::NvsStr::new(b""))],
+            ));
+        }
         // Spec § 15's default, applied here rather than left `null`: a program
         // that only echoed answered `200`, and making a test say so would be
         // making every test say so.
@@ -5628,6 +5647,98 @@ mod tests {
             message.contains("may not be made from inside one"),
             "the error names the re-entry: {message}"
         );
+    }
+
+    /// `status` and `body` each return their slot with a reference of the
+    /// caller's own, so reading twice returns the same value and releasing a
+    /// reading leaves the response whole. A request whose unit failed answers
+    /// `500` and an empty body, whatever it declared and wrote, and a receiver
+    /// that is not a response throws.
+    // covers: Core\Test\Response::status, Core\Test\Response::body
+    #[test]
+    fn response_members_read_their_slots_and_a_failed_unit_answers_500_and_nothing() {
+        /// A unit that declares `201`, writes a half page, and then reports
+        /// whether it failed.
+        #[derive(Debug)]
+        struct HalfPage(bool);
+
+        impl nvs_runtime::inproc::Answering for HalfPage {
+            fn answer(
+                &self,
+                _ctx: &mut Ctx,
+                _inbound: Box<nvs_runtime::Inbound>,
+            ) -> Result<nvs_runtime::host::Completion, String> {
+                Ok(nvs_runtime::host::Completion {
+                    ok: !self.0,
+                    value: Value::null(),
+                    output: b"half a page".to_vec(),
+                    content_type: None,
+                    file_body: None,
+                    status: Some(201),
+                    headers: Vec::new(),
+                    error: None,
+                    wall: None,
+                    trace: Vec::new(),
+                })
+            }
+        }
+
+        fn asked(ctx: &mut Ctx, unit: &HalfPage) -> Value {
+            let args = [
+                Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
+                Value::str(nvs_runtime::NvsStr::new(b"/page")),
+                Value::array(nvs_runtime::NvsArray::new()),
+                Value::null(),
+                Value::str(nvs_runtime::NvsStr::new(b"")),
+            ];
+            let answered = nvs_runtime::inproc::scoped(unit, || {
+                nvs_runtime::call(nvs_core_test_request, ctx, &args)
+            })
+            .expect("an installed unit answers");
+            for arg in args {
+                dropped(arg);
+            }
+            answered
+        }
+        fn read(ctx: &mut Ctx, response: Value) -> (i64, String) {
+            let status = nvs_runtime::call(nvs_core_test_response_status, ctx, &[response])
+                .expect("reading the status cannot fail");
+            let body = nvs_runtime::call(nvs_core_test_response_body, ctx, &[response])
+                .expect("reading the body cannot fail");
+            let read = (
+                status.as_int().expect("the status is an integer"),
+                body.as_text().expect("the body is a string").to_owned(),
+            );
+            dropped(status);
+            dropped(body);
+            read
+        }
+
+        let mut ctx = Ctx::buffered();
+        let answered = asked(&mut ctx, &HalfPage(false));
+        let expected = (201, "half a page".to_owned());
+        assert_eq!(read(&mut ctx, answered), expected, "the unit's own answer");
+        assert_eq!(
+            read(&mut ctx, answered),
+            expected,
+            "releasing a reading leaves the response whole"
+        );
+        dropped(answered);
+
+        let failed = asked(&mut ctx, &HalfPage(true));
+        assert_eq!(
+            read(&mut ctx, failed),
+            (500, String::new()),
+            "a failed unit answers what the server sends"
+        );
+        dropped(failed);
+
+        let stranger = Value::int(7);
+        assert!(
+            nvs_runtime::call(nvs_core_test_response_body, &mut ctx, &[stranger]).is_err(),
+            "a receiver that is not a response throws"
+        );
+        let _ = ctx.take_pending();
     }
 
     /// `serverUrl` returns the address the runner armed on this context, and

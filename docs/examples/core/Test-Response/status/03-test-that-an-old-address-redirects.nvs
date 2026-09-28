@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to test that an old address sends the browser to the new one.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. `/old-shop` redirects to `/shop`.
+    // Every other path gets a normal page.
+    var $path = Core\Request::path();
+    if ($path == "/old-shop") {
+        Core\Response::redirect("/shop");
+    } else {
+        echo "the shop";
+    }
+} catch (LogicError $noRequest) {
+    // This part is the test. A redirect has the status 303 by default.
+    var $old = Test::request(Method::Get, "/old-shop");
+    Test::assertEquals($old->status(), 303);
+
+    var $new = Test::request(Method::Get, "/shop");
+    Test::assertEquals($new->status(), 200);
+
+    // Both checks passed, so this prints `the old address redirects`.
+    echo "the old address redirects\n";
+}

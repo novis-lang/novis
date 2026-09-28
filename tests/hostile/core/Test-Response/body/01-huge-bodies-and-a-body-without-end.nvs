@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a test reads very large bodies many times, and one request writes text until
+// it reaches its memory limit. The program should stop at that limit and must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    var $path = Core\Request::path();
+    if ($path == '/mega') {
+        echo Core\Str::repeat('x', 1048576);
+    }
+    if ($path == '/without-end') {
+        string $block = Core\Str::repeat('y', 1048576);
+        while (true) {
+            echo $block;
+        }
+    }
+    if ($path == '/empty') {
+        echo '';
+    }
+} catch (LogicError $noRequest) {
+    // 1. Read a body of one megabyte 1000 times from the same response.
+    var $mega = Test::request(Method::Get, '/mega');
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 1000) {
+        $total = $total + Core\Str::length($mega->body());
+        $i = $i + 1;
+    }
+    echo 'read ', $total, " characters\n";
+
+    // 2. Send 200 requests and keep every body of one megabyte at the same time.
+    array<string> $kept = [];
+    uint $j = 0;
+    while ($j < 200) {
+        var $again = Test::request(Method::Get, '/mega');
+        $kept[] = $again->body();
+        $j = $j + 1;
+    }
+    echo 'kept ', Core\Arr::count($kept), " bodies\n";
+
+    // 3. Read the body of a request that wrote nothing, 10000 times.
+    var $empty = Test::request(Method::Get, '/empty');
+    uint $k = 0;
+    while ($k < 10000) {
+        $total = $total + Core\Str::length($empty->body());
+        $k = $k + 1;
+    }
+    echo "empty bodies add nothing\n";
+
+    // 4. The request writes without end. It reaches its memory limit, and the program stops.
+    var $endless = Test::request(Method::Get, '/without-end');
+    echo 'reached ', Core\Str::length($endless->body()), "\n";
+}

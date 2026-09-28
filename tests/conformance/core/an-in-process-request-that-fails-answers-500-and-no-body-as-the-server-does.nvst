@@ -1,0 +1,34 @@
+--TEST--
+an in-process request whose program throws and does not catch answers `500` and an empty body, whatever it declared and wrote first, and one that catches its own throw keeps both — `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// covers: Core\Test\Response::status, Core\Test\Response::body
+//
+// The server answers a failed request `500` with no body (`nvs-server`'s
+// `answer`), so a test must see the same, or a test of an error path passes
+// while production fails. Both sides of the bound in one run: the program that
+// catches its own throw still answers what it declared and wrote.
+//
+// The `catch (LogicError ...)` is the parent: there is no request in its run.
+try {
+    var $path = Core\Request::path();
+    Core\Response::setStatus(201);
+    echo "half a page";
+    if ($path == "/caught") {
+        try {
+            throw new RuntimeError("handled");
+        } catch (RuntimeError $handled) {
+            echo " and the rest";
+        }
+    } else {
+        throw new RuntimeError("not handled");
+    }
+} catch (LogicError $noRequest) {
+    var $failed = Core\Test::request(Core\Http\Method::Get, "/fails");
+    echo "fails ", $failed->status(), " [", $failed->body(), "]\n";
+    var $caught = Core\Test::request(Core\Http\Method::Get, "/caught");
+    echo "caught ", $caught->status(), " [", $caught->body(), "]\n";
+}
+--EXPECT--
+fails 500 []
+caught 201 [half a page and the rest]

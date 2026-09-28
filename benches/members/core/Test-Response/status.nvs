@@ -1,0 +1,34 @@
+<?nvs
+// Reads the status of one test response, as a test does before it checks that a page answered.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Test\Response> $responses = [
+            Core\Test::request(Core\Http\Method::Get, "/ok"),
+            Core\Test::request(Core\Http\Method::Get, "/created"),
+            Core\Test::request(Core\Http\Method::Get, "/missing"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + $responses[($total % 3) as int]->status();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part sets the status.
+try {
+    var $path = Core\Request::path();
+    if ($path == "/created") {
+        Core\Response::setStatus(201);
+    }
+    if ($path == "/missing") {
+        Core\Response::setStatus(404);
+    }
+} catch (LogicError $noRequest) {
+    echo Bench::run(400000), "\n";
+}

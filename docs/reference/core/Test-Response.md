@@ -11,7 +11,8 @@ The request runs in this process. There is no socket and no port: the program's 
 isolate with the compiled route table's match already on it, so `Core\Request::route()` inside the
 program reads the same match a served request would, and the handler chain that answers is the real one
 rather than a mock of it. What comes back is the status the program declared — `200` where it declared
-none — and every byte it echoed.
+none — and every byte it echoed. A program that throws an error it does not catch answers `500` and an
+empty body, which is what the server sends for a failed request.
 
 ```nvs skip
 #[Test]

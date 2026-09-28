@@ -1,0 +1,55 @@
+<?nvs
+// Attack: the program sets status codes out of range, sets many codes in a row, and sets a code
+// before it throws an error. Each request should answer a valid code, and nothing may crash.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    var $path = Core\Request::path();
+    if ($path == '/too-low') {
+        Core\Response::setStatus(99);
+    }
+    if ($path == '/too-high') {
+        Core\Response::setStatus(600);
+    }
+    if ($path == '/huge') {
+        Core\Response::setStatus(18446744073709551615);
+    }
+    if ($path == '/many') {
+        uint $code = 100;
+        while ($code < 600) {
+            Core\Response::setStatus($code);
+            $code = $code + 1;
+        }
+    }
+    if ($path == '/then-error') {
+        Core\Response::setStatus(201);
+        throw new RuntimeError('the order could not be saved');
+    }
+} catch (LogicError $noRequest) {
+    // 1. A code below 100. `setStatus` throws, the request fails, and the status is 500.
+    echo 'too low: ', Test::request(Method::Get, '/too-low')->status(), "\n";
+
+    // 2. A code above 599. The status is 500 again.
+    echo 'too high: ', Test::request(Method::Get, '/too-high')->status(), "\n";
+
+    // 3. The largest whole number there is. The status is 500 again.
+    echo 'huge: ', Test::request(Method::Get, '/huge')->status(), "\n";
+
+    // 4. Every code from 100 to 599, one after the other. The last one is kept.
+    echo 'many: ', Test::request(Method::Get, '/many')->status(), "\n";
+
+    // 5. A code of 201, and then an error. The request failed, so the status is 500.
+    echo 'then error: ', Test::request(Method::Get, '/then-error')->status(), "\n";
+
+    // 6. Read the status of one response 100000 times.
+    var $response = Test::request(Method::Get, '/many');
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $total = $total + $response->status();
+        $i = $i + 1;
+    }
+    echo 'total ', $total, "\n";
+}

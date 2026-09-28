@@ -1,0 +1,21 @@
+<?nvs
+// Shows what `body()` returns when the program throws an error while it answers.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    var $path = Core\Request::path();
+    // The program writes some text, and then throws an error it does not catch.
+    echo "The first half of the page";
+    throw new RuntimeError("the database is not available");
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Get, "/report");
+
+    // The server sends no body for a failed request, so `body()` returns
+    // an empty string. This prints `[]`.
+    echo "[", $response->body(), "]\n";
+
+    // The status of a failed request is 500. This prints `500`.
+    echo $response->status(), "\n";
+}

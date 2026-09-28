@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `status()` returns the code the program set with `Core\Response::setStatus`.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers the request. A new order gets the status 201 (Created).
+    var $path = Core\Request::path();
+    Core\Response::setStatus(201);
+    echo "order created";
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Post, "/orders");
+
+    // This prints `201 order created`.
+    echo $response->status(), " ", $response->body(), "\n";
+}
