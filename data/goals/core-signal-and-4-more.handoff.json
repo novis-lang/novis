@@ -1,23 +1,22 @@
 {
-  "state": "Goal `core-signal-and-4-more`. `Core\\Signal` is green again: its bench was re-measured after the class\ncard changed `crates/nvs-stdlib/src/signal.rs`. `Core\\Signature::sign` and `Core\\Signature::verify` have\nall their feature proofs: an `about.md` each, three examples each, one attack each, one bench each, and\nRust tests carrying `covers:`. That includes a new member-level `sign` test at the foot of\n`crates/nvs-stdlib/src/signature.rs`. `Core\\Signature` has a class card, is off\n`CLASSES_STILL_OWING_A_CARD`, and both member cards are rewritten in the plain voice. Neither attack found\na bug. Nothing is blocked. Still red in stage 2: `Core\\SignedCookie`, `Core\\Socket`, `Core\\Socket\\Message`.",
+  "state": "Goal `core-signal-and-4-more`. `Core\\Signal`, `Core\\Signature` and now `Core\\SignedCookie` are green.\n`Core\\SignedCookie::seal` and `::open` have all their feature proofs: an `about.md` each, three\nexamples each, one attack each, one bench each, and a member-level Rust test each carrying `covers:`\nat the foot of `crates/nvs-stdlib/src/signed_cookie.rs`. The class has a card, is off\n`CLASSES_STILL_OWING_A_CARD`, and both member cards are rewritten in the plain voice. Neither attack\nfound a bug. `open` checks an older key's length only when the walk reaches it; the card and the\nhelper's doc now say so. Nothing is blocked. Still red in stage 2: `Core\\Socket` and\n`Core\\Socket\\Message`.",
   "next": {
     "stage": 1,
     "title": "one slice per feature",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/signed_cookie.rs` and its proof trees under `core/SignedCookie/`. Both members share the file, so take them together, with the class card.",
+    "note": "one file set: `crates/nvs-stdlib/src/socket.rs` and its proof trees under `core/Socket/` and `core/Socket-Message/`. Both classes live in the one file, so take the class cards together.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\SignedCookie::seal`** — owes examples, hostile, perf, a Rust test carrying `covers:`, and `Core\\SignedCookie`'s class card (`doc: None`, and the class is on `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`). Rewrite its card in the plain voice too. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/signed_cookie.rs:114`"
+        "text": "**`Core\\Socket::send`, `::sendBytes`, `::receive`** — owe examples, hostile, perf, and one more Novis case each (`receive` owes two), plus `Core\\Socket`'s class card (`doc: None`, and the class is on `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`). These are instance members, so a Rust test needs a `covers:` marker. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/socket.rs:223`"
       },
       {
         "done": false,
-        "text": "**`Core\\SignedCookie::open`** — owes examples, hostile, perf, a Rust test carrying `covers:`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/signed_cookie.rs:126`"
+        "text": "**`Core\\Socket\\Message::text`, `::bytes`, `::value`** — owe examples, hostile, perf, two tests each, and `Core\\Socket\\Message`'s class card. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/socket.rs:476`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Socket` (`receive`, `send`, `sendBytes`) and `Core\\Socket\\Message` — the rest of stage 2, in `crates/nvs-stdlib/src/socket.rs`. `rule:testing/feature-proofs`.",
-    "Record the perf of each class once its Rust edits are final: the ledger goes stale when the implementing file changes, and a card edit counts (`rule:testing/member-perf-ledger`)."
+    "`bun nv proofs --record-perf --group '<class>'` must run after the last edit to the implementing file, `fmt` included, or the gate reads the figure as stale — `rule:testing/member-perf-ledger`."
   ]
 }

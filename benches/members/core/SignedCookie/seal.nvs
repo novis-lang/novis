@@ -1,0 +1,20 @@
+<?nvs
+// Measures sealing a short value, as a server does when it sets a login cookie.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round seals a value that depends on the last cookie, so no round can be left out.
+            string $cookie = Core\SignedCookie::seal("user=" . $total, $keys);
+            $total = $total + Core\Str::length($cookie) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

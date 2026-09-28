@@ -20705,16 +20705,16 @@ Keywords: seal, open
 Core\SignedCookie::seal(string $value, array<secret bytes> $keys): string
 ```
 
-Seals `$value` under the newest key in `$keys` and answers cookie-safe text. The construction is `Core\Crypto`'s, so the cookie is encrypted as well as authenticated and there is no unauthenticated spelling to reach for.
+Encrypts `$value` with the newest key in `$keys` and returns text for a cookie. Nobody without the key can read or change the value. `Core\SignedCookie::open` returns the value again.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `string` | The payload. It comes back from `open` exactly as it went in. |
-| `$keys` | `array<secret bytes>` | The key ring, **newest first**: `$keys[0]` seals, and the rest exist so that `open` still accepts cookies sealed before the last rotation. A ring of one is `[$key]`. |
+| `$value` | `string` | The value to store. `open` returns exactly this string. |
+| `$keys` | `array<secret bytes>` | The keys, newest first. `$keys[0]` encrypts the value. The older keys are there so that `open` still accepts cookies made before you added a new key. A list of one key is `[$key]`. |
 
-**Returns** `string` — Unpadded URL-safe base64 — `A-Za-z0-9-_`, every octet of which a `Set-Cookie` header carries unescaped. About `4/3 × (length + 40)` characters, and different on every call for the same inputs, because each seals under its own nonce.
+**Returns** `string` — The cookie text. It contains only `A-Z`, `a-z`, `0-9`, `-` and `_`, so a `Set-Cookie` header can carry it without escaping. It is about 4/3 × (length + 40) characters long. Each call returns different text for the same value, because each call adds new random bytes.
 
-**Throws** `LogicError` — `$keys` is empty, so there is no newest key; or `$keys[0]` is not 32 octets long — a `bytes` that was never a key.; `RuntimeError` — This process cannot spare a buffer the size of the sealed value.
+**Throws** `LogicError` — `$keys` is empty, or its first key is not 32 bytes long. `Core\Crypto::generateKey()` returns a key of the right length.; `RuntimeError` — The request does not have enough memory left for the cookie.
 
 <a id="core-core-signedcookie-open"></a>
 #### `Core\SignedCookie::open`
@@ -20723,16 +20723,16 @@ Seals `$value` under the newest key in `$keys` and answers cookie-safe text. The
 Core\SignedCookie::open(string $cookie, array<secret bytes> $keys): string
 ```
 
-Authenticates `$cookie` against every key in `$keys` and answers the value that was sealed, or throws. The answer is **unqualified**: a payload this application sealed itself is the one verification in the language that gives back a value free of the `tainted` mark it arrived with.
+Checks that `$cookie` was made by `Core\SignedCookie::seal` with a key in `$keys`, and returns the value stored in it. A changed cookie throws an error. The value is returned without the `tainted` mark (the mark for input from outside), because your own program stored it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$cookie` | `string` (launder) | The cookie text, as it arrived. A `tainted` value is accepted here — that is the point of the member. |
-| `$keys` | `array<secret bytes>` | The same ring `seal` was given, newest first. A cookie sealed under any key still in the ring opens; one sealed under a key that has been dropped off the end does not. |
+| `$cookie` | `string` (launder) | The cookie text as your program received it from the request. A `tainted` string is allowed here. |
+| `$keys` | `array<secret bytes>` | The keys you gave `seal`, newest first. A cookie made with any key in this list is accepted. A cookie made with a key you removed from the list is not. |
 
-**Returns** `string` — The original value, character for character.
+**Returns** `string` — The value that was given to `seal`, exactly as it was.
 
-**Throws** `LogicError` — `$keys` is empty, or one of its entries is not 32 octets long.; `RuntimeError` — `$cookie` is not an authentic cookie under any key in `$keys` — it was altered, it is not base64 at all, or it was sealed under a key that has been retired. The four are one message on purpose: telling them apart tells a forger which half landed, and which key of the ring to aim at.
+**Throws** `LogicError` — `$keys` is empty, or a key that `open` tries is not 32 bytes long. `open` tries the keys in order and stops at the first one that opens the cookie.; `RuntimeError` — `$cookie` was not made with any key in `$keys`. This includes a changed cookie, an empty cookie, text that is not a cookie, and a cookie made with a key you removed. All of these give the same message, so an attacker learns nothing from it.
 
 <a id="core-core-csrf"></a>
 ### `Core\Csrf`

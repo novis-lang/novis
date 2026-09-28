@@ -1,0 +1,14 @@
+<?nvs
+// Shows that sealing the same value twice gives two different cookies.
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+
+// Each call adds new random bytes, so this prints `different`.
+// Nobody can see from the cookies that two users have the same value.
+string $first = Core\SignedCookie::seal("theme=dark", $keys);
+string $second = Core\SignedCookie::seal("theme=dark", $keys);
+echo $first == $second ? "the same\n" : "different\n";
+
+// Both cookies still contain the same value. This prints theme=dark two times.
+echo Core\SignedCookie::open($first, $keys), "\n";
+echo Core\SignedCookie::open($second, $keys), "\n";

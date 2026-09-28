@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the value that a cookie contains.
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+string $cookie = Core\SignedCookie::seal("lang=de; theme=dark", $keys);
+
+// `open` returns the value exactly as it was sealed, including `;` and `=`.
+// This prints lang=de; theme=dark.
+string $value = Core\SignedCookie::open($cookie, $keys);
+echo $value, "\n";

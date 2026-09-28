@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to start using a new key while old cookies still work.
+
+secret bytes $oldKey = Core\Crypto::generateKey();
+string $oldCookie = Core\SignedCookie::seal("user=42", [$oldKey]);
+
+// The new key goes first, so `seal` uses it. The old key stays second.
+secret bytes $newKey = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$newKey, $oldKey];
+string $newCookie = Core\SignedCookie::seal("user=7", $keys);
+
+// Both cookies are accepted. This prints user=42 and then user=7.
+echo Core\SignedCookie::open($oldCookie, $keys), "\n";
+echo Core\SignedCookie::open($newCookie, $keys), "\n";
+
+// Later, the old key is removed. Cookies made with it now throw an error.
+array<secret bytes> $newOnly = [$newKey];
+try {
+    Core\SignedCookie::open($oldCookie, $newOnly);
+    echo "accepted\n";
+} catch (RuntimeError $e) {
+    echo "The old cookie is no longer accepted.\n";
+}

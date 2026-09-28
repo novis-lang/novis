@@ -1,0 +1,25 @@
+<?nvs
+// Measures opening a login cookie, as a server does on every request that carries one.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        array<string> $cookies = [
+            Core\SignedCookie::seal("user=7", $keys),
+            Core\SignedCookie::seal("user=42", $keys),
+            Core\SignedCookie::seal("user=1000", $keys),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round opens the cookie that the last result chose, so no round can be left out.
+            string $value = Core\SignedCookie::open($cookies[$total % 3], $keys);
+            $total = $total + Core\Str::length($value) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program opens forged, cut and random cookies, and uses broken keys.
+// Every forged cookie should throw a `RuntimeError`, and nothing may crash or leak.
+// hostile: timeout-ms 30000
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+string $cookie = Core\SignedCookie::seal('user=42; role=admin', $keys);
+int $size = Core\Str::length($cookie) as int;
+
+// 1. Each character of the cookie is replaced, one at a time. Every changed cookie must fail.
+int $accepted = 0;
+int $i = 0;
+while ($i < $size) {
+    string $letter = Core\Str::slice($cookie, $i, 1) == 'A' ? 'B' : 'A';
+    string $forged = Core\Str::slice($cookie, 0, $i) . $letter . Core\Str::slice($cookie, $i + 1);
+    try {
+        Core\SignedCookie::open($forged, $keys);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $changed) {
+    }
+    $i = $i + 1;
+}
+echo 'changed cookies accepted: ', $accepted, "\n";
+
+// 2. The cookie is cut after every length from 0 to its full size minus one.
+int $cut = 0;
+while ($cut < $size) {
+    try {
+        Core\SignedCookie::open(Core\Str::slice($cookie, 0, $cut), $keys);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $shortened) {
+    }
+    $cut = $cut + 1;
+}
+echo 'cut cookies accepted: ', $accepted, "\n";
+
+// 3. Text that is not a cookie: symbols, padding, and 2 million characters.
+array<string> $junk = ['', '====', 'not a cookie!', '%00%00', $cookie . '=', Core\Str::repeat('A', 2000000)];
+foreach ($junk as string $text) {
+    try {
+        Core\SignedCookie::open($text, $keys);
+        echo "junk accepted\n";
+    } catch (RuntimeError $junked) {
+    }
+}
+echo "junk refused\n";
+
+// 4. A list of 1000 wrong keys. `open` tries every key, and none of them fits.
+array<secret bytes> $strangers = [];
+int $k = 0;
+while ($k < 1000) {
+    $strangers[] = Core\Crypto::generateKey();
+    $k = $k + 1;
+}
+try {
+    Core\SignedCookie::open($cookie, $strangers);
+    echo "opened with wrong keys\n";
+} catch (RuntimeError $wrong) {
+    echo "wrong keys: RuntimeError\n";
+}
+
+// 5. A broken key behind the right key is not tried, so the cookie opens.
+// A broken key in front of the right key throws a `LogicError`.
+array<secret bytes> $brokenLast = [$key, Core\Random::bytes(8)];
+echo 'broken key last: ', Core\SignedCookie::open($cookie, $brokenLast), "\n";
+array<secret bytes> $brokenFirst = [Core\Random::bytes(8), $key];
+try {
+    Core\SignedCookie::open($cookie, $brokenFirst);
+    echo "opened past a broken key\n";
+} catch (LogicError $broken) {
+    echo "broken key first: LogicError\n";
+}
+
+// 6. The program opens 100000 cookies and keeps none of the values. All memory must be freed.
+int $j = 0;
+while ($j < 100000) {
+    Core\SignedCookie::open($cookie, $keys);
+    $j = $j + 1;
+}
+echo "after 100000 opens\n";

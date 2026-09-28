@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a shop keeps a shopping cart in a cookie, so the server stores nothing.
+
+// The server reads its key from its configuration. This example makes a new one.
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+
+// The first request adds two cups. The cart is written as JSON and sealed.
+array<int> $cart = ["cup" => 2];
+string $cookie = Core\SignedCookie::seal(Core\Json::encode($cart), $keys);
+
+// The next request sends the cookie back. The server opens it and adds a teapot.
+var $stored = Core\Json::decode(Core\SignedCookie::open($cookie, $keys)) as array<mixed>;
+array<int> $next = [];
+foreach ($stored as string $item => mixed $count) {
+    $next[$item] = $count as int;
+}
+$next["teapot"] = 1;
+$cookie = Core\SignedCookie::seal(Core\Json::encode($next), $keys);
+
+// The third request reads the cart. This prints {"cup":2,"teapot":1}.
+echo Core\SignedCookie::open($cookie, $keys), "\n";
