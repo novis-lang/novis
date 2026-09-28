@@ -6,7 +6,7 @@
 // | table | holds |
 // |---|---|
 // | `meta` | `schema`, the tree the store last recorded (`base:<platform>`), the `covws` build, each generated file's digest, and the `covers:` and `calls:` keys each overlay path's text named, with the perf ledger's digest of each feature's rows (`markers:<platform>`) |
-// | `atoms` | one row per atom and platform: its kind, its definition's digest, its last verdict and run, and its own key list |
+// | `atoms` | one row per atom and platform: its kind, its definition's digest, its last verdict and run, its own key list, and how long its last judged and recording runs took |
 // | `keys` | every key any footprint holds, numbered, with the digest it had when last recorded |
 // | `footprint` | `(key, atom)`: the reverse index a selection reads, keyed on the key |
 // | `items` | each Rust file's items as `nv-scan --items` read them at the base tree, per platform |
@@ -90,6 +90,8 @@ const DDL = `
     last_run INTEGER NOT NULL DEFAULT 0,
     nkeys INTEGER NOT NULL DEFAULT 0,
     keys BLOB,
+    judged_ms INTEGER NOT NULL DEFAULT 0,
+    recorded_ms INTEGER NOT NULL DEFAULT 0,
     UNIQUE (id, platform)
   );
   CREATE TABLE IF NOT EXISTS keys (n INTEGER PRIMARY KEY, key TEXT NOT NULL UNIQUE, digest TEXT NOT NULL DEFAULT '');
@@ -129,7 +131,22 @@ export class SelectStore {
       for (const t of ["meta", "atoms", "keys", "footprint", "items", "verdicts"]) this.db.exec(`DROP TABLE IF EXISTS ${t}`);
     }
     this.db.exec(DDL);
+    this.addColumns();
     this.setMeta("schema", SCHEMA);
+  }
+
+  /** Adds the columns a store made before them lacks. Another process may add one first, and a column
+   * that exists by the time this one adds it is the same column. */
+  private addColumns(): void {
+    const have = new Set((this.db.query("PRAGMA table_info(atoms)").all() as { name: string }[]).map((c) => c.name));
+    for (const col of ["judged_ms", "recorded_ms"]) {
+      if (have.has(col)) continue;
+      try {
+        this.db.exec(`ALTER TABLE atoms ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`);
+      } catch (e) {
+        if (!/duplicate column/i.test((e as Error).message)) throw e;
+      }
+    }
   }
 
   /**
@@ -349,6 +366,19 @@ export class SelectStore {
     if (wholes.length === 0 || old.length === 0) return false;
     const held = new Set(old);
     return [...this.keyIdsOf(wholes).values()].some((k) => held.has(k));
+  }
+
+  /** Notes how long the last judged run and the last recording run of a known atom took, in
+   * milliseconds; an atom judged and recorded in one run gives the same time twice. Only the order work
+   * starts in reads these. */
+  setDurations(id: string, judgedMs: number, recordedMs: number): void {
+    this.stmt("UPDATE atoms SET judged_ms = ?, recorded_ms = ? WHERE id = ? AND platform = ?").run(Math.round(judgedMs), Math.round(recordedMs), id, this.platform);
+  }
+
+  /** Every atom of `kind` with a noted duration, by id; 0 where one of the two was never noted. */
+  durations(kind: AtomKind): Map<string, { judged: number; recorded: number }> {
+    const rows = this.stmt("SELECT id, judged_ms, recorded_ms FROM atoms WHERE platform = ? AND kind = ? AND (judged_ms > 0 OR recorded_ms > 0)").all(this.platform, kind) as { id: string; judged_ms: number; recorded_ms: number }[];
+    return new Map(rows.map((r) => [r.id, { judged: r.judged_ms, recorded: r.recorded_ms }]));
   }
 
   /** Sets an atom's verdict without touching its footprint. */

@@ -7,9 +7,11 @@
 //
 // Each program that runs is judged on the proof binary and recorded in a second run on the covws debug
 // `nvs` (`recordingRun`), whose outcome is never the verdict: its coverage and footprint log go under the
-// run's scratch directory, a batch of programs at a time so the disk holds one batch's counters. A
-// recording run that ends differently from the judged run, with another exit status or other standard
-// output, may have stopped short of code the judged run reached: the program is marked diverged
+// run's scratch directory, and are turned into keys and deleted as soon as that run ends, so the disk
+// holds the counters of at most one pool's width of programs. Every program is judged in one pool before
+// any is recorded in a second, each pool longest first by the time the store noted for that kind of run
+// (`judgeThenRecord`). A recording run that ends differently from the judged run, with another exit
+// status or other standard output, may have stopped short of code the judged run reached: the program is marked diverged
 // (`SelectStore.markDiverged`), and the selection picks it every time until a recording run agrees
 // again. A program that is skipped on this host holds its own file alone. The run, green or red, then
 // moves the store's tree past the change (`advance`), with every other atom the change reached marked
@@ -32,10 +34,8 @@ import { loadUnrecorded, unrecorded } from "../lib/reads.ts";
 import type { Recorder } from "../select/record.ts";
 import type { ChangeSet, Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
-import { type Binary, divergence, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, type What } from "./run.ts";
-
-/** How many programs one recorded batch runs. */
-const BATCH = 96;
+import { progress } from "../lib/progress.ts";
+import { type Binary, divergence, jobsFor, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, type What } from "./run.ts";
 
 async function load() {
   const [graph, atoms, extract, record, select] = await Promise.all([
@@ -45,8 +45,8 @@ async function load() {
     import("../select/record.ts"),
     import("../select/select.ts"),
   ]);
-  const { advance, chunks, fullChange, pool, Recorder } = record;
-  return { metadata: graph.metadata, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, chunks, fullChange, pool, Recorder, computeChange: select.computeChange, query: select.query };
+  const { advance, fullChange, pool, Recorder } = record;
+  return { metadata: graph.metadata, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, fullChange, pool, Recorder, computeChange: select.computeChange, query: select.query };
 }
 
 let loaded: ReturnType<typeof load> | undefined;
@@ -94,10 +94,51 @@ export async function recordProgram(rec: Recorder, nvs: string, dir: string, wha
   const keys: Keyed = got ? (await rec.extract(got, [nvs])).keys : new Map();
   if (keys.size === 0) keys.set(`file:${path}`, "");
   rec.record(id, proofDef(path), verdict, keys);
+  rec.store.setDurations(id, result.ran.ms, recorded.ms);
   const why = divergence(result.ran, recorded);
   if (why === null) rec.store.clearDiverged(id);
   else rec.store.markDiverged(id, why);
   return why;
+}
+
+/**
+ * `programs` in the order a pool should start them, longest first so that no long program starts last
+ * and runs alone at the end. A program with a known time (`ms`) goes by it; one with none goes before
+ * every known one, larger `prior` first, since it may be the longest of all. Ties go by path.
+ */
+export function longestFirst<P extends { path: string }>(programs: P[], ms: (p: P) => number | undefined, prior: (p: P) => number): P[] {
+  const key = programs.map((p) => {
+    const t = ms(p);
+    return { p, known: t !== undefined && t > 0, weight: t !== undefined && t > 0 ? t : prior(p) };
+  });
+  key.sort((a, b) => (a.known !== b.known ? (a.known ? 1 : -1) : b.weight - a.weight || (a.p.path < b.p.path ? -1 : a.p.path > b.p.path ? 1 : 0)));
+  return key.map((k) => k.p);
+}
+
+/**
+ * Judges every program of `programs` in one pool (`judge`), and only then records each in a second pool
+ * as wide as the first (`pool`, running `record`). No judged run ever shares the machine with a
+ * recording run: a recording run on the debug build is many times slower, and an attack judged beside
+ * one could run out of its time limit for the load alone.
+ *
+ * Each pool starts its programs longest first (`longestFirst`) by the time noted for its own kind of
+ * run: the judged time for judging, the recorded time for recording. A program never judged here goes
+ * first, an attack before an example, since attacks carry the long limits. A program never recorded goes
+ * first in the recording pool, by the time this pass judged it in.
+ */
+export async function judgeThenRecord<P extends Program>(
+  programs: P[],
+  took: (p: P) => { judged: number; recorded: number } | undefined,
+  judge: (ordered: P[]) => Promise<Pass>,
+  pool: (width: number, ordered: P[], body: (p: P) => Promise<void>) => Promise<void>,
+  record: (p: P, result: Result | undefined) => Promise<void>,
+): Promise<Pass> {
+  if (programs.length === 0) return { results: new Map(), width: 1, seconds: 0 };
+  const pass = await judge(longestFirst(programs, (p) => took(p)?.judged, (p) => (p.what === "hostile" ? 1 : 0)));
+  const resultOf = (p: P) => pass.results.get(`${p.what}:${p.path}`);
+  const ordered = longestFirst(programs, (p) => took(p)?.recorded, (p) => resultOf(p)?.ran?.ms ?? 0);
+  await pool(Math.max(1, pass.width), ordered, (p) => record(p, resultOf(p)));
+  return pass;
 }
 
 /**
@@ -109,12 +150,12 @@ export async function recordProgram(rec: Recorder, nvs: string, dir: string, wha
  * log for the same reason, so the programs' reads never land in the footprint of the check that ran them.
  */
 export async function runSelected(bin: Binary, programs: Program[], opts: RunOptions, all: boolean): Promise<Pass & { ran: number; diverged: Diverged[] }> {
-  const { advance, chunks, metadata, pool, proofId, Recorder } = await engine();
+  const { advance, metadata, pool, proofId, Recorder } = await engine();
   const store = new SelectStore();
   const { graph, change, sel, rec } = await unrecorded(async () => {
     const graph = await metadata();
     const { change, sel } = await selection(store, graph, programs);
-    return { graph, change, sel, rec: await Recorder.open(store, change.view, graph, "proofs") };
+    return { graph, change, sel, rec: await Recorder.open(store, change.view, graph, "proofs", { extractWidth: jobsFor(programs.length) }) };
   });
   const chosen = programs.filter((p) => all || sel.selected.has(proofId(p.path)));
   const picked = new Set(chosen.map((p) => p.path));
@@ -129,23 +170,24 @@ export async function runSelected(bin: Binary, programs: Program[], opts: RunOpt
     for (const [k, v] of quiet.results) results.results.set(k, v);
     // The recording build is the pipeline's debug build, which cargo brings up to date.
     const nvs = chosen.length > 0 ? (await unrecorded(() => buildCovws({ onLine: cargoLines("proofs: building the covws debug nvs") }))).nvs : "";
-    for (const [n, batch] of chunks(chosen, BATCH).entries()) {
-      // Every program of the batch is judged before any is recorded, so a judged run never shares the
-      // machine with the slower recording runs.
-      const pass = await runPrograms(bin, batch, judged);
-      results.width = Math.max(results.width, pass.width);
-      results.seconds += pass.seconds;
-      const dir = join(rec.dir, "proofs", String(n));
-      await unrecorded(() =>
-        pool(batch, Math.max(1, pass.width), async ({ what, path }) => {
-          const result = pass.results.get(`${what}:${path}`);
-          if (result) results.results.set(`${what}:${path}`, result);
-          const why = await recordProgram(rec, nvs, dir, what, path, result);
-          if (why !== null) diverged.push({ path, why });
-          ran.add(proofId(path));
-        }),
-      );
-    }
+    const took = unrecorded(() => store.durations("proof"));
+    const dir = join(rec.dir, "proofs");
+    let recorded = 0;
+    const pass = await judgeThenRecord(
+      chosen,
+      (p) => took.get(proofId(p.path)),
+      (list) => runPrograms(bin, list, judged),
+      (width, list, body) => unrecorded(() => pool(list, width, body)),
+      async ({ what, path }, result) => {
+        const why = await recordProgram(rec, nvs, dir, what, path, result);
+        if (why !== null) diverged.push({ path, why });
+        ran.add(proofId(path));
+        progress(`proofs: ${++recorded}/${chosen.length} programs recorded`);
+      },
+    );
+    for (const [k, v] of pass.results) results.results.set(k, v);
+    results.width = pass.width;
+    results.seconds = pass.seconds;
     // Red or green, the tree moves; a red program stays selected as red.
     unrecorded(() => advance(store, change, sel, ran, graph));
   } finally {

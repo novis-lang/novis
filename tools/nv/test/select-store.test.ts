@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -111,5 +112,42 @@ describe("the select store", () => {
     expect(s.itemFiles()).toEqual(["b.rs"]);
     s.ensureAtom("proof:docs/x.nvs");
     expect(s.stats()).toMatchObject({ atoms: { proof: 1 }, recorded: { proof: 0 }, red: 0 });
+  });
+
+  test("a run's judged and recorded times are kept per atom, and a new run keeps them", () => {
+    const s = store();
+    s.recordRun("proof:docs/a.nvs", { def: "d", verdict: "green", keys: new Map([["file:docs/a.nvs", ""]]) });
+    s.ensureAtom("proof:docs/b.nvs");
+    s.setDurations("proof:docs/a.nvs", 120.4, 950.6);
+    s.setDurations("proof:docs/unknown.nvs", 1, 1);
+    expect([...s.durations("proof")]).toEqual([["proof:docs/a.nvs", { judged: 120, recorded: 951 }]]);
+    s.recordRun("proof:docs/a.nvs", { def: "d", verdict: "red", keys: new Map() });
+    expect(s.durations("proof").get("proof:docs/a.nvs")).toEqual({ judged: 120, recorded: 951 });
+    expect(s.durations("case").size).toBe(0);
+  });
+
+  test("a store made before the time columns gains them and keeps every atom", () => {
+    const t = scratch();
+    const file = join(t.root, "select.sqlite");
+    try {
+      const old = new Database(file);
+      old.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO meta VALUES ('schema', '1');");
+      old.exec(
+        "CREATE TABLE atoms (n INTEGER PRIMARY KEY, id TEXT NOT NULL, platform TEXT NOT NULL, kind TEXT NOT NULL, def TEXT NOT NULL DEFAULT '', " +
+          "verdict TEXT NOT NULL DEFAULT '', last_run INTEGER NOT NULL DEFAULT 0, nkeys INTEGER NOT NULL DEFAULT 0, keys BLOB, UNIQUE (id, platform));",
+      );
+      old.exec("INSERT INTO atoms (id, platform, kind, verdict) VALUES ('proof:docs/a.nvs', 'test-os', 'proof', 'green');");
+      old.close();
+      const s = new SelectStore(file, "test-os");
+      expect(s.atom("proof:docs/a.nvs")?.verdict).toBe("green");
+      expect(s.durations("proof").size).toBe(0);
+      s.setDurations("proof:docs/a.nvs", 5, 50);
+      s.close();
+      const again = new SelectStore(file, "test-os");
+      expect(again.durations("proof").get("proof:docs/a.nvs")).toEqual({ judged: 5, recorded: 50 });
+      again.close();
+    } finally {
+      t.cleanup();
+    }
   });
 });

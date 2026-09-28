@@ -401,7 +401,7 @@ export function saveReads(groups: [string, string[]][]): void {
 }
 
 /** How many programs run at once: `NVS_PROOF_JOBS`, or half the cores. */
-function jobsFor(count: number): number {
+export function jobsFor(count: number): number {
   const env = Number(process.env.NVS_PROOF_JOBS);
   const cores = navigator.hardwareConcurrency || 2;
   const width = Number.isInteger(env) && env > 0 ? env : Math.max(1, Math.floor(cores / 2));

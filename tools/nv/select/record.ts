@@ -96,7 +96,7 @@ export class Recorder {
   /** The temporary directory every recorded process gets, which `nvs` accepts to write in. */
   readonly tmpEnv: Record<string, string>;
   private readonly merge: string;
-  private readonly gate = limiter(Math.max(2, Math.floor((cpus().length || 4) / 4)));
+  private readonly gate: <T>(body: () => Promise<T>) => Promise<T>;
 
   private constructor(
     readonly store: SelectStore,
@@ -104,16 +104,22 @@ export class Recorder {
     generated: Generated[],
     dir: string,
     readonly say: (line: string) => void,
+    extractWidth: number,
   ) {
     this.index = new ItemIndex(view.values());
     this.generated = generated;
     this.dir = dir;
     this.tmpEnv = { TMP: join(dir, "tmp"), TEMP: join(dir, "tmp"), TMPDIR: join(dir, "tmp") };
     this.merge = join(dir, "_merge");
+    this.gate = limiter(extractWidth);
   }
 
-  /** A recorder for one run, its coverage mapped against `view` (a change's, or `currentView`). */
-  static async open(store: SelectStore, view: Map<string, FileItems>, graph: Graph | null, label: string, opts: { root?: string; say?: (line: string) => void } = {}): Promise<Recorder> {
+  /**
+   * A recorder for one run, its coverage mapped against `view` (a change's, or `currentView`). At most
+   * `extractWidth` extractions run at once, a quarter of the cores and at least two by default: a caller
+   * whose own pool already bounds how many records wait, as `bun nv proofs` does, passes that pool's width.
+   */
+  static async open(store: SelectStore, view: Map<string, FileItems>, graph: Graph | null, label: string, opts: { root?: string; say?: (line: string) => void; extractWidth?: number } = {}): Promise<Recorder> {
     const root = opts.root ?? ROOT;
     const scope = graphScope(graph);
     const generated = generatedIncludes(view.values(), (f) => scope.pkgOf(f), root);
@@ -121,7 +127,8 @@ export class Recorder {
     rmSync(dir, { recursive: true, force: true });
     await privateDir(join(dir, "tmp"));
     mkdirSync(join(dir, "_merge"), { recursive: true });
-    return new Recorder(store, view, generated, dir, opts.say ?? (() => {}));
+    const extractWidth = Math.max(1, opts.extractWidth ?? Math.max(2, Math.floor((cpus().length || 4) / 4)));
+    return new Recorder(store, view, generated, dir, opts.say ?? (() => {}), extractWidth);
   }
 
   /** Maps what is recorded from here on against `view`: a formatter rewrote files, and their items'

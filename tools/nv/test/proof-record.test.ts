@@ -6,8 +6,8 @@ import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV as READS_ENV, readModules } from "../lib/reads.ts";
-import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, spawnProof } from "../proofs/run.ts";
-import { recordProgram } from "../proofs/select.ts";
+import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, spawnProof } from "../proofs/run.ts";
+import { judgeThenRecord, longestFirst, recordProgram } from "../proofs/select.ts";
 import { proofId } from "../select/atoms.ts";
 import { Recorder } from "../select/record.ts";
 import { SelectStore } from "../select/store.ts";
@@ -88,6 +88,66 @@ describe("the modules a recorded `nv proofs` names", () => {
   });
 });
 
+describe("the order programs are judged and recorded in", () => {
+  type P = { what: "examples" | "hostile"; path: string };
+  const ex = (path: string): P => ({ what: "examples", path });
+  const at = (path: string): P => ({ what: "hostile", path });
+  const done = (ms: number): Ran => ({ code: 0, stdout: "", stderr: "", timedOut: false, ms });
+
+  test("known programs go longest first, after every unknown one, an attack before an example, ties by path", () => {
+    const ms: Record<string, number> = { a: 10, b: 500, c: 40, d: 40 };
+    const order = longestFirst([ex("a"), ex("b"), ex("c"), ex("new-ex"), ex("d"), at("new-at")], (p) => ms[p.path], (p) => (p.what === "hostile" ? 1 : 0));
+    expect(order.map((p) => p.path)).toEqual(["new-at", "new-ex", "b", "c", "d", "a"]);
+  });
+
+  test("every program is judged before any is recorded, and each pool goes longest first by its own time", async () => {
+    const programs = [ex("quick"), at("slow-attack"), ex("slow-to-record"), ex("never-recorded")];
+    const took: Record<string, { judged: number; recorded: number }> = {
+      quick: { judged: 5, recorded: 50 },
+      "slow-attack": { judged: 900, recorded: 1000 },
+      "slow-to-record": { judged: 20, recorded: 5000 },
+      "never-recorded": { judged: 30, recorded: 0 },
+    };
+    const events: string[] = [];
+    const pass = await judgeThenRecord(
+      programs,
+      (p) => took[p.path],
+      async (ordered) => {
+        const results = new Map<string, Result>();
+        for (const p of ordered) {
+          events.push(`judge ${p.path}`);
+          results.set(`${p.what}:${p.path}`, { verdict: "ok", why: "", cached: false, ran: done(took[p.path]!.judged) });
+        }
+        return { results, width: 3, seconds: 1 };
+      },
+      async (width, ordered, body) => {
+        expect(width).toBe(3);
+        await Promise.all(ordered.map(body));
+      },
+      async (p, result) => {
+        expect(result?.ran?.ms).toBe(took[p.path]!.judged);
+        events.push(`record ${p.path}`);
+      },
+    );
+    expect(events).toEqual([
+      "judge slow-attack",
+      "judge never-recorded",
+      "judge slow-to-record",
+      "judge quick",
+      "record never-recorded",
+      "record slow-to-record",
+      "record slow-attack",
+      "record quick",
+    ]);
+    expect(pass.results.size).toBe(4);
+  });
+
+  test("no programs judge and record nothing", async () => {
+    const pass = await judgeThenRecord([] as P[], () => undefined, () => Promise.reject(new Error("judged")), () => Promise.reject(new Error("pooled")), () => Promise.reject(new Error("recorded")));
+    expect(pass.results.size).toBe(0);
+  });
+});
+
 describe("the judged run and the recording run", () => {
   const SQRT = "docs/examples/core/Math/sqrt/01-square-roots.nvs";
   const ran = (code: number, stdout: string, timedOut = false): Ran => ({ code, stdout, stderr: "", timedOut, ms: 1000 });
@@ -146,6 +206,7 @@ describe("the judged run and the recording run", () => {
       expect(diverged).toMatch(/^stdout differs from the judged run's at line /);
       expect([...store.divergences().keys()]).toEqual([proofId(SQRT)]);
       expect(store.atom(proofId(SQRT))?.verdict).toBe("green");
+      expect(store.durations("proof").get(proofId(SQRT))?.judged).toBe(1000);
       expect(await recordProgram(rec, nvs, dir, "examples", SQRT, { verdict: "ok", why: "", cached: false, ran: ran(0, out) })).toBeNull();
       expect(store.divergences().size).toBe(0);
       // A program skipped on this host is not run again, and holds its own file.
