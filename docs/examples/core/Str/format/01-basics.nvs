@@ -1,4 +1,11 @@
 <?nvs
+// Shows the most common placeholders: a string, a whole number, a number with decimals and hexadecimal.
+
+// `%s` writes a string and `%d` a whole number. This prints `the cart has 3 items`.
 echo Core\Str::format("%s has %d items\n", "the cart", 3);
+
+// `%.2f` writes a number with two decimals. This prints `3.14`.
 echo Core\Str::format("%.2f\n", 3.14159);
+
+// `%x` writes a number in hexadecimal. This prints `ff`.
 echo Core\Str::format("%x\n", 255);
