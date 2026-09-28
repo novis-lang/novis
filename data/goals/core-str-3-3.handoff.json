@@ -1,26 +1,23 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Str (3/3) has been taken yet.",
+  "state": "Goal `core-str-3-3`: `Core\\Str::replaceAll` has every feature proof on disk — description, three\nexamples, attack, bench record, two Rust tests with `covers:` markers, and a plain-words card.\n`nvs_core_str_replace_all` now writes its result through `built`/`StrWriter`, so a large result stops\nat the memory limit while it grows (the same fix `replace` got). `replaceRange` and `reverse` are untaken.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "member proofs, file order",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/str.rs`, and each member's trees under `docs/examples/core/Str/`, `tests/hostile/core/Str/`, `benches/members/core/Str/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Str::replaceAll`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:405`"
+        "text": "**`Core\\Str::replaceRange`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Check whether it builds its result in a plain `String` the way `replaceAll` did, and move it onto `built` if so. `crates/nvs-stdlib/src/str.rs:429`"
       },
       {
         "done": false,
-        "text": "**`Core\\Str::replaceRange`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:418`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Str::reverse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/str.rs:503`"
+        "text": "**`Core\\Str::reverse`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/str.rs:503`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Str::replaceAll` copies its whole table into owned Rust `String`s on every call: 5 of the bench's 6 allocations per call come from a two-pair table. A borrowed table with one release at the end would remove them (priority 3; owner: `crates/nvs-stdlib/src/str.rs` module doc if taken up).",
+    "`Core\\Str::replaceAll` checks every pair at every position, so its cost is text length × pair count × key length. Fine for small tables; the attack in `tests/hostile/core/Str/replaceAll/` sets the bound this goal measured."
   ]
 }
