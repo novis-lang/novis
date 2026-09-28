@@ -3428,8 +3428,17 @@ pub fn fixed_clock_nanos(text: &str) -> Option<i128> {
 /// The one place a fixed clock's number becomes an instant again, so
 /// `Core\Time::now` and `Core\Test::advance` cannot disagree about which counts
 /// are readable.
+///
+/// **Built through `Timestamp::new`, never `Timestamp::from_nanosecond`.**
+/// `jiff`'s `from_nanosecond` checks only that the seconds fit an `i64`, so a
+/// count past year 9999 comes back `Ok` with an instant outside the range,
+/// which a debug build then panics on and a release build carries on with.
+/// `Timestamp::new` checks the range itself.
 pub(crate) fn instant_at_nanos(nanos: i128) -> Option<Timestamp> {
-    Timestamp::from_nanosecond(nanos).ok()
+    const NANOS_PER_SECOND: i128 = 1_000_000_000;
+    let second = i64::try_from(nanos / NANOS_PER_SECOND).ok()?;
+    let subsec = i32::try_from(nanos % NANOS_PER_SECOND).ok()?;
+    Timestamp::new(second, subsec).ok()
 }
 
 /// The wall clock `ctx` reads: `rule:testing/determinism-declared-on-the-test`'s fixed one where a

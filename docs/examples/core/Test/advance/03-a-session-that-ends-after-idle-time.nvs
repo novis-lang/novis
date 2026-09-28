@@ -1,0 +1,47 @@
+<?nvs
+// Shows the test a web application writes for its login session. The session
+// ends when the user does nothing for 30 minutes.
+
+use Core\Test;
+use Core\Time;
+use Core\Time\Instant;
+
+class Session {
+    public function constructor(public Instant $lastSeen) {}
+
+    public static function start(): Session {
+        return new Session(Time::now());
+    }
+
+    // Each request from the user calls this method.
+    public function touch(): void {
+        $this->lastSeen = Time::now();
+    }
+
+    public function isActive(): bool {
+        return Time::now()->compareTo($this->lastSeen->plus(30m)) < 0;
+    }
+}
+
+class SessionTest {
+    #[Test(at: "2026-03-01T12:00:00Z")]
+    public function aRequestKeepsTheSessionActive(): void {
+        Session $session = Session::start();
+        Test::advance(25m);
+        $session->touch();
+
+        // 50 minutes have passed, but the last request was 25 minutes ago.
+        Test::advance(25m);
+        Test::assertTrue($session->isActive());
+    }
+
+    #[Test(at: "2026-03-01T12:00:00Z")]
+    public function thirtyIdleMinutesEndTheSession(): void {
+        Session $session = Session::start();
+        Test::advance(30m);
+        Test::assertSame($session->isActive(), false);
+    }
+}
+
+// `nvs test` runs the two tests above. Under `nvs run`, this prints `true`.
+echo Session::start()->isActive() ? "true" : "false", "\n";

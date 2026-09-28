@@ -1,0 +1,91 @@
+<?nvs
+// Attack: a program moves the test clock by the largest durations there are,
+// and past the last instant a clock can show. Every move that goes too far
+// should throw an error, and the clock should keep its last good time.
+
+use Core\Test;
+use Core\Time;
+use Core\Time\Duration;
+
+class ClockAttack
+{
+    // 1. The clock starts one second before its last instant. The first two
+    //    moves reach that instant. The third move is one nanosecond too far.
+    #[Test(at: "9999-12-30T22:00:00Z")]
+    public function itStopsOneNanosecondPastTheEnd(): void
+    {
+        Test::advance(Duration::nanoseconds(999999998));
+        Test::advance(Duration::nanoseconds(1));
+        string $last = Time::now()->toIso();
+        try {
+            Test::advance(Duration::nanoseconds(1));
+            echo "step 1: the clock moved past its last instant\n";
+        } catch (RuntimeError $error) {
+            echo 'step 1 stopped: ', $error->message, "\n";
+        }
+        Test::assertSame(Time::now()->toIso(), $last);
+    }
+
+    // 2. The largest duration, again and again, until the clock runs out.
+    //    One move is about 292 years, so this stops after a few dozen moves.
+    #[Test(at: "2026-01-01T00:00:00Z")]
+    public function itStopsAfterManyOfTheLargestMoves(): void
+    {
+        Duration $largest = Duration::nanoseconds(9223372036854775807);
+        uint $moves = 0;
+        try {
+            while ($moves < 1000) {
+                Test::advance($largest);
+                $moves = $moves + 1;
+            }
+        } catch (RuntimeError $error) {
+            echo 'step 2 stopped after ', $moves, " moves\n";
+        }
+        Test::assertTrue($moves < 1000);
+    }
+
+    // 3. The smallest duration, the same way, towards the first instant.
+    #[Test(at: "2026-01-01T00:00:00Z")]
+    public function itStopsAfterManyOfTheSmallestMoves(): void
+    {
+        Duration $smallest = Duration::nanoseconds(-9223372036854775807);
+        uint $moves = 0;
+        try {
+            while ($moves < 1000) {
+                Test::advance($smallest);
+                $moves = $moves + 1;
+            }
+        } catch (RuntimeError $error) {
+            echo 'step 3 stopped after ', $moves, " moves\n";
+        }
+        Test::assertTrue($moves < 1000);
+    }
+}
+
+// `nvs test` runs steps 1 to 3. The steps below run under `nvs run`, where no
+// clock is fixed.
+
+// 4. One hundred thousand moves with no fixed clock. Each one throws a
+//    `LogicError`, and none of the errors may stay in memory.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 100000) {
+    try {
+        Test::advance(Duration::nanoseconds(9223372036854775807));
+    } catch (LogicError $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 4: ', $refused, " moves threw an error\n";
+
+// 5. A test method called directly, outside the test runner. Its first move
+//    throws a `LogicError`, because the call has no fixed clock.
+try {
+    (new ClockAttack())->itStopsAfterManyOfTheLargestMoves();
+    echo "step 5: the test ran with no fixed clock\n";
+} catch (LogicError $error) {
+    echo 'step 5 stopped: ', $error->message, "\n";
+}
+
+echo "the program reached its last line\n";

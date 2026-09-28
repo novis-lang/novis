@@ -1115,7 +1115,7 @@ fn run_the_test(
         Err(at) => {
             return Outcome::Failed(vec![format!(
                 "`{class}::{}` declares `at: \"{at}\"`, which is not an RFC 3339 timestamp such \
-                 as `2026-01-01T00:00:00Z`",
+                 as `2026-01-01T00:00:00Z` from `-9999-01-02T01:59:59Z` to `9999-12-30T22:00:00Z`",
                 case.method
             )]);
         }

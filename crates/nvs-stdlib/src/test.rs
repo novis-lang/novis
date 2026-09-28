@@ -287,8 +287,8 @@
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
 use crate::registry::{
-    Const, CoreClass, CoreField, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
-    Qual, ShapeKeyDoc,
+    ClassDoc, Const, CoreClass, CoreField, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc,
+    ParamDoc, Qual, ShapeKeyDoc,
 };
 
 // ============================================================================
@@ -556,13 +556,20 @@ const REQUEST_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `Core\Test`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "The methods you call inside a `#[Test]` method. They check a result, move the fixed \
+            clock and give fake replies to the web requests your code sends. `nvs test` runs the \
+            test and reports each check that fails.",
+};
+
 /// `Core\Test`'s registry rows — § 4's three equality members, the three
 /// predicate ones its example writes beside them, and § 5's `expectFailure`.
 /// See
 /// [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "assertSame",
@@ -1008,24 +1015,24 @@ const SENT_BODY_SLOT: usize = 3;
 
 /// `Core\Test::advance`'s reference card — `rule:core-api/reference-card`.
 const ADVANCE_DOC: MethodDoc = MethodDoc {
-    short: "Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test of \
-            something that expires can reach the far side of the expiry without waiting — the \
-            one mutator that clock has.",
+    short: "Moves the clock that `#[Test(at: ...)]` fixed forward by `$by`. A test of something \
+            that expires can then check the time after it expires, without waiting.",
     params: &[ParamDoc {
         name: "by",
-        desc: "The exact duration to move the clock forward; a negative one moves it back.",
+        desc: "How far to move the clock. A negative duration moves it back.",
         shape: &[],
     }],
-    ret: "Nothing. The next `Core\\Time::now()` reads the moved clock.",
+    ret: "Nothing. The next `Core\\Time::now()` returns the moved time.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The running test declared no `at:`, so there is no fixed clock to move — the \
-                   host's clock is never advanced.",
+            desc: "The running test has no `at:`, so there is no fixed clock to move. The real \
+                   clock of the computer is never moved.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The moved reading lies outside the representable range, about ±9999 years.",
+            desc: "The moved time is outside the range a clock can show, about the years -9999 to \
+                   9999. The clock does not move.",
         },
     ],
 };
@@ -4741,6 +4748,73 @@ mod tests {
             matches!(advance.params, [CoreTy::Instance(name)] if *name == crate::time::DURATION_NAME)
         );
         assert!(matches!(advance.return_ty, CoreTy::Void));
+    }
+
+    /// The far end of the fixed clock, asserted on both sides: a move onto the
+    /// last instant an `Instant` can hold is taken, a move one nanosecond past
+    /// it throws and leaves the clock where it was. The largest `Duration`,
+    /// repeated, meets the same end in both directions — the path that used to
+    /// reach `jiff`'s unchecked constructor, which `time::instant_at_nanos`'s
+    /// doc comment explains.
+    // covers: Core\Test::advance
+    #[test]
+    fn advance_stops_at_the_last_instant_and_keeps_the_clock_it_refused_to_move() {
+        const NANOS_PER_SECOND: i128 = 1_000_000_000;
+        // `9999-12-30T22:00:00.999999999Z` and `-9999-01-02T01:59:59Z`.
+        const LAST: i128 = 253_402_207_200 * NANOS_PER_SECOND + 999_999_999;
+        const FIRST: i128 = -377_705_023_201 * NANOS_PER_SECOND;
+        fn step(ctx: &mut Ctx, nanos: i64) -> bool {
+            let by = crate::time::duration_of(nanos);
+            let answered = nvs_runtime::call(nvs_core_test_advance, ctx, &[by]);
+            dropped(by);
+            match answered {
+                Ok(null) => {
+                    dropped(null);
+                    true
+                }
+                Err(_) => {
+                    let why = ctx.take_pending().expect("a refused move says why");
+                    assert!(
+                        why.contains("outside the range an `Instant` can hold"),
+                        "{why}"
+                    );
+                    false
+                }
+            }
+        }
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_fixed_clock(LAST - 1);
+        assert!(
+            step(&mut ctx, 1),
+            "the last instant is one a clock can show"
+        );
+        assert_eq!(ctx.fixed_clock(), Some(LAST));
+        assert!(!step(&mut ctx, 1), "one nanosecond past it is not");
+        assert_eq!(
+            ctx.fixed_clock(),
+            Some(LAST),
+            "a refused move leaves the clock"
+        );
+
+        for (direction, end) in [(i64::MAX, LAST), (-i64::MAX, FIRST)] {
+            ctx.set_fixed_clock(0);
+            let mut moves: i128 = 0;
+            while step(&mut ctx, direction) {
+                moves += 1;
+            }
+            let reached = moves * i128::from(direction);
+            assert_eq!(
+                moves,
+                end / i128::from(direction),
+                "every move that fits is taken"
+            );
+            assert_eq!(
+                ctx.fixed_clock(),
+                Some(reached),
+                "and the one that does not fit is not"
+            );
+        }
     }
 
     /// § 5's own row, which is deliberately not shaped like § 4's: it takes the

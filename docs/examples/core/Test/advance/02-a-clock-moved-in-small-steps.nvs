@@ -1,0 +1,41 @@
+<?nvs
+// Shows how to move the clock in several small steps. Each call to
+// `Core\Test::advance` adds to the moves before it.
+
+use Core\Test;
+use Core\Time;
+use Core\Time\Instant;
+
+class Uptime {
+    public static function seconds(Instant $start): int {
+        return Time::now()->toEpochSeconds() - $start->toEpochSeconds();
+    }
+}
+
+class UptimeTest {
+    #[Test(at: "2026-03-01T00:00:00Z")]
+    public function itCountsFromTheStart(): void {
+        Instant $start = Time::now();
+
+        // This loop moves the clock forward 20 seconds, three times.
+        uint $step = 0;
+        while ($step < 3) {
+            Test::advance(20s);
+            $step = $step + 1;
+        }
+        Test::assertSame(Uptime::seconds($start), 60);
+
+        // `negated()` turns 30 seconds into minus 30 seconds.
+        // A negative duration moves the clock back.
+        Test::advance(30s->negated());
+        Test::assertSame(Uptime::seconds($start), 30);
+    }
+}
+
+// Outside a test with `at:`, there is no fixed clock to move.
+// `advance` throws a `LogicError`, so this prints `LogicError`.
+try {
+    Test::advance(20s);
+} catch (LogicError $error) {
+    echo "LogicError", "\n";
+}

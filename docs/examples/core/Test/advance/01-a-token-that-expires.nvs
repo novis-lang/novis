@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to test a token that expires. `Core\Test::advance` moves the fixed
+// clock past the end of the token, so the test does not wait 15 minutes.
+
+use Core\Test;
+use Core\Time;
+use Core\Time\Instant;
+
+class ResetToken {
+    public function constructor(public Instant $expiresAt) {}
+
+    public static function issue(): ResetToken {
+        return new ResetToken(Time::now()->plus(15m));
+    }
+
+    public function isValid(): bool {
+        return Time::now()->compareTo($this->expiresAt) < 0;
+    }
+}
+
+class ResetTokenTest {
+    #[Test(at: "2026-03-01T09:00:00Z")]
+    public function itExpiresAfterFifteenMinutes(): void {
+        ResetToken $token = ResetToken::issue();
+        Test::assertTrue($token->isValid());
+
+        // The clock now shows 09:14. The token is still valid.
+        Test::advance(14m);
+        Test::assertTrue($token->isValid());
+
+        // The clock now shows 09:15, the time the token expires.
+        Test::advance(1m);
+        Test::assertSame($token->isValid(), false);
+    }
+}
+
+// `nvs test` runs the test above. This line runs under `nvs run` and prints
+// `true`, because a new token is valid.
+echo ResetToken::issue()->isValid() ? "true" : "false", "\n";

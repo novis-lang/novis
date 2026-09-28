@@ -16443,15 +16443,15 @@ Runs `$body` and asserts that an assertion inside it failed, then discharges tho
 Core\Test::advance(Core\Time\Duration $by): void
 ```
 
-Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test of something that expires can reach the far side of the expiry without waiting — the one mutator that clock has.
+Moves the clock that `#[Test(at: ...)]` fixed forward by `$by`. A test of something that expires can then check the time after it expires, without waiting.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$by` | `Core\Time\Duration` | The exact duration to move the clock forward; a negative one moves it back. |
+| `$by` | `Core\Time\Duration` | How far to move the clock. A negative duration moves it back. |
 
-**Returns** `void` — Nothing. The next `Core\Time::now()` reads the moved clock.
+**Returns** `void` — Nothing. The next `Core\Time::now()` returns the moved time.
 
-**Throws** `LogicError` — The running test declared no `at:`, so there is no fixed clock to move — the host's clock is never advanced.; `RuntimeError` — The moved reading lies outside the representable range, about ±9999 years.
+**Throws** `LogicError` — The running test has no `at:`, so there is no fixed clock to move. The real clock of the computer is never moved.; `RuntimeError` — The moved time is outside the range a clock can show, about the years -9999 to 9999. The clock does not move.
 
 <a id="core-core-test-serverurl"></a>
 #### `Core\Test::serverUrl`

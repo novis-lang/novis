@@ -1,26 +1,23 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Test (1/2) has been taken yet.",
+  "state": "Goal `core-test-1-2`, stage 2. `Core\\Test::advance` has every proof: `about.md`, three examples, one\nattack, a Rust test (`advance_stops_at_the_last_instant_and_keeps_the_clock_it_refused_to_move`), and\na `perf` skip in `data/proofs/policy.json`, because a bench runs under `nvs run`, where no clock is fixed.\n`Core\\Test` now has its class card. The attack found a panic in `jiff`'s `Timestamp::from_nanosecond`\npast year 9999. `crates/nvs-stdlib/src/time.rs`'s `instant_at_nanos` now builds through\n`Timestamp::new`, and its doc comment says why.\n\nEvery `Core\\Test` member's proofs run under `nvs run`, not `nvs test` (see the playbook bullet in\n*Writing a test case*). Run each example and attack under `target/debug/nvs.exe test <file>` by hand\nbefore blessing.",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": ". The file set is `crates/nvs-stdlib/src/test.rs`, the two members' rows and helpers:",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Test::advance`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:632`"
+        "text": "**`Core\\Test::answerHttp`**: about, 3 examples, attack, Rust `covers:` test, bench (it has no fixed-clock precondition, so a bench may be possible; read its \"no refusal outside a test\" doc first). `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:742`"
       },
       {
         "done": false,
-        "text": "**`Core\\Test::answerHttp`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:681`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Test::answerSocket`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/test.rs:711`"
+        "text": "**`Core\\Test::answerSocket`**: the same proofs, sharing `answerHttp`'s session store. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/test.rs:781`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "The proof sweep cannot run a `#[Test]` method, so no `Core\\Test` example's test body is checked by any gate. A `nvs test` mode for proofs would need a report with no timings in it (`tools/nv/proofs/run.ts`).",
+    "`Core\\Test\\Response` and `Core\\Test\\SentRequest` still owe class cards (`crates/nvs-stdlib/src/registry.rs` `CLASSES_STILL_OWING_A_CARD`)."
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "lead": "A proof of a `Core\\Test` member runs under `nvs run`, so the sweep never executes its `#[Test]` methods.",
+  "body": "The examples, attacks and benches all go through `nvs run` (`tools/nv/proofs/run.ts`), where a test method is only a declaration and a member such as `Core\\Test::advance` throws `LogicError` for want of a fixed clock. Write the test class as the reader's example, give the top level a line the `.out` can pin, and run the file under `target/debug/nvs.exe test <file>` by hand before blessing, because nothing else will; the attack in `tests/hostile/core/Test/advance/` is the shape.",
+  "files": [
+    "tools/nv/proofs/run.ts",
+    "tests/hostile/core/Test/advance/"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/run.ts:\"run\", path"
+  }
+}
