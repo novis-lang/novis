@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a program sends very many messages, one very large message, and reads the
+// list of sent messages many times. The program should not crash.
+
+use Core\Http\Client;
+use Core\Test;
+
+Test::answerSocket('wss://feed.example.com/*', []);
+
+// Step 1: the list is read before anything was sent. It is empty.
+echo Core\Arr::count(Test::sentSocket()), "\n";
+
+// Step 2: one socket sends two hundred thousand small messages.
+var $socket = Client::openSocket('wss://feed.example.com/many');
+uint $count = 0;
+while ($count < 200000) {
+    $socket->send('m');
+    $count = $count + 1;
+}
+echo Core\Arr::count(Test::sentSocket()), "\n";
+
+// Step 3: one text message of sixteen megabytes, and one binary message of the same size.
+var $large = Client::openSocket('wss://feed.example.com/large');
+$large->send(Core\Str::repeat('x', 16777216));
+$large->sendBytes(Core\Str::repeat('y', 16777216) as bytes);
+echo Core\Arr::count(Test::sentSocket()), "\n";
+
+// Step 4: the whole list is read twenty times. Each read builds a new list.
+uint $reads = 0;
+uint $total = 0;
+while ($reads < 20) {
+    $total = $total + Core\Arr::count(Test::sentSocket());
+    $reads = $reads + 1;
+}
+echo $total, "\n";
+
+// Step 5: a message is sent after the socket was closed.
+$socket->close();
+try {
+    $socket->send('late');
+    echo "sent after close\n";
+} catch (Throwable $error) {
+    echo "refused after close\n";
+}
+echo Core\Arr::count(Test::sentSocket()), "\n";

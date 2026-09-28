@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to read the messages your program sent over a fake WebSocket.
+
+use Core\Http\Client;
+use Core\Socket\Message;
+use Core\Test;
+
+Test::answerSocket("wss://chat.example.com/room", ["welcome"]);
+
+var $socket = Client::openSocket("wss://chat.example.com/room");
+$socket->send("hello");
+$socket->sendBytes("OK" as bytes);
+
+// The first message is text, and the second one is binary.
+// This prints `text hello` and `bytes 2`.
+foreach (Test::sentSocket() as Message $message) {
+    if ($message->text() != null) {
+        echo "text ", $message->text() ?? "", "\n";
+    } else {
+        echo "bytes ", Core\Bytes::length($message->bytes() ?? ("" as tainted bytes)), "\n";
+    }
+}
