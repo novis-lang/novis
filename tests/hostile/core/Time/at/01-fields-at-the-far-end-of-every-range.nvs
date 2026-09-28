@@ -1,0 +1,33 @@
+<?nvs
+// Attack: every field of `Core\Time::at` gets the largest value it can hold, and many dates are built in a loop.
+// Each bad call should throw a `RuntimeError`, and the loop should finish without a leak.
+
+var $utc = Core\Time\Zone::UTC;
+int $refused = 0;
+
+// 1. The largest and smallest whole numbers as the year.
+try { Core\Time::at(9223372036854775807, 1, 1, $utc); } catch (RuntimeError $yearHigh) { $refused = $refused + 1; }
+try { Core\Time::at(-9223372036854775807, 1, 1, $utc); } catch (RuntimeError $yearLow) { $refused = $refused + 1; }
+
+// 2. The largest unsigned whole number in each of the other fields.
+try { Core\Time::at(2024, 18446744073709551615, 1, $utc); } catch (RuntimeError $month) { $refused = $refused + 1; }
+try { Core\Time::at(2024, 1, 18446744073709551615, $utc); } catch (RuntimeError $day) { $refused = $refused + 1; }
+try { Core\Time::at(2024, 1, 1, $utc, { hour: 18446744073709551615 }); } catch (RuntimeError $hour) { $refused = $refused + 1; }
+try { Core\Time::at(2024, 1, 1, $utc, { minute: 18446744073709551615 }); } catch (RuntimeError $minute) { $refused = $refused + 1; }
+try { Core\Time::at(2024, 1, 1, $utc, { second: 18446744073709551615 }); } catch (RuntimeError $second) { $refused = $refused + 1; }
+try { Core\Time::at(2024, 1, 1, $utc, { nanos: 18446744073709551615 }); } catch (RuntimeError $nanos) { $refused = $refused + 1; }
+
+// 3. The last day of year 9999 in the zone furthest east, and the first day of year -9999 in the zone furthest west.
+try { Core\Time::at(9999, 12, 31, Core\Time\Zone::of('Pacific/Kiritimati'), { hour: 23, minute: 59, second: 59, nanos: 999999999 }); } catch (RuntimeError $east) { $refused = $refused + 1; }
+try { Core\Time::at(-9999, 1, 1, Core\Time\Zone::of('Etc/GMT+12')); } catch (RuntimeError $west) { $refused = $refused + 1; }
+echo $refused, " refused\n";
+
+// 4. Many dates are built on a morning when the clocks jump forward. Every one is freed.
+var $berlin = Core\Time\Zone::of('Europe/Berlin');
+int $seconds = 0;
+uint $i = 0;
+while ($i < 200000) {
+    $seconds = $seconds + Core\Time::at(2024, 3, 31, $berlin, { hour: 2, minute: $i % 60 })->toInstant()->toEpochSeconds() % 3600;
+    $i = $i + 1;
+}
+echo $seconds, "\n";

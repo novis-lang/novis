@@ -12460,7 +12460,7 @@ Builds a civil date and time in `$zone` from its fields, replacing `mktime`, `gm
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$year` | `int` | The year, within `-9999..=9999`. |
+| `$year` | `int` | The year, within `-9999..=9999`. The time as a whole must also lie between `-9999-01-02T01:59:59Z` and `9999-12-30T22:00:00Z`. |
 | `$month` | `uint` | The month, `1` to `12`. |
 | `$day` | `uint` | The day of the month, which must exist in that month. |
 | `$zone` | `Core\Time\Zone` | The zone the fields are read in. |
@@ -12471,7 +12471,7 @@ Builds a civil date and time in `$zone` from its fields, replacing `mktime`, `gm
 
 **Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
 
-**Throws** `RuntimeError` — A field is outside its range, or the fields together are not a date that exists — `30` February — which is what `checkdate` used to answer.
+**Throws** `RuntimeError` — A field is outside its range, the fields together are not a date that exists — `30` February — which is what `checkdate` used to answer, or the time lies past either end of the range `$year` names.
 
 <a id="core-core-time-instant"></a>
 ### `Core\Time\Instant`

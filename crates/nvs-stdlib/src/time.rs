@@ -150,8 +150,8 @@ use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
-    ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
+    EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -2104,7 +2104,7 @@ pub const TIME_NAME: &str = r"Core\Time";
 /// classes above are members of.
 pub const TIME: CoreClass = CoreClass {
     name: TIME_NAME,
-    doc: None,
+    doc: Some(&TIME_CARD),
     methods: &[
         CoreMethod {
             name: "now",
@@ -2211,6 +2211,13 @@ pub const TIME: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Time`'s class card — `rule:core-api/reference-card`.
+const TIME_CARD: ClassDoc = ClassDoc {
+    short: "Reads the clock and builds dates and times. `now` returns the current `Instant`. \
+            `at` builds a `DateTime` from a year, a month, a day and a zone, and `fromIso` reads \
+            a timestamp such as `2024-03-01T12:00:00Z`. `sleep` waits for a `Duration`.",
 };
 
 /// `Core\Time::now`'s reference card — `rule:core-api/reference-card`.
@@ -2345,7 +2352,8 @@ const TIME_AT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "year",
-            desc: "The year, within `-9999..=9999`.",
+            desc: "The year, within `-9999..=9999`. The time as a whole must also lie between \
+                   `-9999-01-02T01:59:59Z` and `9999-12-30T22:00:00Z`.",
             shape: &[],
         },
         ParamDoc {
@@ -2387,8 +2395,9 @@ const TIME_AT_DOC: MethodDoc = MethodDoc {
     ret: "The `DateTime` in `$zone`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A field is outside its range, or the fields together are not a date that \
-               exists — `30` February — which is what `checkdate` used to answer.",
+        desc: "A field is outside its range, the fields together are not a date that exists \
+               — `30` February — which is what `checkdate` used to answer, or the time lies \
+               past either end of the range `$year` names.",
     }],
 };
 
@@ -4439,9 +4448,16 @@ nvs_runtime::nvs_helper! {
             year, fields[0], fields[1], fields[2], fields[3], fields[4], nanos,
         )
         .map_err(|err| out_of_range(r"Core\Time::at", &err.to_string()))?;
+        // Compatible disambiguation resolves every gap and fold, so the one
+        // failure left is an instant past either end of the timestamp range.
         zone.to_zoned(civil)
             .map(|at| datetime_built(&at))
-            .map_err(|err| out_of_range(r"Core\Time::at", &err.to_string()))
+            .map_err(|_| {
+                out_of_range(
+                    r"Core\Time::at",
+                    "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z",
+                )
+            })
     }
 }
 
@@ -5049,5 +5065,130 @@ mod tests {
         assert!(parse_offset("+99:00").is_none());
         assert!(resolve_zone("+02:00").is_some());
         assert!(resolve_zone("Nowhere/Nothing").is_none());
+    }
+
+    /// `Core\Time::at` called the way a compiled call site calls it, with the
+    /// fields in `month, day, hour, minute, second, nanos` order. It answers
+    /// the built `DateTime`'s seconds, nanoseconds and zone id, or the sentence
+    /// it threw.
+    fn built_at(year: i64, fields: [u64; 6], zone: &str) -> Result<(i64, i64, String), String> {
+        let [month, day, hour, minute, second, nanos] = fields;
+        let mut ctx = Ctx::buffered();
+        let zone = zone_built(zone);
+        let args = [
+            Value::int(year),
+            Value::uint(month),
+            Value::uint(day),
+            zone,
+            Value::uint(hour),
+            Value::uint(minute),
+            Value::uint(second),
+            Value::uint(nanos),
+        ];
+        let answer = match nvs_runtime::call(nvs_core_time_at, &mut ctx, &args) {
+            Ok(built) => {
+                let held = crate::instance::receiver(built, &DATETIME, "test")
+                    .expect("`at` answers a `DateTime`");
+                let read = (
+                    crate::instance::slot(held, DATETIME_SECONDS_SLOT)
+                        .as_int()
+                        .expect("the seconds slot is an int"),
+                    crate::instance::slot(held, DATETIME_NANOS_SLOT)
+                        .as_int()
+                        .expect("the nanos slot is an int"),
+                    crate::instance::slot(held, DATETIME_ZONE_SLOT)
+                        .as_text()
+                        .expect("the zone slot is a text")
+                        .to_owned(),
+                );
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns the `DateTime` the member answered"
+                )]
+                unsafe {
+                    built.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the `Zone`, and the member borrowed its arguments"
+        )]
+        unsafe {
+            zone.release();
+        }
+        answer
+    }
+
+    /// The instant an RFC 3339 text names, as whole seconds.
+    fn second_of(text: &str) -> i64 {
+        text.parse::<Timestamp>()
+            .expect("the test's own timestamp parses")
+            .as_second()
+    }
+
+    /// `at` reads its fields in the zone it is given. A clock time the zone
+    /// skips moves forward past the gap, and a clock time the zone repeats
+    /// takes the earlier of the two. Every field's last accepted value and
+    /// first refused one are asserted together.
+    // covers: Core\Time::at
+    #[test]
+    fn at_reads_fields_in_its_zone_and_refuses_a_field_past_its_range() {
+        assert_eq!(
+            built_at(2024, [3, 5, 12, 30, 15, 500_000_000], "UTC"),
+            Ok((
+                second_of("2024-03-05T12:30:15Z"),
+                500_000_000,
+                "UTC".to_owned()
+            ))
+        );
+        // 02:30 does not exist in Berlin on 2024-03-31, so the result is 03:30
+        // summer time, which is 01:30 UTC.
+        let skipped =
+            built_at(2024, [3, 31, 2, 30, 0, 0], "Europe/Berlin").expect("a gap resolves");
+        assert_eq!(skipped.0, second_of("2024-03-31T01:30:00Z"));
+        assert_eq!(skipped.2, "Europe/Berlin");
+        // 02:30 happens twice in Berlin on 2024-10-27; the first is 00:30 UTC.
+        let repeated =
+            built_at(2024, [10, 27, 2, 30, 0, 0], "Europe/Berlin").expect("a fold resolves");
+        assert_eq!(repeated.0, second_of("2024-10-27T00:30:00Z"));
+
+        for (year, fields, accepted) in [
+            (2024, [2, 29, 0, 0, 0, 0], true),
+            (2023, [2, 29, 0, 0, 0, 0], false),
+            (2024, [12, 31, 0, 0, 0, 0], true),
+            (2024, [13, 1, 0, 0, 0, 0], false),
+            (2024, [1, 1, 23, 59, 59, 999_999_999], true),
+            (2024, [1, 1, 24, 0, 0, 0], false),
+            (2024, [1, 1, 0, 60, 0, 0], false),
+            (2024, [1, 1, 0, 0, 60, 0], false),
+            (2024, [1, 1, 0, 0, 0, 1_000_000_000], false),
+            (2024, [1, 1, 0, 0, 0, u64::MAX], false),
+            (2024, [u64::MAX, 1, 0, 0, 0, 0], false),
+            // The last and first instants a timestamp holds, one second apart
+            // from the first refused ones.
+            (9999, [12, 30, 22, 0, 0, 0], true),
+            (9999, [12, 30, 22, 0, 1, 0], false),
+            (-9999, [1, 2, 1, 59, 59, 0], true),
+            (-9999, [1, 2, 1, 59, 58, 0], false),
+            (10_000, [1, 1, 0, 0, 0, 0], false),
+            (-10_000, [1, 1, 0, 0, 0, 0], false),
+        ] {
+            match built_at(year, fields, "UTC") {
+                Ok(_) => assert!(accepted, "{year} {fields:?} was accepted"),
+                Err(sentence) => {
+                    assert!(!accepted, "{year} {fields:?} was refused: {sentence}");
+                    assert!(
+                        sentence.starts_with(r"Core\Time::at(): "),
+                        "the refusal names the member: {sentence}"
+                    );
+                }
+            }
+        }
     }
 }

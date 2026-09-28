@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to plan a meeting in one time zone and show it in the zone of each person who joins.
+
+// The meeting is at 09:00 in New York on 14 May 2024.
+var $meeting = Core\Time::at(2024, 5, 14, Core\Time\Zone::of("America/New_York"), {hour: 9});
+
+// `toInstant` gives the moment itself, and `in` shows that moment in another zone.
+// Tokyo is 13 hours ahead of New York in May, so it prints 22:00 for Tokyo.
+array<string> $cities = ["America/New_York", "Europe/London", "Europe/Berlin", "Asia/Tokyo"];
+foreach ($cities as string $city) {
+    var $local = $meeting->toInstant()->in(Core\Time\Zone::of($city));
+    echo $city, ": ", $local->format("yyyy-MM-dd HH:mm"), "\n";
+}

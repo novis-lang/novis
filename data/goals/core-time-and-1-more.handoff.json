@@ -1,26 +1,23 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Time and 1 more has been taken yet.",
+  "state": "Goal `core-time-and-1-more`: `Core\\Time::at` has all its feature proofs — `about.md`, three examples, one attack, one bench with a recorded figure, a Rust test and a `.nvst` case — and `Core\\Time` now has its class card (`TIME_CARD` in `crates/nvs-stdlib/src/time.rs`, struck from `CLASSES_STILL_OWING_A_CARD`).\nThe attack found that `at` threw jiff's own overflow sentence for a time past the timestamp range (`9999-12-31` in UTC, though the card said any year up to 9999 worked). It now throws `Core\\Time::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`, and the card names that range.\n`fromEpoch` and `fromIso` are untaken, and live in the same file.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "the `Core\\Time` entry points",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the `TIME` row, its cards and `mod tests`), plus each member's own proof directories.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time::at`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2175`"
+        "text": "**`Core\\Time::fromEpoch`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). Row at `crates/nvs-stdlib/src/time.rs:2137`, card `TIME_FROM_EPOCH_DOC` at `crates/nvs-stdlib/src/time.rs:2259`. The attack should push `seconds` to both ends of the range the card calls \"about ±9999 years\": check that the refusal is a plain sentence and does not quote jiff, the way `at`'s did. `built_at` in `mod tests` is the shape for a Rust test that calls a member directly."
       },
       {
         "done": false,
-        "text": "**`Core\\Time::fromEpoch`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2137`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Time::fromIso`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:2153`"
+        "text": "**`Core\\Time::fromIso`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). Row at `crates/nvs-stdlib/src/time.rs:2153`, card `TIME_FROM_ISO_DOC` at `crates/nvs-stdlib/src/time.rs:2285`. Its `ParseError` is thrown with a message. From Rust, assert `is_err()` if `take_pending` gives `\"\"` (playbook: `thrown_with_issues`)."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Time::at`'s refusal for a date that does not exist still quotes jiff's wording (`parameter 'day' for `2023-02` is invalid, must be in range `1..=28``), and `docs/examples/core/Time/at/02-a-date-that-does-not-exist.out` pins it. It is readable, but it is not the member's own sentence — owner: goal `plain-comments` if it sweeps messages, otherwise `crates/nvs-stdlib/src/time.rs`'s module doc.",
+    "`Core\\Time\\Date`, `DateTime`, `Duration`, `Instant`, `TimeOfDay` and `Zone` still owe class cards (`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`) — goal `core-class-cards`."
   ]
 }

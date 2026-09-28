@@ -104,8 +104,8 @@ echo "end-asked=", $endAsked as string, " end-agrees=", $endAgrees as string, "|
 // -9999-01-01..9999-12-31, while a `DateTime` must be convertible to the
 // instant its zone puts it at — and that conversion runs out of range inside
 // the calendar's last day and inside its first two. So the interval is wider
-// at both ends, one refusal names `Core\Time::at` and says what overflowed,
-// and one step inside each end is answered.
+// at both ends, one refusal names `Core\Time::at` and says the time is outside
+// the range, and one step inside each end is answered.
 var $utc = Core\Time\Zone::UTC;
 echo "date-top=", Core\Time\Date::at(9999, 12, 31)->format("yyyy-MM-dd"), "|\n";
 try {
@@ -113,7 +113,7 @@ try {
     echo "top-accepted|\n";
 } catch (RuntimeError $refused) {
     echo "top-refused=", Core\Str::contains($refused->message, "Core\\Time::at()") as string,
-        Core\Str::contains($refused->message, "overflowed") as string, "|\n";
+        Core\Str::contains($refused->message, "the time is outside") as string, "|\n";
 }
 echo "dt-top=", Core\Time::at(9999, 12, 30, $utc)->format("yyyy-MM-dd HH:mm"), "|\n";
 echo "date-bottom=", Core\Time\Date::at(-9999, 1, 1)->format("yyyy-MM-dd"), "|\n";
