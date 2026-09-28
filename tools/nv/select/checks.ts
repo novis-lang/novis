@@ -385,6 +385,18 @@ export function heavyTwin(c: Check, graph: Graph): Twin | null {
   return null;
 }
 
+/** For each heavy check of `plan` whose twin runs test binaries, its atom and those binaries, as
+ * `QueryOptions.ran` takes them. */
+export function twinBinaries(plan: Check[], graph: Graph | null): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (!graph) return out;
+  for (const c of plan) {
+    const twin = isHeavy(c) ? heavyTwin(c, graph) : null;
+    if (twin && twin.tests.length > 0) out.set(`heavy:${c.id}`, twin.tests.map((t) => t.name));
+  }
+  return out;
+}
+
 /** The work `twin` runs, as a key: two twins with the same test binaries and arguments, command and
  * environment run the same processes, so a sweep runs them once. What it holds besides is left out, since
  * each check adds its own to what the run recorded. */

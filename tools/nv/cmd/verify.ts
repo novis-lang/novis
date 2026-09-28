@@ -476,7 +476,7 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
     recording.push(
       r.rec.keysOf(recordName(id), [j.argv[0]!, nvs]).then((ext) => {
         const verdict: Verdict = code === 0 && ext ? "green" : "red";
-        r.store.recordRun(id, { def: "", verdict, keys: testKeys(j.owner, ext, j.name) });
+        r.store.recordRun(id, { def: "", verdict, keys: testKeys(ext, j.name) });
         r.ran.add(id);
         putTestGreen(r.store, j.name, verdict, text);
       }),

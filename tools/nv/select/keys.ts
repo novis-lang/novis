@@ -15,7 +15,7 @@
 // | `named:<name>` | every file called `<name>`, anywhere |
 // | `ext:<ext>` | every file whose name ends `.<ext>`, anywhere, as a `git grep -- *.<ext>` reads them |
 // | `mod:<path>` | a TypeScript module a `bun nv` process loaded |
-// | `tests:<package>` | computed: held by every test binary of the package, moved by a test added to it |
+// | `tests:<package>/<kind>/<target>` | computed: held by what ran that test binary, moved by a test added to a file compiled into it; a `use` is no test |
 // | `profile:optimized` | computed: moved by a change to code only an optimized build compiles, which selects every proof program |
 // | `platform:elsewhere` | computed: moved by a change to code Linux compiles and this platform does not, held by what runs on Linux |
 // | `*` | something ran that could not be attributed at all: any change selects the atom |
@@ -37,8 +37,12 @@ export const fileWild = (file: string) => `fn:${file}#*`;
 export const itemPrefix = (file: string) => `fn:${file}#`;
 export const classKey = (name: string) => `class:${norm(name)}`;
 export const cardKey = (name: string) => `card:${norm(name)}`;
-/** Held by every test binary of `pkg`, and moved by a test added anywhere in it. */
-export const testsKey = (pkg: string) => `tests:${pkg}`;
+/** Held by the footprints of test binary `name` (`<package> <kind> <target>`), and moved by a test added
+ * to a file it compiles (`landsIn`): `tests:<package>/<kind>/<target>`. */
+export const testsKey = (name: string) => `tests:${name.split(" ").join("/")}`;
+/** One key for every test binary of `pkg`, which a footprint that names no binary of its own holds.
+ * `query` reads it as the binaries that atom is known to run (`QueryOptions.ran`). */
+export const pkgTestsKey = (pkg: string) => `tests:${pkg}`;
 export const ALL_CLASSES = "class:*";
 export const ALL_CARDS = "card:*";
 export const WHOLE_TREE = "tree:.";

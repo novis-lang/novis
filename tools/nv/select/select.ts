@@ -16,8 +16,8 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { type FileItems, scanItems } from "../keys/scan.ts";
-import { metadata, type Graph, closure as pkgClosure, testBinaries } from "../keys/graph.ts";
+import { type FileItems, type Item, scanItems } from "../keys/scan.ts";
+import { landsIn, metadata, type Graph, closure as pkgClosure, testBinaries } from "../keys/graph.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, NOT_INPUTS, ROOT } from "../lib/paths.ts";
 import { caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proofId, stillThere } from "./atoms.ts";
@@ -29,7 +29,7 @@ import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot } from "./change.ts";
 import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { elsewhereOnly, gitTexts, platformOf, profileReader } from "./profile.ts";
-import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, PROFILE_ONLY, testsKey, WILD } from "./keys.ts";
+import { ALL_CARDS, ALL_CLASSES, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, testsKey, WILD } from "./keys.ts";
 import { type AtomKind, kindOfAtom, type Overlay, type SelectStore } from "./store.ts";
 
 /** Files whose change selects every atom: the toolchain, the lock file, a manifest, and the two tools
@@ -278,10 +278,10 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   for (const [k, o] of closure(itemChanges, universe, wideFiles, extra, profile, platform)) emit(k, o);
   // Code of a file no item held was recorded as the whole file.
   for (const c of itemChanges) emit(fileWild(c.file), { path: c.file, item: c.id, how: c.how });
-  // A test that did not exist is in no footprint: every test binary of its package runs.
+  // A test that did not exist is in no footprint: every test binary it is compiled into runs.
   for (const c of itemChanges) {
-    const pkg = c.how === "added" && c.item.test ? scope.pkgOf(c.file) : null;
-    if (pkg) emit(testsKey(pkg), { path: c.file, item: c.id, how: c.how });
+    const pkg = c.how === "added" && isTest(c.item) ? scope.pkgOf(c.file) : null;
+    if (pkg && graph) for (const name of landsIn(graph, pkg, c.file)) emit(testsKey(name), { path: c.file, item: c.id, how: c.how });
   }
   return {
     since,
@@ -297,6 +297,12 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     view,
     ...(tree ? { tree } : {}),
   };
+}
+
+/** Whether item `i` can be a test a binary runs: a test-only function, or a test-only macro call that
+ * may expand to tests. A `use`, a type or a constant only a test sees runs nothing of its own. */
+export function isTest(i: Item): boolean {
+  return i.test && (i.kind === "fn" || i.kind === "macro");
 }
 
 /** The meta key holding, for each path of the recorded overlay the proof scans read, the keys its
@@ -422,6 +428,9 @@ export interface QueryOptions {
   /** The current definition of each atom whose definition is no file: a plan check's own atom. A known
    * atom whose recorded definition differs runs. */
   defs?: Map<string, string>;
+  /** The test binaries an atom that is no test binary runs (`<package> <kind> <target>`): a heavy check's
+   * twin. It narrows a footprint that holds only its package's `tests:` key to those binaries. */
+  ran?: Map<string, string[]>;
 }
 
 /** The atoms `change` selects. */
@@ -529,6 +538,23 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   for (const [id, keys] of store.atomsUnderIds(exact)) {
     if (goneIds.has(id) || !stillThere(id)) continue;
     for (const key of keys) add(id, "key", { key, origin: originOf(key) });
+  }
+  // A footprint holding its package's one `tests:` key is under an added test only when a binary it runs
+  // is one the test is compiled into. Which binaries that is: a test atom is one, a caller may know more
+  // (`QueryOptions.ran`), and a footprint that holds a binary's own key has named them all itself.
+  const pkgs = new Map<string, Origin>();
+  for (const [key, origin] of change.moved) {
+    const slash = key.indexOf("/");
+    if (key.startsWith("tests:") && slash > 0 && !pkgs.has(key.slice(6, slash))) pkgs.set(key.slice(6, slash), origin);
+  }
+  for (const [pkg, origin] of pkgs) {
+    for (const id of store.atomsUnder([pkgTestsKey(pkg)]).keys()) {
+      if (goneIds.has(id) || !stillThere(id)) continue;
+      const ran = kindOfAtom(id) === "test" ? [id.slice(5)] : opts.ran?.get(id);
+      if (ran === undefined && store.footprint(id).some((k) => k.startsWith(`${pkgTestsKey(pkg)}/`))) continue;
+      const hit = ran === undefined ? pkgTestsKey(pkg) : ran.map(testsKey).find((k) => change.moved.has(k));
+      if (hit !== undefined) add(id, "key", { key: hit, origin: change.moved.get(hit) ?? origin });
+    }
   }
   return { change, selected, known, gone };
 }

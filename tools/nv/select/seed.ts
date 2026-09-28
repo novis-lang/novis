@@ -204,7 +204,7 @@ export async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[]): 
     const p = await run([t.exe], { cwd: t.dir, env, timeoutMs: 3_600_000, reap: true });
     const ext = await ctx.r.keysOf(name, [t.exe, ctx.nvs]);
     const verdict: Verdict = p.code === 0 && ext ? "green" : "red";
-    ctx.r.record(id, "", verdict, testKeys(pkg, ext, id.slice(5)));
+    ctx.r.record(id, "", verdict, testKeys(ext, id.slice(5)));
     ctx.tally("test", verdict, ext);
     ctx.say(`select: test binaries ${++done}/${exes.length}${verdict === "red" ? ` (${id} red)` : ""}`);
   });
@@ -212,15 +212,16 @@ export async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[]): 
 
 let wide: Set<string> | null = null;
 
-/** A test binary's footprint: what it ran, and `tests:<package>`. A test added to its package cannot be
- * in any footprint yet, so every binary of the package holds that key, which an added test moves; a
- * binary that ran no instrumented code holds only this one. A binary `tools/data/impact-wide.txt` lists
- * opens files nothing records (`keys/escape.ts`), so it also holds `*`, which every change moves. */
-export function testKeys(pkg: string, ext: Extracted | null, name?: string): Keyed {
+/** Test binary `name`'s footprint (`<package> <kind> <target>`): what it ran, and its own `tests:` key.
+ * A test added to a file compiled into the binary cannot be in any footprint yet, so the binary holds
+ * that key, which the added test moves; a binary that ran no instrumented code holds only this one. A
+ * binary `tools/data/impact-wide.txt` lists opens files nothing records (`keys/escape.ts`), so it also
+ * holds `*`, which every change moves. */
+export function testKeys(ext: Extracted | null, name: string): Keyed {
   const keys: Keyed = new Map(ext?.keys ?? []);
-  keys.set(testsKey(pkg), "");
+  keys.set(testsKey(name), "");
   wide ??= allowedWide();
-  if (name !== undefined && wide.has(name)) keys.set(WILD, "");
+  if (wide.has(name)) keys.set(WILD, "");
   return keys;
 }
 

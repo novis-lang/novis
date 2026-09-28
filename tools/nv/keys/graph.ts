@@ -116,6 +116,29 @@ export function testBinaries(graph: Graph, pkg: string): { name: string; target:
     .map((t) => ({ name: `${pkg} ${t.kind} ${t.kind === "lib" ? t.name.replace(/-/g, "_") : t.name}`, target: t }));
 }
 
+/**
+ * The test binaries of `pkg` that a test written in `file` (repo-relative) is compiled into: the one
+ * target whose root is `file`; else the test target rooted at a `main.rs` whose directory holds `file`;
+ * else, for a file under the package's `src/`, every library and binary target rooted there, since a
+ * `#[cfg(test)]` test is compiled into the target whose module tree holds it and never into an
+ * integration test. Any other file, a module several integration tests share, lands in every test
+ * binary of the package.
+ */
+export function landsIn(graph: Graph, pkg: string, file: string): string[] {
+  const all = testBinaries(graph, pkg);
+  const own = all.filter((b) => b.target.src === file);
+  if (own.length > 0) return own.map((b) => b.name);
+  const nested = all.filter((b) => b.target.kind === "test" && b.target.src.endsWith("/main.rs") && file.startsWith(b.target.src.slice(0, -"main.rs".length)));
+  if (nested.length > 0) return nested.map((b) => b.name);
+  const dir = graph.get(pkg)?.dir ?? "";
+  const src = dir === "" || dir === "." ? "src/" : `${dir}/src/`;
+  if (file.startsWith(src)) {
+    const units = all.filter((b) => b.target.kind !== "test" && b.target.src.startsWith(src));
+    if (units.length > 0) return units.map((b) => b.name);
+  }
+  return all.map((b) => b.name);
+}
+
 /** Every test binary of the workspace, named as `testBinaries` names them. */
 export function allTestBinaries(graph: Graph): string[] {
   return [...graph.keys()].sort().flatMap((pkg) => testBinaries(graph, pkg).map((b) => b.name));

@@ -28,7 +28,7 @@
 import type { Check } from "../driver/accept.ts";
 import { metadata } from "../keys/graph.ts";
 import { currentPlan } from "../lib/chain.ts";
-import { describeGroup, grouped, planContext } from "../select/checks.ts";
+import { describeGroup, grouped, planContext, twinBinaries } from "../select/checks.ts";
 import { type AtomKind, ATOM_KINDS, SelectStore } from "../select/store.ts";
 import { computeChange, counts, describe, discover, explain, query } from "../select/select.ts";
 import { seed } from "../select/seed.ts";
@@ -174,7 +174,8 @@ export async function run(args: string[]): Promise<number> {
     const selecting = async () => {
       const change = await computeChange(store, { ...(o.since ? { since: o.since } : {}), ...(o.until ? { until: o.until } : {}), ...(o.paths ? { paths: o.paths } : {}), graph });
       const found = discover(graph);
-      return { change, sel: query(store, change, { discovered: found.atoms, complete: found.complete }) };
+      const ran = twinBinaries(((plan ?? currentPlan())?.goal.checks ?? []) as Check[], graph);
+      return { change, sel: query(store, change, { discovered: found.atoms, complete: found.complete, ran }) };
     };
     const { change, sel } = check ? await unrecorded(selecting) : await selecting();
     if (check) {

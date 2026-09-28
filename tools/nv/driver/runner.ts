@@ -48,7 +48,7 @@ import { run } from "../lib/proc.ts";
 import { linked, releaseCli } from "../lib/relink.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
-import { commandKeys, crateKeys, grouped, type Grouped, heavyKeys, heavyTwin, LEG_KEYS, legAtoms, LEGS, legId, onDisk, planContext, predicted, type Twin, twinWork } from "../select/checks.ts";
+import { commandKeys, crateKeys, grouped, type Grouped, heavyKeys, heavyTwin, LEG_KEYS, legAtoms, LEGS, legId, onDisk, planContext, predicted, type Twin, twinBinaries, twinWork } from "../select/checks.ts";
 import { PLATFORM_ONLY, WILD } from "../select/keys.ts";
 import { NO_ADVANCE_ENV, advance, caseSkipped, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
 import { NV_TSC, runNvTest, runTsc, type ToolRun } from "../select/nvtests.ts";
@@ -195,7 +195,7 @@ export class PlanSweep {
       discovered.add(legId(leg));
       defs.set(legId(leg), LEG_DEF);
     }
-    const sel = query(store, change, { discovered: [...discovered], complete: found.complete, defs });
+    const sel = query(store, change, { discovered: [...discovered], complete: found.complete, defs, ran: twinBinaries(plan, graph) });
     // A leg runs every fixture and suite of the plan again on Linux, so a change that reaches one of them
     // reaches both legs, for the same reason.
     const by = legAtoms(plan, groups)
@@ -532,7 +532,7 @@ export class PlanSweep {
           await capture([found.t.exe, ...t.args], found.t.dir, { ...this.rec.env(rec), ...(await this.rec.cacheDir(rec)), CARGO_MANIFEST_DIR: found.t.dir, NO_COLOR: "1", ...env });
           const ext = await this.rec.keysOf(rec, [found.t.exe, covwsNvs()]);
           if (!ext) return null;
-          for (const [k, d] of testKeys(found.pkg, ext, t.name)) keys.set(k, d);
+          for (const [k, d] of testKeys(ext, t.name)) keys.set(k, d);
         }
       }
       if (twin.argv.length > 0) {
@@ -603,7 +603,7 @@ export class PlanSweep {
         const o = await capture([t.exe], t.dir, env);
         const ext = await this.rec.keysOf(rec, [t.exe, covwsNvs()]);
         const verdict: AtomVerdict = o.code === 0 && ext ? "green" : "red";
-        this.store.recordRun(id, { def: "", verdict, keys: testKeys(pkg, ext, name) });
+        this.store.recordRun(id, { def: "", verdict, keys: testKeys(ext, name) });
         putTestGreen(this.store, name, verdict, o.out);
         if (verdict === "red") {
           const failed = o.out.split(/\r?\n/).filter((l) => l.startsWith("test ") && l.trimEnd().endsWith("FAILED")).map((l) => l.split(/\s+/)[1]);

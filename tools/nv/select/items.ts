@@ -43,7 +43,7 @@
 //
 // An item compiled only for tests (`test`) is never a card or a class row a program reads: its cards,
 // classes and rows are ignored and it moves what names it, like any other item. A test that was added
-// is in no footprint yet; `select.ts` moves its package's `tests:` key for it.
+// is in no footprint yet; `select.ts` moves the `tests:` key of each test binary it is compiled into.
 //
 // An item only an optimized build compiles (`profile.ts`) never ran on the debug build every footprint
 // is recorded on. It moves its twin as well, the item of its file with the same id but for the `#N`
