@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a program sends very large bodies and bodies with zero bytes, then keeps many
+// copies of the bodies it reads. The program should not crash or leak memory.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp('https://api.example.com/*', 200);
+
+// Step 1: a body of thirty-two megabytes.
+Client::post('https://api.example.com/upload', { body: Core\Str::repeat('x', 33554432), contentType: 'text/plain' });
+echo Core\Bytes::length(Test::sentHttp()[0]->body()), "\n";
+
+// Step 2: a body made of zero bytes and bytes that are not valid text.
+Client::post('https://api.example.com/raw', { body: Core\Encoding::fromHex('0000fffe00'), contentType: 'application/octet-stream' });
+echo Core\Bytes::length(Test::sentHttp()[1]->body()), "\n";
+
+// Step 3: a request with no body.
+Client::get('https://api.example.com/empty');
+echo Core\Bytes::length(Test::sentHttp()[2]->body()), "\n";
+
+// Step 4: the large body is read one thousand times and every copy is kept in a list.
+SentRequest $large = Test::sentHttp()[0];
+array<bytes> $copies = [];
+uint $reads = 0;
+while ($reads < 1000) {
+    $copies[] = $large->body();
+    $reads = $reads + 1;
+}
+echo Core\Arr::count($copies), "\n";
+
+// Step 5: the list is read again after the copies were kept. Each read builds new records.
+uint $total = 0;
+foreach (Test::sentHttp() as SentRequest $request) {
+    $total = $total + Core\Bytes::length($request->body());
+}
+echo $total, "\n";

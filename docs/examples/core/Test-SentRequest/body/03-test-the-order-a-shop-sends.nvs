@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to test the JSON document a shop sends to its payment service.
+
+use Core\Http\Client;
+use Core\Test;
+
+class Checkout {
+    // Asks the payment service to charge an amount in cents.
+    public static function charge(string $orderId, uint $cents): int {
+        return Client::post("https://pay.example.com/charges", {
+            json: ["order" => $orderId, "amount" => $cents, "currency" => "EUR"],
+        })->status();
+    }
+}
+
+Test::answerHttp("https://pay.example.com/charges", 201);
+Checkout::charge("A-17", 2599);
+
+// The test decodes the body and checks each field.
+// A wrong amount here would charge the customer the wrong price.
+var $sent = Core\Json::decode(Test::sentHttp()[0]->body() as string);
+Test::assertSame($sent["order"], "A-17");
+Test::assertSame($sent["amount"], 2599);
+Test::assertSame($sent["currency"], "EUR");
+
+// This prints `the charge is correct`.
+echo "the charge is correct\n";

@@ -16754,9 +16754,9 @@ Keywords: method, url, header, body
 $sentRequest->method(): Core\Http\Method
 ```
 
-The verb this call carried, as the `Core\Http\Method` case the member that made it is named for.
+Returns the HTTP method of this request.
 
-**Returns** `Core\Http\Method` — The case — `Core\Http\Method::Get` for a `Core\Http\Client::get`, and so on for every row.
+**Returns** `Core\Http\Method` — A `Core\Http\Method` case. A request sent with `Core\Http\Client::get` returns `Core\Http\Method::Get`, a request sent with `Core\Http\Client::post` returns `Core\Http\Method::Post`, and the other methods work the same way.
 
 <a id="core-core-test-sentrequest-url"></a>
 #### `Core\Test\SentRequest->url`
@@ -16765,9 +16765,9 @@ The verb this call carried, as the `Core\Http\Method` case the member that made 
 $sentRequest->url(): string
 ```
 
-The URL this call was made to, as the program wrote it.
+Returns the URL of this request, exactly as the program wrote it.
 
-**Returns** `string` — The whole URL, unchanged — not the pattern the answer was registered under, so a test answering a prefix can still assert the exact path its subject asked for.
+**Returns** `string` — The whole URL, with its path and query string. It is not the pattern you gave to `Core\Test::answerHttp`, so a test can check the exact path the program used.
 
 <a id="core-core-test-sentrequest-header"></a>
 #### `Core\Test\SentRequest->header`
@@ -16776,13 +16776,13 @@ The URL this call was made to, as the program wrote it.
 $sentRequest->header(string $name): ?string
 ```
 
-What this call carried under one header name, so a test can assert the authorization, the content type or the trace header its subject composed.
+Returns the value of one header of this request, such as `Authorization` or `Content-Type`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The header to read, matched case-insensitively as a header name is. |
+| `$name` | `string` (neutral) | The header name. Upper and lower case letters do not matter, so `authorization` and `Authorization` find the same header. |
 
-**Returns** `?string` — The value, or `null` where the request carried no such header.
+**Returns** `?string` — The header value. If the request has no header with this name, the result is `null`.
 
 <a id="core-core-test-sentrequest-body"></a>
 #### `Core\Test\SentRequest->body`
@@ -16791,9 +16791,9 @@ What this call carried under one header name, so a test can assert the authoriza
 $sentRequest->body(): bytes
 ```
 
-The bytes this call carried, so a test can assert the document its subject sent rather than only the URL it sent it to.
+Returns the body of this request, such as the JSON document or the form the program sent.
 
-**Returns** `bytes` — The request body, and an empty `bytes` for a call that carried none.
+**Returns** `bytes` — The body as `bytes`. If the request has no body, the result is empty `bytes`. Use `as string` to read it as text.
 
 <a id="core-core-task"></a>
 ### `Core\Task`

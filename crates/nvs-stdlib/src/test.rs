@@ -961,7 +961,7 @@ pub(crate) const SENT_REQUEST_NAME: &str = r"Core\Test\SentRequest";
 /// made, so there is nothing on it a program could sensibly write.
 pub(crate) const SENT_REQUEST: CoreClass = CoreClass {
     name: SENT_REQUEST_NAME,
-    doc: None,
+    doc: Some(&SENT_REQUEST_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1003,6 +1003,13 @@ pub(crate) const SENT_REQUEST: CoreClass = CoreClass {
     ],
     slots: &["method", "url", "headers", "body"],
     constants: &[],
+};
+
+/// `Core\Test\SentRequest`'s class card — `rule:core-api/reference-card`.
+const SENT_REQUEST_CARD: ClassDoc = ClassDoc {
+    short: "One HTTP request your program sent to a fake web service in a test. \
+            `Core\\Test::sentHttp` returns a list of them. `method()`, `url()`, `header()` and \
+            `body()` return what the program sent. You cannot create one yourself.",
 };
 
 /// [`SENT_REQUEST`]'s first slot: the [`crate::router::METHOD`] ordinal of the
@@ -1508,42 +1515,44 @@ const ASSERT_COMPLETES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test\SentRequest::method`'s reference card — `rule:core-api/reference-card`.
 const SENT_METHOD_DOC: MethodDoc = MethodDoc {
-    short: "The verb this call carried, as the `Core\\Http\\Method` case the member that made it \
-            is named for.",
+    short: "Returns the HTTP method of this request.",
     params: &[],
-    ret: "The case — `Core\\Http\\Method::Get` for a `Core\\Http\\Client::get`, and so on for \
-          every row.",
+    ret: "A `Core\\Http\\Method` case. A request sent with `Core\\Http\\Client::get` returns \
+          `Core\\Http\\Method::Get`, a request sent with `Core\\Http\\Client::post` returns \
+          `Core\\Http\\Method::Post`, and the other methods work the same way.",
     errors: &[],
 };
 
 /// `Core\Test\SentRequest::url`'s reference card — `rule:core-api/reference-card`.
 const SENT_URL_DOC: MethodDoc = MethodDoc {
-    short: "The URL this call was made to, as the program wrote it.",
+    short: "Returns the URL of this request, exactly as the program wrote it.",
     params: &[],
-    ret: "The whole URL, unchanged — not the pattern the answer was registered under, so a test \
-          answering a prefix can still assert the exact path its subject asked for.",
+    ret: "The whole URL, with its path and query string. It is not the pattern you gave to \
+          `Core\\Test::answerHttp`, so a test can check the exact path the program used.",
     errors: &[],
 };
 
 /// `Core\Test\SentRequest::header`'s reference card — `rule:core-api/reference-card`.
 const SENT_HEADER_DOC: MethodDoc = MethodDoc {
-    short: "What this call carried under one header name, so a test can assert the \
-            authorization, the content type or the trace header its subject composed.",
+    short: "Returns the value of one header of this request, such as `Authorization` or \
+            `Content-Type`.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The header to read, matched case-insensitively as a header name is.",
+        desc: "The header name. Upper and lower case letters do not matter, so `authorization` \
+               and `Authorization` find the same header.",
         shape: &[],
     }],
-    ret: "The value, or `null` where the request carried no such header.",
+    ret: "The header value. If the request has no header with this name, the result is `null`.",
     errors: &[],
 };
 
 /// `Core\Test\SentRequest::body`'s reference card — `rule:core-api/reference-card`.
 const SENT_BODY_DOC: MethodDoc = MethodDoc {
-    short: "The bytes this call carried, so a test can assert the document its subject sent \
-            rather than only the URL it sent it to.",
+    short: "Returns the body of this request, such as the JSON document or the form the program \
+            sent.",
     params: &[],
-    ret: "The request body, and an empty `bytes` for a call that carried none.",
+    ret: "The body as `bytes`. If the request has no body, the result is empty `bytes`. Use \
+          `as string` to read it as text.",
     errors: &[],
 };
 
@@ -5534,6 +5543,94 @@ mod tests {
             expected,
             "reading the record does not consume it"
         );
+    }
+
+    /// Each `Core\Test\SentRequest` member returns its field with a reference
+    /// of the caller's own, so reading twice returns the same value and
+    /// releasing a reading leaves the record whole. `header` matches a name in
+    /// any case and returns `null` for a header the call did not carry, and a
+    /// receiver that is not a record throws from every member.
+    // covers: Core\Test\SentRequest::method, Core\Test\SentRequest::url, Core\Test\SentRequest::header, Core\Test\SentRequest::body
+    #[test]
+    fn sent_request_members_read_their_fields_and_refuse_a_stranger() {
+        fn text(of: &str) -> Value {
+            Value::str(nvs_runtime::NvsStr::new(of.as_bytes()))
+        }
+        fn header(ctx: &mut Ctx, record: Value, name: &str) -> Option<String> {
+            let name = text(name);
+            let read = nvs_runtime::call(nvs_core_test_sent_header, ctx, &[record, name])
+                .expect("reading a header cannot fail");
+            dropped(name);
+            let value = read.as_text().map(str::to_owned);
+            dropped(read);
+            value
+        }
+        fn read(ctx: &mut Ctx, record: Value) -> String {
+            let verb = nvs_runtime::call(nvs_core_test_sent_method, ctx, &[record])
+                .expect("reading the method cannot fail");
+            let url = nvs_runtime::call(nvs_core_test_sent_url, ctx, &[record])
+                .expect("reading the URL cannot fail");
+            let body = nvs_runtime::call(nvs_core_test_sent_body, ctx, &[record])
+                .expect("reading the body cannot fail");
+            let seen = format!(
+                "{} {} {:?} {:?} {:?}",
+                verb.as_int().expect("the method is a case ordinal"),
+                url.as_text().expect("the URL is a string"),
+                header(ctx, record, "CONTENT-TYPE"),
+                header(ctx, record, "x-trace"),
+                body.as_bytes().expect("the body is bytes"),
+            );
+            dropped(verb);
+            dropped(url);
+            dropped(body);
+            seen
+        }
+
+        let mut ctx = Ctx::buffered();
+        ctx.faked_http_mut().record(nvs_runtime::HttpSent {
+            verb: "PUT".into(),
+            url: "https://shop.example.com/items/7?draft=1".into(),
+            headers: vec![("content-type".into(), "application/json".into())],
+            body: b"{\"stock\":3}".to_vec(),
+        });
+        let answered = nvs_runtime::call(nvs_core_test_sent_http, &mut ctx, &[] as &[Value])
+            .expect("reading the record cannot fail");
+        let record = crate::arr::borrowed(answered.array_ptr().expect("a list of records"))
+            .get_index(0)
+            .expect("one record");
+        let put = crate::router::method_case("PUT").expect("a verb the roster names");
+        let expected = format!(
+            "{put} https://shop.example.com/items/7?draft=1 Some(\"application/json\") None {:?}",
+            b"{\"stock\":3}"
+        );
+        assert_eq!(read(&mut ctx, record), expected, "the call's own fields");
+        assert_eq!(
+            read(&mut ctx, record),
+            expected,
+            "releasing a reading leaves the record whole"
+        );
+        dropped(answered);
+
+        let stranger = Value::int(7);
+        let members: [nvs_runtime::NvsFn; 3] = [
+            nvs_core_test_sent_method,
+            nvs_core_test_sent_url,
+            nvs_core_test_sent_body,
+        ];
+        for member in members {
+            assert!(
+                nvs_runtime::call(member, &mut ctx, &[stranger]).is_err(),
+                "a receiver that is not a record throws"
+            );
+            let _ = ctx.take_pending();
+        }
+        let name = text("content-type");
+        assert!(
+            nvs_runtime::call(nvs_core_test_sent_header, &mut ctx, &[stranger, name]).is_err(),
+            "a receiver that is not a record throws from `header` too"
+        );
+        dropped(name);
+        let _ = ctx.take_pending();
     }
 
     /// `request` hands the unit under test one request built from its

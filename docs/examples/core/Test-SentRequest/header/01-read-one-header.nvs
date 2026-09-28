@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read one header of a request your program sent.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp("https://api.example.com/profile", 200);
+Client::get("https://api.example.com/profile", {headers: ["Accept-Language" => "de"]});
+
+SentRequest $request = Test::sentHttp()[0];
+
+// This prints `de`.
+echo $request->header("Accept-Language") ?? "none", "\n";
+
+// Upper and lower case letters in the name do not matter. This prints `de` again.
+echo $request->header("accept-language") ?? "none", "\n";

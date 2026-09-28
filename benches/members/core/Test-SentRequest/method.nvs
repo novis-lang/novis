@@ -1,0 +1,28 @@
+<?nvs
+// Reads the HTTP method of a sent request, as a test does to check a client used the right method.
+// bench: iterations 400000
+
+use Core\Http\Client;
+use Core\Http\Method;
+use Core\Test\SentRequest;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Test::answerHttp("https://api.example.com/*", 200);
+        Client::get("https://api.example.com/users/7");
+        Client::delete("https://api.example.com/users/7");
+        array<SentRequest> $sent = Core\Test::sentHttp();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($sent[$total % 2]->method() == Method::Delete) {
+                $total = $total + 1;
+            }
+            $total = $total + 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

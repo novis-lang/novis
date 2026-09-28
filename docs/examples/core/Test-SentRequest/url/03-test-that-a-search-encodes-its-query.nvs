@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to test that a search client puts the search text into the URL correctly.
+
+use Core\Http\Client;
+use Core\Test;
+
+class BookSearch {
+    // Searches the book service for a title.
+    public static function find(string $title): int {
+        string $query = Core\Uri::encodeComponent($title);
+        var $response = Client::get("https://books.example.com/search?q=" . $query);
+        return $response->status();
+    }
+}
+
+Test::answerHttp("https://books.example.com/search*", 200, {json: []});
+BookSearch::find("War & Peace");
+
+// A space and a `&` must be encoded in a URL.
+// The test checks the exact URL the client built.
+Test::assertSame(Test::sentHttp()[0]->url(), "https://books.example.com/search?q=War%20%26%20Peace");
+
+// This prints `the search text was encoded`.
+echo "the search text was encoded\n";

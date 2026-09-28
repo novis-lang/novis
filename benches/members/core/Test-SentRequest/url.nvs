@@ -1,0 +1,24 @@
+<?nvs
+// Reads the URL of a sent request, as a test does to check the path a client built.
+// bench: iterations 400000
+
+use Core\Http\Client;
+use Core\Test\SentRequest;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Test::answerHttp("https://api.example.com/*", 200);
+        Client::get("https://api.example.com/users/7");
+        Client::get("https://api.example.com/users/7/orders?page=2");
+        array<SentRequest> $sent = Core\Test::sentHttp();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($sent[$total % 2]->url());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

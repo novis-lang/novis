@@ -2492,8 +2492,20 @@ fn write_body(
     Ok(None)
 }
 
-/// One header line, refused if either half could end it early.
+/// One header line, refused by [`judged_field`] first.
 fn field(out: &mut String, name: &str, value: &str, member: &str) -> Result<(), Fault> {
+    judged_field(name, value, member)?;
+    out.push_str(name);
+    out.push_str(": ");
+    out.push_str(value);
+    out.push_str("\r\n");
+    Ok(())
+}
+
+/// Refuses a header if either half could end its line early. [`field`] asks
+/// this before it writes a line, and the answer table in `super` asks it
+/// before it records a call, so a test sees the refusal production throws.
+pub(super) fn judged_field(name: &str, value: &str, member: &str) -> Result<(), Fault> {
     let unsafe_byte = |text: &str| text.bytes().any(|byte| byte < 0x20 || byte == 0x7f);
     if name.is_empty() || unsafe_byte(name) || name.contains(':') || unsafe_byte(value) {
         return Err(Fault::thrown(format!(
@@ -2502,10 +2514,6 @@ fn field(out: &mut String, name: &str, value: &str, member: &str) -> Result<(), 
              not write"
         )));
     }
-    out.push_str(name);
-    out.push_str(": ");
-    out.push_str(value);
-    out.push_str("\r\n");
     Ok(())
 }
 

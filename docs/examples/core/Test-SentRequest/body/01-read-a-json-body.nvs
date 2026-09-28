@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the body of a request your program sent.
+
+use Core\Http\Client;
+use Core\Test;
+
+Test::answerHttp("https://api.example.com/notes", 201);
+Client::post("https://api.example.com/notes", {json: ["title" => "Shopping", "done" => false]});
+
+// `body()` returns `bytes`. `as string` reads the bytes as text.
+// This prints `{"title":"Shopping","done":false}`.
+echo Test::sentHttp()[0]->body() as string, "\n";

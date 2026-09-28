@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program sends requests with every HTTP method and reads the method of each
+// request very many times. The program should not crash or leak memory.
+
+use Core\Http\Client;
+use Core\Http\Method;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp('https://api.example.com/*', 200);
+
+// Step 1: one request with each of the eight methods.
+array<Method> $methods = [
+    Method::Get, Method::Head, Method::Options, Method::Trace,
+    Method::Post, Method::Put, Method::Patch, Method::Delete,
+];
+foreach ($methods as Method $method) {
+    Client::request($method, 'https://api.example.com/items');
+}
+
+// Step 2: each method is read back and compared with the method that was sent.
+uint $same = 0;
+uint $index = 0;
+foreach (Test::sentHttp() as SentRequest $request) {
+    if ($request->method() == $methods[$index]) {
+        $same = $same + 1;
+    }
+    $index = $index + 1;
+}
+echo $same, "\n";
+
+// Step 3: the method of one request is read one million times.
+SentRequest $first = Test::sentHttp()[0];
+uint $gets = 0;
+uint $reads = 0;
+while ($reads < 1000000) {
+    if ($first->method() == Method::Get) {
+        $gets = $gets + 1;
+    }
+    $reads = $reads + 1;
+}
+echo $gets, "\n";
+
+// Step 4: fifty thousand more requests with methods chosen at run time.
+uint $count = 0;
+while ($count < 50000) {
+    Client::request($methods[$count % 8], 'https://api.example.com/items/' . $count);
+    $count = $count + 1;
+}
+uint $deletes = 0;
+foreach (Test::sentHttp() as SentRequest $request) {
+    if ($request->method() == Method::Delete) {
+        $deletes = $deletes + 1;
+    }
+}
+echo $deletes, "\n";

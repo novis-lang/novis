@@ -2,6 +2,7 @@
 `Core\Test::sentHttp` hands back every outbound call the program made, in order, and nothing a record reads is `tainted` — `rule:testing/an-outbound-call-is-answered-from-a-table`
 --FILE--
 <?nvs
+// covers: Core\Test\SentRequest::method, Core\Test\SentRequest::url, Core\Test\SentRequest::header, Core\Test\SentRequest::body
 // The claim is *invariance over a sweep*: four calls differing in verb, URL and
 // headers, asserted by walking the records rather than by reading one of them,
 // so a table that answered each call plausibly and recorded the wrong one still

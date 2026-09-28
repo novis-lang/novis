@@ -4132,6 +4132,12 @@ fn faked(
         .into_iter()
         .map(|(name, value)| (name.to_ascii_lowercase(), value))
         .collect();
+    // A header a real call refuses before it connects is refused here before
+    // it is recorded, so a test sees the same error and no record of a call
+    // production never makes.
+    for (name, value) in &headers {
+        transport::judged_field(name, value, named)?;
+    }
     // The same framing a real call sends, collected instead of written: a case
     // asserting on a multipart body is asserting on what left the program, and
     // a faked path that recomposed it from the options would be a second writer
