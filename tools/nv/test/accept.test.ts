@@ -14,10 +14,16 @@ import {
   owedChecks,
   plainCrateTest,
   programFailLine,
-  proofBatches,
+  PROOF_SCOPES_PER_LIMIT,
+  proofBatch,
+  proofBatchArgv,
+  proofComplete,
   proofGroups,
   proofKeys,
+  proofLimitMs,
+  proofOnly,
   proofOutcome,
+  proofResult,
   proofSections,
   releaseBuildArgv,
   stdoutLines,
@@ -122,17 +128,55 @@ describe("the batched proofs run", () => {
     expect(proofGroups(check({ argv: ["bun", "nv", "proofs", "--verify"] }))).toBeNull();
   });
 
-  test("proofBatches cuts the groups into batches of a bounded size, a check's groups kept together", () => {
-    const group = (...gs: string[]) => check({ argv: ["bun", "nv", "proofs", "--verify", ...gs.flatMap((g) => ["--group", g])] });
-    const many = Array.from({ length: 30 }, (_, i) => group(`G${i}`));
-    const batches = proofBatches(many, 12);
-    expect(batches.map((b) => b.length)).toEqual([12, 12, 6]);
-    expect(batches.flat()).toEqual(many.map((_, i) => `G${i}`));
-    // A check's two groups do not straddle a batch, and a group already placed is not placed again.
-    expect(proofBatches([group("A"), group("B"), group("C", "D"), group("A"), group("E")], 3)).toEqual([["A", "B"], ["C", "D", "E"]]);
-    // A lone group, and a check that is no proofs-group check, make no batch.
-    expect(proofBatches([group("A"), check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "x"] })], 12)).toEqual([]);
-    expect(proofBatches([group("A"), group("B"), group("C")], 2)).toEqual([["A", "B"]]);
+  test("proofOnly reads only a plain `--verify --only` check", () => {
+    expect(proofOnly(check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "Core\\Str::at", "Core\\Str::after"] }))).toEqual(["Core\\Str::at", "Core\\Str::after"]);
+    expect(proofOnly(check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "x", "--gate"] }))).toBeNull();
+    expect(proofOnly(check({ argv: ["bun", "nv", "proofs", "--only", "x", "--gate"] }))).toBeNull();
+    expect(proofOnly(check({ argv: ["bun", "nv", "proofs", "--verify", "--only", "x"], cwd: "tools" }))).toBeNull();
+    expect(proofOnly(check({ argv: ["bun", "nv", "proofs", "--verify", "--only"] }))).toBeNull();
+  });
+
+  const group = (id: string, ...gs: string[]) => check({ id, argv: ["bun", "nv", "proofs", "--verify", ...gs.flatMap((g) => ["--group", g])] });
+  const only = (id: string, ...ids: string[]) => check({ id, argv: ["bun", "nv", "proofs", "--verify", "--only", ...ids] });
+
+  test("proofBatch puts every group and every feature list of the checks in one process", () => {
+    const many = Array.from({ length: 30 }, (_, i) => group(`g${i}`, `G${i}`));
+    const b = proofBatch([...many, only("o1", "A::x", "A::y"), check({ id: "cargo", kind: "cargo-named" }), only("o2", "B::z"), group("gAB", "A", "B")])!;
+    expect(b.groups).toEqual([...many.map((_, i) => `G${i}`), "A", "B"]);
+    expect(b.named).toEqual([
+      { label: "only-1", ids: ["A::x", "A::y"] },
+      { label: "only-2", ids: ["B::z"] },
+    ]);
+    expect(b.parts.get("g3")).toEqual(["G3"]);
+    expect(b.parts.get("gAB")).toEqual(["A", "B"]);
+    expect(b.parts.get("o2")).toEqual(["only-2"]);
+    expect(b.parts.has("cargo")).toBe(false);
+    const argv = proofBatchArgv(b);
+    expect(argv.slice(0, 6)).toEqual(["bun", "nv", "proofs", "--verify", "--group", "G0"]);
+    expect(argv.slice(-11)).toEqual(["--group", "A", "--group", "B", "--only-as", "only-1", "A::x", "A::y", "--only-as", "only-2", "B::z"]);
+  });
+
+  test("proofBatch shares a feature list two checks name, skips a label a group has, and makes no batch of one scope", () => {
+    const b = proofBatch([group("g", "only-1"), only("a", "X::f"), only("b", "X::f"), only("c", "Y::g")])!;
+    expect(b.named).toEqual([
+      { label: "only-2", ids: ["X::f"] },
+      { label: "only-3", ids: ["Y::g"] },
+    ]);
+    expect(b.parts.get("a")).toEqual(["only-2"]);
+    expect(b.parts.get("b")).toEqual(["only-2"]);
+    expect(proofBatch([group("g", "A")])).toBeNull();
+    expect(proofBatch([only("a", "X::f"), only("b", "X::f")])).toBeNull();
+    expect(proofBatch([group("g", "A"), group("h", "A")])).toBeNull();
+    expect(proofBatch([group("g", "A"), only("a", "X::f")])).not.toBeNull();
+  });
+
+  test("proofLimitMs gives a batch one check's limit for each twelve scopes it starts", () => {
+    expect(PROOF_SCOPES_PER_LIMIT).toBe(12);
+    expect(proofLimitMs(0, 1000)).toBe(1000);
+    expect(proofLimitMs(2, 1000)).toBe(1000);
+    expect(proofLimitMs(12, 1000)).toBe(1000);
+    expect(proofLimitMs(13, 1000)).toBe(2000);
+    expect(proofLimitMs(148, 1000)).toBe(13000);
   });
 
   test("proofKeys gives a check the batch's shared reads and its own groups', and no other group's", () => {
@@ -193,6 +237,82 @@ describe("the batched proofs run", () => {
     expect(firstErrLine(proofOutcome(["Core\\Str"], crashed))).toBe("panic(main thread): integer does not fit in destination type");
     expect(proofOutcome(["Core\\Str"], { code: 0, out, err: "" }).code).toBe(1);
     expect(proofOutcome(["Core\\Str"], { code: 0, out, err: "" }).err).toBe("the batched `nv proofs --verify` printed no verdict for Core\\Str");
+  });
+
+  // A folded run: a group, then an `--only-as` scope, whose gate line names its features as `--only` does.
+  const folded = [
+    "== Core\\Env",
+    "nv proofs gate: nothing owed in Core\\Env (2 features).",
+    "proofs examples: 9 ok, 0 skipped, 0 known-gap, 0 failed",
+    "-- Core\\Env: passed",
+    "== only-1",
+    "nv proofs gate: nothing owed in 2 named feature(s) (2 features).",
+    "  FAIL  docs/examples/core/Str/at/01.nvs: stdout differs",
+    "proofs examples: 3 ok, 0 skipped, 0 known-gap, 1 failed",
+    "-- only-1: failed",
+    "proofs: 1 program(s) ended differently on the recording run, so each runs every time until they agree:",
+    "",
+  ].join("\n");
+
+  test("an `--only-as` scope is judged as its `--only` check run alone", () => {
+    const alone = { code: 1, out: "nv proofs gate: nothing owed in 2 named feature(s) (2 features).\n  FAIL  docs/examples/core/Str/at/01.nvs: stdout differs\nproofs examples: 3 ok, 0 skipped, 0 known-gap, 1 failed\n", err: "" };
+    expect(proofComplete(["only-1"], folded)).toBe(true);
+    expect(proofComplete(["Core\\Env", "only-1"], folded)).toBe(true);
+    expect(proofComplete(["only-2"], folded)).toBe(false);
+    const o = proofOutcome(["only-1"], { code: 1, out: folded, err: "" });
+    expect(o).toEqual(alone);
+    const c = check({ want: ["nothing owed", "0 failed"] });
+    expect(judgeCommand(c, o, "L")).toBe(judgeCommand(c, alone, "L"));
+    expect(judgeCommand(c, o, "L")).toBe("L: exit 1 -- FAIL  docs/examples/core/Str/at/01.nvs: stdout differs");
+    expect(allReds(["first: red", judgeCommand(c, o, "L")])).toContain("also red: L: exit 1 -- FAIL  docs/examples/core/Str/at/01.nvs: stdout differs");
+  });
+
+  describe("proofResult", () => {
+    const keyed = (...ks: string[]) => new Map(ks.map((k) => [k, ""]));
+    const batchRun = (o: { code: number; out: string; err: string }) => ({ o, keys: keyed("all"), parts: new Map([["only-1", keyed("mine")], ["Core\\Env", keyed("env")]]) });
+    const aloneRun = { o: { code: 0, out: "alone\n", err: "" }, keys: keyed("alone"), parts: new Map() };
+
+    test("a check the batch closed a section for is cut from it, and never runs alone", async () => {
+      let alone = 0;
+      const r = await proofResult(["only-1"], async () => batchRun({ code: 1, out: folded, err: "" }), async () => {
+        alone++;
+        return aloneRun;
+      });
+      expect(alone).toBe(0);
+      expect(r.o.code).toBe(1);
+      expect([...r.keys.keys()]).toEqual(["mine"]);
+    });
+
+    test("a batch that died runs each check it left without a verdict alone, and says why", async () => {
+      const whys: string[] = [];
+      const dead = async () => batchRun({ code: -1, out: "", err: "timed out after 3600s" });
+      const r = await proofResult(["only-1"], dead, async (why) => {
+        whys.push(why);
+        return aloneRun;
+      });
+      expect(r).toEqual({ o: aloneRun.o, keys: keyed("alone") });
+      expect(whys).toEqual([" (run alone: the batched run did not finish and printed no verdict for it)"]);
+      // Bun crashed after one section: the closed one is cut from it, the other runs alone.
+      const half = async () => batchRun({ code: 3, out: folded.split("== only-1")[0]!, err: "panic(main thread): oh no" });
+      const env = await proofResult(["Core\\Env"], half, async () => aloneRun);
+      expect(env.o.code).toBe(0);
+      expect([...env.keys.keys()]).toEqual(["env"]);
+      const mine = await proofResult(["only-1"], half, async (why) => {
+        whys.push(why);
+        return aloneRun;
+      });
+      expect(mine.o).toEqual(aloneRun.o);
+      expect(whys[1]).toBe(" (run alone: the batched run ended with exit 3 and printed no verdict for it)");
+    });
+
+    test("a check outside a batch runs alone with nothing added to its line", async () => {
+      const whys: string[] = [];
+      await proofResult([], null, async (why) => {
+        whys.push(why);
+        return aloneRun;
+      });
+      expect(whys).toEqual([""]);
+    });
   });
 });
 

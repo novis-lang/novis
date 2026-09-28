@@ -285,40 +285,90 @@ export function proofGroups(c: Check): string[] | null {
   return groups.length > 0 ? groups : null;
 }
 
-/**
- * The most groups one batched `nv proofs --verify` process runs. A batch is one process under one
- * check's time limit, so a batch of every group a goal names, after a change that reaches all their
- * programs, outlives that limit and is killed, and every group in it is then red. A process that dies
- * takes only its own batch's groups with it.
- */
-export const PROOF_BATCH_GROUPS = 12;
-
-/**
- * The batches the `nv proofs --verify --group` checks among `checks` run in, in check order: a check's
- * groups in one batch, at most `size` groups to a batch unless one check names more, and each group in
- * the first batch that names it. A batch of one group is none: its check runs alone.
- */
-export function proofBatches(checks: Check[], size: number = PROOF_BATCH_GROUPS): string[][] {
-  const batches: string[][] = [];
-  const placed = new Set<string>();
-  let current: string[] = [];
-  for (const c of checks) {
-    const fresh = [...new Set(proofGroups(c) ?? [])].filter((g) => !placed.has(g));
-    if (fresh.length === 0) continue;
-    if (current.length > 0 && current.length + fresh.length > size) {
-      batches.push(current);
-      current = [];
-    }
-    for (const g of fresh) placed.add(g);
-    current.push(...fresh);
-  }
-  if (current.length > 0) batches.push(current);
-  return batches.filter((b) => b.length > 1);
+/** The features a `bun nv proofs --verify --only ID...` check names, in order; null for any other check. */
+export function proofOnly(c: Check): string[] | null {
+  const argv = c.argv ?? [];
+  if (c.kind !== "command" || (c.cwd ?? ".") !== "." || argv.slice(0, 5).join(" ") !== "bun nv proofs --verify --only") return null;
+  const ids = argv.slice(5);
+  return ids.length > 0 && ids.every((a) => !a.startsWith("-")) ? ids : null;
 }
 
 /**
- * Each group's section of a batched `nv proofs --verify` run's stdout, from its `== G` line to its
- * `-- G: passed` or `-- G: failed` line, with both kept, and whether it passed.
+ * One `nv proofs --verify` process that answers several checks: every group their `--group` forms
+ * name, and one `--only-as` scope per distinct feature list their `--only` forms name. `parts` gives
+ * each check's scopes by check id, which are the sections it is judged on.
+ */
+export interface ProofBatch {
+  groups: string[];
+  named: { label: string; ids: string[] }[];
+  parts: Map<string, string[]>;
+}
+
+/**
+ * The one batch the `nv proofs --verify` checks among `checks` run in, in check order: each group once,
+ * and each distinct `--only` list once under a label no group of the batch has. A batch of fewer than
+ * two scopes is none, and null: its check runs alone.
+ */
+export function proofBatch(checks: Check[]): ProofBatch | null {
+  const groups: string[] = [];
+  const named: { label: string; ids: string[] }[] = [];
+  const lists = new Map<string, string>();
+  const pending: { c: Check; ids: string[] }[] = [];
+  const parts = new Map<string, string[]>();
+  for (const c of checks) {
+    const own = proofGroups(c);
+    if (own !== null) {
+      for (const g of own) if (!groups.includes(g)) groups.push(g);
+      parts.set(c.id, [...new Set(own)]);
+      continue;
+    }
+    const ids = proofOnly(c);
+    if (ids !== null) pending.push({ c, ids });
+  }
+  let n = 0;
+  for (const { c, ids } of pending) {
+    const key = ids.join("\0");
+    let label = lists.get(key);
+    if (label === undefined) {
+      do label = `only-${++n}`;
+      while (groups.includes(label));
+      lists.set(key, label);
+      named.push({ label, ids });
+    }
+    parts.set(c.id, [label]);
+  }
+  return groups.length + named.length > 1 ? { groups, named, parts } : null;
+}
+
+/** The command line of `batch`'s one process. */
+export function proofBatchArgv(batch: ProofBatch): string[] {
+  return ["bun", "nv", "proofs", "--verify", ...batch.groups.flatMap((g) => ["--group", g]), ...batch.named.flatMap((n) => ["--only-as", n.label, ...n.ids])];
+}
+
+/** How many scopes of a batch one check's time limit covers. A whole sweep's proofs, every program of
+ * every scope reached, take about that limit per this many scopes. */
+export const PROOF_SCOPES_PER_LIMIT = 12;
+
+/**
+ * The time limit of a batch of `scopes` scopes: `base`, one check's limit, for each started
+ * `PROOF_SCOPES_PER_LIMIT` of them. A hung program is stopped by its own limit inside the process
+ * (`proofs/run.ts`), so this one ends only a process that stops making progress as a whole.
+ */
+export function proofLimitMs(scopes: number, base: number): number {
+  return base * Math.max(1, Math.ceil(scopes / PROOF_SCOPES_PER_LIMIT));
+}
+
+/** Whether a folded run's stdout closes a section, with its verdict, for each of `parts`. A check it does
+ * not is run again on its own. */
+export function proofComplete(parts: string[], out: string): boolean {
+  const sections = proofSections(out);
+  return parts.every((p) => sections.has(p));
+}
+
+/**
+ * Each scope's section of a batched `nv proofs --verify` run's stdout, from its `== G` line to its
+ * `-- G: passed` or `-- G: failed` line, with both kept, and whether it passed. `G` is a group, or the
+ * label of an `--only-as` scope.
  */
 export function proofSections(out: string): Map<string, { passed: boolean; lines: string[] }> {
   const sections = new Map<string, { passed: boolean; lines: string[] }>();
@@ -340,10 +390,10 @@ export function proofSections(out: string): Map<string, { passed: boolean; lines
 }
 
 /**
- * What `nv proofs --verify` over `groups` alone would have done, cut from a batched run over more groups.
- * One group prints its lines with no `==` and `--` lines around them, as a run over one group does. A
- * group the batch printed no verdict for fails with the batch's own output, which says why it stopped,
- * and a last line naming the group.
+ * What `nv proofs --verify` over `groups` alone would have done, cut from a batched run over more scopes.
+ * One scope prints its lines with no `==` and `--` lines around them, as a run over one group, or one
+ * `--only` list, does. A scope the batch printed no verdict for fails with the batch's own output, which
+ * says why it stopped, and a last line naming the scope.
  */
 export function proofOutcome(groups: string[], batch: Outcome): Outcome {
   const sections = proofSections(batch.out);
@@ -358,15 +408,40 @@ export function proofOutcome(groups: string[], batch: Outcome): Outcome {
 }
 
 /**
- * The footprint of a check over `groups`, cut from a batched run: what the run read outside every group
- * together with what each of `groups` read, which `parts` holds by group, and not what the batch's other
- * groups read. A group with no part of its own takes the whole batch's `keys`, which is never narrower
- * than what it read.
+ * The footprint of a check over the scopes `groups`, cut from a batched run: what the run read outside
+ * every scope together with what each of `groups` read, which `parts` holds by scope, and not what the
+ * batch's other scopes read. A scope with no part of its own takes the whole batch's `keys`, which is
+ * never narrower than what it read.
  */
 export function proofKeys(groups: string[], batch: { keys: Map<string, string>; parts: Map<string, Map<string, string>> }): Map<string, string> {
   const own = groups.map((g) => batch.parts.get(g));
   if (own.some((k) => k === undefined)) return new Map(batch.keys);
   return new Map(own.flatMap((k) => [...k!]));
+}
+
+/** What a recorded run printed, what it read, and what each of its parts read. */
+export interface ProofRun {
+  o: Outcome;
+  keys: Map<string, string>;
+  parts: Map<string, Map<string, string>>;
+}
+
+/**
+ * A proofs check's outcome and footprint. With `batch`, the check's scopes `parts` are cut from the
+ * batch's one run. When that run printed no section for one of them, because it died, was killed or
+ * stopped before its verdicts, the check runs `alone`, as it does outside a batch, so a crash never turns
+ * red a check that passes on its own. `alone` gets the words its progress line ends on: why it runs
+ * alone, or nothing outside a batch.
+ */
+export async function proofResult(parts: string[], batch: (() => Promise<ProofRun>) | null, alone: (why: string) => Promise<ProofRun>): Promise<{ o: Outcome; keys: Map<string, string> }> {
+  let why = "";
+  if (batch !== null) {
+    const got = await batch();
+    if (proofComplete(parts, got.o.out)) return { o: proofOutcome(parts, got.o), keys: proofKeys(parts, got) };
+    why = ` (run alone: the batched run ${got.o.code === -1 ? "did not finish" : `ended with exit ${got.o.code}`} and printed no verdict for it)`;
+  }
+  const got = await alone(why);
+  return { o: got.o, keys: new Map(got.keys) };
 }
 
 // ---- the whole sweep -------------------------------------------------------------------------------

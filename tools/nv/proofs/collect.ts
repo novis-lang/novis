@@ -337,21 +337,25 @@ export function scans(): Scans {
 }
 
 /**
- * `collect` over each of `groups` in turn, with what the roster and the disk give each group noted as that
- * group's part (`inPart`), so one process that runs several groups records what each of them read apart
- * from the others. The tree-wide scans are taken once for all of them.
+ * `collect` over each part in turn, a part being a label and its features, with what the roster and the
+ * disk give each part noted under its label (`inPart`), so one process that runs several scopes records
+ * what each of them read apart from the others. The tree-wide scans are taken once for all of them.
  */
-export function collectGroups(scope: Entry[], groups: Iterable<string>): Map<string, Proofs> {
+export function collectParts(parts: Iterable<readonly [string, Entry[]]>): Map<string, Proofs> {
   const scanned = scans();
   const out = new Map<string, Proofs>();
-  for (const g of new Set(groups)) {
-    const mine = scope.filter((e) => e.group === g);
-    inPart([g], () => {
+  for (const [label, mine] of parts) {
+    inPart([label], () => {
       noteRoster(mine, false);
       for (const [id, p] of collect(mine, scanned)) out.set(id, p);
     });
   }
   return out;
+}
+
+/** `collectParts` with one part per group of `groups`, holding that group's features of `scope`. */
+export function collectGroups(scope: Entry[], groups: Iterable<string>): Map<string, Proofs> {
+  return collectParts([...new Set(groups)].map((g) => [g, scope.filter((e) => e.group === g)] as const));
 }
 
 /** What every entry has on disk, by feature id. */

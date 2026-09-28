@@ -20,11 +20,14 @@
 //
 // `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run`,
 // `--verify` and `--record-perf`, and `--id` narrows `--run`, `--verify` and `--record-perf`. `--run`,
-// `--verify` and `--record-perf` take `--group` more than once: the roster is read once, every program
-// runs in one pool, and each group prints its own verdict lines under a `== <group>` line and closes
-// on `-- <group>: passed` or `-- <group>: failed`, which the loop driver splits on. What `--run` and
-// `--verify` read for one group is recorded as that group's part of the run (`lib/reads.ts` `inPart`),
-// so the driver keys each group's check on its own reads and not the whole run's. `--no-perf`
+// `--verify` and `--record-perf` take `--group` more than once, and `--run` and `--verify` also take
+// `--only-as LABEL ID...` more than once: a scope of the named features whose section is `LABEL` and
+// whose gate line reads as `--only`'s does. Over several scopes the roster is read once, every program
+// runs in one pool, and each scope prints its own verdict lines under a `== <group or label>` line and
+// closes on `-- <group or label>: passed` or `-- <group or label>: failed`, which the loop driver splits
+// on. What `--run` and `--verify` read for one scope is recorded as that scope's part of the run
+// (`lib/reads.ts` `inPart`), so the driver keys each scope's check on its own reads and not the whole
+// run's. `--no-perf`
 // stops the perf proof from being owed. `--record-perf` takes `--reps N` timed runs per program (5),
 // `--force` to re-measure what already has a current figure, `--note` to record a word with each record,
 // and `--perf-report` to write the report after it. `--nvs` names the binary to use as it is. Without it,
@@ -44,7 +47,7 @@ import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { inPart } from "../lib/reads.ts";
-import { collect, collectGroups, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { collect, collectParts, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, namesIn, noteRoster, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
@@ -57,6 +60,7 @@ export const summary =
 
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
+  "                 [--only-as LABEL ID [ID ...]]",
   "                 [--owed] [--gaps] [--limit LIMIT] [--json] [--gate]",
   "                 [--run] [--verify] [--valgrind] [--quiet] [--no-cache]",
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
@@ -266,6 +270,24 @@ function takeList(args: string[], flag: string): { rest: string[]; list: string[
   return { rest, list };
 }
 
+/** Every `--only-as LABEL ID...`, taken out of `args`: a label, then the features the way `--only` takes
+ * them. */
+function takeNamed(args: string[]): { rest: string[]; named: { label: string; ids: string[] }[] } {
+  const rest: string[] = [];
+  const named: { label: string; ids: string[] }[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] !== "--only-as") {
+      rest.push(args[i]!);
+      continue;
+    }
+    const words: string[] = [];
+    while (i + 1 < args.length && !args[i + 1]!.startsWith("-")) words.push(args[++i]!);
+    if (words.length < 2) throw new ArgError("argument --only-as: expected a label and at least one feature");
+    named.push({ label: words[0]!, ids: words.slice(1) });
+  }
+  return { rest, named };
+}
+
 /** A path as the user wrote it, from the working directory, made repository-relative. */
 const repoPath = (p: string) => rel(resolve(p));
 
@@ -299,10 +321,14 @@ function groupsIn(args: string[]): string[] {
   return groups;
 }
 
-/** A scope whose verdict lines print together: a group, one feature, the named features or the roster. */
+/** A scope whose verdict lines print together: a group, one feature, the named features or the roster.
+ * `label` is what its gate line names. `part`, in a run over several scopes, names its section and the
+ * part its reads are noted under. A scope with an `error` runs nothing, prints that line and fails. */
 interface Scope {
   label: string | null;
+  part?: string;
   entries: Entry[];
+  error?: string;
 }
 
 /** The programs a scope runs: the `.nvs` files directly in each feature's own directory, which is the set
@@ -319,20 +345,26 @@ function groupReads(entries: Entry[]): string[] {
 }
 
 /** `--run`, or `--verify` when `verify`: each scope's gate first when verifying, then both suites over
- * every scope whose gate passed, in one pool. With `parted`, what each scope reads is noted as the part
- * its label names (`inPart`). */
+ * every scope whose gate passed, in one pool. With `parted`, what each scope reads is noted as its part
+ * (`inPart`). */
 async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: boolean, flags: Set<string>, proofs: Map<string, Proofs>, policy: Policy, skips: Skips, parted = false): Promise<number> {
   const opts = { valgrind: flags.has("--valgrind"), strict: flags.has("--strict"), quiet: flags.has("--quiet") };
-  const partOf = (scope: Scope): string[] => (parted && scope.label !== null ? [scope.label] : []);
+  const partOf = (scope: Scope): string[] => (parted && scope.part !== undefined ? [scope.part] : []);
+  const section = (scope: Scope): string => scope.part ?? scope.label ?? "the whole roster";
   const heads = new Map<Scope, string[]>();
   const running: Scope[] = [];
   let rc = 0;
   for (const scope of scopes) {
     const lines: string[] = [];
-    if (scopes.length > 1) lines.push(`== ${scope.label ?? "the whole roster"}`);
+    if (scopes.length > 1) lines.push(`== ${section(scope)}`);
+    heads.set(scope, lines);
+    if (scope.error !== undefined) {
+      lines.push(scope.error);
+      rc = 1;
+      continue;
+    }
     const gated = verify ? inPart(partOf(scope), () => gate(lines, scope.entries, proofs, policy, skips, scope.label)) : 0;
     rc |= gated;
-    heads.set(scope, lines);
     if (!gated) running.push(scope);
   }
   const suites: What[] = ["examples", "hostile"];
@@ -366,7 +398,7 @@ async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: bo
     let failed = !running.includes(scope);
     if (!failed) for (const what of suites) if (suiteLines(lines, what, programsIn(scope, what), pass, opts)) failed = true;
     // Several scopes close each section on its verdict, which is what the driver hands each check.
-    if (scopes.length > 1) lines.push(`-- ${scope.label ?? "the whole roster"}: ${failed ? "failed" : "passed"}`);
+    if (scopes.length > 1) lines.push(`-- ${section(scope)}: ${failed ? "failed" : "passed"}`);
     out.push(...lines);
     if (failed) rc = 1;
   }
@@ -384,6 +416,7 @@ export async function run(args: string[]): Promise<number> {
   let flags: Set<string>;
   let values: Map<string, string>;
   let only: string[] | null;
+  let onlyAs: { label: string; ids: string[] }[];
   let comments: string[] | null;
   let blessed: string[] | null;
   let hashed: string[] | null;
@@ -391,7 +424,8 @@ export async function run(args: string[]): Promise<number> {
   let reps = 5;
   try {
     let rest: string[];
-    ({ rest, list: only } = takeList(args, "--only"));
+    ({ rest, named: onlyAs } = takeNamed(args));
+    ({ rest, list: only } = takeList(rest, "--only"));
     ({ rest, list: comments } = takeList(rest, "--comments"));
     ({ rest, list: blessed } = takeList(rest, "--bless"));
     ({ rest, list: hashed } = takeList(rest, "--impl-hash"));
@@ -409,6 +443,9 @@ export async function run(args: string[]): Promise<number> {
     limit = int("--limit") ?? limit;
     reps = int("--reps") ?? reps;
     if (reps < 1) throw new ArgError("argument --reps: must be at least 1");
+    if (onlyAs.length > 0 && (!(flags.has("--run") || flags.has("--verify")) || only !== null || values.has("--id") || blessed !== null)) {
+      throw new ArgError("argument --only-as: only with --run or --verify, and not with --only, --id or --bless");
+    }
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
     console.error(`${USAGE}\nnv proofs: error: ${e.message}`);
@@ -493,17 +530,39 @@ export async function run(args: string[]): Promise<number> {
     }
   }
   const label = group ?? (only !== null ? `${only.length} named feature(s)` : null);
+  // Each `--only-as` is a scope of its own: its features in roster order, and a gate line that names
+  // them as `--only` does. The run's scope is then the groups' features and theirs.
+  const grouped = scope;
+  const namedScopes: Scope[] = [];
+  for (const n of onlyAs) {
+    if (groups.includes(n.label) || namedScopes.some((s) => s.part === n.label)) {
+      out.push(`nv proofs: the label ${pyRepr(n.label)} names two scopes.`);
+      return flush(1);
+    }
+    const wanted = new Set(n.ids);
+    const mine = entries.filter((e) => wanted.has(e.id));
+    const onRoster = new Set(mine.map((e) => e.id));
+    const unknown = [...wanted].filter((id) => !onRoster.has(id)).sort();
+    const label = `${n.ids.length} named feature(s)`;
+    // A scope that names a feature not on the roster fails alone, with the line `--only` prints, and the
+    // other scopes still run.
+    if (unknown.length) namedScopes.push({ label, part: n.label, entries: [], error: `nv proofs: --only names ${unknown.length} feature(s) that are not on the roster: ${unknown.slice(0, 5).join(", ")}` });
+    else namedScopes.push({ label, part: n.label, entries: mine });
+  }
+  if (namedScopes.length > 0) scope = [...new Set([...(groups.length > 0 ? grouped : []), ...namedScopes.flatMap((s) => s.entries)])];
   // A run, a measurement or a report over the scope reads the proofs of the scope and of `--id` alone,
   // so a check of a few features is not selected by an edit to any other feature's proofs. The views
   // that print every feature collect every feature.
   const fidEntry = entries.find((e) => e.id === values.get("--id"));
   const scoped = executes || measures || flags.has("--gate") || flags.has("--json") || flags.has("--gaps") || (flags.has("--owed") && !values.has("--id"));
   const inScope = scoped ? [...new Set([...scope, ...(fidEntry ? [fidEntry] : [])])] : entries;
-  // A run over several groups notes what each group reads as that group's part (`inPart`), so a driver
-  // that runs them in one process keys each group's check on the reads of that group and of the run.
-  const parted = executes && groups.length > 1 && !values.has("--id");
+  // A run over several scopes notes what each reads as its part (`inPart`): a group's under the group, an
+  // `--only-as` scope's under its label. A driver that runs them in one process keys each scope's check
+  // on the reads of that scope and of the run.
+  const parted = executes && groups.length + namedScopes.length > 1 && !values.has("--id");
+  const groupScopes: Scope[] = [...new Set(groups)].map((g) => ({ label: g, part: g, entries: grouped.filter((e) => e.group === g) }));
   let proofs: Map<string, Proofs>;
-  if (parted) proofs = collectGroups(inScope, groups);
+  if (parted) proofs = collectParts([...groupScopes, ...namedScopes].map((s) => [s.part!, s.entries] as const));
   else {
     noteRoster(inScope, !scoped || scope === entries);
     proofs = collect(inScope);
@@ -531,15 +590,19 @@ export async function run(args: string[]): Promise<number> {
         return flush(1);
       }
       scopes = [{ label: fid, entries: [match] }];
-    } else if (groups.length > 1) {
-      scopes = groups.map((g) => ({ label: g, entries: scope.filter((e) => e.group === g) }));
+    } else if (parted) {
+      scopes = [...groupScopes, ...namedScopes];
+    } else if (namedScopes.length === 1) {
+      scopes = namedScopes;
     } else {
       scopes = [{ label, entries: scope }];
     }
     // A narrowed group reads less than the whole of it, so a run over whole groups records each group's
     // paths, and a run over named features each feature's own.
     if (fid === undefined && only === null) {
-      saveReads(scopes.filter((s) => s.label !== null && groups.includes(s.label)).map((s) => [s.label!, groupReads(s.entries)]));
+      const whole = scopes.filter((s) => !namedScopes.includes(s) && s.label !== null && groups.includes(s.label));
+      const features = namedScopes.flatMap((s) => s.entries);
+      saveReads([...whole.map((s): [string, string[]] => [s.label!, groupReads(s.entries)]), ...features.map((e): [string, string[]] => [featureGroup(e.id), groupReads([e])])]);
     } else if (fid === undefined) {
       saveReads(scope.map((e) => [featureGroup(e.id), groupReads([e])]));
     }

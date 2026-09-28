@@ -28,9 +28,11 @@
 // `argv` in one directory get one run, recorded under each check's atom, and each judges its own exit
 // and `want` against it; the same holds for a case, a test binary, a tools test file and a heavy check's
 // twin, which two heavy checks share when it runs the same work (`twinWork`). The
-// `nv proofs --verify --group` checks of one tier share a run too: the first one reached starts one
-// `nv proofs --verify` over every group the tier's reached checks name, and each check is judged on its
-// own groups' sections of what that run prints.
+// `nv proofs --verify` checks of one tier share a run too, `--group` and `--only` forms alike: the first
+// one reached starts one `nv proofs --verify` over every group the tier's reached checks name and every
+// feature list they name (`--only-as`), under one check's time limit for each `PROOF_SCOPES_PER_LIMIT` of those scopes, and
+// each check is judged on its own scopes' sections of what that run prints. A check the run printed no
+// section for, because it died or was killed, runs again on its own (`accept.ts` `proofResult`).
 //
 // One covws build serves every fixture, suite and `{nvs}` command, and one `cargo test --no-run` every
 // test binary the sweep runs. That build names its binaries with target filters (`sweepTestFilters`),
@@ -65,10 +67,11 @@ import {
   measuresReleaseCli,
   type Outcome,
   PROGRAM_KINDS,
-  proofBatches,
-  proofGroups,
-  proofKeys,
-  proofOutcome,
+  proofBatch,
+  proofBatchArgv,
+  type ProofBatch,
+  proofLimitMs,
+  proofResult,
   releaseBuildArgv,
   type TestExe,
   testExecutables,
@@ -77,12 +80,12 @@ import {
 
 const TIMEOUT_MS = 1800 * 1000;
 
-/** Runs `argv`, and turns a program that cannot start into exit -1 with the reason on stderr. Whatever
- * it started and left behind is killed with it. */
-async function capture(argv: string[], cwd: string, env?: Record<string, string>): Promise<Outcome> {
+/** Runs `argv` under `timeoutMs`, and turns a program that cannot start into exit -1 with the reason on
+ * stderr. Whatever it started and left behind is killed with it. */
+async function capture(argv: string[], cwd: string, env?: Record<string, string>, timeoutMs: number = TIMEOUT_MS): Promise<Outcome> {
   try {
-    const r = await run(argv, { cwd, timeoutMs: TIMEOUT_MS, reap: true, ...(env ? { env } : {}) });
-    return { code: r.timedOut ? -1 : r.code, out: r.stdout, err: r.timedOut ? `timed out after ${TIMEOUT_MS / 1000}s` : r.stderr };
+    const r = await run(argv, { cwd, timeoutMs, reap: true, ...(env ? { env } : {}) });
+    return { code: r.timedOut ? -1 : r.code, out: r.stdout, err: r.timedOut ? `timed out after ${timeoutMs / 1000}s` : r.stderr };
   } catch (e) {
     return { code: -1, out: "", err: String((e as Error).message ?? e) };
   }
@@ -151,7 +154,7 @@ export class PlanSweep {
   private readonly casesDone = new Set<string>();
   private readonly exeShown = new Map<string, string>();
   private caseOut = "";
-  private proofs: { groups: string[]; run?: Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }> }[] = [];
+  private proofs: { batch: ProofBatch; run?: Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }> } | null = null;
   private runs = 0;
 
   private constructor(
@@ -321,8 +324,9 @@ export class PlanSweep {
 
   /** One recorded run of `argv` in `cwd`, shared by every check that asks for the same one: what it
    * printed, and what it was seen to use. A `bun nv` process's reads are recorded besides, and for each of
-   * `parts` also as that part of the process read it (`readLog`), under `parts`. */
-  private recorded(argv: string[], cwd: string, what: string, extra: Record<string, string> = {}, parts: string[] = []): Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }> {
+   * `parts` also as that part of the process read it (`readLog`), under `parts`. It runs under one
+   * check's time limit unless `timeoutMs` names another. */
+  private recorded(argv: string[], cwd: string, what: string, extra: Record<string, string> = {}, parts: string[] = [], timeoutMs: number = TIMEOUT_MS): Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }> {
     const key = `${cwd}\0${argv.join("\0")}`;
     let p = this.shared.get(key);
     if (p === undefined) {
@@ -333,7 +337,7 @@ export class PlanSweep {
         const log = join(this.rec.dir, `${name}.reads`);
         const env: Record<string, string> = { ...this.rec.env(name), NO_COLOR: "1", ...extra };
         if (nv) Object.assign(env, { [READS_ENV]: log, [NO_ADVANCE_ENV]: "1" });
-        const o = await capture(argv, join(ROOT, cwd), env);
+        const o = await capture(argv, join(ROOT, cwd), env, timeoutMs);
         const programs = (await this.rec.keysOf(name, [covwsNvs()]))?.keys ?? new Map<string, string>();
         const keyed = (part?: string): Keyed => {
           const keys: Keyed = nv ? nvKeys(log, part) : new Map();
@@ -366,10 +370,11 @@ export class PlanSweep {
 
   // ---- the checks --------------------------------------------------------------------------------
 
-  /** Names the checks the sweep is about to reach, so the first `nv proofs --verify --group` check of
-   * each batch `proofBatches` cuts runs every group of that batch in one process. */
+  /** Names the checks the sweep is about to reach, so the first `nv proofs --verify` check among them
+   * runs every scope of the batch `proofBatch` forms in one process. */
   batch(checks: Check[]): void {
-    this.proofs = proofBatches(checks).map((groups) => ({ groups }));
+    const b = proofBatch(checks);
+    this.proofs = b === null ? null : { batch: b };
   }
 
   /**
@@ -698,22 +703,22 @@ export class PlanSweep {
 
   // ---- proofs groups -----------------------------------------------------------------------------
 
+  /** A proofs check: judged on the batch's one run while it is in the batch, and on a run of its own
+   * otherwise, or when the batch printed no verdict for it (`proofResult`). */
   private async proofsCheck(c: Check, g: Grouped, label: string): Promise<Verdict> {
-    const groups = proofGroups(c);
-    const batch = groups === null ? undefined : this.proofs.find((b) => groups.every((x) => b.groups.includes(x)));
-    let o: Outcome;
-    let keys: Keyed;
-    if (groups !== null && batch !== undefined) {
-      const argv = ["bun", "nv", "proofs", "--verify", ...batch.groups.flatMap((x) => ["--group", x])];
-      batch.run ??= this.recorded(argv, ".", `bun nv proofs --verify over ${batch.groups.length} groups`, {}, batch.groups);
-      const got = await batch.run;
-      o = proofOutcome(groups, got.o);
-      keys = proofKeys(groups, got);
-    } else {
-      const got = await this.recorded(c.argv ?? [], c.cwd ?? ".", (c.argv ?? []).join(" "));
-      o = got.o;
-      keys = new Map(got.keys);
-    }
+    const p = this.proofs;
+    const parts = p?.batch.parts.get(c.id);
+    const shared =
+      p === null || parts === undefined
+        ? null
+        : () => {
+            const { batch } = p;
+            const lists = batch.named.length === 0 ? "" : ` and ${batch.named.length} feature list(s)`;
+            const scopes = [...batch.groups, ...batch.named.map((n) => n.label)];
+            p.run ??= this.recorded(proofBatchArgv(batch), ".", `bun nv proofs --verify over ${batch.groups.length} group(s)${lists} in one process`, {}, scopes, proofLimitMs(scopes.length, TIMEOUT_MS));
+            return p.run;
+          };
+    const { o, keys } = await proofResult(parts ?? [], shared, (why) => this.recorded(c.argv ?? [], c.cwd ?? ".", `${(c.argv ?? []).join(" ")}${why}`));
     const fail = judgeCommand(c, o, label);
     this.recordOwn(g, fail === "" ? "green" : "red", keys);
     return none(fail);
