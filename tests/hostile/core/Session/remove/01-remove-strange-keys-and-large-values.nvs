@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a request removes strange keys, and removes large values many times.
+// Every removed value must be freed, and nothing may crash.
+// hostile: timeout-ms 60000
+
+// 1. The request removes a key from a session it never started. This throws a `RuntimeError`.
+try {
+    Core\Session::remove('user');
+    echo "removed from a session that was never started\n";
+} catch (RuntimeError $e) {
+    echo "not started: RuntimeError\n";
+}
+
+Core\Session::start();
+
+// 2. The request removes an empty key, a key of 1 MB and a key with a zero byte.
+// Nothing was saved under them, so the session does not change.
+string $long = Core\Str::repeat('k', 1048576);
+Core\Session::set('user', 'ada');
+Core\Session::remove('');
+Core\Session::remove($long);
+Core\Session::remove("user\0admin");
+echo 'user: ', Core\Session::get('user') ?? '(none)', "\n";
+
+// 3. The request saves a key of 1 MB and removes it again.
+Core\Session::set($long, 'x');
+Core\Session::remove($long);
+echo 'long key: ', Core\Session::get($long) ?? '(none)', "\n";
+
+// 4. The request saves a value of 1 MB and removes it. It does this 50 times.
+string $big = Core\Str::repeat('x', 1048576);
+uint $i = 0;
+while ($i < 50) {
+    Core\Session::set('big', $big);
+    Core\Session::remove('big');
+    $i = $i + 1;
+}
+echo 'big: ', Core\Session::get('big') ?? '(none)', "\n";
+
+// 5. The request saves 500 keys and removes them one by one, then removes them all again.
+uint $key = 0;
+while ($key < 500) {
+    Core\Session::set('item-' . $key, $key);
+    $key = $key + 1;
+}
+uint $round = 0;
+while ($round < 2) {
+    uint $k = 0;
+    while ($k < 500) {
+        Core\Session::remove('item-' . $k);
+        $k = $k + 1;
+    }
+    $round = $round + 1;
+}
+echo 'item-0: ', Core\Session::get('item-0') ?? '(none)', "\n";
+
+// 6. The request ends the session and then removes a key. This throws a `RuntimeError`.
+Core\Session::destroy();
+try {
+    Core\Session::remove('user');
+    echo "removed from a session that was destroyed\n";
+} catch (RuntimeError $e) {
+    echo "destroyed: RuntimeError\n";
+}

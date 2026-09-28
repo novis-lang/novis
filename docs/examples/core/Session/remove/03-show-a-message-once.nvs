@@ -1,0 +1,21 @@
+<?nvs
+// Shows a message that a page displays one time, for example after a form is saved.
+
+class Notice {
+    // Reads the message and deletes it, so the next page does not show it again.
+    public static function take(): string {
+        string $text = (Core\Session::get("notice") ?? "") as string;
+        Core\Session::remove("notice");
+        return $text;
+    }
+}
+
+Core\Session::start();
+
+// The form handler saves the message.
+Core\Session::set("notice", "Your address was saved.");
+
+// The first call returns the message. The second call returns an empty
+// string, because `remove()` deleted the message.
+echo "first: ", Notice::take(), "\n";
+echo "second: ", Notice::take(), "\n";

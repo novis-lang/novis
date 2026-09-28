@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to delete one value from the session and keep the others.
+
+Core\Session::start();
+Core\Session::set("user", "ada");
+Core\Session::set("cart", 3);
+
+// `remove()` deletes the key "cart" and its value.
+Core\Session::remove("cart");
+
+// "cart" is gone, so this prints `(none)`. "user" still has its value `ada`.
+echo "cart: ", Core\Session::get("cart") ?? "(none)", "\n";
+echo "user: ", Core\Session::get("user") ?? "(none)", "\n";

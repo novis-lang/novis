@@ -1,0 +1,16 @@
+<?nvs
+// Shows that removing a key the session does not have is allowed.
+
+Core\Session::start();
+Core\Session::set("language", "de");
+
+// Nothing was saved under "coupon". `remove()` does not throw an error,
+// and the session does not change.
+Core\Session::remove("coupon");
+echo "coupon: ", Core\Session::get("coupon") ?? "(none)", "\n";
+echo "language: ", Core\Session::get("language") ?? "(none)", "\n";
+
+// Removing the same key twice is also allowed. This prints `(none)`.
+Core\Session::remove("language");
+Core\Session::remove("language");
+echo "language: ", Core\Session::get("language") ?? "(none)", "\n";
