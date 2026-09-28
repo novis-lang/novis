@@ -1,0 +1,74 @@
+<?nvs
+// Attack: `Core\Str::replaceAll` gets empty keys, a number as a key, many long keys that almost
+// match, and letters whose lower case has a different size. It also builds a result far larger
+// than its text. Each call should return a string. The last step should stop at the memory limit.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Attack
+{
+    /// 1. Uses an empty key, then an empty array. Both results are the text unchanged.
+    public static function emptyKeys(): uint
+    {
+        string $text = Core\Str::repeat('ab', 1000);
+        array<string> $none = [];
+        string $once = Core\Str::replaceAll($text, ['' => 'x']);
+        return Core\Str::length($once) + Core\Str::length(Core\Str::replaceAll($text, $none));
+    }
+
+    /// 2. Uses the number `1` as a key. It matches the text "1".
+    public static function numberKey(): string
+    {
+        return Core\Str::replaceAll('1 + 1 = 2', [1 => 'one', 2 => 'two']);
+    }
+
+    /// 3. Searches 8 KiB of `a` with 100 keys. Each key is 40 `a` and some `b`, so none matches.
+    public static function almostMatches(): uint
+    {
+        array<string> $pairs = [];
+        uint $n = 1;
+        while ($n <= 100) {
+            $pairs[Core\Str::repeat('a', 40) . Core\Str::repeat('b', $n)] = 'x';
+            $n = $n + 1;
+        }
+        string $text = Core\Str::repeat('a', 8192);
+        string $exact = Core\Str::replaceAll($text, $pairs);
+        string $ignoringCase = Core\Str::replaceAll($text, $pairs, { caseInsensitive: true });
+        return Core\Str::length($exact) + Core\Str::length($ignoringCase);
+    }
+
+    /// 4. Finds `k` in a text of Kelvin signs. The sign has 3 bytes and its lower case `k` has 1.
+    public static function differentSizes(): string
+    {
+        string $text = Core\Str::repeat("\u{212A}", 1000) . 'end';
+        return Core\Str::replaceAll($text, ['k' => '', 'K' => 'x', 'END' => '!'], { caseInsensitive: true });
+    }
+
+    /// 5. Calls it one million times on a short text and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        array<string> $pairs = ['-' => '+', 'a' => 'b'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::replaceAll('a-b-c', $pairs));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 6. Replaces each `a` of 1 MiB with 1 KiB of text. The result does not fit under the memory limit.
+    /// The memory limit stops the program here.
+    public static function tooLarge(): uint
+    {
+        string $text = Core\Str::repeat('a', 1048576);
+        return Core\Str::length(Core\Str::replaceAll($text, ['a' => Core\Str::repeat('x', 1024)]));
+    }
+}
+
+echo Attack::emptyKeys(), "\n";
+echo Attack::numberKey(), "\n";
+echo Attack::almostMatches(), "\n";
+echo Attack::differentSizes(), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::tooLarge(), "\n";

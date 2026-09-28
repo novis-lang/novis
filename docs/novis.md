@@ -7348,15 +7348,15 @@ Replaces every occurrence of `$search` in `$s` with `$replacement`. Matches are 
 Core\Str::replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string
 ```
 
-Substitutes a whole table at once — `$pairs` keyed needle to replacement — as `strtr` and the array form of `str_replace` do: one pass, the longest matching needle wins at each position, and a replacement is never rescanned.
+Replaces several texts in `$s` in one call. Each key of `$pairs` is a text to find, and its value is the text that replaces it. The string is read once, from left to right. Where several keys match at the same place, the longest one is used. The new text is not searched again. Replaces PHP's `strtr` and `str_replace` with arrays.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The string to rewrite. |
-| `$pairs` | `array<string>` | The substitutions, each key the text to find and its value the text put there; an empty key is skipped. |
-| `{caseInsensitive: …}` | `bool` (default `false`) | Match through Unicode's simple lower-case mapping of each character, where a tie goes to the pair written first; the default is `false`. |
+| `$s` | `string` | The string to change. |
+| `$pairs` | `array<string>` | The replacements. Each key is the text to find, and its value is the text that replaces it. An empty key is ignored. |
+| `{caseInsensitive: …}` | `bool` (default `false`) | If `true`, upper-case and lower-case letters match each other. If two keys then match the same text, the key written first is used. The default is `false`. |
 
-**Returns** `string` — The rewritten string; `$s` unchanged for an empty table or when nothing matched.
+**Returns** `string` — The changed string. If `$pairs` is empty or nothing matched, the result is `$s` unchanged.
 
 <a id="core-core-str-replacerange"></a>
 #### `Core\Str::replaceRange`

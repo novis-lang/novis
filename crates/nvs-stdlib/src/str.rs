@@ -1094,29 +1094,32 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::replaceAll`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_ALL_DOC: MethodDoc = MethodDoc {
-    short: "Substitutes a whole table at once — `$pairs` keyed needle to replacement — as \
-            `strtr` and the array form of `str_replace` do: one pass, the longest matching \
-            needle wins at each position, and a replacement is never rescanned.",
+    short: "Replaces several texts in `$s` in one call. Each key of `$pairs` is a text to find, \
+            and its value is the text that replaces it. The string is read once, from left to \
+            right. Where several keys match at the same place, the longest one is used. The new \
+            text is not searched again. Replaces PHP's `strtr` and `str_replace` with arrays.",
     params: &[
         ParamDoc {
             name: "s",
-            desc: "The string to rewrite.",
+            desc: "The string to change.",
             shape: &[],
         },
         ParamDoc {
             name: "pairs",
-            desc: "The substitutions, each key the text to find and its value the text put \
-                   there; an empty key is skipped.",
+            desc: "The replacements. Each key is the text to find, and its value is the text \
+                   that replaces it. An empty key is ignored.",
             shape: &[],
         },
         ParamDoc {
             name: "caseInsensitive",
-            desc: "Match through Unicode's simple lower-case mapping of each character, where \
-                   a tie goes to the pair written first; the default is `false`.",
+            desc: "If `true`, upper-case and lower-case letters match each other. If two keys \
+                   then match the same text, the key written first is used. The default is \
+                   `false`.",
             shape: &[],
         },
     ],
-    ret: "The rewritten string; `$s` unchanged for an empty table or when nothing matched.",
+    ret: "The changed string. If `$pairs` is empty or nothing matched, the result is `$s` \
+          unchanged.",
     errors: &[],
 };
 
@@ -2603,35 +2606,43 @@ nvs_runtime::nvs_helper! {
             return produced(subject);
         }
 
-        let mut out = String::with_capacity(subject.len());
-        let mut at = 0usize;
-        while at < subject.len() {
-            let rest = &subject[at..];
-            let mut best: Option<(usize, &str)> = None;
-            for (needle, replacement) in &table {
-                let matched = if case_insensitive {
-                    match_at(rest, needle)
+        // Written straight into the result through `built`, whose writer asks
+        // the memory limit at each doubling, so a table whose replacements are
+        // far longer than their needles stops at the ceiling instead of
+        // growing a buffer the request's budget never sees. Unmatched text is
+        // pushed as one run per gap between matches, not a character at a time.
+        built(subject.len(), |out| {
+            let mut at = 0usize;
+            let mut kept_from = 0usize;
+            while at < subject.len() {
+                let rest = &subject[at..];
+                let mut best: Option<(usize, &str)> = None;
+                for (needle, replacement) in &table {
+                    let matched = if case_insensitive {
+                        match_at(rest, needle)
+                    } else {
+                        rest.starts_with(needle.as_str()).then_some(needle.len())
+                    };
+                    let Some(matched) = matched else { continue };
+                    if best.is_none_or(|(longest, _)| matched > longest) {
+                        best = Some((matched, replacement.as_str()));
+                    }
+                }
+                if let Some((matched, replacement)) = best {
+                    out.push_str(&subject[kept_from..at]);
+                    out.push_str(replacement);
+                    at += matched;
+                    kept_from = at;
                 } else {
-                    rest.starts_with(needle.as_str()).then_some(needle.len())
-                };
-                let Some(matched) = matched else { continue };
-                if best.is_none_or(|(longest, _)| matched > longest) {
-                    best = Some((matched, replacement.as_str()));
+                    // No pair starts here, so this character is kept as it
+                    // stands and the next position is the next character's —
+                    // never the next byte's, since a needle can only begin on
+                    // a boundary.
+                    at += rest.chars().next().map_or(1, char::len_utf8);
                 }
             }
-            if let Some((matched, replacement)) = best {
-                out.push_str(replacement);
-                at += matched;
-            } else {
-                // No pair starts here, so this character is kept as it stands
-                // and the next position is the next character's — never the
-                // next byte's, since a needle can only begin on a boundary.
-                let kept = rest.chars().next().expect("`rest` is non-empty");
-                out.push(kept);
-                at += kept.len_utf8();
-            }
-        }
-        produced(&out)
+            out.push_str(&subject[kept_from..]);
+        })
     }
 }
 
@@ -4154,6 +4165,85 @@ mod tests {
         // An empty search replaces nothing rather than looping.
         assert_eq!(replaced("abc", "", "x"), "abc");
         assert_eq!(replaced("", "a", "b"), "");
+    }
+
+    /// A `$pairs` table of text values under the given needles.
+    fn pairs(entries: &[(&str, &str)]) -> Value {
+        let mut table = NvsArray::new();
+        for (needle, replacement) in entries {
+            table.set(NvsStr::new(needle.as_bytes()), s(replacement));
+        }
+        Value::array(table)
+    }
+
+    /// `replaceAll` is one left-to-right pass: the longest needle wins at each
+    /// position, a replacement is never rescanned, and an empty needle is
+    /// skipped. Under `caseInsensitive` a tie goes to the pair written first.
+    // covers: Core\Str::replaceAll
+    #[test]
+    fn replace_all_takes_the_longest_needle_in_one_pass() {
+        let replaced_all = |subject: &str, table: &[(&str, &str)], case_insensitive: bool| {
+            taken(
+                run(
+                    super::nvs_core_str_replace_all,
+                    &[s(subject), pairs(table), Value::bool(case_insensitive)],
+                )
+                .expect("replaceAll never fails under no limit"),
+            )
+        };
+        assert_eq!(replaced_all("ab", &[("a", "b"), ("b", "a")], false), "ba");
+        assert_eq!(
+            replaced_all("Hi all", &[("Hi", "Hello"), ("Hi a", "X")], false),
+            "Xll"
+        );
+        assert_eq!(replaced_all("aaa", &[("aa", "a")], false), "aa");
+        assert_eq!(replaced_all("abc", &[("", "x")], false), "abc");
+        assert_eq!(replaced_all("abc", &[], false), "abc");
+        assert_eq!(replaced_all("", &[("a", "b")], false), "");
+        // Unmatched text on both sides of a match is kept, multi-byte included.
+        assert_eq!(replaced_all("é-ö-ü", &[("-", "+")], false), "é+ö+ü");
+        assert_eq!(
+            replaced_all("ABC abc", &[("abc", "1"), ("ABC", "2")], true),
+            "1 1"
+        );
+    }
+
+    /// A table whose replacement is far longer than its needle stops at the
+    /// memory limit while the result grows, not after it was built. The
+    /// writer's refusal is latched for the next poll to report, so the call
+    /// itself returns the prefix that fit.
+    // covers: Core\Str::replaceAll
+    #[test]
+    fn replace_all_refuses_a_result_past_the_memory_limit_while_building_it() {
+        const LIMIT: usize = 1 << 20;
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(LIMIT);
+        let args = [
+            s(&"a".repeat(4096)),
+            pairs(&[("a", &"x".repeat(1024))]),
+            Value::bool(false),
+        ];
+        let result = call(super::nvs_core_str_replace_all, &mut ctx, &args);
+        assert!(ctx.over_memory_limit(), "4 MiB of result fit under 1 MiB");
+        assert!(
+            ctx.memory_peak() < LIMIT,
+            "the result was built past the limit before the refusal: {} bytes",
+            ctx.memory_peak()
+        );
+        if let Ok(prefix) = result {
+            assert!(taken(prefix).len() < LIMIT);
+        }
+        drop(ctx);
+        for arg in args {
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built for each \
+                          argument, and the helper borrowed it"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
     }
 
     /// `after` answers the slice past the first occurrence, or past the last
