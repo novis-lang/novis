@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read a document one node at a time, from the first node to the last.
+
+Core\Xml\Reader $reader = Core\Xml::reader('<note><to>Ana</to><!--draft--><body>Call me</body></note>');
+
+// `read` returns the next node. At the end of the document it returns `null`, and the loop stops.
+// This prints six lines, starting with element: note.
+?Core\Xml\Node $node = $reader->read();
+while ($node != null) {
+    if ($node->kind() == Core\Xml\NodeKind::Element) {
+        echo "element: ", $node->name(), "\n";
+    } elseif ($node->kind() == Core\Xml\NodeKind::Text) {
+        echo "text: ", $node->text(), "\n";
+    } else {
+        echo "comment: ", $node->text(), "\n";
+    }
+    $node = $reader->read();
+}

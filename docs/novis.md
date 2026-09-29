@@ -21416,11 +21416,11 @@ Keywords: read, depth
 $reader->read(): ?Core\Xml\Node
 ```
 
-The next node of the walk, or `null` at the end of the document — the one operation that advances a reader. An element arrives when its opening tag is read, carrying its name and its attributes and no children, because nothing inside it has been read yet; what is inside arrives as the nodes that follow. A closing tag is not a node, so `depth` is how a program tells where one element ended and the next began.
+Reads the next node of the document and returns it. At the end of the document, it returns `null`. An element is returned when its opening tag is read. It has its name and its attributes, but no children. The nodes inside it are returned by the next calls to `read`. A closing tag is not a node, so use `depth` to see where an element ends.
 
-**Returns** `?Core\Xml\Node` — The node just read, of the family a parsed tree is made of — every kind but `Document`, which is a tree's root and a walk has none. `null` once the document is finished, and every string a node carries is `tainted`.
+**Returns** `?Core\Xml\Node` — The next node: an element, a text, a comment or a processing instruction. The result is `null` at the end of the document. Every string you read from the node is `tainted`, because it came from outside the program.
 
-**Throws** `ParseError` — The document is not well-formed where the walk has reached — the same refusals `parse` makes, reported when a node reaches them rather than before the first node is answered. The walk does not advance past one, so asking again reports the same sentence.
+**Throws** `ParseError` — The document is not well-formed at the place the reader has reached. `Core\Xml::parse` throws the same errors. The nodes before that place were already returned. The reader does not move past the error, so the next `read` throws the same error again.
 
 <a id="core-core-xml-reader-depth"></a>
 #### `Core\Xml\Reader->depth`
@@ -21429,9 +21429,9 @@ The next node of the walk, or `null` at the end of the document — the one oper
 $reader->depth(): uint
 ```
 
-How many elements are open around the node `read` last answered: `0` for the root element and for anything written beside it, one more for each element it is nested inside. This is the structure a walk carries, since a closing tag is not a node — a depth no greater than an earlier one means every element opened since has closed.
+Returns how deeply the node that `read` returned last is nested. The root element has depth `0`. A node inside the root element has depth `1`, and each level adds one. A closing tag is not a node, so the depth is how you see where an element ends. When the depth is the same as or smaller than an earlier element's depth, that element is closed.
 
-**Returns** `uint` — The depth of the node last answered, and `0` both before the first `read` and after the one that answered `null`.
+**Returns** `uint` — A whole number. It is `0` before the first `read`, and `0` again after `read` returns `null`.
 
 <a id="core-core-xml-writer"></a>
 ### `Core\Xml\Writer`

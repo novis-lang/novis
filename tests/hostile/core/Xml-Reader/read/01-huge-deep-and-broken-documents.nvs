@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a program reads a very long document, a very deep one, a root with many attributes and a
+// broken one. Each step should print the right result or throw an error. The last step should stop
+// at the memory limit, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+class Walk
+{
+    // This reads every node and returns how many there were.
+    public static function count(Core\Xml\Reader $reader): int
+    {
+        int $count = 0;
+        ?Core\Xml\Node $node = $reader->read();
+        while ($node != null) {
+            $count = $count + 1;
+            $node = $reader->read();
+        }
+        return $count;
+    }
+}
+
+// 1. 100000 empty elements inside one root. This prints 100001.
+echo Walk::count(Core\Xml::reader('<r>' . Core\Str::repeat('<e/>', 100000) . '</r>')), "\n";
+
+// 2. 1024 elements inside each other, which is the most a document may have. This prints 1024.
+echo Walk::count(Core\Xml::reader(Core\Str::repeat('<d>', 1024) . Core\Str::repeat('</d>', 1024))), "\n";
+
+// 3. One more level than that. `read` throws a `ParseError` at the element that is too deep.
+try {
+    Walk::count(Core\Xml::reader(Core\Str::repeat('<d>', 1025) . Core\Str::repeat('</d>', 1025)));
+    echo "read past the deepest level\n";
+} catch (ParseError $deep) {
+    echo "too deep\n";
+}
+
+// 4. A root with 100000 attributes, and 1000 elements inside it. This prints 100000 and 1001.
+array<string> $attributes = [];
+int $i = 0;
+while ($i < 100000) {
+    $attributes[] = ' a' . $i as string . '="' . $i as string . '"';
+    $i = $i + 1;
+}
+Core\Xml\Reader $wide = Core\Xml::reader('<r' . Core\Str::join($attributes, '') . '>' . Core\Str::repeat('<e/>', 1000) . '</r>');
+?Core\Xml\Node $root = $wide->read();
+if ($root != null) {
+    echo Core\Arr::count($root->attributes()), "\n";
+}
+echo Walk::count($wide) + 1, "\n";
+
+// 5. A document broken at the end. Every call to `read` after the error throws the same error.
+// This prints 1000.
+Core\Xml\Reader $broken = Core\Xml::reader('<r>' . Core\Str::repeat('<e/>', 1000) . '</x>');
+int $errors = 0;
+int $tries = 0;
+while ($tries < 1000) {
+    try {
+        Walk::count($broken);
+    } catch (ParseError $error) {
+        $errors = $errors + 1;
+    }
+    $tries = $tries + 1;
+}
+echo $errors, "\n";
+
+// 6. Text with a million `&amp;` references in one node. This prints 1000000.
+Core\Xml\Reader $escaped = Core\Xml::reader('<r>' . Core\Str::repeat('&amp;', 1000000) . '</r>');
+$escaped->read();
+?Core\Xml\Node $text = $escaped->read();
+if ($text != null) {
+    echo Core\Str::length($text->text()), "\n";
+}
+
+// 7. The program keeps every node of a long document. It should stop at its memory limit.
+Core\Xml\Reader $long = Core\Xml::reader('<r>' . Core\Str::repeat('<e a="1">t</e>', 3000000) . '</r>');
+array<Core\Xml\Node> $kept = [];
+?Core\Xml\Node $node = $long->read();
+while ($node != null) {
+    $kept[] = $node;
+    $node = $long->read();
+}
+echo Core\Arr::count($kept), "\n";

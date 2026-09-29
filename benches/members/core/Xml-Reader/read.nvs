@@ -1,0 +1,24 @@
+<?nvs
+// Reads the nodes of a document one at a time, as a program does when it goes through a feed.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $xml = '<feed>' . Core\Str::repeat('<item id="1">text</item>', 2000) . '</feed>';
+        Core\Xml\Reader $reader = Core\Xml::reader($xml);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Core\Xml\Node $node = $reader->read();
+            if ($node == null) {
+                $reader = Core\Xml::reader($xml);   // chained: the next round reads where this one stopped
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

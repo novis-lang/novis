@@ -528,7 +528,7 @@ const KIND_ENUM_DOC: EnumDoc = EnumDoc {
 /// than a mode on [`CLASS`].
 pub(crate) const READER: CoreClass = CoreClass {
     name: READER_NAME,
-    doc: None,
+    doc: Some(&READER_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -572,35 +572,44 @@ const READER_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Xml\Reader`'s class card — `rule:core-api/reference-card`.
+const READER_CARD: ClassDoc = ClassDoc {
+    short: "Goes through an XML document one node at a time. `Core\\Xml::reader` returns a \
+            reader. Each call to `read` returns the next node, and `null` at the end of the \
+            document. The reader does not build a tree, so a large document does not need a lot \
+            of memory. `depth` tells you how deeply the current node is nested.",
+};
+
 /// `Core\Xml\Reader::read`'s reference card — `rule:core-api/reference-card`.
 const READ_DOC: MethodDoc = MethodDoc {
-    short: "The next node of the walk, or `null` at the end of the document — the one operation \
-            that advances a reader. An element arrives when its opening tag is read, carrying its \
-            name and its attributes and no children, because nothing inside it has been read yet; \
-            what is inside arrives as the nodes that follow. A closing tag is not a node, so \
-            `depth` is how a program tells where one element ended and the next began.",
+    short: "Reads the next node of the document and returns it. At the end of the document, it \
+            returns `null`. An element is returned when its opening tag is read. It has its name \
+            and its attributes, but no children. The nodes inside it are returned by the next \
+            calls to `read`. A closing tag is not a node, so use `depth` to see where an element \
+            ends.",
     params: &[],
-    ret: "The node just read, of the family a parsed tree is made of — every kind but `Document`, \
-          which is a tree's root and a walk has none. `null` once the document is finished, and \
-          every string a node carries is `tainted`.",
+    ret: "The next node: an element, a text, a comment or a processing instruction. The result is \
+          `null` at the end of the document. Every string you read from the node is `tainted`, \
+          because it came from outside the program.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "The document is not well-formed where the walk has reached — the same refusals \
-               `parse` makes, reported when a node reaches them rather than before the first node \
-               is answered. The walk does not advance past one, so asking again reports the same \
-               sentence.",
+        desc: "The document is not well-formed at the place the reader has reached. \
+               `Core\\Xml::parse` throws the same errors. The nodes before that place were \
+               already returned. The reader does not move past the error, so the next `read` \
+               throws the same error again.",
     }],
 };
 
 /// `Core\Xml\Reader::depth`'s reference card — `rule:core-api/reference-card`.
 const DEPTH_DOC: MethodDoc = MethodDoc {
-    short: "How many elements are open around the node `read` last answered: `0` for the root \
-            element and for anything written beside it, one more for each element it is nested \
-            inside. This is the structure a walk carries, since a closing tag is not a node — a \
-            depth no greater than an earlier one means every element opened since has closed.",
+    short: "Returns how deeply the node that `read` returned last is nested. The root element has \
+            depth `0`. A node inside the root element has depth `1`, and each level adds one. A \
+            closing tag is not a node, so the depth is how you see where an element ends. When \
+            the depth is the same as or smaller than an earlier element's depth, that element is \
+            closed.",
     params: &[],
-    ret: "The depth of the node last answered, and `0` both before the first `read` and after the \
-          one that answered `null`.",
+    ret: "A whole number. It is `0` before the first `read`, and `0` again after `read` returns \
+          `null`.",
     errors: &[],
 };
 
@@ -4223,6 +4232,79 @@ mod tests {
             tree.release();
             source.release();
         }
+    }
+
+    /// A reader's depth counts the elements open around the node it last
+    /// answered, is `0` on either side of the walk, and is left alone by a
+    /// refusal.
+    ///
+    /// Asserted as the whole sequence a walk answers, because a closing tag is
+    /// not a node: a depth one too high after `</b>` still reads plausibly on
+    /// any single line, and only the sequence shows the sibling at the wrong
+    /// level.
+    // covers: Core\Xml\Reader::depth, Core\Xml\Reader::read
+    #[test]
+    fn a_reader_depth_counts_the_elements_open_around_its_node() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let depth_of = |reader: Value, ctx: &mut Ctx| {
+            call(super::nvs_core_xml_reader_depth, ctx, &[reader])
+                .expect("a depth is a slot read")
+                .as_uint()
+                .expect("a depth is a `uint`")
+        };
+
+        let source = Value::str(NvsStr::new(
+            b"<!--c--><a><b>t<c/></b><d/>u</a><?p x?>".as_slice(),
+        ));
+        let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source]).expect("a reader opens");
+        assert_eq!(depth_of(reader, &mut ctx), 0, "nothing has been read yet");
+        let mut walked = Vec::new();
+        loop {
+            let node = call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+                .expect("that document is well-formed all the way through");
+            if node.tag() == Some(Tag::Null) {
+                break;
+            }
+            let receiver = node.obj_ptr().expect("a node is an object");
+            let name = crate::instance::slot(receiver, NAME_SLOT);
+            let text = crate::instance::slot(receiver, TEXT_SLOT);
+            walked.push(format!(
+                "{}{}@{}",
+                name.as_text().unwrap_or(""),
+                text.as_text().unwrap_or(""),
+                depth_of(reader, &mut ctx)
+            ));
+            dropped(node);
+        }
+        assert_eq!(
+            walked,
+            ["c@0", "a@0", "b@1", "t@2", "c@2", "d@1", "u@1", "px@0"],
+            "each node's depth is the number of elements open around it"
+        );
+        assert_eq!(depth_of(reader, &mut ctx), 0, "the walk is over");
+        dropped(reader);
+        dropped(source);
+
+        let source = Value::str(NvsStr::new(b"<a><b></a>".as_slice()));
+        let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source]).expect("a reader opens");
+        for _ in 0..2 {
+            dropped(
+                call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+                    .expect("`<a>` and `<b>` are read before the mismatch"),
+            );
+        }
+        assert!(
+            call(super::nvs_core_xml_reader_read, &mut ctx, &[reader]).is_err(),
+            "`</a>` cannot close `<b>`"
+        );
+        drop(ctx.take_pending());
+        assert_eq!(
+            depth_of(reader, &mut ctx),
+            1,
+            "a refusal leaves the depth of the last node answered"
+        );
+        dropped(reader);
+        dropped(source);
     }
 
     /// Every entry of the array `attributes` answered for `node`, as

@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to add up values in a product feed without reading the whole feed into a tree.
+
+string $feed = '<feed>
+  <product sku="A-100" stock="12"/>
+  <product sku="B-200" stock="0"/>
+  <product sku="C-300" stock="7"/>
+</feed>';
+
+Core\Xml\Reader $reader = Core\Xml::reader($feed);
+int $products = 0;
+int $stock = 0;
+int $soldOut = 0;
+
+// The reader does not build a tree. It keeps only the current node and the names of the open elements.
+?Core\Xml\Node $node = $reader->read();
+while ($node != null) {
+    if ($node->name() == "product") {
+        $products = $products + 1;
+        foreach ($node->attributes() as string $name => tainted string $value) {
+            if ($name == "stock") {
+                // `as ?int` converts the text to a whole number. If that is not possible, the result is `null`.
+                int $count = $value as ?int ?? 0;
+                $stock = $stock + $count;
+                if ($count == 0) {
+                    $soldOut = $soldOut + 1;
+                }
+            }
+        }
+    }
+    $node = $reader->read();
+}
+
+// This prints 3 products, 19 in stock, 1 sold out.
+echo $products, " products, ", $stock, " in stock, ", $soldOut, " sold out\n";
