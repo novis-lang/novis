@@ -15191,9 +15191,9 @@ The whole userinfo subcomponent as written — `parse_url`'s `user` and `pass` k
 $uri->host(): ?string
 ```
 
-The host as written, never case-folded, an IPv6 literal still inside its brackets — `parse_url`'s `host` key.
+Returns the host of the address, such as `example.com`. The host is returned as it was written, so upper-case letters stay upper case. An IPv6 address keeps its brackets, such as `[::1]`.
 
-**Returns** `?string` — The host; `null` where no authority was written and `""` where an empty one was, as in `file:///tmp`.
+**Returns** `?string` — The host. The result is `null` when the address has no `//` part. It is `""` when the `//` part is empty, as in `file:///tmp`.
 
 <a id="core-core-uri-port"></a>
 #### `Core\Uri->port`
@@ -15202,9 +15202,9 @@ The host as written, never case-folded, an IPv6 literal still inside its bracket
 $uri->port(): ?int
 ```
 
-The authority's port as a number — `parse_url`'s `port` key.
+Returns the port of the address as a number. For `http://example.com:8080/` the result is `8080`.
 
-**Returns** `?int` — The port, `0`–`65535`; `null` where none was written and where an empty one was (`http://h:/`). No scheme default is ever supplied.
+**Returns** `?int` — The port, from `0` to `65535`. The result is `null` when the address has no port. It is also `null` when the `:` has no digits after it, as in `http://example.com:/`. A default port, such as `443` for `https`, is never filled in.
 
 <a id="core-core-uri-path"></a>
 #### `Core\Uri->path`
@@ -15213,9 +15213,9 @@ The authority's port as a number — `parse_url`'s `port` key.
 $uri->path(): string
 ```
 
-The path as written, still percent-encoded and with its dot segments in place — `parse_url`'s `path` key.
+Returns the path of the address. For `https://example.com/docs/guide?page=2` the result is `/docs/guide`. The path is returned as it was written, so escapes such as `%20` and parts such as `/../` stay in it.
 
-**Returns** `string` — The path, never `null`: a reference with nothing between its authority and its query has the empty path, and `""` is that path.
+**Returns** `string` — The path. It is never `null`. An address with no path, such as `https://example.com`, returns `""`.
 
 <a id="core-core-uri-query"></a>
 #### `Core\Uri->query`
@@ -15235,9 +15235,9 @@ The raw query as written, still encoded — `parse_url`'s `query` key; `Core\Uri
 $uri->fragment(): ?string
 ```
 
-The raw fragment as written, still encoded — `parse_url`'s `fragment` key.
+Returns the fragment of the address, which is the text after the `#`. For `https://example.com/guide#install` the result is `install`. Escapes such as `%20` stay in it, and `Core\Uri::decodeComponent` decodes them.
 
-**Returns** `?string` — The text after the `#`, or `null` where no `#` was written; a `#` with nothing after it is `""`, not `null`.
+**Returns** `?string` — The fragment, without the `#`. The result is `null` when the address has no `#`. It is `""` when nothing is written after the `#`.
 
 <a id="core-core-uri-tostring"></a>
 #### `Core\Uri->toString`
