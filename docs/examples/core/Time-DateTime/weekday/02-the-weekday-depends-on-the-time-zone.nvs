@@ -1,0 +1,12 @@
+<?nvs
+// Shows that one moment can be a different day of the week in another time zone.
+
+// A video call starts at 18:00 on Sunday in Los Angeles.
+var $call = Core\Time::at(2024, 9, 1, Core\Time\Zone::of("America/Los_Angeles"), {hour: 18});
+
+// `weekday` reads the day in the time zone of the value. This prints yes.
+echo $call->weekday() == Core\Weekday::Sunday ? "yes" : "no", "\n";
+
+// At that moment it is 10:00 on Monday in Tokyo. This prints yes.
+var $tokyo = $call->toInstant()->in(Core\Time\Zone::of("Asia/Tokyo"));
+echo $tokyo->weekday() == Core\Weekday::Monday ? "yes" : "no", "\n";

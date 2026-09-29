@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to find the day of the week of a date and time.
+
+var $meeting = Core\Time::at(2024, 3, 5, Core\Time\Zone::of("Europe/Berlin"), {hour: 14, minute: 30});
+
+// `weekday` returns a case of the `Core\Weekday` enum. You can compare it with `==`.
+// This prints Tuesday.
+if ($meeting->weekday() == Core\Weekday::Tuesday) {
+    echo "Tuesday\n";
+}
+
+// `as int` gives the position in the week, and Monday is 0. This prints 1.
+echo $meeting->weekday() as int, "\n";

@@ -1,0 +1,47 @@
+<?nvs
+// Attack: `weekday` reads the first and last days of the calendar and a day that a time zone skipped.
+// The weekdays should follow the calendar, and nothing should crash.
+
+// 1. The last day of the calendar is a Friday, and the first is a Monday.
+var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+echo $last->weekday() as int, ' ', $first->weekday() as int, "\n";
+
+// 2. Samoa skipped Friday 30 December 2011. Every hour from 29 to 31 December is read.
+// Thursday is followed by Saturday, so no hour is on a Friday.
+var $hour = Core\Time::at(2011, 12, 29, Core\Time\Zone::of('Pacific/Apia'));
+int $fridays = 0;
+int $step = 0;
+while ($step < 48) {
+    if ($hour->weekday() == Core\Weekday::Friday) {
+        $fridays = $fridays + 1;
+    }
+    $hour = $hour->plus(1, Core\Unit::Hour);
+    $step = $step + 1;
+}
+echo $fridays, " hours on a Friday\n";
+
+// 3. Seven hundred days in a row are read. Each weekday follows the one before.
+var $day = Core\Time::at(2024, 1, 1, Core\Time\Zone::of('Europe/Berlin'), { hour: 12 });
+int $inOrder = 0;
+int $previous = 6;
+int $count = 0;
+while ($count < 700) {
+    int $now = $day->weekday() as int;
+    if ($now == ($previous + 1) % 7) {
+        $inOrder = $inOrder + 1;
+    }
+    $previous = $now;
+    $day = $day->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+echo $inOrder, " of 700 in order\n";
+
+// 4. One million weekdays are read.
+int $round = 0;
+int $sum = 0;
+while ($round < 1000000) {
+    $sum = $sum + ($last->weekday() as int);
+    $round = $round + 1;
+}
+echo $sum, "\n";
