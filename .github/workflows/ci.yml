@@ -623,9 +623,9 @@ jobs:
       - name: The version is consistent across the manifest, the tags and the changelog
         run: bun nv release --check
 
-  # Nightly and at release only. It is `continue-on-error` below, so it gates nothing at all, and a
-  # `cargo install cargo-geiger` per push bought a number no push was ever blocked by. It becomes a
-  # push-lane job again on the day it becomes a hard gate. ADR 0143 § 5.
+  # Nightly and at release only. The counts it writes gate nothing, and a `cargo install
+  # cargo-geiger` per push bought a number no push was ever blocked by. It becomes a push-lane job
+  # again on the day it becomes a hard gate. ADR 0143 § 5.
   unsafe-audit:
     name: unsafe audit
     needs: changes
@@ -639,11 +639,21 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Install cargo-geiger
         run: cargo install cargo-geiger --locked
-      # Informational for now. Becomes a hard gate once the unsafe modules in
-      # nvs-runtime and nvs-codegen are written and their expected counts known.
+      # One `cargo geiger` per workspace member, because geiger will not run against the root
+      # manifest: it lists members and is no package itself, and `--workspace` does not change that.
+      # A member geiger cannot scan is a warning annotation naming it, and the step goes on to the
+      # next one, so the counts stay informational and a broken scan is still seen. The counts
+      # become a hard gate once the unsafe modules in nvs-runtime and nvs-codegen are written and
+      # their expected counts known.
       - name: Count unsafe
-        run: cargo geiger --workspace --output-format GitHubMarkdown >> "$GITHUB_STEP_SUMMARY"
-        continue-on-error: true
+        run: |
+          cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | "\(.name) \(.manifest_path)"' \
+            | while read -r name manifest; do
+                echo "### $name" >> "$GITHUB_STEP_SUMMARY"
+                cargo geiger --manifest-path "$manifest" --output-format GitHubMarkdown >> "$GITHUB_STEP_SUMMARY" \
+                  || echo "::warning title=unsafe audit::cargo geiger could not scan $name"
+              done
 
   # ---------------------------------------------------------------------------
   # libFuzzer isn't supported on Windows, so this only ever runs here (or in
