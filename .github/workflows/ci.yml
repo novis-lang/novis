@@ -544,8 +544,12 @@ jobs:
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
       - run: cargo build -p nvs-cli
+      # `nv reference` runs the pipeline's covws build unless `NVS_BIN` names another, and this
+      # job builds the plain debug `nvs` instead.
       - name: docs/novis.md matches the binary and the chapters, and every example holds
         run: bun nv reference --check
+        env:
+          NVS_BIN: ${{ github.workspace }}/target/debug/nvs
 
   # ---------------------------------------------------------------------------
   # The docs have linters of their own. Every command here needs Bun and no
@@ -725,9 +729,15 @@ jobs:
       # The alternative was `#[cfg_attr(miri, ignore)]` on every filesystem test, which gives up
       # the same coverage and has to be remembered again by every test written after it. This
       # gives it up once, in a place a reader can see.
+      #
+      # `INSTA_WORKSPACE_ROOT` is set because Miri cannot start a process. Without it, the first
+      # snapshot assertion asks `cargo metadata` where the workspace is, and the `socketpair` that
+      # spawn opens is an operation Miri does not emulate, which aborts the whole binary. Named
+      # here, `insta` reads the root from the variable and starts nothing.
       - name: miri test (front end)
         env:
           MIRIFLAGS: -Zmiri-disable-isolation
+          INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
         run: |
           cargo +nightly miri test \
             -p nvs-diagnostics \
