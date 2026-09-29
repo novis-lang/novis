@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `toMilliseconds` counts only whole milliseconds.
+
+// 999 microseconds is shorter than one millisecond. This prints 0.
+echo Core\Time\Duration::microseconds(999)->toMilliseconds(), "\n";
+
+// 2500 microseconds is 2 whole milliseconds and 500 microseconds more. This prints 2.
+echo Core\Time\Duration::microseconds(2500)->toMilliseconds(), "\n";
+
+// The same is true below zero. This prints -2.
+echo Core\Time\Duration::microseconds(-2500)->toMilliseconds(), "\n";
