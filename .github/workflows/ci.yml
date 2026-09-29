@@ -142,6 +142,24 @@ jobs:
           key: ${{ matrix.name }}
 
       - run: cargo build --workspace --all-targets
+
+      # The repository's `nvs.toml` names `tests/db/ca.crt` in its server-backed `[db]` blocks, and a
+      # resolve refuses a `tls_ca_file` that is not there (`E0605`), so on a fresh checkout every run
+      # from the repository root and every test that resolves that file stops at the door. A
+      # developer machine holds the compose `certs` service's CA at that path, copied out by the
+      # command `tests/db/compose.yaml`'s header names; this job has no containers, so it issues a
+      # throwaway CA of its own in its place. Nothing here dials a database server, so the anchor is
+      # never used to verify one; its key is written outside the tree and dropped with the runner.
+      # `MSYS_NO_PATHCONV` keeps Git Bash on Windows from rewriting the `-subj` value as a path.
+      - name: A placeholder for the compose CA
+        shell: bash
+        env:
+          MSYS_NO_PATHCONV: '1'
+        run: >
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1
+          -subj "/CN=Novis CI placeholder CA"
+          -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
+
       - run: cargo test --workspace --all-targets
       # Doc tests are excluded from --all-targets and are real tests for a
       # library this API-heavy.
