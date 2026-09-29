@@ -1,23 +1,23 @@
 {
-  "state": "Goal `core-xml-writer`: `Core\\Xml\\Writer::attribute` has all its feature proofs. `Core\\Xml\\Writer` has its class card (`WRITER_CARD` in `crates/nvs-stdlib/src/xml.rs`), so it is off `CLASSES_STILL_OWING_A_CARD`. Every other Writer member still owes examples, hostile, perf and a Rust test.\nThe attack found a real bug, now fixed: `attribute`'s duplicate-name check scanned every earlier name, so 100,000 attributes on one element ran past 25s. The tag's names are now array keys (one lookup).\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands: every emitted piece is its own string, so a bench or attack that writes millions of pieces stops at the memory limit. Keep new writer attacks under about 500,000 pieces, or mark them with that gap.\nMember cards are rewritten in plain words when their member's slice lands (`ATTRIBUTE_DOC` is the model). `COMMENT_DOC` and `CDATA_DOC` are still in the old dense voice.",
+  "state": "Goal `core-xml-writer`: `Core\\Xml\\Writer::attribute`, `comment` and `cdata` have all their feature proofs, and their cards (`ATTRIBUTE_DOC`, `COMMENT_DOC`, `CDATA_DOC` in `crates/nvs-stdlib/src/xml.rs`) are in plain words. `Core\\Xml`, `Core\\Xml\\Node` and `Core\\Xml\\Reader` pass `bun nv proofs --verify` again: their perf records were re-measured after `xml.rs` moved.\nSeven Writer members still owe examples, hostile, perf and a Rust test: `startDocument`, `endDocument`, `startElement`, `endElement`, `content`, `instruction`, `doctype`.\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands: keep writer attacks and benches under about 500,000 pieces, or mark them with that gap.\nAny later edit to `xml.rs` code stales the whole `Core\\Xml*` perf set again: finish with `bun nv proofs --record-perf --group 'Core\\Xml' --group 'Core\\Xml\\Node' --group 'Core\\Xml\\Reader' --group 'Core\\Xml\\Writer'`.\n`Core\\Xml\\Node::text` returns `\"\"` for an element (its text is in its text children), so an example reads `->children()[0]->text()`.",
   "next": {
     "stage": 1,
     "title": "member proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` (the cards near `COMMENT_DOC`, the bodies near `fn comment`, the writer tests near `attribute_values_parse_back_and_names_are_checked_per_tag`), plus the three proof trees under `core/Xml-Writer/<member>`.",
+    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` (the cards near `INSTRUCTION_DOC`, the bodies near `fn instruction`, the writer tests after `cdata_parses_back_unchanged_and_refuses_what_would_end_it`), plus the proof trees under `core/Xml-Writer/<member>`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Writer::comment`** — owes examples, hostile, perf, tests; rewrite `COMMENT_DOC` in plain words. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3273` (body), `crates/nvs-stdlib/src/xml.rs:926` (card)"
+        "text": "**`Core\\Xml\\Writer::instruction`** — owes about.md, examples, hostile, perf, tests; rewrite `INSTRUCTION_DOC` in plain words. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3320` (body), `crates/nvs-stdlib/src/xml.rs:965` (card)"
       },
       {
         "done": false,
-        "text": "**`Core\\Xml\\Writer::cdata`** — the same four proofs; rewrite `CDATA_DOC`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3295` (body), `crates/nvs-stdlib/src/xml.rs:946` (card)"
+        "text": "**`Core\\Xml\\Writer::doctype`** — the same proofs; rewrite `DOCTYPE_DOC`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3353` (body), `crates/nvs-stdlib/src/xml.rs:992` (card)"
       }
     ]
   },
   "backlog": [
-    "The remaining Writer members (`startDocument`, `endDocument`, `startElement`, `endElement`, `content`, `instruction`, `doctype`), in the goal's order — `bun nv proofs --owed`.",
-    "`nvs-stdlib/an-xml-writer-holds-a-string-per-piece` — owner M12, `data/gaps/nvs-stdlib/`."
+    "`startDocument`, `endDocument`, `startElement`, `endElement`, `content` owe the same four proofs — this goal, `rule:testing/feature-proofs`.",
+    "The writer's refusal messages still say \"has no escape grammar\" and \"a document has no way to write\"; they are printed in the `comment` and `cdata` examples' `.out` files. A plainer sentence changes those files and the `.nvst` case that pins it — `crates/nvs-stdlib/src/xml.rs` module doc."
   ]
 }

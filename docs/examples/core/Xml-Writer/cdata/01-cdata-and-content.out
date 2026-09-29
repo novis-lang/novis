@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="UTF-8"?><snippets><escaped>if (a &lt; b &amp;&amp; b &lt; c) { ok(); }</escaped><unchanged><![CDATA[if (a < b && b < c) { ok(); }]]></unchanged></snippets>
+if (a < b && b < c) { ok(); }
+true

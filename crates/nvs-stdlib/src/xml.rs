@@ -924,40 +924,39 @@ const ATTRIBUTE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Xml\Writer::comment`'s reference card — `rule:core-api/reference-card`.
 const COMMENT_DOC: MethodDoc = MethodDoc {
-    short: "Writes a comment, as one call: a comment's content is text, so there is nothing for a \
-            pair to contain.",
+    short: "Writes an XML comment, such as `<!-- note -->`. You can write it before the root \
+            element, inside an element, or after the root element is closed.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The comment's content. A comment is the one place XML has no escape grammar for, \
-               so a `--` inside it or a trailing `-` is refused rather than rewritten — \
-               `rule:errors/ambiguous-input-refused` is the general shape of that answer.",
+        desc: "The comment's text. It is written unchanged, because XML cannot escape anything \
+               inside a comment. It cannot contain `--`, and it cannot end with `-`.",
         shape: &[],
     }],
-    ret: "Nothing; the comment is written where the writer stands, inside the open element or \
-          beside the root.",
+    ret: "Nothing. The comment is written at the place the writer has reached.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The text holds `--`, ends with `-`, holds a character XML cannot write, or the \
-               document is not open.",
+        desc: "The text contains `--` or ends with `-`. The text contains a control character \
+               that XML cannot write. The document is not open.",
     }],
 };
 
 /// `Core\Xml\Writer::cdata`'s reference card — `rule:core-api/reference-card`.
 const CDATA_DOC: MethodDoc = MethodDoc {
-    short: "Writes character data as a CDATA section. One call, because a CDATA section is an \
-            escaping choice about text and is written with the text it is a choice about — a \
-            parse answers the same `Text` node either way.",
+    short: "Writes text inside the open element as a CDATA section, such as \
+            `<![CDATA[a < b]]>`. The text is written unchanged. A parser reads it as the same text \
+            that `content` writes.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The characters to write. A CDATA section has no escape grammar inside it, so a \
-               `]]>` in the text is refused rather than split across two sections.",
+        desc: "The text to write. `<` and `&` are allowed and are not escaped. The text cannot \
+               contain `]]>`, because that ends a CDATA section.",
         shape: &[],
     }],
-    ret: "Nothing; the open element now holds character data, exactly as `content` leaves it.",
+    ret: "Nothing. After this call, the writer does not indent inside this element, like after \
+          `content`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "No element is open, the text holds `]]>` or a character XML cannot write, or the \
-               document is not open.",
+        desc: "No element is open. The text contains `]]>`. The text contains a control character \
+               that XML cannot write. The document is not open.",
     }],
 };
 
@@ -4745,6 +4744,122 @@ mod tests {
             dropped(name);
         }
         for held in [list, row, id, value, writer] {
+            dropped(held);
+        }
+    }
+
+    /// A comment is written wherever the writer stands: beside the root, on its
+    /// own indented line inside an element, and unindented inside text. A text
+    /// holding `--` or ending with `-` is refused and writes nothing, so the
+    /// document around the refusals is exactly the accepted calls and parses.
+    // covers: Core\Xml\Writer::comment
+    #[test]
+    fn comments_go_where_the_writer_stands_and_refuse_what_would_end_them() {
+        let start = super::nvs_core_xml_writer_start_element;
+        let end = super::nvs_core_xml_writer_end_element;
+        let comment = super::nvs_core_xml_writer_comment;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "  ");
+        let texts: Vec<Value> = ["top", "in", "t", "end", "a--b", "x-", "-", "-x"]
+            .into_iter()
+            .map(word)
+            .collect();
+        let (a, b, x) = (word("a"), word("b"), word("x"));
+
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+        wrote(asked(&mut ctx, comment, &[writer, texts[0]]));
+        wrote(asked(&mut ctx, start, &[writer, a]));
+        wrote(asked(&mut ctx, comment, &[writer, texts[1]]));
+        for refused in &texts[4..7] {
+            let why =
+                asked(&mut ctx, comment, &[writer, *refused]).expect_err("it would end early");
+            assert!(why.contains("cannot hold `--` or end with `-`"), "{why}");
+        }
+        wrote(asked(&mut ctx, comment, &[writer, texts[7]]));
+        wrote(asked(&mut ctx, start, &[writer, b]));
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_content,
+            &[writer, x],
+        ));
+        wrote(asked(&mut ctx, comment, &[writer, texts[2]]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, comment, &[writer, texts[3]]));
+
+        let document = asked(&mut ctx, super::nvs_core_xml_writer_end_document, &[writer])
+            .expect("the root element is written and closed");
+        let text = document.as_text().expect("a finished document is text");
+        assert_eq!(
+            text,
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--top-->\n<a>\n  <!--in-->\n  \
+             <!---x-->\n  <b>x<!--t--></b>\n</a>\n<!--end-->"
+        );
+        parse(text).expect("what the writer answered is a document");
+
+        dropped(document);
+        for held in texts.into_iter().chain([a, b, x, writer]) {
+            dropped(held);
+        }
+    }
+
+    /// A CDATA section is written unescaped and parses back as the same text.
+    /// It stops the indent the way `content` does, so no whitespace is added
+    /// beside it. It needs an open element, and a text holding `]]>` is refused
+    /// and writes nothing, while `]]` alone is accepted.
+    // covers: Core\Xml\Writer::cdata
+    #[test]
+    fn cdata_parses_back_unchanged_and_refuses_what_would_end_it() {
+        let start = super::nvs_core_xml_writer_start_element;
+        let end = super::nvs_core_xml_writer_end_element;
+        let cdata = super::nvs_core_xml_writer_cdata;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "  ");
+        let raw = "if (a < b && c) { x = \"]\"; }";
+        let texts: Vec<Value> = [raw, "]]", "x ]]> y"].into_iter().map(word).collect();
+        let (a, b, c) = (word("a"), word("b"), word("c"));
+
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+        let why = asked(&mut ctx, cdata, &[writer, texts[0]]).expect_err("no element is open");
+        assert!(why.contains("none is open"), "{why}");
+        wrote(asked(&mut ctx, start, &[writer, a]));
+        wrote(asked(&mut ctx, start, &[writer, b]));
+        wrote(asked(&mut ctx, cdata, &[writer, texts[0]]));
+        wrote(asked(&mut ctx, start, &[writer, c]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        let why = asked(&mut ctx, cdata, &[writer, texts[2]]).expect_err("`]]>` ends the section");
+        assert!(why.contains("cannot hold `]]>`"), "{why}");
+        wrote(asked(&mut ctx, cdata, &[writer, texts[1]]));
+        wrote(asked(&mut ctx, end, &[writer]));
+
+        let document = asked(&mut ctx, super::nvs_core_xml_writer_end_document, &[writer])
+            .expect("the root element is written and closed");
+        let text = document.as_text().expect("a finished document is text");
+        assert_eq!(
+            text,
+            format!(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a>\n  \
+                 <b><![CDATA[{raw}]]><c/></b><![CDATA[]]]]></a>"
+            )
+        );
+        let tree = parse(text).expect("what the writer answered is a document");
+        let root = &tree.children[0];
+        assert_eq!(root.children[1].children[0].text, raw);
+        assert_eq!(root.children[2].text, "]]");
+
+        dropped(document);
+        for held in texts.into_iter().chain([a, b, c, writer]) {
             dropped(held);
         }
     }

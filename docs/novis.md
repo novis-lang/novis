@@ -21549,15 +21549,15 @@ Adds one attribute to the element that `startElement` opened last. Call it right
 $writer->comment(string $text): void
 ```
 
-Writes a comment, as one call: a comment's content is text, so there is nothing for a pair to contain.
+Writes an XML comment, such as `<!-- note -->`. You can write it before the root element, inside an element, or after the root element is closed.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$text` | `string` (launder) | The comment's content. A comment is the one place XML has no escape grammar for, so a `--` inside it or a trailing `-` is refused rather than rewritten — `rule:errors/ambiguous-input-refused` is the general shape of that answer. |
+| `$text` | `string` (launder) | The comment's text. It is written unchanged, because XML cannot escape anything inside a comment. It cannot contain `--`, and it cannot end with `-`. |
 
-**Returns** `void` — Nothing; the comment is written where the writer stands, inside the open element or beside the root.
+**Returns** `void` — Nothing. The comment is written at the place the writer has reached.
 
-**Throws** `LogicError` — The text holds `--`, ends with `-`, holds a character XML cannot write, or the document is not open.
+**Throws** `LogicError` — The text contains `--` or ends with `-`. The text contains a control character that XML cannot write. The document is not open.
 
 <a id="core-core-xml-writer-cdata"></a>
 #### `Core\Xml\Writer->cdata`
@@ -21566,15 +21566,15 @@ Writes a comment, as one call: a comment's content is text, so there is nothing 
 $writer->cdata(string $text): void
 ```
 
-Writes character data as a CDATA section. One call, because a CDATA section is an escaping choice about text and is written with the text it is a choice about — a parse answers the same `Text` node either way.
+Writes text inside the open element as a CDATA section, such as `<![CDATA[a < b]]>`. The text is written unchanged. A parser reads it as the same text that `content` writes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$text` | `string` (launder) | The characters to write. A CDATA section has no escape grammar inside it, so a `]]>` in the text is refused rather than split across two sections. |
+| `$text` | `string` (launder) | The text to write. `<` and `&` are allowed and are not escaped. The text cannot contain `]]>`, because that ends a CDATA section. |
 
-**Returns** `void` — Nothing; the open element now holds character data, exactly as `content` leaves it.
+**Returns** `void` — Nothing. After this call, the writer does not indent inside this element, like after `content`.
 
-**Throws** `LogicError` — No element is open, the text holds `]]>` or a character XML cannot write, or the document is not open.
+**Throws** `LogicError` — No element is open. The text contains `]]>`. The text contains a control character that XML cannot write. The document is not open.
 
 <a id="core-core-xml-writer-instruction"></a>
 #### `Core\Xml\Writer->instruction`
