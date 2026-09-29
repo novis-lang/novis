@@ -1,0 +1,27 @@
+<?nvs
+// Checks if a text is an address, as a server does with a link a user typed into a form.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $typed = [
+            "https://shop.example.com/cart?item=42#total",
+            "https://example.com/my files",
+            "/docs/start?page=2",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Core\Uri $uri = Core\Uri::tryParse($typed[($total % 3) as int]);
+            if ($uri == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + Core\Str::length($uri->path());
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

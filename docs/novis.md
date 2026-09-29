@@ -15060,13 +15060,13 @@ Reads the text of an address, such as `https://example.com/cart?id=4`, and retur
 Core\Uri::tryParse(string $uri): ?Core\Uri
 ```
 
-`Core\Uri::parse` with `null` where it throws — the one spelling of "is this text a URI", replacing `filter_var` with `FILTER_VALIDATE_URL`; its narrower question, "is it absolute", is `tryParse($s)?->scheme() != null`.
+Reads the text of an address and returns a `Uri`, the same way `Core\Uri::parse` does. When the text is not an address, the result is `null` and no error is thrown. A space, a `%` without two hex digits and a port above `65535` all give `null`. PHP code uses `filter_var` with `FILTER_VALIDATE_URL` for this check.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$uri` | `string` | The text to read. |
+| `$uri` | `string` | The text to read. A relative link, such as `/a?b`, is allowed. |
 
-**Returns** `?Core\Uri` — The `Uri`, or `null` for text `parse` would throw on — the grammar's refusals and an out-of-range port alike.
+**Returns** `?Core\Uri` — A `Uri`. The result is `null` for every text that `Core\Uri::parse` throws an error for. To check if an address is absolute, use `tryParse($text)?->scheme() != null`.
 
 <a id="core-core-uri-encodecomponent"></a>
 #### `Core\Uri::encodeComponent`
@@ -15246,9 +15246,9 @@ Returns the fragment of the address, which is the text after the `#`. For `https
 $uri->toString(): string
 ```
 
-The reference this `Uri` was parsed from, byte for byte — not a recomposition — and what `echo $uri` writes.
+Returns the address as text. For a `Uri` from `Core\Uri::parse`, this is exactly the text that was read. Upper-case letters and escapes such as `%2f` do not change. `echo $uri` prints the same text.
 
-**Returns** `string` — The original text, unchanged.
+**Returns** `string` — The address as a `string`. For `HTTP://Example.COM/a%2fb` the result is `HTTP://Example.COM/a%2fb`.
 
 <a id="core-core-uri-with"></a>
 #### `Core\Uri->with`

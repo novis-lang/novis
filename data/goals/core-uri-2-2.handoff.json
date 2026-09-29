@@ -1,26 +1,18 @@
 {
-  "state": "Goal `core-uri-2-2`: 9 of the goal's 11 `Core\\Uri` members have their feature proofs. `with` and\n`withQueryParameter` landed this session, with plain help cards in `crates/nvs-stdlib/src/uri.rs`.\n`toString` and `tryParse` are left. Both already have their tests: a `covers:` marker on\n`a_parsed_uri_round_trips_through_its_own_text` and two `.nvst` cases for `toString`, and the new Rust\ntest `try_parse_answers_null_exactly_where_parse_throws` for `tryParse`. Each still owes about,\n3 examples, a hostile and a bench, plus its card in the plain voice. Nothing is blocked.",
+  "state": "Goal `core-uri-2-2` is reached: all 11 of its `Core\\Uri` members have their feature proofs.\n`bun nv proofs --verify --only` over the 11 prints `nothing owed`, with 33 examples and 11 hostile\ncases green and 0 failed. `toString` and `tryParse` landed last, each with about, three examples,\na hostile case, a bench with a recorded figure and a help card in the plain voice\n(`crates/nvs-stdlib/src/uri.rs`). `bun nv verify --doc`, `bun nv owners --closes core-uri-2-2` and\n`bun nv playbook --closes core-uri-2-2` are all green. Nothing is blocked.",
   "next": {
     "stage": 2,
-    "title": "feature proofs, the last two members, then the goal's end gates",
+    "title": "nothing left, the driver moves to the next goal on the chain",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/uri.rs` and the new `docs/examples/core/Uri/{toString,tryParse}/`, `tests/hostile/core/Uri/{toString,tryParse}/` and `benches/members/core/Uri/{toString,tryParse}.nvs`:",
+    "note": "one file set: `crates/nvs-stdlib/src/uri.rs`:",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Uri::toString`** — owes about, examples, hostile and perf (`bun nv proofs --id 'Core\\Uri::toString' --show`). It returns the parsed text byte for byte, and `echo $uri` prints the same text. `HTTP://Example.COM/a%2fb` comes back unchanged. Rewrite `TO_STRING_DOC` in the plain voice. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:911`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Uri::tryParse`** — owes about, examples, hostile and perf. It returns `null` wherever `parse` throws: a space, a bad `%`, a port past `65535`. A relative text such as `/relative?x=1` is a `Uri` whose `scheme()` is `null`. Rewrite `TRY_PARSE_DOC` in the plain voice, and drop its `filter_var` history. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:699`"
-      },
-      {
-        "done": false,
-        "text": "**Reach the goal** — when `bun nv proofs --verify --only` over the goal's 11 members prints `nothing owed`, run `bun nv verify --doc`, `bun nv owners --closes core-uri-2-2` and `bun nv playbook --closes core-uri-2-2`, then write `DONE`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:699`"
+        "done": true,
+        "text": "**`Core\\Uri::toString` and `Core\\Uri::tryParse` have their feature proofs** — `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:911`"
       }
     ]
   },
   "backlog": [
-    "None of the two remaining members has a known bug. The probe of `with`, `withQueryParameter`, `toString` and `tryParse` matched every card (`crates/nvs-stdlib/src/uri.rs`)."
+    "The cards of the members this goal did not own (`parse`'s siblings in the first half) are goal `plain-comments`'s to sweep — `AGENTS.md` § *Text an end user reads*."
   ]
 }

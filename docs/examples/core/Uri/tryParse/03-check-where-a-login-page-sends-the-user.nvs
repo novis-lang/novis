@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a login page checks the address it sends the user to after they log in.
+
+class AfterLogin {
+    public static function target(string $next): string {
+        ?Core\Uri $uri = Core\Uri::tryParse($next);
+        // Text that is not an address goes to the start page.
+        if ($uri == null) {
+            return "/";
+        }
+        // An address with a scheme or a host can lead to another site, so it goes to the start page too.
+        if ($uri->scheme() != null || $uri->host() != null) {
+            return "/";
+        }
+        return $uri->toString();
+    }
+}
+
+// This prints /orders?page=2, then / three times.
+array<string> $asked = [
+    "/orders?page=2",
+    "https://evil.example.net/login",
+    "//evil.example.net/login",
+    "/orders%zz",
+];
+foreach ($asked as string $next) {
+    echo AfterLogin::target($next), "\n";
+}

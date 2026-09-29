@@ -697,16 +697,17 @@ const PARSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Uri::tryParse`'s reference card — `rule:core-api/reference-card`.
 const TRY_PARSE_DOC: MethodDoc = MethodDoc {
-    short: "`Core\\Uri::parse` with `null` where it throws — the one spelling of \"is this text \
-            a URI\", replacing `filter_var` with `FILTER_VALIDATE_URL`; its narrower question, \
-            \"is it absolute\", is `tryParse($s)?->scheme() != null`.",
+    short: "Reads the text of an address and returns a `Uri`, the same way `Core\\Uri::parse` \
+            does. When the text is not an address, the result is `null` and no error is thrown. \
+            A space, a `%` without two hex digits and a port above `65535` all give `null`. \
+            PHP code uses `filter_var` with `FILTER_VALIDATE_URL` for this check.",
     params: &[ParamDoc {
         name: "uri",
-        desc: "The text to read.",
+        desc: "The text to read. A relative link, such as `/a?b`, is allowed.",
         shape: &[],
     }],
-    ret: "The `Uri`, or `null` for text `parse` would throw on — the grammar's refusals and an \
-          out-of-range port alike.",
+    ret: "A `Uri`. The result is `null` for every text that `Core\\Uri::parse` throws an error \
+          for. To check if an address is absolute, use `tryParse($text)?->scheme() != null`.",
     errors: &[],
 };
 
@@ -909,10 +910,12 @@ const FRAGMENT_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->toString`'s reference card — `rule:core-api/reference-card`.
 const TO_STRING_DOC: MethodDoc = MethodDoc {
-    short: "The reference this `Uri` was parsed from, byte for byte — not a recomposition — and \
-            what `echo $uri` writes.",
+    short: "Returns the address as text. For a `Uri` from `Core\\Uri::parse`, this is exactly the \
+            text that was read. Upper-case letters and escapes such as `%2f` do not change. \
+            `echo $uri` prints the same text.",
     params: &[],
-    ret: "The original text, unchanged.",
+    ret: "The address as a `string`. For `HTTP://Example.COM/a%2fb` the result is \
+          `HTTP://Example.COM/a%2fb`.",
     errors: &[],
 };
 

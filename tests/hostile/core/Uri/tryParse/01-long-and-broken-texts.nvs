@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program checks very long texts and texts that break the rules at their last character.
+// Each call should return a `Uri` or `null`, never throw an error, and every `Uri` should be freed.
+
+class Check
+{
+    public static function of(string $text): string
+    {
+        try {
+            return Core\Uri::tryParse($text) == null ? 'null' : 'uri';
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. One million letters, then a space as the last character. This prints "null".
+echo Check::of('https://example.com/' . Core\Str::repeat('a', 1000000) . ' '), "\n";
+
+// 2. A port of 100000 digits. It is larger than 65535, so this prints "null".
+echo Check::of('https://example.com:' . Core\Str::repeat('9', 100000) . '/'), "\n";
+
+// 3. The ports at the end of the range and one past it. This prints "uri", then "null".
+echo Check::of('https://example.com:65535/'), "\n";
+echo Check::of('https://example.com:65536/'), "\n";
+
+// 4. 300000 `%` signs, and one `%` with a single hex digit at the end. Each one prints "null".
+echo Check::of('/' . Core\Str::repeat('%', 300000)), "\n";
+echo Check::of('/' . Core\Str::repeat('%20', 100000) . '%2'), "\n";
+
+// 5. A zero byte, a character that is not ASCII, and 100000 `[` signs. Each one prints "null".
+echo Check::of("/a\0b"), "\n";
+echo Check::of('/café'), "\n";
+echo Check::of('http://' . Core\Str::repeat('[', 100000)), "\n";
+
+// 6. 100000 checks that alternate between a valid and a broken text.
+// Every `Uri` is freed. This prints 50000.
+uint $valid = 0;
+uint $i = 0;
+while ($i < 100000) {
+    string $text = $i % 2 == 0 ? 'https://example.com/' . $i : 'https://example.com/' . $i . ' ';
+    if (Core\Uri::tryParse($text) != null) {
+        $valid = $valid + 1;
+    }
+    $i = $i + 1;
+}
+echo $valid, "\n";
