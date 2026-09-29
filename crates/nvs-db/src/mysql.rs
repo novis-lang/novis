@@ -329,6 +329,15 @@ pub fn socket_endpoint(path: &str, _port: u16) -> io::Result<Endpoint> {
 /// it does not exist, which is exactly the property being described — so
 /// this match is exhaustive on both platforms with no arm that exists only to
 /// refuse.
+///
+/// `clippy::large_enum_variant` is allowed, and it fires only where the local
+/// arm exists. The large arm is the TLS session every networked connection
+/// uses, so a `Box` would put an allocation per connect and a pointer hop per
+/// read on the common path to shrink the rare one, which
+/// `rule:core-classes/db-drivers-are-an-enum`'s third argument declines. What
+/// it spends is a TLS session's size on each local connection, one per pooled
+/// connection.
+#[allow(clippy::large_enum_variant)]
 pub enum MyStream {
     /// A server that named a host, reached over TCP and upgraded in band.
     Tls(NvsTls<NvsTcp>),

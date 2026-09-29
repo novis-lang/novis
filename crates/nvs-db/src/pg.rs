@@ -372,6 +372,10 @@ pub struct CancelKey {
 /// The local arm is `#[cfg(unix)]`, as [`crate::conn::Endpoint`]'s socket arm
 /// is, so this match is exhaustive on both platforms with no arm that exists
 /// only to refuse.
+///
+/// `clippy::large_enum_variant` is allowed, for the reason and at the cost
+/// [`crate::mysql::MyStream`] gives.
+#[allow(clippy::large_enum_variant)]
 pub enum PgStream {
     /// A server that named a host, reached over TCP and upgraded in band.
     Tls(NvsTls<NvsTcp>),
