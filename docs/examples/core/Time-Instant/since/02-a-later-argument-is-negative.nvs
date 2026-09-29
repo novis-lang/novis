@@ -1,0 +1,12 @@
+<?nvs
+// Shows that the result is negative when the argument is the later instant.
+
+Core\Time\Instant $noon = Core\Time::fromIso("2024-03-01T12:00:00Z");
+Core\Time\Instant $two = Core\Time::fromIso("2024-03-01T14:00:00Z");
+
+// This prints 7200 and then -7200.
+echo $two->since($noon)->toSeconds(), "\n";
+echo $noon->since($two)->toSeconds(), "\n";
+
+// `$two` plus the result is `$noon` again. This prints 2024-03-01T12:00:00Z.
+echo $two->plus($noon->since($two))->toIso(), "\n";

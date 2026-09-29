@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to measure the time between two instants.
+
+Core\Time\Instant $start = Core\Time::fromIso("2024-03-01T09:00:00Z");
+Core\Time\Instant $end = Core\Time::fromIso("2024-03-01T09:01:30.250Z");
+
+// `since` returns a `Duration`. This prints 1m30s250ms.
+Core\Time\Duration $took = $end->since($start);
+echo $took->toString(), "\n";
+
+// The same duration as a number of whole seconds. This prints 90.
+echo $took->toSeconds(), "\n";

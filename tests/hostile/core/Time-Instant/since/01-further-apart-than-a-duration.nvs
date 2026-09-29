@@ -1,0 +1,38 @@
+<?nvs
+// Attack: `since` measures instants that are further apart than the longest `Duration`.
+// Steps 1 and 2 should throw a `RuntimeError`, and nothing should crash or leak.
+
+Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z');
+
+// 1. The first and the last instant are about 20000 years apart, in both orders.
+try {
+    echo $last->since($first)->toString(), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo $first->since($last)->toString(), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// 2. These two instants are one nanosecond further apart than the longest `Duration`.
+Core\Time\Instant $late = Core\Time::fromIso('2262-04-11T23:47:17Z');
+try {
+    echo $late->since(Core\Time::fromIso('1970-01-01T00:00:00.145224192Z'))->toString(), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// 3. One million durations are made. Each one is freed again.
+Core\Time\Instant $origin = Core\Time::fromEpoch(0);
+Core\Time\Instant $clock = $origin;
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $clock = $clock->plus(1ns);
+    $total = $total + $clock->since($origin)->toNanoseconds() % 7;
+    $round = $round + 1;
+}
+echo $total, "\n";
