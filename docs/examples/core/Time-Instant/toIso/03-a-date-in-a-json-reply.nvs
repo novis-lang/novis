@@ -1,0 +1,8 @@
+<?nvs
+// Puts the time an order was placed into a JSON reply, as an API does.
+
+// A real program uses `Core\Time::now()` here. A fixed time keeps the output the same.
+Core\Time\Instant $placed = Core\Time::fromEpoch(1709294400);
+
+// This prints {"order":"A-1001","placedAt":"2024-03-01T12:00:00Z"}.
+echo Core\Json::encode(["order" => "A-1001", "placedAt" => $placed->toIso()]), "\n";

@@ -1,31 +1,30 @@
 {
-  "state": "Goal `core-time-instant-and-1-more` covers every `Core\\Time\\Instant` and `Core\\Time\\TimeOfDay` member, not\nonly the three the last handoff named. On disk for `Instant`: `compareTo`, `minus`, `in`, `toEpochSeconds`,\n`toEpochMillis` and `toEpochMicros` have about.md, three examples with `.out`, one attack, one bench, a Rust\n`#[test]` in `crates/nvs-stdlib/src/time.rs`'s tests and a `covers:`-marked `.nvst` case. `plus`, `since` and\n`toIso` already carry a `covers:` marker on an existing `.nvst` case and owe the rest. The three epoch\nreaders' cards no longer promise a `RuntimeError`: every instant fits a 64-bit microsecond count, and\n`instant_epoch_readings_truncate_toward_zero_and_reach_both_ends` pins both ends. Every `Core\\Time` bench is\nre-measured with `bun nv proofs --record-perf` after the last `time.rs` edit, because any edit makes them\nall stale. No proof found a bug. Nothing is blocked.",
+  "state": "Goal `core-time-instant-and-1-more` covers every `Core\\Time\\Instant` and `Core\\Time\\TimeOfDay` member. The\n`dossier-core-time-instant` check is green: `bun nv proofs --verify --group 'Core\\Time\\Instant'` says nothing\nowed, 27 examples and 9 attacks ok. Every `Instant` member has about.md, three examples, an attack, a bench, a\n`covers:`-marked Rust `#[test]` in `crates/nvs-stdlib/src/time.rs`'s tests and a `.nvst` case, and its card is\nin the plain voice. The `since` proof found one bug, now fixed: `nanos_between` multiplied the whole seconds\nout before adding the part of a second, so a distance of exactly `i64::MAX` or `i64::MIN` nanoseconds threw.\nIt computes in `i128` now, pinned by `tests/conformance/core/time-instant-since-reaches-the-longest-duration-both-ways.nvst`.\nEvery `Core\\Time` class's benches were re-measured after the last `time.rs` edit. What is left is the\n`dossier-core-time-timeofday` check. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier, one member per slice",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/time.rs` and the `Core\\Time\\Instant` trees under `docs/examples/`, `tests/hostile/`, `benches/members/`",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs`, `crates/nvs-stdlib/src/registry.rs` and the `Core\\Time\\TimeOfDay` trees under `docs/examples/`, `tests/hostile/`, `benches/members/`",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time\\Instant::plus`** — owes about, examples, hostile, perf and a Rust test (`rule:testing/feature-proofs`); its `.nvst` marker is on disk. Card `crates/nvs-stdlib/src/time.rs:1281`, body `crates/nvs-stdlib/src/time.rs:3747`. `minus`'s proofs under `docs/examples/core/Time-Instant/minus/` and `instant_minus_is_exact_and_bounded_at_both_ends` are the mirror shape. Rewrite its card in the plain voice while there."
+        "text": "**`Core\\Time\\TimeOfDay`'s class card** — `help` fails for all three members until it exists (`rule:core-api/reference-card`). Add a `ClassDoc` above the class row `crates/nvs-stdlib/src/time.rs:2803`, the way `INSTANT_CARD` sits above `Instant`'s, and delete the name from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283`. Plain voice (`AGENTS.md` § *Text an end user reads*)."
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Instant::since`** — owes about, examples, hostile, perf and a Rust test; `.nvst` marker on disk. Card `crates/nvs-stdlib/src/time.rs:1314`, body `crates/nvs-stdlib/src/time.rs:3774`; it throws past about 292 years (`nanos_between`), which is the attack."
+        "text": "**`Core\\Time\\TimeOfDay::minus`** — owes about, examples, hostile, perf and a Rust test (`rule:testing/feature-proofs`); `.nvst` marker on disk. Card `crates/nvs-stdlib/src/time.rs:2949`, body `crates/nvs-stdlib/src/time.rs:4982`. `instant_minus_is_exact_and_bounded_at_both_ends` and `docs/examples/core/Time-Instant/minus/` are the mirror shape. Rewrite the card in the plain voice while there."
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Instant::toIso`** — owes about, examples, hostile, perf and a Rust test; `.nvst` marker on disk. Card `crates/nvs-stdlib/src/time.rs:1355`, body `crates/nvs-stdlib/src/time.rs:3798`."
+        "text": "**`Core\\Time\\TimeOfDay::with`** — owes about, examples, hostile, perf, and both tests: no `.nvst` case and no Rust test carry its `covers:` marker. Card `crates/nvs-stdlib/src/time.rs:2978`, body `crates/nvs-stdlib/src/time.rs:4990`."
       },
       {
         "done": false,
-        "text": "**Re-measure and close the `Instant` check** — after the last `time.rs` edit, `bun nv verify`, then `bun nv proofs --record-perf --group 'Core\\Time\\Instant'` and `--group 'Core\\Time\\TimeOfDay'`, then `bun nv proofs --verify --group 'Core\\Time\\Instant'` must say nothing owed. The stale `help` line for a class card that `crates/nvs-stdlib/src/time.rs:1331` already has is a stale binary, gone after the rebuild."
+        "text": "**`Core\\Time\\TimeOfDay::compareTo`** — owes everything including both test cases. Card `crates/nvs-stdlib/src/time.rs:3011`, body `crates/nvs-stdlib/src/time.rs:5021`. `Core\\Time\\Instant::compareTo`'s proofs are the mirror shape. After the last `time.rs` edit, `bun nv verify`, then `bun nv proofs --record-perf --group` once per `Core\\Time` class (`Core\\Time`, `Core\\Time\\Instant`, `Duration`, `Zone`, `DateTime`, `Date`, `TimeOfDay`), one call each, then `bun nv proofs --verify --group 'Core\\Time\\TimeOfDay'`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Time\\TimeOfDay`: six members (`at`, `format`, `plus`, `minus`, `with`, `compareTo`) owe every proof, and the class owes its `ClassDoc` card and its removal from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs` — the group after the one above, same file.",
-    "The `format` pattern `XXX` shows `+25:59` for a `+25:59:59` zone, which is CLDR's `XXX`; `XXXXX` is the one with seconds. Not a bug, noted for `DateTime::format`'s proofs."
+    "Once `dossier-core-time-timeofday` is green, the goal is reached: run `bun nv verify --doc`, `bun nv owners --closes core-time-instant-and-1-more` and `bun nv playbook --closes core-time-instant-and-1-more` before writing `DONE` (`docs/agent/session-prompt.md` step 6)."
   ]
 }

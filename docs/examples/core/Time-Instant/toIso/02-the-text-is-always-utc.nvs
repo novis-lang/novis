@@ -1,0 +1,9 @@
+<?nvs
+// Shows that `toIso` always writes the time in UTC, whatever offset the input had.
+
+// 13:00 in a zone one hour ahead of UTC is 12:00 in UTC. This prints 2024-03-01T12:00:00Z.
+echo Core\Time::fromIso("2024-03-01T13:00:00+01:00")->toIso(), "\n";
+
+// `fromIso` reads the text back, and the result is the same instant. This prints 0.
+Core\Time\Instant $at = Core\Time::fromIso("2024-03-01T07:30:00-04:30");
+echo Core\Time::fromIso($at->toIso())->compareTo($at), "\n";
