@@ -1,0 +1,11 @@
+<?nvs
+// Tracks how much time a request has left, when it may take 2 seconds in total.
+
+Core\Time\Duration $left = 2s;
+array<int> $steps = [350, 900, 480];
+
+// Each step takes some milliseconds away. This prints 1s650ms, 750ms and 270ms.
+foreach ($steps as int $ms) {
+    $left = $left->minus(Core\Time\Duration::milliseconds($ms));
+    echo $left->toString(), "\n";
+}

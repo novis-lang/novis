@@ -1,0 +1,2 @@
+-9223372036854775807
+Core\Time\Duration::minus(): this duration is longer than `Core\Time\Duration` can hold

@@ -1,0 +1,21 @@
+<?nvs
+// Subtracts one duration from another, as a program does when it tracks the time a request has left.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        Core\Time\Duration $limit = 30s;
+        Core\Time\Duration $step = 1ms;
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks which of the two is taken away
+            Core\Time\Duration $left = $total % 2 == 0 ? $limit->minus($step) : $step->minus($limit);
+            $total = $total + $left->toMilliseconds() % 13 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
