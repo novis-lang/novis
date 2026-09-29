@@ -1,26 +1,18 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Time\\Instant and 1 more has been taken yet.",
+  "state": "Goal `core-time-instant-and-1-more`: two of its three slices are on disk. `Core\\Time\\Instant::compareTo`\nand `Core\\Time\\Instant::minus` each have about.md, three examples with `.out`, one attack, one bench and a\nRust `#[test]` in `crates/nvs-stdlib/src/time.rs`'s tests. compareTo also has a new `.nvst` case, and minus\nuses the one that already existed. `Core\\Time\\Instant` now has its class card (`INSTANT_CARD`) and is off\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`. No proof found a bug. Nothing is blocked.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "feature proofs, one member per slice",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` and the `Core\\Time\\Instant` trees under `docs/examples/`, `tests/hostile/`, `benches/members/`",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time\\Instant::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1204`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Time\\Instant::in`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1141`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Time\\Instant::minus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:1186`"
+        "text": "**`Core\\Time\\Instant::in`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Its card is `crates/nvs-stdlib/src/time.rs:1239` and its body `crates/nvs-stdlib/src/time.rs:4464`. It returns a `DateTime`, so the examples need `Core\\Time\\Zone::of` and a `DateTime` reader: read those two rows before writing. The compareTo and minus proofs under `docs/examples/core/Time-Instant/` are the sibling shape. Then run `bun nv proofs --owed` for the goal's list; if `in` was the last item, close the goal."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`tests/conformance/core/time-instant-plus-and-minus-name-the-range-past-either-end.nvst` prints the first instant as `-009999-01-02T01:59:59Z`, and the range message spells it `-9999-01-02T01:59:59Z`. Two spellings of one bound; `crates/nvs-stdlib/src/time.rs`'s `PAST_THE_RANGE` owns the message."
   ]
 }

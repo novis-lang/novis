@@ -12635,7 +12635,7 @@ Measures the exact time from `$earlier` to this instant, replacing `date_diff` a
 $instant->compareTo(Core\Time\Instant $other): int
 ```
 
-Orders two instants on the timeline, as `Comparable` requires.
+Checks which of two instants comes first, as `Comparable` requires. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` on two instants checks whether they are the same object, so test for the same moment with `$a->compareTo($b) == 0`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
