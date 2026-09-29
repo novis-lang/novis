@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to add one duration to another.
+
+Core\Time\Duration $film = 1h45m;
+
+// A film of 1 hour 45 minutes with 20 minutes of adverts takes 2 hours 5 minutes. This prints 2h5m.
+echo $film->plus(20m)->toString(), "\n";
+
+// `$film` itself does not change. This prints 1h45m.
+echo $film->toString(), "\n";
+
+// Adding a negative duration makes the result shorter. This prints 1h30m.
+echo $film->plus(15m->negated())->toString(), "\n";

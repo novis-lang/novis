@@ -1,0 +1,2 @@
+9223372036854775806
+Core\Time\Duration::plus(): this duration is longer than `Core\Time\Duration` can hold
