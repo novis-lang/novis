@@ -706,32 +706,35 @@ const TRY_PARSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Uri::encodeComponent`'s reference card — `rule:core-api/reference-card`.
 const ENCODE_COMPONENT_DOC: MethodDoc = MethodDoc {
-    short: "Percent-encodes `$s` for use as one piece of a URI — a path segment, a fragment, one \
-            side of a query pair — as `rawurlencode` does: a space is `%20`, and every byte \
-            outside RFC 3986's unreserved set (letters, digits, `-_.~`) is escaped, the \
-            delimiters `/ ? # & =` included.",
+    short: "Escapes `$s` so that it can be one part of a URI, such as a path segment, a fragment \
+            or one side of a query pair. A space becomes `%20`. Every byte that is not a letter, \
+            a digit or one of `-_.~` becomes a `%` and two hex digits. This includes `/ ? # & =`. \
+            PHP's `rawurlencode` does the same.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to encode.",
         shape: &[],
     }],
-    ret: "The escaped text, with upper-case hex digits; a `tainted` argument comes back plain, \
-          since no byte of it can be read as a delimiter afterwards.",
+    ret: "The escaped text, with upper-case hex digits. A `tainted` argument (text from outside \
+          the program, such as a request) gives a plain result. No byte of the result can change \
+          the structure of the URI.",
     errors: &[],
 };
 
 /// `Core\Uri::decodeComponent`'s reference card — `rule:core-api/reference-card`.
 const DECODE_COMPONENT_DOC: MethodDoc = MethodDoc {
-    short: "Reverses `Core\\Uri::encodeComponent`, as `rawurldecode` does: every `%XX` escape \
-            becomes its byte, and a `+` stays a literal `+`.",
+    short: "Decodes one escaped part of a URI, such as a path segment or a fragment. Each `%XX` \
+            escape becomes the byte it encodes, so `%20` becomes a space. A `+` stays a `+`. \
+            `Core\\Uri::encodeComponent` writes the escapes that this function reads. PHP's \
+            `rawurldecode` does the same.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to decode.",
         shape: &[],
     }],
-    ret: "The decoded octets, as `bytes` — percent-decoding is defined over octets, so `%FF` has \
-          an answer here and text is one `as string` away. A malformed escape such as `%G1` or a \
-          trailing `%` decodes to itself.",
+    ret: "The decoded bytes, as `bytes`, because an escape can give any byte. `as string` \
+          converts them to text and throws an error when they are not valid UTF-8. A `%` that is \
+          not followed by two hex digits is kept, so `100%` returns `100%`.",
     errors: &[],
 };
 
@@ -3281,6 +3284,7 @@ mod tests {
     /// The whole of ASCII plus one multi-byte character, round-tripped both
     /// ways: the assertion that catches a byte one encoder escapes and its own
     /// decoder does not restore.
+    // covers: Core\Uri::encodeComponent, Core\Uri::decodeComponent, Core\Uri::encodeFormValue, Core\Uri::decodeFormValue
     #[test]
     fn every_byte_round_trips_through_both_encodings() {
         let subject: String = (0..=127_u8).map(char::from).chain(['é', '→']).collect();
@@ -3544,6 +3548,7 @@ mod tests {
     /// so the escapes a `string` could never have carried have an answer here
     /// and text is one `as string` away. Asserted as bytes, since rendering
     /// them as text is exactly what this member no longer does.
+    // covers: Core\Uri::decodeComponent, Core\Uri::decodeFormValue
     #[test]
     fn decode_component_answers_octets_that_are_not_valid_utf8() {
         assert_eq!(
@@ -3615,6 +3620,7 @@ mod tests {
     /// The amendment is the decoders' alone: an encoder still takes text and
     /// still answers text, so `decodeComponent(encodeComponent($s)) as string`
     /// is the round trip it always was.
+    // covers: Core\Uri::encodeComponent, Core\Uri::encodeFormValue
     #[test]
     fn the_two_encoders_still_take_text_and_answer_text() {
         for member in [
@@ -3643,6 +3649,7 @@ mod tests {
     /// PHP leaves a `%` that does not begin two hex digits exactly as it
     /// stands, and so does this — the module docs own why a decoder at the
     /// edge of a request does not throw over one.
+    // covers: Core\Uri::decodeComponent
     #[test]
     fn a_malformed_escape_decodes_to_itself() {
         for (subject, expected) in [

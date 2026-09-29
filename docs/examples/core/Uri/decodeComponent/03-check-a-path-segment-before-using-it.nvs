@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a server reads a file name from a request path and checks that it is valid text.
+
+// In a web request, these names come from the address the visitor opened,
+// such as /files/caf%C3%A9.txt.
+array<string> $segments = ["caf%C3%A9.txt", "%FF%FE.txt"];
+
+foreach ($segments as string $segment) {
+    bytes $name = Core\Uri::decodeComponent($segment);
+
+    // An escape can give any byte, and some bytes are not valid text.
+    // `as ?string` gives `null` for them, so the server can reply with an error.
+    ?string $text = $name as ?string;
+    if ($text == null) {
+        echo "400 Bad Request: the file name is not valid text\n";
+    } else {
+        echo "200 OK: ", $text, "\n";
+    }
+}

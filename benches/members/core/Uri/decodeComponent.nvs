@@ -1,0 +1,18 @@
+<?nvs
+// Decodes the file name part of a request path, as a server does before it opens the file.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["caf%C3%A9%20menu.pdf", "report%202026.txt", "a%2Fb%3Fc.png"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Bytes::length(Core\Uri::decodeComponent($names[$total % 3]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

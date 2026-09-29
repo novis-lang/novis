@@ -1,0 +1,2 @@
+200 OK: café.txt
+400 Bad Request: the file name is not valid text

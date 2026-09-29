@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read a file name back from the escaped form it has in a link.
+
+string $inLink = "report%202026%20%28final%29.pdf";
+
+// `Core\Uri::decodeComponent` replaces each escape with its character, and returns `bytes`.
+// `as string` converts the result to text.
+string $name = Core\Uri::decodeComponent($inLink) as string;
+
+// `%20` is a space, `%28` is `(` and `%29` is `)`.
+// This prints report 2026 (final).pdf.
+echo $name, "\n";
