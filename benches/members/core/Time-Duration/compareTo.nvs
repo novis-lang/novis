@@ -11,7 +11,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // chained: the duration is picked with last round's total
-            $total = $total + 2 + $took[($total % 4) as uint]->compareTo($limit);
+            $total = $total + 2 + $took[$total % 4]->compareTo($limit);
             $i = $i + 1;
         }
         return $total;
