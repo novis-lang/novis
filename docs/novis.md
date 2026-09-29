@@ -12580,15 +12580,15 @@ Returns the whole microseconds since 1 January 1970 in UTC.
 $instant->plus(Core\Time\Duration $d): Core\Time\Instant
 ```
 
-Moves the instant forward by an exact `Duration`, replacing `date_add` and `modify` for an exact offset — so it crosses a DST boundary without noticing one; a calendar step is `$i->in($zone)->plus($n, Unit::Day)`.
+Moves the instant forward by an exact `Duration`. An instant has no time zone, so a change to or from summer time does not change the result. To add calendar days, use `$i->in($zone)->plus($n, Unit::Day)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$d` | `Core\Time\Duration` | The exact duration to add; a negative one moves the instant back. |
+| `$d` | `Core\Time\Duration` | The duration to add. A negative duration moves the instant back. |
 
-**Returns** `Core\Time\Instant` — A new `Instant`; the receiver is unchanged.
+**Returns** `Core\Time\Instant` — A new `Instant`. The original instant does not change.
 
-**Throws** `RuntimeError` — The result lies outside the representable range, about ±9999 years.
+**Throws** `RuntimeError` — The result is before the year -9999 or after the year 9999.
 
 <a id="core-core-time-instant-minus"></a>
 #### `Core\Time\Instant->minus`
@@ -12614,15 +12614,15 @@ Moves the instant back by an exact `Duration`, replacing `date_sub` for an exact
 $instant->since(Core\Time\Instant $earlier): Core\Time\Duration
 ```
 
-Measures the exact time from `$earlier` to this instant, replacing `date_diff` and `DateInterval` arithmetic with none of that type's "1 month" ambiguity.
+Returns the exact time from `$earlier` to this instant, as a `Duration`. `$earlier->plus($later->since($earlier))` is `$later` again.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$earlier` | `Core\Time\Instant` | The instant to measure from. |
 
-**Returns** `Core\Time\Duration` — The `Duration` from `$earlier` to the receiver — negative when `$earlier` is in fact later, so it is `plus`'s inverse rather than an absolute distance.
+**Returns** `Core\Time\Duration` — A `Duration`. It is negative when `$earlier` is after this instant.
 
-**Throws** `RuntimeError` — The two instants are further apart than a `Duration` can hold, about 292 years.
+**Throws** `RuntimeError` — The two instants are more than about 292 years apart. That is the longest `Duration` there is.
 
 <a id="core-core-time-instant-compareto"></a>
 #### `Core\Time\Instant->compareTo`
@@ -12646,9 +12646,9 @@ Checks which of two instants comes first, as `Comparable` requires. The operator
 $instant->toIso(): string
 ```
 
-Renders the instant as an RFC 3339 timestamp in UTC, replacing `date(DATE_ATOM)` — the one rendering that needs no zone.
+Returns the instant as RFC 3339 text in UTC. This is the date format that JSON and HTTP APIs use most.
 
-**Returns** `string` — Text such as `2024-03-01T12:00:00Z`, with the fractional seconds included when they are not zero.
+**Returns** `string` — A `string` such as `2024-03-01T12:00:00Z`. It has a fraction of a second only when the fraction is not zero.
 
 <a id="core-core-time-datetime"></a>
 ### `Core\Time\DateTime`

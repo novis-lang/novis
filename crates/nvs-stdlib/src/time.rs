@@ -1279,18 +1279,18 @@ const INSTANT_TO_EPOCH_MICROS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Instant::plus`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_PLUS_DOC: MethodDoc = MethodDoc {
-    short: "Moves the instant forward by an exact `Duration`, replacing `date_add` and \
-            `modify` for an exact offset — so it crosses a DST boundary without noticing one; \
-            a calendar step is `$i->in($zone)->plus($n, Unit::Day)`.",
+    short: "Moves the instant forward by an exact `Duration`. An instant has no time zone, so \
+            a change to or from summer time does not change the result. To add calendar days, \
+            use `$i->in($zone)->plus($n, Unit::Day)`.",
     params: &[ParamDoc {
         name: "d",
-        desc: "The exact duration to add; a negative one moves the instant back.",
+        desc: "The duration to add. A negative duration moves the instant back.",
         shape: &[],
     }],
-    ret: "A new `Instant`; the receiver is unchanged.",
+    ret: "A new `Instant`. The original instant does not change.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The result lies outside the representable range, about ±9999 years.",
+        desc: "The result is before the year -9999 or after the year 9999.",
     }],
 };
 
@@ -1312,18 +1312,18 @@ const INSTANT_MINUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Instant::since`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_SINCE_DOC: MethodDoc = MethodDoc {
-    short: "Measures the exact time from `$earlier` to this instant, replacing `date_diff` and \
-            `DateInterval` arithmetic with none of that type's \"1 month\" ambiguity.",
+    short: "Returns the exact time from `$earlier` to this instant, as a `Duration`. \
+            `$earlier->plus($later->since($earlier))` is `$later` again.",
     params: &[ParamDoc {
         name: "earlier",
         desc: "The instant to measure from.",
         shape: &[],
     }],
-    ret: "The `Duration` from `$earlier` to the receiver — negative when `$earlier` is in \
-          fact later, so it is `plus`'s inverse rather than an absolute distance.",
+    ret: "A `Duration`. It is negative when `$earlier` is after this instant.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The two instants are further apart than a `Duration` can hold, about 292 years.",
+        desc: "The two instants are more than about 292 years apart. That is the longest \
+               `Duration` there is.",
     }],
 };
 
@@ -1353,11 +1353,11 @@ const INSTANT_COMPARE_TO_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Instant::toIso`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_ISO_DOC: MethodDoc = MethodDoc {
-    short: "Renders the instant as an RFC 3339 timestamp in UTC, replacing `date(DATE_ATOM)` — \
-            the one rendering that needs no zone.",
+    short: "Returns the instant as RFC 3339 text in UTC. This is the date format that JSON and \
+            HTTP APIs use most.",
     params: &[],
-    ret: "Text such as `2024-03-01T12:00:00Z`, with the fractional seconds included when they \
-          are not zero.",
+    ret: "A `string` such as `2024-03-01T12:00:00Z`. It has a fraction of a second only when \
+          the fraction is not zero.",
     errors: &[],
 };
 
@@ -3319,25 +3319,22 @@ fn text_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fa
     })
 }
 
-/// The exact number of nanoseconds from `earlier` to `later`, which is what
-/// both `since` and `offsetAt` answer with a `Duration` built from.
+/// The exact number of nanoseconds from `earlier` to `later`, which `since`
+/// builds its `Duration` from.
 ///
-/// Computed from the two slot fields rather than through a
-/// [`SignedDuration`] so that the one range check is on the `i64` a `Duration`
-/// actually holds — two timestamps a `Duration` cannot span throw here rather
-/// than losing precision on the way.
+/// Computed in `i128`, which holds the distance between any two timestamps, so
+/// the one range check is on the `i64` a `Duration` holds. A distance that
+/// fits is never refused because the whole seconds alone overflowed, and one
+/// that does not fit throws rather than losing precision.
 fn nanos_between(later: Timestamp, earlier: Timestamp, member: &str) -> Result<i64, Fault> {
-    let seconds = later.as_second().checked_sub(earlier.as_second());
-    let subsec = i64::from(later.subsec_nanosecond()) - i64::from(earlier.subsec_nanosecond());
-    seconds
-        .and_then(|whole| whole.checked_mul(1_000_000_000))
-        .and_then(|whole| whole.checked_add(subsec))
-        .ok_or_else(|| {
-            out_of_range(
-                &format!(r"Core\Time\Instant::{member}"),
-                "the two instants are further apart than a `Duration` can hold",
-            )
-        })
+    let seconds = i128::from(later.as_second()) - i128::from(earlier.as_second());
+    let subsec = i128::from(later.subsec_nanosecond()) - i128::from(earlier.subsec_nanosecond());
+    i64::try_from(seconds * 1_000_000_000 + subsec).map_err(|_| {
+        out_of_range(
+            &format!(r"Core\Time\Instant::{member}"),
+            "the two instants are further apart than a `Duration` can hold",
+        )
+    })
 }
 
 /// A fresh `Zone` with the id `id` — an IANA identifier, or a `±HH:MM[:SS]`
@@ -6024,6 +6021,157 @@ mod tests {
             assert!(why.contains(r"Core\Time\Instant::minus"), "{why}");
             assert!(why.contains(PAST_THE_RANGE), "{why}");
         }
+    }
+
+    /// `plus` moves an instant forward by the exact duration, a negative one
+    /// moves it back, and the receiver is unchanged. Each end of the range is
+    /// reached from one nanosecond inside it, and one nanosecond past it throws
+    /// the range, naming the member.
+    // covers: Core\Time\Instant::plus
+    #[test]
+    fn instant_plus_is_exact_and_bounded_at_both_ends() {
+        let one = SignedDuration::from_nanos(1);
+        let at = |second: i64, nanos: i32| Timestamp::new(second, nanos).expect("in range");
+        let plus = |from: Timestamp, nanos: i64| {
+            let mut ctx = Ctx::buffered();
+            let args = [instant_built(from), built(nanos)];
+            let moved = nvs_runtime::call(nvs_core_time_instant_plus, &mut ctx, &args)
+                .map(|result| {
+                    let read = instant_of(&[result], 0, "plus").expect("an `Instant`");
+                    #[expect(unsafe_code, reason = "the member returned a fresh `Instant`")]
+                    unsafe {
+                        result.release();
+                    }
+                    read
+                })
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned());
+            assert_eq!(
+                instant_of(&args, 0, "plus").ok(),
+                Some(from),
+                "the receiver moved"
+            );
+            for held in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built both arguments, and the member borrowed them"
+                )]
+                unsafe {
+                    held.release();
+                }
+            }
+            moved
+        };
+        assert_eq!(
+            plus(at(1_700_000_000, 0), 5_400_000_000_000),
+            Ok(at(1_700_005_400, 0))
+        );
+        assert_eq!(plus(at(0, 0), 1), Ok(at(0, 1)));
+        assert_eq!(plus(at(0, 0), -1), Ok(at(0, -1)));
+        assert_eq!(plus(at(0, 999_999_999), 1), Ok(at(1, 0)));
+        let first = Timestamp::MIN;
+        let last = Timestamp::MAX;
+        assert_eq!(plus(last.checked_sub(one).expect("in range"), 1), Ok(last));
+        assert_eq!(
+            plus(first.checked_add(one).expect("in range"), -1),
+            Ok(first)
+        );
+        for past in [plus(last, 1), plus(first, -1)] {
+            let why = past.expect_err("one nanosecond past the range throws");
+            assert!(why.contains(r"Core\Time\Instant::plus"), "{why}");
+            assert!(why.contains(PAST_THE_RANGE), "{why}");
+        }
+    }
+
+    /// `since` is the exact distance from the argument to the receiver, and is
+    /// negative when the argument is later. The longest `Duration` each way is
+    /// reached even where the whole seconds alone would overflow an `i64`, and
+    /// one nanosecond further throws, naming the member.
+    // covers: Core\Time\Instant::since
+    #[test]
+    fn instant_since_is_signed_and_reaches_both_ends_of_a_duration() {
+        let at = |second: i64, nanos: i32| Timestamp::new(second, nanos).expect("in range");
+        let since = |later: Timestamp, earlier: Timestamp| {
+            let mut ctx = Ctx::buffered();
+            let args = [instant_built(later), instant_built(earlier)];
+            let apart = nvs_runtime::call(nvs_core_time_instant_since, &mut ctx, &args)
+                .map(|result| {
+                    let read = nanos_of(&[result], 0, "since").expect("a `Duration`");
+                    #[expect(unsafe_code, reason = "the member returned a fresh `Duration`")]
+                    unsafe {
+                        result.release();
+                    }
+                    read
+                })
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned());
+            for held in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built both `Instant`s, and the member borrowed them"
+                )]
+                unsafe {
+                    held.release();
+                }
+            }
+            apart
+        };
+        let start = at(1_700_000_000, 0);
+        let end = at(1_700_005_400, 0);
+        assert_eq!(since(end, start), Ok(5_400_000_000_000));
+        assert_eq!(since(start, end), Ok(-5_400_000_000_000));
+        assert_eq!(since(at(0, 0), at(0, 1)), Ok(-1));
+        assert_eq!(since(start, start), Ok(0));
+        // 9223372037 whole seconds overflow an `i64` of nanoseconds, and the
+        // part of a second brings the distance back to exactly `i64::MAX`.
+        assert_eq!(
+            since(at(9_223_372_037, 0), at(0, 145_224_193)),
+            Ok(i64::MAX)
+        );
+        assert_eq!(
+            since(at(0, 145_224_192), at(9_223_372_037, 0)),
+            Ok(i64::MIN)
+        );
+        for past in [
+            since(at(9_223_372_037, 0), at(0, 145_224_192)),
+            since(at(0, 145_224_191), at(9_223_372_037, 0)),
+            since(Timestamp::MAX, Timestamp::MIN),
+        ] {
+            let why = past.expect_err("a distance past a `Duration` throws");
+            assert!(why.contains(r"Core\Time\Instant::since"), "{why}");
+            assert!(
+                why.contains("further apart than a `Duration` can hold"),
+                "{why}"
+            );
+        }
+    }
+
+    /// `toIso` writes RFC 3339 in UTC: no fraction for a whole second, the
+    /// fraction for any other, and a six-digit signed year at the first
+    /// instant. Every instant renders, so there is nothing to throw.
+    // covers: Core\Time\Instant::toIso
+    #[test]
+    fn instant_to_iso_is_utc_text_at_both_ends_of_the_range() {
+        let iso = |from: Timestamp| {
+            let mut ctx = Ctx::buffered();
+            let args = [instant_built(from)];
+            let result = nvs_runtime::call(nvs_core_time_instant_to_iso, &mut ctx, &args)
+                .expect("every instant renders");
+            let text = result.as_text().expect("a `string`").to_owned();
+            #[expect(
+                unsafe_code,
+                reason = "this frame built the `Instant`, and the member returned a fresh string"
+            )]
+            unsafe {
+                result.release();
+                args[0].release();
+            }
+            text
+        };
+        let at = |second: i64, nanos: i32| Timestamp::new(second, nanos).expect("in range");
+        assert_eq!(iso(at(1_709_294_400, 0)), "2024-03-01T12:00:00Z");
+        assert_eq!(iso(at(0, -1)), "1969-12-31T23:59:59.999999999Z");
+        assert_eq!(iso(at(0, 500_000_000)), "1970-01-01T00:00:00.5Z");
+        assert_eq!(iso(Timestamp::MIN), "-009999-01-02T01:59:59Z");
+        assert_eq!(iso(Timestamp::MAX), "9999-12-30T22:00:00.999999999Z");
     }
 
     /// `in` answers the receiver's own instant on the zone's clock, at the

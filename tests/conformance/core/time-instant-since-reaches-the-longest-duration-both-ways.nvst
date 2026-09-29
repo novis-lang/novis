@@ -1,0 +1,28 @@
+--TEST--
+Spec § 4: `Instant::since` returns a distance of exactly the longest `Duration` either way, and throws one nanosecond past it
+--FILE--
+<?nvs
+// covers: Core\Time\Instant::since
+// 9223372037 whole seconds do not fit in an `int` of nanoseconds, and the part
+// of a second brings each distance back to exactly the end of the range. A
+// member that multiplies the seconds out first throws on both pairs.
+var $late = Core\Time::fromIso("2262-04-11T23:47:17Z");
+echo $late->since(Core\Time::fromIso("1970-01-01T00:00:00.145224193Z"))->toNanoseconds() as string, "|\n";
+echo Core\Time::fromIso("1970-01-01T00:00:00.145224192Z")->since($late)->toNanoseconds() as string, "|\n";
+
+// One nanosecond past either end throws, naming the member.
+try {
+    echo $late->since(Core\Time::fromIso("1970-01-01T00:00:00.145224192Z"))->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "|\n";
+}
+try {
+    echo Core\Time::fromIso("1970-01-01T00:00:00.145224191Z")->since($late)->toNanoseconds() as string, "|\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "|\n";
+}
+--EXPECT--
+9223372036854775807|
+-9223372036854775808|
+Core\Time\Instant::since(): the two instants are further apart than a `Duration` can hold|
+Core\Time\Instant::since(): the two instants are further apart than a `Duration` can hold|
