@@ -1,0 +1,47 @@
+<?nvs
+// Attack: `minus` gets the largest counts an `int` can have, in every unit, and steps before the first date.
+// Each step out of the range should throw a `RuntimeError`, and nothing should crash.
+
+array<Core\Unit> $units = [
+    Core\Unit::Nanosecond, Core\Unit::Microsecond, Core\Unit::Millisecond, Core\Unit::Second,
+    Core\Unit::Minute, Core\Unit::Hour, Core\Unit::Day, Core\Unit::Week,
+    Core\Unit::Month, Core\Unit::Quarter, Core\Unit::Year,
+];
+var $middle = Core\Time::at(2024, 10, 27, Core\Time\Zone::of('Europe/Berlin'), { hour: 2, minute: 30 });
+
+// 1. The smallest `int` has no positive twin, so `minus` cannot turn it around. It is tried in every unit.
+// The largest `int`, and one step less than each end, are tried too.
+array<int> $counts = [-9223372036854775807 - 1, 9223372036854775807, -9223372036854775807, 9223372036854775806];
+int $refused = 0;
+foreach ($units as Core\Unit $unit) {
+    foreach ($counts as int $count) {
+        try {
+            $middle->minus($count, $unit);
+        } catch (RuntimeError $far) {
+            $refused = $refused + 1;
+        }
+    }
+}
+echo $refused, " of 44 refused\n";
+
+// 2. The first and the last whole second are moved one step further out, in every unit.
+// Only a step smaller than one second after the last second is still in the range.
+var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+int $past = 0;
+foreach ($units as Core\Unit $step) {
+    try { $first->minus(1, $step); } catch (RuntimeError $early) { $past = $past + 1; }
+    try { $last->minus(-1, $step); } catch (RuntimeError $late) { $past = $past + 1; }
+}
+echo $past, " of 22 past the range refused\n";
+
+// 3. One million values are built by going back from 31 March, across both clock changes of a year.
+// Each new value is freed.
+var $moving = Core\Time::at(2400, 3, 31, Core\Time\Zone::of('Europe/London'), { hour: 1, minute: 30 });
+int $round = 0;
+int $days = 0;
+while ($round < 1000000) {
+    $days = $days + $moving->minus($round % 9000, Core\Unit::Hour)->dayOfYear() as int;
+    $round = $round + 1;
+}
+echo $days, "\n";
