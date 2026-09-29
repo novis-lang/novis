@@ -15075,13 +15075,13 @@ Core\Uri::tryParse(string $uri): ?Core\Uri
 Core\Uri::encodeComponent(string $s): string
 ```
 
-Percent-encodes `$s` for use as one piece of a URI — a path segment, a fragment, one side of a query pair — as `rawurlencode` does: a space is `%20`, and every byte outside RFC 3986's unreserved set (letters, digits, `-_.~`) is escaped, the delimiters `/ ? # & =` included.
+Escapes `$s` so that it can be one part of a URI, such as a path segment, a fragment or one side of a query pair. A space becomes `%20`. Every byte that is not a letter, a digit or one of `-_.~` becomes a `%` and two hex digits. This includes `/ ? # & =`. PHP's `rawurlencode` does the same.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (launder) | The text to encode. |
 
-**Returns** `string` — The escaped text, with upper-case hex digits; a `tainted` argument comes back plain, since no byte of it can be read as a delimiter afterwards.
+**Returns** `string` — The escaped text, with upper-case hex digits. A `tainted` argument (text from outside the program, such as a request) gives a plain result. No byte of the result can change the structure of the URI.
 
 <a id="core-core-uri-decodecomponent"></a>
 #### `Core\Uri::decodeComponent`
@@ -15090,13 +15090,13 @@ Percent-encodes `$s` for use as one piece of a URI — a path segment, a fragmen
 Core\Uri::decodeComponent(string $s): bytes
 ```
 
-Reverses `Core\Uri::encodeComponent`, as `rawurldecode` does: every `%XX` escape becomes its byte, and a `+` stays a literal `+`.
+Decodes one escaped part of a URI, such as a path segment or a fragment. Each `%XX` escape becomes the byte it encodes, so `%20` becomes a space. A `+` stays a `+`. `Core\Uri::encodeComponent` writes the escapes that this function reads. PHP's `rawurldecode` does the same.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The text to decode. |
 
-**Returns** `bytes` — The decoded octets, as `bytes` — percent-decoding is defined over octets, so `%FF` has an answer here and text is one `as string` away. A malformed escape such as `%G1` or a trailing `%` decodes to itself.
+**Returns** `bytes` — The decoded bytes, as `bytes`, because an escape can give any byte. `as string` converts them to text and throws an error when they are not valid UTF-8. A `%` that is not followed by two hex digits is kept, so `100%` returns `100%`.
 
 <a id="core-core-uri-encodeformvalue"></a>
 #### `Core\Uri::encodeFormValue`
