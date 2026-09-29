@@ -1,0 +1,36 @@
+{
+  "state": "**Goal `program-enumeration` — `Core\\Program` enumerates by base class, and hands back typed constructors — has just started; nothing of it has landed yet.** Goal `var-array-literal`'s whole list is this goal's Stage 1 floor.\n\nThe design is settled and the three calls in it are the user's: `implementing<T>` and `implementingWith<T, S>` take a class as well as an interface, a concrete `T` is in its own list, and `constructors<T, C>()` returns `{class, make}` rows whose `make` is a closure typed by `C`. The goal file's § *Standing decisions* answers every call a session meets, and no session re-decides one.\n\nTwo facts about the tree as the goal was written. `nvs_hir::implementors` already walks `extends` and counts a class as matching itself, so the class selector is `E0743` in `crates/nvs-types/src/program.rs:@interface_of` and little else. `crates/nvs-hir/src/requires.rs:@is_program_scan` opts in on the member `implementing` alone, and no existing `implementingWith` case uses autoloaded classes — so a program calling only `implementingWith` is expected to miss them. That was read, not run; Stage 2's test settles it.",
+  "next": {
+    "stage": 2,
+    "title": "the class selector",
+    "files": [
+      "crates/nvs-types/src/program.rs",
+      "crates/nvs-hir/src/hierarchy.rs",
+      "crates/nvs-hir/src/requires.rs",
+      "crates/nvs-diagnostics/src/lib.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The decision record** — one new record, the next free number checked right before it is written, from the goal's § *Standing decisions*; it `modifies` `programs/implementing` and `programs/implementing-with`, `adds` `programs/constructors`, and the fragments are rewritten whole with it."
+      },
+      {
+        "done": false,
+        "text": "**`interface_of` accepts a class** — `crates/nvs-types/src/program.rs:@interface_of` returns the name for an interface or a class and reports `E0743` for everything else; `E0743`'s entry in `crates/nvs-diagnostics/src/lib.rs` is rewritten whole."
+      },
+      {
+        "done": false,
+        "text": "**Every enumeration member opts into the scan** — `crates/nvs-hir/src/requires.rs:@is_program_scan` compares against a slice of `implementing`, `implementingWith` and `constructors`, pinned by the two `*_alone_opts_the_program_into_the_scan` tests."
+      },
+      {
+        "done": false,
+        "text": "**The conformance cases and named tests** of the goal file's Stage 2 checks, and the reject case `program-implementing-takes-an-interface-whose-classes-need-no-arguments.nvst` renamed to a true name after a `grep` finds no other citer."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: `constructors<T, C>()`** — the registry row and cards in `crates/nvs-stdlib/src/program.rs`, the expansion beside `implementingWith`'s, the new refusal codes, and the LSP jump. Shares `crates/nvs-types/src/program.rs` with Stage 2, so it may follow in the same session if the budget holds.",
+    "**Stage 4: the feature proofs** — `constructors`' full proofs, one class-selector example each for `implementing` and `implementingWith`, both `about.md` files, the Stage 0 documents, and the regenerated `docs/novis.md`.",
+    "When this goal's last check goes green the driver takes goal `ci-green`."
+  ]
+}

@@ -1,0 +1,252 @@
+{
+  "title": "`Core\\Program` enumerates by base class, and hands back typed constructors",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-types/src/program.rs",
+      "crates/nvs-hir/src/hierarchy.rs",
+      "crates/nvs-hir/src/requires.rs",
+      "crates/nvs-diagnostics/src/lib.rs",
+      "crates/nvs-stdlib/src/program.rs",
+      "crates/nvs-stdlib/src/registry.rs",
+      "crates/nvs-lsp/src/definition.rs"
+    ],
+    "rules": [
+      "programs/implementing",
+      "programs/implementing-with",
+      "types/callable-signature"
+    ],
+    "adrs": [
+      "0061",
+      "0212"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the class selector",
+      "summary": "Lets `implementing` and `implementingWith` take a class, and makes every enumeration member opt the program into the scan.",
+      "context": {
+        "rules": [
+          "programs/autoload"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A decision record",
+          "A rule fragment",
+          "A `.nvst` test case",
+          "A diagnostic"
+        ],
+        "playbook": [
+          "Writing a test case > a rule*",
+          "Writing a test case > a -p*"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "`constructors<T, C>()`",
+      "summary": "Adds `Core\\Program::constructors<T, C>()`, which returns one typed constructor per class the enumeration lists.",
+      "context": {
+        "rules": [
+          "core-api/reference-card",
+          "types/closure-literal"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `Core` member",
+          "A `.nvst` test case",
+          "A diagnostic"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "the proofs",
+      "summary": "Adds the tests, examples, attack, bench and reference text for both additions.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-hir-a-class-selects-its-concrete-classes-and-every-member-scans",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-hir (a class selects its concrete classes, itself included, and every enumeration member opts into the scan)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-hir"
+      ],
+      "tests": [
+        "implementors_of_an_abstract_class_are_its_concrete_subclasses",
+        "implementors_of_a_concrete_class_include_the_class_itself",
+        "implementing_with_alone_opts_the_program_into_the_scan",
+        "constructors_alone_opts_the_program_into_the_scan"
+      ]
+    },
+    {
+      "id": "nvs-types-implementing-takes-a-class",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-types (`implementing` and `implementingWith` take a class, and still refuse every other type)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "program_implementing_takes_an_abstract_class_and_lists_its_concrete_subclasses",
+        "program_implementing_takes_a_concrete_class_and_lists_it_with_its_subclasses",
+        "program_implementing_with_takes_a_class",
+        "program_implementing_refuses_an_enum_a_shape_and_a_scalar"
+      ]
+    },
+    {
+      "id": "program-implementing-takes-a-class",
+      "kind": "nvs-suite",
+      "stage": 2,
+      "name": "`implementing` over a class runs, `implementingWith` alone finds autoloaded classes, and a type that is neither does not compile",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/program-implementing-takes-a-class-and-lists-every-concrete-subclass.nvst",
+        "tests/conformance/core/program-implementing-with-alone-finds-autoloaded-classes.nvst"
+      ]
+    },
+    {
+      "id": "nvs-types-program-constructors",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-types (`constructors` expands to one typed closure per class, and names a class whose constructor does not fit)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "program_constructors_expands_to_one_typed_closure_per_class",
+        "program_constructors_lists_the_classes_implementing_lists_in_its_order",
+        "program_constructors_accepts_a_constructor_that_takes_arguments",
+        "program_constructors_needs_a_callable_returning_t",
+        "program_constructors_names_the_class_whose_constructor_does_not_fit",
+        "program_constructors_respects_a_private_constructor"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-constructors-type-argument-jumps",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-lsp (both of `constructors`' type arguments jump to their declaration)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "a_constructors_type_argument_jumps_to_its_class"
+      ]
+    },
+    {
+      "id": "program-constructors-builds-and-refuses",
+      "kind": "nvs-suite",
+      "stage": 3,
+      "name": "`constructors` builds each class with the arguments passed, and a constructor that does not fit does not compile",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/program-constructors-builds-each-class-with-the-arguments-you-pass.nvst",
+        "tests/conformance/reject/program-constructors-names-the-class-whose-constructor-does-not-fit.nvst"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-constructors",
+      "kind": "command",
+      "stage": 4,
+      "name": "proofs: the whole roster owes nothing with `constructors` and the class selector in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    },
+    {
+      "id": "dossier-the-program-enumeration-proofs-carry-plain-comments",
+      "kind": "command",
+      "stage": 4,
+      "name": "proofs: the programs this goal added carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/core/Program",
+        "tests/hostile/core/Program/constructors",
+        "benches/members/core/Program/constructors.nvs"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

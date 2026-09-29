@@ -180,6 +180,7 @@
     "plain-comments",
     "foreach-var",
     "var-array-literal",
+    "program-enumeration",
     "ci-green"
   ]
 }
