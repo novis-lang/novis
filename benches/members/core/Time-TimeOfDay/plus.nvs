@@ -1,0 +1,25 @@
+<?nvs
+// Moves a time of day forward, as a program does when it works out when a slot or a shift ends.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Time\TimeOfDay $start = Core\Time\TimeOfDay::at(9, 0);
+        Core\Time\TimeOfDay $noon = Core\Time\TimeOfDay::at(12, 0);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total is the number of minutes
+            Core\Time\TimeOfDay $end = $start->plus(($total % 240) as int, Core\Unit::Minute);
+            if ($end < $noon) {
+                $total = $total + 5;
+            } else {
+                $total = $total + 7;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

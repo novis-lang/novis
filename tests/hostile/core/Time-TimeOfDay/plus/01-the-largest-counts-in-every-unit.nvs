@@ -1,0 +1,40 @@
+<?nvs
+// Attack: `plus` gets the largest and smallest counts there are, in every unit and in units that are too large.
+// Steps 1 and 2 should throw, the largest valid counts should work, and nothing should crash or leak.
+
+Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+array<Core\Unit> $units = [
+    Core\Unit::Nanosecond, Core\Unit::Microsecond, Core\Unit::Millisecond,
+    Core\Unit::Second, Core\Unit::Minute, Core\Unit::Hour,
+];
+
+// 1. The largest and the smallest `int` are added in every unit.
+array<int> $counts = [9223372036854775807, -9223372036854775807 - 1];
+foreach ($units as Core\Unit $unit) {
+    foreach ($counts as int $count) {
+        try {
+            echo $t->plus($count, $unit)->format('HH:mm:ss.SSSSSSSSS'), "\n";
+        } catch (RuntimeError $e) {
+            echo $e->message, "\n";
+        }
+    }
+}
+
+// 2. Units of a day and larger are used.
+array<Core\Unit> $large = [Core\Unit::Day, Core\Unit::Week, Core\Unit::Month, Core\Unit::Quarter, Core\Unit::Year];
+foreach ($large as Core\Unit $unit) {
+    try {
+        echo $t->plus(1, $unit)->format('HH:mm'), "\n";
+    } catch (LogicError $l) {
+        echo $l->message, "\n";
+    }
+}
+
+// 3. One million steps of one nanosecond are made. Each new time is freed again.
+Core\Time\TimeOfDay $clock = $t;
+int $i = 0;
+while ($i < 1000000) {
+    $clock = $clock->plus(1, Core\Unit::Nanosecond);
+    $i = $i + 1;
+}
+echo $clock->format('HH:mm:ss.SSSSSSSSS'), "\n";
