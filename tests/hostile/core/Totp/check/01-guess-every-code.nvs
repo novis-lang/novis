@@ -1,0 +1,37 @@
+<?nvs
+// Attack: an attacker sends huge, empty and strange codes, extreme step numbers, and 200000 guesses.
+// Each check should return `null` or a step number, and nothing should crash, hang or leak.
+// hostile: timeout-ms 60000
+
+secret bytes $secret = Core\Random::bytes(20);
+string $right = Core\Totp::code($secret);
+
+// 1. Codes that are not six digits: empty, too long, huge, with letters, signs and emoji.
+array<string> $strange = ['', '12345', '1234567', '-12345', '+12345', '١٢٣٤٥٦', '12345😀', "\0\0\0\0\0\0"];
+$strange[] = Core\Str::repeat('9', 16777216);
+$strange[] = $right . '0';
+int $accepted = 0;
+foreach ($strange as string $code) {
+    if (Core\Totp::check($code, $secret) != null) {
+        $accepted = $accepted + 1;
+    }
+}
+echo $accepted, " strange codes accepted\n";
+
+// 2. The right code with the smallest and the largest `$after` there are.
+echo Core\Totp::check($right, $secret, -9223372036854775807 - 1) == null ? 'rejected' : 'accepted', "\n";
+echo Core\Totp::check($right, $secret, 9223372036854775807) == null ? 'rejected' : 'accepted', "\n";
+echo Core\Totp::check($right, $secret, -1) == null ? 'rejected' : 'accepted', "\n";
+
+// 3. Every code from 100000 to 299999 is guessed. At most a few of them are right.
+int $hits = 0;
+int $guess = 100000;
+while ($guess < 300000) {
+    if (Core\Totp::check("{$guess}", $secret) != null) {
+        $hits = $hits + 1;
+    }
+    $guess = $guess + 1;
+}
+// The secret is random, so the count changes. Three codes are right at one time.
+// A fourth code is right if a new 30-second step starts during the loop.
+echo $hits <= 4 ? 'at most four guesses accepted' : 'too many guesses accepted', "\n";

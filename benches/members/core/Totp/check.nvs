@@ -1,0 +1,25 @@
+<?nvs
+// Tests a code that a user typed, as the second step of a login does.
+// bench: iterations 50000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        secret bytes $secret = Core\Random::bytes(20);
+        array<string> $typed = [Core\Totp::code($secret), "123456", "000000"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the code
+            if (Core\Totp::check($typed[($total % 3) as int], $secret) == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

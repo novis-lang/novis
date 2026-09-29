@@ -1,0 +1,21 @@
+<?nvs
+// Shows how the step number stops a code from being used a second time.
+
+secret bytes $secret = Core\Random::bytes(20);
+string $typed = Core\Totp::code($secret);
+
+// The first check accepts the code and returns its step number.
+?int $step = Core\Totp::check($typed, $secret);
+if ($step == null) {
+    echo "first time: rejected\n";
+} else {
+    echo "first time: accepted\n";
+
+    // The second check gets that step number as `$after`.
+    // The same code is now too old, so the result is `null`.
+    if (Core\Totp::check($typed, $secret, $step) == null) {
+        echo "second time: rejected\n";
+    } else {
+        echo "second time: accepted\n";
+    }
+}
