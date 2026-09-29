@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv proofs` reads the class cards from `target/debug/nvs.exe`, which `bun nv verify` does not rebuild, so a card you just added still reads as owed `help`.",
+  "body": "Verify builds `target/covws/<host triple>/debug/nvs`, and `nvs agent show` there already prints the new card. Pass `--nvs target/covws/x86_64-pc-windows-msvc/debug/nvs.exe` to `bun nv proofs --owed` before you conclude the card did not land.",
+  "files": [
+    "tools/nv/proofs/roster.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/roster.ts:has no class card"
+  }
+}
