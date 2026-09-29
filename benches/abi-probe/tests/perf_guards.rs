@@ -131,6 +131,19 @@ fn ns_per_op(iters: u64, batches: u32, mut op: impl FnMut()) -> f64 {
     best.as_secs_f64() * 1e9 / iters as f64
 }
 
+/// Runs `op` with `depth` more frames of this thread's own stack above the
+/// caller, each one a real call: the work after the inner call keeps the
+/// optimizer from turning the recursion into a loop.
+#[inline(never)]
+fn under_frames(depth: u32, op: &mut dyn FnMut()) {
+    if black_box(depth) == 0 {
+        op();
+    } else {
+        under_frames(depth - 1, op);
+        black_box(depth);
+    }
+}
+
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_checked_return_frame_stays_cheap() {
@@ -220,13 +233,30 @@ fn a_raise_renders_one_frame_label_and_nothing_larger() {
     // the frame it happened in, from the site the `throw` was compiled with, so
     // a `catch` beside the `throw` has a backtrace at all. What must stay true
     // is the *shape* of that cost — one decode and one label, paid once. The
-    // answer this ceiling rules out is the one the decision behind
+    // answer this guard rules out is the one the decision behind
     // `nvs_runtime`'s gap 6 priced and rejected: walking a stack, or asking the
-    // OS for a backtrace, lands two orders of magnitude above it.
+    // OS for a backtrace.
     //
-    // Measured as the difference between raising with a site and raising with
-    // the zero word, so the object allocation both arms pay cancels.
-    const MAX_NS: f64 = 500.0;
+    // The proof is counted, not timed, so it holds on any machine however
+    // loaded. The allocator counts every allocation a raise makes and every
+    // byte it asks for, and the rendering is the difference between raising
+    // with a site and raising with the zero word, so the object both arms
+    // allocate cancels. Two counts pin the shape. The rendering's allocations
+    // and bytes stay under a small fixed bound, which is room for one decode
+    // and one label and not for a list of frames. And both are identical when
+    // the raise happens `DEEP` frames further down this thread's stack, which
+    // a walk of that stack, or an OS backtrace of it, cannot be.
+    //
+    // The timing beside it is a sanity bound, not the proof. The rendering is
+    // made of allocations, so its time follows the platform's allocation path:
+    // on macOS every allocation's counter update is a call through the
+    // thread-local descriptor, and the same allocations cost more there. The
+    // bound is therefore relative to a raise without a site, which pays for
+    // allocations on the same path: a label costs less than ten raises.
+    const DEEP: u32 = 64;
+    const MAX_ALLOCATIONS: usize = 16;
+    const MAX_BYTES: usize = 1024;
+    const MAX_RATIO: f64 = 10.0;
 
     let mut table = nvs_runtime::ClassTable::new();
     let slots = ["message", "previous", "backtrace", "location"];
@@ -252,19 +282,62 @@ fn a_raise_renders_one_frame_label_and_nothing_larger() {
         nvs_runtime::nvs_raise(&raw mut ctx, thrown.into_raw(), site);
         drop(black_box(nvs_runtime::Ctx::take_thrown(&mut ctx)));
     };
+    let mut counted = |site: *const u8, depth: u32| -> (usize, usize) {
+        let calls = nvs_runtime::budget::allocations();
+        let bytes = nvs_runtime::budget::allocated_bytes();
+        under_frames(depth, &mut || raise(site));
+        (
+            nvs_runtime::budget::allocations() - calls,
+            nvs_runtime::budget::allocated_bytes() - bytes,
+        )
+    };
+    // A first raise of each kind, so nothing a first call sets up is counted.
+    counted(std::ptr::null(), 0);
+    counted(blob.as_ptr(), 0);
+    let mut rendered = |depth: u32| {
+        let (bare_calls, bare_bytes) = counted(std::ptr::null(), depth);
+        let (sited_calls, sited_bytes) = counted(blob.as_ptr(), depth);
+        (
+            sited_calls.saturating_sub(bare_calls),
+            sited_bytes.saturating_sub(bare_bytes),
+        )
+    };
+    let (calls, bytes) = rendered(0);
+    let (deep_calls, deep_bytes) = rendered(DEEP);
+    println!(
+        "a raise's own frame label: {calls} allocations and {bytes} bytes, \
+         {deep_calls} and {deep_bytes} {DEEP} frames deeper \
+         [ceiling {MAX_ALLOCATIONS} allocations and {MAX_BYTES} bytes]"
+    );
+    assert!(
+        calls <= MAX_ALLOCATIONS && bytes <= MAX_BYTES,
+        "rendering a raise's own frame now makes {calls} allocations of {bytes} bytes, over the \
+         guard's {MAX_ALLOCATIONS} and {MAX_BYTES}. A throw is meant to pay for one decode and \
+         one label, not for a list of frames."
+    );
+    assert!(
+        (deep_calls, deep_bytes) == (calls, bytes),
+        "rendering a raise's own frame made {calls} allocations of {bytes} bytes, and \
+         {deep_calls} of {deep_bytes} bytes {DEEP} frames further down the stack. A cost that \
+         grows with the stack is a walk of it, which a throw is never meant to pay for."
+    );
+
     let bare = ns_per_op(100_000, 5, || raise(std::ptr::null()));
     let sited = ns_per_op(100_000, 5, || raise(blob.as_ptr()));
 
     let rendering = sited - bare;
+    let ratio = rendering / bare;
     println!(
-        "a raise's own frame label: {rendering:.1} ns ({sited:.1} ns sited vs {bare:.1} ns bare){}",
-        under(rendering, MAX_NS)
+        "a raise's own frame label: {rendering:.1} ns ({sited:.1} ns sited vs {bare:.1} ns bare), \
+         {ratio:.2}x a raise without a site{}",
+        under(ratio, MAX_RATIO)
     );
 
     assert!(
-        rendering < MAX_NS,
-        "rendering a raise's own frame now costs {rendering:.1} ns, over the {MAX_NS} ns guard — \
-         a throw is meant to pay for one label, not for a walk of anything"
+        ratio < MAX_RATIO,
+        "rendering a raise's own frame now costs {rendering:.1} ns, {ratio:.1}x a raise without \
+         a site ({bare:.1} ns), over the {MAX_RATIO}x guard. The allocation counts above are in \
+         bounds, so the time is going into work that allocates nothing."
     );
 }
 
