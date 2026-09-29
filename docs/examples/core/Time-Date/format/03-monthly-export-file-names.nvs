@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to build the file name of a monthly sales export from a date.
+
+// The quoted parts are fixed text, and `yyyy-MM` is the year and the month.
+// Names in this form sort in the order of the months.
+var $month = Core\Time\Date::at(2024, 10, 1);
+int $i = 0;
+while ($i < 4) {
+    echo $month->format("'sales-'yyyy-MM'.csv'"), "\n";
+    $month = $month->plus(1, Core\Unit::Month);
+    $i = $i + 1;
+}

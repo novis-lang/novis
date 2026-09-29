@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check the birthday a person typed into a form with three fields.
+
+class Form {
+    // `at` throws a `RuntimeError` when the three numbers are not a real date.
+    // The function returns a message for the form in both cases.
+    public static function birthday(int $year, uint $month, uint $day): string {
+        try {
+            var $born = Core\Time\Date::at($year, $month, $day);
+            return "Saved: " . $born->format("d MMMM yyyy");
+        } catch (RuntimeError $error) {
+            return "Please check the date: " . $year . "-" . $month . "-" . $day;
+        }
+    }
+}
+
+// The second date does not exist, because April has 30 days.
+echo Form::birthday(1990, 4, 12), "\n";
+echo Form::birthday(1990, 4, 31), "\n";
+echo Form::birthday(2000, 2, 29), "\n";

@@ -5809,4 +5809,167 @@ mod tests {
             }
         }
     }
+
+    /// `format` called on the `Date` `from` with `pattern`. It answers the
+    /// rendered text, or the sentence it threw.
+    fn date_formatted(from: (i16, i8, i8), pattern: &str) -> Result<String, String> {
+        let mut ctx = Ctx::buffered();
+        let args = [
+            date_built(civil::date(from.0, from.1, from.2)),
+            Value::str(NvsStr::new(pattern.as_bytes())),
+        ];
+        let answer = match nvs_runtime::call(nvs_core_time_date_format, &mut ctx, &args) {
+            Ok(text) => {
+                let read = text
+                    .as_text()
+                    .expect("`format` answers a `string`")
+                    .to_owned();
+                #[expect(unsafe_code, reason = "this frame owns the text the member answered")]
+                unsafe {
+                    text.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// `format` renders every calendar field a date has, at both ends of the
+    /// year range, and throws for every time-of-day or zone letter instead of
+    /// inventing a midnight or a UTC. Each refusal names which of the two the
+    /// pattern asked for.
+    // covers: Core\Time\Date::format
+    #[test]
+    fn date_format_renders_calendar_fields_and_refuses_a_clock_or_zone_letter() {
+        let tuesday = (2024, 3, 5);
+        for (pattern, rendered) in [
+            ("yyyy-MM-dd", "2024-03-05"),
+            ("EEEE, d MMMM yyyy", "Tuesday, 5 March 2024"),
+            ("d.M.yy", "5.3.24"),
+            ("EEE MMM d", "Tue Mar 5"),
+            ("QQQ yyyy", "Q1 2024"),
+            ("'day' D", "day 65"),
+            ("", ""),
+        ] {
+            assert_eq!(
+                date_formatted(tuesday, pattern),
+                Ok(rendered.to_owned()),
+                "{pattern:?}"
+            );
+        }
+        assert_eq!(
+            date_formatted((-9999, 1, 1), "yyyy-MM-dd"),
+            Ok("-9999-01-01".to_owned())
+        );
+        assert_eq!(
+            date_formatted((9999, 12, 31), "yyyy-MM-dd"),
+            Ok("9999-12-31".to_owned())
+        );
+        for pattern in ["HH", "hh", "mm", "ss", "a", "yyyy-MM-dd HH:mm"] {
+            let refused = date_formatted(tuesday, pattern).expect_err("a clock letter");
+            assert!(
+                refused.contains("names no time of day"),
+                "{pattern:?}: {refused}"
+            );
+        }
+        for pattern in ["z", "XXX", "yyyy-MM-dd z"] {
+            let refused = date_formatted(tuesday, pattern).expect_err("a zone letter");
+            assert!(refused.contains("names no zone"), "{pattern:?}: {refused}");
+        }
+        let refused = date_formatted(tuesday, "'unclosed").expect_err("an open literal");
+        assert!(
+            refused.starts_with(r"Core\Time\Date::format(): "),
+            "{refused}"
+        );
+    }
+
+    /// `Core\Time\Date::at` called the way a compiled call site calls it. It
+    /// answers the `Date` it built, or the sentence it threw.
+    fn date_at(year: i64, month: u64, day: u64) -> Result<civil::Date, String> {
+        let mut ctx = Ctx::buffered();
+        let args = [Value::int(year), Value::uint(month), Value::uint(day)];
+        match nvs_runtime::call(nvs_core_time_date_at, &mut ctx, &args) {
+            Ok(built) => {
+                let read = date_of(&[built], 0, "test").expect("`at` answers a `Date`");
+                #[expect(unsafe_code, reason = "this frame owns the `Date` the member answered")]
+                unsafe {
+                    built.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        }
+    }
+
+    /// `at` builds a date only when all three fields name one that exists.
+    /// Every month's last day and the day after it are asserted together, in
+    /// a leap year and in a common one, and so are both ends of the year and
+    /// month ranges. A number too wide for any field throws one sentence.
+    // covers: Core\Time\Date::at
+    #[test]
+    fn date_at_builds_only_a_date_that_exists() {
+        const LEAP: [u64; 12] = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        for year in [2023_i64, 2024] {
+            for (month, last) in (1_u64..).zip(LEAP) {
+                let last = if year == 2023 && month == 2 { 28 } else { last };
+                let built = date_at(year, month, last).expect("the month's last day");
+                assert_eq!(
+                    (i64::from(built.year()), built.month(), built.day()),
+                    (
+                        year,
+                        i8::try_from(month).expect("fits"),
+                        i8::try_from(last).expect("fits")
+                    )
+                );
+                assert!(
+                    date_at(year, month, last + 1).is_err(),
+                    "{year}-{month}-{} is not a date",
+                    last + 1
+                );
+                assert!(date_at(year, month, 0).is_err(), "{year}-{month}-0");
+            }
+        }
+        for (year, month, accepted) in [
+            (9999, 12, true),
+            (10000, 1, false),
+            (-9999, 1, true),
+            (-10000, 12, false),
+            (2024, 1, true),
+            (2024, 0, false),
+            (2024, 12, true),
+            (2024, 13, false),
+        ] {
+            assert_eq!(
+                date_at(year, month, 1).is_ok(),
+                accepted,
+                "{year}-{month}-1"
+            );
+        }
+        let too_wide = r"Core\Time\Date::at(): a year is within -9999..=9999, and a month and a day are numbers a calendar writes";
+        for (year, month, day) in [
+            (i64::MIN, 1, 1),
+            (i64::MAX, 1, 1),
+            (2024, u64::MAX, 1),
+            (2024, 1, u64::MAX),
+        ] {
+            assert_eq!(
+                date_at(year, month, day),
+                Err(too_wide.to_owned()),
+                "{year}-{month}-{day}"
+            );
+        }
+    }
 }

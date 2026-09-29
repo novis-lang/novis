@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to build a date from a year, a month and a day.
+
+// `Core\Time\Date::at` takes the year, the month and the day. This prints 2024-07-01.
+var $start = Core\Time\Date::at(2024, 7, 1);
+echo $start->format("yyyy-MM-dd"), "\n";
+
+// You can also name the arguments. This prints 2024-12-24.
+var $party = Core\Time\Date::at(y: 2024, m: 12, d: 24);
+echo $party->format("yyyy-MM-dd"), "\n";
+
+// Two dates built from the same three numbers are the same date.
+// `compareTo` returns 0 for them. This prints 0.
+echo Core\Time\Date::at(2024, 7, 1)->compareTo($start), "\n";

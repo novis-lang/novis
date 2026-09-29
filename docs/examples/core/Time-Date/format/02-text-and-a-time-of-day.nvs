@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to put plain text in a pattern, and what happens when a pattern asks for a time.
+
+var $date = Core\Time\Date::at(2024, 11, 20);
+
+// Text inside single quotes is printed as it is. `Q` is the quarter of the year.
+// This prints Quarter 4 of 2024.
+echo $date->format("'Quarter' Q 'of' yyyy"), "\n";
+
+// A date has no time of day, so `HH` and `mm` throw a `LogicError`.
+try {
+    echo $date->format("yyyy-MM-dd HH:mm"), "\n";
+} catch (LogicError $error) {
+    echo "Not allowed: ", $error->message, "\n";
+}

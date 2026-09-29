@@ -1,0 +1,22 @@
+<?nvs
+// Builds a date from three numbers, as a program does when it reads a date from a form.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $year = 2024;
+        uint $day = 1;
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the month and the day come from last round's total
+            var $date = Core\Time\Date::at($year, ($total % 12) as uint + 1, $day);
+            $total = $total + 1 + $date->compareTo($date);
+            $day = $day % 28 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

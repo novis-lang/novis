@@ -1,0 +1,27 @@
+<?nvs
+// Writes a date as text, as a program does for every date it shows on a page or in a file name.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $patterns = ["yyyy-MM-dd", "dd.MM.yyyy", "EEEE, d MMMM yyyy"];
+        var $date = Core\Time\Date::at(2024, 4, 5);
+        string $previous = "";
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the pattern is picked with last round's total
+            string $text = $date->format($patterns[($total % 3) as uint]);
+            if ($text == $previous) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $previous = $text;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

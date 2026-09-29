@@ -1,0 +1,49 @@
+<?nvs
+// Attack: `format` gets very long patterns, broken patterns and every letter of the alphabet.
+// Each bad pattern should throw a `LogicError`, and the loop at the end should finish without a leak.
+
+var $date = Core\Time\Date::at(-9999, 1, 1);
+
+// 1. One field repeated a million times. The year is padded to a million digits.
+echo Core\Str::length($date->format(Core\Str::repeat('y', 1000000))), " characters\n";
+
+// 2. A million quote characters. Each pair prints one quote.
+echo Core\Str::length($date->format(Core\Str::repeat("'", 1000000))), " quotes\n";
+
+// 3. A literal that opens after a million letters and is never closed.
+try {
+    $date->format(Core\Str::repeat('d', 1000000) . "'open");
+} catch (LogicError $open) {
+    echo "unclosed literal refused\n";
+}
+
+// 4. Every letter from A to Z and from a to z, alone and five times in a row.
+array<string> $alphabets = ['ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'];
+int $rendered = 0;
+int $refused = 0;
+foreach ($alphabets as string $letters) {
+    int $i = 0;
+    while ($i < 26) {
+        string $letter = Core\Str::slice($letters, $i, 1);
+        array<string> $patterns = [$letter, Core\Str::repeat($letter, 5)];
+        foreach ($patterns as string $pattern) {
+            try {
+                $date->format($pattern);
+                $rendered = $rendered + 1;
+            } catch (LogicError $bad) {
+                $refused = $refused + 1;
+            }
+        }
+        $i = $i + 1;
+    }
+}
+echo $rendered + $refused, " patterns tried\n";
+
+// 5. Many formats of the last date in the calendar. Every text on the way is freed.
+var $last = Core\Time\Date::at(9999, 12, 31);
+int $round = 0;
+while ($round < 200000) {
+    $last->format('EEEE, d MMMM yyyy G QQQQ');
+    $round = $round + 1;
+}
+echo $round, " formats\n";
