@@ -21531,16 +21531,16 @@ Writes character data into the open element, escaped. This is the writer's escap
 $writer->attribute(string $name, string $value): void
 ```
 
-Writes one attribute on the element that was just opened. A single call rather than a pair, because an attribute holds a value and cannot contain nodes — the pair PHP has exists only to let text be written between its halves.
+Adds one attribute to the element that `startElement` opened last. Call it right after `startElement`, before you write anything inside the element. The writer escapes the value, so a value can contain quotes, `<`, `&` and line breaks.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (launder) | The attribute's name, qualified prefix and all, and refused when it is not a name XML can write. |
-| `$value` | `string` (launder) | Its value, escaped into the quotes it is written between — the quote itself and the whitespace a parser would otherwise fold included, so what comes back out of a parse is what was written. `tainted` text is laundered for this sink exactly as `content`'s is. |
+| `$name` | `string` (launder) | The attribute's name, such as `id` or `xml:lang`. It must be a valid XML name. |
+| `$value` | `string` (launder) | The attribute's value. When a parser reads the document, it gets back exactly this text. A `tainted` value is allowed, because the writer escapes it. |
 
-**Returns** `void` — Nothing; the attribute is on the open start tag.
+**Returns** `void` — Nothing. The attribute is written in the element's start tag.
 
-**Throws** `LogicError` — No start tag is still taking attributes, the element already carries an attribute of that name, the name is not a name XML can write, the value holds a character XML cannot write, or the document is not open.
+**Throws** `LogicError` — Something was already written inside the element, or no element is open. The element already has an attribute with this name. The name is not a valid XML name. The value contains a control character that XML cannot write. The document is not open.
 
 <a id="core-core-xml-writer-comment"></a>
 #### `Core\Xml\Writer->comment`

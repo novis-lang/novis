@@ -1,26 +1,23 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Xml\\Writer has been taken yet.",
+  "state": "Goal `core-xml-writer`: `Core\\Xml\\Writer::attribute` has all its feature proofs. `Core\\Xml\\Writer` has its class card (`WRITER_CARD` in `crates/nvs-stdlib/src/xml.rs`), so it is off `CLASSES_STILL_OWING_A_CARD`. Every other Writer member still owes examples, hostile, perf and a Rust test.\nThe attack found a real bug, now fixed: `attribute`'s duplicate-name check scanned every earlier name, so 100,000 attributes on one element ran past 25s. The tag's names are now array keys (one lookup).\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands: every emitted piece is its own string, so a bench or attack that writes millions of pieces stops at the memory limit. Keep new writer attacks under about 500,000 pieces, or mark them with that gap.\nMember cards are rewritten in plain words when their member's slice lands (`ATTRIBUTE_DOC` is the model). `COMMENT_DOC` and `CDATA_DOC` are still in the old dense voice.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "member proofs",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` (the cards near `COMMENT_DOC`, the bodies near `fn comment`, the writer tests near `attribute_values_parse_back_and_names_are_checked_per_tag`), plus the three proof trees under `core/Xml-Writer/<member>`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Writer::attribute`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:672`"
+        "text": "**`Core\\Xml\\Writer::comment`** — owes examples, hostile, perf, tests; rewrite `COMMENT_DOC` in plain words. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3273` (body), `crates/nvs-stdlib/src/xml.rs:926` (card)"
       },
       {
         "done": false,
-        "text": "**`Core\\Xml\\Writer::cdata`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:690`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Xml\\Writer::comment`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:681`"
+        "text": "**`Core\\Xml\\Writer::cdata`** — the same four proofs; rewrite `CDATA_DOC`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3295` (body), `crates/nvs-stdlib/src/xml.rs:946` (card)"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "The remaining Writer members (`startDocument`, `endDocument`, `startElement`, `endElement`, `content`, `instruction`, `doctype`), in the goal's order — `bun nv proofs --owed`.",
+    "`nvs-stdlib/an-xml-writer-holds-a-string-per-piece` — owner M12, `data/gaps/nvs-stdlib/`."
   ]
 }
