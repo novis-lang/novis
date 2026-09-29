@@ -1,0 +1,47 @@
+<?nvs
+// Attack: zones are made from offsets at the limit, one step past it, and from the largest durations.
+// Every offset that is not allowed should throw an error, and nothing should crash or leak.
+
+final class Try
+{
+    // This makes a zone from `$offset`. It returns the offset in seconds, or "error" when it throws.
+    public static function fixed(Core\Time\Duration $offset): string
+    {
+        try {
+            Core\Time\Zone $zone = Core\Time\Zone::fixed($offset);
+            return $zone->offsetAt(Core\Time::fromEpoch(0))->toSeconds() as string;
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. The last offset allowed on each side, and one second past it.
+echo Try::fixed(Core\Time\Duration::seconds(93599)), ' ', Try::fixed(Core\Time\Duration::seconds(93600)), "\n";
+echo Try::fixed(Core\Time\Duration::seconds(-93599)), ' ', Try::fixed(Core\Time\Duration::seconds(-93600)), "\n";
+
+// 2. The largest and smallest durations there are, and one nanosecond from zero.
+echo Try::fixed(Core\Time\Duration::nanoseconds(9223372036854775807)), "\n";
+echo Try::fixed(Core\Time\Duration::nanoseconds(-9223372036854775807 - 1)), "\n";
+echo Try::fixed(Core\Time\Duration::nanoseconds(9223372036000000000)), "\n";
+echo Try::fixed(1ns), ' ', Try::fixed((0s)->minus(1ns)), "\n";
+
+// 3. The widest zones are used on the first and the last instant there is.
+Core\Time\Zone $east = Core\Time\Zone::fixed(Core\Time\Duration::seconds(93599));
+Core\Time\Zone $west = Core\Time\Zone::fixed(Core\Time\Duration::seconds(-93599));
+echo Core\Time::fromIso('9999-12-30T22:00:00Z')->in($east)->format('uuuu-MM-dd HH:mm:ss'), "\n";
+echo Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($west)->format('uuuu-MM-dd HH:mm:ss'), "\n";
+
+// 4. Many zones are made and thrown away, one for every offset in steps of seven seconds.
+int $made = 0;
+int $refused = 0;
+int $s = -100000;
+while ($s <= 100000) {
+    if (Try::fixed(Core\Time\Duration::seconds($s)) == 'error') {
+        $refused = $refused + 1;
+    } else {
+        $made = $made + 1;
+    }
+    $s = $s + 7;
+}
+echo $made, ' made, ', $refused, " refused\n";

@@ -1000,7 +1000,7 @@ pub const ZONE_NAME: &str = r"Core\Time\Zone";
 /// handle ([`crate::instance`] owns why that matters).
 pub const ZONE: CoreClass = CoreClass {
     name: ZONE_NAME,
-    doc: None,
+    doc: Some(&ZONE_CARD),
     methods: &[
         CoreMethod {
             name: "of",
@@ -1052,6 +1052,14 @@ pub const ZONE: CoreClass = CoreClass {
     }],
 };
 
+/// `Core\Time\Zone`'s class card — `rule:core-api/reference-card`.
+const ZONE_CARD: ClassDoc = ClassDoc {
+    short: "A time zone, such as `Europe/Berlin` or a fixed offset like `+02:00`. Every \
+            conversion between an `Instant` and a `DateTime` needs one, and there is no \
+            default zone. `Zone::of` finds a zone by its name, `Zone::fixed` makes one from \
+            an offset, and `offsetAt` returns the offset at one instant.",
+};
+
 /// `Core\Time\Zone::of`'s reference card — `rule:core-api/reference-card`.
 const ZONE_OF_DOC: MethodDoc = MethodDoc {
     short: "Looks an IANA identifier such as `Europe/Berlin` up in the bundled time-zone \
@@ -1072,18 +1080,21 @@ const ZONE_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Zone::fixed`'s reference card — `rule:core-api/reference-card`.
 const ZONE_FIXED_DOC: MethodDoc = MethodDoc {
-    short: "Builds a zone at a fixed offset from UTC, with no DST rules — for a timestamp that \
-            carries an offset rather than a region, which is every RFC 3339 string.",
+    short: "Makes a zone that is always the same distance from UTC, such as `+05:30`. Its \
+            offset never changes for summer time. Use it for a timestamp that has an offset \
+            and no zone name, such as `2024-03-05T10:00:00+05:30`.",
     params: &[ParamDoc {
         name: "offset",
-        desc: "The offset east of UTC, a whole number of seconds; negative for a zone west of \
-               Greenwich.",
+        desc: "The distance from UTC as a whole number of seconds. It is negative for a zone \
+               west of UTC.",
         shape: &[],
     }],
-    ret: "A `Zone` whose identifier is the offset's `±HH:MM[:SS]` spelling.",
+    ret: "A `Zone` whose name is the offset, written `+HH:MM`, or `+HH:MM:SS` when it has \
+          seconds.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$offset` has a subsecond part, or lies outside ±25:59:59 of UTC.",
+        desc: "`$offset` has a part smaller than a second, or is more than 25:59:59 away from \
+               UTC.",
     }],
 };
 
@@ -7986,6 +7997,77 @@ mod tests {
                 };
                 assert_eq!(compared(*left, *right), expected, "{left} against {right}");
             }
+        }
+    }
+
+    /// `fixed` stores the offset under its `±HH:MM[:SS]` id, writing the
+    /// seconds only when there are some, and that id resolves back to the same
+    /// offset. `±25:59:59` is the last offset accepted on each sign and one
+    /// second further is refused, and a nanosecond either side of a whole
+    /// second is refused before the range is looked at.
+    // covers: Core\Time\Zone::fixed
+    #[test]
+    fn zone_fixed_spells_its_offset_as_the_id_and_bounds_it_on_both_sides() {
+        const SECOND: i64 = 1_000_000_000;
+        let fixed = |nanos: i64| {
+            let mut ctx = Ctx::buffered();
+            let args = [built(nanos)];
+            let read = match nvs_runtime::call(nvs_core_time_zone_fixed, &mut ctx, &args) {
+                Ok(zone) => {
+                    let id = crate::instance::receiver(zone, &ZONE, "fixed")
+                        .ok()
+                        .and_then(|object| {
+                            crate::instance::slot(object, ZONE_ID_SLOT)
+                                .as_text()
+                                .map(str::to_owned)
+                        })
+                        .expect("`fixed` answers a `Zone` with a text id");
+                    #[expect(unsafe_code, reason = "the member returned a fresh `Zone`")]
+                    unsafe {
+                        zone.release();
+                    }
+                    Ok(id)
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a refused call leaves its sentence pending")
+                    .into_owned()),
+            };
+            for held in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built the argument, and the member borrowed it"
+                )]
+                unsafe {
+                    held.release();
+                }
+            }
+            read
+        };
+        for (seconds, id) in [
+            (0, "+00:00"),
+            (19_800, "+05:30"),
+            (-12_600, "-03:30"),
+            (-1, "-00:00:01"),
+            (93_599, "+25:59:59"),
+            (-93_599, "-25:59:59"),
+        ] {
+            assert_eq!(fixed(seconds * SECOND).as_deref(), Ok(id), "{seconds}s");
+            let resolved = resolve_zone(id).expect("the id resolves");
+            let offset = resolved.to_offset(Timestamp::UNIX_EPOCH).seconds();
+            assert_eq!(i64::from(offset), seconds, "{id}");
+        }
+        let range = r"Core\Time\Zone::fixed(): a zone offset is within 25:59:59 of UTC";
+        let whole = r"Core\Time\Zone::fixed(): a zone offset is a whole number of seconds";
+        for refused in [
+            93_600 * SECOND,
+            -93_600 * SECOND,
+            i64::MAX / SECOND * SECOND,
+        ] {
+            assert_eq!(fixed(refused), Err(range.to_owned()), "{refused}ns");
+        }
+        for refused in [1, -1, SECOND + 1, SECOND - 1, 93_600 * SECOND + 1, i64::MIN] {
+            assert_eq!(fixed(refused), Err(whole.to_owned()), "{refused}ns");
         }
     }
 }

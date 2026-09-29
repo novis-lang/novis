@@ -13742,15 +13742,15 @@ Looks an IANA identifier such as `Europe/Berlin` up in the bundled time-zone dat
 Core\Time\Zone::fixed(Core\Time\Duration $offset): Core\Time\Zone
 ```
 
-Builds a zone at a fixed offset from UTC, with no DST rules — for a timestamp that carries an offset rather than a region, which is every RFC 3339 string.
+Makes a zone that is always the same distance from UTC, such as `+05:30`. Its offset never changes for summer time. Use it for a timestamp that has an offset and no zone name, such as `2024-03-05T10:00:00+05:30`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$offset` | `Core\Time\Duration` | The offset east of UTC, a whole number of seconds; negative for a zone west of Greenwich. |
+| `$offset` | `Core\Time\Duration` | The distance from UTC as a whole number of seconds. It is negative for a zone west of UTC. |
 
-**Returns** `Core\Time\Zone` — A `Zone` whose identifier is the offset's `±HH:MM[:SS]` spelling.
+**Returns** `Core\Time\Zone` — A `Zone` whose name is the offset, written `+HH:MM`, or `+HH:MM:SS` when it has seconds.
 
-**Throws** `RuntimeError` — `$offset` has a subsecond part, or lies outside ±25:59:59 of UTC.
+**Throws** `RuntimeError` — `$offset` has a part smaller than a second, or is more than 25:59:59 away from UTC.
 
 <a id="core-core-time-zone-system"></a>
 #### `Core\Time\Zone::system`
