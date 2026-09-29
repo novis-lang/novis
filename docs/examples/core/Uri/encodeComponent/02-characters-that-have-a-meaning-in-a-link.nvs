@@ -1,0 +1,14 @@
+<?nvs
+// Shows that the characters with a meaning in a link are escaped, so a value cannot change the link.
+
+// A `/` in a name would start a new part of the path. It becomes `%2F`.
+// This prints /tags/red%2Fblue.
+echo "/tags/", Core\Uri::encodeComponent("red/blue"), "\n";
+
+// A `&` would start a new query pair, and `=` would end a name. They become `%26` and `%3D`.
+// This prints /search?q=salt%20%26%20pepper%3D1.
+echo "/search?q=", Core\Uri::encodeComponent("salt & pepper=1"), "\n";
+
+// Letters, digits and `-_.~` are not changed.
+// This prints version-2_final.txt~.
+echo Core\Uri::encodeComponent("version-2_final.txt~"), "\n";

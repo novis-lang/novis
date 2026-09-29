@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program escapes very long texts in which every byte needs an escape, so the
+// result is three times as long. Each call should return the text or throw an error.
+// The last one should stop at the memory limit before the result is built.
+// hostile: ends-early
+
+class Encode
+{
+    public static function length(string $s): string
+    {
+        return Core\Str::length(Core\Uri::encodeComponent($s)) as string;
+    }
+}
+
+// 1. The empty text. This prints 0.
+echo Encode::length(''), "\n";
+
+// 2. A million slashes. Each one becomes `%2F`. This prints 3000000.
+echo Encode::length(Core\Str::repeat('/', 1000000)), "\n";
+
+// 3. Half a million "é". Each one is two bytes, so it becomes six characters. This prints 3000000.
+echo Encode::length(Core\Str::repeat('é', 500000)), "\n";
+
+// 4. Escape the same text ten times. Each `%` is escaped again as `%25`. This prints 21.
+string $again = '/';
+uint $round = 0;
+while ($round < 10) {
+    $again = Core\Uri::encodeComponent($again);
+    $round = $round + 1;
+}
+echo Core\Str::length($again), "\n";
+
+// 5. 100000 escapes, and every result is freed. This prints 100000.
+uint $done = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Uri::encodeComponent('a b/c') == 'a%20b%2Fc') {
+        $done = $done + 1;
+    }
+    $i = $i + 1;
+}
+echo $done, "\n";
+
+// 6. 200 million slashes. The result would need 600 MB.
+// The program stops here with a memory limit error.
+echo Encode::length(Core\Str::repeat('/', 200000000)), "\n";
