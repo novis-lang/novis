@@ -1,0 +1,24 @@
+<?nvs
+// Replaces the scheme and the host of an address, as a server does when it turns an internal link into a public one.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $links = [
+            Core\Uri::parse("http://10.0.0.7:9000/download/42?name=report.pdf"),
+            Core\Uri::parse("http://files.internal:8080/a/b/c"),
+            Core\Uri::parse("http://127.0.0.1/health#ok"),
+        ];
+        array<string> $hosts = ["files.example.com", "cdn.example.com", "example.com"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $public = $links[($total % 3) as int]->with({scheme: "https", host: $hosts[($i % 3) as int], port: null});
+            $total = $total + Core\Str::length($public->toString());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

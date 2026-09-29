@@ -1,0 +1,87 @@
+<?nvs
+// Attack: a program builds an address from parts a request sent, and each part tries to change
+// another part, such as the host. Each call should return a valid address or throw an error.
+
+class Swap
+{
+    public static function host(string $address, string $path): string
+    {
+        try {
+            mixed $host = Core\Uri::parse($address)->with({ path: $path })->host();
+            return $host == null ? 'no host' : $host as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+
+    public static function text(string $address, string $part, string $value): string
+    {
+        try {
+            var $uri = Core\Uri::parse($address);
+            if ($part == 'host') {
+                return $uri->with({ host: $value })->toString();
+            }
+            if ($part == 'query') {
+                return $uri->with({ query: $value })->toString();
+            }
+            if ($part == 'fragment') {
+                return $uri->with({ fragment: $value })->toString();
+            }
+            return $uri->with({ scheme: $value })->toString();
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+
+    public static function port(int $port): string
+    {
+        try {
+            return Core\Uri::parse('https://example.com/')->with({ port: $port })->toString();
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A path that starts with `//` on an address without a host. It would become a host.
+// This prints "error".
+echo Swap::host('/account', '//evil.example.net/login'), "\n";
+
+// 2. A path without `/` next to a host. It would join the host. This prints "error".
+echo Swap::host('https://example.com/', 'evil.example.net'), "\n";
+
+// 3. A host that carries a port, a user or a path. Each one prints "error".
+echo Swap::text('https://example.com/', 'host', 'example.com:80'), "\n";
+echo Swap::text('https://example.com/', 'host', 'admin@evil.example.net'), "\n";
+echo Swap::text('https://example.com/', 'host', 'evil.example.net/x'), "\n";
+
+// 4. A query that carries a fragment, and a fragment that carries a second `#`.
+// Each one prints "error".
+echo Swap::text('https://example.com/', 'query', 'a=1#b'), "\n";
+echo Swap::text('https://example.com/', 'fragment', 'top#b'), "\n";
+
+// 5. A scheme with a `:` and a scheme with a space. Each one prints "error".
+echo Swap::text('https://example.com/', 'scheme', 'javascript:alert'), "\n";
+echo Swap::text('https://example.com/', 'scheme', 'ht tp'), "\n";
+
+// 6. Ports at both ends of the range and past them.
+// This prints the address with port 0, then with port 65535, then "error" three times.
+echo Swap::port(0), "\n";
+echo Swap::port(65535), "\n";
+echo Swap::port(65536), "\n";
+echo Swap::port(-1), "\n";
+echo Swap::port(9223372036854775807), "\n";
+
+// 7. A path of one million characters. This prints 1000001.
+string $long = '/' . Core\Str::repeat('a', 1000000);
+echo Core\Str::length(Core\Uri::parse('https://example.com/')->with({ path: $long })->path()), "\n";
+
+// 8. 100000 changes in a chain. Each one is made on the result of the last,
+// and every address in between is freed. This prints example.com:/100000.
+var $chain = Core\Uri::parse('https://example.com/');
+uint $i = 0;
+while ($i < 100000) {
+    $i = $i + 1;
+    $chain = $chain->with({ path: '/' . $i, fragment: null });
+}
+echo $chain->host() as string, ':', $chain->path(), "\n";

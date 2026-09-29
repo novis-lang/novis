@@ -15257,20 +15257,20 @@ The reference this `Uri` was parsed from, byte for byte — not a recomposition 
 $uri->with({scheme?: string, host?: string, port?: ?int, path?: string, query?: ?string, fragment?: ?string}): Core\Uri
 ```
 
-A fresh `Uri` with the named components replaced and every other one carried over, replacing reassembly by hand. Writing `null` for `port`, `query` or `fragment` removes that component, where leaving the key out carries it over; `userInfo` is not on the bag, so it can neither add nor drop a credential.
+Returns a new `Uri` with some parts of the address changed. You name the parts in a block, for example `with({scheme: "https", port: null})`. Each part you do not name stays the same. `null` removes the `port`, the `query` or the `fragment`. The user part (`userInfo`) is always kept.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{scheme: …}` | `string` (default `null`) | The new scheme, without its `:`. |
-| `{host: …}` | `string` (default `null`) | The new host; an IPv6 literal carries its brackets. |
-| `{port: …}` | `?int` (default `(omitted)`) | The new port, `0`–`65535`, or `null` to remove it. |
-| `{path: …}` | `string` (default `null`) | The new path, already percent-encoded; beside a host it must begin with `/`. |
-| `{query: …}` | `?string` (default `(omitted)`) | The new query, already encoded and without its `?`, or `null` to remove it; `""` is an empty query, which is a different thing. |
-| `{fragment: …}` | `?string` (default `(omitted)`) | The new fragment, already encoded and without its `#`, or `null` to remove it. |
+| `{scheme: …}` | `string` (default `null`) | The new scheme, without the `:`. |
+| `{host: …}` | `string` (default `null`) | The new host. An IPv6 address is written in brackets, such as `[::1]`. |
+| `{port: …}` | `?int` (default `(omitted)`) | The new port, from `0` to `65535`. `null` removes the port. |
+| `{path: …}` | `string` (default `null`) | The new path, already encoded. When the address has a host, the path must start with `/`. |
+| `{query: …}` | `?string` (default `(omitted)`) | The new query, already encoded and without the `?`. `null` removes the query. `""` gives an empty query, so the address ends with `?`. |
+| `{fragment: …}` | `?string` (default `(omitted)`) | The new fragment, already encoded and without the `#`. `null` removes the fragment. |
 
-**Returns** `Core\Uri` — A new `Uri`; the receiver is unchanged. A receiver whose port was written empty (`h:/`) loses that `:` on the way through.
+**Returns** `Core\Uri` — A new `Uri`. The `Uri` you call it on does not change. An empty port, as in `h:/`, is removed from the result.
 
-**Throws** `RuntimeError` — `port` is outside `0`–`65535`; a component makes the result text the RFC 3986 grammar does not admit; or the components do not recompose to a URI that still holds them — a `path` beside a `host` that lacks its leading `/` lands in the host — and the first component that moved is named.
+**Throws** `RuntimeError` — The port is outside `0` to `65535`. It is also thrown when a part makes the address invalid, or when a part would move into another part. For example, a path without `/` next to a host would become part of the host. The message names the part that moved.
 
 <a id="core-core-uri-queryparameter"></a>
 #### `Core\Uri->queryParameter`
@@ -15296,16 +15296,16 @@ Returns one value from the query of the address, by its name. For `/search?q=red
 $uri->withQueryParameter(string $name, mixed $value): Core\Uri
 ```
 
-A fresh `Uri` with one query parameter set, replaced or removed and every other pair carried over — `Core\Uri::parseQuery`, the edit and `Core\Uri::buildQuery` in one member instead of three at the call site.
+Returns a new `Uri` with one query parameter set, replaced or removed. For `/search?q=shoes&page=2`, `withQueryParameter("page", 3)` returns `/search?q=shoes&page=3`. The other pairs are kept. The `Uri` you call it on does not change.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` | The parameter's name, decoded and top-level; brackets are written by an array `value`, never by spelling them into the name. |
-| `$value` | `mixed` | The new value: a scalar, or an array nested to any depth, which is written under the bracket convention. `null` removes the parameter. |
+| `$name` | `string` | The name of the parameter, without brackets. An array `value` writes the brackets. |
+| `$value` | `mixed` | The new value. It can be a scalar or an array. An array is written with brackets, the same way `Core\Uri::buildQuery` writes it. `null` removes the parameter. |
 
-**Returns** `Core\Uri` — A new `Uri`; the receiver is unchanged. Removing the last parameter leaves no query at all rather than a bare `?`, and every pair that is carried over is rewritten in `buildQuery`'s spelling rather than the one it arrived in.
+**Returns** `Core\Uri` — A new `Uri`. When the last parameter is removed, the address has no `?`. The whole query is written again, so the encoding of the other pairs can change: `%20` becomes `+`.
 
-**Throws** `RuntimeError` — A name in the receiver's own query decodes to octets that are not valid UTF-8; `value` is neither a scalar nor a nested array; or the rebuilt reference does not still hold every component it was written out of, which is `with`'s refusal reached through the same recompose-and-reread path.
+**Throws** `RuntimeError` — A name in the query has escapes that do not decode to valid UTF-8 text. It is also thrown when `value` is not a scalar, an array or `null`, for example an object.
 
 <a id="core-core-uri-resolve"></a>
 #### `Core\Uri->resolve`

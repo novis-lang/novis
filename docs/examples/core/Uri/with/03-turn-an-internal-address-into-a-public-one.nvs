@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a server turns the address of an internal service into the address its users see.
+
+class PublicLink {
+    public static function of(string $internal): string {
+        // Only the scheme, the host and the port change. The path and the query are kept.
+        return Core\Uri::parse($internal)
+            ->with({scheme: "https", host: "files.example.com", port: null})
+            ->toString();
+    }
+}
+
+// This prints https://files.example.com/download/42?name=report.pdf.
+echo PublicLink::of("http://10.0.0.7:9000/download/42?name=report.pdf"), "\n";
