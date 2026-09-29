@@ -1,0 +1,25 @@
+<?nvs
+// Reads a zone's offset at an instant, as a program does before it shows a local time.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        Core\Time\Zone $berlin = Core\Time\Zone::of("Europe/Berlin");
+        array<Core\Time\Instant> $days = [
+            Core\Time::fromEpoch(1705320000),
+            Core\Time::fromEpoch(1713182400),
+            Core\Time::fromEpoch(1721044800),
+            Core\Time::fromEpoch(1728993600),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the instant
+            $total = $total + 1 + $berlin->offsetAt($days[$total % 4])->toSeconds() % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -2,6 +2,7 @@
 `Core\Time`'s unknown-zone refusal names the member that was handed the id, and a zone it accepted is never refused again — spec § 4, `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
+// covers: Core\Time\Zone::offsetAt
 // One sentence — "unknown time zone `id`" — is spelled three times in
 // `crates/nvs-stdlib/src/time.rs`, each with the name of the member that would
 // speak it in front of it. Exactly one of the three is reachable from a

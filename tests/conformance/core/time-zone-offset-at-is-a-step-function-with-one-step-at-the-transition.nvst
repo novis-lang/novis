@@ -2,6 +2,7 @@
 Spec § 4: `offsetAt` takes the instant because an offset is a step function of it — constant between transitions, and one step across one
 --FILE--
 <?nvs
+// covers: Core\Time\Zone::offsetAt
 // `$z->offsetAt(Instant $i)` asks for the instant precisely because an offset
 // is not a property of a zone: `Europe/Berlin` is `+01:00` in January and
 // `+02:00` in July. The property that says so is not any one row but the

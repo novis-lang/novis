@@ -1,0 +1,14 @@
+<?nvs
+// Shows how many hours Tokyo is ahead of London on two days of the year.
+
+Core\Time\Zone $london = Core\Time\Zone::of("Europe/London");
+Core\Time\Zone $tokyo = Core\Time\Zone::of("Asia/Tokyo");
+array<string> $days = ["2024-01-10T09:00:00Z", "2024-07-10T09:00:00Z"];
+
+// The difference is the Tokyo offset minus the London offset on that day.
+// London has summer time and Tokyo does not, so this prints 9h and then 8h.
+foreach ($days as string $day) {
+    Core\Time\Instant $at = Core\Time::fromIso($day);
+    Core\Time\Duration $ahead = $tokyo->offsetAt($at)->minus($london->offsetAt($at));
+    echo $day, ": Tokyo is ", $ahead->toString(), " ahead\n";
+}

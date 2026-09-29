@@ -1,0 +1,33 @@
+<?nvs
+// Attack: offsets are read at the first and last instants there are, and at every week of 400 years.
+// Every read should return an offset, and nothing should crash, hang or leak.
+
+// 1. Zones with summer time, and the widest fixed zones, at the first and the last instant.
+array<string> $names = ['Europe/Berlin', 'America/New_York', 'Australia/Lord_Howe', 'Pacific/Kiritimati'];
+array<string> $ends = ['-009999-01-02T01:59:59Z', '9999-12-30T22:00:00Z'];
+foreach ($ends as string $end) {
+    Core\Time\Instant $edge = Core\Time::fromIso($end);
+    foreach ($names as string $name) {
+        echo Core\Time\Zone::of($name)->offsetAt($edge)->toSeconds(), ' ';
+    }
+    echo Core\Time\Zone::fixed(Core\Time\Duration::seconds(93599))->offsetAt($edge)->toSeconds(), ' ';
+    echo Core\Time\Zone::fixed(Core\Time\Duration::seconds(-93599))->offsetAt($edge)->toSeconds(), "\n";
+}
+
+// 2. One zone is read every week from 1800 to 2200. Each change of the offset is counted.
+Core\Time\Zone $lordHowe = Core\Time\Zone::of('Australia/Lord_Howe');
+Core\Time\Instant $at = Core\Time::fromIso('1800-01-01T00:00:00Z');
+Core\Time\Instant $last = Core\Time::fromIso('2200-01-01T00:00:00Z');
+int $previous = $lordHowe->offsetAt($at)->toSeconds();
+int $changes = 0;
+int $weeks = 0;
+while ($at->toEpochSeconds() < $last->toEpochSeconds()) {
+    int $offset = $lordHowe->offsetAt($at)->toSeconds();
+    if ($offset != $previous) {
+        $changes = $changes + 1;
+    }
+    $previous = $offset;
+    $at = $at->plus(168h);
+    $weeks = $weeks + 1;
+}
+echo $weeks, ' weeks, ', $changes, " changes\n";
