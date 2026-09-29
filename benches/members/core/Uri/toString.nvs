@@ -1,0 +1,24 @@
+<?nvs
+// Gets the text of a parsed address, as a server does when it writes a link into a header or a page.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $links = [
+            Core\Uri::parse("https://shop.example.com/cart?item=42#total"),
+            Core\Uri::parse("http://localhost:8080/health"),
+            Core\Uri::parse("/docs/start?page=2"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $text = $links[($total % 3) as int]->toString();
+            $total = $total + Core\Str::length($text);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how an API builds the `Link` header that points to the next page of results.
+
+class NextPage {
+    public static function header(Core\Uri $current, int $page): string {
+        // `toString` gives the new address as a `string`.
+        string $next = $current->withQueryParameter("page", $page + 1)->toString();
+        return "<" . $next . ">; rel=\"next\"";
+    }
+}
+
+var $request = Core\Uri::parse("https://api.example.com/orders?status=open&page=1");
+
+// This prints <https://api.example.com/orders?status=open&page=2>; rel="next".
+echo NextPage::header($request, 1), "\n";
