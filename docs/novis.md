@@ -21382,9 +21382,9 @@ Returns the attributes of this element, in the order the document wrote them. It
 $node->children(): array<Core\Xml\Node>
 ```
 
-This node's children, in document order — the document's are its root element and whatever comments and processing instructions sit beside it, an element's are its content. Empty for a text node, a comment and a processing instruction, which are leaves.
+Returns the children of this node, in the order of the document. For the document node, this is the root element and any comment or processing instruction beside it. For an element, it is everything between its start tag and its end tag. A text, a comment and a processing instruction have no children, so the array is empty.
 
-**Returns** `array<Core\Xml\Node>` — One `Core\Xml\Node` per child, including the text nodes a pretty-printed document has between its elements: whitespace in an XML document is content, and dropping it would be a guess about which of it mattered.
+**Returns** `array<Core\Xml\Node>` — An array with one `Core\Xml\Node` per child. The spaces and line breaks between two elements are text nodes, and they are in the array too.
 
 <a id="core-core-xml-node-source"></a>
 #### `Core\Xml\Node->source`

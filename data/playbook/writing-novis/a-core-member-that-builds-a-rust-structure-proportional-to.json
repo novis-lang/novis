@@ -1,0 +1,11 @@
+{
+  "lead": "A `Core` member that builds a Rust structure proportional to its input can hold far more than the request's memory limit, and nothing stops it.",
+  "body": "The global allocator counts every Rust allocation against the request but never refuses one; only `nvs_runtime::affordable` refuses, and a member that never asks it builds past the cap. Ask the budget inside the loop that grows the structure (`Reader::afford` in `crates/nvs-stdlib/src/xml.rs` asks once per node) and turn the refusal into the memory limit's `FATAL`, never a catchable throw.",
+  "files": [
+    "crates/nvs-stdlib/src/xml.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/xml.rs:fn afford"
+  }
+}

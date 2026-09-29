@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-xml-node-and-1-more`: 1 of 3 members has its feature proofs on disk.\n`Core\\Xml\\Node::attributes` is done: about.md, three examples, an attack, a bench with a recorded\nfigure, two `.nvst` cases and one Rust test, and a plain card. `Core\\Xml\\Node` now has its class\ncard (`NODE_CARD` in `crates/nvs-stdlib/src/xml.rs`) and is off `CLASSES_STILL_OWING_A_CARD`.\nThe attributes slice found and fixed a bug: a literal tab, line feed or `\\r\\n` in an attribute\nvalue now reads as one space (XML 1.0 § 3.3.3, and PHP's `DOMDocument` agrees), which is what\n`quoted` in `xml.rs` already assumed when it writes those three as references.\n`bun nv proofs --id` reads `target/release/nvs.exe` unless `--nvs target/covws/x86_64-pc-windows-msvc/debug/nvs.exe`\nis passed, so its help column can report a card that is already written.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
+  "state": "Goal `core-xml-node-and-1-more`: 2 of 3 members have their feature proofs on disk.\n`Core\\Xml\\Node::attributes` and `Core\\Xml\\Node::children` are done. `children` has about.md,\nthree examples, an attack, a bench with a recorded figure, two `.nvst` cases carrying its\n`covers:` marker, a Rust test, and a plain card.\nThe children attack found a bug, now fixed: `Core\\Xml::parse` built its Rust tree without asking\nthe budget, so a 40 MB document of `<i/>` reached 3.8 GB against a 256 MB cap. The parse now\nasks once per node and per attribute (`Reader::afford`), and a breach is the limit's `FATAL`.\n`a_parse_stops_at_the_memory_limit_while_it_builds_the_tree` pins it.\nEvery Xml bench is re-measured against the changed `xml.rs`.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
   "next": {
     "stage": 1,
     "title": "member proofs",
@@ -13,16 +13,21 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Node::children`** — owes about, examples, hostile, perf, tests (an existing `xml-*.nvst` case that calls `->children()` needs only a `// covers:` marker). Rewrite `CHILDREN_DOC` in the plain voice first: `crates/nvs-stdlib/src/xml.rs:438`, member at `crates/nvs-stdlib/src/xml.rs:2335`. `rule:testing/feature-proofs`"
+        "text": "**`Core\\Xml\\Node::kind`** — owes about, examples, hostile, perf, tests. Rewrite `KIND_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:376`, member at `crates/nvs-stdlib/src/xml.rs:2321`. The two `.nvst` cases that now cover `children` also call `->kind()` and need only a `// covers:` line. `rule:testing/feature-proofs`"
       },
       {
         "done": false,
-        "text": "**`Core\\Xml\\Node::kind`** — owes about, examples, hostile, perf, tests. Rewrite `KIND_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:374`, member at `crates/nvs-stdlib/src/xml.rs:2289`. A bench here can declare `// bench: allocations 0`, since the member returns an enum case. `rule:testing/feature-proofs`"
+        "text": "**`Core\\Xml\\Node::text`** — owes about, examples, hostile, perf, tests. Rewrite `TEXT_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:414`, member at `crates/nvs-stdlib/src/xml.rs:2351`. `rule:testing/feature-proofs`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Xml\\Node::source`** — owes about, examples, hostile, perf, one more test case. Rewrite `SOURCE_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:452`, member at `crates/nvs-stdlib/src/xml.rs:2575`. `rule:testing/feature-proofs`"
       }
     ]
   },
   "backlog": [
-    "Text nodes may keep a literal `\\r\\n` as two characters, where XML 1.0 § 2.11 reads it as one `\\n`. Not checked. Belongs to `Core\\Xml\\Node::text`, a member outside this goal; check with a probe before it goes in `crates/nvs-stdlib/src/xml.rs`'s `# Known gaps`.",
-    "The cards of `name`, `namespaceUri`, `text` and `source` are still in the dense voice. They are goal `plain-comments`'s to sweep."
+    "`Core\\Xml\\Reader::read` and `::depth` owe every proof, and the class owes its card: `READ_DOC` at `crates/nvs-stdlib/src/xml.rs:582`, `DEPTH_DOC` at `crates/nvs-stdlib/src/xml.rs:602`, and the class's row in `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283`. Check `dossier-core-xml-reader`.",
+    "`Core\\Html::parse` may build its tree without asking the budget, the same way `Core\\Xml::parse` did. Not checked. The owner is `crates/nvs-stdlib/src/html.rs`'s module doc.",
+    "A 500000-child XML tree holds about 440 bytes per node against the cap. That is footprint, not a bug. The owner is `crates/nvs-stdlib/src/xml.rs` § *What this spends*."
   ]
 }
