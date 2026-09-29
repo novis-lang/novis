@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to read the UUIDs that a binary message sends one after another.
+
+class Ids {
+    public static function read(bytes $message): array<Core\Uuid> {
+        array<Core\Uuid> $ids = [];
+        int $offset = 0;
+        while ($offset < (Core\Bytes::length($message) as int)) {
+            // Each UUID is the next sixteen bytes of the message.
+            $ids[] = Core\Uuid::fromBytes(Core\Bytes::slice($message, $offset, 16));
+            $offset = $offset + 16;
+        }
+        return $ids;
+    }
+}
+
+// The message has two UUIDs, so it is 32 bytes long.
+bytes $message = Core\Bytes::join([
+    Core\Encoding::fromHex("0190d1e68e3c7c2a9a4b1f2e3d4c5b6a"),
+    Core\Encoding::fromHex("f9168c5eceb24faab6bf329bf39fa1e4"),
+]);
+
+// This prints the two UUIDs as text.
+foreach (Ids::read($message) as Core\Uuid $id) {
+    echo $id, "\n";
+}

@@ -123,7 +123,9 @@ use uuid::{Builder, Uuid};
 
 use nvs_runtime::{Fault, NvsStr, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -140,7 +142,7 @@ pub const NAME: &str = r"Core\Uuid";
 /// two were one predicate and R17 keeps one.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "v4",
@@ -223,6 +225,14 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Uuid`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A UUID, which is a 128-bit identifier. `v4` and `v7` create a new one. `parse` reads \
+            one from its text, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`, and `fromBytes` \
+            reads one from its sixteen bytes. `toString` and `toBytes` give the text and the \
+            bytes back.",
+};
+
 /// `Core\Uuid::v4`'s reference card — `rule:core-api/reference-card`.
 const V4_DOC: MethodDoc = MethodDoc {
     short: "Draws a random UUID — 122 bits from the CSPRNG under RFC 9562's version-4 layout — \
@@ -247,20 +257,22 @@ const V7_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Uuid::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads `$s` as a UUID in RFC 9562's canonical hyphenated `8-4-4-4-12` form, in either \
-            letter case, replacing the hand-written validation PHP programs carried strings \
-            through.",
+    short: "Reads the text `$s` as a UUID. The text must be 32 hexadecimal digits in groups of \
+            8, 4, 4, 4 and 12, joined by hyphens, such as \
+            `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. Upper case and lower case letters are both \
+            allowed.",
     params: &[ParamDoc {
         name: "s",
-        desc: "The text to read, exactly 36 characters.",
+        desc: "The text to read. It must be exactly 36 characters long.",
         shape: &[],
     }],
-    ret: "The `Uuid` those 128 bits spell; the nil and max UUIDs parse, and the version nibble \
-          is not checked.",
+    ret: "The `Uuid` that the text gives. The version digit is not checked, so the nil UUID \
+          (all zeros) and the max UUID (all `f`) are both valid.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$s` is not the canonical form — the 32 unhyphenated digits, a `{…}`-braced \
-               spelling and a `urn:uuid:` prefix are refused too.",
+        desc: "`$s` is not in that form. The 32 digits without hyphens, a UUID in `{}` braces and \
+               a UUID after `urn:uuid:` all throw this error too. The message quotes up to 48 \
+               characters of `$s`.",
     }],
 };
 
@@ -279,19 +291,19 @@ const TRY_PARSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Uuid::fromBytes`'s reference card — `rule:core-api/reference-card`.
 const FROM_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "Reads sixteen octets as a UUID — the form a native `UUID` column and a binary \
-            protocol carry one in, with no canonical text on the way, replacing the \
-            `getBytes`/`fromBytes` pair of the userland libraries.",
+    short: "Reads sixteen bytes as a UUID. Many databases store a UUID in a binary column in \
+            this form, and binary protocols send it this way.",
     params: &[ParamDoc {
         name: "b",
-        desc: "The sixteen octets, most significant first, as `$uuid->toBytes()` writes them.",
+        desc: "The sixteen bytes, in the same order as the digits of the UUID's text. \
+               `$uuid->toBytes()` gives them in this order.",
         shape: &[],
     }],
-    ret: "The `Uuid` those 128 bits are; every pattern is one, the nil and the max included, so \
-          a length is all this checks.",
+    ret: "The `Uuid` that the bytes give. Any sixteen bytes are a valid UUID, so only the length \
+          is checked.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$b` is not exactly sixteen bytes long; the message names the length it got.",
+        desc: "`$b` is not exactly sixteen bytes long. The message gives the length of `$b`.",
     }],
 };
 
@@ -306,11 +318,12 @@ const TO_STRING_DOC: MethodDoc = MethodDoc {
 
 /// `$uuid->toBytes`'s reference card — `rule:core-api/reference-card`.
 const TO_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "Writes the receiver's sixteen octets, most significant first — `toString`'s twin for \
-            a native `UUID` column, a binary protocol or a hash input, where the canonical text \
-            would be 36 bytes spelling the same 128 bits.",
+    short: "Returns the sixteen bytes of the UUID. Use it to store a UUID in a binary database \
+            column or to send it in a binary message. The text form of the same UUID is 36 \
+            bytes long.",
     params: &[],
-    ret: "Sixteen bytes, which `Core\\Uuid::fromBytes` reads back as this same UUID.",
+    ret: "Sixteen bytes, in the same order as the digits of the UUID's text. \
+          `Core\\Uuid::fromBytes` reads them back as the same UUID.",
     errors: &[],
 };
 
@@ -833,6 +846,7 @@ mod tests {
     /// read off a line, so a pair that agreed on some of them still fails —
     /// and the width is asserted on both sides of sixteen, because a member
     /// that took a short buffer would answer a UUID the caller never had.
+    // covers: Core\Uuid::fromBytes, Core\Uuid::toBytes
     #[test]
     fn a_uuid_round_trips_through_its_sixteen_bytes() {
         let known = [
@@ -910,6 +924,7 @@ mod tests {
         parsed
     }
 
+    // covers: Core\Uuid::parse
     #[test]
     fn the_canonical_form_parses_in_either_case_and_renders_lower() {
         let subject = Value::str(nvs_runtime::NvsStr::new(

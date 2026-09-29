@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a request sends bytes of every wrong length, and very large ones, as a UUID.
+// Each call should return a UUID or throw an error, and every value should be freed.
+
+class Read
+{
+    public static function text(bytes $b): string
+    {
+        try {
+            return Core\Uuid::fromBytes($b)->toString();
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. No bytes at all. This prints "error".
+echo Read::text(Core\Bytes::fill(0, 0)), "\n";
+
+// 2. One byte too few and one byte too many. Both print "error".
+echo Read::text(Core\Bytes::fill(15, 255)), "\n";
+echo Read::text(Core\Bytes::fill(17, 255)), "\n";
+
+// 3. Sixteen bytes of 0 and sixteen bytes of 255 are both valid UUIDs.
+echo Read::text(Core\Bytes::fill(16, 0)), "\n";
+echo Read::text(Core\Bytes::fill(16, 255)), "\n";
+
+// 4. 16 MB of bytes. The error message gives only the length, so it stays short.
+try {
+    Core\Uuid::fromBytes(Core\Bytes::fill(16777216, 65));
+} catch (RuntimeError $e) {
+    echo Core\Str::length($e->message) < 200 ? 'short' : 'long', "\n";
+}
+
+// 5. Every length from 0 to 4096. Only length 16 is a UUID. This prints 1.
+int $accepted = 0;
+uint $width = 0;
+while ($width <= 4096) {
+    if (Read::text(Core\Bytes::fill($width, 7)) != 'error') {
+        $accepted = $accepted + 1;
+    }
+    $width = $width + 1;
+}
+echo $accepted, "\n";
+
+// 6. One million UUIDs are read in a loop. Each one is freed. This prints 1000000.
+bytes $key = Core\Encoding::fromHex('f9168c5eceb24faab6bf329bf39fa1e4');
+int $read = 0;
+while ($read < 1000000) {
+    var $id = Core\Uuid::fromBytes($key);
+    $read = $read + 1;
+}
+echo $read, "\n";

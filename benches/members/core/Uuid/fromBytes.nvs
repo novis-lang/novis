@@ -1,0 +1,23 @@
+<?nvs
+// Reads a UUID from sixteen bytes, as a program does for each row of a binary UUID column.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $keys = [
+            Core\Encoding::fromHex("0190d1e68e3c7c2a9a4b1f2e3d4c5b6a"),
+            Core\Encoding::fromHex("f9168c5eceb24faab6bf329bf39fa1e4"),
+            Core\Encoding::fromHex("00112233445566778899aabbccddeeff"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $id = Core\Uuid::fromBytes($keys[($total % 3) as int]);
+            $total = $total + ($i % 5) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
