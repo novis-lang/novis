@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a program calls the writer in the wrong order, with bad names and text, and nests very deep.
+// Each wrong call should throw a `LogicError`, and the writer should never write a broken document.
+// hostile: timeout-ms 20000
+// proof: gap nvs-stdlib/an-xml-writer-holds-a-string-per-piece
+
+class Try
+{
+    // Runs one call and prints `ok`, or the class of the error it throws.
+    public static function call(callable $step): void
+    {
+        try {
+            $step();
+            echo "ok\n";
+        } catch (LogicError $error) {
+            echo "LogicError\n";
+        }
+    }
+}
+
+// 1. The indent is not whitespace. This prints LogicError.
+Try::call(fn(): void => { Core\Xml::writer({ indent: '<x>' }); });
+
+// 2. Content, an element and the end of the document before `startDocument`. Each prints LogicError.
+Core\Xml\Writer $early = Core\Xml::writer();
+Try::call(fn(): void => { $early->content('x'); });
+Try::call(fn(): void => { $early->startElement('a'); });
+Try::call(fn(): void => { $early->endDocument(); });
+
+// 3. Bad names, text XML cannot hold, and markup hidden in a comment. Each prints LogicError.
+Core\Xml\Writer $out = Core\Xml::writer();
+$out->startDocument();
+$out->startElement('root');
+Try::call(fn(): void => { $out->startElement('1st'); });
+Try::call(fn(): void => { $out->startElement('a b'); });
+Try::call(fn(): void => { $out->startElement('</root><evil>'); });
+Try::call(fn(): void => { $out->attribute('on click', 'x'); });
+Try::call(fn(): void => { $out->content("x\x01y"); });
+Try::call(fn(): void => { $out->comment('a -- b'); });
+Try::call(fn(): void => { $out->instruction('go', 'a ?> <evil/>'); });
+Try::call(fn(): void => { $out->instruction('xml', "version=\"1.0\""); });
+
+// 4. The same attribute twice, and an attribute after content. Each prints LogicError.
+$out->startElement('item');
+$out->attribute('id', '1');
+Try::call(fn(): void => { $out->attribute('id', '2'); });
+$out->content('text');
+Try::call(fn(): void => { $out->attribute('late', 'x'); });
+$out->endElement();
+
+// 5. Closing more elements than are open. The last one prints LogicError.
+$out->endElement();
+Try::call(fn(): void => { $out->endElement(); });
+
+// 6. Elements nested 1024 levels deep are allowed, and one more is not. This prints LogicError.
+Core\Xml\Writer $deep = Core\Xml::writer();
+$deep->startDocument();
+int $i = 0;
+while ($i < 1024) {
+    $deep->startElement('a');
+    $i = $i + 1;
+}
+Try::call(fn(): void => { $deep->startElement('a'); });
+
+// 7. One million elements, with text that is escaped. This prints the length of the document.
+Core\Xml\Writer $big = Core\Xml::writer();
+$big->startDocument();
+$big->startElement('r');
+$i = 0;
+while ($i < 1000000) {
+    $big->startElement('i');
+    $big->content('<&>');
+    $big->endElement();
+    $i = $i + 1;
+}
+$big->endElement();
+echo Core\Str::length($big->endDocument()), "\n";
+
+// 8. Writing after `endDocument`. This prints LogicError.
+Try::call(fn(): void => { $big->startElement('again'); });

@@ -1,0 +1,26 @@
+<?nvs
+// Writes a small XML document one node at a time, as a program does when it sends an order to another system.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $customers = ["Ada Lovelace", "Smith & Sons", "Grace Hopper"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Xml\Writer $out = Core\Xml::writer();
+            $out->startDocument();
+            $out->startElement("order");
+            $out->attribute("id", $i as string);
+            $out->startElement("customer");
+            $out->content($customers[($total % 3) as int]);
+            $out->endElement();
+            $out->endElement();
+            $total = $total + Core\Str::length($out->endDocument()) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

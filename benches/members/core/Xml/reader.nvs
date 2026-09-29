@@ -1,0 +1,25 @@
+<?nvs
+// Reads a small XML document one node at a time, as a program does when it takes a few values from a feed.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $documents = [
+            '<order id="1"><item sku="A-100" qty="2"/></order>',
+            '<order id="2"><item sku="B-200" qty="1"/><item sku="C-300" qty="5"/></order>',
+            '<order id="3"><note>Leave it at the door.</note></order>',
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Xml\Reader $reader = Core\Xml::reader($documents[(($total + $i) % 3) as int]);
+            while ($reader->read() != null) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

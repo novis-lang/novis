@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<orders>
+  <order id="1001">
+    <customer>Ada Lovelace</customer>
+    <total>49.90</total>
+  </order>
+  <order id="1002">
+    <customer>Smith &amp; Sons</customer>
+    <total>120.00</total>
+  </order>
+</orders>

@@ -1,0 +1,21 @@
+<?nvs
+// Shows that the writer escapes text, and throws an error for a document that is not finished.
+
+Core\Xml\Writer $out = Core\Xml::writer();
+$out->startDocument();
+$out->startElement("note");
+// `"`, `<`, `>` and `&` are written as entities, so they stay text and do not become markup.
+$out->attribute("title", "Tom's \"best\" <idea>");
+$out->content("1 < 2 & 3 > 2");
+$out->endElement();
+echo $out->endDocument(), "\n";
+
+// This writer opens an element and never closes it. `endDocument` throws a `LogicError`.
+Core\Xml\Writer $open = Core\Xml::writer();
+$open->startDocument();
+$open->startElement("list");
+try {
+    echo $open->endDocument(), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to write a small XML document one node at a time.
+
+Core\Xml\Writer $out = Core\Xml::writer();
+
+// `startDocument` writes the XML declaration. Every other call comes after it.
+$out->startDocument();
+$out->startElement("greeting");
+$out->attribute("lang", "en");
+$out->content("Hello");
+// `endElement` closes the element that was opened last, so it needs no name.
+$out->endElement();
+
+// `endDocument` returns the whole document as a string.
+echo $out->endDocument(), "\n";

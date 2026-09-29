@@ -1,0 +1,20 @@
+<?nvs
+// Shows that the reader finds an error only when it reaches it.
+
+// The second `<entry>` is closed as `</entri>`. Everything before that tag is read without a problem.
+Core\Xml\Reader $reader = Core\Xml::reader("<log><entry>start</entry><entry>stop</entri></log>");
+
+// `read` throws a `ParseError` at the broken tag. This prints `start` and `stop`, then the error.
+try {
+    while (true) {
+        ?Core\Xml\Node $node = $reader->read();
+        if ($node == null) {
+            break;
+        }
+        if ($node->kind() == Core\Xml\NodeKind::Text) {
+            echo "text: ", $node->text(), "\n";
+        }
+    }
+} catch (ParseError $error) {
+    echo $error->message, "\n";
+}
