@@ -1,0 +1,16 @@
+<?nvs
+// Sets the time of a daily backup, and checks if today's backup is still to come.
+
+Core\Time\TimeOfDay $backup = Core\Time\TimeOfDay::at(2, 30);
+
+// A real program uses `Core\Time::now()` here. A fixed time keeps the output the same.
+array<string> $checks = ["2024-03-01T01:50:00Z", "2024-03-01T02:30:00Z", "2024-03-01T23:10:00Z"];
+foreach ($checks as string $at) {
+    Core\Time\TimeOfDay $now = Core\Time::fromIso($at)->in(Core\Time\Zone::UTC)->timeOfDay();
+    // This prints "still to come" once, and then "done for today" twice.
+    if ($now < $backup) {
+        echo $now->format("HH:mm"), " still to come\n";
+    } else {
+        echo $now->format("HH:mm"), " done for today\n";
+    }
+}

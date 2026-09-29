@@ -1,0 +1,31 @@
+<?nvs
+// Attack: `at` gets the first value past the end of each field, and the largest number there is.
+// Steps 1 and 2 should throw a `RuntimeError`, and nothing should crash or leak.
+
+// 1. Each field gets the first value outside its range.
+array<array<uint>> $bad = [[24, 0, 0, 0], [0, 60, 0, 0], [0, 0, 60, 0], [0, 0, 0, 1000000000]];
+foreach ($bad as array<uint> $fields) {
+    try {
+        Core\Time\TimeOfDay::at($fields[0], $fields[1], { second: $fields[2], nanos: $fields[3] });
+    } catch (RuntimeError $e) {
+        echo $e->message, "\n";
+    }
+}
+
+// 2. Each field gets the largest `uint` there is.
+uint $largest = 18446744073709551615;
+try {
+    Core\Time\TimeOfDay::at($largest, $largest, { second: $largest, nanos: $largest });
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// 3. One million times are made from changing parts. Each one is freed again.
+uint $made = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::at($i % 24, $i % 60, { nanos: $i % 1000000000 });
+    $made = $made + 1;
+    $i = $i + 1;
+}
+echo $made, "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to make a time of day from an hour and a minute.
+
+Core\Time\TimeOfDay $opens = Core\Time\TimeOfDay::at(9, 0);
+
+// The seconds are `0` when you leave them out. This prints 09:00:00.
+echo $opens->format("HH:mm:ss"), "\n";
+
+// You can give the seconds by name. This prints 09:00:30.
+echo Core\Time\TimeOfDay::at(9, 0, {second: 30})->format("HH:mm:ss"), "\n";

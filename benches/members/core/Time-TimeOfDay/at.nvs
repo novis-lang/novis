@@ -1,0 +1,24 @@
+<?nvs
+// Makes a time of day from an hour and a minute, as a program does when it reads a schedule.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Time\TimeOfDay $noon = Core\Time\TimeOfDay::at(12, 0);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the hour and the minute
+            Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::at($total % 24, $total % 60);
+            if ($t < $noon) {
+                $total = $total + 5;
+            } else {
+                $total = $total + 7;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
