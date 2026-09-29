@@ -3198,11 +3198,18 @@ pub(crate) mod tests {
             if now >= ends {
                 break enough.is_none();
             }
-            peer.get_mut()
-                // Never zero: a `TcpStream` reads a zero timeout as no bound at
-                // all, which is the one wait this origin must not take.
+            // Never zero: a `TcpStream` reads a zero timeout as no bound at
+            // all, which is the one wait this origin must not take. macOS
+            // refuses the option with `EINVAL` on a socket already shut in
+            // both directions, which is a conversation that has ended, and
+            // is recorded as one exactly as a failed read is below.
+            if peer
+                .get_mut()
                 .set_read_timeout(Some((ends - now).max(Duration::from_millis(1))))
-                .expect("a bound on this origin's own wait");
+                .is_err()
+            {
+                break false;
+            }
             match peer.read() {
                 Ok(tungstenite::Message::Close(frame)) => {
                     heard.closed =
@@ -3222,9 +3229,14 @@ pub(crate) mod tests {
                 Err(_) => break false,
             }
         };
-        peer.get_mut()
-            .set_read_timeout(Some(Duration::from_secs(5)))
-            .expect("a bound on this origin's own wait");
+        // The next step's reads get the ordinary bound back. A conversation
+        // that ended has no next step, and on macOS its socket refuses the
+        // option, so only one that held is given it.
+        if held {
+            peer.get_mut()
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .expect("a bound on this origin's own wait");
+        }
         held
     }
 
@@ -3715,8 +3727,13 @@ pub(crate) mod tests {
         let mut asking = call(at, "test");
         // Loopback rather than a `TEST-NET` literal, because the proxy is what
         // dials this one: nothing listens on it, so what comes back is the
-        // refusal above and not a connect the case waits out.
-        asking.addresses = vec!["127.0.0.2".parse().expect("a literal address"), at.ip()];
+        // refusal above and not a connect the case waits out. The IPv6
+        // loopback and not `127.0.0.2`, because the origin listens on IPv4
+        // only and every platform refuses at once there — macOS assigns
+        // `127.0.0.1` alone, so a connect to `127.0.0.2` is dropped and waited
+        // out.
+        let refusing: std::net::IpAddr = "::1".parse().expect("a literal address");
+        asking.addresses = vec![refusing, at.ip()];
         asking.proxy = Some(through(proxying));
 
         let reply = send(&asking, &mut never).expect("the answer over the second tunnel");
@@ -3730,7 +3747,10 @@ pub(crate) mod tests {
             "the approved set is walked one `CONNECT` at a time: {asked:?}"
         );
         assert!(
-            asked[0].starts_with(&format!("CONNECT 127.0.0.2:{} HTTP/1.1\r\n", at.port())),
+            asked[0].starts_with(&format!(
+                "CONNECT {} HTTP/1.1\r\n",
+                SocketAddr::new(refusing, at.port())
+            )),
             "the first `CONNECT` asks for the first approved address: {asked:?}"
         );
         assert!(
