@@ -1,18 +1,31 @@
 {
-  "state": "Goal `core-time-instant-and-1-more`: two of its three slices are on disk. `Core\\Time\\Instant::compareTo`\nand `Core\\Time\\Instant::minus` each have about.md, three examples with `.out`, one attack, one bench and a\nRust `#[test]` in `crates/nvs-stdlib/src/time.rs`'s tests. compareTo also has a new `.nvst` case, and minus\nuses the one that already existed. `Core\\Time\\Instant` now has its class card (`INSTANT_CARD`) and is off\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`. No proof found a bug. Nothing is blocked.",
+  "state": "Goal `core-time-instant-and-1-more` covers every `Core\\Time\\Instant` and `Core\\Time\\TimeOfDay` member, not\nonly the three the last handoff named. On disk for `Instant`: `compareTo`, `minus`, `in`, `toEpochSeconds`,\n`toEpochMillis` and `toEpochMicros` have about.md, three examples with `.out`, one attack, one bench, a Rust\n`#[test]` in `crates/nvs-stdlib/src/time.rs`'s tests and a `covers:`-marked `.nvst` case. `plus`, `since` and\n`toIso` already carry a `covers:` marker on an existing `.nvst` case and owe the rest. The three epoch\nreaders' cards no longer promise a `RuntimeError`: every instant fits a 64-bit microsecond count, and\n`instant_epoch_readings_truncate_toward_zero_and_reach_both_ends` pins both ends. Every `Core\\Time` bench is\nre-measured with `bun nv proofs --record-perf` after the last `time.rs` edit, because any edit makes them\nall stale. No proof found a bug. Nothing is blocked.",
   "next": {
-    "stage": 1,
-    "title": "feature proofs, one member per slice",
+    "stage": 2,
+    "title": "the dossier, one member per slice",
     "files": [],
     "note": "one file set: `crates/nvs-stdlib/src/time.rs` and the `Core\\Time\\Instant` trees under `docs/examples/`, `tests/hostile/`, `benches/members/`",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time\\Instant::in`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). Its card is `crates/nvs-stdlib/src/time.rs:1239` and its body `crates/nvs-stdlib/src/time.rs:4464`. It returns a `DateTime`, so the examples need `Core\\Time\\Zone::of` and a `DateTime` reader: read those two rows before writing. The compareTo and minus proofs under `docs/examples/core/Time-Instant/` are the sibling shape. Then run `bun nv proofs --owed` for the goal's list; if `in` was the last item, close the goal."
+        "text": "**`Core\\Time\\Instant::plus`** — owes about, examples, hostile, perf and a Rust test (`rule:testing/feature-proofs`); its `.nvst` marker is on disk. Card `crates/nvs-stdlib/src/time.rs:1281`, body `crates/nvs-stdlib/src/time.rs:3747`. `minus`'s proofs under `docs/examples/core/Time-Instant/minus/` and `instant_minus_is_exact_and_bounded_at_both_ends` are the mirror shape. Rewrite its card in the plain voice while there."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Time\\Instant::since`** — owes about, examples, hostile, perf and a Rust test; `.nvst` marker on disk. Card `crates/nvs-stdlib/src/time.rs:1314`, body `crates/nvs-stdlib/src/time.rs:3774`; it throws past about 292 years (`nanos_between`), which is the attack."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Time\\Instant::toIso`** — owes about, examples, hostile, perf and a Rust test; `.nvst` marker on disk. Card `crates/nvs-stdlib/src/time.rs:1355`, body `crates/nvs-stdlib/src/time.rs:3798`."
+      },
+      {
+        "done": false,
+        "text": "**Re-measure and close the `Instant` check** — after the last `time.rs` edit, `bun nv verify`, then `bun nv proofs --record-perf --group 'Core\\Time\\Instant'` and `--group 'Core\\Time\\TimeOfDay'`, then `bun nv proofs --verify --group 'Core\\Time\\Instant'` must say nothing owed. The stale `help` line for a class card that `crates/nvs-stdlib/src/time.rs:1331` already has is a stale binary, gone after the rebuild."
       }
     ]
   },
   "backlog": [
-    "`tests/conformance/core/time-instant-plus-and-minus-name-the-range-past-either-end.nvst` prints the first instant as `-009999-01-02T01:59:59Z`, and the range message spells it `-9999-01-02T01:59:59Z`. Two spellings of one bound; `crates/nvs-stdlib/src/time.rs`'s `PAST_THE_RANGE` owns the message."
+    "`Core\\Time\\TimeOfDay`: six members (`at`, `format`, `plus`, `minus`, `with`, `compareTo`) owe every proof, and the class owes its `ClassDoc` card and its removal from `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs` — the group after the one above, same file.",
+    "The `format` pattern `XXX` shows `+25:59` for a `+25:59:59` zone, which is CLDR's `XXX`; `XXXXX` is the one with seconds. Not a bug, noted for `DateTime::format`'s proofs."
   ]
 }
