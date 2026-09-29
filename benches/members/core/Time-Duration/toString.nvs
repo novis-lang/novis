@@ -1,0 +1,21 @@
+<?nvs
+// Writes a duration as text, as a program does when it logs how long a request took.
+// bench: iterations 200000
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): int {
+        // The texts are 5, 5, 9 and 9 characters long, so every round picks the next duration.
+        array<Core\Time\Duration> $took = [90s, 1h30m, 61500ms, 12h30m15s];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the duration is picked with last round's total
+            $total = $total + Core\Str::length($took[$total % 4]->toString()) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

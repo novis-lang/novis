@@ -1,0 +1,15 @@
+<?nvs
+// Writes a log line that says how long a job took.
+
+var $started = Core\Time::fromIso("2024-05-01T09:00:00Z");
+var $finished = Core\Time::fromIso("2024-05-01T09:02:05.250Z");
+Core\Time\Duration $took = $finished->since($started);
+
+// This prints "import finished in 2m5s250ms".
+echo "import finished in ", $took->toString(), "\n";
+
+// A job that takes longer than its limit gets a warning. This prints "slow: 2m5s250ms is over 2m".
+Core\Time\Duration $limit = 2m;
+if ($took->compareTo($limit) > 0) {
+    echo "slow: ", $took->toString(), " is over ", $limit->toString(), "\n";
+}

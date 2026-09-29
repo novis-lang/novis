@@ -29,6 +29,8 @@
 //! No sign is accepted anywhere (§ 1), so every value this produces is
 //! non-negative; a backwards step is `->minus(7d)` or `->negated()`.
 
+use std::fmt::{self, Write as _};
+
 /// Every way a duration can fail to parse.
 ///
 /// Carries enough to write the whole message without the caller re-deriving
@@ -209,27 +211,66 @@ pub fn parse(text: &str) -> Result<i64, DurationError> {
 /// showing it as `-1h30m` is more useful than refusing to show it.
 #[must_use]
 pub fn render(nanos: i64) -> String {
+    render_with(nanos, str::to_owned)
+}
+
+/// [`render`]'s text handed to `then` from a buffer on the stack, so a caller
+/// that copies it once — `Core\Time\Duration::toString` into its `string` —
+/// makes that copy the only allocation.
+///
+/// Every value fits the buffer: the widest count each unit can carry, a sign
+/// and every suffix are 33 bytes, which `i64::MIN` reaches.
+///
+/// # Panics
+///
+/// Only if a rendering outgrew its 40-byte buffer, which no `i64` does.
+pub fn render_with<R>(nanos: i64, then: impl FnOnce(&str) -> R) -> R {
     if nanos == 0 {
-        return "0s".to_string();
+        return then("0s");
     }
-    let mut out = String::new();
-    // `i64::MIN` has no positive counterpart, so the magnitude is taken in
-    // `i128` — the one value where negating in place would overflow.
-    let mut left = i128::from(nanos);
-    if left < 0 {
-        out.push('-');
-        left = -left;
-    }
+    let mut out = Fixed {
+        bytes: [0; 40],
+        len: 0,
+    };
+    // `unsigned_abs` is the one magnitude `i64::MIN` has: negating it in
+    // place would overflow.
+    let mut left = nanos.unsigned_abs();
+    let signed = if nanos < 0 { "-" } else { "" };
+    let mut written = write!(out, "{signed}");
     for (name, length) in UNITS {
-        let length = i128::from(*length);
+        let length = length.unsigned_abs();
         if left >= length {
-            let count = left / length;
+            written = written.and_then(|()| write!(out, "{}{name}", left / length));
             left %= length;
-            out.push_str(&count.to_string());
-            out.push_str(name);
         }
     }
-    out
+    written.expect("every duration's rendering fits the buffer");
+    then(out.text())
+}
+
+/// The stack buffer [`render_with`] writes into.
+struct Fixed {
+    bytes: [u8; 40],
+    len: usize,
+}
+
+impl Fixed {
+    fn text(&self) -> &str {
+        // Only `write_str` fills the buffer, and it copies whole `&str`s.
+        std::str::from_utf8(&self.bytes[..self.len]).unwrap_or_default()
+    }
+}
+
+impl fmt::Write for Fixed {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let end = self.len + s.len();
+        self.bytes
+            .get_mut(self.len..end)
+            .ok_or(fmt::Error)?
+            .copy_from_slice(s.as_bytes());
+        self.len = end;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

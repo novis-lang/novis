@@ -1,0 +1,31 @@
+<?nvs
+// Attack: `toString` writes the longest and shortest durations, and one million durations of both signs.
+// Every call should return text, and nothing should crash or leak.
+
+// 1. The longest and shortest durations, which have the longest text, and zero.
+array<int> $counts = [9223372036854775807, -9223372036854775807 - 1, 0, 1, -1];
+foreach ($counts as int $count) {
+    echo Core\Time\Duration::nanoseconds($count)->toString(), "\n";
+}
+
+// 2. The text of the longest duration reads back with `parse` as the same duration.
+string $longest = Core\Time\Duration::nanoseconds(9223372036854775807)->toString();
+echo Core\Time\Duration::parse($longest)->toNanoseconds(), "\n";
+
+// 3. The text of the shortest duration starts with `-`, so `parse` throws.
+string $shortest = Core\Time\Duration::nanoseconds(-9223372036854775807 - 1)->toString();
+try {
+    Core\Time\Duration::parse($shortest);
+} catch (ParseError $e) {
+    echo "negative text refused\n";
+}
+
+// 4. One million durations of both signs are written as text. Each text is freed again.
+uint $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    int $next = $round % 2 == 0 ? $round * 999999937 : -$round * 999999937;
+    $total = $total + Core\Str::length(Core\Time\Duration::nanoseconds($next)->toString());
+    $round = $round + 1;
+}
+echo $total, "\n";

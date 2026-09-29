@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a negative duration is written as text, and how to read the text back.
+
+// Two hours minus three hours is minus one hour. This prints -1h.
+Core\Time\Duration $late = (2h)->minus(3h);
+echo $late->toString(), "\n";
+
+// Text from a duration that is not negative reads back with `parse`. This prints "same".
+string $text = (1h30m)->toString();
+echo Core\Time\Duration::parse($text)->compareTo(1h30m) == 0 ? "same" : "different", "\n";
+
+// `parse` throws a `ParseError` for text that starts with `-`. This prints "cannot read -1h".
+string $negative = $late->toString();
+try {
+    Core\Time\Duration::parse($negative);
+} catch (ParseError $e) {
+    echo "cannot read ", $negative, "\n";
+}

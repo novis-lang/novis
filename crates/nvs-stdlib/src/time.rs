@@ -975,7 +975,9 @@ nvs_runtime::nvs_helper! {
     /// leading `-` that `rule:types/duration-literal` has `parse` refuse by name.
     fn nvs_core_time_duration_to_string(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "toString")?;
-        Ok(Value::str(NvsStr::new(duration::render(nanos).as_bytes())))
+        Ok(duration::render_with(nanos, |text| {
+            Value::str(NvsStr::new(text.as_bytes()))
+        }))
     }
 }
 
@@ -6227,6 +6229,83 @@ mod tests {
             read(nvs_core_time_duration_to_seconds, i64::MIN),
             -9_223_372_036
         );
+    }
+
+    /// `weeks` counts exact 168-hour weeks, in both directions. The largest
+    /// count that fits and the first one past it are asserted together at both
+    /// ends, and the throw names the member.
+    // covers: Core\Time\Duration::weeks
+    #[test]
+    fn duration_weeks_is_exact_and_bounded_on_both_sides() {
+        const WEEK: i64 = 604_800_000_000_000;
+        let weeks = |n: i64| {
+            let mut ctx = Ctx::buffered();
+            nvs_runtime::call(nvs_core_time_duration_weeks, &mut ctx, &[Value::int(n)])
+                .map(read_and_release)
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+        assert_eq!(weeks(0), Ok(0));
+        assert_eq!(weeks(1), Ok(WEEK));
+        assert_eq!(weeks(-2), Ok(-2 * WEEK));
+        assert_eq!(weeks(15_250), Ok(15_250 * WEEK));
+        assert_eq!(weeks(-15_250), Ok(-15_250 * WEEK));
+        for past in [15_251, -15_251, i64::MAX, i64::MIN] {
+            let refused = weeks(past).expect_err("past the range");
+            assert!(
+                refused.starts_with("Core\\Time\\Duration::weeks(): "),
+                "{refused}"
+            );
+        }
+    }
+
+    /// `toString` writes the literal grammar coarsest unit first, `0s` for
+    /// zero and a leading `-` for a negative value, and every non-negative
+    /// rendering parses back to the count it came from, both ends of `int`
+    /// included.
+    // covers: Core\Time\Duration::toString
+    #[test]
+    fn duration_to_string_writes_the_literal_grammar_and_a_sign() {
+        let rendered = |nanos: i64| {
+            let mut ctx = Ctx::buffered();
+            let held = [duration_of(nanos)];
+            let text = nvs_runtime::call(nvs_core_time_duration_to_string, &mut ctx, &held)
+                .expect("`toString` never throws");
+            let read = text
+                .as_text()
+                .expect("`toString` answers a `string`")
+                .to_owned();
+            #[expect(unsafe_code, reason = "this frame owns the text the member answered")]
+            unsafe {
+                text.release();
+            }
+            for value in held {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built the `Duration`, and the member borrowed it"
+                )]
+                unsafe {
+                    value.release();
+                }
+            }
+            read
+        };
+        for (nanos, text) in [
+            (0, "0s"),
+            (1, "1ns"),
+            (-1, "-1ns"),
+            (250_000_000, "250ms"),
+            (5_400_000_000_000, "1h30m"),
+            (-5_400_000_000_000, "-1h30m"),
+            (604_800_000_000_000, "1w"),
+            (788_645_006_007_008, "1w2d3h4m5s6ms7us8ns"),
+            (i64::MAX, "15250w1d23h47m16s854ms775us807ns"),
+            (i64::MIN, "-15250w1d23h47m16s854ms775us808ns"),
+        ] {
+            assert_eq!(rendered(nanos), text, "{nanos}");
+        }
+        for nanos in [0, 1, 999, 1_000_001, 86_400_000_000_000, i64::MAX] {
+            assert_eq!(duration::parse(&rendered(nanos)), Ok(nanos), "{nanos}");
+        }
     }
 
     /// The nanosecond count of a `Duration` this frame was handed, released

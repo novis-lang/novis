@@ -2,7 +2,7 @@
 Spec § 4: `Core\Time\Duration`'s eight constructors, its four readers and its `toString` are one nanosecond scale, and the sign is a rendering the grammar does not read (`rule:types/duration-literal`)
 --FILE--
 <?nvs
-// covers: Core\Time\Duration::toNanoseconds, Core\Time\Duration::toMicroseconds, Core\Time\Duration::toMilliseconds, Core\Time\Duration::toSeconds
+// covers: Core\Time\Duration::toNanoseconds, Core\Time\Duration::toMicroseconds, Core\Time\Duration::toMilliseconds, Core\Time\Duration::toSeconds, Core\Time\Duration::toString
 // A `Duration` is one `i64` count of nanoseconds and nothing else (`rule:types/duration-literal`
 // ), so every constructor, every `to…` reader and the rendering are the
 // same scale seen from a different unit. Each block below asserts that by
