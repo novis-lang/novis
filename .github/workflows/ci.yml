@@ -752,17 +752,38 @@ jobs:
       # snapshot assertion asks `cargo metadata` where the workspace is, and the `socketpair` that
       # spawn opens is an operation Miri does not emulate, which aborts the whole binary. Named
       # here, `insta` reads the root from the variable and starts nothing.
+      #
+      # `nvs-types` and `nvs-ir` run a sample, not their whole suites. Every test in them that
+      # type-checks a program first builds the checker's signature table for the whole `Core`
+      # library, and under Miri that table alone takes minutes. Both crates hold hundreds of such
+      # tests, so their suites would take Miri more than a day. Neither crate may contain `unsafe`
+      # (the workspace forbids it), so what Miri checks there is the standard library, the
+      # dependencies and the global allocator underneath them, and one program taken through parse,
+      # check and lowering reaches all of that. The sample is the `nvs-types` unit tests of its
+      # types, class layouts, generics and type annotations, which build no table, and two `nvs-ir`
+      # tests that take a generator and a closure through the whole pipeline. The integration tests
+      # of both crates do not run under Miri at all, for the same reason.
+      #
+      # A filter that matches nothing is not an error to libtest, so a renamed test would drop out
+      # of the sample in silence. `sample` fails the step when a filtered run passes no test.
       - name: miri test (front end)
         env:
           MIRIFLAGS: -Zmiri-disable-isolation
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
+        shell: bash
         run: |
           cargo +nightly miri test \
             -p nvs-diagnostics \
             -p nvs-syntax \
-            -p nvs-hir \
-            -p nvs-types \
-            -p nvs-ir
+            -p nvs-hir
+          sample() {
+            cargo +nightly miri test "$@" | tee "$RUNNER_TEMP/miri-sample.log"
+            grep -q '^test result: ok\. [1-9]' "$RUNNER_TEMP/miri-sample.log"
+          }
+          sample -p nvs-types --lib -- ty::tests:: layout::tests:: generics::tests:: lower::tests::
+          sample -p nvs-ir --lib -- --exact \
+            lower::tests::a_generator_lowers_to_a_factory_a_state_class_and_a_resumption_switch \
+            lower::tests::a_closure_lowers_to_a_captured_environment_object_and_an_invoke_method
 
   # ---------------------------------------------------------------------------
   # The half Miri cannot reach: the crates that execute generated machine code,
