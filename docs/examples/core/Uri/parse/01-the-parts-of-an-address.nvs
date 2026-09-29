@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read an address and print each of its parts.
+
+var $uri = Core\Uri::parse("https://anna@shop.example.com:8443/cart/items?sort=price#total");
+
+// This prints https, anna, shop.example.com and 8443.
+echo $uri->scheme(), "\n";
+echo $uri->userInfo(), "\n";
+echo $uri->host(), "\n";
+echo $uri->port(), "\n";
+
+// This prints /cart/items, sort=price and total.
+echo $uri->path(), "\n";
+echo $uri->query(), "\n";
+echo $uri->fragment(), "\n";
+
+// Each part is returned as it was written.
+// The escape `%20` and the upper-case letters stay. This prints HTTP, Example.COM and /My%20Files.
+var $written = Core\Uri::parse("HTTP://Example.COM/My%20Files");
+echo $written->scheme(), " ", $written->host(), " ", $written->path(), "\n";

@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program reads very long addresses and addresses that break the rules in many places.
+// Each call should return a `Uri` or throw an error, and every `Uri` should be freed.
+
+class Parse
+{
+    public static function length(string $address): string
+    {
+        try {
+            return Core\Str::length(Core\Uri::parse($address)->path()) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A path of 200000 parts, such as `/a/a/a`. This prints 400000.
+echo Parse::length('http://example.com' . Core\Str::repeat('/a', 200000)), "\n";
+
+// 2. A path of 300000 `..` parts. They stay as written. This prints 900000.
+echo Parse::length('http://example.com' . Core\Str::repeat('/..', 300000)), "\n";
+
+// 3. A port of 100000 digits. It is larger than 65535, so this prints "error".
+echo Parse::length('http://example.com:' . Core\Str::repeat('9', 100000) . '/'), "\n";
+
+// 4. 300000 `%` signs without hex digits. This prints "error".
+echo Parse::length('http://example.com/' . Core\Str::repeat('%', 300000)), "\n";
+
+// 5. One space at the end of one million letters. This prints "error".
+echo Parse::length('http://example.com/' . Core\Str::repeat('a', 1000000) . ' '), "\n";
+
+// 6. A zero byte inside the host. This prints "error".
+echo Parse::length("http://exam\0ple.com/"), "\n";
+
+// 7. 200000 `@` signs and `:` signs before the host. An address has one `@` at most,
+// so this prints "error".
+echo Parse::length('http://' . Core\Str::repeat('@:', 200000) . 'example.com/'), "\n";
+
+// 8. A query and a fragment of 500000 `?` and `#` signs. An address has one `#` at most,
+// so this prints "error".
+echo Parse::length('?' . Core\Str::repeat('?#', 500000)), "\n";
+
+// 9. 100000 different addresses, and every `Uri` is freed. This prints 100000.
+uint $read = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Uri::parse('https://u:p@h' . $i . '.example.com:8080/a/' . $i . '?q=' . $i . '#f')->port() == 8080) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo $read, "\n";

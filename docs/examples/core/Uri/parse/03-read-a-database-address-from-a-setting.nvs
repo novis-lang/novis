@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a program reads the server, the port, the user and the database name from one setting.
+
+class DatabaseSetting {
+    public static function describe(string $setting): string {
+        var $uri = Core\Uri::parse($setting);
+        // The user name comes before the `:` in the user part.
+        string $user = Core\Str::split($uri->userInfo() ?? "", ":")[0];
+        // The database name is the path without its first `/`.
+        string $database = Core\Str::slice($uri->path(), 1);
+        // The port is `null` when the setting does not give one, so 5432 is used.
+        int $port = $uri->port() ?? 5432;
+        return $user . " on " . ($uri->host() ?? "") . ":" . $port . ", database " . $database;
+    }
+}
+
+// In a real program, these come from an environment variable or a configuration file.
+// This prints the user, the server, the port and the database for each setting.
+echo DatabaseSetting::describe("postgres://shop:secret@db.example.com:6432/orders"), "\n";
+echo DatabaseSetting::describe("postgres://report@db.example.com/stats"), "\n";

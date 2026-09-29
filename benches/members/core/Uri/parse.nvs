@@ -1,0 +1,23 @@
+<?nvs
+// Reads the text of an address into its parts, as a server does for every link it checks.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $links = [
+            "https://shop.example.com/cart?item=42#total",
+            "http://localhost:8080/health",
+            "postgres://app:secret@db.example.com:5432/orders",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $uri = Core\Uri::parse($links[($total % 3) as int]);
+            $total = $total + Core\Str::length($uri->path());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,2 @@
+shop on db.example.com:6432, database orders
+report on db.example.com:5432, database stats

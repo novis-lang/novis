@@ -1,0 +1,22 @@
+<?nvs
+// Shows what `parse` returns for a link without a scheme, and for text that is not an address.
+
+// A relative link has no scheme and no host, so both are `null`. This prints true twice.
+var $link = Core\Uri::parse("/docs/start?page=2");
+echo $link->scheme() == null ? "true" : "false", "\n";
+echo $link->host() == null ? "true" : "false", "\n";
+
+// The path and the query are still there. This prints /docs/start and page=2.
+echo $link->path(), "\n";
+echo $link->query(), "\n";
+
+// An address may not contain a space. For that text, `parse` throws a `RuntimeError`.
+// This prints /my-files, then "not an address".
+array<string> $typed = ["https://example.com/my-files", "https://example.com/my files"];
+foreach ($typed as string $text) {
+    try {
+        echo Core\Uri::parse($text)->path(), "\n";
+    } catch (RuntimeError $e) {
+        echo "not an address", "\n";
+    }
+}
