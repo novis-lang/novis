@@ -4258,15 +4258,31 @@ nvs_runtime::nvs_helper! {
     /// A distinct operation from `startOf` at a DST boundary, which is § 4's
     /// stated reason both exist: the two are not a fixed distance apart on a
     /// day the zone lengthens or shortens.
+    ///
+    /// The unit that holds the last representable instant has no next unit to
+    /// step back from, yet its own last instant can exist — the last second in
+    /// a `+25:59:59` zone ends at `.999999999`. So when the next start is past
+    /// the range, the last instant is found on the civil fields instead: a unit
+    /// that runs to the end of year 9999 ends at the last civil instant, and a
+    /// week that runs on into year 10000 has no last instant and throws.
     fn nvs_core_time_datetime_end_of(_ctx, args: [2]) {
         let at = zoned_of(args, 0, "endOf")?;
         let (unit, scale) = unit_of(args, 1, "Core\\Time\\DateTime::endOf")?;
         let start = floored(&at, unit, scale, "endOf")?;
         let step = span_of(unit, scale)
             .map_err(|err| out_of_range(r"Core\Time\DateTime::endOf", &err.to_string()))?;
+        let one = jiff::Span::new().nanoseconds(1);
         start
             .checked_add(step)
-            .and_then(|next| next.checked_sub(jiff::Span::new().nanoseconds(1)))
+            .and_then(|next| next.checked_sub(one))
+            .or_else(|past| {
+                let civil_end = match start.datetime().checked_add(step) {
+                    Ok(next) => next.checked_sub(one)?,
+                    Err(_) if unit != jiff::Unit::Week => civil::DateTime::MAX,
+                    Err(_) => return Err(past),
+                };
+                at.time_zone().to_zoned(civil_end)
+            })
             .map(|found| datetime_built(&found))
             .map_err(|err| out_of_range(r"Core\Time\DateTime::endOf", &err.to_string()))
     }
@@ -6655,5 +6671,199 @@ mod tests {
         let early = datetime_to_weekday(nvs_core_time_datetime_previous, &first, 0)
             .expect_err("a Monday before the first second is past the range");
         assert!(early.contains("Core\\Time\\DateTime::previous"), "{early}");
+    }
+
+    /// `with` called on the `DateTime` `at` with its seven options in order —
+    /// year, month, day, hour, minute, second, nanos — where `None` is an
+    /// omitted option, which the call site passes as `null`.
+    fn datetime_with(at: &Zoned, options: [Option<i64>; 7]) -> Result<Zoned, String> {
+        let rest = options.map(|option| option.map_or_else(Value::null, Value::int));
+        datetime_rebuilt(nvs_core_time_datetime_with, at, &rest)
+    }
+
+    /// `with` replaces only the options it is given and keeps the zone, no
+    /// options at all rebuild the same value, a wall clock Berlin skips
+    /// resolves forward past the gap, and a day the month does not have or a
+    /// number no field can hold throws a sentence naming the member.
+    // covers: Core\Time\DateTime::with
+    #[test]
+    fn datetime_with_replaces_only_the_given_fields_in_the_same_zone() {
+        let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
+        let june = civil::date(2024, 6, 14)
+            .at(16, 45, 12, 500)
+            .to_zoned(berlin.clone())
+            .expect("a valid wall time");
+        let first = datetime_with(&june, [None, None, Some(1), None, None, None, None])
+            .expect("the first of June exists");
+        assert_eq!(
+            first.datetime(),
+            civil::date(2024, 6, 1).at(16, 45, 12, 500)
+        );
+        assert_eq!(first.time_zone().iana_name(), Some("Europe/Berlin"));
+        let same = datetime_with(&june, [None; 7]).expect("no option is the same value");
+        assert_eq!(same, june);
+        let every = datetime_with(
+            &june,
+            [
+                Some(2025),
+                Some(2),
+                Some(28),
+                Some(0),
+                Some(0),
+                Some(0),
+                Some(0),
+            ],
+        )
+        .expect("28 February 2025 exists");
+        assert_eq!(every.datetime(), civil::date(2025, 2, 28).at(0, 0, 0, 0));
+
+        let spring = civil::date(2024, 3, 31)
+            .at(12, 0, 0, 0)
+            .to_zoned(berlin)
+            .expect("a valid wall time");
+        let skipped = datetime_with(&spring, [None, None, None, Some(2), Some(30), None, None])
+            .expect("a skipped wall clock resolves forward");
+        assert_eq!(skipped.datetime(), civil::date(2024, 3, 31).at(3, 30, 0, 0));
+
+        for options in [
+            [None, None, Some(31), None, None, None, None],
+            [None, Some(13), None, None, None, None, None],
+            [Some(10_000), None, None, None, None, None, None],
+            [None, None, None, None, None, None, Some(1_000_000_000)],
+            [None, Some(i64::MAX), None, None, None, None, None],
+        ] {
+            let refused = datetime_with(&june, options).expect_err("no such date or time");
+            assert!(
+                refused.contains("Core\\Time\\DateTime::with"),
+                "{options:?}: {refused}"
+            );
+        }
+    }
+
+    /// `withTime` replaces all four clock fields and keeps the date and the
+    /// zone, resolves a skipped wall clock forward the way `with` does, and
+    /// reaches the last nanosecond of the last second there is.
+    // covers: Core\Time\DateTime::withTime
+    #[test]
+    fn datetime_with_time_replaces_the_whole_clock_and_keeps_the_date() {
+        let [kolkata, berlin, last, _] = zone_view_samples();
+        let evening = datetime_rebuilt(
+            nvs_core_time_datetime_with_time,
+            &kolkata,
+            &[clock_built(civil::time(20, 5, 0, 7))],
+        )
+        .expect("an evening exists");
+        assert_eq!(evening.datetime(), civil::date(2024, 7, 1).at(20, 5, 0, 7));
+        assert_eq!(evening.time_zone().iana_name(), Some("Asia/Kolkata"));
+
+        let skipped = datetime_rebuilt(
+            nvs_core_time_datetime_with_time,
+            &berlin,
+            &[clock_built(civil::time(2, 30, 0, 0))],
+        )
+        .expect("a skipped wall clock resolves forward");
+        assert_eq!(skipped, berlin);
+
+        let latest = civil::time(23, 59, 59, 999_999_999);
+        let end = datetime_rebuilt(
+            nvs_core_time_datetime_with_time,
+            &last,
+            &[clock_built(latest)],
+        )
+        .expect("the last nanosecond is in range");
+        assert_eq!(
+            end.datetime(),
+            civil::date(9999, 12, 31).to_datetime(latest)
+        );
+    }
+
+    /// `startOf` and `endOf` bracket the value in every unit: the start is at
+    /// or before it, the end is at or after it and one nanosecond short of the
+    /// next unit, a week starts on Monday, and Berlin's short spring day
+    /// starts at `+01:00` and ends at `+02:00`.
+    // covers: Core\Time\DateTime::startOf, Core\Time\DateTime::endOf
+    #[test]
+    fn datetime_start_of_and_end_of_bracket_the_value_in_every_unit() {
+        let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
+        let friday = civil::date(2024, 6, 14)
+            .at(16, 45, 12, 123_456_789)
+            .to_zoned(berlin.clone())
+            .expect("a valid wall time");
+        let (day, week, quarter) = (6, 7, 9);
+        for unit in 0..11_i64 {
+            let start = datetime_rebuilt(
+                nvs_core_time_datetime_start_of,
+                &friday,
+                &[Value::int(unit)],
+            )
+            .expect("June 2024 is in range");
+            let end = datetime_rebuilt(nvs_core_time_datetime_end_of, &friday, &[Value::int(unit)])
+                .expect("June 2024 is in range");
+            assert!(
+                start <= friday && friday <= end,
+                "unit {unit}: {start} {end}"
+            );
+            let after = end
+                .checked_add(jiff::Span::new().nanoseconds(1))
+                .expect("in range");
+            let next =
+                datetime_rebuilt(nvs_core_time_datetime_start_of, &after, &[Value::int(unit)])
+                    .expect("in range");
+            assert_eq!(next, after, "unit {unit}: the end is one nanosecond short");
+        }
+        let monday = datetime_rebuilt(
+            nvs_core_time_datetime_start_of,
+            &friday,
+            &[Value::int(week)],
+        )
+        .expect("in range");
+        assert_eq!(monday.datetime(), civil::date(2024, 6, 10).at(0, 0, 0, 0));
+        let april = datetime_rebuilt(
+            nvs_core_time_datetime_start_of,
+            &friday,
+            &[Value::int(quarter)],
+        )
+        .expect("in range");
+        assert_eq!(april.datetime(), civil::date(2024, 4, 1).at(0, 0, 0, 0));
+
+        let spring = civil::date(2024, 3, 31)
+            .at(12, 0, 0, 0)
+            .to_zoned(berlin)
+            .expect("a valid wall time");
+        let dawn = datetime_rebuilt(nvs_core_time_datetime_start_of, &spring, &[Value::int(day)])
+            .expect("in range");
+        let dusk = datetime_rebuilt(nvs_core_time_datetime_end_of, &spring, &[Value::int(day)])
+            .expect("in range");
+        assert_eq!(dawn.offset().seconds(), 3600);
+        assert_eq!(dusk.offset().seconds(), 7200);
+        assert_eq!(
+            dusk.timestamp().as_second() - dawn.timestamp().as_second(),
+            23 * 3600 - 1
+        );
+    }
+
+    /// At the last instant there is, `endOf` is that instant in every unit
+    /// that ends with year 9999, although no next unit exists to step back
+    /// from, and the week throws because it ends in year 10000. At the first
+    /// instant, `startOf` is the value itself in every unit.
+    // covers: Core\Time\DateTime::startOf, Core\Time\DateTime::endOf
+    #[test]
+    fn datetime_end_of_reaches_the_last_nanosecond_at_the_end_of_the_range() {
+        let [_, _, last, first] = zone_view_samples();
+        let week = 7;
+        for unit in 0..11_i64 {
+            let end = datetime_rebuilt(nvs_core_time_datetime_end_of, &last, &[Value::int(unit)]);
+            if unit == week {
+                let refused = end.expect_err("that week ends in year 10000");
+                assert!(refused.contains("Core\\Time\\DateTime::endOf"), "{refused}");
+            } else {
+                let end = end.unwrap_or_else(|refused| panic!("unit {unit}: {refused}"));
+                assert_eq!(end, last, "unit {unit}");
+            }
+            let start =
+                datetime_rebuilt(nvs_core_time_datetime_start_of, &first, &[Value::int(unit)])
+                    .unwrap_or_else(|refused| panic!("unit {unit}: {refused}"));
+            assert_eq!(start, first, "unit {unit}");
+        }
     }
 }

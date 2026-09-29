@@ -2,7 +2,7 @@
 Spec § 4: every `DateTime` builder answers a new value in the same zone, and never a civil time that zone does not have
 --FILE--
 <?nvs
-// covers: Core\Time\DateTime::plus, Core\Time\DateTime::minus, Core\Time\DateTime::next, Core\Time\DateTime::previous
+// covers: Core\Time\DateTime::plus, Core\Time\DateTime::minus, Core\Time\DateTime::next, Core\Time\DateTime::previous, Core\Time\DateTime::with, Core\Time\DateTime::withTime, Core\Time\DateTime::startOf, Core\Time\DateTime::endOf
 // § 4 gives `DateTime` eight members that answer another `DateTime` — `plus`,
 // `minus`, `next`, `previous`, `with`, `withTime`, `startOf` and `endOf` — and
 // the rule they share is not what any one of them computes but what all of
@@ -114,6 +114,21 @@ var $morrow = $eve->plus(1, Core\Unit::Day);
 echo $eve->difference($morrow, Core\Unit::Day) as string, "|",
      $eve->difference($morrow, Core\Unit::Hour) as string, "|",
      $eve->date()->format("yyyy-MM-dd"), "|", $morrow->date()->format("yyyy-MM-dd"), "|\n";
+
+// The last second there is, in the zone furthest east. No unit starts after
+// it, yet every unit but the week still ends inside the range: the second, the
+// day and the year all end at its last nanosecond. That week ends in year
+// 10000, so it throws.
+var $last = Core\Time::fromIso("9999-12-30T22:00:00Z")->in(Core\Time\Zone::fixed(25h59m59s));
+echo $last->endOf(Core\Unit::Second)->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|",
+     $last->endOf(Core\Unit::Day)->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|",
+     $last->endOf(Core\Unit::Year)->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|";
+try {
+    $last->endOf(Core\Unit::Week);
+    echo "no throw|\n";
+} catch (RuntimeError $late) {
+    echo "RuntimeError|\n";
+}
 --EXPECT--
 576|576|
 1|366|365|
@@ -122,3 +137,4 @@ echo $eve->difference($morrow, Core\Unit::Day) as string, "|",
 1|0|1|
 24|23|
 1|23|2024-03-30|2024-03-31|
+9999-12-31 23:59:59.999999999|9999-12-31 23:59:59.999999999|9999-12-31 23:59:59.999999999|RuntimeError|
