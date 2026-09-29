@@ -790,9 +790,17 @@ impl Capabilities {
     /// comparison against the wrong thing, and doing it per call would put a `realpath` on the grant
     /// side of every check rather than only on the argument's.
     ///
-    /// A root that cannot be canonicalized is **left as written**, which fails closed: a canonical
-    /// argument will not be under it, so the entry grants nothing until the directory exists. Dropping
-    /// it instead would silently discard what an operator asked for.
+    /// A root is resolved by [`resolved`], the walk the argument side takes, so a root that does not
+    /// exist yet — a socket `net.local` names before anything has bound it, a directory a program
+    /// creates — keeps its deepest existing ancestor canonical and its missing tail as written. Both
+    /// sides of the comparison are then spelled by one resolution: a root under a symlinked
+    /// directory (`/tmp` and `/var` on macOS, `/var/run` on most Linux systems) matches the argument
+    /// that names the same file, where a root left as the operator typed it could never match the
+    /// canonical argument and denied the one path it was written to grant.
+    ///
+    /// A root [`resolved`] has no answer for — no ancestor exists, or the missing tail holds a `..`
+    /// — is **left as written**, which fails closed: a canonical argument holds no `..` and is not
+    /// under it. Dropping it instead would silently discard what an operator asked for.
     pub fn canonicalize(&mut self, files: &dyn Files) {
         for cap in Cap::ALL.iter().copied().filter(|cap| cap.is_path_scoped()) {
             let Some(setting) = cap.grant_mut(self) else {
@@ -812,7 +820,7 @@ impl Capabilities {
 }
 
 fn canonical_root(root: &mut String, files: &dyn Files) {
-    if let Ok(found) = files.canonical(Path::new(root.as_str())) {
+    if let Some(found) = resolved(Path::new(root.as_str()), files) {
         *root = found.to_string_lossy().into_owned();
     }
 }

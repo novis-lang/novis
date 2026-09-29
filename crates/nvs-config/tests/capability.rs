@@ -663,6 +663,21 @@ fn net_listen_and_net_local_are_on_the_roster_and_denied_by_default() {
         );
     }
 
+    // A socket is granted before anything has bound it, so its grant names a file that does not
+    // exist yet, and the directory it sits in is often reached through a symlink. The grant is
+    // resolved by the argument's own walk, so it matches the argument that names the same file.
+    let linked = Disk::of(&["/private/var/run"]).linking("/var/run", "/private/var/run");
+    let unbound = granting("[net]\nlocal = [\"/var/run/app.sock\"]\n", &linked);
+    let (app, other) = (p("/var/run/app.sock"), p("/var/run/other.sock"));
+    assert!(
+        unbound.allows(Cap::NetLocal, Scope::Path(app.as_path()), &linked),
+        "a grant of a socket not bound yet, under a symlinked directory, refused that socket",
+    );
+    assert!(
+        !unbound.allows(Cap::NetLocal, Scope::Path(other.as_path()), &linked),
+        "a grant of one socket reached its neighbour",
+    );
+
     // An endpoint is granted where it was written and nowhere else. The three granted spellings
     // below are two endpoints, which is the whole reason the comparison is of addresses: a grant
     // that matched the operator's spelling alone would be defeated by the program writing another.

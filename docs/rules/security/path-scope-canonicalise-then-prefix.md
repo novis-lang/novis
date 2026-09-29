@@ -12,3 +12,7 @@ A write to a file that does not exist yet cannot be canonicalised, and creating 
 creating it is allowed is obviously wrong. So the argument canonicalises its **deepest existing
 ancestor** and re-appends the remainder, with the remainder refused outright if it contains `..` — the
 one component that could still escape after the ancestor is pinned.
+
+A granted root that does not exist yet — a socket nothing has bound — is resolved by that same walk,
+so both sides are spelled by one resolution. A root left as typed could not match a canonical
+argument wherever a directory above it is a symlink, as `/tmp` and `/var` are on macOS.

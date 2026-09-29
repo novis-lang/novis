@@ -590,6 +590,10 @@ creating it is allowed is obviously wrong. So the argument canonicalises its **d
 ancestor** and re-appends the remainder, with the remainder refused outright if it contains `..` — the
 one component that could still escape after the ancestor is pinned.
 
+A granted root that does not exist yet — a socket nothing has bound — is resolved by that same walk,
+so both sides are spelled by one resolution. A root left as typed could not match a canonical
+argument wherever a directory above it is a symlink, as `/tmp` and `/var` are on macOS.
+
 <sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0118](../decisions/0118.md), [0104](../decisions/0104.md).</sub>
 
 <a id="security-denial-is-a-runtime-error"></a>
