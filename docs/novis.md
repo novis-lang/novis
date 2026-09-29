@@ -14712,15 +14712,15 @@ Draws a time-ordered UUID — a 48-bit millisecond timestamp then 74 random bits
 Core\Uuid::parse(string $s): Core\Uuid
 ```
 
-Reads `$s` as a UUID in RFC 9562's canonical hyphenated `8-4-4-4-12` form, in either letter case, replacing the hand-written validation PHP programs carried strings through.
+Reads the text `$s` as a UUID. The text must be 32 hexadecimal digits in groups of 8, 4, 4, 4 and 12, joined by hyphens, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. Upper case and lower case letters are both allowed.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` (neutral) | The text to read, exactly 36 characters. |
+| `$s` | `string` (neutral) | The text to read. It must be exactly 36 characters long. |
 
-**Returns** `Core\Uuid` — The `Uuid` those 128 bits spell; the nil and max UUIDs parse, and the version nibble is not checked.
+**Returns** `Core\Uuid` — The `Uuid` that the text gives. The version digit is not checked, so the nil UUID (all zeros) and the max UUID (all `f`) are both valid.
 
-**Throws** `RuntimeError` — `$s` is not the canonical form — the 32 unhyphenated digits, a `{…}`-braced spelling and a `urn:uuid:` prefix are refused too.
+**Throws** `RuntimeError` — `$s` is not in that form. The 32 digits without hyphens, a UUID in `{}` braces and a UUID after `urn:uuid:` all throw this error too. The message quotes up to 48 characters of `$s`.
 
 <a id="core-core-uuid-tryparse"></a>
 #### `Core\Uuid::tryParse`
@@ -14744,15 +14744,15 @@ Core\Uuid::tryParse(string $s): ?Core\Uuid
 Core\Uuid::fromBytes(bytes $b): Core\Uuid
 ```
 
-Reads sixteen octets as a UUID — the form a native `UUID` column and a binary protocol carry one in, with no canonical text on the way, replacing the `getBytes`/`fromBytes` pair of the userland libraries.
+Reads sixteen bytes as a UUID. Many databases store a UUID in a binary column in this form, and binary protocols send it this way.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$b` | `bytes` (neutral) | The sixteen octets, most significant first, as `$uuid->toBytes()` writes them. |
+| `$b` | `bytes` (neutral) | The sixteen bytes, in the same order as the digits of the UUID's text. `$uuid->toBytes()` gives them in this order. |
 
-**Returns** `Core\Uuid` — The `Uuid` those 128 bits are; every pattern is one, the nil and the max included, so a length is all this checks.
+**Returns** `Core\Uuid` — The `Uuid` that the bytes give. Any sixteen bytes are a valid UUID, so only the length is checked.
 
-**Throws** `RuntimeError` — `$b` is not exactly sixteen bytes long; the message names the length it got.
+**Throws** `RuntimeError` — `$b` is not exactly sixteen bytes long. The message gives the length of `$b`.
 
 <a id="core-core-uuid-tostring"></a>
 #### `Core\Uuid->toString`
@@ -14772,9 +14772,9 @@ Renders the receiver in RFC 9562's canonical lower-case hyphenated `8-4-4-4-12` 
 $uuid->toBytes(): bytes
 ```
 
-Writes the receiver's sixteen octets, most significant first — `toString`'s twin for a native `UUID` column, a binary protocol or a hash input, where the canonical text would be 36 bytes spelling the same 128 bits.
+Returns the sixteen bytes of the UUID. Use it to store a UUID in a binary database column or to send it in a binary message. The text form of the same UUID is 36 bytes long.
 
-**Returns** `bytes` — Sixteen bytes, which `Core\Uuid::fromBytes` reads back as this same UUID.
+**Returns** `bytes` — Sixteen bytes, in the same order as the digits of the UUID's text. `Core\Uuid::fromBytes` reads them back as the same UUID.
 
 <a id="core-core-hash"></a>
 ### `Core\Hash`

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to write several UUIDs into one binary message, sixteen bytes each.
+
+class Message {
+    public static function of(array<Core\Uuid> $ids): bytes {
+        array<bytes> $parts = [];
+        foreach ($ids as Core\Uuid $id) {
+            $parts[] = $id->toBytes();
+        }
+        return Core\Bytes::join($parts);
+    }
+}
+
+array<Core\Uuid> $ids = [
+    Core\Uuid::parse("0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a"),
+    Core\Uuid::parse("f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4"),
+    Core\Uuid::parse("00112233-4455-6677-8899-aabbccddeeff"),
+];
+bytes $message = Message::of($ids);
+
+// Three UUIDs take 48 bytes. As text, they would take 108. This prints 48.
+echo Core\Bytes::length($message), "\n";
+
+// The second UUID starts at byte 16. This prints f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4.
+echo Core\Uuid::fromBytes(Core\Bytes::slice($message, 16, 16)), "\n";

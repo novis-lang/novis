@@ -1,26 +1,30 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Uuid has been taken yet.",
+  "state": "Goal `core-uuid`: `Core\\Uuid::fromBytes`, `Core\\Uuid::parse` and `Core\\Uuid::toBytes` have all their\nfeature proofs, and `bun nv proofs --owed` names nothing for them. `Core\\Uuid` now has its class card\n(`crates/nvs-stdlib/src/uuid.rs`'s `CARD`), and it is off `CLASSES_STILL_OWING_A_CARD`, so the class\nhalf of `help` is done for every member. The cards for `parse`, `fromBytes` and `toBytes` are\nrewritten in the plain voice. The cards for `v4`, `v7`, `tryParse` and `toString` are still in the old\nessay voice and are rewritten with their slices.\n\nStill owed: `v4`, `v7`, `tryParse` and `toString`. Each owes examples, hostile, perf and a Rust\n`covers:` marker. `help` is listed as owed until the binary is rebuilt, and the class card closes it.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "the remaining members, in file order",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/uuid.rs` plus each member's three proof trees.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Uuid::fromBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:187`"
+        "text": "**`Core\\Uuid::v4`**: examples, hostile, perf, Rust `covers:` on `a_v4_is_canonical_lower_case_hex_with_its_version_and_variant`, and a plain-voice `V4_DOC` (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/uuid.rs:148`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uuid::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:163`"
+        "text": "**`Core\\Uuid::v7`**: the same, with `covers:` on `a_v7_carries_its_version_and_a_clock_that_moves_forward`. Its examples print no fixed value unless they compare two draws, so assert order or shape rather than a UUID. `crates/nvs-stdlib/src/uuid.rs:157`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uuid::toBytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uuid.rs:212`"
+        "text": "**`Core\\Uuid::tryParse`**: the same, with `covers:` on `the_nil_and_max_uuids_are_valid` and `the_three_non_canonical_spellings_are_refused`. `crates/nvs-stdlib/src/uuid.rs:181`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Uuid::toString`**: the same, with `covers:` on `the_canonical_form_parses_in_either_case_and_renders_lower`. It is an instance member, so a `.nvst` case needs a `// covers:` marker as well. `crates/nvs-stdlib/src/uuid.rs:206`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "A bench over a member that returns a `Core\\Uuid` has no scalar to read without calling a second member. `benches/members/core/Uuid/fromBytes.nvs` chains `$total` alone, and the allocation count (1.00 per call) shows the call is not removed. Owner: `benches/members/README.md`."
   ]
 }

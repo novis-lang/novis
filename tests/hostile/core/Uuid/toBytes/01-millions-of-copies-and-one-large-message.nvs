@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program asks for the bytes of UUIDs millions of times and joins many of them.
+// Each call should return sixteen bytes, and every copy should be freed.
+
+// 1. The nil UUID and the max UUID, written as hexadecimal.
+// This prints 32 zeros and then 32 letters "f".
+echo Core\Encoding::toHex(Core\Uuid::parse('00000000-0000-0000-0000-000000000000')->toBytes()), "\n";
+echo Core\Encoding::toHex(Core\Uuid::parse('ffffffff-ffff-ffff-ffff-ffffffffffff')->toBytes()), "\n";
+
+// 2. The bytes of one UUID are asked for one million times. Each copy is freed.
+// This prints 16000000.
+var $id = Core\Uuid::v7();
+uint $total = 0;
+int $i = 0;
+while ($i < 1000000) {
+    $total = $total + Core\Bytes::length($id->toBytes());
+    $i = $i + 1;
+}
+echo $total, "\n";
+
+// 3. The bytes of 100000 new UUIDs are joined into one message of 1600000 bytes.
+// Each UUID is read back from the message. This prints 1600000 and then 100000.
+array<Core\Uuid> $ids = [];
+array<bytes> $parts = [];
+$i = 0;
+while ($i < 100000) {
+    var $drawn = Core\Uuid::v4();
+    $ids[] = $drawn;
+    $parts[] = $drawn->toBytes();
+    $i = $i + 1;
+}
+bytes $message = Core\Bytes::join($parts);
+echo Core\Bytes::length($message), "\n";
+int $same = 0;
+$i = 0;
+while ($i < 100000) {
+    var $back = Core\Uuid::fromBytes(Core\Bytes::slice($message, $i * 16, 16));
+    if ($back->toString() == $ids[$i]->toString()) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo $same, "\n";
