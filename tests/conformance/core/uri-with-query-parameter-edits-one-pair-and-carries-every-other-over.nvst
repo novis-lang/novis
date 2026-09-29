@@ -2,6 +2,7 @@
 `$uri->withQueryParameter` sets, replaces and removes one pair while every other one is carried over — `rule:core-classes/uri-removable-components`
 --FILE--
 <?nvs
+// covers: Core\Uri::withQueryParameter
 // The rule's second level, write half. The member composes `parseQuery`, the
 // edit and `buildQuery`, so there is no second canonicalization of a query
 // string to drift from the one `Core\Uri::buildQuery` already is.

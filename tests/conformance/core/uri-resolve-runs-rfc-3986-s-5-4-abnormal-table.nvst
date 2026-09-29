@@ -2,6 +2,7 @@
 `$uri->resolve` answers RFC 3986 § 5.4.2's abnormal examples: an over-long ascent stops at the root, a dot segment is a whole segment, and one inside a query or fragment is data — spec § 12
 --FILE--
 <?nvs
+// covers: Core\Uri::toString
 // The base is the RFC's own, so every row below is § 5.4's table verbatim
 // rather than a shape chosen here.
 var $b = Core\Uri::parse("http://a/b/c/d;p?q");

@@ -918,52 +918,53 @@ const TO_STRING_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->with`'s reference card — `rule:core-api/reference-card`.
 const WITH_DOC: MethodDoc = MethodDoc {
-    short: "A fresh `Uri` with the named components replaced and every other one carried over, \
-            replacing reassembly by hand. Writing `null` for `port`, `query` or `fragment` \
-            removes that component, where leaving the key out carries it over; `userInfo` is \
-            not on the bag, so it can neither add nor drop a credential.",
+    short: "Returns a new `Uri` with some parts of the address changed. You name the parts in a \
+            block, for example `with({scheme: \"https\", port: null})`. Each part you do not name \
+            stays the same. `null` removes the `port`, the `query` or the `fragment`. The user \
+            part (`userInfo`) is always kept.",
     params: &[
         ParamDoc {
             name: "scheme",
-            desc: "The new scheme, without its `:`.",
+            desc: "The new scheme, without the `:`.",
             shape: &[],
         },
         ParamDoc {
             name: "host",
-            desc: "The new host; an IPv6 literal carries its brackets.",
+            desc: "The new host. An IPv6 address is written in brackets, such as `[::1]`.",
             shape: &[],
         },
         ParamDoc {
             name: "port",
-            desc: "The new port, `0`–`65535`, or `null` to remove it.",
+            desc: "The new port, from `0` to `65535`. `null` removes the port.",
             shape: &[],
         },
         ParamDoc {
             name: "path",
-            desc: "The new path, already percent-encoded; beside a host it must begin with `/`.",
+            desc: "The new path, already encoded. When the address has a host, the path must \
+                   start with `/`.",
             shape: &[],
         },
         ParamDoc {
             name: "query",
-            desc: "The new query, already encoded and without its `?`, or `null` to remove it; \
-                   `\"\"` is an empty query, which is a different thing.",
+            desc: "The new query, already encoded and without the `?`. `null` removes the query. \
+                   `\"\"` gives an empty query, so the address ends with `?`.",
             shape: &[],
         },
         ParamDoc {
             name: "fragment",
-            desc: "The new fragment, already encoded and without its `#`, or `null` to remove \
-                   it.",
+            desc: "The new fragment, already encoded and without the `#`. `null` removes the \
+                   fragment.",
             shape: &[],
         },
     ],
-    ret: "A new `Uri`; the receiver is unchanged. A receiver whose port was written empty \
-          (`h:/`) loses that `:` on the way through.",
+    ret: "A new `Uri`. The `Uri` you call it on does not change. An empty port, as in `h:/`, is \
+          removed from the result.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`port` is outside `0`–`65535`; a component makes the result text the RFC 3986 \
-               grammar does not admit; or the components do not recompose to a URI that still \
-               holds them — a `path` beside a `host` that lacks its leading `/` lands in the \
-               host — and the first component that moved is named.",
+        desc: "The port is outside `0` to `65535`. It is also thrown when a part makes the \
+               address invalid, or when a part would move into another part. For example, a \
+               path without `/` next to a host would become part of the host. The message names \
+               the part that moved.",
     }],
 };
 
@@ -989,32 +990,31 @@ const QUERY_PARAMETER_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->withQueryParameter`'s reference card — `rule:core-api/reference-card`.
 const WITH_QUERY_PARAMETER_DOC: MethodDoc = MethodDoc {
-    short: "A fresh `Uri` with one query parameter set, replaced or removed and every other pair \
-            carried over — `Core\\Uri::parseQuery`, the edit and `Core\\Uri::buildQuery` in one \
-            member instead of three at the call site.",
+    short: "Returns a new `Uri` with one query parameter set, replaced or removed. For \
+            `/search?q=shoes&page=2`, `withQueryParameter(\"page\", 3)` returns \
+            `/search?q=shoes&page=3`. The other pairs are kept. The `Uri` you call it on does not \
+            change.",
     params: &[
         ParamDoc {
             name: "name",
-            desc: "The parameter's name, decoded and top-level; brackets are written by an array \
-                   `value`, never by spelling them into the name.",
+            desc: "The name of the parameter, without brackets. An array `value` writes the \
+                   brackets.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "The new value: a scalar, or an array nested to any depth, which is written \
-                   under the bracket convention. `null` removes the parameter.",
+            desc: "The new value. It can be a scalar or an array. An array is written with \
+                   brackets, the same way `Core\\Uri::buildQuery` writes it. `null` removes the \
+                   parameter.",
             shape: &[],
         },
     ],
-    ret: "A new `Uri`; the receiver is unchanged. Removing the last parameter leaves no query at \
-          all rather than a bare `?`, and every pair that is carried over is rewritten in \
-          `buildQuery`'s spelling rather than the one it arrived in.",
+    ret: "A new `Uri`. When the last parameter is removed, the address has no `?`. The whole query \
+          is written again, so the encoding of the other pairs can change: `%20` becomes `+`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A name in the receiver's own query decodes to octets that are not valid UTF-8; \
-               `value` is neither a scalar nor a nested array; or the rebuilt reference does not \
-               still hold every component it was written out of, which is `with`'s refusal \
-               reached through the same recompose-and-reread path.",
+        desc: "A name in the query has escapes that do not decode to valid UTF-8 text. It is also \
+               thrown when `value` is not a scalar, an array or `null`, for example an object.",
     }],
 };
 
@@ -3964,6 +3964,59 @@ mod tests {
         text_of(uri_of(text))
     }
 
+    /// `Core\Uri::tryParse($text)?->toString()` — the text the instance kept,
+    /// or `None` where the answer is `null`.
+    fn tried(text: &str) -> Option<String> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let argument = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+        let answer = call(super::nvs_core_uri_try_parse, &mut ctx, &[argument])
+            .expect("`tryParse` answers `null` where `parse` throws");
+        #[expect(unsafe_code, reason = "this frame owns the argument it built")]
+        unsafe {
+            argument.release();
+        }
+        (answer.tag() != Some(super::Tag::Null)).then(|| text_of(answer))
+    }
+
+    /// `tryParse` and `parse` are one reader asked two ways: every text `parse`
+    /// reads comes back from `tryParse` with the same text kept, and every text
+    /// `parse` throws on is `null` here — the grammar's refusals and a port
+    /// past `65535` alike, which are the two steps the member folds.
+    // covers: Core\Uri::tryParse
+    #[test]
+    fn try_parse_answers_null_exactly_where_parse_throws() {
+        for subject in CORPUS {
+            assert_eq!(
+                tried(subject).as_deref(),
+                Some(*subject),
+                "{subject:?} reads"
+            );
+        }
+        for subject in [
+            "https://example.com/a b",
+            "https://example.com:65536/",
+            "/a%zz",
+            "http://[::1/",
+            "/a\u{0}b",
+        ] {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let argument = Value::str(nvs_runtime::NvsStr::new(subject.as_bytes()));
+            assert!(
+                call(super::nvs_core_uri_parse, &mut ctx, &[argument]).is_err(),
+                "`parse` throws on {subject:?}"
+            );
+            #[expect(unsafe_code, reason = "this frame owns the argument it built")]
+            unsafe {
+                argument.release();
+            }
+            assert_eq!(
+                tried(subject),
+                None,
+                "`tryParse` answers `null` for {subject:?}"
+            );
+        }
+    }
+
     /// RFC 3986 § 6.2.2's three normalizations, and the three places the
     /// member deliberately stops short of them — the module docs' *Comparison
     /// normalizes* section, asserted rather than described.
@@ -4047,6 +4100,7 @@ mod tests {
     /// components it found parses back to an equivalent reference, which is
     /// what makes the seven readers a faithful decomposition rather than seven
     /// plausible substrings.
+    // covers: Core\Uri::toString
     #[test]
     fn a_parsed_uri_round_trips_through_its_own_text() {
         for subject in CORPUS {
@@ -4280,6 +4334,7 @@ mod tests {
     /// identity row is what makes each of the others a *removal*: a member
     /// that rewrote what it was not asked about would pass every removal line
     /// here and fail that one.
+    // covers: Core\Uri::with
     #[test]
     fn a_written_null_removes_a_component_and_an_omitted_key_leaves_it_alone() {
         const SUBJECT: &str = "https://user@example.com:8443/a/b?x=1#top";
@@ -4515,6 +4570,7 @@ mod tests {
     /// pair rather than read off one line: setting any one name rewrites that
     /// pair and leaves the others where they were. A member that rebuilt the
     /// query in an order of its own would pass one row here and fail the next.
+    // covers: Core\Uri::withQueryParameter
     #[test]
     fn with_query_parameter_sets_one_pair_and_leaves_every_other_alone() {
         const THREE: &str = "https://user@example.com:8443/a/b?x=1&y=2&z=3#top";

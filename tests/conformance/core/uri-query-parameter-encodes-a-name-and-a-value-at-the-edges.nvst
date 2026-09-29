@@ -2,6 +2,7 @@
 `$uri->withQueryParameter` form-encodes both halves and `$uri->queryParameter` reads them back, at the edges the convention has — `rule:core-classes/uri-removable-components`
 --FILE--
 <?nvs
+// covers: Core\Uri::withQueryParameter
 var $u = Core\Uri::parse("https://example.com/a");
 
 // A name carrying every delimiter this class knows survives the round trip

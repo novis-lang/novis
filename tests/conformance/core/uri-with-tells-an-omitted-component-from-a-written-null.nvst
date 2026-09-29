@@ -2,6 +2,7 @@
 `$uri->with` carries an omitted component over and removes one a written `null` names, and `""` is a value rather than a removal — rule:core-api/omission-is-not-a-written-null, rule:core-api/a-written-null-removes, rule:core-classes/uri-removable-components
 --FILE--
 <?nvs
+// covers: Core\Uri::with
 // The two ways of not giving a component a value are two different requests.
 // `{}` leaves every one of the six alone; `{fragment: null}` clears exactly the
 // one it names and carries the other five over.

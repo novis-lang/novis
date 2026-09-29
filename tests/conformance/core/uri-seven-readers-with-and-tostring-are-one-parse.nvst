@@ -2,7 +2,7 @@
 `Core\Uri`'s seven readers, `with` and `toString` are one parse: over a table of absolute URIs every reader answers the component `toString` writes back, and `with` on one component leaves the other six exactly as they were — spec § 12, RFC 3986 § 5.3
 --FILE--
 <?nvs
-// covers: Core\Uri::host, Core\Uri::port, Core\Uri::path, Core\Uri::fragment
+// covers: Core\Uri::host, Core\Uri::port, Core\Uri::path, Core\Uri::fragment, Core\Uri::toString, Core\Uri::with
 // § 12: a `Uri` holds its whole text *and* its seven components, so the
 // question this case asks is whether those two halves ever disagree. Every
 // claim below is counted over the whole table rather than read off one line:
