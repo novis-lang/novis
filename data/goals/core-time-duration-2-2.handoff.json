@@ -1,32 +1,22 @@
 {
-  "state": "Goal `core-time-duration-2-2`, stage 2 (the dossier). `Core\\Time\\Duration::parse`, `plus` and `seconds` are complete: `bun nv proofs --id` prints `complete.` for each, and their three figures are in `docs/perf/members.ndjson`.\nSix members still owe every proof: `toNanoseconds`, `toMicroseconds`, `toMilliseconds`, `toSeconds`, `toString` and `weeks`.\nThe Rust tests for this group live in `crates/nvs-stdlib/src/time.rs`'s test module, beside `duration_seconds_is_exact_and_bounded_on_both_sides`; `read_and_release` reads a returned `Duration`.\nA literal argument to `Duration::parse` is folded at compile time, so every proof passes its text through a variable.",
+  "state": "Goal `core-time-duration-2-2`, stage 2 (the dossier). `Core\\Time\\Duration::parse`, `plus`, `seconds`, `toNanoseconds`, `toMicroseconds`, `toMilliseconds` and `toSeconds` have every proof on disk.\nThe four readers share one Rust test, `duration_readers_truncate_toward_zero_at_every_scale` in `crates/nvs-stdlib/src/time.rs`, and one Novis case, `tests/conformance/core/time-duration-constructors-and-readers-are-one-scale.nvst`, which now carries their `covers:` marker.\nTwo members still owe every proof: `toString` and `weeks`.\nA literal argument to `Duration::parse` is folded at compile time, so a proof that means to call it passes its text through a variable.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the four readers and their Rust test), `docs/examples/core/Time-Duration/`, `tests/hostile/core/Time-Duration/`, `benches/members/core/Time-Duration/`. The four readers truncate toward zero the same way, so one Rust test can cover all four.",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the two members and their Rust test), `docs/examples/core/Time-Duration/`, `tests/hostile/core/Time-Duration/`, `benches/members/core/Time-Duration/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::toNanoseconds`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:272`"
+        "text": "**`Core\\Time\\Duration::toString`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:976`. The conformance case above already calls it; a `covers:` marker there is its Novis half."
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::toMicroseconds`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:281`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Time\\Duration::toMilliseconds`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:290`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Time\\Duration::toSeconds`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:299`"
+        "text": "**`Core\\Time\\Duration::weeks`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:842`. `duration_hours_and_days_are_exact_and_bounded_on_both_sides` is the Rust shape; 15250 weeks is the last count that fits."
       }
     ]
   },
   "backlog": [
-    "`Core\\Time\\Duration::toString` and `Core\\Time\\Duration::weeks` owe every proof — this goal's item list, `docs/agent/goals/core-time-duration-2-2.md`.",
-    "`DURATION_PARSE_DOC` (`crates/nvs-stdlib/src/time.rs`) still reads in the repository's own voice (`strtotime`, \"laundered\"); goal `plain-comments` sweeps card text.",
-    "A mis-cased unit's `ParseError` message names `rule:classes/names-resolve-case-sensitively`, which a user reads; `crates/nvs-syntax/src/duration.rs`'s `DurationError::message` owns the sentence."
+    "Nothing outside this goal."
   ]
 }

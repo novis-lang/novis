@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `toSeconds` counts only whole seconds.
+
+// 999 milliseconds is shorter than one second. This prints 0.
+echo Core\Time\Duration::milliseconds(999)->toSeconds(), "\n";
+
+// 1.5 seconds is 1 whole second and half a second more. This prints 1.
+echo Core\Time\Duration::milliseconds(1500)->toSeconds(), "\n";
+
+// The same is true below zero. This prints -1.
+echo Core\Time\Duration::milliseconds(-1500)->toSeconds(), "\n";
