@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 181 goals. 165 are walked (120 of them retired), `core-xml-writer` is live at 166 of 181, and 15 are ahead.
+The chain holds 181 goals. 166 are walked (120 of them retired), `core-zip` is live at 167 of 181, and 14 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -178,8 +178,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 163 | [`core-uuid`](goals/core-uuid.md) | Core\Uuid | walked |  | **2** the dossier |
 | 164 | [`core-validate-and-1-more`](goals/core-validate-and-1-more.md) | Core\Validate and 1 more | walked |  | **2** the dossier |
 | 165 | [`core-xml-node-and-1-more`](goals/core-xml-node-and-1-more.md) | Core\Xml\Node and 1 more | walked |  | **2** the dossier |
-| 166 | [`core-xml-writer`](goals/core-xml-writer.md) | Core\Xml\Writer | **live** |  | **2** the dossier |
-| 167 | [`core-zip`](goals/core-zip.md) | Core\Zip | ahead |  | **2** the dossier |
+| 166 | [`core-xml-writer`](goals/core-xml-writer.md) | Core\Xml\Writer | walked |  | **2** the dossier |
+| 167 | [`core-zip`](goals/core-zip.md) | Core\Zip | **live** |  | **2** the dossier |
 | 168 | [`tools-cli`](goals/tools-cli.md) | tools:cli | ahead |  | **2** the dossier |
 | 169 | [`tools-config`](goals/tools-config.md) | tools:config | ahead |  | **2** the dossier |
 | 170 | [`tools-php-differences`](goals/tools-php-differences.md) | tools:php-differences | ahead |  | **2** the dossier |

@@ -1,5 +1,5 @@
 {
-  "live": "core-xml-writer",
+  "live": "core-zip",
   "goals": [
     "core-depth",
     "concurrency",
