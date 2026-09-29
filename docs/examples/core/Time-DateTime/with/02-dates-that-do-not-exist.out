@@ -1,0 +1,2 @@
+Core\Time\DateTime::with(): parameter 'day' for `2024-06` is invalid, must be in range `1..=30`
+2024-03-31 03:30 +02:00
