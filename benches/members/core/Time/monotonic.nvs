@@ -1,0 +1,20 @@
+<?nvs
+// Reads the clock for measuring as microseconds, as a program does before and after a step it times.
+// bench: iterations 400000
+// bench: allocations 1
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: each reading is added to last round's total
+            $total = $total + Core\Time::monotonic()->toMicroseconds() % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000) >= 0 ? "done" : "negative", "\n";

@@ -5345,7 +5345,6 @@ mod tests {
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
         r"Core\Task\Channel",
-        r"Core\Time\Date",
         r"Core\Time\DateTime",
         r"Core\Time\Duration",
         r"Core\Time\Instant",

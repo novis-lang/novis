@@ -1,0 +1,20 @@
+<?nvs
+// Reads the current time as seconds, as a program does when it stamps a log line or a database row.
+// bench: iterations 400000
+// bench: allocations 1
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: each reading is added to last round's total
+            $total = $total + Core\Time::now()->toEpochSeconds() % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000) >= 0 ? "done" : "negative", "\n";

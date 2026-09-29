@@ -12365,9 +12365,9 @@ Thursday, 1 January 1970
 Core\Time::now(): Core\Time\Instant
 ```
 
-Reads the wall clock, replacing `time`, `microtime` and `date_create` at once — as an `Instant`, which a zone turns into a calendar reading with `->in($zone)`.
+Reads the current time from the system clock. It replaces PHP's `time`, `microtime` and `date_create`. Use `->in($zone)` to get the date and time of day in a zone.
 
-**Returns** `Core\Time\Instant` — The current `Instant`, to nanosecond resolution.
+**Returns** `Core\Time\Instant` — The current `Instant`, to the nanosecond.
 
 <a id="core-core-time-monotonic"></a>
 #### `Core\Time::monotonic`
@@ -12376,9 +12376,9 @@ Reads the wall clock, replacing `time`, `microtime` and `date_create` at once �
 Core\Time::monotonic(): Core\Time\Duration
 ```
 
-Reads the monotonic clock, replacing `hrtime` — for measuring, never for wall-clock time, which is why it answers a `Duration`: the value means nothing except against another reading of the same clock.
+Reads a clock that only moves forward, for measuring how long something takes. It replaces PHP's `hrtime`. Subtract two readings to get the time between them.
 
-**Returns** `Core\Time\Duration` — The `Duration` since an origin fixed at this process's first reading, which never goes backwards.
+**Returns** `Core\Time\Duration` — A `Duration` since a fixed starting point. A later reading is never smaller than an earlier one.
 
 <a id="core-core-time-sleep"></a>
 #### `Core\Time::sleep`

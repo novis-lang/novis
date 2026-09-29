@@ -1,0 +1,28 @@
+--TEST--
+`Core\Time\Instant::plus` and `minus` reach the last nanosecond at each end of the timestamp range, and one past it throws the range in the sentence `Core\Time::at` uses — `rule:testing/a-failing-proof-is-fixed-or-recorded`
+--FILE--
+<?nvs
+// The last moment the range holds is reached from both sides, and one
+// nanosecond more at each end throws the range itself rather than the
+// calendar library's own words.
+var $last = Core\Time::fromIso("9999-12-30T22:00:00.999999999Z");
+var $first = Core\Time::fromEpoch(-377705023201);
+echo $last->minus(1ns)->plus(1ns)->toIso(), "\n";
+echo $first->plus(1ns)->minus(1ns)->toIso(), "\n";
+try { $last->plus(1ns); }
+catch (RuntimeError $high) { echo $high->message, "\n"; }
+try { $first->minus(1ns); }
+catch (RuntimeError $low) { echo $low->message, "\n"; }
+// A negative `Duration` moves the other way, and past the range it throws the
+// same sentence from the member that was called.
+try { $first->plus((1ns)->negated()); }
+catch (RuntimeError $back) { echo $back->message, "\n"; }
+try { $last->minus((1ns)->negated()); }
+catch (RuntimeError $forward) { echo $forward->message, "\n"; }
+--EXPECT--
+9999-12-30T22:00:00.999999999Z
+-009999-01-02T01:59:59Z
+Core\Time\Instant::plus(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time\Instant::minus(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time\Instant::plus(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time\Instant::minus(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z

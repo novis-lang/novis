@@ -2223,21 +2223,20 @@ const TIME_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Time::now`'s reference card — `rule:core-api/reference-card`.
 const TIME_NOW_DOC: MethodDoc = MethodDoc {
-    short: "Reads the wall clock, replacing `time`, `microtime` and `date_create` at once — as \
-            an `Instant`, which a zone turns into a calendar reading with `->in($zone)`.",
+    short: "Reads the current time from the system clock. It replaces PHP's `time`, `microtime` \
+            and `date_create`. Use `->in($zone)` to get the date and time of day in a zone.",
     params: &[],
-    ret: "The current `Instant`, to nanosecond resolution.",
+    ret: "The current `Instant`, to the nanosecond.",
     errors: &[],
 };
 
 /// `Core\Time::monotonic`'s reference card — `rule:core-api/reference-card`.
 const TIME_MONOTONIC_DOC: MethodDoc = MethodDoc {
-    short: "Reads the monotonic clock, replacing `hrtime` — for measuring, never for wall-clock \
-            time, which is why it answers a `Duration`: the value means nothing except against \
-            another reading of the same clock.",
+    short: "Reads a clock that only moves forward, for measuring how long something takes. It \
+            replaces PHP's `hrtime`. Subtract two readings to get the time between them.",
     params: &[],
-    ret: "The `Duration` since an origin fixed at this process's first reading, which never \
-          goes backwards.",
+    ret: "A `Duration` since a fixed starting point. A later reading is never smaller than an \
+          earlier one.",
     errors: &[],
 };
 
@@ -2473,7 +2472,7 @@ const DATE_WITH_OPTIONS: &[CoreOption] = &[
 /// priority ordering spends memory on simplicity, not the reverse.
 pub const DATE: CoreClass = CoreClass {
     name: DATE_NAME,
-    doc: None,
+    doc: Some(&DATE_CARD),
     methods: &[CoreMethod {
         name: "at",
         names: &["y", "m", "d"],
@@ -2532,6 +2531,13 @@ pub const DATE: CoreClass = CoreClass {
     ],
     slots: &["year", "month", "day"],
     constants: &[],
+};
+
+/// `Core\Time\Date`'s class card — `rule:core-api/reference-card`.
+const DATE_CARD: ClassDoc = ClassDoc {
+    short: "A date with no time of day and no zone, such as a birthday or a due date. \
+            `Core\\Time\\Date::at` builds one from a year, a month and a day. `plus` and `minus` \
+            move it by days, months or years, and `format` turns it into text.",
 };
 
 /// `Core\Time\Date::at`'s reference card — `rule:core-api/reference-card`.
@@ -3261,6 +3267,11 @@ fn out_of_range(member: &str, why: &str) -> Fault {
     Fault::thrown(format!("{member}(): {why}"))
 }
 
+/// Why a member throws for a time past either end of the timestamp range. It
+/// is the same sentence in every member that can leave the range, and it
+/// replaces jiff's own, which names a parameter the program never wrote.
+const PAST_THE_RANGE: &str = "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
+
 /// The `string` in argument slot `at`, for a member that takes text.
 ///
 /// # Errors
@@ -3638,7 +3649,7 @@ nvs_runtime::nvs_helper! {
                 let written_as_one = Pieces::parse(text.as_bytes())
                     .is_ok_and(|read| read.time().is_some() && read.offset().is_some());
                 let why = if written_as_one {
-                    "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z".to_owned()
+                    PAST_THE_RANGE.to_owned()
                 } else {
                     err.to_string()
                 };
@@ -3700,12 +3711,14 @@ nvs_runtime::nvs_helper! {
     /// `$i->plus(Duration $d): Instant` — the exact arithmetic of § 4's two,
     /// so it crosses a DST boundary without noticing one. A calendar step is
     /// `DateTime::plus($n, Unit::Day)`.
+    ///
+    /// Adding a `SignedDuration` fails only past either end of the range.
     fn nvs_core_time_instant_plus(_ctx, args: [2]) {
         let at = instant_of(args, 0, "plus")?;
         let by = SignedDuration::from_nanos(nanos_of(args, 1, "plus")?);
         at.checked_add(by)
             .map(instant_built)
-            .map_err(|err| out_of_range(r"Core\Time\Instant::plus", &err.to_string()))
+            .map_err(|_| out_of_range(r"Core\Time\Instant::plus", PAST_THE_RANGE))
     }
 }
 
@@ -3716,7 +3729,7 @@ nvs_runtime::nvs_helper! {
         let by = SignedDuration::from_nanos(nanos_of(args, 1, "minus")?);
         at.checked_sub(by)
             .map(instant_built)
-            .map_err(|err| out_of_range(r"Core\Time\Instant::minus", &err.to_string()))
+            .map_err(|_| out_of_range(r"Core\Time\Instant::minus", PAST_THE_RANGE))
     }
 }
 
@@ -4476,12 +4489,7 @@ nvs_runtime::nvs_helper! {
         // failure left is an instant past either end of the timestamp range.
         zone.to_zoned(civil)
             .map(|at| datetime_built(&at))
-            .map_err(|_| {
-                out_of_range(
-                    r"Core\Time::at",
-                    "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z",
-                )
-            })
+            .map_err(|_| out_of_range(r"Core\Time::at", PAST_THE_RANGE))
     }
 }
 
@@ -5504,5 +5512,78 @@ mod tests {
                 "{nanos} ns took {took:?}"
             );
         }
+    }
+
+    /// `Core\Time::now` called on `ctx` the way a compiled call site calls
+    /// it. It answers the `Instant` as nanoseconds since the epoch.
+    fn read_now(ctx: &mut Ctx) -> i128 {
+        let built =
+            nvs_runtime::call(nvs_core_time_now, ctx, &[]).expect("`now` throws nothing here");
+        let at = instant_of(&[built], 0, "test").expect("`now` answers an `Instant`");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the `Instant` the member answered"
+        )]
+        unsafe {
+            built.release();
+        }
+        at.as_nanosecond()
+    }
+
+    /// `Core\Time::monotonic` called the way a compiled call site calls it,
+    /// on `ctx`. It answers the `Duration` in nanoseconds.
+    fn read_monotonic(ctx: &mut Ctx) -> i64 {
+        let built = nvs_runtime::call(nvs_core_time_monotonic, ctx, &[])
+            .expect("`monotonic` throws nothing");
+        let nanos = nanos_of(&[built], 0, "test").expect("`monotonic` answers a `Duration`");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the `Duration` the member answered"
+        )]
+        unsafe {
+            built.release();
+        }
+        nanos
+    }
+
+    /// `now` reads the host's wall clock, between two readings taken around
+    /// it, and answers the fixed reading instead once a test has armed one.
+    // covers: Core\Time::now
+    #[test]
+    fn now_reads_the_host_clock_unless_a_fixed_one_is_armed() {
+        let mut ctx = Ctx::buffered();
+        let before = Timestamp::now().as_nanosecond();
+        let read = read_now(&mut ctx);
+        let after = Timestamp::now().as_nanosecond();
+        assert!(
+            before <= read && read <= after,
+            "{before} <= {read} <= {after}"
+        );
+
+        let fixed = i128::from(second_of("2024-03-01T12:00:00Z")) * 1_000_000_000 + 5;
+        ctx.set_fixed_clock(fixed);
+        assert_eq!(read_now(&mut ctx), fixed);
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        assert_eq!(read_now(&mut ctx), fixed, "a fixed clock does not move");
+    }
+
+    /// `monotonic` never goes backwards, counts a real wait in full, and is
+    /// not frozen by the fixed clock that freezes `now`.
+    // covers: Core\Time::monotonic
+    #[test]
+    fn monotonic_never_goes_back_and_counts_a_real_wait() {
+        let mut ctx = Ctx::buffered();
+        let mut last = read_monotonic(&mut ctx);
+        assert!(last >= 0, "{last}");
+        for _ in 0..1000 {
+            let next = read_monotonic(&mut ctx);
+            assert!(next >= last, "{next} after {last}");
+            last = next;
+        }
+        ctx.set_fixed_clock(0);
+        let began = read_monotonic(&mut ctx);
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let waited = read_monotonic(&mut ctx) - began;
+        assert!(waited >= 2_000_000, "{waited} ns");
     }
 }

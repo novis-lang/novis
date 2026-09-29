@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a job reports every step that took longer than a limit.
+
+// Each step here only waits, to stand in for real work such as a database query.
+array<Core\Time\Duration> $steps = ["load" => 1ms, "convert" => 100ms, "save" => 1ms];
+Core\Time\Duration $limit = 50ms;
+
+// This prints "slow step: convert" and nothing for the two fast steps.
+foreach ($steps as string $name => Core\Time\Duration $work) {
+    var $began = Core\Time::monotonic();
+    Core\Time::sleep($work);
+    Core\Time\Duration $took = Core\Time::monotonic()->minus($began);
+    if ($took->compareTo($limit) > 0) {
+        echo "slow step: ", $name, "\n";
+    }
+}

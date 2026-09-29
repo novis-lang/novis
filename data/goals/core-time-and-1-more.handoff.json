@@ -1,28 +1,26 @@
 {
-  "state": "Goal `core-time-and-1-more`: `Core\\Time::at`, `fromEpoch`, `fromIso`, `parse` and `sleep` have all their feature proofs — `about.md`, three examples, one attack, one bench with a recorded figure, a Rust test with its `covers:` marker — and `Core\\Time` has its class card (`TIME_CARD` in `crates/nvs-stdlib/src/time.rs`). `bun nv proofs --verify --group 'Core\\Time'` now names only `now` and `monotonic`.\nThe `parse` attack found two bugs, both fixed with a `.nvst` case (`tests/conformance/core/time-parse-names-the-range-and-refuses-a-field-too-wide-to-hold.nvst`): a field repeated past 18 letters overflowed `i64` in `crate::cldr::number` (a panic under debug, a wrapped year under release), and a time past the timestamp range threw jiff's sentence. Both now throw a plain `ParseError` sentence, the range one in the words `at` and `fromIso` use.\nAfter those two, `Core\\Time\\Date` is the stage's other check: its class card is missing, and `minus`, `with` and `compareTo` owe examples, an attack, a bench and `.nvst` cases.",
+  "state": "Goal `core-time-and-1-more`: every `Core\\Time` member has all its feature proofs, and `bun nv proofs --verify --group 'Core\\Time'` and `--group 'Core\\Cldr'` both print \"nothing owed\". The `Core\\Cldr` and `Core\\Time` figures were re-measured after `crates/nvs-stdlib/src/cldr.rs` and `crates/nvs-stdlib/src/time.rs` changed.\n`now`'s attack found that `Core\\Time\\Instant::plus` and `minus` past the timestamp range threw jiff's own sentence. Both now throw `PAST_THE_RANGE`, the sentence `at`, `fromIso` and `parse` use, pinned by `tests/conformance/core/time-instant-plus-and-minus-name-the-range-past-either-end.nvst`.\n`Core\\Time\\Date` has its class card (`DATE_CARD`), so the stage's last check, `proofs: Core\\Time\\Date`, owes only `minus`, `with` and `compareTo`: examples, an attack, a bench each, and `.nvst` cases (`with` and `compareTo` 0 of 2, `minus` 1 of 2).\nAny `time.rs` edit stales every `Core\\Time` figure, so the session that closes the stage re-runs `bun nv proofs --record-perf --group 'Core\\Time'` and `--group 'Core\\Time\\Date'` after its last edit.",
   "next": {
     "stage": 2,
-    "title": "the dossier, the last `Core\\Time` members, then `Core\\Time\\Date`",
+    "title": "the dossier, `Core\\Time\\Date`'s three members",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the `TIME` and `DATE` rows, their cards and `mod tests`), `crates/nvs-stdlib/src/registry.rs`, plus each member's own proof directories.",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the `DATE` rows and their bodies), plus each member's own proof directories under `docs/examples/core/Time-Date/`, `tests/hostile/core/Time-Date/` and `benches/members/core/Time-Date/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time::now`** — owes examples, hostile, perf and a Rust test with `// covers: Core\\Time::now` (`rule:testing/feature-proofs`). Row near `crates/nvs-stdlib/src/time.rs:2128` in the `TIME` class; the body is beside `nvs_core_time_monotonic` at `crates/nvs-stdlib/src/time.rs:3517`. Output is not fixed, so examples print what can be checked (an order, a difference), the way `docs/examples/core/Time/sleep/02-a-wait-of-zero-or-less.nvs` does."
+        "text": "**`Core\\Time\\Date::minus`** — owes examples, hostile, perf and one more `.nvst` case (`rule:testing/feature-proofs`). Row in `DATE` at `crates/nvs-stdlib/src/time.rs:2473`, body at `crates/nvs-stdlib/src/time.rs:4681`. An instance member needs a `// covers: Core\\Time\\Date::minus` marker on its cases."
       },
       {
         "done": false,
-        "text": "**`Core\\Time::monotonic`** — owes the same. Body at `crates/nvs-stdlib/src/time.rs:3517`. `slept` in `mod tests` is the shape for a Rust test that times a call."
+        "text": "**`Core\\Time\\Date::with`** — owes the same, and 2 `.nvst` cases. Body at `crates/nvs-stdlib/src/time.rs:4693`; its `year`/`nanos` refusals still pass jiff's `err.to_string()` for some failures, so an attack there may find the same bug `Instant::plus` had — use `PAST_THE_RANGE`'s shape for the fix."
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Date`'s class card** — add its `ClassDoc` above the class's `CLASS` row near `DATE_NAME` at `crates/nvs-stdlib/src/time.rs:2429`, and delete `Core\\Time\\Date` from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283` (`rule:core-api/reference-card`). `TIME_CARD` is the shape."
+        "text": "**`Core\\Time\\Date::compareTo`** — owes the same, and 2 `.nvst` cases. Body at `crates/nvs-stdlib/src/time.rs:4724`. Then re-record `--group 'Core\\Time'` and `--group 'Core\\Time\\Date'`."
       }
-    ],
-    "after": "Then the `Core\\Time\\Date` members, each owing examples, hostile, perf and `.nvst` cases with a `// covers:` marker (an instance member is not credited by a call): `minus` (row `crates/nvs-stdlib/src/time.rs:2506`, body `:4673`, one case), `with` (row `:2515`, body `:4685`, two cases), `compareTo` (row `:2524`, body `:4716`, two cases)."
+    ]
   },
   "backlog": [
-    "A program under the root `nvs.toml` that calls `Core\\Time::sleep` also runs queued jobs from that file's queue, and printed `the queued job scripts/receipt.nvs was not run` to stderr during `docs/examples/core/Time/sleep/01-wait-longer-before-each-retry.nvs`. Stdout was clean. Not checked whether a plain `nvs run` is meant to drain the queue (`crates/nvs-cli/src/worker.rs`).",
-    "`crate::cldr`'s `S` field with more than nine letters reads every digit and throws `fraction out of range` for a long fraction, where the first nine digits would do (`crates/nvs-stdlib/src/cldr.rs`, `Field::Fraction`)."
+    "Many `Core\\Time\\DateTime` members still pass jiff's `err.to_string()` to `out_of_range` (`crates/nvs-stdlib/src/time.rs`, the `DateTime::{member}` sites); the goal that proves `DateTime` will meet them in its attacks."
   ]
 }

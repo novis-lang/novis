@@ -1,0 +1,18 @@
+<?nvs
+// Shows a login session that is valid for 30 minutes from the moment it starts.
+
+// The program stores the end time as text, for example in a database.
+string $stored = Core\Time::now()->plus(30m)->toIso();
+
+// Later, the program reads the stored time back and compares it with the
+// current time. This prints "valid".
+var $expires = Core\Time::fromIso($stored);
+echo Core\Time::now()->compareTo($expires) < 0 ? "valid" : "expired", "\n";
+
+// A session that ended in 2024 is expired. This prints "expired".
+var $old = Core\Time::fromIso("2024-01-01T08:00:00Z");
+echo Core\Time::now()->compareTo($old) < 0 ? "valid" : "expired", "\n";
+
+// `since` gives the time that is left. This prints "about 30 minutes left".
+int $left = $expires->since(Core\Time::now())->toSeconds();
+echo $left > 1790 ? "about 30 minutes left" : "less time left", "\n";

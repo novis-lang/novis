@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the current time and turn it into a date in a zone.
+
+// `Core\Time::now` returns an `Instant`. `toEpochSeconds` gives the seconds
+// since 1 January 1970. This prints "after 2024".
+var $now = Core\Time::now();
+echo $now->toEpochSeconds() >= 1704067200 ? "after 2024" : "before 2024", "\n";
+
+// `in` gives the date and time of day in a zone. The text changes every
+// minute, so this prints only its length: 16.
+string $berlin = $now->in(Core\Time\Zone::of("Europe/Berlin"))->format("yyyy-MM-dd HH:mm");
+echo Core\Str::length($berlin), "\n";
