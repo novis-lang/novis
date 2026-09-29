@@ -1,0 +1,9 @@
+<?nvs
+// Shows that leaving a topic the connection never joined is not an error.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and then closes.
+// This connection never joined `room:lobby`. The call does nothing and throws no error.
+Core\Topic::unsubscribe("room:lobby");
+
+// Nobody is subscribed to `room:lobby`, so this prints `0`.
+echo Core\Topic::publish("room:lobby", "hello"), "\n";

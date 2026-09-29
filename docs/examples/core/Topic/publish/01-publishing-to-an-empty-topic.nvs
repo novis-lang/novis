@@ -1,0 +1,11 @@
+<?nvs
+// Shows that any script can publish, and that `publish` returns how many connections received the value.
+
+// Nobody subscribed to `room:lobby`, so `publish` returns `0`.
+uint $reached = Core\Topic::publish("room:lobby", "hello");
+echo $reached, "\n";
+
+// This prints `nobody is listening`.
+if ($reached == 0) {
+    echo "nobody is listening\n";
+}

@@ -1,26 +1,29 @@
 {
-  "state": "Goal `core-time-zone-and-2-more` has finished `Core\\Time\\Zone` and `Core\\Totp`. Both `Totp` members\n(`code`, `check`) have a description, three examples, an attack, a bench with a recorded figure, a Rust\ntest with its `covers:` marker and an end-user card, and the class card is in. `dossier-core-time-zone`\nand `dossier-core-totp` pass. `code_at` now writes into a `[u8; 6]`, so `check` allocates nothing\n(`docs/perf/members.ndjson`). The one red check in stage 2 is `dossier-core-topic`, which still owes\neverything, and `Core\\Topic` is still in `CLASSES_STILL_OWING_A_CARD`. Nothing is blocked.",
+  "state": "Goal `core-time-zone-and-2-more` is met. `Core\\Time\\Zone`, `Core\\Totp` and `Core\\Topic` each have\ntheir full dossier, and `bun nv proofs --verify --group` is green for all three. The three `Topic`\nmembers (`subscribe`, `publish`, `unsubscribe`) have a description, three examples, an attack, a\nbench with a recorded figure (`docs/perf/members.ndjson`), a Rust test with its `covers:` marker and\nan end-user card. `Core\\Topic` has its class card and is out of `CLASSES_STILL_OWING_A_CARD`.\n`bun nv owners --closes` and `bun nv playbook --closes` name nothing for this goal. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier, `Core\\Topic`",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/topic.rs` (the `CLASS` row, its cards and the `tests` module), `crates/nvs-stdlib/src/registry.rs` (`CLASSES_STILL_OWING_A_CARD`), plus `docs/examples/core/Topic/`, `tests/hostile/core/Topic/` and `benches/members/core/Topic/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/topic.rs`, plus `docs/examples/core/Topic/`, `tests/hostile/core/Topic/` and `benches/members/core/Topic/`.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Topic::subscribe`** — owes about, examples, hostile, perf, tests, and the class card (`rule:testing/feature-proofs`, `rule:core-api/reference-card`). Add `Core\\Topic`'s `ClassDoc` above the row (`doc: None` at `crates/nvs-stdlib/src/topic.rs:211`) and delete its line from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5348`. Rewrite the member cards in the end-user voice. `crates/nvs-stdlib/src/topic.rs:214`"
+        "done": true,
+        "text": "**`Core\\Topic::subscribe`** and the class card (`rule:testing/feature-proofs`, `rule:core-api/reference-card`). `crates/nvs-stdlib/src/topic.rs:211`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Topic::publish` and `Core\\Topic::unsubscribe`** — owe the same, less the class card. Their Rust tests go in the `tests` module at `crates/nvs-stdlib/src/topic.rs:695` and carry `// covers: Core\\Topic::publish` / `unsubscribe`, placed between the doc comment and `#[test]`. `crates/nvs-stdlib/src/topic.rs:226`"
+        "done": true,
+        "text": "**`Core\\Topic::publish` and `Core\\Topic::unsubscribe`** (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/topic.rs:228`"
       },
       {
-        "done": false,
-        "text": "**Record the three figures** with `bun nv proofs --record-perf --group 'Core\\Topic'` after the last edit to `topic.rs`. The freshness key is that file's content. Index bench arrays with `($total % N) as int` (`benches/members/README.md`), and keep the output of a hostile case the same on every run, or the sweep re-runs it every time. `crates/nvs-stdlib/src/topic.rs:209`"
+        "done": true,
+        "text": "**The three figures**, recorded after the last edit to `crates/nvs-stdlib/src/topic.rs:1`."
       }
     ]
   },
   "backlog": [
-    "`bun nv proofs --record-perf` refuses to calibrate while another process loads the CPU. Re-run it; it passed on the third try (`tools/nv/cmd/proofs.ts`)."
+    "One connection can subscribe to any number of topics, and the table's bytes are the process's rather than the request's, so `tests/hostile/core/Topic/subscribe/` grows the process by about 20 MB with nothing capping it — `crates/nvs-stdlib/src/topic.rs` module doc § *the table's own bytes are the process's*.",
+    "`publish` queues a copy per subscriber against a count bound and no byte bound, so ten-megabyte values stop the program at its memory limit before the queue closes the connection (`tests/hostile/core/Topic/publish/`) — `nvs_runtime::Inbox`'s module doc.",
+    "A re-subscribe to a topic already joined allocates three times (`docs/perf/members.ndjson`); `topic_of` copies the name before the lookup — `crates/nvs-stdlib/src/topic.rs`.",
+    "The `LogicError` message for a call outside a connection says \"connection isolate\", which an end user does not know (`docs/examples/core/Topic/subscribe/02-outside-a-connection.out`) — `crates/nvs-stdlib/src/topic.rs` `connection_inbox`."
   ]
 }

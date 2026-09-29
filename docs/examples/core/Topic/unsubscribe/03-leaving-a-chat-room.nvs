@@ -1,0 +1,29 @@
+<?nvs
+// Shows a chat connection where the user leaves one room and stays in another.
+
+// The `.nvsp` file beside this example plays a client. It sends a line, then
+// the command `/leave random`, then another line, and then closes.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("room:lobby");
+Core\Topic::subscribe("room:random");
+
+// This prints three `sent:` lines. The second line from the client
+// reaches only `room:lobby`, because the user left `room:random`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    ?string $topic = $message->topic();
+    tainted string $text = $message->text() ?? "";
+    if ($topic != null) {
+        // A message from a room goes to the client.
+        $conn->send($topic . ": " . ($message->value() as string));
+    } else if ($text == "/leave random") {
+        // The text from the client is `tainted`, so it cannot be a topic name.
+        // The program checks the text and then uses its own name for the room.
+        Core\Topic::unsubscribe("room:random");
+    } else {
+        // Every other line from the client is posted to both rooms.
+        Core\Topic::publish("room:lobby", $text);
+        Core\Topic::publish("room:random", $text);
+    }
+    $message = $conn->receive();
+}

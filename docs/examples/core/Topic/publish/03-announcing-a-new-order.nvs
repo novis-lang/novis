@@ -1,0 +1,24 @@
+<?nvs
+// Shows a checkout that tells every open staff dashboard about a new order.
+
+// The `.nvsp` file beside this example plays one staff dashboard that sends nothing and then closes.
+// This script is the connection of that dashboard, and it joins the `orders` topic.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("orders");
+
+class Checkout {
+    // In a real application, the checkout request calls this method.
+    public static function announce(string $id, string $total): uint {
+        return Core\Topic::publish("orders", ["id" => $id, "total" => $total]);
+    }
+}
+
+// One dashboard is open, so this prints `sent to 1 dashboard(s)`.
+echo "sent to ", Checkout::announce("1042", "25.50"), " dashboard(s)\n";
+
+// The dashboard's connection receives the order and sends it to the browser as JSON.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    $conn->send(Core\Json::encode($message->value()));
+    $message = $conn->receive();
+}

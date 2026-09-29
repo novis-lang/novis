@@ -1,0 +1,34 @@
+<?nvs
+// Attack: a connection joins and leaves a topic a hundred thousand times, and
+// leaves many topics it never joined. Nothing should be left behind, and the
+// last publish should reach nobody.
+Core\Socket $conn = Core\Socket::current();
+
+// 1. Leave with an empty name. This throws a `LogicError`.
+try {
+    Core\Topic::unsubscribe('');
+} catch (LogicError $error) {
+    echo "empty name refused\n";
+}
+
+// 2. Join and leave the same topic a hundred thousand times, with a publish in between.
+uint $reached = 0;
+uint $i = 0;
+while ($i < 100000) {
+    Core\Topic::subscribe('room:lobby');
+    Core\Topic::unsubscribe('room:lobby');
+    $reached = $reached + Core\Topic::publish('room:lobby', $i);
+    $i = $i + 1;
+}
+echo $reached, " publishes reached the connection\n";
+
+// 3. Leave a hundred thousand topics that were never joined, each with a long name.
+string $long = Core\Str::repeat('y', 200);
+$i = 0;
+while ($i < 100000) {
+    Core\Topic::unsubscribe('room:' . $long . ($i as string));
+    $i = $i + 1;
+}
+
+// 4. Nothing arrives, and the connection ends normally.
+echo $conn->receive() == null ? "nothing arrived\n" : "a message arrived\n";

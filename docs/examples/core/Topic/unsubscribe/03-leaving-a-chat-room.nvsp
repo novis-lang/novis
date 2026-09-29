@@ -1,0 +1,4 @@
+# The client sends a line, leaves one room, sends another line, then closes.
+text: hello everyone
+text: /leave random
+text: see you later

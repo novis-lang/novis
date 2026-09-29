@@ -19464,15 +19464,15 @@ Keywords: subscribe, publish, unsubscribe
 Core\Topic::subscribe(string $topic): void
 ```
 
-Joins this connection to `$topic`, so that a value published to it arrives at the next `receive()` as a message whose `topic()` is that name.
+Joins this connection to `$topic`. A value published to that topic then arrives at the next `receive()`, and the message's `topic()` returns the name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$topic` | `string` (sink) | The topic's name. It may not come from outside the program — a name derived from user input is how one tenant subscribes to another's stream — so it is built from checked values or it does not compile. |
+| `$topic` | `string` (sink) | The name of the topic. It may not be `tainted` (come from user input), so you build it from values your program checked. Otherwise the call does not compile. This stops one user from joining the topic of another user. |
 
-**Returns** `void` — Nothing. Subscribing twice to one name is one subscription, so a published value arrives once however many times the connection joined.
+**Returns** `void` — Nothing. If a connection subscribes twice to the same topic, a published value still arrives only once.
 
-**Throws** `LogicError` — An empty `$topic`, which no publisher can mean; and a call from a program that is not a connection, which has nothing to deliver to.
+**Throws** `LogicError` — `$topic` is empty, or this script is not a WebSocket connection or an event stream. Only a script that `Core\Socket::upgrade` or `Core\Sse::upgrade` started can subscribe.
 
 <a id="core-core-topic-publish"></a>
 #### `Core\Topic::publish`
@@ -19481,16 +19481,16 @@ Joins this connection to `$topic`, so that a value published to it arrives at th
 Core\Topic::publish(string $topic, mixed $value): uint
 ```
 
-Copies `$value` to every connection subscribed to `$topic`, and answers how many were reached.
+Sends a copy of `$value` to every connection that subscribed to `$topic`, and returns how many connections it was sent to.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$topic` | `string` (sink) | The topic's name, under the rule `subscribe` reads it under: it is built from checked values or it does not compile. |
-| `$value` | `mixed` | What to publish. Every subscriber is handed its own copy, so nothing is shared with the publisher or between subscribers; a `tainted` value is still `tainted` where it arrives, and a `secret` may not be published at all. |
+| `$topic` | `string` (sink) | The name of the topic. As with `subscribe`, it may not be `tainted`, so a name built from user input does not compile. |
+| `$value` | `mixed` | The value to send. Each subscriber gets its own copy, so a change one subscriber makes is not seen by any other. A `tainted` value is still `tainted` when it arrives. A value that contains a `secret` cannot be published. |
 
-**Returns** `uint` — How many subscribers the value was queued for, which is `0` for a topic nobody has joined. Publishing needs no connection of its own — an ordinary request may tell the connections that something changed — and a connection publishing to a topic it joined itself is delivered to like any other subscriber. A subscriber whose queue is full is not among them: it is being closed for falling behind, and this call is never delayed by one.
+**Returns** `uint` — The number of subscribers the value was sent to. It is `0` for a topic nobody joined. Any script can publish, so an ordinary web request can tell the connections that something changed. A connection that publishes to a topic it joined also receives the value. A subscriber with too many unread messages is skipped and not counted. It is being closed, and `publish` never waits for it.
 
-**Throws** `LogicError` — An empty `$topic`, which no subscriber can be reached by; and a `$value` with no meaning on the other side of a copy boundary — a resource, or a `secret` — which is refused whether or not anybody has joined.
+**Throws** `LogicError` — `$topic` is empty, or `$value` cannot be copied to another connection, such as an object with a `secret` property. The error is thrown even when nobody joined the topic.
 
 <a id="core-core-topic-unsubscribe"></a>
 #### `Core\Topic::unsubscribe`
@@ -19499,15 +19499,15 @@ Copies `$value` to every connection subscribed to `$topic`, and answers how many
 Core\Topic::unsubscribe(string $topic): void
 ```
 
-Leaves `$topic`, so nothing published to it reaches this connection again.
+Removes this connection from `$topic`. A value published to that topic after this call does not reach this connection.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$topic` | `string` (sink) | The topic's name, under the same rule `subscribe` reads it under. |
+| `$topic` | `string` (sink) | The name of the topic. As with `subscribe`, it may not be `tainted`. |
 
-**Returns** `void` — Nothing. Leaving a topic this connection never joined is not an error — the state it asks for is the state that already holds.
+**Returns** `void` — Nothing. Leaving a topic this connection never joined is not an error.
 
-**Throws** `LogicError` — An empty `$topic`, and a call from a program that is not a connection — the same two `subscribe` refuses, so the pair cannot disagree about what a call means.
+**Throws** `LogicError` — `$topic` is empty, or this script is not a WebSocket connection or an event stream. These are the same two errors `subscribe` throws.
 
 <a id="core-core-sse"></a>
 ### `Core\Sse`

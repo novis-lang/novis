@@ -1,0 +1,23 @@
+<?nvs
+// Shows a connection that stops listening to one topic and keeps the other.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and then closes.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("news:weather");
+Core\Topic::subscribe("news:sport");
+
+Core\Topic::publish("news:weather", "rain in the afternoon");
+Core\Topic::publish("news:sport", "the match starts at 8");
+
+// The connection leaves `news:sport`. The sport news above is already
+// waiting, so it still arrives. The sport news below does not.
+Core\Topic::unsubscribe("news:sport");
+Core\Topic::publish("news:weather", "sun in the evening");
+Core\Topic::publish("news:sport", "the match ended 2 to 1");
+
+// This prints three lines: two about the weather and one about sport.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    echo $message->topic(), ": ", $message->value() as string, "\n";
+    $message = $conn->receive();
+}
