@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a program checks very long texts, texts with invalid bytes and texts that are one
+// character away from a UUID. Each check should return `null`, and nothing should crash.
+// proof: gap nvs-runtime/a-core-call-with-a-large-string-costs-time-per-byte
+
+// 1. A text of 50 million characters. This prints null.
+string $huge = Core\Str::repeat('f', 50000000);
+echo Core\Uuid::tryParse($huge) == null ? 'null' : 'uuid', "\n";
+
+// 2. A UUID with one more character at the end, and one with one less. This prints null twice.
+echo Core\Uuid::tryParse('f9168c5e-ceb2-4faa-b6bf-329bf39fa1e40') == null ? 'null' : 'uuid', "\n";
+echo Core\Uuid::tryParse('f9168c5e-ceb2-4faa-b6bf-329bf39fa1e') == null ? 'null' : 'uuid', "\n";
+
+// 3. Each of the 36 characters is replaced by "g", one at a time. This prints 36.
+string $good = 'f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4';
+int $refused = 0;
+int $at = 0;
+while ($at < 36) {
+    string $bad = Core\Str::slice($good, 0, $at) . 'g' . Core\Str::slice($good, $at + 1);
+    if (Core\Uuid::tryParse($bad) == null) {
+        $refused = $refused + 1;
+    }
+    $at = $at + 1;
+}
+echo $refused, "\n";
+
+// 4. 36 characters that are "é" letters and hyphens. Each "é" is two bytes. This prints null.
+string $wide = Core\Str::repeat('é', 8) . '-' . Core\Str::repeat('é', 4) . '-'
+    . Core\Str::repeat('é', 4) . '-' . Core\Str::repeat('é', 4) . '-' . Core\Str::repeat('é', 12);
+echo Core\Uuid::tryParse($wide) == null ? 'null' : 'uuid', "\n";
+
+// 5. One million checks of a valid text and of an invalid one. Every result is freed.
+// This prints 1000000.
+int $found = 0;
+int $i = 0;
+while ($i < 1000000) {
+    if (Core\Uuid::tryParse($good) != null && Core\Uuid::tryParse($huge) == null) {
+        $found = $found + 1;
+    }
+    $i = $i + 1;
+}
+echo $found, "\n";

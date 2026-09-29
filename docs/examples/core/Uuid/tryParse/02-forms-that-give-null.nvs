@@ -1,0 +1,16 @@
+<?nvs
+// Shows which ways to write a UUID are accepted.
+
+array<string> $texts = [
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "f9168c5eceb24faab6bf329bf39fa1e4",
+    "{f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4}",
+    "urn:uuid:f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "00000000-0000-0000-0000-000000000000",
+];
+
+// Only the form with four hyphens is accepted. The nil UUID has only zeros and is valid.
+// This prints yes, no, no, no and yes.
+foreach ($texts as string $text) {
+    echo Core\Uuid::tryParse($text) == null ? "no" : "yes", "  ", $text, "\n";
+}

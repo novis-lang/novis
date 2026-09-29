@@ -1,0 +1,28 @@
+<?nvs
+// Checks whether a text is a UUID, as a program does with an ID from a request path.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $texts = [
+            "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+            "order-1042",
+            "0190D1E6-8E3C-7C2A-9A4B-1F2E3D4C5B6A",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Core\Uuid $id = Core\Uuid::tryParse($texts[($total % 3) as int]);
+            if ($id == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $total = $total + ($i % 5);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
