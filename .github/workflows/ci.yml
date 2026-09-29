@@ -1,0 +1,28 @@
+name: CI
+
+# `landing` is the default branch and holds no code; the workflow is `main`'s `.github/workflows/ci.yml`.
+# GitHub reads two triggers only from the default branch: `schedule`, and whether `workflow_dispatch`
+# shows a "Run workflow" button. So this file carries both and forwards each run to `main` as a
+# `workflow_dispatch`, which `main`'s workflow treats like the nightly: every job, unconditionally.
+# The cron is the same one `main`'s file names, which GitHub ignores while `main` is not the default.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forward:
+    name: forward to main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A run dispatched by `GITHUB_TOKEN` starts a new workflow run, unlike every other event it sends.
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch CI on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main

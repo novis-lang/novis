@@ -1,0 +1,25 @@
+name: Hard to find or understand
+description: Something works, but you could not find it, or an error message did not help.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you! This helps other people too. Only the first box is needed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What did you want to do?
+    validations:
+      required: true
+  - type: textarea
+    id: looked
+    attributes:
+      label: Where did you look?
+      description: For example, the reference, your editor, an error message, or `nvs --help`.
+  - type: textarea
+    id: message
+    attributes:
+      label: Error or code
+      description: Paste the error or code that was not clear. Replace private names and data with example values.
+      render: text

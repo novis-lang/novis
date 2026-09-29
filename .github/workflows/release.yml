@@ -1,0 +1,21 @@
+name: Release
+
+# `landing` is the default branch and holds no code; the workflow is `main`'s `.github/workflows/release.yml`.
+# This file exists so the "Run workflow" button appears: GitHub shows it only for a workflow the default
+# branch has. Choose `main` in the button's branch list, and the form and the run are `main`'s.
+# A run started on `landing` stops here and changes nothing.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pick-main:
+    name: choose main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "::error::Run this workflow on the main branch: Run workflow -> Use workflow from -> main."
+          exit 1

@@ -1,0 +1,23 @@
+# Dependabot reads this file only from the default branch, which is `landing` and holds no code.
+# So every entry names `target-branch: main`: the files it updates and the pull requests it opens
+# are on `main`. The reasoning for what is here and what is not is `main`'s `.github/dependabot.yml`,
+# and the entries below match it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: main
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: 'chore(ci)'
+
+  - package-ecosystem: docker
+    directory: /docker
+    target-branch: main
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'chore(ci)'
