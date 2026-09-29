@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-xml-node-and-1-more` is reached: `bun nv proofs --verify --group 'Core\\Xml\\Node'`\nand `--group 'Core\\Xml\\Reader'` both say nothing owed, 0 failed.\nThe driver's sweep after session 0009 went red on every crate and 2236 conformance cases because\nit overlapped a hand commit to `crates/nvs-host/Cargo.toml` (the macOS CPU clock). On the tree\nas it is now, `bun nv verify` is 15 of 15 green (5731 tests, 2394 conformance, 281 differential),\n`bun nv reference --check` holds 309 of 309 examples, and `bun nv verify --doc` resolves every link.\n`owners --closes` and `playbook --closes` name nothing for this goal.",
+  "state": "Goal `core-xml-node-and-1-more` is reached: `bun nv proofs --verify --group 'Core\\Xml\\Node'`\nand `--group 'Core\\Xml\\Reader'` both say nothing owed, 0 failed.\nThe sweep after session 0010 failed four floor attacks (`Compress-Compressor/finish`,\n`Http-Response/jsonAs`, `Session/get`, `Test/double`) with `still running after Ns`. Alone on the\nproof binary they take 13s/60s, 4s/20s, 21s/60s and 5s/10s. Each group passes by hand, so the\ncause was load and not a hang. `tools/nv/proofs/run.ts`'s `runPrograms` now runs a timed-out\nprogram once more alone before its verdict stands (`timedOut`). `Test/double` declares\n`timeout-ms 30000`, because it used half of the 10s default even when it ran alone.\n`owners --closes` and `playbook --closes` name nothing for this goal.",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -10,11 +10,11 @@
     "items": [
       {
         "done": true,
-        "text": "**Re-made the goal's claim on a green tree** after the sweep that raced the user's commit — `crates/nvs-stdlib/src/xml.rs:1`"
+        "text": "Every item of the goal is on disk; the driver's sweep decides the rest — `tools/nv/proofs/run.ts:470`"
       }
     ]
   },
   "backlog": [
-    "If the sweep goes red on every crate again with nobody else in the tree, look at how the sweep shares `target/covws` with a hand build (`tools/nv/cmd/verify.ts`)."
+    "If the sweep times out an attack again after the retry, measure how many checks the driver runs at once (`tools/nv/driver/runner.ts`) and whether proofs checks overlap there."
   ]
 }

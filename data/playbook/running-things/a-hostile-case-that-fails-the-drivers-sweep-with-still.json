@@ -1,0 +1,12 @@
+{
+  "lead": "A hostile case that fails the driver's sweep with `still running after Ns -- unbounded` can be a bounded program slowed by the sweep's own load.",
+  "body": "The sweep runs many checks side by side. Four attacks that finish in 5 to 21 seconds alone ran past their 10 to 60 second limits there, and each passed when run by hand. Time the file alone on `target/proof/nvs.exe`, with its `.nvsr` and `nvs.toml` as `spawnProof` adds them, before you touch the runtime. `runPrograms` now runs a timed-out program once more alone, so a failure that survives that retry is a real hang.",
+  "files": [
+    "nvs.toml",
+    "tools/nv/proofs/run.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/proofs/run.ts:export function timedOut"
+  }
+}
