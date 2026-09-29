@@ -1,0 +1,12 @@
+<?nvs
+// Shows that a day from `days` is always 24 hours, also when the clocks change.
+
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+// Noon on the day before Berlin moves its clocks forward by one hour.
+var $noon = Core\Time::at(2024, 3, 30, $berlin, {hour: 12});
+
+// 24 hours later, the clock in Berlin shows 13:00.
+echo $noon->toInstant()->plus(Core\Time\Duration::days(1))->in($berlin)->format("HH:mm"), "\n";
+
+// One calendar day later, the clock shows 12:00 again.
+echo $noon->plus(1, Core\Unit::Day)->format("HH:mm"), "\n";

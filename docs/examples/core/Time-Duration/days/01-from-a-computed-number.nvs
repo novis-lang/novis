@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to create a duration from a number of days that the program computes.
+
+int $weeks = 2;
+Core\Time\Duration $holiday = Core\Time\Duration::days($weeks * 7);
+
+// 14 days are written as two weeks, so this prints 2w.
+echo $holiday->toString(), "\n";
+
+// A day is 86400 seconds, so this prints 1209600.
+echo $holiday->toSeconds(), "\n";
+
+// A negative number gives a negative duration. This prints -3d.
+echo Core\Time\Duration::days(-3)->toString(), "\n";

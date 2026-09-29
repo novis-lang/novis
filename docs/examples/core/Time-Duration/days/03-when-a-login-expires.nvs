@@ -1,0 +1,15 @@
+<?nvs
+// Works out when a login expires, from a number of days in the settings.
+
+array<int> $settings = ["rememberDays" => 30];
+Core\Time\Duration $remember = Core\Time\Duration::days($settings["rememberDays"]);
+
+var $loggedIn = Core\Time::fromIso("2024-05-01T09:00:00Z");
+var $expires = $loggedIn->plus($remember);
+
+// This prints 2024-05-31 09:00.
+echo $expires->in(Core\Time\Zone::UTC)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// A visit 29 days later is still inside the time, so this prints "still logged in".
+var $visit = $loggedIn->plus(29d);
+echo $visit < $expires ? "still logged in" : "expired", "\n";
