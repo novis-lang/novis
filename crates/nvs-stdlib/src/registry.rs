@@ -5345,7 +5345,6 @@ mod tests {
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
         r"Core\Task\Channel",
-        r"Core\Uri",
         r"Core\Uuid",
         r"Core\Validate",
         r"Core\Xml",

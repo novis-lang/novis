@@ -1,0 +1,22 @@
+<?nvs
+// Builds the query string of a search link with a list of tags, as a page does for each link it writes.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<mixed> $search = [
+                "q" => "red shoes",
+                "page" => $total % 9,
+                "tags" => ["sale", "new"],
+            ];
+            $total = $total + Core\Str::length(Core\Uri::buildQuery($search));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

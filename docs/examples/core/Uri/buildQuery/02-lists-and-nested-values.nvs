@@ -1,0 +1,19 @@
+<?nvs
+// Shows how lists, nested arrays, `bool` and `null` values are written.
+
+array<mixed> $filter = [
+    "sizes" => ["M", "L"],
+    "price" => ["min" => 10, "max" => 50],
+    "inStock" => true,
+    "coupon" => null,
+];
+
+// A nested value is written under its whole path, such as `sizes[0]`, with escaped brackets.
+// `true` is written as `1`, and the `null` value writes nothing.
+echo Core\Uri::buildQuery($filter), "\n";
+
+// `Core\Uri::parseQuery` reads the text back to the same names and values.
+// This prints L and 50.
+array<mixed> $read = Core\Uri::parseQuery(Core\Uri::buildQuery($filter));
+echo ($read["sizes"] as array<mixed>)[1] as bytes as string, "\n";
+echo ($read["price"] as array<mixed>)["max"] as bytes as string, "\n";

@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program builds query strings from arrays nested very deep, where every
+// value repeats a long name. Each call should return a text or throw an error.
+// The last one should stop at the memory limit before the text is built.
+// hostile: ends-early
+
+class Build
+{
+    public static function length(array<mixed> $parameters): string
+    {
+        try {
+            return Core\Str::length(Core\Uri::buildQuery($parameters)) as string;
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+
+    public static function nested(array<mixed> $inner, uint $depth): array<mixed>
+    {
+        array<mixed> $out = $inner;
+        uint $i = 0;
+        while ($i < $depth) {
+            $out = ['k' => $out];
+            $i = $i + 1;
+        }
+        return $out;
+    }
+}
+
+// 1. One value inside 100000 nested arrays. Each level adds `%5Bk%5D` to the name.
+// This prints 699996.
+echo Build::length(Build::nested(['k' => 'v'], 99999)), "\n";
+
+// 2. 100000 nested arrays with only `null` and empty arrays inside. This prints 0.
+echo Build::length(Build::nested(['a' => null, 'b' => []], 100000)), "\n";
+
+// 3. An object is not a value a query string can contain. This prints "error".
+echo Build::length(['a' => 1, 'b' => new Build()]), "\n";
+
+// 4. 1000 query strings, and every result is freed. This prints 1000.
+uint $done = 0;
+uint $i = 0;
+while ($i < 1000) {
+    if (Core\Uri::buildQuery(['page' => $i, 'tags' => ['a', 'b']]) != '') {
+        $done = $done + 1;
+    }
+    $i = $i + 1;
+}
+echo $done, "\n";
+
+// 5. 200000 values inside 2000 nested arrays. Every value repeats the long name,
+// so the text would need about 3 GB. The program stops here with a memory limit error.
+array<mixed> $values = [];
+uint $j = 0;
+while ($j < 200000) {
+    $values[] = 1;
+    $j = $j + 1;
+}
+echo Build::length(Build::nested(['k' => $values], 2000)), "\n";

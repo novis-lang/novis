@@ -370,8 +370,8 @@ use fluent_uri::{ParseErrorKind, Uri, UriRef};
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
-    ShapeKeyDoc,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, ShapeKeyDoc,
 };
 use crate::signature::{Confirmed, Domain};
 
@@ -392,7 +392,7 @@ pub const NAME: &str = r"Core\Uri";
 /// not a regex — and nothing here is a second thing.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "parse",
@@ -788,23 +788,32 @@ const PARSE_QUERY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Uri`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads, builds and encodes URIs and query strings. `parse` reads a URI into its \
+            parts, and `with` and `resolve` build a new one. The `encode` and `decode` methods \
+            escape and unescape text, and `parseQuery` and `buildQuery` convert between a query \
+            string and an array. `sign` and `verifySignature` sign a link and check it.",
+};
+
 /// `Core\Uri::buildQuery`'s reference card — `rule:core-api/reference-card`.
 const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
-    short: "Writes `$parameters` as a query string, as `http_build_query` does — pairs joined by \
-            `&`, both halves form-encoded, and a nested array written under its whole bracket \
-            path with the indexes spelled out, so `Core\\Uri::parseQuery` reads it back to the \
-            same array.",
+    short: "Writes the array `$parameters` as a query string, such as `page=2&sort=name`. It \
+            gives the same text as PHP's `http_build_query`, and `Core\\Uri::parseQuery` reads \
+            it back to the same array.",
     params: &[ParamDoc {
         name: "parameters",
-        desc: "The parameters: scalars, or arrays nested to any depth.",
+        desc: "The names and values to write. A value is a scalar or another array. A nested \
+               value is written under its whole path, such as `filter[size][0]=M`, with the \
+               brackets escaped as `%5B` and `%5D`.",
         shape: &[],
     }],
-    ret: "The query text, without a leading `?`; a `bool` is written as `1` or `0`, and a \
-          `null` value drops its pair entirely.",
+    ret: "The query string, without a leading `?`. Names and values are escaped as \
+          `Core\\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` \
+          and `false` as `0`. A `null` value writes nothing, and neither does an empty array.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A value is neither a scalar nor a nested array — an object or a closure — so \
-               there is no text to write it as.",
+        desc: "A value is an object or a function, so it has no text form.",
     }],
 };
 
@@ -2284,13 +2293,15 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
 ///
 /// # Errors
 ///
-/// [`scalar_text`]'s, for a value with no text form.
+/// [`scalar_text`]'s, for a value with no text form, and
+/// [`crate::regex::grow`]'s `FATAL` for a text past the request's memory limit.
 pub(crate) fn build(
     root: *mut nvs_runtime::ArrayHeader,
     owner: &str,
     member: &str,
     omit: &[&str],
 ) -> Result<String, Fault> {
+    let label = format!("{owner}::{member}");
     let mut out = String::new();
     let mut name: Vec<u8> = Vec::new();
     let mut stack = vec![Level {
@@ -2333,15 +2344,24 @@ pub(crate) fn build(
         if value.tag() == Some(Tag::Null) {
             continue;
         }
+        let pair_name = encode(&name, Form::FormValue);
+        let pair_value = encode(&scalar_text(value, owner, member)?, Form::FormValue);
+        // Every pair repeats its whole path, so the text can be many times the
+        // size of the array it came from: the budget is asked before it grows.
+        crate::regex::grow(
+            &mut out,
+            pair_name
+                .len()
+                .saturating_add(pair_value.len())
+                .saturating_add(2),
+            &label,
+        )?;
         if !out.is_empty() {
             out.push('&');
         }
-        out.push_str(&encode(&name, Form::FormValue));
+        out.push_str(&pair_name);
         out.push('=');
-        out.push_str(&encode(
-            &scalar_text(value, owner, member)?,
-            Form::FormValue,
-        ));
+        out.push_str(&pair_value);
     }
     Ok(out)
 }
@@ -3435,6 +3455,7 @@ mod tests {
     /// What PHP's `http_build_query` writes for the array its own `parse_str`
     /// read from the same query — including the escaped structural brackets
     /// and the indexes written out where the query wrote `[]`.
+    // covers: Core\Uri::buildQuery
     #[test]
     fn build_query_writes_what_http_build_query_writes() {
         for (query, expected) in [
@@ -3471,6 +3492,38 @@ mod tests {
         ] {
             let once = rebuilt(query).expect("no throw");
             assert_eq!(rebuilt(&once).expect("no throw"), once, "for {query:?}");
+        }
+    }
+
+    /// Every pair repeats its whole bracket path, so an array of a few hundred
+    /// kilobytes can ask for a text a hundred times its size. The text is
+    /// refused before it is built: the request's peak stays near its ceiling
+    /// instead of reaching the tens of megabytes the whole text would take.
+    // covers: Core\Uri::buildQuery
+    #[test]
+    fn build_query_asks_the_budget_before_a_text_larger_than_its_input_grows() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(4 << 20);
+        let mut leaves = nvs_runtime::NvsArray::new();
+        for _ in 0..20_000 {
+            leaves.append(Value::int(1));
+        }
+        let mut parameters = Value::array(leaves);
+        for _ in 0..200 {
+            let mut level = nvs_runtime::NvsArray::new();
+            level.set(nvs_runtime::NvsStr::new(b"k"), parameters);
+            parameters = Value::array(level);
+        }
+
+        assert!(call(super::nvs_core_uri_build_query, &mut ctx, &[parameters]).is_err());
+        assert!(
+            ctx.memory_peak() < 8 << 20,
+            "{} bytes at the peak",
+            ctx.memory_peak()
+        );
+        #[expect(unsafe_code, reason = "this frame owns the array it built")]
+        unsafe {
+            parameters.release();
         }
     }
 

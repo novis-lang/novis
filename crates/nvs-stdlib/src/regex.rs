@@ -1454,13 +1454,14 @@ fn expand<'s>(
 /// thousand times over a long match — so a result built first and checked
 /// afterwards can reach many times the request's limit before the check. The
 /// room grows by doubling, as `String`'s own does, and the doubled size is
-/// what is asked for.
+/// what is asked for. [`crate::uri::build`] grows its query text through this
+/// too, since a value deep in a nested array repeats the whole path as its name.
 ///
 /// # Errors
 ///
 /// [`nvs_runtime::affordable`]'s two: a `FATAL` past the limit, and a throw
 /// for a size no process could hold.
-fn grow(out: &mut String, add: usize, member: &str) -> Result<(), Fault> {
+pub(crate) fn grow(out: &mut String, add: usize, member: &str) -> Result<(), Fault> {
     let needed = out.len().checked_add(add);
     if needed.is_some_and(|needed| needed <= out.capacity()) {
         return Ok(());
