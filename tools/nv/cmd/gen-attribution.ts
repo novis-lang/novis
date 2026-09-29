@@ -206,6 +206,7 @@ interface Node {
 }
 interface Metadata {
   packages: Package[];
+  workspace_members: string[];
   resolve: { nodes: Node[] };
 }
 
@@ -232,10 +233,13 @@ function shippedPackages(meta: Metadata): Package[] {
       if (dep.dep_kinds.some((k) => k.kind === null || k.kind === "build")) stack.push(dep.pkg);
     }
   }
-  // A package with no `source` is one of the workspace's own crates, covered by LICENSE.
+  // A workspace member is one of Novis's own crates, covered by LICENSE. Every other package is
+  // third party, including a path crate under `vendor/` that `[patch.crates-io]` puts in place of
+  // the published one: it has no `source`, and its authors' licence still ships.
+  const own = new Set(meta.workspace_members);
   return [...seen]
     .map((id) => byId.get(id)!)
-    .filter((p) => p.source !== null && p.source !== undefined)
+    .filter((p) => !own.has(p.id))
     .sort((a, b) => cmp(a.name.toLowerCase(), b.name.toLowerCase()) || cmp(a.version, b.version));
 }
 
