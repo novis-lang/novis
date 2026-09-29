@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Settings for the shop -->
+<settings>
+  <!-- Prices are in euro -->
+  <currency>EUR</currency>
+</settings>
+<!-- End of settings -->

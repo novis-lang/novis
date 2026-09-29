@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to put a note at the top of an exported file, so nobody edits it by hand.
+
+array<string> $pages = ["/", "/tea", "/contact"];
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+$writer->comment(" This file is generated. Changes made by hand are lost. ");
+$writer->startElement("urlset");
+
+foreach ($pages as string $page) {
+    $writer->startElement("url");
+    $writer->startElement("loc");
+    $writer->content("https://example.com" . $page);
+    $writer->endElement();
+    $writer->endElement();
+}
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

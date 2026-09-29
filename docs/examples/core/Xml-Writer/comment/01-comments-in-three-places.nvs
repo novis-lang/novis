@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to write comments before the root element, inside it and after it.
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+
+// This comment is written before the root element.
+$writer->comment(" Settings for the shop ");
+$writer->startElement("settings");
+
+// This comment is written inside `settings`, on its own line.
+$writer->comment(" Prices are in euro ");
+$writer->startElement("currency");
+$writer->content("EUR");
+$writer->endElement();
+$writer->endElement();
+
+// This comment is written after the root element is closed.
+$writer->comment(" End of settings ");
+echo $writer->endDocument(), "\n";

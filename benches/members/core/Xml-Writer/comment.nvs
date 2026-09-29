@@ -1,0 +1,22 @@
+<?nvs
+// Writes comments inside an element, as a program does when it adds notes to an exported file.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $notes = ["checked", "price from the supplier", "see order 42 - item 3"];
+        Core\Xml\Writer $writer = Core\Xml::writer();
+        $writer->startDocument();
+        $writer->startElement("export");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $writer->comment($notes[(($total + $i) % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";
