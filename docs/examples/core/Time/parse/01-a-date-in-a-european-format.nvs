@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read a date and time that is written in a local format.
+
+// The pattern `dd.MM.yyyy HH:mm` matches the text "05.06.2024 14:30".
+// The time is read in Berlin, so the offset is +02:00.
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $meeting = Core\Time::parse("05.06.2024 14:30", "dd.MM.yyyy HH:mm", $berlin);
+echo $meeting->format("yyyy-MM-dd HH:mm XXX"), "\n";
+
+// This pattern has no time, so the result is midnight on that day.
+var $day = Core\Time::parse("05.06.2024", "dd.MM.yyyy", $berlin);
+echo $day->format("yyyy-MM-dd HH:mm XXX"), "\n";

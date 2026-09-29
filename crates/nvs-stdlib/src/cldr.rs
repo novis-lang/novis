@@ -1288,7 +1288,12 @@ impl Fields {
             self.nanos.unwrap_or(0),
         )
         .map_err(|err| err.to_string())?;
-        zone.to_zoned(at).map_err(|err| err.to_string())
+        // Compatible disambiguation resolves every gap and fold, so the one
+        // failure left is an instant past either end of the timestamp range,
+        // worded as `Core\Time::at` and `Core\Time::fromIso` word that bound.
+        zone.to_zoned(at).map_err(|_| {
+            "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z".to_owned()
+        })
     }
 }
 
@@ -1520,7 +1525,8 @@ fn small(bytes: &[u8], at: &mut usize, count: usize, what: &str) -> Result<i8, S
     i8::try_from(value).map_err(|_| format!("{what} out of range"))
 }
 
-/// Reads between `least` and `most` ASCII digits, advancing `at`.
+/// Reads between `least` and `most` ASCII digits, advancing `at`, or says the
+/// field is out of range once the digits pass what an `i64` holds.
 fn number(
     bytes: &[u8],
     at: &mut usize,
@@ -1534,7 +1540,12 @@ fn number(
         let Some(byte) = bytes.get(*at).copied().filter(u8::is_ascii_digit) else {
             break;
         };
-        value = value * 10 + i64::from(byte - b'0');
+        // A pattern may repeat a letter any number of times, so a field can be
+        // wider than an `i64` holds; past that it is out of range, never wrapped.
+        value = value
+            .checked_mul(10)
+            .and_then(|tens| tens.checked_add(i64::from(byte - b'0')))
+            .ok_or_else(|| format!("{what} out of range"))?;
         *at += 1;
         read += 1;
     }

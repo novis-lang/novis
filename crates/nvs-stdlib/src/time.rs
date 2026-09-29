@@ -2341,7 +2341,9 @@ const TIME_PARSE_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "ParseError",
             desc: "`$text` does not match `$format`: a literal that differs, a field with no \
-                   digits, trailing text, or fields that together are not a real civil time.",
+                   digits, trailing text, or fields that together are not a real civil time. It is \
+                     also thrown for a time outside \
+                     `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
         },
     ],
 };
@@ -5354,6 +5356,153 @@ mod tests {
             let said = built_from_iso(text).expect_err("not a timestamp");
             assert!(said.starts_with(r"Core\Time::fromIso(): "), "{said}");
             assert_ne!(said, past, "{text:?} is not a range failure");
+        }
+    }
+
+    /// `Core\Time::parse` called the way a compiled call site calls it with a
+    /// computed pattern. It answers the built `DateTime`'s seconds and zone id,
+    /// or the sentence it threw.
+    fn built_parse(text: &str, format: &str, zone: &str) -> Result<(i64, String), String> {
+        let mut ctx = Ctx::buffered();
+        let args = [
+            Value::null(),
+            Value::str(NvsStr::new(text.as_bytes())),
+            Value::str(NvsStr::new(format.as_bytes())),
+            zone_built(zone),
+        ];
+        let answer = match nvs_runtime::call(nvs_core_time_parse, &mut ctx, &args) {
+            Ok(built) => {
+                let held = crate::instance::receiver(built, &DATETIME, "test")
+                    .expect("`parse` answers a `DateTime`");
+                let read = (
+                    crate::instance::slot(held, DATETIME_SECONDS_SLOT)
+                        .as_int()
+                        .expect("the seconds slot is an int"),
+                    crate::instance::slot(held, DATETIME_ZONE_SLOT)
+                        .as_text()
+                        .expect("the zone slot is a text")
+                        .to_owned(),
+                );
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns the `DateTime` the member answered"
+                )]
+                unsafe {
+                    built.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// `parse` reads the fields in its zone and starts an unnamed field at the
+    /// bottom of its range. A time past either end of the timestamp range
+    /// throws the sentence `at` uses, and a field wider than an `i64` is out
+    /// of range rather than an overflow.
+    // covers: Core\Time::parse
+    #[test]
+    fn parse_reads_in_its_zone_and_refuses_past_the_range_plainly() {
+        assert_eq!(
+            built_parse("05.06.2024 14:30", "dd.MM.yyyy HH:mm", "Europe/Berlin"),
+            Ok((
+                second_of("2024-06-05T12:30:00Z"),
+                "Europe/Berlin".to_owned()
+            ))
+        );
+        assert_eq!(
+            built_parse("05.06.2024", "dd.MM.yyyy", "UTC"),
+            Ok((second_of("2024-06-05T00:00:00Z"), "UTC".to_owned()))
+        );
+        // 02:30 does not exist in Berlin on 2024-03-31, so the result is 03:30
+        // summer time, which is 01:30 UTC.
+        assert_eq!(
+            built_parse("2024-03-31 02:30", "yyyy-MM-dd HH:mm", "Europe/Berlin").map(|read| read.0),
+            Ok(second_of("2024-03-31T01:30:00Z"))
+        );
+        assert_eq!(
+            built_parse("9999-12-30 22:00", "uuuu-MM-dd HH:mm", "UTC").map(|read| read.0),
+            Ok(253_402_207_200)
+        );
+
+        let past =
+            r"Core\Time::parse(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
+        for (text, zone) in [
+            ("9999-12-30 22:01", "UTC"),
+            ("9999-12-30 23:30", "Europe/Berlin"),
+            ("-9999-01-02 01:58", "UTC"),
+        ] {
+            assert_eq!(
+                built_parse(text, "uuuu-MM-dd HH:mm", zone),
+                Err(past.to_owned())
+            );
+        }
+        assert_eq!(
+            built_parse(&"9".repeat(40), &"y".repeat(40), "UTC"),
+            Err(r"Core\Time::parse(): year out of range".to_owned())
+        );
+        for (text, format) in [
+            ("2024-06-05T14:30", "yyyy-MM-dd HH:mm"),
+            ("2024", "yyyy 'x"),
+        ] {
+            let said = built_parse(text, format, "UTC").expect_err("does not match");
+            assert!(said.starts_with(r"Core\Time::parse(): "), "{said}");
+            assert_ne!(said, past, "{text:?} is not a range failure");
+        }
+    }
+
+    /// `Core\Time::sleep` for `nanos`, called the way a compiled call site
+    /// calls it with no host on the thread. It answers how long the call took.
+    fn slept(nanos: i64) -> std::time::Duration {
+        let mut ctx = Ctx::buffered();
+        let args = [built(nanos)];
+        let began = std::time::Instant::now();
+        let answer = nvs_runtime::call(nvs_core_time_sleep, &mut ctx, &args)
+            .expect("`sleep` throws nothing");
+        let took = began.elapsed();
+        assert_eq!(
+            answer.tag_byte(),
+            Value::null().tag_byte(),
+            "`sleep` answers nothing"
+        );
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
+        took
+    }
+
+    /// `sleep` returns at once for zero and every negative duration, down to
+    /// the most negative one, and a positive one is never short.
+    // covers: Core\Time::sleep
+    #[test]
+    fn sleep_returns_at_once_at_or_below_zero_and_waits_above_it() {
+        let at_once: std::time::Duration = [0, -1, -1_000_000_000, i64::MIN]
+            .into_iter()
+            .map(slept)
+            .sum();
+        assert!(
+            at_once < std::time::Duration::from_millis(100),
+            "{at_once:?}"
+        );
+        for nanos in [1, 2_000_000] {
+            let took = slept(nanos);
+            assert!(
+                took >= std::time::Duration::from_nanos(nanos.unsigned_abs()),
+                "{nanos} ns took {took:?}"
+            );
         }
     }
 }
