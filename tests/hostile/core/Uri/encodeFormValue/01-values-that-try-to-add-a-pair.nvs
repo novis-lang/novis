@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program escapes form values that try to add their own pairs, and very long values
+// in which every byte needs an escape. Each call should return the text or throw an error.
+// The last one should stop at the memory limit before the result is built.
+// hostile: ends-early
+
+class Encode
+{
+    public static function length(string $s): string
+    {
+        return Core\Str::length(Core\Uri::encodeFormValue($s)) as string;
+    }
+}
+
+// 1. A value that tries to add the pair `admin=1`. This prints x%26admin%3D1.
+echo Core\Uri::encodeFormValue('x&admin=1'), "\n";
+
+// 2. The empty text. This prints 0.
+echo Encode::length(''), "\n";
+
+// 3. A million spaces. Each one becomes `+`, so the length stays the same. This prints 1000000.
+echo Encode::length(Core\Str::repeat(' ', 1000000)), "\n";
+
+// 4. A million `&`. Each one becomes `%26`. This prints 3000000.
+echo Encode::length(Core\Str::repeat('&', 1000000)), "\n";
+
+// 5. Half a million "é". Each one is two bytes, so it becomes six characters. This prints 3000000.
+echo Encode::length(Core\Str::repeat('é', 500000)), "\n";
+
+// 6. Escape the same text ten times. Each `%` is escaped again as `%25`. This prints 21.
+string $again = '=';
+uint $round = 0;
+while ($round < 10) {
+    $again = Core\Uri::encodeFormValue($again);
+    $round = $round + 1;
+}
+echo Core\Str::length($again), "\n";
+
+// 7. 100000 escapes, and every result is freed. This prints 100000.
+uint $done = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Uri::encodeFormValue('a b&c') == 'a+b%26c') {
+        $done = $done + 1;
+    }
+    $i = $i + 1;
+}
+echo $done, "\n";
+
+// 8. 200 million `=` signs. The result would need 600 MB.
+// The program stops here with a memory limit error.
+echo Encode::length(Core\Str::repeat('=', 200000000)), "\n";

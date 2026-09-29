@@ -740,31 +740,35 @@ const DECODE_COMPONENT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Uri::encodeFormValue`'s reference card — `rule:core-api/reference-card`.
 const ENCODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
-    short: "Encodes `$s` as one value of an `application/x-www-form-urlencoded` payload — a \
-            query-string pair or a POST body — as `urlencode` does: a space is `+`, and every \
-            byte outside letters, digits and `-_.` is escaped, `~` and the `&` and `=` that \
-            structure a pair included.",
+    short: "Escapes `$s` so that it can be one value of a form, such as a value in a query \
+            string or in the body of a POST request. A space becomes `+`. Every byte that is not \
+            a letter, a digit or one of `-_.` becomes a `%` and two hex digits. This includes \
+            `~`, `+`, `&` and `=`. PHP's `urlencode` does the same.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to encode.",
         shape: &[],
     }],
-    ret: "The escaped text, with upper-case hex digits; a `tainted` argument comes back plain, \
-          since it can no longer open a pair of its own.",
+    ret: "The escaped text, with upper-case hex digits. A `tainted` argument (text from outside \
+          the program, such as a request) gives a plain result. No byte of the result can start \
+          a new pair of the form.",
     errors: &[],
 };
 
 /// `Core\Uri::decodeFormValue`'s reference card — `rule:core-api/reference-card`.
 const DECODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
-    short: "Reverses `Core\\Uri::encodeFormValue`, as `urldecode` does: a `+` is a space, `%2B` \
-            is a `+`, and every other `%XX` escape becomes its byte.",
+    short: "Decodes one value of a form, such as a value in a query string or in the body of a \
+            POST request. A `+` becomes a space. Each `%XX` escape becomes the byte it encodes, \
+            so `%2B` becomes a `+` and `%20` becomes a space. `Core\\Uri::encodeFormValue` writes \
+            the escapes that this function reads. PHP's `urldecode` does the same.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to decode.",
         shape: &[],
     }],
-    ret: "The decoded octets, as `bytes`, exactly as `decodeComponent` answers them; a malformed \
-          escape decodes to itself, and `%20` reads as a space too.",
+    ret: "The decoded bytes, as `bytes`, because an escape can give any byte. `as string` \
+          converts them to text and throws an error when they are not valid UTF-8. A `%` that is \
+          not followed by two hex digits is kept, so `100%` returns `100%`.",
     errors: &[],
 };
 
