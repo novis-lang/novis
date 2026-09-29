@@ -190,7 +190,9 @@ use std::rc::{Rc, Weak};
 
 use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, budget, copy_graph};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 use crate::socket::{release_crossed, retained};
 
 /// `Core\Topic`'s fully-qualified name, in one place so the row and every
@@ -208,7 +210,7 @@ pub(crate) const NAME: &str = r"Core\Topic";
 /// being used from a different one.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "subscribe",
@@ -259,73 +261,81 @@ const PUBLISH_SYMBOL: &str = "nvs_core_topic_publish";
 /// The symbol [`CLASS`]'s `unsubscribe` row is reached through.
 const UNSUBSCRIBE_SYMBOL: &str = "nvs_core_topic_unsubscribe";
 
+/// `Core\Topic`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Sends values between WebSocket connections and event streams. A connection joins a \
+            topic by name with `subscribe`. Any script can send a value to everyone who joined \
+            with `publish`, and the value arrives at their next `receive()`.",
+};
+
 /// `Core\Topic::subscribe`'s reference card — `rule:core-api/reference-card`.
 const SUBSCRIBE_DOC: MethodDoc = MethodDoc {
-    short: "Joins this connection to `$topic`, so that a value published to it arrives at the \
-            next `receive()` as a message whose `topic()` is that name.",
+    short: "Joins this connection to `$topic`. A value published to that topic then arrives at \
+            the next `receive()`, and the message's `topic()` returns the name.",
     params: &[ParamDoc {
         name: "topic",
-        desc: "The topic's name. It may not come from outside the program — a name derived from \
-               user input is how one tenant subscribes to another's stream — so it is built from \
-               checked values or it does not compile.",
+        desc: "The name of the topic. It may not be `tainted` (come from user input), so you \
+               build it from values your program checked. Otherwise the call does not compile. \
+               This stops one user from joining the topic of another user.",
         shape: &[],
     }],
-    ret: "Nothing. Subscribing twice to one name is one subscription, so a published value \
-          arrives once however many times the connection joined.",
+    ret: "Nothing. If a connection subscribes twice to the same topic, a published value still \
+          arrives only once.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "An empty `$topic`, which no publisher can mean; and a call from a program that is \
-               not a connection, which has nothing to deliver to.",
+        desc: "`$topic` is empty, or this script is not a WebSocket connection or an event \
+               stream. Only a script that `Core\\Socket::upgrade` or `Core\\Sse::upgrade` \
+               started can subscribe.",
     }],
 };
 
 /// `Core\Topic::publish`'s reference card — `rule:core-api/reference-card`.
 const PUBLISH_DOC: MethodDoc = MethodDoc {
-    short: "Copies `$value` to every connection subscribed to `$topic`, and answers how many were \
-            reached.",
+    short: "Sends a copy of `$value` to every connection that subscribed to `$topic`, and returns \
+            how many connections it was sent to.",
     params: &[
         ParamDoc {
             name: "topic",
-            desc: "The topic's name, under the rule `subscribe` reads it under: it is built from \
-                   checked values or it does not compile.",
+            desc: "The name of the topic. As with `subscribe`, it may not be `tainted`, so a name \
+                   built from user input does not compile.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "What to publish. Every subscriber is handed its own copy, so nothing is shared \
-                   with the publisher or between subscribers; a `tainted` value is still \
-                   `tainted` where it arrives, and a `secret` may not be published at all.",
+            desc: "The value to send. Each subscriber gets its own copy, so a change one \
+                   subscriber makes is not seen by any other. A `tainted` value is still \
+                   `tainted` when it arrives. A value that contains a `secret` cannot be \
+                   published.",
             shape: &[],
         },
     ],
-    ret: "How many subscribers the value was queued for, which is `0` for a topic nobody has \
-          joined. Publishing needs no connection of its own — an ordinary request may tell the \
-          connections that something changed — and a connection publishing to a topic it joined \
-          itself is delivered to like any other subscriber. A subscriber whose queue is full is \
-          not among them: it is being closed for falling behind, and this call is never delayed \
-          by one.",
+    ret: "The number of subscribers the value was sent to. It is `0` for a topic nobody joined. \
+          Any script can publish, so an ordinary web request can tell the connections that \
+          something changed. A connection that publishes to a topic it joined also receives \
+          the value. A subscriber with too many unread messages is skipped and not counted. It \
+          is being closed, and `publish` never waits for it.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "An empty `$topic`, which no subscriber can be reached by; and a `$value` with no \
-               meaning on the other side of a copy boundary — a resource, or a `secret` — which \
-               is refused whether or not anybody has joined.",
+        desc: "`$topic` is empty, or `$value` cannot be copied to another connection, such as an \
+               object with a `secret` property. The error is thrown even when nobody joined the \
+               topic.",
     }],
 };
 
 /// `Core\Topic::unsubscribe`'s reference card — `rule:core-api/reference-card`.
 const UNSUBSCRIBE_DOC: MethodDoc = MethodDoc {
-    short: "Leaves `$topic`, so nothing published to it reaches this connection again.",
+    short: "Removes this connection from `$topic`. A value published to that topic after this \
+            call does not reach this connection.",
     params: &[ParamDoc {
         name: "topic",
-        desc: "The topic's name, under the same rule `subscribe` reads it under.",
+        desc: "The name of the topic. As with `subscribe`, it may not be `tainted`.",
         shape: &[],
     }],
-    ret: "Nothing. Leaving a topic this connection never joined is not an error — the state it \
-          asks for is the state that already holds.",
+    ret: "Nothing. Leaving a topic this connection never joined is not an error.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "An empty `$topic`, and a call from a program that is not a connection — the same \
-               two `subscribe` refuses, so the pair cannot disagree about what a call means.",
+        desc: "`$topic` is empty, or this script is not a WebSocket connection or an event \
+               stream. These are the same two errors `subscribe` throws.",
     }],
 };
 
@@ -860,6 +870,7 @@ mod tests {
     /// The publisher here is not a connection, which is this module's second
     /// decision: a topic is how two connections meet, and an ordinary program
     /// is allowed to be what tells them so.
+    // covers: Core\Topic::publish
     #[test]
     fn a_publish_reaches_every_subscriber_on_this_core_and_answers_how_many() {
         let mut first = connected();
@@ -1019,6 +1030,7 @@ mod tests {
     /// fan-out over a row with a duplicate in it delivers the same value to
     /// one connection twice, and § 4's copy makes that two objects rather than
     /// one noticed twice.
+    // covers: Core\Topic::subscribe
     #[test]
     fn a_topic_holds_one_entry_per_connection_however_often_it_subscribed() {
         let mut first = connected();
@@ -1057,6 +1069,7 @@ mod tests {
     /// leaving one nobody else is on takes the row out of the table rather
     /// than leaving an empty one — `rule:core-classes/topic`'s queue is per subscriber, so
     /// a topic with no subscriber is nothing at all.
+    // covers: Core\Topic::unsubscribe
     #[test]
     fn unsubscribing_from_a_topic_that_was_never_joined_is_the_state_it_asks_for() {
         let mut ctx = connected();

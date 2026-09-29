@@ -1,0 +1,19 @@
+<?nvs
+// Joins a chat room the connection is already in, as a chat script does each time a user opens a room.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $rooms = ["room:lobby", "room:help", "room:random"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Topic::subscribe($rooms[$total % 3]);
+            $total = $total + ($i % 2) + 1;   // chained: the next room depends on this round
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

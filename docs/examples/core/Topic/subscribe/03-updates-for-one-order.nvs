@@ -1,0 +1,18 @@
+<?nvs
+// Shows an event stream that sends the status updates of one order to the customer's page.
+
+// The `.nvse` file beside this example publishes updates for two orders.
+// In a real application, the shop's order system publishes them.
+Core\Sse $sse = Core\Sse::current();
+
+// The topic name is built from a number the program already checked.
+// A name built from user input does not compile.
+int $orderId = 1042;
+Core\Topic::subscribe("order:" . ($orderId as string));
+
+// This prints one `status` event for each update of order 1042.
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    $sse->send($message->value() as string, event: "status");
+    $message = $sse->receive();
+}

@@ -1,0 +1,39 @@
+<?nvs
+// Attack: one connection joins the same topic again and again, and then a
+// hundred thousand topics with long names. The server should keep running,
+// and a publish should still reach the connection once.
+Core\Socket $conn = Core\Socket::current();
+
+// 1. Join with an empty name. This throws a `LogicError`.
+try {
+    Core\Topic::subscribe('');
+    echo "joined an empty name\n";
+} catch (LogicError $error) {
+    echo "empty name refused\n";
+}
+
+// 2. Join one topic a hundred thousand times. It is still one subscription.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Topic::subscribe('room:lobby');
+    $i = $i + 1;
+}
+echo Core\Topic::publish('room:lobby', 'once'), " subscription\n";
+
+// 3. Join a hundred thousand different topics, each with a long name.
+string $long = Core\Str::repeat('x', 200);
+$i = 0;
+while ($i < 100000) {
+    Core\Topic::subscribe('room:' . $long . ($i as string));
+    $i = $i + 1;
+}
+echo Core\Topic::publish('room:' . $long . '99999', 'last'), " subscription\n";
+
+// 4. Read what arrived. Both publishes arrive once each.
+uint $arrived = 0;
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    $arrived = $arrived + 1;
+    $message = $conn->receive();
+}
+echo $arrived, " messages\n";
