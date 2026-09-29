@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program reads ports with a million digits, a million zeros, signs and extra colons.
+// Each read should return a number from 0 to 65535 or `null`, or `parse` should throw an error.
+
+class Port
+{
+    public static function of(string $address): string
+    {
+        try {
+            ?int $port = Core\Uri::parse($address)->port();
+            if ($port == null) {
+                return 'null';
+            }
+            return $port as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A port of one million digits. It is too large, so this prints "error".
+echo Port::of('http://h:' . Core\Str::repeat('9', 1000000) . '/'), "\n";
+
+// 2. One million zeros, then 80. The zeros are ignored, so this prints 80.
+echo Port::of('http://h:' . Core\Str::repeat('0', 1000000) . '80/'), "\n";
+
+// 3. The largest port, then one more. This prints 65535, then "error".
+echo Port::of('http://h:65535/'), "\n";
+echo Port::of('http://h:65536/'), "\n";
+
+// 4. A port with a sign. This prints "error" twice.
+echo Port::of('http://h:-1/'), "\n";
+echo Port::of('http://h:+80/'), "\n";
+
+// 5. 100000 colons after the host. This is not a port, so this prints "error".
+echo Port::of('http://h' . Core\Str::repeat(':', 100000) . '/'), "\n";
+
+// 6. 100000 different ports, and every address is freed. This prints 100000.
+uint $read = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Uri::parse('http://h:' . ($i % 65536) . '/')->port() == ($i % 65536) as int) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo $read, "\n";

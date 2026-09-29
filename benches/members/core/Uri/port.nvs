@@ -1,0 +1,24 @@
+<?nvs
+// Reads the port of a parsed address, as a program does before it opens a connection.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $servers = [
+            Core\Uri::parse("http://localhost:8080/health"),
+            Core\Uri::parse("https://example.com/"),
+            Core\Uri::parse("https://search.example.com:9200/"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?int $port = $servers[($total % 3) as int]->port();
+            $total = $total + ($port ?? 443) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
