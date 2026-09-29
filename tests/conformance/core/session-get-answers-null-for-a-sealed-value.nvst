@@ -58,11 +58,9 @@ try {
 }
 --FILE nvs.toml--
 # As the round-trip case beside this one: one shared store, and the grant over
-# it. `redis` is `tests/db/compose.yaml`'s service.
-[[app]]
-entry = "case.nvs"
-
-[app.capabilities.cache]
+# it, granted to the tree for the reason that case gives. `redis` is
+# `tests/db/compose.yaml`'s service.
+[capabilities.cache]
 shared = true
 
 [session]
