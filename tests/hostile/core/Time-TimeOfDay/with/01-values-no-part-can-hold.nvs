@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `with` gets values just past the end of each part, and the largest numbers there are.
+// Each of them should throw a `RuntimeError`, and nothing should crash or leak.
+
+Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::at(12, 0);
+
+// 1. Each part gets the first value outside its range.
+try {
+    echo $t->with({ hour: 24 })->format('HH:mm'), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo $t->with({ second: 60 })->format('HH:mm:ss'), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo $t->with({ nanos: 1000000000 })->format('HH:mm'), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// 2. Every part gets the largest `uint` there is.
+uint $largest = 18446744073709551615;
+try {
+    echo $t->with({ hour: $largest, minute: $largest, second: $largest, nanos: $largest })->format('HH:mm'), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// 3. One million new times are made from changing parts. Each one is freed again.
+Core\Time\TimeOfDay $clock = $t;
+uint $i = 0;
+while ($i < 1000000) {
+    $clock = $clock->with({ hour: $i % 24, nanos: $i });
+    $i = $i + 1;
+}
+echo $clock->format('HH:mm:ss.SSSSSSSSS'), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Finds the hour that each log line belongs to, to count the lines per hour.
+
+array<Core\Time\TimeOfDay> $lines = [
+    Core\Time\TimeOfDay::at(9, 5, {second: 12}),
+    Core\Time\TimeOfDay::at(9, 48, {second: 3}),
+    Core\Time\TimeOfDay::at(10, 1, {second: 59}),
+];
+
+// Setting the minute and the second to 0 gives the start of the hour.
+// This prints 09:00:00 twice, and then 10:00:00.
+foreach ($lines as Core\Time\TimeOfDay $line) {
+    echo $line->with({minute: 0, second: 0})->format("HH:mm:ss"), "\n";
+}

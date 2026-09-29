@@ -1,0 +1,25 @@
+<?nvs
+// Changes one part of a time of day, as a program does when it rounds a time down to the full hour.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Time\TimeOfDay $at = Core\Time\TimeOfDay::at(9, 48, {second: 3});
+        Core\Time\TimeOfDay $noon = Core\Time\TimeOfDay::at(12, 0);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total is the new hour
+            Core\Time\TimeOfDay $hour = $at->with({hour: $total % 24, minute: 0, second: 0});
+            if ($hour < $noon) {
+                $total = $total + 5;
+            } else {
+                $total = $total + 7;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

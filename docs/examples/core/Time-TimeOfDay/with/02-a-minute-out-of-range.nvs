@@ -1,0 +1,14 @@
+<?nvs
+// Shows what happens when a new value is outside the range of its part.
+
+Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::at(10, 30);
+
+// A minute goes from 0 to 59. `with` does not move on to the next hour, so this throws a `RuntimeError`.
+try {
+    echo $t->with({minute: 60})->format("HH:mm"), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// Use `plus` to move the time forward instead. This prints 11:00.
+echo $t->plus(30, Core\Unit::Minute)->format("HH:mm"), "\n";
