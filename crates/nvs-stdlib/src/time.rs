@@ -185,7 +185,7 @@ pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 /// value through this class's one slot.
 pub const DURATION: CoreClass = CoreClass {
     name: DURATION_NAME,
-    doc: None,
+    doc: Some(&DURATION_CARD),
     methods: &[
         CoreMethod {
             name: "nanoseconds",
@@ -605,6 +605,14 @@ const DURATION_NEGATED_DOC: MethodDoc = MethodDoc {
         desc: "The receiver is the one duration whose negation does not fit — exactly −2⁶³ \
                nanoseconds.",
     }],
+};
+
+/// `Core\Time\Duration`'s class card — `rule:core-api/reference-card`.
+const DURATION_CARD: ClassDoc = ClassDoc {
+    short: "A length of time, such as 30 seconds or an hour and a half. You write a fixed one \
+            as a literal, like `30s` or `1h30m`, and build a computed one with `seconds`, \
+            `minutes` or another constructor. It is an exact count of nanoseconds and can be \
+            negative. `plus`, `minus` and `compareTo` work on two of them.",
 };
 
 /// `Core\Time\Duration::compareTo`'s reference card — `rule:core-api/reference-card`.
@@ -5849,6 +5857,113 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// `compareTo` orders durations by their signed length and answers only
+    /// `-1`, `0` or `1`, also for the two ends of the range, whose difference
+    /// no `int` holds. The table is in ascending order, so every pair's answer
+    /// is the order of the two positions.
+    // covers: Core\Time\Duration::compareTo
+    #[test]
+    fn duration_compare_to_is_the_order_of_the_signed_length() {
+        const MINUTE: i64 = 60_000_000_000;
+        let table = [
+            i64::MIN,
+            i64::MIN + 1,
+            -90 * MINUTE,
+            -1,
+            0,
+            1,
+            MINUTE,
+            90 * MINUTE,
+            i64::MAX - 1,
+            i64::MAX,
+        ];
+        for (i, &left) in table.iter().enumerate() {
+            for (j, &right) in table.iter().enumerate() {
+                let mut ctx = Ctx::buffered();
+                let args = [built(left), built(right)];
+                let answer = nvs_runtime::call(nvs_core_time_duration_compare_to, &mut ctx, &args)
+                    .expect("any two durations compare")
+                    .as_int();
+                let expected = match i.cmp(&j) {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Equal => 0,
+                    std::cmp::Ordering::Greater => 1,
+                };
+                assert_eq!(answer, Some(expected), "{left} against {right}");
+                for held in args {
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame built both `Duration`s, and the member borrowed them"
+                    )]
+                    unsafe {
+                        held.release();
+                    }
+                }
+            }
+        }
+    }
+
+    /// `hours` and `days` count exact 3600-second hours and 24-hour days, in
+    /// both directions. The largest count that fits and the first one past it
+    /// are asserted together at both ends, and the throw names the member.
+    // covers: Core\Time\Duration::hours, Core\Time\Duration::days
+    #[test]
+    fn duration_hours_and_days_are_exact_and_bounded_on_both_sides() {
+        const HOUR: i64 = 3_600_000_000_000;
+        let hours = |n: i64| {
+            let mut ctx = Ctx::buffered();
+            nvs_runtime::call(nvs_core_time_duration_hours, &mut ctx, &[Value::int(n)])
+                .map(read_and_release)
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+        let days = |n: i64| {
+            let mut ctx = Ctx::buffered();
+            nvs_runtime::call(nvs_core_time_duration_days, &mut ctx, &[Value::int(n)])
+                .map(read_and_release)
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+        assert_eq!(hours(0), Ok(0));
+        assert_eq!(hours(72), Ok(72 * HOUR));
+        assert_eq!(hours(-3), Ok(-3 * HOUR));
+        assert_eq!(days(3), hours(72));
+        assert_eq!(days(-1), Ok(-24 * HOUR));
+        assert_eq!(hours(2_562_047), Ok(2_562_047 * HOUR));
+        assert_eq!(hours(-2_562_047), Ok(-2_562_047 * HOUR));
+        assert_eq!(days(106_751), Ok(106_751 * 24 * HOUR));
+        assert_eq!(days(-106_751), Ok(-106_751 * 24 * HOUR));
+        for past in [2_562_048, -2_562_048, i64::MAX, i64::MIN] {
+            let refused = hours(past).expect_err("past the range");
+            assert!(
+                refused.starts_with("Core\\Time\\Duration::hours(): "),
+                "{refused}"
+            );
+        }
+        for past in [106_752, -106_752, i64::MAX, i64::MIN] {
+            let refused = days(past).expect_err("past the range");
+            assert!(
+                refused.starts_with("Core\\Time\\Duration::days(): "),
+                "{refused}"
+            );
+        }
+    }
+
+    /// The nanosecond count of a `Duration` this frame was handed, released
+    /// once it is read.
+    fn read_and_release(made: Value) -> i64 {
+        let held = [made];
+        let nanos = nanos_of(&held, 0, "test").expect("a `Duration`");
+        for value in held {
+            #[expect(
+                unsafe_code,
+                reason = "the member returned a new `Duration` to this frame"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+        nanos
     }
 
     /// `format` called on the `Date` `from` with `pattern`. It answers the

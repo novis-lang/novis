@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to test whether two durations have the same length.
+
+Core\Time\Duration $planned = 90m;
+Core\Time\Duration $actual = 1h30m;
+
+// `==` checks whether both variables are the same object. They are not, so this prints "different".
+echo $planned == $actual ? "same" : "different", "\n";
+
+// `compareTo` compares the length. It returns 0, so this prints "same length".
+echo $planned->compareTo($actual) == 0 ? "same length" : "other length", "\n";
+
+// `<` and `>` use `compareTo` too. This prints "no".
+echo $planned < $actual ? "yes" : "no", "\n";

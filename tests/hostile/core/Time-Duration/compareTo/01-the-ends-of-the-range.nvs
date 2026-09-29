@@ -1,0 +1,38 @@
+<?nvs
+// Attack: `compareTo` gets the longest and the shortest durations there are, and one million
+// comparisons. Every answer should be `-1`, `0` or `1`, and nothing should crash or leak.
+
+Core\Time\Duration $max = Core\Time\Duration::nanoseconds(9223372036854775807);
+Core\Time\Duration $min = Core\Time\Duration::nanoseconds(-9223372036854775807 - 1);
+array<Core\Time\Duration> $edges = [
+    $min, $min->plus(1ns), 1ns->negated(), Core\Time\Duration::seconds(0), 1ns, $max->minus(1ns), $max,
+];
+
+// 1. Every pair of values at the ends of the range, both ways round.
+int $odd = 0;
+foreach ($edges as Core\Time\Duration $left) {
+    foreach ($edges as Core\Time\Duration $right) {
+        int $sign = $left->compareTo($right);
+        if ($sign < -1 || $sign > 1 || $sign != -$right->compareTo($left)) {
+            $odd = $odd + 1;
+        }
+    }
+}
+echo $odd, " odd answers\n";
+
+// 2. A value is compared with itself, and with a copy built from its own count.
+int $same = 0;
+foreach ($edges as Core\Time\Duration $each) {
+    $same = $same + $each->compareTo($each)
+        + $each->compareTo(Core\Time\Duration::nanoseconds($each->toNanoseconds()));
+}
+echo $same, "\n";
+
+// 3. One million new durations are built and compared. Each one is freed again.
+int $round = 0;
+int $total = 0;
+while ($round < 1000000) {
+    $total = $total + Core\Time\Duration::nanoseconds($round * 9223372036854)->compareTo($edges[($round % 7) as uint]);
+    $round = $round + 1;
+}
+echo $total, "\n";
