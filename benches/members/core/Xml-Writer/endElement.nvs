@@ -1,0 +1,31 @@
+<?nvs
+// Closes nested elements with an indent, as a program does when it writes a tree such as a menu or a category list.
+// bench: iterations 40000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["menu", "group", "entry", "link"];
+        Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+        $writer->startDocument();
+        $writer->startElement("site");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Four elements are opened inside each other, and then all four are closed.
+            uint $depth = 0;
+            while ($depth < 4) {
+                $writer->startElement($names[(($total + $depth) % 4) as int]);
+                $depth = $depth + 1;
+            }
+            while ($depth > 0) {
+                $writer->endElement();
+                $depth = $depth - 1;
+            }
+            $total = $total + 4;
+            $i = $i + 4;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(40000), "\n";

@@ -1,0 +1,31 @@
+<?nvs
+// Shows how a method that calls itself writes a tree of shop categories of any depth.
+
+class Category
+{
+    public function constructor(
+        public string $name,
+        public array<Category> $children,
+    ) {}
+
+    // Writes this category and all categories below it. Each call closes the element it opened.
+    public function write(Core\Xml\Writer $writer): void
+    {
+        $writer->startElement("category");
+        $writer->attribute("name", $this->name);
+        foreach ($this->children as Category $child) {
+            $child->write($writer);
+        }
+        $writer->endElement();
+    }
+}
+
+Category $shop = new Category("Shop", [
+    new Category("Tea", [new Category("Green tea", []), new Category("Black tea", [])]),
+    new Category("Coffee", []),
+]);
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+$shop->write($writer);
+echo $writer->endDocument(), "\n";

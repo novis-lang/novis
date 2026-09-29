@@ -1,0 +1,23 @@
+<?nvs
+// Opens and closes many empty elements side by side, as a program does when it writes one element per row of a list.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["item", "entry", "row"];
+        Core\Xml\Writer $writer = Core\Xml::writer();
+        $writer->startDocument();
+        $writer->startElement("list");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $writer->startElement($names[(($total + $i) % 3) as int]);
+            $writer->endElement();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

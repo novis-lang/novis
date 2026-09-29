@@ -1,26 +1,22 @@
 {
-  "state": "Goal `core-xml-writer`: `attribute`, `comment`, `cdata`, `instruction` and `doctype` of `Core\\Xml\\Writer` have all their feature proofs, and their cards in `crates/nvs-stdlib/src/xml.rs` are in plain words.\n`doctype` now refuses a second declaration (new writer slot `typed`, `DOCTYPE_SLOT`), pinned by `tests/conformance/core/xml-a-writer-writes-at-most-one-document-type-declaration.nvst`.\nFive Writer members still owe examples, hostile, perf and a Rust test: `startDocument`, `endDocument`, `startElement`, `endElement`, `content`.\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands: keep writer attacks and benches under about 500,000 pieces, or mark them with that gap.\nAny later edit to `xml.rs` code stales the whole `Core\\Xml*` perf set again: finish with `bun nv proofs --record-perf --group 'Core\\Xml' --group 'Core\\Xml\\Node' --group 'Core\\Xml\\Reader' --group 'Core\\Xml\\Writer'`.\n`bun nv try` runs the pipeline's `covws` binary, which does not have a fix made this session; run it with `NVS_BIN=target/debug/nvs.exe` after `cargo build --bin nvs`, and bless the same way.",
+  "state": "Goal `core-xml-writer`: `attribute`, `comment`, `cdata`, `instruction`, `doctype`, `content`, `startElement` and `endElement` of `Core\\Xml\\Writer` have all their feature proofs, and their cards in `crates/nvs-stdlib/src/xml.rs` are in plain words.\n`forbidden` now refuses U+FFFE and U+FFFF, in every writer and in the parser. `tests/conformance/core/xml-u-fffe-and-u-ffff-are-refused-by-every-writer-and-by-the-parser.nvst` pins that.\n`startDocument` and `endDocument` still owe about.md, examples, hostile, perf and a Rust test. After them, `dossier-core-xml-writer` should be green.\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands: keep writer attacks and benches under about 500,000 pieces, or mark them with that gap.\nAny later edit to `xml.rs` code makes the whole `Core\\Xml*` perf set stale again. Finish with `bun nv proofs --record-perf --group 'Core\\Xml' --group 'Core\\Xml\\Node' --group 'Core\\Xml\\Reader' --group 'Core\\Xml\\Writer'`.\n`bun nv try` and `--bless` use the pipeline's `covws` binary. After a Rust change, run `cargo build --bin nvs` and set `NVS_BIN=target/debug/nvs.exe`.",
   "next": {
     "stage": 1,
     "title": "member proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` (the cards near `CONTENT_DOC`, the bodies near `fn content`, the writer tests after `a_doctype_is_written_once_above_the_root_and_refused_after_either`), plus the proof trees under `core/Xml-Writer/<member>`.",
+    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` (the cards near `START_DOCUMENT_DOC`, the bodies near `fn start_document`, the writer tests after `elements_close_in_the_order_they_opened_and_nest_up_to_the_ceiling`), plus the proof trees under `core/Xml-Writer/<member>`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Writer::content`** — owes about.md, examples, hostile, perf, a Rust test; rewrite `CONTENT_DOC` in plain words. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3215` (body), `crates/nvs-stdlib/src/xml.rs:876` (card)"
+        "text": "**`Core\\Xml\\Writer::startDocument` and `endDocument`** — owe about.md, examples, hostile, perf, a Rust test each; rewrite both cards in plain words. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3084` (`start_document`), `crates/nvs-stdlib/src/xml.rs:3103` (`end_document`), `crates/nvs-stdlib/src/xml.rs:809` (cards)"
       },
       {
         "done": false,
-        "text": "**`Core\\Xml\\Writer::startElement` and `endElement`** — the same proofs, one pair of cards. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3142` (`start_element`), `crates/nvs-stdlib/src/xml.rs:3185` (`end_element`), `crates/nvs-stdlib/src/xml.rs:841` (card)"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Xml\\Writer::startDocument` and `endDocument`** — the same proofs. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3086` (`start_document`), `crates/nvs-stdlib/src/xml.rs:3105` (`end_document`), `crates/nvs-stdlib/src/xml.rs:809` (card)"
+        "text": "**Close the goal** — run the dossier check, then `bun nv verify --doc`, `bun nv owners --closes core-xml-writer` and `bun nv playbook --closes core-xml-writer`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:5110` (last writer test)"
       }
     ]
   },
   "backlog": [
-    "A processing instruction's data that starts with whitespace loses it on the way back through `Core\\Xml::parse`, as XML's grammar says (`crates/nvs-stdlib/src/xml.rs` `processing_instruction`); no card says so yet."
+    "`forbidden` refuses U+007F to U+009F, which XML 1.0 allows in a document. PHP's parser reads them. This is a correctness divergence, and it is not a security problem. It is owed by `crates/nvs-stdlib/src/xml.rs`'s module doc, if a later goal decides to allow them."
   ]
 }

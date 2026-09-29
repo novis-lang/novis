@@ -21484,15 +21484,15 @@ Closes the document and answers it. This is where the writer refuses an unbalanc
 $writer->startElement(string $name): void
 ```
 
-Opens an element, which is the other of the two pairs: everything written until its `endElement` is inside it. Attributes go on it until the first thing that is not one, and whether it is written as `<a></a>` or `<a/>` is settled by whether anything was.
+Opens an element, such as `<order>`. Everything you write until the matching `endElement` goes inside it. Call `attribute` right after this method to add attributes to the element.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (launder) | The element's name, qualified prefix and all — a qualified name is a name, so there is no second member for a document that uses them. It has to be a name XML can write, and is refused rather than escaped when it is not. |
+| `$name` | `string` (launder) | The element's name, such as `order` or `atom:link`. It must be a valid XML name. The writer does not escape it. |
 
-**Returns** `void` — Nothing; the element is open and is what the next writes go into.
+**Returns** `void` — Nothing. The element is open, and the next calls write inside it.
 
-**Throws** `LogicError` — The name is not a name XML can write, a second root element was started, elements are nested deeper than the ceiling, or the document is not open.
+**Throws** `LogicError` — The name is not a valid XML name. The root element is already written and closed. 1024 elements are already open inside each other. The document is not open.
 
 <a id="core-core-xml-writer-endelement"></a>
 #### `Core\Xml\Writer->endElement`
@@ -21501,11 +21501,11 @@ Opens an element, which is the other of the two pairs: everything written until 
 $writer->endElement(): void
 ```
 
-Closes the innermost open element. The name is not an argument, because the writer knows what is open — which is the whole of why a mismatched close is not a shape this API has.
+Closes the element that `startElement` opened last. You do not pass a name, because the writer remembers which elements are open. So the end tags always match the start tags.
 
-**Returns** `void` — Nothing; an element nothing was written into is closed as `<a/>`, and one that holds something as `</a>`.
+**Returns** `void` — Nothing. An empty element is written as `<a/>`. An element with something inside is closed with `</a>`.
 
-**Throws** `LogicError` — Nothing is open, or the document is not open.
+**Throws** `LogicError` — No element is open. The document is not open.
 
 <a id="core-core-xml-writer-content"></a>
 #### `Core\Xml\Writer->content`
@@ -21514,15 +21514,15 @@ Closes the innermost open element. The name is not an argument, because the writ
 $writer->content(string $text): void
 ```
 
-Writes character data into the open element, escaped. This is the writer's escape point: `&`, `<` and `>` become references here, so an injection is not reachable by forgetting a call, and there is no member that writes markup a caller assembled — `rule:security/launderers-are-sink-named` is why a generic one would not be added.
+Writes text inside the open element. The writer escapes it: `&` becomes `&amp;`, `<` becomes `&lt;` and `>` becomes `&gt;`. A parser reads back exactly the text you wrote, so the text can never add an element or an attribute.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$text` | `string` (launder) | The characters to write. `tainted` text is accepted and laundered for this one sink, an XML document, because what reaches the document is the escaped form and nothing a caller writes here can become markup. |
+| `$text` | `string` (launder) | The text to write. It can contain any character XML allows, including `<`, `&` and quotes. A `tainted` text is allowed, because the writer escapes it. |
 
-**Returns** `void` — Nothing; the open element now holds character data, and the writer stops indenting inside it, since whitespace beside text changes what a document says.
+**Returns** `void` — Nothing. After this call, the writer does not indent inside this element, because added whitespace would change the text.
 
-**Throws** `LogicError` — No element is open, the text holds a character XML cannot write, or the document is not open.
+**Throws** `LogicError` — No element is open. The text contains a control character that XML cannot write. The document is not open.
 
 <a id="core-core-xml-writer-attribute"></a>
 #### `Core\Xml\Writer->attribute`

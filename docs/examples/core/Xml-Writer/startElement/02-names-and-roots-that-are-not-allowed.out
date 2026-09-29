@@ -1,0 +1,4 @@
+Core\Xml\Writer::startElement(): `2nd-line` is not a name a document can write.
+Core\Xml\Writer::startElement(): `first name` is not a name a document can write.
+Core\Xml\Writer::startElement(): a document has one root element, and it is already written.
+<?xml version="1.0" encoding="UTF-8"?><list/>
