@@ -1,0 +1,19 @@
+<?nvs
+// Shows a command-line tool that uses the computer's zone unless the user names another one.
+
+final class Report
+{
+    // An empty option means the user did not name a zone.
+    // Then the tool uses the zone of the computer.
+    public static function zoneFor(string $option): Core\Time\Zone
+    {
+        if ($option == "") {
+            return Core\Time\Zone::system();
+        }
+        return Core\Time\Zone::of($option);
+    }
+}
+
+// Here the user typed `--zone Asia/Tokyo`, so this prints 2024-05-01 18:00.
+Core\Time\Instant $backup = Core\Time::fromIso("2024-05-01T09:00:00Z");
+echo "Backup finished: ", $backup->in(Report::zoneFor("Asia/Tokyo"))->format("uuuu-MM-dd HH:mm"), "\n";

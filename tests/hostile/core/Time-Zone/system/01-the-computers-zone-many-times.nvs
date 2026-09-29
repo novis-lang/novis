@@ -1,0 +1,23 @@
+<?nvs
+// Attack: the computer's zone is read many times and used at the first and last instants there are.
+// Every call should return a zone that works, and nothing should crash or leak.
+
+// 1. The zone is used at the first and the last instant.
+Core\Time\Zone $here = Core\Time\Zone::system();
+Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $last = Core\Time::fromIso('9999-12-30T22:00:00Z');
+echo $first->in($here)->format('uuuu-MM-dd HH:mm:ss'), "\n";
+echo $last->in($here)->format('uuuu-MM-dd HH:mm:ss'), "\n";
+
+// 2. The zone is read 20000 times and each result is thrown away.
+Core\Time\Instant $now = Core\Time::now();
+int $steady = 0;
+int $n = 0;
+while ($n < 20000) {
+    Core\Time\Zone $again = Core\Time\Zone::system();
+    if ($again->offsetAt($now)->toSeconds() == $here->offsetAt($now)->toSeconds()) {
+        $steady = $steady + 1;
+    }
+    $n = $n + 1;
+}
+echo $steady, " of 20000 the same\n";

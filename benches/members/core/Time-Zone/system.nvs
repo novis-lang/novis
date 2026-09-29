@@ -1,0 +1,20 @@
+<?nvs
+// Reads the computer's zone, as a program does once when it starts.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        Core\Time\Instant $at = Core\Time::fromEpoch(0);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the offset feeds the total
+            Core\Time\Zone $zone = Core\Time\Zone::system();
+            $total = $total + 1 + ($zone->offsetAt($at)->toSeconds() + 100000 + $total) % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";
