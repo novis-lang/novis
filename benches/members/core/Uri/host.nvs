@@ -1,0 +1,24 @@
+<?nvs
+// Reads the host of a parsed address, as a server does when it checks where a link goes.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $links = [
+            Core\Uri::parse("https://shop.example.com/cart"),
+            Core\Uri::parse("http://localhost:8080/health"),
+            Core\Uri::parse("https://[2001:db8::1]/"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?string $host = $links[($total % 3) as int]->host();
+            $total = $total + Core\Str::length($host ?? "");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

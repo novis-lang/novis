@@ -1,0 +1,11 @@
+<?nvs
+// Shows the three kinds of result that `host` returns.
+
+// A link that starts with one `/` has no host. The result is `null`, so this prints none.
+echo Core\Uri::parse("/docs/start")->host() ?? "none", "\n";
+
+// A file address has an empty `//` part. The result is "", so this prints "".
+echo "\"", Core\Uri::parse("file:///tmp/notes.txt")->host(), "\"\n";
+
+// An IPv6 address keeps its brackets. This prints [::1].
+echo Core\Uri::parse("http://[::1]:8080/")->host(), "\n";

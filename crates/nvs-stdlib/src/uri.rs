@@ -845,30 +845,34 @@ const USER_INFO_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->host`'s reference card — `rule:core-api/reference-card`.
 const HOST_DOC: MethodDoc = MethodDoc {
-    short: "The host as written, never case-folded, an IPv6 literal still inside its brackets — \
-            `parse_url`'s `host` key.",
+    short: "Returns the host of the address, such as `example.com`. The host is returned as it \
+            was written, so upper-case letters stay upper case. An IPv6 address keeps its \
+            brackets, such as `[::1]`.",
     params: &[],
-    ret: "The host; `null` where no authority was written and `\"\"` where an empty one was, \
-          as in `file:///tmp`.",
+    ret: "The host. The result is `null` when the address has no `//` part. It is `\"\"` when \
+          the `//` part is empty, as in `file:///tmp`.",
     errors: &[],
 };
 
 /// `$uri->port`'s reference card — `rule:core-api/reference-card`.
 const PORT_DOC: MethodDoc = MethodDoc {
-    short: "The authority's port as a number — `parse_url`'s `port` key.",
+    short: "Returns the port of the address as a number. For `http://example.com:8080/` the \
+            result is `8080`.",
     params: &[],
-    ret: "The port, `0`–`65535`; `null` where none was written and where an empty one was \
-          (`http://h:/`). No scheme default is ever supplied.",
+    ret: "The port, from `0` to `65535`. The result is `null` when the address has no port. It \
+          is also `null` when the `:` has no digits after it, as in `http://example.com:/`. A \
+          default port, such as `443` for `https`, is never filled in.",
     errors: &[],
 };
 
 /// `$uri->path`'s reference card — `rule:core-api/reference-card`.
 const PATH_DOC: MethodDoc = MethodDoc {
-    short: "The path as written, still percent-encoded and with its dot segments in place — \
-            `parse_url`'s `path` key.",
+    short: "Returns the path of the address. For `https://example.com/docs/guide?page=2` the \
+            result is `/docs/guide`. The path is returned as it was written, so escapes such as \
+            `%20` and parts such as `/../` stay in it.",
     params: &[],
-    ret: "The path, never `null`: a reference with nothing between its authority and its query \
-          has the empty path, and `\"\"` is that path.",
+    ret: "The path. It is never `null`. An address with no path, such as `https://example.com`, \
+          returns `\"\"`.",
     errors: &[],
 };
 
@@ -884,10 +888,12 @@ const QUERY_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->fragment`'s reference card — `rule:core-api/reference-card`.
 const FRAGMENT_DOC: MethodDoc = MethodDoc {
-    short: "The raw fragment as written, still encoded — `parse_url`'s `fragment` key.",
+    short: "Returns the fragment of the address, which is the text after the `#`. For \
+            `https://example.com/guide#install` the result is `install`. Escapes such as `%20` \
+            stay in it, and `Core\\Uri::decodeComponent` decodes them.",
     params: &[],
-    ret: "The text after the `#`, or `null` where no `#` was written; a `#` with nothing after \
-          it is `\"\"`, not `null`.",
+    ret: "The fragment, without the `#`. The result is `null` when the address has no `#`. It is \
+          `\"\"` when nothing is written after the `#`.",
     errors: &[],
 };
 
@@ -4041,6 +4047,92 @@ mod tests {
                 0,
                 "{subject:?} recomposes to {recomposed:?}, which is a different URI"
             );
+        }
+    }
+
+    /// The signature every `nvs_helper!` member symbol has.
+    type Reader = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32;
+
+    /// One reader called on a fresh `Core\Uri::parse($text)`, through the
+    /// member symbol compiled code calls. `None` is a `null` answer, so it
+    /// stays apart from the `Some("")` an empty component answers, and a
+    /// port comes back as its digits.
+    fn reader(member: Reader, text: &str) -> Option<String> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let uri = uri_of(text);
+        let answer = call(member, &mut ctx, &[uri]).expect("a reader never throws");
+        let out = answer.as_int().map(|port| port.to_string()).or_else(|| {
+            answer.as_str_bytes().map(|bytes| {
+                String::from_utf8(bytes.to_vec())
+                    .expect("`rule:types/bytes` guarantees a `string` is UTF-8")
+            })
+        });
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the instance and the reference the reader \
+                      handed back, and a reader borrows its receiver"
+        )]
+        unsafe {
+            answer.release();
+            uri.release();
+        }
+        out
+    }
+
+    /// `host`, `port`, `path` and `fragment` answer each component exactly as
+    /// it was written: no case folding, no scheme default for the port, the
+    /// escapes and dot segments still in the path. A component that was never
+    /// written is `null`, and one written empty is `""`, except the port,
+    /// where both are `null`. `path` is never `null`.
+    // covers: Core\Uri::host, Core\Uri::port, Core\Uri::path, Core\Uri::fragment
+    #[test]
+    fn the_four_readers_answer_what_was_written_and_null_only_where_nothing_was() {
+        let readers = [
+            ("host", super::nvs_core_uri_host as Reader),
+            ("port", super::nvs_core_uri_port),
+            ("path", super::nvs_core_uri_path),
+            ("fragment", super::nvs_core_uri_fragment),
+        ];
+        // Each row is the text, then what `host`, `port`, `path` and `fragment` answer.
+        let rows: [(&str, [Option<&str>; 4]); 9] = [
+            (
+                "HTTP://Example.COM:0080/a/../b%7E#Top",
+                [
+                    Some("Example.COM"),
+                    Some("80"),
+                    Some("/a/../b%7E"),
+                    Some("Top"),
+                ],
+            ),
+            (
+                "https://example.com",
+                [Some("example.com"), None, Some(""), None],
+            ),
+            ("http://h:/p#", [Some("h"), None, Some("/p"), Some("")]),
+            (
+                "http://[2001:db8::1]:65535/",
+                [Some("[2001:db8::1]"), Some("65535"), Some("/"), None],
+            ),
+            ("file:///tmp/x", [Some(""), None, Some("/tmp/x"), None]),
+            (
+                "mailto:someone@example.com",
+                [None, None, Some("someone@example.com"), None],
+            ),
+            (
+                "/docs?q=1#a%20b",
+                [None, None, Some("/docs"), Some("a%20b")],
+            ),
+            ("#only", [None, None, Some(""), Some("only")]),
+            ("", [None, None, Some(""), None]),
+        ];
+        for (text, answers) in rows {
+            for ((name, member), answer) in readers.iter().zip(answers) {
+                assert_eq!(
+                    reader(*member, text).as_deref(),
+                    answer,
+                    "{name} of {text:?}"
+                );
+            }
         }
     }
 
