@@ -1,0 +1,112 @@
+<?nvs
+// Attack: archives with very many entries, and archives whose headers do not
+// match their content, are listed. Each list should come back quickly or throw
+// a `ParseError`. The runtime must not hang or crash.
+// hostile: timeout-ms 30000
+
+class Archive
+{
+    // One entry in the list at the end of a zip archive.
+    // Only the list is written, because `entries` reads nothing else.
+    public static function record(bytes $name): bytes
+    {
+        return Core\Bytes::pack(
+            'VvvvvvvVVVvvvvvVVa',
+            0x02014b50, 20, 20, 0, 0, 0, 0, 0, 0, 0,
+            Core\Bytes::length($name), 0, 0, 0, 0, 0, 0,
+            $name,
+        );
+    }
+
+    // The last record of an archive. It gives the number of entries and where
+    // their list starts.
+    public static function end(uint $count, uint $size, uint $offset): bytes
+    {
+        return Core\Bytes::pack('VvvvvVVv', 0x06054b50, 0, 0, $count, $count, $size, $offset, 0);
+    }
+}
+
+// 1. An archive with 100,000 entries, each with a different name, in zip64
+// format. The list should come back quickly with all 100000 names.
+array<bytes> $records = [];
+uint $i = 0;
+while ($i < 100000) {
+    $records[] = Archive::record(Core\Encoding::toHex(Core\Bytes::pack('V', $i)) as bytes);
+    $i = $i + 1;
+}
+bytes $list = Core\Bytes::join($records);
+uint $size = Core\Bytes::length($list);
+bytes $wide = Core\Bytes::pack('VPvvVVPPPP', 0x06064b50, 44, 45, 45, 0, 0, 100000, 100000, $size, 0);
+bytes $locator = Core\Bytes::pack('VVPV', 0x07064b50, 0, $size, 1);
+bytes $many = Core\Bytes::join([$list, $wide, $locator, Archive::end(0xFFFF, 0xFFFFFFFF, 0xFFFFFFFF)]);
+echo 'step 1: ', Core\Arr::count(Core\Zip::entries($many)), " entries\n";
+
+// 2. The same 100,000 names, but every name is "a". The second entry repeats
+// the first, so the list throws a `ParseError`.
+bytes $same = Archive::record('a' as bytes);
+bytes $repeated = Core\Bytes::repeat($same, 100000);
+bytes $twice = Core\Bytes::join([$repeated, $wide, $locator, Archive::end(0xFFFF, 0xFFFFFFFF, 0xFFFFFFFF)]);
+try {
+    Core\Zip::entries($twice);
+    echo "step 2: a repeated name was listed\n";
+} catch (ParseError $error) {
+    echo "step 2: ParseError\n";
+}
+
+// 3. The last record says there are 65,535 entries, but the list has one.
+bytes $short = Core\Bytes::join([Archive::record('a' as bytes), Archive::end(65535, 47, 0)]);
+try {
+    Core\Zip::entries($short);
+    echo "step 3: a short list was listed\n";
+} catch (ParseError $error) {
+    echo "step 3: ParseError\n";
+}
+
+// 4. The last record says the list starts 4 GiB into an archive of 69 bytes.
+bytes $far = Core\Bytes::join([Archive::record('a' as bytes), Archive::end(1, 47, 0xFFFFFFF0)]);
+try {
+    Core\Zip::entries($far);
+    echo "step 4: a list past the end was listed\n";
+} catch (ParseError $error) {
+    echo "step 4: ParseError\n";
+}
+
+// 5. The zip64 record says the list starts at the largest possible offset.
+uint $largest = 0xFFFFFFFFFFFFFFF0;
+bytes $farWide = Core\Bytes::pack('VPvvVVPPPP', 0x06064b50, 44, 45, 45, 0, 0, 1, 1, 47, $largest);
+bytes $farLocator = Core\Bytes::pack('VVPV', 0x07064b50, 0, 47, 1);
+bytes $lost = Core\Bytes::join([Archive::record('a' as bytes), $farWide, $farLocator, Archive::end(0xFFFF, 0xFFFFFFFF, 0xFFFFFFFF)]);
+try {
+    Core\Zip::entries($lost);
+    echo "step 5: a list past the end was listed\n";
+} catch (ParseError $error) {
+    echo "step 5: ParseError\n";
+}
+
+// 6. Eight million bytes with no last record at all. The search for it reads
+// only the final 64 KiB, so this throws quickly.
+try {
+    Core\Zip::entries(Core\Bytes::fill(8000000, 0x50));
+    echo "step 6: bytes that are not an archive were listed\n";
+} catch (ParseError $error) {
+    echo "step 6: ParseError\n";
+}
+
+// 7. One entry whose name is 20,000 folders deep. The name is allowed, so the
+// list has one entry.
+bytes $deep = Core\Bytes::join([Core\Bytes::repeat('a/' as bytes, 20000), 'x' as bytes]);
+bytes $deepRecord = Archive::record($deep);
+bytes $nested = Core\Bytes::join([$deepRecord, Archive::end(1, Core\Bytes::length($deepRecord), 0)]);
+echo 'step 7: ', Core\Arr::count(Core\Zip::entries($nested)), " entry\n";
+
+// 8. Twenty thousand small archives are listed one after another. Nothing may
+// be kept between the calls.
+uint $total = 0;
+uint $round = 0;
+while ($round < 20000) {
+    $total = $total + Core\Arr::count(Core\Zip::entries($nested));
+    $round = $round + 1;
+}
+echo 'step 8: ', $total, " entries in all\n";
+
+echo "the runtime is still standing\n";

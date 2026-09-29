@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to check an uploaded theme before the program accepts it.
+
+class Themes {
+    // Returns why the upload is not accepted, or "accepted".
+    public static function check(bytes $upload): string {
+        try {
+            array<tainted string> $names = Core\Zip::entries($upload);
+        } catch (ParseError $error) {
+            return "not a safe zip archive";
+        }
+        // A theme may contain at most 50 files.
+        if (Core\Arr::count($names) > 50) {
+            return "too many files";
+        }
+        // A theme must contain `theme.json` at the top level.
+        foreach ($names as tainted string $name) {
+            if ($name == "theme.json") {
+                return "accepted";
+            }
+        }
+        return "theme.json is missing";
+    }
+}
+
+// This upload contains `theme.json`, `style.css` and `logo.png`.
+bytes $good = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVyX/RwUDwAAAA8AAAAKAAAAdGhlbWUuanNvbnsibmFtZSI6IkRhcmsifVBLAwQUAAAAAAAAACFcWXGH4gYAAAAGAAAACQAAAHN0eWxlLmNzc2JvZHl7fVBLAwQUAAAAAAAAACFcGkG/FQMAAAADAAAACAAAAGxvZ28ucG5nUE5HUEsBAhQAFAAAAAAAAAAhXJf9HBQPAAAADwAAAAoAAAAAAAAAAAAAAKSBAAAAAHRoZW1lLmpzb25QSwECFAAUAAAAAAAAACFcWXGH4gYAAAAGAAAACQAAAAAAAAAAAAAApIE3AAAAc3R5bGUuY3NzUEsBAhQAFAAAAAAAAAAhXBpBvxUDAAAAAwAAAAgAAAAAAAAAAAAAAKSBZAAAAGxvZ28ucG5nUEsFBgAAAAADAAMApQAAAI0AAAAAAA==");
+
+// This upload contains only `style.css` and `logo.png`.
+bytes $incomplete = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVxZcYfiBgAAAAYAAAAJAAAAc3R5bGUuY3NzYm9keXt9UEsDBBQAAAAAAAAAIVwaQb8VAwAAAAMAAAAIAAAAbG9nby5wbmdQTkdQSwECFAAUAAAAAAAAACFcWXGH4gYAAAAGAAAACQAAAAAAAAAAAAAApIEAAAAAc3R5bGUuY3NzUEsBAhQAFAAAAAAAAAAhXBpBvxUDAAAAAwAAAAgAAAAAAAAAAAAAAKSBLQAAAGxvZ28ucG5nUEsFBgAAAAACAAIAbQAAAFYAAAAAAA==");
+
+// This prints "accepted", "theme.json is missing" and "not a safe zip archive".
+echo Themes::check($good), "\n";
+echo Themes::check($incomplete), "\n";
+echo Themes::check("an image, not an archive" as bytes), "\n";

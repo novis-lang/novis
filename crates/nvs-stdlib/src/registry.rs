@@ -5345,7 +5345,6 @@ mod tests {
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
         r"Core\Task\Channel",
-        r"Core\Zip",
     ];
 
     /// Every row, enum, constant and class carries its

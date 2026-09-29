@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to list the names in a zip archive.
+
+// A small archive, written as base64 text so it fits in this file. It contains
+// `readme.txt`, the folder `images/`, `images/logo.png` and `index.html`.
+bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVyCidH3BQAAAAUAAAAKAAAAcmVhZG1lLnR4dEhlbGxvUEsDBBQAAAAAAAAAIVwAAAAAAAAAAAAAAAAHAAAAaW1hZ2VzL1BLAwQUAAAAAAAAACFcGkG/FQMAAAADAAAADwAAAGltYWdlcy9sb2dvLnBuZ1BOR1BLAwQUAAAAAAAAACFcj7atpwsAAAALAAAACgAAAGluZGV4Lmh0bWw8aDE+SGk8L2gxPlBLAQIUABQAAAAAAAAAIVyCidH3BQAAAAUAAAAKAAAAAAAAAAAAAACkgQAAAAByZWFkbWUudHh0UEsBAhQAFAAAAAAAAAAhXAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAO1BLQAAAGltYWdlcy9QSwECFAAUAAAAAAAAACFcGkG/FQMAAAADAAAADwAAAAAAAAAAAAAApIFSAAAAaW1hZ2VzL2xvZ28ucG5nUEsBAhQAFAAAAAAAAAAhXI+2racLAAAACwAAAAoAAAAAAAAAAAAAAKSBggAAAGluZGV4Lmh0bWxQSwUGAAAAAAQABADiAAAAtQAAAAAA");
+
+// `Core\Zip::entries` returns the names in the order the archive stores them.
+// A folder name ends with `/`. This prints four lines.
+foreach (Core\Zip::entries($archive) as tainted string $name) {
+    echo $name, "\n";
+}
+
+// The result is an ordinary array, so you can count it. This prints 4.
+echo Core\Arr::count(Core\Zip::entries($archive)), "\n";

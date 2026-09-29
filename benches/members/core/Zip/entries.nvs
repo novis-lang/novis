@@ -1,0 +1,22 @@
+<?nvs
+// Lists the names in a small archive, as a program does before it accepts an upload.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Five entries: `readme.txt`, `src/`, `src/app.nvs`, `src/lib.nvs` and `composer.json`.
+        bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVyCidH3BQAAAAUAAAAKAAAAcmVhZG1lLnR4dEhlbGxvUEsDBBQAAAAAAAAAIVwAAAAAAAAAAAAAAAAEAAAAc3JjL1BLAwQUAAAAAAAAACFcsVKb+AUAAAAFAAAACwAAAHNyYy9hcHAubnZzPD9udnNQSwMEFAAAAAAAAAAhXLFSm/gFAAAABQAAAAsAAABzcmMvbGliLm52czw/bnZzUEsDBBQAAAAAAAAAIVxDv6ajAgAAAAIAAAANAAAAY29tcG9zZXIuanNvbnt9UEsBAhQAFAAAAAAAAAAhXIKJ0fcFAAAABQAAAAoAAAAAAAAAAAAAAKSBAAAAAHJlYWRtZS50eHRQSwECFAAUAAAAAAAAACFcAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAA7UEtAAAAc3JjL1BLAQIUABQAAAAAAAAAIVyxUpv4BQAAAAUAAAALAAAAAAAAAAAAAACkgU8AAABzcmMvYXBwLm52c1BLAQIUABQAAAAAAAAAIVyxUpv4BQAAAAUAAAALAAAAAAAAAAAAAACkgX0AAABzcmMvbGliLm52c1BLAQIUABQAAAAAAAAAIVxDv6ajAgAAAAIAAAANAAAAAAAAAAAAAACkgasAAABjb21wb3Nlci5qc29uUEsFBgAAAAAFAAUAFwEAANgAAAAAAA==");
+        // The second copy has extra bytes after the archive. `entries` ignores them.
+        array<bytes> $archives = [$archive,Core\Bytes::join([$archive, "trailing" as bytes])];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: which archive is listed depends on the last round's total.
+            $total = $total + Core\Arr::count(Core\Zip::entries($archives[$total % 2]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

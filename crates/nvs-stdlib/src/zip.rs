@@ -91,19 +91,25 @@
 //! at a time, bounded by the ceiling above and attributable to the request
 //! that asked for it. An extraction holds one entry and not the archive, for
 //! the same reason. The central directory is walked into a `Vec` of entries
-//! whose size is the archive's own entry count; nothing holds the decompressed
-//! archive. Zip64 adds no allocation to that — the wide values land in the
+//! whose size is the archive's own entry count, beside a set of the names
+//! borrowed from the archive — one pointer and length per entry, dropped when
+//! the walk ends — which is what keeps the repeated-name refusal one lookup per
+//! entry rather than a scan of every entry before it. Nothing holds the
+//! decompressed archive. Zip64 adds no allocation to that — the wide values land in the
 //! fields the narrow ones would have, and what a zip64 archive costs over a
 //! narrow one is a bounded walk of one record's extra area per entry — and the
 //! CRC is a rolling checksum over octets already held.
 
+use std::collections::HashSet;
 use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
 
 use crate::compress::{Bound, DEFAULT_MAX_BYTES, DEFAULT_MAX_RATIO};
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -117,11 +123,19 @@ pub(crate) const NAME: &str = r"Core\Zip";
 /// refusals both spell it.
 const EXTRACT: &str = r"Core\Zip::extract";
 
+/// `Core\Zip`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads zip archives. `entries` lists the names in an archive, `read` returns one file \
+            from it, and `extract` writes its files into a folder. Every archive is checked \
+            before any name or file is returned. An archive with an unsafe name, such as \
+            `../config.php`, throws a `ParseError`.",
+};
+
 /// `Core\Zip`'s registry rows — the listing and the read, both of them through
 /// the one reader that judges an entry before a program sees it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "entries",
@@ -529,6 +543,10 @@ pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
         .map_err(|_| malformed("its central directory begins past the end of the archive"))?;
 
     let mut out: Vec<Entry> = Vec::with_capacity(count.min(4096));
+    // The names already walked, borrowed from the archive, so a repeated one
+    // is found by one lookup rather than a scan of every entry before it — a
+    // scan an archive of many small entries turns into a hang.
+    let mut seen: HashSet<&str> = HashSet::with_capacity(count.min(4096));
     for _ in 0..count {
         if u32_at(archive, at) != Some(CENTRAL_SIGNATURE) {
             return Err(malformed(
@@ -576,7 +594,7 @@ pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
         let compressed = wide.field(compressed)?;
         let local = wide.field(local)?;
 
-        refuse_hostile(name, external, &out)?;
+        refuse_hostile(name, external, &mut seen)?;
         out.push(Entry {
             name: name.to_owned(),
             method,
@@ -598,7 +616,11 @@ pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
 /// The order is the order the refusals are cheapest in and carries no other
 /// meaning: an entry that is two of these at once is refused for whichever is
 /// tested first, and it is refused either way.
-fn refuse_hostile(name: &str, external: u32, seen: &[Entry]) -> Result<(), Fault> {
+fn refuse_hostile<'a>(
+    name: &'a str,
+    external: u32,
+    seen: &mut HashSet<&'a str>,
+) -> Result<(), Fault> {
     if name.is_empty() {
         return Err(malformed("an entry has no name at all"));
     }
@@ -626,7 +648,7 @@ fn refuse_hostile(name: &str, external: u32, seen: &[Entry]) -> Result<(), Fault
             name,
         ));
     }
-    if seen.iter().any(|entry| entry.name == name) {
+    if !seen.insert(name) {
         return Err(refuses_entry(
             "the archive names it twice, and which of the two a reader answers is what the attack \
              turns on",
@@ -1068,9 +1090,9 @@ mod tests {
     };
 
     /// One entry, as an archive builder takes it.
-    struct Written {
+    struct Written<'a> {
         /// The entry's name, exactly as it goes on the wire.
-        name: &'static str,
+        name: &'a str,
         /// The entry's octets, stored rather than deflated.
         data: Vec<u8>,
         /// The high half of the external attributes — the Unix mode, where the
@@ -1078,9 +1100,9 @@ mod tests {
         mode: u32,
     }
 
-    impl Written {
+    impl<'a> Written<'a> {
         /// An ordinary stored entry.
-        fn plain(name: &'static str, data: &str) -> Self {
+        fn plain(name: &'a str, data: &str) -> Self {
             Self {
                 name,
                 data: data.as_bytes().to_vec(),
@@ -1090,7 +1112,7 @@ mod tests {
 
         /// The same entry with `S_IFLNK` set, which is how an archive says an
         /// entry is a symlink and its data is the target.
-        fn symlink(name: &'static str, target: &str) -> Self {
+        fn symlink(name: &'a str, target: &str) -> Self {
             Self {
                 name,
                 data: target.as_bytes().to_vec(),
@@ -1116,7 +1138,7 @@ mod tests {
     /// somebody once produced: the name and the mode are the test's own
     /// arguments, so a refusal cannot pass by matching a file this repository
     /// happens to hold.
-    fn archive(written: &[Written]) -> Vec<u8> {
+    fn archive(written: &[Written<'_>]) -> Vec<u8> {
         let mut out: Vec<u8> = Vec::new();
         let mut directory: Vec<u8> = Vec::new();
         let mut count = 0_u16;
@@ -1189,7 +1211,7 @@ mod tests {
 
     /// The refusal `directory` answers for `written`, or a panic where it
     /// accepted the archive.
-    fn refused(written: &[Written]) -> String {
+    fn refused(written: &[Written<'_>]) -> String {
         let raw = archive(written);
         match directory(&raw) {
             Ok(entries) => panic!(
@@ -1225,6 +1247,85 @@ mod tests {
         );
     }
 
+    /// What `entries` returns for `written`, called the way a program calls it:
+    /// the names in order, or `None` where the member threw.
+    fn listed(ctx: &mut Ctx, written: &[Written<'_>]) -> Option<Vec<String>> {
+        let raw = Value::bytes(NvsStr::new(&archive(written)));
+        let names = nvs_runtime::call(nvs_core_zip_entries, ctx, &[raw])
+            .ok()
+            .map(|answer| {
+                let names = crate::str::Elements::of(
+                    answer.array_ptr().expect("`entries` returns an array"),
+                )
+                .map(|name| name.as_text().expect("a name is a string").to_owned())
+                .collect();
+                #[expect(
+                    unsafe_code,
+                    reason = "the case owns the one reference `entries` returned"
+                )]
+                unsafe {
+                    answer.release();
+                }
+                names
+            });
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the archive's one reference, and the member only borrowed it"
+        )]
+        unsafe {
+            raw.release();
+        }
+        names
+    }
+
+    /// The member answers the central directory's order, which is not sorted
+    /// order, lists as many entries as a narrow end record can count without a
+    /// scan per entry, and answers nothing at all for an archive with one
+    /// hostile entry in it — never the entries around it.
+    // covers: Core\Zip::entries
+    #[test]
+    fn the_member_lists_the_directory_in_order_or_throws_for_the_whole_archive() {
+        let mut ctx = Ctx::buffered();
+        assert_eq!(
+            listed(
+                &mut ctx,
+                &[
+                    Written::plain("zeta.txt", "z"),
+                    Written::plain("alpha/", ""),
+                    Written::plain("alpha/beta.txt", "b"),
+                ]
+            ),
+            Some(vec![
+                "zeta.txt".to_owned(),
+                "alpha/".to_owned(),
+                "alpha/beta.txt".to_owned()
+            ])
+        );
+
+        // Every name distinct and 65534 of them, the most a narrow end record
+        // counts — `0xFFFF` there says the count is in a zip64 record. A
+        // repeated-name check that scanned the entries before each one would
+        // make this case the slow one in the binary.
+        let names: Vec<String> = (0..WIDE_U16 - 1).map(|at| format!("{at:04x}")).collect();
+        let many: Vec<Written<'_>> = names.iter().map(|name| Written::plain(name, "")).collect();
+        let answer = listed(&mut ctx, &many).expect("distinct names list");
+        assert_eq!(answer.len(), usize::from(WIDE_U16 - 1));
+        assert_eq!(answer.last().map(String::as_str), Some("fffd"));
+
+        for hostile in [
+            Written::plain("../escape", "x"),
+            Written::symlink("inside.txt", "/etc/passwd"),
+            Written::plain("zeta.txt", "again"),
+        ] {
+            let written = [Written::plain("zeta.txt", "z"), hostile];
+            assert_eq!(listed(&mut ctx, &written), None);
+            assert!(
+                ctx.take_pending().is_some(),
+                "the refusal is a throw a program can catch"
+            );
+        }
+    }
+
     /// The same entries written the way a zip64 writer writes them: every size
     /// and every local-header offset is the `0xFFFFFFFF` sentinel with the real
     /// value in a zip64 extra field, and the end record hands its entry count
@@ -1234,7 +1335,7 @@ mod tests {
     /// is asserted is that *every* one of those values comes out of the wide
     /// record: a patch that missed one would leave the narrow field it forgot
     /// readable, and the case would pass on the field it never widened.
-    fn zip64(written: &[Written]) -> Vec<u8> {
+    fn zip64(written: &[Written<'_>]) -> Vec<u8> {
         let mut out: Vec<u8> = Vec::new();
         let mut directory: Vec<u8> = Vec::new();
         let mut count = 0_u64;
@@ -1627,7 +1728,7 @@ mod tests {
     /// anyone remembering to add a line.
     #[test]
     fn a_refusal_is_a_diagnostic_and_never_a_failed_io_error() {
-        let hostile: [&[Written]; 5] = [
+        let hostile: [&[Written<'_>]; 5] = [
             &[Written::plain("../escape", "x")],
             &[Written::plain("/etc/passwd", "x")],
             &[Written::symlink("link", "/etc/passwd")],
