@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to check whether a date and time is in a leap year.
+
+var $zone = Core\Time\Zone::of("Europe/Berlin");
+
+// `isLeapYear` returns `true` when the year has a 29 February.
+// This prints 2024 is a leap year, and 2025 is not.
+array<int> $years = [2024, 2025];
+foreach ($years as int $year) {
+    var $day = Core\Time::at($year, 6, 1, $zone);
+    if ($day->isLeapYear()) {
+        echo $year, " is a leap year\n";
+    } else {
+        echo $year, " is not a leap year\n";
+    }
+}
