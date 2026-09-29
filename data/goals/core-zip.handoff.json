@@ -1,8 +1,8 @@
 {
-  "state": "Goal `core-zip`: `Core\\Zip::entries` is complete (`bun nv proofs --id 'Core\\Zip::entries'` prints `complete.`), and `Core\\Zip` has its class card.\nThe attack on `entries` found a hang: the repeated-name check scanned every earlier entry, so 100,000 entries never finished listing. `directory` now keeps a `HashSet` of the names it borrows from the archive (module doc § *What this spends*).\n`read` and `extract` still owe examples, hostile, perf and a Rust test with a `covers:` marker. Their three `.nvst` cases already exist.",
+  "state": "Goal `core-zip`: `Core\\Zip::entries` and `Core\\Zip::read` are complete (`bun nv proofs --id 'Core\\Zip::read'` owes nothing once its perf figure is recorded, which this session did for both). `Core\\Zip` has its class card.\nThe attack on `read` found a panic: `frame` added a zip64 compressed size to the entry's start unchecked, so a claim near `u64::MAX` overflowed. The sum is now checked, pinned by `tests/conformance/core/zip-refuses-an-entry-whose-zip64-size-runs-past-the-address-space.nvst` and by the Rust test `the_member_reads_one_entry_under_a_bound_held_on_both_sides`.\n`extract` still owes about, examples, hostile, perf and a Rust test with a `covers:` marker. Its `.nvst` cases already exist. It is the last thing `dossier-core-zip` is red on.",
   "next": {
-    "stage": null,
-    "title": "Feature proofs for the rest of `Core\\Zip`",
+    "stage": 2,
+    "title": "feature proofs for the rest of `Core\\Zip`",
     "files": [
       "crates/nvs-stdlib/src/zip.rs",
       "docs/examples/core/Zip/",
@@ -12,16 +12,12 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Zip::read`** — owes about, examples, hostile, perf, a Rust `// covers:` test (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/zip.rs:150`, member body `crates/nvs-stdlib/src/zip.rs:994`. Use the test module's `listed` helper as the pattern for driving the member through `nvs_runtime::call`, and `Archive::record` in the `entries` attack for building archives with `Core\\Bytes::pack`. The attack should target the bound: a deflate bomb, a `maxBytes` of 0, and a ratio just over its limit."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Zip::extract`** — owes about, examples, hostile, perf, a Rust `// covers:` test. `crates/nvs-stdlib/src/zip.rs:167`, member body `crates/nvs-stdlib/src/zip.rs:1039`. It needs `fs.write` and `fs.read` granted for the destination: read the capability door comment at `crates/nvs-stdlib/src/registry.rs:2793` before writing an example."
+        "text": "**`Core\\Zip::extract`** — owes about, examples, hostile, perf, a Rust `// covers:` test (`rule:testing/feature-proofs`). Registry row `crates/nvs-stdlib/src/zip.rs:167`, member body `crates/nvs-stdlib/src/zip.rs:1042`, placement `crates/nvs-stdlib/src/zip.rs:787`. Drive the member the way `read_from` does at `crates/nvs-stdlib/src/zip.rs:1335`, with a destination under a scratch directory the test removes. Every example and the attack need an `fs.write` and `fs.read` grant for the destination; how an example is granted one is not checked yet (see `docs/examples/README.md` and the playbook bullet on `--SKIPIF--` and `[[app]]` grants). The attack should target the across-the-archive half of the bound (many entries each under `maxBytes`, whose total is over), a destination that already holds a file with an entry's name, and a deep folder chain. After it lands, run `bun nv proofs --record-perf --group 'Core\\Zip'`, because a change to `zip.rs` makes every member's figure stale."
       }
     ]
   },
   "backlog": [
-    "`Core\\Zip`'s three member cards (`ENTRIES_DOC`, `READ_DOC`, `EXTRACT_DOC` in `crates/nvs-stdlib/src/zip.rs`) are in the dense internal voice, not the voice of AGENTS.md § *Text an end user reads*. Goal `plain-comments` owns that sweep.",
-    "Listing 5 entries costs 22 allocations (`docs/perf/members.ndjson`), because each `Entry` owns a `String` beside the `NvsStr` the member returns. This is a possible perf slice, owned by the module doc of `crates/nvs-stdlib/src/zip.rs`."
+    "`Core\\Zip::read` allocates about 77 KB per call for a 244-byte entry (`docs/perf/members.ndjson`): each call builds a fresh deflate decoder and its window. Reusing the state is a latency question, not a bug — owner `crates/nvs-stdlib/src/zip.rs` module doc if it is ever taken.",
+    "`read` walks the whole central directory on every call, so reading every entry of an archive with many entries is quadratic in the entry count. Not a hang at the sizes the attacks use; worth a `# Known gaps` line if a proof ever measures it."
   ]
 }
