@@ -1,0 +1,27 @@
+<?nvs
+// Counts whole days between two dates, as a program does when it shows how many days an invoice is overdue.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        var $zone = Core\Time\Zone::of("Europe/Berlin");
+        var $today = Core\Time::at(2024, 11, 20, $zone, {hour: 9});
+        array<Core\Time\DateTime> $due = [
+            Core\Time::at(2024, 11, 4, $zone),
+            Core\Time::at(2024, 3, 30, $zone, {hour: 12}),
+            Core\Time::at(2024, 10, 1, $zone),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the due date counted in this round
+            $total = $total + $due[(($total as uint + $i) % 3) as int]->difference($today, Core\Unit::Day);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

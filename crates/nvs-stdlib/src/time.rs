@@ -1988,7 +1988,8 @@ const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
           within one unit.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The span between the two lies outside what a calendar span can hold.",
+        desc: "The count does not fit in an `int`. Only `Unit::Nanosecond` can reach this, for \
+               two values more than about 292 years apart.",
     }],
 };
 
@@ -3280,6 +3281,10 @@ fn out_of_range(member: &str, why: &str) -> Fault {
 /// replaces jiff's own, which names a parameter the program never wrote.
 const PAST_THE_RANGE: &str = "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
 
+/// Why `Core\Time\DateTime::difference` throws for a count past `int`, in
+/// place of jiff's sentence for the same reason [`PAST_THE_RANGE`] gives.
+const TOO_MANY_TO_COUNT: &str = "the count does not fit in an `int`";
+
 /// The `string` in argument slot `at`, for a member that takes text.
 ///
 /// # Errors
@@ -4278,16 +4283,27 @@ nvs_runtime::nvs_helper! {
     /// alternative, refusing two different zones, would make the common case
     /// (a UTC timestamp against a user's local day) a throw rather than an
     /// answer, and there is no third zone either operand could name.
+    ///
+    /// **A month count spans the whole calendar.** jiff's month span stops at
+    /// 239976, eleven months short of the widest pair of values, so a month
+    /// count it refuses is taken as years and months and summed; jiff counts
+    /// the total months first and splits them into years afterwards, so both
+    /// routes give one number. The only count left that can throw is
+    /// `Nanosecond`, past `i64` for two values about 292 years apart.
     fn nvs_core_time_datetime_difference(_ctx, args: [3]) {
         let from = zoned_of(args, 0, "difference")?;
         let to = zoned_of(args, 1, "difference")?.with_time_zone(from.time_zone().clone());
         let (unit, scale) = unit_of(args, 2, "Core\\Time\\DateTime::difference")?;
-        let span = from
-            .until(jiff::ZonedDifference::new(&to).largest(unit))
-            .map_err(|err| out_of_range(r"Core\Time\DateTime::difference", &err.to_string()))?;
+        let counted = |largest| from.until(jiff::ZonedDifference::new(&to).largest(largest));
+        let span = match counted(unit) {
+            Ok(span) => span,
+            Err(_) if unit == jiff::Unit::Month => counted(jiff::Unit::Year)
+                .map_err(|_| out_of_range(r"Core\Time\DateTime::difference", TOO_MANY_TO_COUNT))?,
+            Err(_) => return Err(out_of_range(r"Core\Time\DateTime::difference", TOO_MANY_TO_COUNT)),
+        };
         let whole = match unit {
             jiff::Unit::Year => i64::from(span.get_years()),
-            jiff::Unit::Month => i64::from(span.get_months()),
+            jiff::Unit::Month => i64::from(span.get_years()) * 12 + i64::from(span.get_months()),
             jiff::Unit::Week => i64::from(span.get_weeks()),
             jiff::Unit::Day => i64::from(span.get_days()),
             jiff::Unit::Hour => i64::from(span.get_hours()),
@@ -6072,5 +6088,149 @@ mod tests {
         assert_eq!(datetime_day_of_year(&last), 365);
         let first = Timestamp::MIN.to_zoned(TimeZone::fixed(Offset::MIN));
         assert_eq!(datetime_day_of_year(&first), 1);
+    }
+
+    /// `difference` called on `from` with `to` and the `Core\Unit` case at
+    /// index `unit`, the way a compiled call site calls it. It answers the
+    /// `int` the member returned, or the sentence it threw.
+    fn datetime_difference(from: &Zoned, to: &Zoned, unit: i64) -> Result<i64, String> {
+        let mut ctx = Ctx::buffered();
+        let receiver = datetime_built(from);
+        let other = datetime_built(to);
+        let answer = nvs_runtime::call(
+            nvs_core_time_datetime_difference,
+            &mut ctx,
+            &[receiver, other, Value::int(unit)],
+        );
+        #[expect(unsafe_code, reason = "this frame owns the receiver and the argument")]
+        unsafe {
+            receiver.release();
+            other.release();
+        }
+        match answer {
+            Ok(count) => Ok(count.as_int().expect("`difference` answers an `int`")),
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        }
+    }
+
+    /// `difference` counts whole units toward zero in the receiver's zone,
+    /// counts months and quarters across the whole calendar, and throws only
+    /// for a nanosecond count past `int`, in its own sentence.
+    // covers: Core\Time\DateTime::difference
+    #[test]
+    fn datetime_difference_counts_whole_units_in_the_receivers_zone_across_the_whole_calendar() {
+        const DAY: i64 = 6;
+        const MONTH: i64 = 8;
+        const QUARTER: i64 = 9;
+        const YEAR: i64 = 10;
+        let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
+        let at = |instant: &str, zone: &TimeZone| {
+            instant
+                .parse::<Timestamp>()
+                .expect("a valid instant")
+                .to_zoned(zone.clone())
+        };
+        let born = at("1990-05-14T22:00:00Z", &berlin);
+        assert_eq!(
+            datetime_difference(&born, &at("2024-05-13T22:00:00Z", &berlin), YEAR),
+            Ok(33)
+        );
+        assert_eq!(
+            datetime_difference(&born, &at("2024-05-14T22:00:00Z", &berlin), YEAR),
+            Ok(34)
+        );
+        assert_eq!(
+            datetime_difference(&at("2024-05-14T22:00:00Z", &berlin), &born, YEAR),
+            Ok(-34)
+        );
+        assert_eq!(
+            datetime_difference(&born, &at("2024-05-14T22:00:00Z", &berlin), QUARTER),
+            Ok(136)
+        );
+        // The Berlin day the clocks go forward on is 23 hours long: one day
+        // there, none in UTC, and the argument's own zone does not matter.
+        let before = at("2024-03-30T23:30:00Z", &berlin);
+        let after = at("2024-03-31T22:30:00Z", &TimeZone::UTC);
+        assert_eq!(datetime_difference(&before, &after, DAY), Ok(1));
+        assert_eq!(
+            datetime_difference(&before.with_time_zone(TimeZone::UTC), &after, DAY),
+            Ok(0)
+        );
+
+        // The fallback sums years and months, which holds only while jiff's
+        // own month count is the same sum. The receivers a month count clamps
+        // are the ones that could tell the two apart.
+        for from in [
+            "2024-01-31T12:00:00Z",
+            "2024-02-29T12:00:00Z",
+            "2023-03-31T12:00:00Z",
+        ] {
+            let from = at(from, &TimeZone::UTC);
+            for days in (-800..800).step_by(7) {
+                let to = from
+                    .checked_add(jiff::Span::new().days(days))
+                    .expect("in range");
+                let months = |largest| {
+                    let span = from
+                        .until(jiff::ZonedDifference::new(&to).largest(largest))
+                        .expect("in range");
+                    i64::from(span.get_years()) * 12 + i64::from(span.get_months())
+                };
+                assert_eq!(
+                    months(jiff::Unit::Year),
+                    months(jiff::Unit::Month),
+                    "{from} to {to}"
+                );
+            }
+        }
+
+        let first = Timestamp::MIN.to_zoned(TimeZone::fixed(Offset::MIN));
+        let last = Timestamp::MAX.to_zoned(TimeZone::fixed(Offset::MAX));
+        assert_eq!(datetime_difference(&first, &last, YEAR), Ok(19998));
+        assert_eq!(datetime_difference(&first, &last, MONTH), Ok(239_987));
+        assert_eq!(datetime_difference(&last, &first, MONTH), Ok(-239_987));
+        assert_eq!(datetime_difference(&first, &last, QUARTER), Ok(79_995));
+        assert_eq!(
+            datetime_difference(&first, &last, 0),
+            Err(r"Core\Time\DateTime::difference(): the count does not fit in an `int`".to_owned())
+        );
+    }
+
+    /// `toInstant` answers the timestamp the value was built from, whatever
+    /// zone it reads in: a zone off the hour, a fixed offset, a wall time the
+    /// clocks skipped, and both ends of the timestamp range at the widest
+    /// offsets.
+    // covers: Core\Time\DateTime::toInstant
+    #[test]
+    fn datetime_to_instant_is_the_timestamp_the_value_was_built_from() {
+        let skipped = civil::date(2024, 3, 31)
+            .at(2, 30, 0, 0)
+            .to_zoned(TimeZone::get("Europe/Berlin").expect("a known zone"))
+            .expect("a skipped wall time resolves forward");
+        for at in [
+            "2024-07-01T12:30:00Z"
+                .parse::<Timestamp>()
+                .expect("a valid instant")
+                .to_zoned(TimeZone::get("Asia/Kolkata").expect("a known zone")),
+            Timestamp::MAX.to_zoned(TimeZone::fixed(Offset::MAX)),
+            Timestamp::MIN.to_zoned(TimeZone::fixed(Offset::MIN)),
+            skipped,
+        ] {
+            let mut ctx = Ctx::buffered();
+            let receiver = datetime_built(&at);
+            let answer =
+                nvs_runtime::call(nvs_core_time_datetime_to_instant, &mut ctx, &[receiver])
+                    .expect("`toInstant` refuses no `DateTime`");
+            let read = instant_of(&[answer], 0, "toInstant");
+            #[expect(unsafe_code, reason = "this frame owns the receiver and the answer")]
+            unsafe {
+                receiver.release();
+                answer.release();
+            }
+            assert_eq!(read.ok(), Some(at.timestamp()), "{at}");
+        }
     }
 }

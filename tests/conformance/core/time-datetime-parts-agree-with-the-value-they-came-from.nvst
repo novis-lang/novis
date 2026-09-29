@@ -2,7 +2,7 @@
 Spec § 4: a `DateTime`'s component views, `dayOfYear` and `difference` all answer about the same civil time
 --FILE--
 <?nvs
-// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear
+// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear, Core\Time\DateTime::difference, Core\Time\DateTime::toInstant
 // § 4's `DateTime` is one civil time in one named zone, and half its members
 // are views of that: `date`, `timeOfDay` and `zone` each drop part of it, and
 // `dayOfYear`, `isLeapYear` and `difference` count over it. Each of those can
@@ -99,6 +99,18 @@ echo $beforeClocksGoForward->in($berlin)->difference($afterClocksGoForward->in($
 echo $beforeClocksGoForward->in($berlin)->format("yyyy-MM-dd HH:mm XXX"), "|", $afterClocksGoForward->in($berlin)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
 echo $afterClocksGoForward->since($beforeClocksGoForward)->toSeconds() as string, "|\n";
 
+// A month count reaches across the whole calendar, first day to last in the
+// two farthest zones, and a quarter is three of those months. Only a count
+// past `int` throws, and that takes nanoseconds.
+var $firstDay = Core\Time::fromIso("-009999-01-02T01:59:59Z")->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $lastDay = Core\Time::fromIso("9999-12-30T22:00:00Z")->in(Core\Time\Zone::fixed(25h59m59s));
+echo $firstDay->difference($lastDay, Core\Unit::Year) as string, "|", $firstDay->difference($lastDay, Core\Unit::Month) as string, "|", $lastDay->difference($firstDay, Core\Unit::Quarter) as string, "|\n";
+try {
+    echo $firstDay->difference($lastDay, Core\Unit::Nanosecond) as string, "|\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "|\n";
+}
+
 // The views themselves, read off one value, so the counts above are anchored
 // to output a reader can check: the leap day read in a zone half an hour off
 // the hour, where it is still the 29th, and `dayOfYear` counting it.
@@ -114,6 +126,8 @@ echo $leapDay->with({year: 2023, month: 2, day: 28})->dayOfYear() as string, "|"
 1|
 2024-03-31 00:30 +01:00|2024-04-01 00:30 +02:00|
 82800|
+19998|239987|-79995|
+Core\Time\DateTime::difference(): the count does not fit in an `int`|
 2024-02-29|17:30:00|
 60|1|
 19800|

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to work out the age of a person in whole years.
+
+var $vienna = Core\Time\Zone::of("Europe/Vienna");
+var $born = Core\Time::at(1990, 5, 15, $vienna);
+
+// `difference` counts whole years from `$born` to the other date.
+// One day before the birthday, the result is 33.
+echo $born->difference(Core\Time::at(2024, 5, 14, $vienna), Core\Unit::Year), "\n";
+
+// On the birthday, the result is 34.
+echo $born->difference(Core\Time::at(2024, 5, 15, $vienna), Core\Unit::Year), "\n";
+
+// The same span counted in months. This prints 408.
+echo $born->difference(Core\Time::at(2024, 5, 15, $vienna), Core\Unit::Month), "\n";
