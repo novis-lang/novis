@@ -1,0 +1,15 @@
+<?nvs
+// Shows the largest number of weeks a duration can have, and what happens past it.
+
+// 15250 weeks is about 292 years. It fits, so this prints 15250w.
+echo Core\Time\Duration::weeks(15250)->toString(), "\n";
+
+// One more week does not fit, so `weeks` throws a `RuntimeError`. This prints "too long".
+try {
+    Core\Time\Duration::weeks(15251);
+} catch (RuntimeError $e) {
+    echo "too long\n";
+}
+
+// A negative number gives a negative duration. This prints -2w.
+echo Core\Time\Duration::weeks(-2)->toString(), "\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Creates a duration from a number of weeks, as a program does when it reads a setting such as "a trial of 2 weeks".
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the number of weeks comes from last round's total
+            $total = $total + Core\Time\Duration::weeks($total % 52)->toSeconds() % 13 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

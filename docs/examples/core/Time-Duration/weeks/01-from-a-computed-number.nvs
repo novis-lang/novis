@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to create a duration from a number of weeks that the program computes.
+
+// A project has 6 sprints, and each sprint is 2 weeks long.
+int $sprints = 6;
+Core\Time\Duration $project = Core\Time\Duration::weeks($sprints * 2);
+
+// This prints 12w.
+echo $project->toString(), "\n";
+
+// A week is 604800 seconds, so this prints 7257600.
+echo $project->toSeconds(), "\n";
+
+// The same length written as days is the same duration. This prints "same".
+echo $project->compareTo(Core\Time\Duration::days(84)) == 0 ? "same" : "different", "\n";

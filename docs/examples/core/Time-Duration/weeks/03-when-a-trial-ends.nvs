@@ -1,0 +1,15 @@
+<?nvs
+// Works out when a free trial ends, from a number of weeks in the settings.
+
+array<int> $settings = ["trialWeeks" => 2];
+Core\Time\Duration $trial = Core\Time\Duration::weeks($settings["trialWeeks"]);
+
+var $signedUp = Core\Time::fromIso("2024-05-01T09:00:00Z");
+var $ends = $signedUp->plus($trial);
+
+// This prints 2024-05-15 09:00.
+echo $ends->in(Core\Time\Zone::UTC)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// A visit 15 days after sign-up is after the end, so this prints "trial over".
+var $visit = $signedUp->plus(15d);
+echo $visit < $ends ? "trial active" : "trial over", "\n";
