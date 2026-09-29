@@ -15043,15 +15043,15 @@ a%20b%26c a+b%26c
 Core\Uri::parse(string $uri): Core\Uri
 ```
 
-Reads `$uri` as an RFC 3986 URI reference, as `parse_url` does — reporting, never normalizing: every component comes back exactly as written, still percent-encoded and in its own case.
+Reads the text of an address, such as `https://example.com/cart?id=4`, and returns a `Uri`. Its methods return the parts: `scheme`, `userInfo`, `host`, `port`, `path`, `query` and `fragment`. Each part is returned as it was written. Escapes such as `%20` stay, and upper-case letters stay upper case. PHP's `parse_url` reads the same parts.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$uri` | `string` | The text to read; a relative reference such as `/a?b` is accepted and answers a `null` scheme. |
+| `$uri` | `string` | The text to read. A relative link, such as `/a?b`, is allowed. Its scheme is `null`. |
 
-**Returns** `Core\Uri` — A `Uri` whose readers answer the components as written.
+**Returns** `Core\Uri` — A `Uri`. Its methods return the parts of the address as they were written.
 
-**Throws** `RuntimeError` — `$uri` is text the RFC 3986 grammar does not admit — a space, a control byte, a non-ASCII byte, a bare `%` or a bracketed host that is no IPv6 address — or its authority's port is outside `0`–`65535`. The text is not quoted back.
+**Throws** `RuntimeError` — The text is not an address under RFC 3986 (the standard for addresses). A space, a control character, a non-ASCII character, a `%` without two hex digits and a host in brackets that is not an IPv6 address all cause this. A port larger than `65535` causes it too. The message does not repeat the text, because the text can contain a password.
 
 <a id="core-core-uri-tryparse"></a>
 #### `Core\Uri::tryParse`
@@ -15135,15 +15135,15 @@ Decodes one value of a form, such as a value in a query string or in the body of
 Core\Uri::parseQuery(string $query): array<mixed>
 ```
 
-Reads a query string into an array, as `parse_str` does but returning it rather than populating variables: pairs split at `&`, each at its first `=`, both halves form-decoded, and PHP's bracket convention in full — `a[]=1&a[]=2` builds a list, `a[b]=c` a map, nested to any depth.
+Reads a query string, such as `q=red+shoes&page=2`, into an array. The text is split into pairs at each `&`, and each pair is split at its first `=`. Names and values are decoded like `decodeFormValue`, so `+` becomes a space. Brackets in a name build nested arrays: `a[]=1&a[]=2` gives a list, and `a[b]=c` gives an array with the key `b`. PHP's `parse_str` reads query strings the same way.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$query` | `string` | The query text, without its leading `?`. |
+| `$query` | `string` | The query text, without the `?` at its start. |
 
-**Returns** `array<mixed>` — An array whose every value is a `bytes` or a nested `array<mixed>` — a value is percent-decoded by the same decoder `decodeFormValue` is, so it answers octets; a pair without `=` has empty `bytes` for its value, a pair whose name decodes to nothing is dropped, and a repeated name without brackets keeps the last value.
+**Returns** `array<mixed>` — An array. Each value is `bytes` or another array. A value is `bytes` because an escape can give any byte, and `as string` converts it to text. A pair without `=` has an empty value. A pair with an empty name is left out. When a name appears twice without brackets, the last value is kept.
 
-**Throws** `RuntimeError` — A name's escapes decode to octets that are not valid UTF-8, and a name is the array key the pair is placed under, which is a `string`. A value has no such refusal.
+**Throws** `RuntimeError` — A name decodes to bytes that are not valid UTF-8. A name is a key of the array, and a key must be text. A value can contain any bytes.
 
 <a id="core-core-uri-buildquery"></a>
 #### `Core\Uri::buildQuery`

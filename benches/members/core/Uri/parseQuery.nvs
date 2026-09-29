@@ -1,0 +1,23 @@
+<?nvs
+// Reads a query string into an array, as a server does for the query of every request.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $queries = [
+            "q=red+shoes&page=2",
+            "size[]=M&size[]=L&filter[color]=red",
+            "next=%2Faccount%2Forders&lang=en",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<mixed> $params = Core\Uri::parseQuery($queries[($total % 3) as int]);
+            $total = $total + Core\Arr::count($params);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

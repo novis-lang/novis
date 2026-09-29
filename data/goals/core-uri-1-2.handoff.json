@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-uri-1-2`. Its floor check `dossier-core-uri-1-2` names 12 `Core\\Uri` members. Ten have all their feature proofs: `buildQuery`, `compareTo`, the four encoders and decoders, and the instance readers `host`, `port`, `path` and `fragment`. Only `parse` and `parseQuery` still owe proofs: `about.md`, three examples, one attack, and a Rust `#[test]` with their `covers:` marker. Each is already credited on the Novis side by a `.nvst` case that calls it. `Core\\Uri` has its class card, so no member owes the `help` proof. `bun nv proofs --record-perf --group 'Core\\Uri'` measures each figure that is missing or stale, and it runs after `bun nv verify` has rebuilt the binary. `bun nv proofs --verify --group 'Core\\Uri' --no-perf` lists what each member still owes. The four readers share one Rust test, `the_four_readers_answer_what_was_written_and_null_only_where_nothing_was`, and one `.nvst` marker in `tests/conformance/core/uri-seven-readers-with-and-tostring-are-one-parse.nvst`.",
+  "state": "Goal `core-uri-1-2` is reached. `bun nv proofs --verify --only` over its 12 `Core\\Uri` members reports nothing owed, 36 examples and 12 attacks green. `parse` and `parseQuery` have all their proofs: `about.md`, three examples, one attack, one bench figure, and a Rust `#[test]` with a `covers:` marker. Their cards `PARSE_DOC` and `PARSE_QUERY_DOC` are in the end-user voice. The `parseQuery` attack found a panic: a `[]` pair after the key `9223372036854775807` hit `NvsArray::append`'s assert. `insert` and `branch` in `crates/nvs-stdlib/src/uri.rs` now drop that pair, as `parse_str` does. `tests/conformance/core/uri-parse-query-drops-an-append-past-the-largest-key.nvst` and two rows of `the_bracket_convention_answers_what_parse_str_answers` pin it. `bun nv owners --closes` and `bun nv playbook --closes` name nothing for this goal, and `bun nv verify --doc` is green.",
   "next": {
     "stage": 2,
     "title": "Core\\Uri proofs, the two parsers",
@@ -11,16 +11,16 @@
     ],
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Uri::parse`** — owes about, examples, hostile and a Rust test carrying `// covers: Core\\Uri::parse`. The marker can go on the existing `nothing_is_normalized_on_the_way_through`. Rewrite `PARSE_DOC` in the end-user voice, the way `HOST_DOC` now reads. `docs/examples/core/Uri/host/` is the shape to follow. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:673`"
+        "done": true,
+        "text": "**`Core\\Uri::parse`** — all proofs landed. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:673`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Uri::parseQuery`** — the same owed list, and its card `PARSE_QUERY_DOC`. The marker can go on `the_bracket_convention_answers_what_parse_str_answers`. Then run the goal's check. If it is green, write `DONE` after the goal-end gates. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:776`"
+        "done": true,
+        "text": "**`Core\\Uri::parseQuery`** — all proofs landed, and the append past the largest key is fixed. `rule:testing/a-failing-proof-is-fixed-or-recorded`. `crates/nvs-stdlib/src/uri.rs:2176`"
       }
     ]
   },
   "backlog": [
-    "The cards of `scheme`, `userInfo`, `query` and `toString` are still in the old voice (`crates/nvs-stdlib/src/uri.rs:828`). They belong to goal `core-uri-2-2` or `plain-comments`."
+    "The other `Core\\Uri` members (`tryParse`, `scheme`, `userInfo`, `query`, `toString`, `with`, `queryParameter`, `withQueryParameter`, `resolve`, `sign`, `verifySignature`) are the second half's goal, whose own record lists them."
   ]
 }

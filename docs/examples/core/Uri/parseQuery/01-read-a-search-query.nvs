@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the names and values of a query string.
+
+array<mixed> $params = Core\Uri::parseQuery("q=red+shoes&page=2&sort=price%3Adesc");
+
+// Each value is decoded, so `+` becomes a space and `%3A` becomes `:`.
+// `as string` converts each value to text. This prints red shoes, 2 and price:desc.
+echo $params["q"] as string, "\n";
+echo $params["page"] as string, "\n";
+echo $params["sort"] as string, "\n";
+
+// A name that appears twice keeps its last value. This prints 3.
+echo Core\Uri::parseQuery("page=2&page=3")["page"] as string, "\n";
