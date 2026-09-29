@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to send messages in small batches with a pause between them, so a mail server is not overloaded.
+
+array<string> $recipients = ["ana@example.com", "ben@example.com", "cleo@example.com", "dev@example.com", "eli@example.com"];
+
+// `Core\Arr::chunk` splits the list into batches of two.
+// After each batch except the last, the program waits 100 milliseconds.
+array<array<string>> $batches = Core\Arr::chunk($recipients, 2);
+int $number = 1;
+foreach ($batches as array<string> $batch) {
+    echo "batch ", $number, ": ", Core\Str::join($batch, ", "), "\n";
+    if ($number < Core\Arr::count($batches) as int) {
+        Core\Time::sleep(100ms);
+    }
+    $number = $number + 1;
+}

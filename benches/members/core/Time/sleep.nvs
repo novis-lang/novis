@@ -1,0 +1,21 @@
+<?nvs
+// Calls `Core\Time::sleep` with a wait of zero or less, as a program does when a deadline has already passed.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Time\Duration> $waits = [0ns, Core\Time\Duration::nanoseconds(-1), Core\Time\Duration::milliseconds(-5)];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the wait is picked by last round's total
+            Core\Time::sleep($waits[$total % 3]);
+            $total = $total + 1 + $i as int % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

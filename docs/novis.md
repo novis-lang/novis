@@ -12447,7 +12447,7 @@ Reads a civil date and time through a CLDR pattern and places it in `$zone`, rep
 
 **Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
 
-**Throws** `LogicError` — `$format` does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which `$zone` already answers. Only the first half is `E0769` for a written literal: a zonal field is a pattern the grammar reads perfectly well and a rule of this member's own, so it throws however `$format` arrived.; `ParseError` — `$text` does not match `$format`: a literal that differs, a field with no digits, trailing text, or fields that together are not a real civil time.
+**Throws** `LogicError` — `$format` does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which `$zone` already answers. Only the first half is `E0769` for a written literal: a zonal field is a pattern the grammar reads perfectly well and a rule of this member's own, so it throws however `$format` arrived.; `ParseError` — `$text` does not match `$format`: a literal that differs, a field with no digits, trailing text, or fields that together are not a real civil time. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-at"></a>
 #### `Core\Time::at`

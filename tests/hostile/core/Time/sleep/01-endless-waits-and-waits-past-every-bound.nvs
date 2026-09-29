@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program makes very many waits, waits at the far end of what a `Duration` can be, and tasks that sleep for hours.
+// Waits of zero or less should return at once, a deadline should stop the long sleeps, and nothing should crash or leak.
+
+// 1. One million waits of zero or less, down to the most negative `Duration`.
+array<Core\Time\Duration> $none = [
+    0ns,
+    Core\Time\Duration::nanoseconds(-1),
+    Core\Time\Duration::nanoseconds(-9223372036854775807),
+    Core\Time\Duration::nanoseconds(-9223372036854775807)->minus(1ns),
+];
+var $start = Core\Time::monotonic();
+uint $i = 0;
+while ($i < 1000000) {
+    Core\Time::sleep($none[($i % 4) as string]);
+    $i = $i + 1;
+}
+echo Core\Time::monotonic()->minus($start)->toSeconds() < 5 ? 'returned at once' : 'waited', "\n";
+
+// 2. Ten thousand waits of one nanosecond each.
+uint $j = 0;
+while ($j < 10000) {
+    Core\Time::sleep(1ns);
+    $j = $j + 1;
+}
+echo "10000 short waits\n";
+
+// 3. A thousand tasks each sleep for one hour. The deadline cancels all of them.
+array<int> $ids = Core\Arr::range(1, 1000);
+int $stopped = 0;
+int $round = 0;
+while ($round < 20) {
+    try {
+        Core\Task::map($ids, fn (int $n): int => {
+            Core\Time::sleep(1h);
+            return $n;
+        }, { deadline: 5ms });
+    } catch (TimeoutError $late) {
+        $stopped = $stopped + 1;
+    }
+    $round = $round + 1;
+}
+echo $stopped, " of 20 rounds stopped by the deadline\n";
+
+// 4. One nanosecond is added to the largest `Duration`. This throws a `RuntimeError`.
+try {
+    Core\Time::sleep(Core\Time\Duration::nanoseconds(9223372036854775807)->plus(1ns));
+} catch (RuntimeError $overflow) {
+    echo "overflow caught\n";
+}

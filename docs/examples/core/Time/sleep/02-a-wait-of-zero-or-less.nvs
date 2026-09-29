@@ -1,0 +1,20 @@
+<?nvs
+// Shows that a wait of zero or less returns at once, and how to wait only for the time that is left.
+
+// A zero or negative `Duration` does not wait and does not throw an error.
+var $start = Core\Time::monotonic();
+Core\Time::sleep(0s);
+Core\Time::sleep((5s)->negated());
+echo Core\Time::monotonic()->minus($start)->toMilliseconds() < 5000 ? "returned at once" : "waited", "\n";
+
+// Each step should take at least 30 milliseconds. The loop sleeps for the time
+// that is left after the work. This prints "at least 90 ms".
+Core\Time\Duration $step = 30ms;
+var $first = Core\Time::monotonic();
+array<string> $tasks = ["read", "check", "save"];
+foreach ($tasks as string $task) {
+    var $began = Core\Time::monotonic();
+    echo "step: ", $task, "\n";
+    Core\Time::sleep($step->minus(Core\Time::monotonic()->minus($began)));
+}
+echo Core\Time::monotonic()->minus($first)->toMilliseconds() >= 90 ? "at least 90 ms" : "too fast", "\n";
