@@ -2016,6 +2016,38 @@ fn global_round_trip(layout: Layout) {
     }
 }
 
+/// The registered allocator's cache count for `layout`, read three times: after
+/// `N` blocks are allocated and freed, after `N` more are allocated, and after
+/// those are freed again.
+#[expect(
+    unsafe_code,
+    reason = "measuring an allocator means calling it; every block is freed \
+              with the layout it was allocated with, and a null return is \
+              refused rather than freed"
+)]
+fn cache_counts<const N: usize>(layout: Layout) -> (u32, u32, u32) {
+    let mut blocks = [std::ptr::null_mut::<u8>(); N];
+    let fill = |blocks: &mut [*mut u8; N]| {
+        for block in blocks.iter_mut() {
+            *block = unsafe { std::alloc::alloc(layout) };
+            assert!(!block.is_null(), "the global allocator returned null");
+        }
+    };
+    let empty = |blocks: &[*mut u8; N]| {
+        for &block in blocks {
+            unsafe { std::alloc::dealloc(black_box(block), layout) };
+        }
+    };
+    fill(&mut blocks);
+    empty(&blocks);
+    let filled = nvs_runtime::budget::pooled_blocks(layout);
+    fill(&mut blocks);
+    let drained = nvs_runtime::budget::pooled_blocks(layout);
+    empty(&blocks);
+    let refilled = nvs_runtime::budget::pooled_blocks(layout);
+    (filled, drained, refilled)
+}
+
 /// The same round trip, taken straight to the platform heap.
 #[expect(
     unsafe_code,
@@ -2035,21 +2067,45 @@ fn platform_round_trip(layout: Layout) {
 fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the bound is this machine's own platform
-    // heap, measured in the same loop rather than quoted. A 32-byte round trip
-    // through `System` costs tens of nanoseconds
-    // (docs/perf/userland-gap.md § A) while a free-list pop and push is a
-    // small multiple of a load and a store, so the real ratio is an order of
-    // magnitude under this bound. What the guard holds is the cost
-    // *class*: Novis either serves a small allocation from its own cache or it
-    // does not, and the failure this file's preamble names — the pooling
-    // allocator silently not being registered — lands exactly here, because
-    // then the two sides are the same code and the ratio is 1.
-    const MAX_RATIO: f64 = 0.5;
+    // What this guard holds is that Novis serves a small allocation from its
+    // own cache, and the failure this file's preamble names is the pooling
+    // allocator silently not being registered. That is proved by counting: the
+    // registered allocator is handed `BLOCKS` requests, and the cache it keeps
+    // for this size has to give up exactly that many blocks and take them all
+    // back when they are freed. A count holds on any machine however loaded,
+    // and it cannot be met by an allocator that sends the request to the
+    // platform heap, whose cache count never moves.
+    //
+    // The timing beside it is a sanity bound, not the proof. A ratio against
+    // the platform heap measures two allocators at once, and how close they
+    // come is a property of the platform: every round trip here also keeps
+    // `nvs_runtime::budget`'s per-thread counters, each its own thread-local
+    // cell, and on macOS each access to one is a call through the thread-local
+    // descriptor where Linux and Windows read one register. The
+    // bound is the one line no platform moves: a round trip through the cache
+    // has to cost less than the platform heap it sits in front of, or the
+    // cache is spending time and saving none.
+    const BLOCKS: u32 = 16;
+    const MAX_RATIO: f64 = 1.0;
 
     // 32 bytes with 8-byte alignment: `NvsStr`'s header plus a short string,
     // and squarely inside the second size class.
     let layout = Layout::from_size_align(32, 8).expect("a valid layout");
+
+    let (filled, drained, refilled) = cache_counts::<{ BLOCKS as usize }>(layout);
+    println!(
+        "32-byte allocation cache: {filled} blocks after {BLOCKS} frees, {drained} after \
+         {BLOCKS} allocations, {refilled} after {BLOCKS} frees again"
+    );
+    assert!(
+        filled.checked_sub(drained) == Some(BLOCKS) && refilled == filled,
+        "the registered allocator's cache for a 32-byte request held {filled} blocks after \
+         {BLOCKS} frees, {drained} after {BLOCKS} allocations and {refilled} after {BLOCKS} \
+         frees again; a cache that serves every one of them falls by exactly {BLOCKS} and \
+         comes back. Either `nvs_runtime::alloc` is no longer the `#[global_allocator]` for \
+         this build, or its cache is no longer serving a request this size; \
+         docs/perf/userland-gap.md § A is the measurement that made Novis own its allocator."
+    );
 
     let pooled = ns_per_op(500_000, 5, || global_round_trip(layout));
     let platform = ns_per_op(500_000, 5, || platform_round_trip(layout));
@@ -2064,11 +2120,9 @@ fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
 
     assert!(
         ratio < MAX_RATIO,
-        "a 32-byte round trip now costs {ratio:.3}x the platform heap's own \
-         ({pooled:.2} ns vs {platform:.2} ns), over the {MAX_RATIO}x guard. \
-         Either `nvs_runtime::alloc` is no longer the `#[global_allocator]` \
-         for this build, or its cache is no longer serving a request this \
-         size; docs/perf/userland-gap.md § A is the measurement that made \
-         Novis own its allocator."
+        "a 32-byte round trip through the cache now costs {ratio:.3}x the platform heap's own \
+         ({pooled:.2} ns vs {platform:.2} ns), so the cache is no faster than the heap it \
+         fronts. The cache count above says it is serving the request, so what grew is the \
+         work around it: `nvs_runtime::budget`'s counters or the free list itself."
     );
 }

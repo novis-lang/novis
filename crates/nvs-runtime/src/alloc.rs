@@ -193,6 +193,15 @@ unsafe fn push(class: usize, block: *mut u8) -> bool {
     })
 }
 
+/// How many freed blocks the calling thread's cache holds in the class that
+/// serves `layout`, or `0` for a layout no class serves.
+///
+/// Reads the length `push` and `pop` already keep, so it costs the allocation
+/// path nothing. [`crate::budget::pooled_blocks`] is its public face.
+pub(crate) fn cached_blocks(layout: Layout) -> u32 {
+    class_of(layout).map_or(0, |class| CACHE.with(|cache| cache[class].len.get()))
+}
+
 /// [`System`], with the per-thread size-class cache above in front of it.
 #[derive(Debug)]
 pub(crate) struct Pooled;

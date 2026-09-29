@@ -4,4 +4,4 @@
   `nvs_runtime` silently measures the platform heap. Name the crate in any binary that measures
   allocation; `benches/abi-probe/tests/perf_guards.rs`'s
   `an_allocation_round_trip_stays_in_the_pooled_cost_class` fails loudly in exactly that case, its
-  ratio going to 1. [until: gone benches/abi-probe/tests/perf_guards.rs:an_allocation_round_trip_stays_in_the_pooled_cost_class]
+  cache count never moving. [until: gone benches/abi-probe/tests/perf_guards.rs:an_allocation_round_trip_stays_in_the_pooled_cost_class]

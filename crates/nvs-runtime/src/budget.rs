@@ -615,6 +615,28 @@ pub fn allocated_bytes() -> usize {
     TOTAL.with(Cell::get)
 }
 
+/// How many freed blocks this thread's allocator cache holds for a request of
+/// `layout`, or `0` in a build that has no cache and for a layout it does not
+/// serve.
+///
+/// The count falls by one for each allocation the cache serves and rises by
+/// one for each block freed back into it, so a guard reads it to show that the
+/// registered allocator served a request from the cache and not from the
+/// platform heap. A debug build has no cache, for the reason `crate::alloc`
+/// gives, and a `sanitizer` build keeps one that no allocation reaches, so its
+/// count never moves.
+#[must_use]
+pub fn pooled_blocks(layout: std::alloc::Layout) -> u32 {
+    #[cfg(any(test, not(debug_assertions)))]
+    let blocks = crate::alloc::cached_blocks(layout);
+    #[cfg(not(any(test, not(debug_assertions))))]
+    let blocks = {
+        let _ = layout;
+        0
+    };
+    blocks
+}
+
 /// How many bytes this thread has written to a request's output, never
 /// decreasing.
 ///
