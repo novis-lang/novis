@@ -1,5 +1,5 @@
 {
-  "live": "core-time-and-1-more",
+  "live": "core-time-datetime",
   "goals": [
     "core-depth",
     "concurrency",
