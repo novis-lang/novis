@@ -1479,9 +1479,11 @@ pub unsafe extern "C" fn nvs_str_append(
 ///
 /// A byte comparison, not a collation: `string` is guaranteed-valid UTF-8
 /// (`rule:types/bytes`), and PHP's `===`
-/// on two strings is byte equality, which is what Novis keeps. Neither operand
-/// is retained or released — the same read-only treatment
-/// [`nvs_str_concat`] gives its two.
+/// on two strings is byte equality, which is what Novis keeps. Two operands at
+/// one address are equal without a byte being read, which is what two reads of
+/// one stored text give — `$m->text() == $m->group(0)` over a match of
+/// megabytes. Neither operand is retained or released — the same read-only
+/// treatment [`nvs_str_concat`] gives its two.
 ///
 /// # Safety
 ///
@@ -1499,7 +1501,7 @@ pub unsafe extern "C" fn nvs_str_eq(lhs: *const StrHeader, rhs: *const StrHeader
                   end with this comparison"
     )]
     unsafe {
-        NvsStr::bytes_of(lhs) == NvsStr::bytes_of(rhs)
+        std::ptr::eq(lhs, rhs) || NvsStr::bytes_of(lhs) == NvsStr::bytes_of(rhs)
     }
 }
 

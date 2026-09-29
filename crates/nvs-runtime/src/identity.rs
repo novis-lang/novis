@@ -195,7 +195,11 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
             Some(Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal),
             Some(Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal),
         ) => numeric_identical(left, right),
-        (Some(Tag::Str), Some(Tag::Str)) => left.as_str_bytes() == right.as_str_bytes(),
+        // One stored text read twice is equal without a byte being read, the
+        // shortcut `crate::nvs_str_eq` takes for a non-nullable pair.
+        (Some(Tag::Str), Some(Tag::Str)) => {
+            left.str_ptr() == right.str_ptr() || left.as_str_bytes() == right.as_str_bytes()
+        }
         // A `bytes` is a value rather than a handle, so it compares by
         // content — and only against another `bytes`. `rule:expressions/equality-semantics` gives
         // `string` and `bytes` the strict reading two disjoint types get, so a
