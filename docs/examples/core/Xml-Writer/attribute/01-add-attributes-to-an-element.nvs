@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to add attributes to an element, and how the writer escapes their values.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+$writer->startElement("link");
+
+// Each call adds one attribute to the element that is open.
+// The writer escapes the values. `&` is written as `&amp;`, and `"` is written as `&quot;`.
+$writer->attribute("href", "/search?q=tea&page=2");
+$writer->attribute("title", "Search for \"tea\"");
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

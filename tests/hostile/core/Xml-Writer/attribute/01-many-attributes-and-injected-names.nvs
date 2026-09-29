@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program writes attribute names that try to add markup, and puts 100,000 attributes on one element.
+// Each bad name should throw a `LogicError`, and the many attributes should be written quickly.
+// hostile: timeout-ms 20000
+
+class Try
+{
+    // Runs one call and prints `ok`, or the class of the error it throws.
+    public static function call(callable $step): void
+    {
+        try {
+            $step();
+            echo "ok\n";
+        } catch (LogicError $error) {
+            echo "LogicError\n";
+        }
+    }
+}
+
+Core\Xml\Writer $out = Core\Xml::writer();
+$out->startDocument();
+$out->startElement('user');
+
+// 1. Names that try to close the tag or add a second attribute. Each prints LogicError.
+Try::call(fn(): void => { $out->attribute('a="1" admin', 'yes'); });
+Try::call(fn(): void => { $out->attribute('x/><evil', 'y'); });
+Try::call(fn(): void => { $out->attribute('', 'empty'); });
+Try::call(fn(): void => { $out->attribute('1', 'digit'); });
+
+// 2. A value with a control character XML cannot write. This prints LogicError.
+Try::call(fn(): void => { $out->attribute('note', "a\x00b"); });
+
+// 3. A value that tries to close the quotes and the tag. This prints ok, because the value is escaped.
+Try::call(fn(): void => { $out->attribute('name', '"><admin/><x a="'); });
+
+// 4. A value of one million quote characters. This prints ok.
+Try::call(fn(): void => { $out->attribute('big', Core\Str::repeat('"', 1000000)); });
+
+// 5. Names that differ only in case are two names. This prints ok twice.
+Try::call(fn(): void => { $out->attribute('id', '1'); });
+Try::call(fn(): void => { $out->attribute('ID', '2'); });
+
+// 6. 100,000 attributes on one element, and then the first name again. The last line prints LogicError.
+int $i = 0;
+while ($i < 100000) {
+    $out->attribute('a' . $i, 'v');
+    $i = $i + 1;
+}
+Try::call(fn(): void => { $out->attribute('a0', 'again'); });
+
+// 7. The document is finished. This prints its length.
+$out->endElement();
+echo Core\Str::length($out->endDocument()), "\n";

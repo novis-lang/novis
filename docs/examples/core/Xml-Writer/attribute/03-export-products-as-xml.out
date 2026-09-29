@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<products currency="EUR">
+  <product sku="TEA-01" price="4.50"/>
+  <product sku="MUG-07" price="12.00"/>
+  <product sku="POT-02" price="29.90"/>
+</products>

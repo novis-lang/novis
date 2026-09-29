@@ -1,0 +1,35 @@
+<?nvs
+// Adds attributes to elements, as a program does when it exports records as XML.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = [];
+        uint $n = 0;
+        while ($n < 64) {
+            $names[] = "field" . $n;
+            $n = $n + 1;
+        }
+        array<string> $values = ["42", "Tea & cake", "say \"hi\""];
+        Core\Xml\Writer $writer = Core\Xml::writer();
+        $writer->startDocument();
+        $writer->startElement("export");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // A new element every 64 attributes, so no name is used twice on one element.
+            if ($i % 64 == 0) {
+                $writer->startElement("record");
+            }
+            $writer->attribute($names[($i % 64) as int], $values[(($total + $i) % 3) as int]);
+            if ($i % 64 == 63) {
+                $writer->endElement();
+            }
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

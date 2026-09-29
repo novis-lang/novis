@@ -224,6 +224,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Xml\Writer`'s class card — `rule:core-api/reference-card`.
+const WRITER_CARD: ClassDoc = ClassDoc {
+    short: "Builds a new XML document one node at a time. `Core\\Xml::writer` returns a writer. \
+            `startDocument` begins the document, and `endDocument` returns it as a string. \
+            Between them, `startElement` and `endElement` open and close each element. The \
+            writer escapes every text and every attribute value for you, and it throws a \
+            `LogicError` for any call that would make the document invalid.",
+};
+
 /// `Core\Xml`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Reads and writes XML documents. `parse` reads a whole document into a tree of \
@@ -647,7 +656,7 @@ const SCOPES_SLOT: usize = 6;
 /// document type declaration.
 pub(crate) const WRITER: CoreClass = CoreClass {
     name: WRITER_NAME,
-    doc: None,
+    doc: Some(&WRITER_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -887,31 +896,29 @@ const CONTENT_DOC: MethodDoc = MethodDoc {
 /// `Core\Xml\Writer::attribute`'s reference card —
 /// `rule:core-api/reference-card`.
 const ATTRIBUTE_DOC: MethodDoc = MethodDoc {
-    short: "Writes one attribute on the element that was just opened. A single call rather than a \
-            pair, because an attribute holds a value and cannot contain nodes — the pair PHP has \
-            exists only to let text be written between its halves.",
+    short: "Adds one attribute to the element that `startElement` opened last. Call it right after \
+            `startElement`, before you write anything inside the element. The writer escapes the \
+            value, so a value can contain quotes, `<`, `&` and line breaks.",
     params: &[
         ParamDoc {
             name: "name",
-            desc: "The attribute's name, qualified prefix and all, and refused when it is not a \
-                   name XML can write.",
+            desc: "The attribute's name, such as `id` or `xml:lang`. It must be a valid XML name.",
             shape: &[],
         },
         ParamDoc {
             name: "value",
-            desc: "Its value, escaped into the quotes it is written between — the quote itself \
-                   and the whitespace a parser would otherwise fold included, so what comes back \
-                   out of a parse is what was written. `tainted` text is laundered for this sink \
-                   exactly as `content`'s is.",
+            desc: "The attribute's value. When a parser reads the document, it gets back exactly \
+                   this text. A `tainted` value is allowed, because the writer escapes it.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the attribute is on the open start tag.",
+    ret: "Nothing. The attribute is written in the element's start tag.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "No start tag is still taking attributes, the element already carries an attribute \
-               of that name, the name is not a name XML can write, the value holds a character \
-               XML cannot write, or the document is not open.",
+        desc: "Something was already written inside the element, or no element is open. The \
+               element already has an attribute with this name. The name is not a valid XML name. \
+               The value contains a control character that XML cannot write. The document is not \
+               open.",
     }],
 };
 
@@ -1013,7 +1020,7 @@ const OPEN_NAMES_SLOT: usize = 1;
 const OPEN_COUNT_SLOT: usize = 2;
 /// … whether a start tag is written and still able to take attributes …
 const TAG_SLOT: usize = 3;
-/// … the names that tag already carries …
+/// … the names that tag already carries, as the keys of an array …
 const TAG_NAMES_SLOT: usize = 4;
 /// … what one level of nesting is indented by …
 const INDENT_SLOT: usize = 5;
@@ -3238,19 +3245,16 @@ fn attribute(receiver: Value, name: &str, value: &str) -> Result<Value, Fault> {
     }
     writable(&pen, value)?;
 
+    // The names are the array's keys, so the check is one lookup and a tag with
+    // many attributes costs linear time. A name is never a number, since
+    // `is_name` refuses a leading digit, so no key is read as an integer.
     let mut carried = pen.array(TAG_NAMES_SLOT)?;
-    let count = carried.count();
-    for at in 0..count {
-        let at = i64::try_from(at).expect("a start tag's attribute count is under `i64::MAX`");
-        let held = carried.get_index(at);
-        if held.as_ref().and_then(|held| held.as_text()) == Some(name) {
-            return pen.refuse(&format!(
-                "this element already carries an attribute named `{name}`"
-            ));
-        }
+    if carried.get(name.as_bytes()).is_some() {
+        return pen.refuse(&format!(
+            "this element already carries an attribute named `{name}`"
+        ));
     }
-    let at = i64::try_from(count).expect("a start tag's attribute count is under `i64::MAX`");
-    carried.set_index(at, Value::str(NvsStr::new(name.as_bytes())));
+    carried.set(NvsStr::new(name.as_bytes()), Value::bool(true));
 
     pen.emit(" ")?;
     pen.emit(name)?;
@@ -4683,6 +4687,66 @@ mod tests {
     /// A text argument, which the callee borrows and the caller releases.
     fn word(text: &str) -> Value {
         Value::str(NvsStr::new(text.as_bytes()))
+    }
+
+    /// An attribute value comes back out of a parse exactly as it went in: the
+    /// quote, the three markup characters and the whitespace a parser folds are
+    /// all escaped. The names a tag carries are the tag's alone, so the same name
+    /// is accepted again on the next element. Twenty thousand names on one tag
+    /// are accepted and the first is still refused a second time, which a check
+    /// that scanned every earlier name could only do in quadratic time.
+    // covers: Core\Xml\Writer::attribute
+    #[test]
+    fn attribute_values_parse_back_and_names_are_checked_per_tag() {
+        let start = super::nvs_core_xml_writer_start_element;
+        let end = super::nvs_core_xml_writer_end_element;
+        let attribute = super::nvs_core_xml_writer_attribute;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "");
+        let (list, row, id) = (word("list"), word("row"), word("id"));
+        let raw = "say \"hi\" <b> & 'x'\tthen\nnext\r";
+        let value = word(raw);
+
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+        wrote(asked(&mut ctx, start, &[writer, list]));
+        wrote(asked(&mut ctx, attribute, &[writer, id, value]));
+        wrote(asked(&mut ctx, start, &[writer, row]));
+        wrote(asked(&mut ctx, attribute, &[writer, id, value]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, start, &[writer, row]));
+        let names: Vec<Value> = (0..20_000).map(|at| word(&format!("a{at}"))).collect();
+        for name in &names {
+            wrote(asked(&mut ctx, attribute, &[writer, *name, id]));
+        }
+        let why = asked(&mut ctx, attribute, &[writer, names[0], id]).expect_err("`a0` is carried");
+        assert!(
+            why.contains("already carries an attribute named `a0`"),
+            "{why}"
+        );
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, end, &[writer]));
+
+        let document = asked(&mut ctx, super::nvs_core_xml_writer_end_document, &[writer])
+            .expect("the root element is written and closed");
+        let text = document.as_text().expect("a finished document is text");
+        let tree = parse(text).expect("what the writer answered is a document");
+        let root = &tree.children[0];
+        assert_eq!(root.attributes, [("id".to_owned(), raw.to_owned())]);
+        assert_eq!(root.children[0].attributes, root.attributes);
+        assert_eq!(root.children[1].attributes.len(), 20_000);
+
+        dropped(document);
+        for name in names {
+            dropped(name);
+        }
+        for held in [list, row, id, value, writer] {
+            dropped(held);
+        }
     }
 
     /// What is open is the writer's own state, so a caller cannot get it wrong.
