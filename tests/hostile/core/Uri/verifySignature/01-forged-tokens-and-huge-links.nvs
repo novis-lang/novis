@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a visitor sends forged tokens, very long tokens and very long links to a server that checks signed links.
+// Each check should throw an error in a short time, and nothing should crash or stay in memory.
+
+class Check
+{
+    public static function link(string $address, array<secret bytes> $keys): string
+    {
+        try {
+            Core\Uri::parse($address)->verifySignature($keys);
+            return 'valid';
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+string $good = Core\Uri::parse('https://example.com/a?id=7')->sign({ keys: $keys, until: null })->toString();
+
+// 1. The real link. This prints "valid".
+echo Check::link($good, $keys), "\n";
+
+// 2. A token of one million letters. This prints "error".
+echo Check::link('https://example.com/a?id=7&_sig=' . Core\Str::repeat('A', 1000000), $keys), "\n";
+
+// 3. A token of one million `%` escapes. This prints "error".
+echo Check::link('https://example.com/a?id=7&_sig=' . Core\Str::repeat('%41', 1000000), $keys), "\n";
+
+// 4. The real token sent twice. Two tokens are not allowed, so this prints "error".
+string $twice = $good . '&_sig=' . (Core\Uri::parse($good)->queryParameter('_sig') as string);
+echo Check::link($twice, $keys), "\n";
+
+// 5. The real token with 100000 extra parameters. This prints "error".
+echo Check::link($good . Core\Str::repeat('&x=1', 100000), $keys), "\n";
+
+// 6. The real token checked with a list of 20000 wrong keys. This prints "error".
+array<secret bytes> $wrong = [];
+int $k = 0;
+while ($k < 20000) {
+    $wrong[] = Core\Crypto::generateKey();
+    $k = $k + 1;
+}
+echo Check::link($good, $wrong), "\n";
+
+// 7. An empty list of keys. This prints "error".
+array<secret bytes> $none = [];
+echo Check::link($good, $none), "\n";
+
+// 8. The real token with each of its first 2000 letters changed, one at a time.
+// Every changed token fails, so this prints 0.
+string $token = Core\Uri::parse($good)->queryParameter('_sig') as string;
+string $base = 'https://example.com/a?id=7&_sig=';
+uint $accepted = 0;
+uint $i = 0;
+while ($i < 2000 && $i < Core\Str::length($token)) {
+    string $letter = Core\Str::slice($token, $i as int, 1);
+    string $other = $letter == 'B' ? 'C' : 'B';
+    string $forged = Core\Str::slice($token, 0, $i as int) . $other . Core\Str::slice($token, ($i + 1) as int);
+    if (Check::link($base . $forged, $keys) == 'valid') {
+        $accepted = $accepted + 1;
+    }
+    $i = $i + 1;
+}
+echo $accepted, "\n";

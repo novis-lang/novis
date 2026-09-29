@@ -1,22 +1,22 @@
 {
-  "state": "Goal `core-uri-2-2`: 5 of the goal's 11 `Core\\Uri` members have their feature proofs.\n`Core\\Uri::query`, `queryParameter`, `resolve`, `scheme` and `userInfo` are done, and their help\ncards in `crates/nvs-stdlib/src/uri.rs` are in the plain voice. The last acceptance sweep named only\n`resolve`, `sign` and `verifySignature` as owing, so `sign` and `verifySignature` are what is left\nof the dossier check. Nothing is blocked.",
+  "state": "Goal `core-uri-2-2`: 7 of the goal's 11 `Core\\Uri` members have their feature proofs. `query`,\n`queryParameter`, `resolve`, `scheme`, `userInfo`, `sign` and `verifySignature` are done, and their\nhelp cards in `crates/nvs-stdlib/src/uri.rs` use the plain voice. The last acceptance sweep named\n`withQueryParameter`, `sign` and `verifySignature` as owing, so `withQueryParameter` is all that is\nleft of the dossier check. Nothing is blocked.",
   "next": {
-    "stage": 1,
-    "title": "feature proofs, file order",
+    "stage": 2,
+    "title": "feature proofs, the last member, then the goal's end gates",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/uri.rs` and the new `docs/examples/core/Uri/<member>/`, `tests/hostile/core/Uri/<member>/` and `benches/members/core/Uri/`:",
+    "note": "one file set: `crates/nvs-stdlib/src/uri.rs` and the new `docs/examples/core/Uri/withQueryParameter/`, `tests/hostile/core/Uri/withQueryParameter/` and `benches/members/core/Uri/withQueryParameter.nvs`:",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Uri::sign`** — owes examples, hostile, perf, tests (`bun nv proofs --id 'Core\\Uri::sign'`). The Rust tests near the `ring()` helper already sign links, so a `// covers:` marker on one of them may close its Rust half. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:633`"
+        "text": "**`Core\\Uri::withQueryParameter`** — owes about, examples, hostile, perf and tests (`bun nv proofs --id 'Core\\Uri::withQueryParameter'`). `tests/conformance/core/uri-sign-covers-every-component-present-and-verify-answers-nothing.nvst` already calls it, and a `// covers:` marker there and on a Rust test near `crates/nvs-stdlib/src/uri.rs:4930` closes the tests half. Rewrite its card in the plain voice. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:602`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uri::verifySignature`** — owes examples, hostile, perf, and a Rust `covers:` marker; the `verify` test helper already drives it. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:653`"
+        "text": "**Reach the goal** — when `bun nv proofs --verify --only` over the goal's 11 members prints `nothing owed`, run `bun nv verify --doc`, `bun nv owners --closes core-uri-2-2` and `bun nv playbook --closes core-uri-2-2`, and write `DONE`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:602`"
       }
     ]
   },
   "backlog": [
-    "Run `bun nv proofs --verify` with the goal's whole `--only` list once both members land, and read `bun nv owners --closes core-uri-2-2` before `DONE`."
+    "None of this goal's own. The comments in the older `uri-sign-*` `.nvst` cases are in the dense voice. They are tests and not published, so goal `plain-comments` owns them if anybody does."
   ]
 }
