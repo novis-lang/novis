@@ -1,0 +1,2 @@
+106751
+Core\Time\Duration::multipliedBy(): this duration is longer than `Core\Time\Duration` can hold

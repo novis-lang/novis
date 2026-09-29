@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to multiply a duration by a whole number.
+
+Core\Time\Duration $lesson = 25m;
+
+// Four lessons of 25 minutes take 100 minutes. This prints 1h40m.
+echo $lesson->multipliedBy(4)->toString(), "\n";
+
+// A negative factor gives a negative duration. This prints -50m.
+echo $lesson->multipliedBy(-2)->toString(), "\n";
+
+// A factor of 0 gives a duration of zero. This prints 0.
+echo $lesson->multipliedBy(0)->toSeconds(), "\n";

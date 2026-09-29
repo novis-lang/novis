@@ -1,0 +1,19 @@
+<?nvs
+// Multiplies a duration by a whole number, as a program does when it doubles the wait after a failed try.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        Core\Time\Duration $step = 250ms;
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the factor comes from last round's total
+            $total = $total + $step->multipliedBy($total % 64)->toMilliseconds() % 13 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

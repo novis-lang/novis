@@ -1,0 +1,13 @@
+<?nvs
+// Computes how long a program waits before each new try, when every wait is twice the one before.
+
+Core\Time\Duration $first = 500ms;
+
+// The waits are 500ms, 1s, 2s, 4s and 8s. This prints each one.
+int $factor = 1;
+int $attempt = 1;
+while ($attempt <= 5) {
+    echo $first->multipliedBy($factor)->toString(), "\n";
+    $factor = $factor * 2;
+    $attempt = $attempt + 1;
+}
