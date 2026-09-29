@@ -2,6 +2,7 @@
 `Core\Xml\Node::source` writes the node it was asked and everything under it, with text and attribute values escaped, so nothing a document carried comes back out as markup — `rule:core-classes/xml-tree-and-stream`, `rule:security/tainted-sources`
 --FILE--
 <?nvs
+// covers: Core\Xml\Node::source
 // Every node answers this, not only the document one: what a program gets back
 // is the subtree it asked about, with nothing above it. A walk that found one
 // element therefore has that element's own text without carrying the rest of

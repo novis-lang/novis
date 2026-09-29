@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to make a new XML document that contains only some elements of another one.
+
+string $catalog = '<catalog>
+  <product sku="A-1" stock="4"><name>Mug</name></product>
+  <product sku="B-2" stock="0"><name>Tea towel</name></product>
+  <product sku="C-3" stock="12"><name>Teapot</name></product>
+</catalog>';
+
+tainted string $inStock = "";
+foreach (Core\Xml::parse($catalog)->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $product) {
+        if ($product->kind() != Core\Xml\NodeKind::Element) {
+            continue;
+        }
+        // A product in stock is copied as it is, with its attributes and its children.
+        if ($product->attributes()["stock"] != "0") {
+            $inStock = $inStock . $product->source();
+        }
+    }
+}
+
+// This prints a new catalog with only the mug and the teapot.
+echo "<catalog>", $inStock, "</catalog>\n";

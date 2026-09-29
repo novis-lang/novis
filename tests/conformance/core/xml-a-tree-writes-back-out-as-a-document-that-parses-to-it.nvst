@@ -2,6 +2,7 @@
 `Core\Xml\Node::source` is the way out of a walk: what it writes parses to the tree that wrote it, and writing that again answers the same text — `rule:core-classes/xml-tree-and-stream`, `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
+// covers: Core\Xml\Node::source
 // The tree half materialises a document and this is how one leaves again,
 // without replaying the walk into a `Core\Xml\Writer` a call at a time. Two
 // things are visible in what comes out: an empty element carries an end tag

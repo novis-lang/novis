@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a program writes out very deep trees, texts made of characters that need escaping, and
+// trees that XML cannot write. Each step should print its result or catch a `LogicError`. The last
+// step should stop at the memory limit, and must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. A tree 1000 elements deep is written out. This prints 7000.
+Core\Xml\Node $deep = Core\Xml::parse(Core\Str::repeat('<a>', 1000) . Core\Str::repeat('</a>', 1000));
+echo Core\Str::length($deep->source()), "\n";
+
+// 2. One million `&` and `"` characters in a text and in an attribute. `&` is written as `&amp;`
+// and `"` as `&quot;`. This prints 5000000 and then 6000000.
+Core\Xml\Node $text = Core\Xml::parse('<t>' . Core\Str::repeat('&amp;', 1000000) . '</t>');
+echo Core\Str::length($text->source()) - 7, "\n";
+Core\Xml\Node $value = Core\Xml::parse('<t v="' . Core\Str::repeat('&quot;', 1000000) . '"/>');
+echo Core\Str::length($value->source()) - 12, "\n";
+
+// 3. Text that looks like markup comes back escaped. Parsing the result gives the same text again.
+// This prints same.
+Core\Xml\Node $markup = Core\Xml::parse('<t>&lt;/t&gt;&lt;script&gt;</t>');
+Core\Xml\Node $again = Core\Xml::parse($markup->source());
+echo $again->source() == $markup->source() ? 'same' : 'different', "\n";
+
+// 4. `Core\Html::parse` accepts comments, names and characters that XML cannot write.
+// Each one throws a `LogicError`. This prints refused four times.
+array<string> $broken = [
+    '<p><!-- a -- b --></p>',
+    '<p><!-- ends in a dash ---></p>',
+    '<p a<b=1>x</p>',
+    "<p>\u{1}</p>",
+];
+foreach ($broken as string $html) {
+    try {
+        echo Core\Html::parse($html)->source(), "\n";
+    } catch (LogicError $error) {
+        echo "refused\n";
+    }
+}
+
+// 5. The program keeps many copies of a long escaped tree. It should stop at its memory limit.
+Core\Xml\Node $wide = Core\Xml::parse('<t>' . Core\Str::repeat('&lt;&gt;', 2000000) . '</t>');
+array<tainted string> $copies = [];
+int $n = 0;
+while ($n < 1000000) {
+    $copies[] = $wide->source();
+    $n = $n + 1;
+}
+echo Core\Arr::count($copies), "\n";

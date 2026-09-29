@@ -385,13 +385,12 @@ const KIND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Xml\Node::name`'s reference card — `rule:core-api/reference-card`.
 const NAME_DOC: MethodDoc = MethodDoc {
-    short: "The name this node was written under — an element's tag name, or a processing \
-            instruction's target. Empty for a text node, a comment and the document, which have \
-            no name to carry rather than an unknown one.",
+    short: "Returns the name of this node. For an element, this is the tag name. For a processing \
+            instruction, it is the target, such as `print` in `<?print fast?>`. A text node, a \
+            comment and the document have no name, so they return an empty string.",
     params: &[],
-    ret: "The name exactly as the document spelled it, prefix included: `<x:a/>` answers `x:a`, \
-          which is the name a serialiser writes back out. What the prefix means is \
-          `namespaceUri`. `tainted`, as everything read out of a parsed tree is.",
+    ret: "A `tainted` string. The name is written as in the document, with its prefix: for \
+          `<x:a/>` the result is `x:a`. To find the namespace of the prefix, use `namespaceUri`.",
     errors: &[],
 };
 
@@ -450,24 +449,21 @@ const CHILDREN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Xml\Node::source`'s reference card — `rule:core-api/reference-card`.
 const SOURCE_DOC: MethodDoc = MethodDoc {
-    short: "This node and everything under it, written back out as document text — the way out of \
-            a walk, for a program that read a tree, decided something about it and wants the \
-            document again without replaying it into a `Core\\Xml\\Writer` a call at a time. XML \
-            rules, whichever door parsed the tree: every element is written with an end tag, and a \
-            tree holding something XML cannot spell is refused here rather than written as \
-            something a reader would read back differently.",
+    short: "Returns this node and everything inside it as XML text. Use it to write a document, or \
+            one part of it, back out after you read it. Every element is written with an end tag, \
+            so `<e/>` is written as `<e></e>`. The XML rules apply, also to a tree from \
+            `Core\\Html::parse`.",
     params: &[],
-    ret: "The subtree as text, with no XML declaration in front of it — a parse leaves none \
-          behind, so writing one would be inventing the version and encoding it claims. Text and \
-          attribute values are escaped, so nothing a document carried can come back out as markup. \
-          `tainted`, as everything read out of a parsed tree is.",
+    ret: "A `tainted` string, with no XML declaration at the start. In text, `&`, `<` and `>` are \
+          escaped. In an attribute value, `\"`, a tab and a line break are escaped too. When you \
+          parse the result, you get the same tree again.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The tree holds something no XML document can spell: a name or a target that is not \
-               a name, a comment holding `--` or ending in `-`, a processing instruction whose \
-               data holds `?>`, or a character a document has no way to write. `Core\\Html::parse` \
-               recovers from all four rather than failing, so this is where one door's recovery \
-               stops being the other door's output.",
+        desc: "The tree contains something XML cannot write: a name that is not a valid XML name, \
+               a comment that contains `--` or ends with `-`, a processing instruction that \
+               contains `?>`, or a character XML does not allow. Only a tree from \
+               `Core\\Html::parse` can contain these, because `Core\\Xml::parse` does not accept \
+               them.",
     }],
 };
 
@@ -2412,6 +2408,28 @@ fn carried(text: &str) -> Result<(), Fault> {
     }
 }
 
+/// Refuses before up to `more` bytes are written onto `out`, when the request
+/// cannot afford them.
+///
+/// The text [`source`] builds is Rust memory, which the allocator counts and
+/// never refuses, and escaping writes up to six bytes for each one the tree
+/// holds, so without this a tree near the ceiling is written out several times
+/// past it before the first Novis allocation notices. What is asked for is the
+/// escaped copy plus the buffer `out` grows into when it is full.
+///
+/// # Errors
+///
+/// The memory limit's `FATAL`, as [`nvs_runtime::affordable`] gives it.
+fn afford_writing(out: &str, capacity: usize, more: usize) -> Result<(), Fault> {
+    let needed = out.len().saturating_add(more);
+    let grown = if needed > capacity {
+        needed.max(capacity.saturating_mul(2))
+    } else {
+        0
+    };
+    nvs_runtime::affordable(Some(grown.saturating_add(more)), "Core\\Xml\\Node::source").map(drop)
+}
+
 /// One node's subtree as the document text a parse reads this same tree back
 /// out of.
 ///
@@ -2430,7 +2448,8 @@ fn carried(text: &str) -> Result<(), Fault> {
 ///
 /// What it spends: the text it is building, plus one entry per node on the path
 /// from the root to where the walk is, and the children of the node it is
-/// looking at.
+/// looking at. Every piece of text asks [`afford_writing`] before it is
+/// written, so a request stops at its memory limit while the text grows.
 ///
 /// # Errors
 ///
@@ -2470,6 +2489,7 @@ fn source(node: Value) -> Result<String, Fault> {
                 if !is_name(name) {
                     return refused(&format!("`{name}` is not a name a document can write"));
                 }
+                afford_writing(&out, out.capacity(), name.len().saturating_mul(2) + 5)?;
                 out.push('<');
                 out.push_str(name);
                 let attributes = crate::instance::slot(receiver, ATTRIBUTES_SLOT);
@@ -2497,6 +2517,11 @@ fn source(node: Value) -> Result<String, Fault> {
                         ));
                     }
                     carried(value)?;
+                    afford_writing(
+                        &out,
+                        out.capacity(),
+                        attribute.len() + value.len().saturating_mul(6) + 4,
+                    )?;
                     out.push(' ');
                     out.push_str(attribute);
                     out.push_str("=\"");
@@ -2508,6 +2533,7 @@ fn source(node: Value) -> Result<String, Fault> {
             }
             Kind::Text => {
                 carried(text)?;
+                afford_writing(&out, out.capacity(), text.len().saturating_mul(5))?;
                 out.push_str(&escaped(text));
             }
             Kind::Comment => {
@@ -2517,6 +2543,7 @@ fn source(node: Value) -> Result<String, Fault> {
                     );
                 }
                 carried(text)?;
+                afford_writing(&out, out.capacity(), text.len() + 7)?;
                 out.push_str("<!--");
                 out.push_str(text);
                 out.push_str("-->");
@@ -2532,6 +2559,7 @@ fn source(node: Value) -> Result<String, Fault> {
                     );
                 }
                 carried(text)?;
+                afford_writing(&out, out.capacity(), name.len() + text.len() + 5)?;
                 out.push_str("<?");
                 out.push_str(name);
                 if !text.is_empty() {
@@ -4265,6 +4293,116 @@ mod tests {
         dropped(top);
         dropped(tree);
         dropped(source);
+    }
+
+    /// `source` writes a subtree back with an end tag on every element and the
+    /// characters markup uses escaped, and a parse of what it wrote writes the
+    /// same text again. A child node is written alone, without its parent.
+    // covers: Core\Xml\Node::source
+    #[test]
+    fn source_writes_a_subtree_that_parses_back_to_the_same_text() {
+        let source = word("<r a='x\"&#9;y'>a &amp; &lt;<e/><!--n--><?p d?></r>");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let written_of = |ctx: &mut Ctx, node: Value| -> String {
+            let text =
+                call(super::nvs_core_xml_node_source, ctx, &[node]).expect("that tree is writable");
+            let owned = text.as_text().expect("source is a string").to_owned();
+            dropped(text);
+            owned
+        };
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
+        let first = written_of(&mut ctx, tree);
+        assert_eq!(
+            first,
+            "<r a=\"x&quot;&#9;y\">a &amp; &lt;<e></e><!--n--><?p d?></r>"
+        );
+
+        let again = word(&first);
+        let reread =
+            call(super::nvs_core_xml_parse, &mut ctx, &[again]).expect("what source wrote parses");
+        assert_eq!(written_of(&mut ctx, reread), first);
+
+        let top = call(super::nvs_core_xml_node_children, &mut ctx, &[tree])
+            .expect("the document has children");
+        let root = crate::arr::borrowed(top.array_ptr().expect("children is an array"))
+            .value_at(0)
+            .expect("the root element");
+        let inner = call(super::nvs_core_xml_node_children, &mut ctx, &[root])
+            .expect("an element has children");
+        let element = crate::arr::borrowed(inner.array_ptr().expect("children is an array"))
+            .value_at(1)
+            .expect("the empty element follows the text");
+        assert_eq!(written_of(&mut ctx, element), "<e></e>");
+
+        dropped(inner);
+        dropped(top);
+        dropped(reread);
+        dropped(again);
+        dropped(tree);
+        dropped(source);
+    }
+
+    /// `name` answers an element's tag with its prefix and a processing
+    /// instruction's target as the document wrote them, and an empty string for
+    /// the document, a comment and a text.
+    // covers: Core\Xml\Node::name
+    #[test]
+    fn name_answers_the_tag_or_the_target_as_written_and_nothing_for_the_rest() {
+        let source = word("<?go now?><!--n--><x:r xmlns:x='https://example.com/x'>t</x:r>");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let name_of = |ctx: &mut Ctx, node: Value| -> String {
+            let name =
+                call(super::nvs_core_xml_node_name, ctx, &[node]).expect("every node has a name");
+            let owned = name.as_text().expect("a name is a string").to_owned();
+            dropped(name);
+            owned
+        };
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
+        assert_eq!(name_of(&mut ctx, tree), "", "the document has no name");
+
+        let top = call(super::nvs_core_xml_node_children, &mut ctx, &[tree])
+            .expect("the document has children");
+        let nodes = crate::arr::borrowed(top.array_ptr().expect("children is an array"));
+        let names: Vec<String> = (0..nodes.count())
+            .map(|at| name_of(&mut ctx, nodes.value_at(at).expect("children are packed")))
+            .collect();
+        assert_eq!(names, ["go", "", "x:r"]);
+
+        let root = nodes.value_at(2).expect("the root element comes last");
+        let inner = call(super::nvs_core_xml_node_children, &mut ctx, &[root])
+            .expect("an element has children");
+        let text = crate::arr::borrowed(inner.array_ptr().expect("children is an array"))
+            .value_at(0)
+            .expect("the root holds one text node");
+        assert_eq!(name_of(&mut ctx, text), "", "a text has no name");
+
+        dropped(inner);
+        dropped(top);
+        dropped(tree);
+        dropped(source);
+    }
+
+    /// An attribute of two million `"` characters is two megabytes in the tree
+    /// and twelve once `source` escapes it. `source` asks the budget before it
+    /// writes, so the request stops near its ceiling instead of past it.
+    // covers: Core\Xml\Node::source
+    #[test]
+    fn source_stops_at_the_memory_limit_before_it_escapes() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(8 << 20);
+        let source = word(&format!("<t v='{}'/>", "\"".repeat(2_000_000)));
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("the tree fits the limit");
+        dropped(source);
+        assert!(call(super::nvs_core_xml_node_source, &mut ctx, &[tree]).is_err());
+        assert!(
+            ctx.memory_peak() < 16 << 20,
+            "{} bytes at the peak",
+            ctx.memory_peak()
+        );
+        dropped(tree);
     }
 
     /// A document of a million empty elements builds a Rust tree some thirty

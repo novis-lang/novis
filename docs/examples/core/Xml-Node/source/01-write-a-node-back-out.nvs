@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to write a parsed document, and one element of it, back out as XML text.
+
+Core\Xml\Node $document = Core\Xml::parse('<note lang="en"><to>Ann &amp; Bob</to><empty/></note>');
+
+// This prints the whole document. `<empty/>` is written as `<empty></empty>`,
+// and `&` is escaped again as `&amp;`.
+echo $document->source(), "\n";
+
+// This prints only the first element inside `<note>`: <to>Ann &amp; Bob</to>
+foreach ($document->children() as Core\Xml\Node $note) {
+    array<Core\Xml\Node> $parts = $note->children();
+    echo $parts[0]->source(), "\n";
+}
