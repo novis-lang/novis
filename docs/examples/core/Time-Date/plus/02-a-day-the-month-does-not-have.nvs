@@ -1,0 +1,20 @@
+<?nvs
+// Shows what `plus` does when the day does not exist in the month it reaches.
+
+// January has 31 days, but February 2024 has only 29.
+// The result is the last day of February. This prints 2024-02-29.
+echo Core\Time\Date::at(2024, 1, 31)->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
+
+// A quarter is three months. 30 November plus one quarter is 2025-02-28.
+echo Core\Time\Date::at(2024, 11, 30)->plus(1, Core\Unit::Quarter)->format("yyyy-MM-dd"), "\n";
+
+// 29 February exists only in a leap year. One year later, the result is 28 February.
+// This prints 2025-02-28.
+echo Core\Time\Date::at(2024, 2, 29)->plus(1, Core\Unit::Year)->format("yyyy-MM-dd"), "\n";
+
+// A date has no time of day, so `Core\Unit::Minute` throws a `LogicError`.
+try {
+    Core\Time\Date::at(2024, 1, 31)->plus(90, Core\Unit::Minute);
+} catch (LogicError $error) {
+    echo "Not allowed: ", $error->message, "\n";
+}
