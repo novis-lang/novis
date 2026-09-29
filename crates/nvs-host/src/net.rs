@@ -1130,6 +1130,17 @@ trait Connecting: Source + Write {
     ///
     /// The platform refused to answer for this descriptor.
     fn take_error(&self) -> io::Result<Option<io::Error>>;
+
+    /// Whether `err`, from the zero-length write, says the connect is up and
+    /// the peer has already closed its end, rather than that the connect
+    /// failed.
+    ///
+    /// No family answers that way by default: a TCP socket whose peer sent a
+    /// `FIN` still takes a zero-length write, so an error there is the
+    /// connection's own.
+    fn connected_then_closed(_err: &io::Error) -> bool {
+        false
+    }
 }
 
 impl Connecting for mio::net::TcpStream {
@@ -1142,6 +1153,17 @@ impl Connecting for mio::net::TcpStream {
 impl Connecting for mio::net::UnixStream {
     fn take_error(&self) -> io::Result<Option<io::Error>> {
         mio::net::UnixStream::take_error(self)
+    }
+
+    /// `BrokenPipe`: a peer that closed a local stream shuts down this end's
+    /// sending half, so the zero-length write answers `EPIPE` while everything
+    /// the peer wrote before it closed is still there to read. A connect that
+    /// was never up reports through `take_error` or the `connect` syscall
+    /// itself, never through this write. A server that writes its refusal and
+    /// hangs up at once is the case this exists for: reading that refusal is
+    /// the caller's answer, and over TCP it already is.
+    fn connected_then_closed(err: &io::Error) -> bool {
+        err.kind() == io::ErrorKind::BrokenPipe
     }
 }
 
@@ -1162,7 +1184,10 @@ impl Connecting for mio::net::UnixStream {
 /// - **A zero-length write**, because it is the portable "is this socket
 ///   connected yet" question: `Ok` on a connected socket having sent nothing,
 ///   `NotConnected`/`WouldBlock` while the handshake is still in flight, and on
-///   Linux the refusal itself. `peer_addr` is what `mio`'s own example asks and
+///   Linux the refusal itself. A local socket whose peer has already hung up
+///   answers `BrokenPipe`, which is a connect that is up, and
+///   `Connecting::connected_then_closed` names it. `peer_addr` is what
+///   `mio`'s own example asks and
 ///   it **cannot be used here**: on Windows it answers `Ok(the target address)`
 ///   for a socket whose connect has not started succeeding and never will, so a
 ///   connect built on it reports success for a stream that is dead.
@@ -1195,6 +1220,7 @@ fn ask_connected<S: Connecting>(inner: &mut S) -> io::Result<bool> {
         {
             Ok(false)
         }
+        Err(err) if S::connected_then_closed(&err) => Ok(true),
         Err(err) => Err(err),
     }
 }
@@ -2750,6 +2776,29 @@ mod tests {
             "a connect to an unbound path did not report the failure"
         );
         assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+    }
+
+    /// The peer accepts, writes and closes before the connect is asked whether
+    /// it is up, which is the order a server that refuses at once can win. The
+    /// connect is still up, and what the peer wrote is still read back: a
+    /// local socket reports the same exchange a TCP one does.
+    #[cfg(unix)]
+    #[test]
+    fn a_unix_connect_whose_peer_already_hung_up_reads_what_it_wrote() {
+        let path = socket_path("hung-up");
+        let listener =
+            std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
+        let dialing = mio::net::UnixStream::connect(&path).expect("the connect failed");
+        let (mut accepted, _) = listener.accept().expect("the listener saw no connection");
+        accepted.write_all(b"bye").expect("the write failed");
+        drop(accepted);
+
+        let mut stream =
+            connected(dialing, None).expect("a peer that hung up still accepted the connect");
+        let mut said = Vec::new();
+        stream.read_to_end(&mut said).expect("the read failed");
+        assert_eq!(said, b"bye", "the peer's last words were lost");
+        let _ = std::fs::remove_file(&path);
     }
 
     /// Off a core the local socket takes the blocking path like every other
