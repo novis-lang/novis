@@ -1,32 +1,21 @@
 {
-  "state": "Goal `core-validate-and-1-more`: every `Core\\Validate` member is finished. `isAscii`, `isDomain`, `isEmail`, `isMac`, `isIp` and `isPrintable` each have a plain card and every proof, and `bun nv proofs --verify --group 'Core\\Validate'` reports nothing owed and 0 failed.\n`Core\\Xml` (the check `dossier-core-xml`) has not been started. It owes its class card and every proof for `parse`, `reader` and `writer`, and `crates/nvs-stdlib/src/xml.rs` carries no `covers:` marker yet.\nThe driver's last sweep went red on the `Core\\Db\\Connection`, `Core\\Queue` and `Core\\Serialize` floor checks with Windows error 1450 (not enough system resources) and two hostile timeouts. All three pass under `bun nv proofs --verify --no-cache`, so those failures came from the host's load, not the tree.\nUncommitted edits to `ci.yml`, `dispatch.rs`, `service.rs`, `mysql.rs`, `pg.rs`, `net.rs` and `crates/nvs-stdlib/src/lib.rs` (the `granting` canonicalization) are not this loop's, and no commit here stages them.\nNothing is blocked.",
+  "state": "Goal `core-validate-and-1-more` is met. Both stage-2 checks pass: `bun nv proofs --verify --group 'Core\\Validate'` and `--group 'Core\\Xml'` each report nothing owed and 0 failed.\n`Core\\Xml` has its class card, and `parse`, `reader` and `writer` have plain cards and every proof, with perf recorded in `docs/perf/members.ndjson`.\nThe attack on `parse` found two bugs, both fixed and pinned by `.nvst` and Rust tests: a repeated-attribute check that was quadratic in the number of attributes, and a literal control character that the parser accepted.\nThe attack on `writer` found a third, recorded as gap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` (milestone M12) and marked on `tests/hostile/core/Xml/writer/01-calls-in-the-wrong-order.nvs`.\nUncommitted edits to `crates/nvs-stdlib/src/lib.rs` are not this loop's, and no commit here stages them.\nNothing is blocked.",
   "next": {
     "stage": 2,
-    "title": "Core\\Xml member proofs",
+    "title": "the writer gap, for whichever goal owns M12's stdlib memory work",
     "files": [
       "crates/nvs-stdlib/src/xml.rs",
-      "crates/nvs-stdlib/src/registry.rs",
-      "docs/examples/core/Xml/",
-      "tests/hostile/core/Xml/",
-      "benches/members/core/Xml/",
-      "docs/perf/members.ndjson"
+      "tests/hostile/core/Xml/writer/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml` class card** — add its `ClassDoc` above the `CLASS` row at `crates/nvs-stdlib/src/xml.rs:186`, and delete `Core\\Xml` from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283` (`rule:core-api/reference-card`). Write it in the plain voice, and bring `PARSE_DOC` at `crates/nvs-stdlib/src/xml.rs:224`, `READER_DOC` at `crates/nvs-stdlib/src/xml.rs:541` and `WRITER_DOC` at `crates/nvs-stdlib/src/xml.rs:751` up to the same voice."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Xml::parse`** — owes about, examples, hostile, perf and a Rust test marked `// covers: Core\\Xml::parse` in `crates/nvs-stdlib/src/xml.rs:3265`'s test module (`rule:testing/feature-proofs`). `docs/examples/core/Validate/isMac/` is the model for the examples and `about.md`. The bench returns an object, so it does not declare `allocations 0`."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Xml::reader` and `Core\\Xml::writer`** — the same list, each with its own `covers:` test in `crates/nvs-stdlib/src/xml.rs:3265`'s test module. Then `bun nv proofs --record-perf --group 'Core\\Xml'` after the last edit to `xml.rs`."
+        "text": "**One in-place string for a writer's output** — `Pen::emit` at `crates/nvs-stdlib/src/xml.rs:2762` pushes each piece as its own string, and `end_document` at `crates/nvs-stdlib/src/xml.rs:2897` joins them. Hold one string only the writer references and append in place, as `nvs_str_append` does. Then drop the `// proof: gap` marker from the writer attack (`rule:testing/a-failing-proof-is-fixed-or-recorded`)."
       }
     ]
   },
   "backlog": [
-    "The driver's sweep can fail a floor hostile case on host load alone (error 1450, a timeout). If it repeats with nothing else running, the sweep's parallelism is the thing to look at (`tools/nv/cmd/proofs.ts`)."
+    "`Core\\Xml\\Node`, `Core\\Xml\\Reader` and `Core\\Xml\\Writer` are still in `CLASSES_STILL_OWING_A_CARD` (`crates/nvs-stdlib/src/registry.rs`) — goal `core-class-cards`.",
+    "The instance-member cards in `crates/nvs-stdlib/src/xml.rs` (`Node::*`, `Reader::read`, `Writer::*`) are still in the old voice — goal `plain-comments`."
   ]
 }

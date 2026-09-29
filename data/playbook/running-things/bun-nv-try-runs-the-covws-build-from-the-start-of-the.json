@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv try` runs the `covws` build from the start of the session, so a Rust fix you just made is not in it.",
+  "body": "The runner reads `NVS_BIN` first and falls back to that binary, so a re-run after an edit prints the old behaviour and looks like the fix did nothing. Run `cargo build`, then `NVS_BIN=target/debug/nvs.exe bun nv try …` (the same variable works for `bun nv proofs --bless`).",
+  "files": [
+    "tools/nv/cmd/try.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/try.ts:NVS_BIN"
+  }
+}
