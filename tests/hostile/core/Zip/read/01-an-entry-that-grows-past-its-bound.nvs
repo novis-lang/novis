@@ -1,0 +1,141 @@
+<?nvs
+// Attack: entries that decompress to far more than they take in the archive, or
+// whose headers lie about their size, are read. Each read should return the
+// entry or throw a `ParseError`. The runtime must not hang or crash.
+// hostile: timeout-ms 30000
+
+class Archive
+{
+    // An archive with one entry. `$method` is 0 for stored bytes and 8 for
+    // deflate. `$size` is the size the headers claim after decompression.
+    public static function one(bytes $name, uint $method, bytes $data, uint $size, bytes $crc): bytes
+    {
+        uint $length = Core\Bytes::length($data);
+        uint $nameLength = Core\Bytes::length($name);
+        bytes $local = Core\Bytes::join([
+            Core\Bytes::pack('Vvvvvv', 0x04034b50, 20, 0, $method, 0, 0),
+            $crc,
+            Core\Bytes::pack('VVvv', $length, $size, $nameLength, 0),
+            $name,
+            $data,
+        ]);
+        bytes $record = Core\Bytes::join([
+            Core\Bytes::pack('Vvvvvvv', 0x02014b50, 20, 20, 0, $method, 0, 0),
+            $crc,
+            Core\Bytes::pack('VVvvvvvVV', $length, $size, $nameLength, 0, 0, 0, 0, 0, 0),
+            $name,
+        ]);
+        return Core\Bytes::join([$local, $record, Archive::end(Core\Bytes::length($record), Core\Bytes::length($local))]);
+    }
+
+    // The last record of an archive with one entry.
+    public static function end(uint $size, uint $offset): bytes
+    {
+        return Core\Bytes::pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, $size, $offset, 0);
+    }
+
+    // The CRC-32 checksum of `$data`, low byte first, as a zip archive stores it.
+    public static function crc(bytes $data): bytes
+    {
+        bytes $high = Core\Hash::of($data, Core\Digest::Crc32);
+        return Core\Bytes::join([
+            Core\Bytes::slice($high, 3, 1),
+            Core\Bytes::slice($high, 2, 1),
+            Core\Bytes::slice($high, 1, 1),
+            Core\Bytes::slice($high, 0, 1),
+        ]);
+    }
+
+    // Reads one entry and prints its size, or prints that it threw.
+    public static function tryRead(string $step, bytes $archive, string $name, uint $maxBytes, uint $maxRatio): void
+    {
+        try {
+            tainted bytes $data = Core\Zip::read($archive, $name, $maxBytes, $maxRatio);
+            echo $step, ': ', Core\Bytes::length($data), " bytes\n";
+        } catch (ParseError $error) {
+            echo $step, ": ParseError\n";
+        }
+    }
+}
+
+uint $defaultBytes = 67108864;
+uint $defaultRatio = 1000;
+
+// 1. A deflate bomb: 16 MiB of zeros in a few kilobytes. Its header claims it
+// holds one byte. A ceiling of 1 MiB throws while the output grows.
+bytes $zeros = Core\Bytes::fill(16777216, 0);
+bytes $bomb = Archive::one('zeros.bin' as bytes, 8, Core\Compress::compress($zeros, Core\Codec::Deflate), 1, Archive::crc($zeros));
+Archive::tryRead('step 1', $bomb, 'zeros.bin', 1048576, $defaultRatio);
+
+// 2. The same bomb, asking for the largest possible bound. The server's own
+// limits still apply, so this reads the entry or throws.
+uint $largest = 0xFFFFFFFFFFFFFFFF;
+Archive::tryRead('step 2', $bomb, 'zeros.bin', $largest, $largest);
+
+// 3. A `maxBytes` of 0. An entry with five bytes throws. An empty entry reads.
+bytes $hello = 'hello' as bytes;
+bytes $note = Archive::one('note.txt' as bytes, 0, $hello, 5, Archive::crc($hello));
+Archive::tryRead('step 3a', $note, 'note.txt', 0, $defaultRatio);
+bytes $nothing = '' as bytes;
+bytes $empty = Archive::one('empty.txt' as bytes, 0, $nothing, 0, Archive::crc($nothing));
+Archive::tryRead('step 3b', $empty, 'empty.txt', 0, $defaultRatio);
+
+// 4. A ratio one step below what the entry needs throws. The ratio it needs
+// reads the whole entry.
+bytes $text = Core\Bytes::repeat('abcdefgh' as bytes, 131072);
+bytes $packed = Core\Compress::compress($text, Core\Codec::Deflate);
+bytes $small = Archive::one('text.txt' as bytes, 8, $packed, Core\Bytes::length($text), Archive::crc($text));
+uint $need = 1;
+while ($need * Core\Bytes::length($packed) < Core\Bytes::length($text)) {
+    $need = $need + 1;
+}
+Archive::tryRead('step 4a', $small, 'text.txt', $defaultBytes, $need - 1);
+Archive::tryRead('step 4b', $small, 'text.txt', $defaultBytes, $need);
+
+// 5. The zip64 extra field says the entry takes almost 2^64 bytes. Adding that
+// to the entry's position is past any real address.
+uint $nearlyAll = 0xFFFFFFFFFFFFFFF0;
+bytes $huge = Core\Bytes::join([
+    Core\Bytes::pack('Vvvvvv', 0x04034b50, 45, 0, 0, 0, 0),
+    Archive::crc($hello),
+    Core\Bytes::pack('VVvv', 5, 5, 8, 0),
+    'note.txt' as bytes,
+    $hello,
+]);
+bytes $hugeRecord = Core\Bytes::join([
+    Core\Bytes::pack('Vvvvvvv', 0x02014b50, 45, 45, 0, 0, 0, 0),
+    Archive::crc($hello),
+    Core\Bytes::pack('VVvvvvvVV', 0xFFFFFFFF, 0xFFFFFFFF, 8, 20, 0, 0, 0, 0, 0),
+    'note.txt' as bytes,
+    Core\Bytes::pack('vvPP', 0x0001, 16, 5, $nearlyAll),
+]);
+bytes $wrapped = Core\Bytes::join([$huge, $hugeRecord, Archive::end(Core\Bytes::length($hugeRecord), Core\Bytes::length($huge))]);
+Archive::tryRead('step 5', $wrapped, 'note.txt', $defaultBytes, $defaultRatio);
+
+// 6. The headers say the entry takes one million bytes, but the archive has five.
+bytes $short = Archive::one('note.txt' as bytes, 0, $hello, 5, Archive::crc($hello));
+bytes $lying = Core\Bytes::join([
+    Core\Bytes::slice($short, 0, 18),
+    Core\Bytes::pack('V', 1000000),
+    Core\Bytes::slice($short, 22, 41),
+    Core\Bytes::pack('V', 1000000),
+    Core\Bytes::slice($short, 67),
+]);
+Archive::tryRead('step 6', $lying, 'note.txt', $defaultBytes, $defaultRatio);
+
+// 7. A name that is not in the archive, and the same name written as a path.
+// Both throw.
+Archive::tryRead('step 7a', $note, 'missing.txt', $defaultBytes, $defaultRatio);
+Archive::tryRead('step 7b', $note, './note.txt', $defaultBytes, $defaultRatio);
+
+// 8. The one-megabyte entry is read 200 times. Nothing may be kept between
+// the reads.
+uint $total = 0;
+uint $round = 0;
+while ($round < 200) {
+    $total = $total + Core\Bytes::length(Core\Zip::read($small, 'text.txt'));
+    $round = $round + 1;
+}
+echo 'step 8: ', $total, " bytes in all\n";
+
+echo "the runtime is still standing\n";

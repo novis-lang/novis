@@ -674,8 +674,11 @@ fn frame<'a>(archive: &'a [u8], entry: &Entry) -> Result<&'a [u8], Fault> {
             .ok_or_else(|| malformed("an entry's local header is truncated"))?,
     );
     let from = entry.at + 30 + name_len + extra_len;
-    archive
-        .get(from..from + entry.compressed)
+    // `compressed` is the archive's own claim, up to `u64::MAX` through a
+    // zip64 field, so the end is a checked sum: a wrapping one is a slice
+    // somewhere else in the archive, and an unchecked one is a panic.
+    from.checked_add(entry.compressed)
+        .and_then(|to| archive.get(from..to))
         .ok_or_else(|| malformed("an entry's data runs past the end of the archive"))
 }
 
@@ -1324,6 +1327,108 @@ mod tests {
                 "the refusal is a throw a program can catch"
             );
         }
+    }
+
+    /// What `read` returns for the entry `name` of `raw` under the bound
+    /// `(bytes, ratio)`, called the way a program calls it: the octets, or the
+    /// message of what it threw.
+    fn read_from(
+        ctx: &mut Ctx,
+        raw: &[u8],
+        name: &str,
+        bytes: u64,
+        ratio: u64,
+    ) -> Result<Vec<u8>, String> {
+        let args = [
+            Value::bytes(NvsStr::new(raw)),
+            Value::str(NvsStr::new(name.as_bytes())),
+            Value::uint(bytes),
+            Value::uint(ratio),
+        ];
+        let answer = match nvs_runtime::call(nvs_core_zip_read, ctx, &args) {
+            Ok(answer) => {
+                let octets = answer.as_bytes().expect("`read` returns bytes").to_vec();
+                #[expect(
+                    unsafe_code,
+                    reason = "the case owns the one reference `read` returned"
+                )]
+                unsafe {
+                    answer.release();
+                }
+                Ok(octets)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("the refusal is a throw a program can catch")
+                .into_owned()),
+        };
+        for arg in args {
+            #[expect(
+                unsafe_code,
+                reason = "the case owns each argument's one reference, and the member only borrowed it"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
+        answer
+    }
+
+    /// The member reads one entry whole, and each half of the bound holds on
+    /// both sides of its boundary: the last accepted value reads, the first
+    /// refused one throws, and `0` is a bound of zero. A name is compared whole
+    /// and never resolved as a path, and an entry whose zip64 size would carry
+    /// its end past the address space is refused rather than summed.
+    // covers: Core\Zip::read
+    #[test]
+    fn the_member_reads_one_entry_under_a_bound_held_on_both_sides() {
+        let mut ctx = Ctx::buffered();
+        let raw = archive(&[
+            Written::plain("notes/one.txt", "first"),
+            Written::plain("empty.txt", ""),
+        ]);
+        let big = u64::MAX;
+        assert_eq!(
+            read_from(&mut ctx, &raw, "notes/one.txt", big, big).as_deref(),
+            Ok(&b"first"[..])
+        );
+
+        // The octet half: five octets read under a bound of five, and throw
+        // under four.
+        assert_eq!(
+            read_from(&mut ctx, &raw, "notes/one.txt", 5, big).as_deref(),
+            Ok(&b"first"[..])
+        );
+        let short = read_from(&mut ctx, &raw, "notes/one.txt", 4, big)
+            .expect_err("four octets is one short of the entry");
+        assert!(short.contains("\"notes/one.txt\""), "{short}");
+
+        // Zero is a bound of zero: an empty entry fits it and nothing else does.
+        assert_eq!(
+            read_from(&mut ctx, &raw, "empty.txt", 0, big).as_deref(),
+            Ok(&b""[..])
+        );
+        assert!(read_from(&mut ctx, &raw, "notes/one.txt", 0, big).is_err());
+
+        // The ratio half: a stored entry is one octet out per octet in.
+        assert!(read_from(&mut ctx, &raw, "notes/one.txt", big, 1).is_ok());
+        assert!(read_from(&mut ctx, &raw, "notes/one.txt", big, 0).is_err());
+
+        for missing in ["missing.txt", "./notes/one.txt", "notes\\one.txt", "notes"] {
+            let message = read_from(&mut ctx, &raw, missing, big, big)
+                .expect_err("a name the archive does not hold throws");
+            assert!(message.contains("no entry named"), "{missing}: {message}");
+        }
+
+        let entries = directory(&raw).expect("an ordinary archive reads");
+        let past = Entry {
+            compressed: usize::MAX - 8,
+            ..entries[0].clone()
+        };
+        assert!(
+            refusal(frame(&raw, &past).expect_err("the end would wrap"))
+                .contains("runs past the end")
+        );
     }
 
     /// The same entries written the way a zip64 writer writes them: every size
