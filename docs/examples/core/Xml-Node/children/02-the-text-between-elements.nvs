@@ -1,0 +1,23 @@
+<?nvs
+// Shows that the spaces and line breaks between elements are children too.
+
+string $xml = '<colors>
+  <color>red</color>
+  <color>blue</color>
+</colors>';
+
+Core\Xml\Node $document = Core\Xml::parse($xml);
+
+foreach ($document->children() as Core\Xml\Node $root) {
+    // The root has three text nodes with line breaks and two elements. This prints 5.
+    echo Core\Arr::count($root->children()), "\n";
+
+    // `kind()` tells you which children are elements. This prints 2.
+    int $elements = 0;
+    foreach ($root->children() as Core\Xml\Node $child) {
+        if ($child->kind() == Core\Xml\NodeKind::Element) {
+            $elements = $elements + 1;
+        }
+    }
+    echo $elements, "\n";
+}

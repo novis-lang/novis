@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to read the lines of an order that another system sent as XML.
+
+string $order = '<order id="1042">
+  <line sku="A-100" qty="2">Coffee mug</line>
+  <line sku="B-200" qty="1">Tea towel</line>
+</order>';
+
+Core\Xml\Node $document = Core\Xml::parse($order);
+
+foreach ($document->children() as Core\Xml\Node $root) {
+    int $lines = 0;
+    foreach ($root->children() as Core\Xml\Node $line) {
+        // The line breaks between the `line` elements are text nodes. This skips them.
+        if ($line->kind() != Core\Xml\NodeKind::Element) {
+            continue;
+        }
+        // The product name is the one text node inside the `line` element.
+        // This prints 2 x Coffee mug, and then 1 x Tea towel.
+        foreach ($line->children() as Core\Xml\Node $name) {
+            echo $line->attributes()["qty"], " x ", $name->text(), "\n";
+        }
+        $lines = $lines + 1;
+    }
+    echo "lines: ", $lines, "\n";
+}

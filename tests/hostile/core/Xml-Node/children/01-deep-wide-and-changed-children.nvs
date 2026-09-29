@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a program reads the children of a very deep or very wide tree. It also changes the array
+// it gets, and keeps a node after the document is gone. Each step should give the right count or
+// throw a `ParseError`. The last step should stop at the memory limit, and must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. Elements nested 1024 deep, which is the most `Core\Xml::parse` allows. The loop walks down
+// through `children` to the last one. This prints 1024.
+Core\Xml\Node $deep = Core\Xml::parse(Core\Str::repeat('<a>', 1024) . Core\Str::repeat('</a>', 1024));
+Core\Xml\Node $node = $deep;
+int $levels = 0;
+while (Core\Arr::count($node->children()) > 0) {
+    foreach ($node->children() as Core\Xml\Node $child) {
+        $node = $child;
+    }
+    $levels = $levels + 1;
+}
+echo $levels, "\n";
+
+// 2. One level more. This throws a `ParseError`.
+try {
+    Core\Xml::parse(Core\Str::repeat('<a>', 1025) . Core\Str::repeat('</a>', 1025));
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "too deep\n";
+}
+
+// 3. The document variable is replaced, and the deepest node is still read. This prints 0.
+$deep = Core\Xml::parse('<b/>');
+echo Core\Arr::count($node->children()), "\n";
+
+// 4. One element with 100000 children, counted 100 times. This prints 10000000.
+Core\Xml\Node $wide = Core\Xml::parse('<list>' . Core\Str::repeat('<i/>', 100000) . '</list>');
+uint $total = 0;
+foreach ($wide->children() as Core\Xml\Node $list) {
+    int $i = 0;
+    while ($i < 100) {
+        $total = $total + Core\Arr::count($list->children());
+        $i = $i + 1;
+    }
+}
+echo $total, "\n";
+
+// 5. The program changes the array it got. The next call returns the original. This prints 3 and 1.
+Core\Xml\Node $small = Core\Xml::parse('<a><b/></a>');
+foreach ($small->children() as Core\Xml\Node $a) {
+    array<Core\Xml\Node> $changed = $a->children();
+    $changed[] = $a;
+    $changed[] = $small;
+    echo Core\Arr::count($changed), "\n";
+    echo Core\Arr::count($a->children()), "\n";
+}
+
+// 6. 200000 documents are parsed, their children read and the trees freed. This prints 600000.
+uint $count = 0;
+int $n = 0;
+while ($n < 200000) {
+    Core\Xml\Node $doc = Core\Xml::parse('<r><x/>' . $n as string . '<y/></r>');
+    foreach ($doc->children() as Core\Xml\Node $r) {
+        $count = $count + Core\Arr::count($r->children());
+    }
+    $n = $n + 1;
+}
+echo $count, "\n";
+
+// 7. One element with ten million children. The program should stop at its memory limit.
+Core\Xml\Node $huge = Core\Xml::parse('<list>' . Core\Str::repeat('<i/>', 10000000) . '</list>');
+echo Core\Arr::count($huge->children()), "\n";

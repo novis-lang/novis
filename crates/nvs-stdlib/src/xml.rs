@@ -78,7 +78,9 @@
 //! is proportional to the document, attributed to the request that parsed it
 //! and released with its arena. The parse itself holds the document once more
 //! while it builds — a Rust tree of owned strings, dropped before the member
-//! returns.
+//! returns. That tree is many times the size of a document of small nodes, so
+//! the parse asks the request's budget once per node and once per attribute
+//! and stops at the memory limit's `FATAL` rather than build past it.
 //!
 //! Per streaming walk: the document's own text, held as the caller handed it
 //! over rather than copied, plus the node [`nvs_core_xml_reader_read`] last
@@ -436,14 +438,13 @@ const ATTRIBUTES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Xml\Node::children`'s reference card — `rule:core-api/reference-card`.
 const CHILDREN_DOC: MethodDoc = MethodDoc {
-    short: "This node's children, in document order — the document's are its root element and \
-            whatever comments and processing instructions sit beside it, an element's are its \
-            content. Empty for a text node, a comment and a processing instruction, which are \
-            leaves.",
+    short: "Returns the children of this node, in the order of the document. For the document \
+            node, this is the root element and any comment or processing instruction beside it. \
+            For an element, it is everything between its start tag and its end tag. A text, a \
+            comment and a processing instruction have no children, so the array is empty.",
     params: &[],
-    ret: "One `Core\\Xml\\Node` per child, including the text nodes a pretty-printed document has \
-          between its elements: whitespace in an XML document is content, and dropping it would be \
-          a guess about which of it mattered.",
+    ret: "An array with one `Core\\Xml\\Node` per child. The spaces and line breaks between two \
+          elements are text nodes, and they are in the array too.",
     errors: &[],
 };
 
@@ -1316,7 +1317,26 @@ impl Open<'_> {
     }
 }
 
+/// What [`Reader::afford`] refuses with. It never reaches a program as a
+/// `ParseError`: [`nvs_core_xml_parse`] reports it as the memory-limit `FATAL`
+/// `rule:errors/on-limit` makes every breach.
+const UNAFFORDABLE: &str = "the document does not fit in the request's memory limit";
+
 impl<'a> Reader<'a> {
+    /// Refuses once the request holds more than its memory limit allows.
+    ///
+    /// The tree a parse builds is Rust memory, which the allocator counts and
+    /// never refuses, so without this a document of many small nodes grows the
+    /// request far past its ceiling before the first Novis allocation notices.
+    /// Asked once per node and once per attribute, and each ask is one
+    /// thread-local compare.
+    fn afford(&self) -> Result<(), String> {
+        match nvs_runtime::affordable(Some(size_of::<Parsed>()), "Core\\Xml::parse") {
+            Ok(_) => Ok(()),
+            Err(_) => Err(UNAFFORDABLE.to_owned()),
+        }
+    }
+
     /// A reader positioned at the start of `src`.
     fn new(src: &'a str) -> Self {
         Self { src, pos: 0 }
@@ -1550,6 +1570,7 @@ impl<'a> Reader<'a> {
                     self.here()
                 ));
             }
+            self.afford()?;
             let attr = self.name("an attribute")?;
             self.skip_space();
             if !self.eat("=") {
@@ -1705,6 +1726,7 @@ impl<'a> Reader<'a> {
     fn tree(&mut self) -> Result<Parsed, String> {
         let mut open: Vec<Parsed> = Vec::new();
         loop {
+            self.afford()?;
             let rest = self.rest();
             let node = if rest.starts_with("</") {
                 self.pos += "</".len();
@@ -1894,6 +1916,7 @@ impl<'a> Reader<'a> {
             if rest.is_empty() {
                 break;
             }
+            self.afford()?;
             if rest.starts_with("<!--") {
                 let node = self.comment()?;
                 root.children.push(node);
@@ -2190,6 +2213,10 @@ fn read(receiver: Value) -> Result<Value, Fault> {
 
     let mut scan = Reader::at(document, count_slot(&READER, object, CURSOR_SLOT, "read")?);
     let stepped = scan.step(&mut open, &mut rooted).map_err(|why| {
+        // A breach is the limit's `FATAL`, as it is for the parse.
+        if why == UNAFFORDABLE {
+            return Fault::fatal(format!("{READER_NAME}::read(): {why}."));
+        }
         Fault::thrown_as(
             ThrownClass::Parse,
             // The sentence is the reader's and the period is here, exactly as
@@ -2260,7 +2287,7 @@ nvs_runtime::nvs_helper! {
     /// The refusal is the point: malformed XML throws here, where the WHATWG
     /// parser on `Core\Html` cannot, and one API flipping between the two under
     /// a flag is what `rule:core-classes/html-parsing` retired.
-    fn nvs_core_xml_parse(_ctx, args: [1]) {
+    fn nvs_core_xml_parse(ctx, args: [1]) {
         // unreachable from source: the parameter is `CoreTy::Text`, so anything
         // that is not a `string` is `E0401` at the call site.
         let Some(document) = args[0].as_text() else {
@@ -2271,6 +2298,11 @@ nvs_runtime::nvs_helper! {
         };
         match parse(document) {
             Ok(tree) => Ok(instance_of(tree, &[])),
+            // A breach is the limit's `FATAL`, never a `ParseError` a `catch`
+            // could swallow and carry on past.
+            Err(why) if why == UNAFFORDABLE => Err(ctx
+                .memory_breach()
+                .unwrap_or_else(|| Fault::fatal(format!("{NAME}::parse(): {why}.")))),
             // The sentence is the reader's and the period is here, so no
             // message inside it has to remember to end like one.
             Err(why) => Err(Fault::thrown_as(
@@ -4076,6 +4108,92 @@ mod tests {
 
         dropped(children);
         dropped(tree);
+        dropped(source);
+    }
+
+    /// `children` answers the node's own array, retained rather than copied:
+    /// two calls answer one allocation, each call is one more owner, and the
+    /// whitespace between elements is kept as text nodes in document order. A
+    /// leaf answers an empty array.
+    // covers: Core\Xml\Node::children
+    #[test]
+    fn children_share_the_nodes_own_array_and_keep_the_whitespace_between_elements() {
+        let source = word("<list>\n  <a/>\n  <b>x</b>\n</list><!--end-->");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
+
+        let first = call(super::nvs_core_xml_node_children, &mut ctx, &[tree])
+            .expect("the document has children");
+        let again = call(super::nvs_core_xml_node_children, &mut ctx, &[tree])
+            .expect("the same question twice");
+        let top = first.array_ptr().expect("children is an array");
+        assert_eq!(
+            Some(top),
+            again.array_ptr(),
+            "both calls answer one allocation"
+        );
+        let top = crate::arr::borrowed(top);
+        assert_eq!(top.refcount(), 3, "the node's slot and one owner per call");
+
+        let kinds = |array: &nvs_runtime::NvsArray| -> Vec<&'static str> {
+            (0..array.count())
+                .map(|at| {
+                    let child = array.value_at(at).expect("children are packed");
+                    let object = child.obj_ptr().expect("a child is a node");
+                    let kind = crate::instance::slot(object, KIND_SLOT).as_int();
+                    let kind = usize::try_from(kind.expect("a kind is an int"))
+                        .expect("a case's integer is its own index");
+                    KIND.cases[kind].0
+                })
+                .collect()
+        };
+        assert_eq!(kinds(&top), ["Element", "Comment"]);
+
+        let list = top.value_at(0).expect("the root element comes first");
+        let content = call(super::nvs_core_xml_node_children, &mut ctx, &[list])
+            .expect("an element has children");
+        let inner = crate::arr::borrowed(content.array_ptr().expect("children is an array"));
+        assert_eq!(
+            kinds(&inner),
+            ["Text", "Element", "Text", "Element", "Text"]
+        );
+
+        let leaf = inner
+            .value_at(0)
+            .expect("the first line break is a text node");
+        let none =
+            call(super::nvs_core_xml_node_children, &mut ctx, &[leaf]).expect("a leaf answers too");
+        assert_eq!(
+            crate::arr::borrowed(none.array_ptr().expect("children is an array")).count(),
+            0,
+            "a text node has no children"
+        );
+
+        dropped(none);
+        dropped(content);
+        dropped(again);
+        dropped(first);
+        assert_eq!(top.refcount(), 1, "the node's slot is the one owner left");
+        dropped(tree);
+        dropped(source);
+    }
+
+    /// A document of a million empty elements builds a Rust tree some thirty
+    /// times its own size. The parse asks the budget as it builds, so the
+    /// request stops near its ceiling instead of holding that whole tree first.
+    // covers: Core\Xml::parse
+    #[test]
+    fn a_parse_stops_at_the_memory_limit_while_it_builds_the_tree() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(16 << 20);
+        let source = word(&format!("<list>{}</list>", "<i/>".repeat(1_000_000)));
+        assert!(call(super::nvs_core_xml_parse, &mut ctx, &[source]).is_err());
+        assert!(
+            ctx.memory_peak() < 48 << 20,
+            "{} bytes at the peak",
+            ctx.memory_peak()
+        );
         dropped(source);
     }
 

@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to visit every element of a document, one level at a time.
+
+class Tree {
+    // This prints the name of each element. Each level is indented by two more spaces.
+    public static function show(Core\Xml\Node $node, uint $depth): void {
+        foreach ($node->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Element) {
+                echo Core\Str::repeat("  ", $depth), $child->name(), "\n";
+                Tree::show($child, $depth + 1);
+            }
+        }
+    }
+}
+
+Tree::show(Core\Xml::parse('<menu><file><open/><save/></file><help/></menu>'), 0);
