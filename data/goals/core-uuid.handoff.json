@@ -1,30 +1,22 @@
 {
-  "state": "Goal `core-uuid`: `Core\\Uuid::fromBytes`, `Core\\Uuid::parse` and `Core\\Uuid::toBytes` have all their\nfeature proofs, and `bun nv proofs --owed` names nothing for them. `Core\\Uuid` now has its class card\n(`crates/nvs-stdlib/src/uuid.rs`'s `CARD`), and it is off `CLASSES_STILL_OWING_A_CARD`, so the class\nhalf of `help` is done for every member. The cards for `parse`, `fromBytes` and `toBytes` are\nrewritten in the plain voice. The cards for `v4`, `v7`, `tryParse` and `toString` are still in the old\nessay voice and are rewritten with their slices.\n\nStill owed: `v4`, `v7`, `tryParse` and `toString`. Each owes examples, hostile, perf and a Rust\n`covers:` marker. `help` is listed as owed until the binary is rebuilt, and the class card closes it.",
+  "state": "Goal `core-uuid`: `Core\\Uuid::fromBytes`, `parse`, `toBytes`, `v4`, `v7` and `tryParse` have all\ntheir feature proofs. Their cards in `crates/nvs-stdlib/src/uuid.rs` are in the plain voice. The\nclass card is done. Only `toString` is still owed: examples, hostile, perf, a Rust `covers:`\nmarker, and a plain-voice `TO_STRING_DOC`.\n\n`tests/hostile/core/Uuid/tryParse/01-huge-broken-and-almost-valid-texts.nvs` carries\n`// proof: gap nvs-runtime/a-core-call-with-a-large-string-costs-time-per-byte`. Any `Core` call\nwhose argument is a 50 MB `string` costs about 0.7 ms, and `Core\\Str::startsWith` costs the same, so\nthe cause is outside `Core\\Uuid`. The gap record says what was measured. It is owned by M12 and is\nnot this goal's to fix.",
   "next": {
     "stage": 1,
-    "title": "the remaining members, in file order",
+    "title": "the last member, then the goal's end gates",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/uuid.rs` plus each member's three proof trees.",
+    "note": "one file set: `crates/nvs-stdlib/src/uuid.rs` plus the `toString` proof trees.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Uuid::v4`**: examples, hostile, perf, Rust `covers:` on `a_v4_is_canonical_lower_case_hex_with_its_version_and_variant`, and a plain-voice `V4_DOC` (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/uuid.rs:148`"
+        "text": "**`Core\\Uuid::toString`**: examples, hostile, perf, a plain-voice `TO_STRING_DOC`, and `covers: Core\\Uuid::toString` on `the_canonical_form_parses_in_either_case_and_renders_lower` (it already carries `covers: Core\\Uuid::parse`, so extend that line). It is an instance member, so a `.nvst` case that calls `->toString()` needs a `covers:` marker too: the check still reads `tests: 0 of 2 cases` (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/uuid.rs:311`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uuid::v7`**: the same, with `covers:` on `a_v7_carries_its_version_and_a_clock_that_moves_forward`. Its examples print no fixed value unless they compare two draws, so assert order or shape rather than a UUID. `crates/nvs-stdlib/src/uuid.rs:157`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Uuid::tryParse`**: the same, with `covers:` on `the_nil_and_max_uuids_are_valid` and `the_three_non_canonical_spellings_are_refused`. `crates/nvs-stdlib/src/uuid.rs:181`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Uuid::toString`**: the same, with `covers:` on `the_canonical_form_parses_in_either_case_and_renders_lower`. It is an instance member, so a `.nvst` case needs a `// covers:` marker as well. `crates/nvs-stdlib/src/uuid.rs:206`"
+        "text": "**Close the goal**: `bun nv proofs --verify --group 'Core\\Uuid'`, then `bun nv verify --doc`, `bun nv owners --closes core-uuid` and `bun nv playbook --closes core-uuid`, then `DONE` (`rule:testing/a-failing-proof-is-fixed-or-recorded` for the marked tryParse attack). `crates/nvs-stdlib/src/uuid.rs:136`"
       }
     ]
   },
   "backlog": [
-    "A bench over a member that returns a `Core\\Uuid` has no scalar to read without calling a second member. `benches/members/core/Uuid/fromBytes.nvs` chains `$total` alone, and the allocation count (1.00 per call) shows the call is not removed. Owner: `benches/members/README.md`."
+    "The per-byte cost of a large `string` argument at the `Core` call boundary: `data/gaps/nvs-runtime/a-core-call-with-a-large-string-costs-time-per-byte.json`, owned by M12."
   ]
 }

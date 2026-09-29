@@ -14690,9 +14690,9 @@ braces refused
 Core\Uuid::v4(): Core\Uuid
 ```
 
-Draws a random UUID — 122 bits from the CSPRNG under RFC 9562's version-4 layout — replacing `uniqid`, `com_create_guid` and the userland libraries around them.
+Creates a new random UUID, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. 122 of its 128 bits come from a secure random number generator. The other six bits say that it is a version 4 UUID.
 
-**Returns** `Core\Uuid` — A fresh `Uuid`, unguessable and carrying no clock; the one to hand to a stranger.
+**Returns** `Core\Uuid` — A new `Uuid`. Nobody can guess it, and it contains no date or time, so it is safe to show to other people.
 
 <a id="core-core-uuid-v7"></a>
 #### `Core\Uuid::v7`
@@ -14701,9 +14701,9 @@ Draws a random UUID — 122 bits from the CSPRNG under RFC 9562's version-4 layo
 Core\Uuid::v7(): Core\Uuid
 ```
 
-Draws a time-ordered UUID — a 48-bit millisecond timestamp then 74 random bits, RFC 9562's version 7 — for a database key, where an ascending identifier appends to the index instead of dirtying a random page. PHP has no equivalent.
+Creates a new UUID that starts with the current time, such as `0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a`. The first 48 bits are the number of milliseconds since 1970. 74 of the other bits are random. Use it as a database key, because new keys sort after older ones.
 
-**Returns** `Core\Uuid` — A fresh `Uuid` that sorts after every one drawn in an earlier millisecond and randomly against those drawn in the same one; its creation time is readable from it, so it is the wrong identifier to show a stranger. A host clock before 1970 is pinned to the epoch.
+**Returns** `Core\Uuid` — A new `Uuid`. It sorts after every UUID created in an earlier millisecond. Two UUIDs created in the same millisecond sort in a random order. Anybody who has the UUID can read the time it was created, so use `Core\Uuid::v4` for an ID that other people see. If the computer's clock is before 1970, the time part is zero.
 
 <a id="core-core-uuid-parse"></a>
 #### `Core\Uuid::parse`
@@ -14729,13 +14729,13 @@ Reads the text `$s` as a UUID. The text must be 32 hexadecimal digits in groups 
 Core\Uuid::tryParse(string $s): ?Core\Uuid
 ```
 
-`Core\Uuid::parse` with `null` where it throws — the one spelling of "is this text a UUID", replacing `uuid_is_valid` and every userland `isValid`.
+Reads the text `$s` as a UUID, like `Core\Uuid::parse`. When the text is not a UUID, it returns `null` and does not throw an error. Use it to check whether a text is a UUID.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` (neutral) | The text to read. |
+| `$s` | `string` (neutral) | The text to read. It must be 32 hexadecimal digits in groups of 8, 4, 4, 4 and 12, joined by hyphens. Upper case and lower case letters are both allowed. |
 
-**Returns** `?Core\Uuid` — The `Uuid` for the canonical hyphenated form in either case; `null` for anything else.
+**Returns** `?Core\Uuid` — The `Uuid` that the text gives, or `null` when the text is in any other form. The 32 digits without hyphens, a UUID in `{}` braces and a UUID after `urn:uuid:` all give `null`.
 
 <a id="core-core-uuid-frombytes"></a>
 #### `Core\Uuid::fromBytes`
