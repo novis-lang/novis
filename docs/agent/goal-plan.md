@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 181 goals. 160 are walked (120 of them retired), `core-uri-1-2` is live at 161 of 181, and 20 are ahead.
+The chain holds 181 goals. 161 are walked (120 of them retired), `core-uri-2-2` is live at 162 of 181, and 19 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -173,8 +173,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 158 | [`core-time-duration-2-2`](goals/core-time-duration-2-2.md) | Core\Time\Duration (2/2) | walked |  | **2** the dossier |
 | 159 | [`core-time-instant-and-1-more`](goals/core-time-instant-and-1-more.md) | Core\Time\Instant and 1 more | walked |  | **2** the dossier |
 | 160 | [`core-time-zone-and-2-more`](goals/core-time-zone-and-2-more.md) | Core\Time\Zone and 2 more | walked |  | **2** the dossier |
-| 161 | [`core-uri-1-2`](goals/core-uri-1-2.md) | Core\Uri (1/2) | **live** |  | **2** the dossier |
-| 162 | [`core-uri-2-2`](goals/core-uri-2-2.md) | Core\Uri (2/2) | ahead |  | **2** the dossier |
+| 161 | [`core-uri-1-2`](goals/core-uri-1-2.md) | Core\Uri (1/2) | walked |  | **2** the dossier |
+| 162 | [`core-uri-2-2`](goals/core-uri-2-2.md) | Core\Uri (2/2) | **live** |  | **2** the dossier |
 | 163 | [`core-uuid`](goals/core-uuid.md) | Core\Uuid | ahead |  | **2** the dossier |
 | 164 | [`core-validate-and-1-more`](goals/core-validate-and-1-more.md) | Core\Validate and 1 more | ahead |  | **2** the dossier |
 | 165 | [`core-xml-node-and-1-more`](goals/core-xml-node-and-1-more.md) | Core\Xml\Node and 1 more | ahead |  | **2** the dossier |
