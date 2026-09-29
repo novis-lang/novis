@@ -34,7 +34,8 @@
       "Writing a test case > a -p*",
       "Writing a test case > an array literal*",
       "Writing a test case > two foreach headers*",
-      "Running things > target/release/nvs.exe is"
+      "Running things > target/release/nvs.exe is",
+      "Running things > a fix to one member's file stales"
     ],
     "plan": [
       "Open now",

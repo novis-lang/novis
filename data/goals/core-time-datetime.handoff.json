@@ -1,31 +1,31 @@
 {
-  "state": "Goal `core-time-datetime`: `Core\\Time\\DateTime::date`, `::dayOfYear`, `::difference`, `::toInstant`, `::timeOfDay`, `::zone`, `::weekday` and `::isLeapYear` have every feature proof on disk except their perf figure, which the driver's sweep records (`perf: stale` until then, because `crates/nvs-stdlib/src/time.rs` moved). `bun nv proofs --id` still prints `help: Core\\Time\\DateTime has no class card` for them. That comes from a stale binary: the card is at `time.rs:1589` and the class is off `CLASSES_STILL_OWING_A_CARD`. The `zone` example found that `format(\"VV\")` printed `UTC` for a fixed-offset zone. That is fixed in `cldr::render`, which now renders the same `±HH:MM[:SS]` id `zone()` returns, and it is pinned in `tests/conformance/core/time-datetime-parts-agree-with-the-value-they-came-from.nvst` and in `datetime_zone_is_the_id_it_reads_in_and_the_one_vv_renders`. The Rust tests for the four view members use `zone_view_samples()` and `datetime_view(member, &at, read)` at the end of the `time.rs` test module. Reuse them for the next members. Nothing is blocked.",
+  "state": "Goal `core-time-datetime`: `Core\\Time\\DateTime::date`, `::dayOfYear`, `::difference`, `::toInstant`, `::timeOfDay`, `::zone`, `::weekday`, `::isLeapYear`, `::format` and `::plus` have every feature proof, perf figure included. Every `Core\\Cldr`, `Core\\Time`, `Core\\Time\\Date` and `Core\\Time\\DateTime` figure was re-measured against the current `time.rs` and `cldr.rs`, so those floor checks pass. **A perf figure is a session's job, not the driver's**: after any edit to `time.rs` or `cldr.rs` outside its test module, run `bun nv proofs --record-perf` over all four groups before the wrap (the test module does not move the impl hash). Seven members still owe proofs: `minus`, `next`, `previous`, `with`, `withTime`, `startOf`, `endOf`. The Rust tests share helpers at the end of the `time.rs` test module: `zone_view_samples()`, `datetime_view` for a view member, `datetime_formatted`, and `datetime_stepped(member, at, count, unit_index)` for a builder that takes a count and a `Core\\Unit` (the unit is its case index: Day 6, Week 7, Month 8, Year 10). `bun nv proofs --id` may still print `help: … has no class card` from a stale binary. The card is at `time.rs:1589`. Nothing is blocked.",
   "next": {
-    "stage": 1,
-    "title": "DateTime member proofs, in file order",
+    "stage": 2,
+    "title": "DateTime builder proofs, in file order",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (registry rows, test module tail with `datetime_view`), `tests/conformance/core/time-datetime-builders-answer-a-new-value-in-the-same-zone.nvst` and `tests/conformance/core/time-datetime-is-a-civil-time-in-a-zone.nvst` (add `// covers:` for members they already call), and new files under `docs/examples/core/Time-DateTime/`, `tests/hostile/core/Time-DateTime/`, `benches/members/core/Time-DateTime/`. After a Rust change, run the examples with `NVS_BIN` set to a fresh `target/debug/nvs.exe`. `bun nv proofs --bless` takes files, not a directory.",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (registry rows, the test module tail with `datetime_stepped`), `tests/conformance/core/time-datetime-builders-answer-a-new-value-in-the-same-zone.nvst` (add each member to its `// covers:` line, which names `plus` now), and new files under `docs/examples/core/Time-DateTime/`, `tests/hostile/core/Time-DateTime/`, `benches/members/core/Time-DateTime/`. The `plus` proofs are the model. Numeric results in `.nvs` need `as int`, because `Core\\Str::length` and `dayOfYear` return `uint`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time\\DateTime::format`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1593`"
+        "text": "**`Core\\Time\\DateTime::minus`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1611`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\DateTime::plus`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1602`"
+        "text": "**`Core\\Time\\DateTime::next`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1620`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\DateTime::minus`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1611`"
+        "text": "**`Core\\Time\\DateTime::previous`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1629`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\DateTime::next`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1620`"
+        "text": "**`Core\\Time\\DateTime::with`** — owes examples, hostile, and a Rust test with its `covers:` marker (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1638`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Time\\DateTime::previous`, `::with`, `::withTime`, `::startOf`, `::endOf` owe every proof except help (`rule:testing/feature-proofs`), after the group above.",
-    "`Core\\Time\\Instant`'s nine members owe every proof (`bun nv proofs --owed`). Check which goal's record owns `Core\\Time\\Instant` before taking them."
+    "`Core\\Time\\DateTime::withTime`, `::startOf`, `::endOf` owe their proofs (`time.rs:1647`, `:1656`, `:1665`).",
+    "`format(\"XXX\")` at a fixed offset with seconds (`+25:59:59`) prints `+25:59`. That matches the CLDR table in the `cldr.rs` module doc (`XXX` = `±HH:MM`), so it is not a bug."
   ]
 }
