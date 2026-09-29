@@ -1,0 +1,21 @@
+<?nvs
+// Finds a zone by its name, as a program does when it reads the zone saved for a user.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $names = ["Europe/Berlin", "America/New_York", "Asia/Tokyo", "UTC"];
+        Core\Time\Instant $at = Core\Time::fromEpoch(0);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the name
+            Core\Time\Zone $zone = Core\Time\Zone::of($names[$total % 4]);
+            $total = $total + 1 + ($zone->offsetAt($at)->toSeconds() + 100000) % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

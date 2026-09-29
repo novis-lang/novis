@@ -13725,15 +13725,15 @@ not in the database
 Core\Time\Zone::of(string $id): Core\Time\Zone
 ```
 
-Looks an IANA identifier such as `Europe/Berlin` up in the bundled time-zone database, replacing `new DateTimeZone(...)` — and throws on one it does not have rather than falling back to UTC.
+Finds a time zone by its name, such as `Europe/Berlin` or `America/New_York`. The names come from the IANA time-zone database. A name that is not in the database throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$id` | `string` (neutral) | An IANA zone identifier; a `+02:00` offset spelling is `Zone::fixed`'s and is refused here. |
+| `$id` | `string` (neutral) | The name of the zone, such as `Asia/Tokyo`. An offset such as `+02:00` is not allowed here. Use `Zone::fixed` for an offset. |
 
-**Returns** `Core\Time\Zone` — The `Zone` the identifier names.
+**Returns** `Core\Time\Zone` — The `Zone` with that name.
 
-**Throws** `RuntimeError` — `$id` is not in the IANA database, or begins with a sign.
+**Throws** `RuntimeError` — `$id` is not a zone name in the database, or starts with `+` or `-`.
 
 <a id="core-core-time-zone-fixed"></a>
 #### `Core\Time\Zone::fixed`
@@ -13759,9 +13759,9 @@ Makes a zone that is always the same distance from UTC, such as `+05:30`. Its of
 Core\Time\Zone::system(): Core\Time\Zone
 ```
 
-Answers the host's configured zone, replacing `date_default_timezone_get` — as an ordinary value a program passes on explicitly, never an ambient default; there is no `date_default_timezone_set`.
+Returns the time zone of the computer the program runs on. There is no default zone, so you pass this `Zone` to each call that needs one.
 
-**Returns** `Core\Time\Zone` — The host's `Zone` under its IANA name, or as a fixed offset where the host names none (a bare `TZ=+02:00`, an unmapped Windows zone).
+**Returns** `Core\Time\Zone` — The computer's `Zone` with its IANA name, such as `Europe/Berlin`. When the computer has no zone name, the result is a fixed zone at its current offset, such as `+02:00`.
 
 <a id="core-core-time-zone-offsetat"></a>
 #### `Core\Time\Zone->offsetAt`
@@ -13770,13 +13770,13 @@ Answers the host's configured zone, replacing `date_default_timezone_get` — as
 $zone->offsetAt(Core\Time\Instant $i): Core\Time\Duration
 ```
 
-Answers the zone's offset from UTC at a given instant, replacing `getOffset` — an instant because a zone with DST has no single offset: `Europe/Berlin` is `+01:00` in January and `+02:00` in July.
+Returns how far the zone is from UTC at one instant. A zone with summer time has two offsets in a year. `Europe/Berlin` is `+01:00` in January and `+02:00` in July.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$i` | `Core\Time\Instant` | The instant to read the offset at. |
 
-**Returns** `Core\Time\Duration` — The offset east of UTC as a `Duration` of whole seconds; negative west of Greenwich, zero for UTC.
+**Returns** `Core\Time\Duration` — The offset as a `Duration` of whole seconds. It is positive east of UTC, negative west of UTC, and zero for UTC.
 
 <a id="core-core-objectmap"></a>
 ### `Core\ObjectMap<K, V>`

@@ -1,0 +1,12 @@
+<?nvs
+// Shows one instant as the clock time in three cities.
+
+array<string> $cities = ["Europe/Berlin", "America/New_York", "Asia/Tokyo"];
+Core\Time\Instant $launch = Core\Time::fromIso("2024-06-01T12:00:00Z");
+
+// `Core\Time\Zone::of` finds each zone by its name.
+// This prints 14:00, 08:00 and 21:00.
+foreach ($cities as string $name) {
+    Core\Time\Zone $zone = Core\Time\Zone::of($name);
+    echo $name, ": ", $launch->in($zone)->format("HH:mm"), "\n";
+}

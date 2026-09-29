@@ -43,3 +43,4 @@ crates/nvs-stdlib/src/zip.rs  "../../etc/passwd"  --  an entry name in an archiv
 crates/nvs-stdlib/src/zip.rs  "notes/../../etc/passwd"  --  an entry name in an archive built in memory, expected to be refused
 crates/nvs-stdlib/src/zip.rs  r"notes\..\..\etc\passwd"  --  an entry name in an archive built in memory, expected to be refused
 crates/nvs-test/src/case.rs  "../x.nvs"  --  a case file's auxiliary path the parser is expected to refuse
+crates/nvs-stdlib/src/time.rs  "../../etc/passwd"  --  a time-zone name looked up in the zone database, expected to be refused

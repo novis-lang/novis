@@ -1062,19 +1062,19 @@ const ZONE_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Time\Zone::of`'s reference card — `rule:core-api/reference-card`.
 const ZONE_OF_DOC: MethodDoc = MethodDoc {
-    short: "Looks an IANA identifier such as `Europe/Berlin` up in the bundled time-zone \
-            database, replacing `new DateTimeZone(...)` — and throws on one it does not have \
-            rather than falling back to UTC.",
+    short: "Finds a time zone by its name, such as `Europe/Berlin` or `America/New_York`. The \
+            names come from the IANA time-zone database. A name that is not in the database \
+            throws an error.",
     params: &[ParamDoc {
         name: "id",
-        desc: "An IANA zone identifier; a `+02:00` offset spelling is `Zone::fixed`'s and is \
-               refused here.",
+        desc: "The name of the zone, such as `Asia/Tokyo`. An offset such as `+02:00` is not \
+               allowed here. Use `Zone::fixed` for an offset.",
         shape: &[],
     }],
-    ret: "The `Zone` the identifier names.",
+    ret: "The `Zone` with that name.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$id` is not in the IANA database, or begins with a sign.",
+        desc: "`$id` is not a zone name in the database, or starts with `+` or `-`.",
     }],
 };
 
@@ -1100,27 +1100,27 @@ const ZONE_FIXED_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Zone::system`'s reference card — `rule:core-api/reference-card`.
 const ZONE_SYSTEM_DOC: MethodDoc = MethodDoc {
-    short: "Answers the host's configured zone, replacing `date_default_timezone_get` — as an \
-            ordinary value a program passes on explicitly, never an ambient default; there is \
-            no `date_default_timezone_set`.",
+    short: "Returns the time zone of the computer the program runs on. There is no default \
+            zone, so you pass this `Zone` to each call that needs one.",
     params: &[],
-    ret: "The host's `Zone` under its IANA name, or as a fixed offset where the host names \
-          none (a bare `TZ=+02:00`, an unmapped Windows zone).",
+    ret: "The computer's `Zone` with its IANA name, such as `Europe/Berlin`. When the computer \
+          has no zone name, the result is a fixed zone at its current offset, such as \
+          `+02:00`.",
     errors: &[],
 };
 
 /// `Core\Time\Zone::offsetAt`'s reference card — `rule:core-api/reference-card`.
 const ZONE_OFFSET_AT_DOC: MethodDoc = MethodDoc {
-    short: "Answers the zone's offset from UTC at a given instant, replacing `getOffset` — an \
-            instant because a zone with DST has no single offset: `Europe/Berlin` is `+01:00` \
-            in January and `+02:00` in July.",
+    short: "Returns how far the zone is from UTC at one instant. A zone with summer time has \
+            two offsets in a year. `Europe/Berlin` is `+01:00` in January and `+02:00` in \
+            July.",
     params: &[ParamDoc {
         name: "i",
         desc: "The instant to read the offset at.",
         shape: &[],
     }],
-    ret: "The offset east of UTC as a `Duration` of whole seconds; negative west of \
-          Greenwich, zero for UTC.",
+    ret: "The offset as a `Duration` of whole seconds. It is positive east of UTC, negative \
+          west of UTC, and zero for UTC.",
     errors: &[],
 };
 
@@ -8069,5 +8069,156 @@ mod tests {
         for refused in [1, -1, SECOND + 1, SECOND - 1, 93_600 * SECOND + 1, i64::MIN] {
             assert_eq!(fixed(refused), Err(whole.to_owned()), "{refused}ns");
         }
+    }
+
+    /// `of` stores the identifier it was given as the zone's id, and that id
+    /// resolves to the zone's rules: `Europe/Berlin` is an hour east of UTC in
+    /// January and two in July. A name the database does not have is refused by
+    /// name, and so is a `±HH:MM` spelling, which is `fixed`'s and not `of`'s.
+    // covers: Core\Time\Zone::of
+    #[test]
+    fn zone_of_keeps_the_identifier_as_the_id_and_refuses_a_name_it_does_not_have() {
+        let of = |id: &str| {
+            let mut ctx = Ctx::buffered();
+            let args = [Value::str(NvsStr::new(id.as_bytes()))];
+            let read = match nvs_runtime::call(nvs_core_time_zone_of, &mut ctx, &args) {
+                Ok(zone) => {
+                    let id = crate::instance::receiver(zone, &ZONE, "of")
+                        .ok()
+                        .and_then(|object| {
+                            crate::instance::slot(object, ZONE_ID_SLOT)
+                                .as_text()
+                                .map(str::to_owned)
+                        })
+                        .expect("`of` answers a `Zone` with a text id");
+                    #[expect(unsafe_code, reason = "the member returned a fresh `Zone`")]
+                    unsafe {
+                        zone.release();
+                    }
+                    Ok(id)
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a refused call leaves its sentence pending")
+                    .into_owned()),
+            };
+            for held in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built the argument, and the member borrowed it"
+                )]
+                unsafe {
+                    held.release();
+                }
+            }
+            read
+        };
+        let january = Timestamp::from_second(1_704_067_200).expect("2024-01-01 is in range");
+        let july = Timestamp::from_second(1_719_792_000).expect("2024-07-01 is in range");
+        for (id, winter, summer) in [
+            ("UTC", 0, 0),
+            ("Europe/Berlin", 3_600, 7_200),
+            ("America/New_York", -18_000, -14_400),
+            ("Asia/Kolkata", 19_800, 19_800),
+        ] {
+            assert_eq!(of(id).as_deref(), Ok(id), "{id}");
+            let resolved = resolve_zone(id).expect("the id resolves");
+            assert_eq!(
+                resolved.to_offset(january).seconds(),
+                winter,
+                "{id} in January"
+            );
+            assert_eq!(resolved.to_offset(july).seconds(), summer, "{id} in July");
+        }
+        for refused in [
+            "",
+            "Mars/Olympus_Mons",
+            "Europe/Berln",
+            "+02:00",
+            "-05:00",
+            "../../etc/passwd",
+        ] {
+            assert_eq!(
+                of(refused),
+                Err(format!(
+                    r"Core\Time\Zone::of(): unknown time zone `{refused}`"
+                )),
+                "{refused:?}"
+            );
+        }
+    }
+
+    /// `offsetAt` is a step function of the instant: `Europe/Berlin` reads
+    /// `+01:00` one second before its March 2024 transition and `+02:00` at
+    /// it, a fixed zone reads its one offset everywhere, and both ends of the
+    /// timestamp range answer an offset in whole seconds rather than failing.
+    // covers: Core\Time\Zone::offsetAt
+    #[test]
+    fn zone_offset_at_steps_at_the_transition_and_answers_at_both_ends_of_time() {
+        let offset_at = |id: &str, at: Timestamp| {
+            let mut ctx = Ctx::buffered();
+            let args = [zone_built(id), instant_built(at)];
+            let offset = nvs_runtime::call(nvs_core_time_zone_offset_at, &mut ctx, &args)
+                .map(|duration| {
+                    let nanos = nanos_of(&[duration], 0, "offsetAt").expect("a `Duration`");
+                    #[expect(unsafe_code, reason = "the member returned a fresh `Duration`")]
+                    unsafe {
+                        duration.release();
+                    }
+                    nanos
+                })
+                .expect("a zone `zone_built` wrote always resolves");
+            for held in args {
+                #[expect(unsafe_code, reason = "this frame built the argument")]
+                unsafe {
+                    held.release();
+                }
+            }
+            assert_eq!(offset % 1_000_000_000, 0, "{id} at {at}: whole seconds");
+            offset / 1_000_000_000
+        };
+        let step = Timestamp::from_second(1_711_846_800).expect("2024-03-31T01:00Z is in range");
+        let before = Timestamp::from_second(1_711_846_799).expect("one second earlier");
+        assert_eq!(offset_at("Europe/Berlin", before), 3_600);
+        assert_eq!(offset_at("Europe/Berlin", step), 7_200);
+        assert_eq!(offset_at("+05:30", before), 19_800);
+        assert_eq!(offset_at("+05:30", step), 19_800);
+        assert_eq!(offset_at("UTC", step), 0);
+        assert_eq!(offset_at("Europe/Berlin", Timestamp::MAX), 3_600);
+        for id in ["Europe/Berlin", "America/New_York", "-25:59:59"] {
+            assert!(
+                offset_at(id, Timestamp::MIN).abs() < 93_600,
+                "{id} at the first instant"
+            );
+        }
+    }
+
+    /// `system` answers a `Zone` whose id resolves again, under the host's IANA
+    /// name when it has one, and at the host's own offset either way.
+    // covers: Core\Time\Zone::system
+    #[test]
+    fn zone_system_answers_an_id_that_resolves_to_the_hosts_offset() {
+        let mut ctx = Ctx::buffered();
+        let zone = nvs_runtime::call(nvs_core_time_zone_system, &mut ctx, &[])
+            .expect("`system` never throws");
+        let id = crate::instance::receiver(zone, &ZONE, "system")
+            .ok()
+            .and_then(|object| {
+                crate::instance::slot(object, ZONE_ID_SLOT)
+                    .as_text()
+                    .map(str::to_owned)
+            })
+            .expect("`system` answers a `Zone` with a text id");
+        #[expect(unsafe_code, reason = "the member returned a fresh `Zone`")]
+        unsafe {
+            zone.release();
+        }
+        let host = TimeZone::system();
+        if let Some(name) = host.iana_name() {
+            assert_eq!(id, name);
+        }
+        let now = Timestamp::now();
+        let resolved = resolve_zone(&id).expect("the id `system` wrote resolves");
+        assert_eq!(resolved.to_offset(now), host.to_offset(now), "{id}");
     }
 }
