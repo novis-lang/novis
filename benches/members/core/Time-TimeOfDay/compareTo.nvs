@@ -1,0 +1,25 @@
+<?nvs
+// Compares two times of day, as a program does when it checks if a shop is open.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Time\TimeOfDay> $times = [
+            Core\Time\TimeOfDay::at(8, 59),
+            Core\Time\TimeOfDay::at(12, 0),
+            Core\Time\TimeOfDay::at(18, 30),
+        ];
+        Core\Time\TimeOfDay $opens = Core\Time\TimeOfDay::at(9, 0);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the time
+            $total = $total + $times[$total % 3]->compareTo($opens) + 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
