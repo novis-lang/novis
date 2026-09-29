@@ -1,10 +1,11 @@
 {
-  "state": "Goal `core-uri-1-2`. Its floor check `dossier-core-uri-1-2` names 12 `Core\\Uri` members. `buildQuery`, `compareTo`, `decodeComponent` and `encodeComponent` have all their feature proofs, and 8 still owe some. `Core\\Uri` has its class card, so no member owes the `help` proof. The four encoder and decoder members' Rust tests in `crates/nvs-stdlib/src/uri.rs` now carry `covers:` markers, so `encodeFormValue` and `decodeFormValue` no longer owe the Rust side. A change to `crates/nvs-stdlib/src/uri.rs` makes every `Core\\Uri` bench figure stale. `bun nv proofs --record-perf --group 'Core\\Uri'` measures them again, and it runs after `bun nv verify` has rebuilt the binary. `bun nv proofs --verify --group 'Core\\Uri' --no-perf` lists what each member still owes. An encoder's result can be three times its argument, and the allocator refuses it cleanly at the memory limit (`tests/hostile/core/Uri/encodeComponent/01-text-that-grows-three-times.nvs` step 6), so `encode` needs no budget question of its own.",
+  "state": "Goal `core-uri-1-2`. Its floor check `dossier-core-uri-1-2` names 12 `Core\\Uri` members. `buildQuery`, `compareTo`, `decodeComponent`, `encodeComponent`, `encodeFormValue` and `decodeFormValue` have all their feature proofs. `parse`, `parseQuery`, `host`, `port`, `path` and `fragment` still owe some. `Core\\Uri` has its class card, so no member owes the `help` proof. `bun nv proofs --record-perf --group 'Core\\Uri'` measures each figure that is missing or stale, and it runs after `bun nv verify` has rebuilt the binary. A change to a card alone left the other figures current. `bun nv proofs --verify --group 'Core\\Uri' --no-perf` lists what each member still owes. An instance reader (`host`, `port`, `path`, `fragment`) is not credited by a call, so it owes a `.nvst` case and a Rust `#[test]` that carry its `covers:` marker (`tests: 0 of 2 cases`).",
   "next": {
     "stage": 2,
-    "title": "Core\\Uri proofs, the two form-value members",
+    "title": "Core\\Uri proofs, the instance readers",
     "files": [
       "crates/nvs-stdlib/src/uri.rs",
+      "tests/conformance/core/",
       "docs/examples/core/Uri/",
       "tests/hostile/core/Uri/",
       "benches/members/core/Uri/"
@@ -12,19 +13,19 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Uri::encodeFormValue`** — owes about, examples, hostile, perf. Rewrite `ENCODE_FORM_VALUE_DOC` in the end-user voice, the way `ENCODE_COMPONENT_DOC` now reads. `docs/examples/core/Uri/encodeComponent/` is the shape to follow. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:742`"
+        "text": "**`Core\\Uri::host`** — owes tests (a `covers:` marker on one `.nvst` case and one Rust test), examples, hostile, perf. Rewrite `HOST_DOC` in the end-user voice, the way `ENCODE_FORM_VALUE_DOC` now reads. `docs/examples/core/Uri/encodeFormValue/` is the shape to follow. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:847`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uri::decodeFormValue`** — the same owed list, and its card `DECODE_FORM_VALUE_DOC`. `docs/examples/core/Uri/decodeComponent/` is the shape to follow. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:758`"
+        "text": "**`Core\\Uri::port`** — the same owed list, and its card `PORT_DOC`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:857`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uri::host`**, **`Core\\Uri::port`** — the instance readers, next once the form-value pair is done. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:1015`"
+        "text": "**`Core\\Uri::path`** and **`Core\\Uri::fragment`** — the same owed list, and their cards. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:866`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Uri::parse`, `parseQuery`, `path`, `fragment` still owe their proofs — `bun nv proofs --verify --group 'Core\\Uri' --no-perf`."
+    "`Core\\Uri::parse` and `Core\\Uri::parseQuery` owe examples, hostile, perf and a Rust `covers:` marker — the last two members of this goal's floor check. `rule:testing/feature-proofs`."
   ]
 }
