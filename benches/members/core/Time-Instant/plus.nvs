@@ -1,0 +1,21 @@
+<?nvs
+// Moves an instant forward by a duration, as a program does when it sets an expiry time.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        Core\Time\Instant $now = Core\Time::fromEpoch(1709294400);
+        array<Core\Time\Duration> $lifetimes = [1m, 1h, 24h];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the lifetime
+            Core\Time\Instant $expires = $now->plus($lifetimes[$total % 3]);
+            $total = $total + $expires->toEpochSeconds() % 13 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

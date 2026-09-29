@@ -1,0 +1,19 @@
+<?nvs
+// Sets the time a login link stops working, and checks it when the link is used.
+
+// A real program uses `Core\Time::now()` here. A fixed time keeps the output the same.
+Core\Time\Instant $sent = Core\Time::fromIso("2024-03-01T09:00:00Z");
+Core\Time\Instant $expires = $sent->plus(15m);
+
+// This prints 2024-03-01T09:15:00Z.
+echo "valid until ", $expires->toIso(), "\n";
+
+array<string> $clicks = ["2024-03-01T09:14:59Z", "2024-03-01T09:15:00Z", "2024-03-01T10:02:00Z"];
+foreach ($clicks as string $at) {
+    // The link works only before `$expires`. This prints ok, expired and expired.
+    if (Core\Time::fromIso($at) < $expires) {
+        echo $at, " ok\n";
+    } else {
+        echo $at, " expired\n";
+    }
+}
