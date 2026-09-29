@@ -316,24 +316,46 @@ struct Materialised {
     /// Removed when the answer has been rendered. Numbered rather than named
     /// after the case, so two cases answered at once cannot clear each other's
     /// directory out from under them.
+    ///
+    /// **Canonical, without Windows' verbatim `\\?\` prefix**, which is the
+    /// spelling [`crate::document::uri_of`] gives a canonical path. The server
+    /// names every file it answers by its canonical path, so a directory
+    /// spelled any other way would never be a prefix of an answered location.
+    /// The platform temporary root is not canonical everywhere: some Windows
+    /// machines name it by an 8.3 alias (`C:\Users\RUNNER~1`) or in a case the
+    /// disk does not use, and macOS keeps it under the `/var` symlink.
     dir: PathBuf,
+    /// The same directory as [`fs::canonicalize`] spells it, verbatim prefix
+    /// and all: the spelling of a path the graph walk loaded.
+    canonical: PathBuf,
 }
 
 impl Materialised {
     /// Writes `case`'s sections, entry first.
     fn write(case: &Case) -> io::Result<Self> {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let dir = std::env::temp_dir().join(format!(
+        let created = std::env::temp_dir().join(format!(
             "nvs-lspt-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         // A directory left behind by a run that died, under a process id the
         // host has since handed out again.
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir)?;
+        let _ = fs::remove_dir_all(&created);
+        fs::create_dir_all(&created)?;
+        let canonical = match fs::canonicalize(&created) {
+            Ok(canonical) => canonical,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&created);
+                return Err(error);
+            }
+        };
+        let dir = canonical
+            .to_str()
+            .and_then(|text| text.strip_prefix(r"\\?\"))
+            .map_or_else(|| canonical.clone(), PathBuf::from);
 
-        let materialised = Self { dir };
+        let materialised = Self { dir, canonical };
         materialised.file(MAIN_PATH, &case.document)?;
         for aux in &case.aux {
             materialised.file(&aux.path, &aux.body)?;
@@ -345,20 +367,19 @@ impl Materialised {
     /// directory, with `/` separators whatever the host uses.
     ///
     /// **Two prefixes are tried, because two kinds of path reach this.** A file
-    /// the graph walk loaded is canonical — `nvs_hir` canonicalizes every
-    /// `require` target, and a temporary directory is reached through a symlink
-    /// on more than one platform — while the entry document's path is the one
-    /// its URI spells, which on Windows lacks the verbatim prefix
-    /// canonicalizing adds. Stripping one of the two would name the entry by
-    /// its whole path and every file it required relatively.
+    /// the graph walk loaded is canonical, because `nvs_hir` canonicalizes
+    /// every `require` target, and on Windows that spelling carries the
+    /// verbatim prefix. A location the server answered is spelled by its URI,
+    /// which never carries that prefix. The directory is held in both
+    /// spellings, and stripping only one would name some of a case's files by
+    /// their whole path.
     ///
     /// A target under neither keeps its whole path, which no `require` a case's
     /// own sections resolved can produce — and if one ever does, an absolute
     /// path in a frozen expectation is a failure a reader can see.
     fn spelling(&self, target: &Path) -> String {
-        let canonical = fs::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
         let relative = target
-            .strip_prefix(&canonical)
+            .strip_prefix(&self.canonical)
             .or_else(|_| target.strip_prefix(&self.dir))
             .unwrap_or(target);
         relative.to_string_lossy().replace('\\', "/")
