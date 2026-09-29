@@ -96,13 +96,12 @@ impl Ctx {
     /// flag clear.
     #[must_use]
     pub fn new(output: OutputSink) -> Self {
-        // The address of a local is a stack address in *this* frame, which is
-        // the closest thing to "where the request starts" that needs no
-        // platform call. It under-reports the true base by however deep the
-        // caller already is, which shrinks the ceiling rather than stretching
-        // it — the safe direction.
-        let anchor = 0_u8;
-        let base = std::ptr::from_ref(&anchor) as usize;
+        // The stack pointer in *this* frame, which is the closest thing to
+        // "where the request starts" that needs no platform call. It
+        // under-reports the true base by however deep the caller already is,
+        // which shrinks the ceiling rather than stretching it — the safe
+        // direction.
+        let base = stack_pointer();
         // The tree's shared state before the struct that names its word: what
         // the hot slot holds is an address inside this allocation, and moving
         // the handle into the field below leaves the allocation exactly where it

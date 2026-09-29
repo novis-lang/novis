@@ -2552,11 +2552,9 @@ unsafe fn decode_fields(
     // field, a class that holds itself — comes through here, and the
     // constructors run only on the way back up, so without this compare a
     // chain of objects inside `maxDepth` runs natively past the stack's floor
-    // and takes the process down with it. The address of a local is this
-    // frame's stack pointer to within the frame, and the reserve under the soft
-    // address is far wider than one frame.
-    let here = 0_u8;
-    if (&raw const here).addr() < ctx.stack_bounds().0 {
+    // and takes the process down with it. The reserve under the soft address
+    // is far wider than one frame.
+    if nvs_runtime::stack_pointer() < ctx.stack_bounds().0 {
         return Err(DecodeFailure::Fault(Fault::thrown_as(
             ThrownClass::Recursion,
             "the call stack is too deep",

@@ -641,6 +641,55 @@ pub unsafe extern "C" fn nvs_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
     crate::OK
 }
 
+/// The calling thread's stack pointer, read from the register.
+///
+/// What native code compares against [`Ctx::stack_bounds`] and what
+/// [`Ctx::new`] arms from, so that both ends of the compare measure the stack
+/// compiled code walks down. The address of a local is not that under ASAN's
+/// `detect_stack_use_after_return`: it moves every address-taken local into a
+/// fake frame on the heap, megabytes from the real stack, and a compare
+/// between two such addresses says nothing about depth. A register read has no
+/// local to move.
+///
+/// Inlined, so the address is the caller's frame. On a target without a
+/// register read here, and under Miri, which interprets no inline assembly, it
+/// is the address of a local — exact on an uninstrumented build.
+#[inline(always)]
+#[must_use]
+pub fn stack_pointer() -> usize {
+    #[cfg(all(target_arch = "x86_64", not(miri)))]
+    {
+        let sp: usize;
+        #[expect(
+            unsafe_code,
+            reason = "one register move into an output operand: it reads no \
+                      memory, writes none and leaves the stack and the flags alone"
+        )]
+        unsafe {
+            std::arch::asm!("mov {}, rsp", out(reg) sp, options(nomem, nostack, preserves_flags));
+        }
+        sp
+    }
+    #[cfg(all(target_arch = "aarch64", not(miri)))]
+    {
+        let sp: usize;
+        #[expect(
+            unsafe_code,
+            reason = "one register move into an output operand: it reads no \
+                      memory, writes none and leaves the stack and the flags alone"
+        )]
+        unsafe {
+            std::arch::asm!("mov {}, sp", out(reg) sp, options(nomem, nostack, preserves_flags));
+        }
+        sp
+    }
+    #[cfg(not(all(any(target_arch = "x86_64", target_arch = "aarch64"), not(miri))))]
+    {
+        let here = 0_u8;
+        std::hint::black_box(&raw const here).addr()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

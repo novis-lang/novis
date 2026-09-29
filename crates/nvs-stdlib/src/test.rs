@@ -4584,10 +4584,8 @@ fn delegated(
     // partial whose real object is another partial forwards natively, and a
     // leaf method at the bottom of the chain runs no check of its own, so
     // without this compare a chain of partials deep enough runs past the
-    // stack's floor and takes the process down with it. The address of a local
-    // is this frame's stack pointer to within the frame.
-    let here = 0_u8;
-    if (&raw const here).addr() < ctx.stack_bounds().0 {
+    // stack's floor and takes the process down with it.
+    if nvs_runtime::stack_pointer() < ctx.stack_bounds().0 {
         return Err(Fault::thrown_as(
             ThrownClass::Recursion,
             "the call stack is too deep",
