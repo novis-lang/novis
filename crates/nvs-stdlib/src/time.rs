@@ -4366,18 +4366,27 @@ nvs_runtime::nvs_helper! {
 /// omitted spelling is [`Const::Null`], for a member that has no in-range
 /// sentinel to use instead.
 ///
+/// A `uint` past `i64::MAX` reads as `i64::MAX`. Every caller narrows the
+/// value to its field's width and throws its own out-of-range sentence, so
+/// that `uint` gets the same catchable `RuntimeError` as any other number too
+/// wide for the field.
+///
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member and the option, for the reason
-/// [`count`] gives. `member` is the whole `Core\…::name` label, since both
-/// `with` members reach here.
+/// [`count`] gives. `member` is the whole `Core\…::name` label, since every
+/// `with` member reaches here.
 fn optional(args: &[Value], at: usize, member: &str, option: &str) -> Result<Option<i64>, Fault> {
     if args[at].tag() == Some(nvs_runtime::Tag::Null) {
         return Ok(None);
     }
     args[at]
         .as_int()
-        .or_else(|| args[at].as_uint().and_then(|held| i64::try_from(held).ok()))
+        .or_else(|| {
+            args[at]
+                .as_uint()
+                .map(|held| i64::try_from(held).unwrap_or(i64::MAX))
+        })
         .map(Some)
         .ok_or_else(|| {
             Fault::fatal(format!(
@@ -5585,5 +5594,219 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(2));
         let waited = read_monotonic(&mut ctx) - began;
         assert!(waited >= 2_000_000, "{waited} ns");
+    }
+
+    /// A `Date` step called the way a compiled call site calls it: `step` is
+    /// `plus` or `minus`, and `unit` is a `Core\Unit` case index. It answers
+    /// the date the step reached, or the sentence it threw.
+    fn date_step(
+        step: nvs_runtime::NvsFn,
+        from: (i16, i8, i8),
+        count: i64,
+        unit: i64,
+    ) -> Result<civil::Date, String> {
+        date_called(step, from, &[Value::int(count), Value::int(unit)])
+    }
+
+    /// `member` called on the `Date` `from` with the scalar arguments `rest`.
+    /// It answers the `Date` the member returned, or the sentence it threw.
+    fn date_called(
+        member: nvs_runtime::NvsFn,
+        from: (i16, i8, i8),
+        rest: &[Value],
+    ) -> Result<civil::Date, String> {
+        let mut ctx = Ctx::buffered();
+        let receiver = date_built(civil::date(from.0, from.1, from.2));
+        let args: Vec<Value> = std::iter::once(receiver)
+            .chain(rest.iter().copied())
+            .collect();
+        let answer = match nvs_runtime::call(member, &mut ctx, &args) {
+            Ok(moved) => {
+                let read = date_of(&[moved], 0, "test").expect("a step answers a `Date`");
+                #[expect(unsafe_code, reason = "this frame owns the `Date` the member answered")]
+                unsafe {
+                    moved.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the `Date`, and the member borrowed its arguments"
+        )]
+        unsafe {
+            receiver.release();
+        }
+        answer
+    }
+
+    /// `minus` is `plus` with the count negated, in every unit a date takes,
+    /// including the clamp to a shorter month's last day. A unit smaller than
+    /// a day throws, and so does the one count whose negation no `int` holds.
+    /// The last day the calendar reaches going back and the first step it
+    /// refuses are asserted together.
+    // covers: Core\Time\Date::minus, Core\Time\Date::plus
+    #[test]
+    fn date_minus_is_plus_negated_and_refuses_a_unit_or_count_it_cannot_take() {
+        const DAY: i64 = 6;
+        const MONTH: i64 = 8;
+        const QUARTER: i64 = 9;
+        const YEAR: i64 = 10;
+        let minus = nvs_core_time_date_minus as nvs_runtime::NvsFn;
+        let plus = nvs_core_time_date_plus as nvs_runtime::NvsFn;
+        let march_end = (2024, 3, 31);
+        assert_eq!(
+            date_step(minus, march_end, 1, MONTH),
+            Ok(civil::date(2024, 2, 29))
+        );
+        assert_eq!(
+            date_step(minus, march_end, 1, QUARTER),
+            Ok(civil::date(2023, 12, 31))
+        );
+        assert_eq!(
+            date_step(minus, (2024, 2, 29), 1, YEAR),
+            Ok(civil::date(2023, 2, 28))
+        );
+        for unit in DAY..=YEAR {
+            for count in [-400, -13, -1, 0, 1, 7, 13, 400] {
+                assert_eq!(
+                    date_step(minus, march_end, count, unit),
+                    date_step(plus, march_end, -count, unit),
+                    "{count} of unit {unit}"
+                );
+            }
+        }
+        for unit in 0..DAY {
+            let refused = date_step(minus, march_end, 1, unit).expect_err("a clock unit");
+            assert!(refused.contains("smaller than `Unit::Day`"), "{refused}");
+        }
+        let refused = date_step(minus, march_end, i64::MIN, DAY).expect_err("no negation");
+        assert!(
+            refused.contains("past what a calendar span can hold"),
+            "{refused}"
+        );
+        assert_eq!(
+            date_step(minus, (-9999, 1, 2), 1, DAY),
+            Ok(civil::date(-9999, 1, 1))
+        );
+        let refused = date_step(minus, (-9999, 1, 1), 1, DAY).expect_err("the first day");
+        assert!(
+            refused.starts_with(r"Core\Time\Date::minus(): "),
+            "{refused}"
+        );
+    }
+
+    /// `with` replaces only the fields it is given, and throws for a
+    /// combination that is not a date instead of moving to a nearby one. Each
+    /// field's last accepted value and first refused one are asserted
+    /// together, and a `uint` past the `int` range throws the same sentence
+    /// as any other number too wide for the field.
+    // covers: Core\Time\Date::with
+    #[test]
+    fn date_with_replaces_named_fields_and_refuses_a_combination_that_is_not_a_date() {
+        let with =
+            |from: (i16, i8, i8), year: Option<i64>, month: Option<u64>, day: Option<u64>| {
+                date_called(
+                    nvs_core_time_date_with,
+                    from,
+                    &[
+                        year.map_or_else(Value::null, Value::int),
+                        month.map_or_else(Value::null, Value::uint),
+                        day.map_or_else(Value::null, Value::uint),
+                    ],
+                )
+            };
+        let leap = (2024, 2, 29);
+        assert_eq!(with(leap, None, None, None), Ok(civil::date(2024, 2, 29)));
+        assert_eq!(
+            with(leap, Some(2028), None, None),
+            Ok(civil::date(2028, 2, 29))
+        );
+        assert_eq!(
+            with(leap, None, Some(12), Some(1)),
+            Ok(civil::date(2024, 12, 1))
+        );
+        assert!(
+            with(leap, Some(2023), None, None).is_err(),
+            "2023-02-29 is not a date"
+        );
+        // 15 January exists in every year, so only the named field decides.
+        let january = (2024, 1, 15);
+        for (year, month, day, accepted) in [
+            (Some(9999), None, None, true),
+            (Some(10000), None, None, false),
+            (Some(-9999), None, None, true),
+            (Some(-10000), None, None, false),
+            (None, Some(12), None, true),
+            (None, Some(13), None, false),
+            (None, Some(1), None, true),
+            (None, Some(0), None, false),
+            (None, None, Some(1), true),
+            (None, None, Some(0), false),
+            (None, None, Some(31), true),
+            (None, None, Some(32), false),
+        ] {
+            assert_eq!(
+                with(january, year, month, day).is_ok(),
+                accepted,
+                "{year:?}-{month:?}-{day:?}"
+            );
+        }
+        for month in [u64::try_from(i64::MAX).expect("fits"), u64::MAX] {
+            assert_eq!(
+                with(leap, None, Some(month), None),
+                Err(r"Core\Time\Date::with(): `month` is outside what that field can hold".into())
+            );
+        }
+    }
+
+    /// `compareTo` orders dates by year, then month, then day, and answers
+    /// only `-1`, `0` or `1`. The table is in calendar order, so every pair's
+    /// answer is the order of the two positions.
+    // covers: Core\Time\Date::compareTo
+    #[test]
+    fn date_compare_to_is_the_calendar_order() {
+        let table: [(i16, i8, i8); 9] = [
+            (-9999, 1, 1),
+            (-1, 12, 31),
+            (0, 1, 1),
+            (2023, 12, 31),
+            (2024, 1, 1),
+            (2024, 1, 31),
+            (2024, 2, 1),
+            (2024, 2, 29),
+            (9999, 12, 31),
+        ];
+        for (i, left) in table.iter().enumerate() {
+            for (j, right) in table.iter().enumerate() {
+                let mut ctx = Ctx::buffered();
+                let args = [
+                    date_built(civil::date(left.0, left.1, left.2)),
+                    date_built(civil::date(right.0, right.1, right.2)),
+                ];
+                let answer = nvs_runtime::call(nvs_core_time_date_compare_to, &mut ctx, &args)
+                    .expect("any two dates compare")
+                    .as_int();
+                let expected = match i.cmp(&j) {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Equal => 0,
+                    std::cmp::Ordering::Greater => 1,
+                };
+                assert_eq!(answer, Some(expected), "{left:?} against {right:?}");
+                for held in args {
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame built both `Date`s, and the member borrowed them"
+                    )]
+                    unsafe {
+                        held.release();
+                    }
+                }
+            }
+        }
     }
 }

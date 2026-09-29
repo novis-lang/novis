@@ -1,0 +1,54 @@
+--TEST--
+Spec § 4: every `with` member throws a catchable `RuntimeError` naming the field for a `uint` option past the `int` range, the same sentence as for the last `uint` an `int` holds, in `Date`, `DateTime` and `TimeOfDay` alike
+--FILE--
+<?nvs
+// covers: Core\Time\Date::with, Core\Time\DateTime::with, Core\Time\TimeOfDay::with
+class Ask {
+    public static function date(uint $day): string {
+        try {
+            return Core\Time\Date::at(2024, 2, 29)->with({day: $day})->format("yyyy-MM-dd");
+        } catch (RuntimeError $refused) {
+            return $refused->message;
+        }
+    }
+
+    public static function stamp(uint $month): string {
+        try {
+            return Core\Time::at(2024, 2, 29, Core\Time\Zone::UTC)->with({month: $month})->format("yyyy-MM-dd");
+        } catch (RuntimeError $refused) {
+            return $refused->message;
+        }
+    }
+
+    public static function clock(uint $hour): string {
+        try {
+            return Core\Time\TimeOfDay::at(12, 0)->with({hour: $hour})->format("HH:mm");
+        } catch (RuntimeError $refused) {
+            return $refused->message;
+        }
+    }
+}
+
+// One value each member accepts, so the sentences below mean the value and
+// not a member that stopped working.
+echo Ask::date(28), " ", Ask::stamp(3), " ", Ask::clock(23), "|\n";
+
+// 9223372036854775807 is the last `uint` an `int` holds and the next one is
+// the first it does not. Both are far past every field, so all six throw the
+// field's own sentence, and the program reaches the last line.
+echo Ask::date(9223372036854775807), "|\n";
+echo Ask::date(9223372036854775808), "|\n";
+echo Ask::stamp(9223372036854775807), "|\n";
+echo Ask::stamp(18446744073709551615), "|\n";
+echo Ask::clock(9223372036854775807), "|\n";
+echo Ask::clock(18446744073709551615), "|\n";
+echo "reached\n";
+--EXPECT--
+2024-02-28 2024-03-29 23:00|
+Core\Time\Date::with(): `day` is outside what that field can hold|
+Core\Time\Date::with(): `day` is outside what that field can hold|
+Core\Time\DateTime::with(): `month` is outside what that field can hold|
+Core\Time\DateTime::with(): `month` is outside what that field can hold|
+Core\Time\TimeOfDay::with(): `hour` is outside what that field can hold|
+Core\Time\TimeOfDay::with(): `hour` is outside what that field can hold|
+reached

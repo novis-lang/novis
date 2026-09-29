@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to find the first and the last day of the month a date is in, for example for a monthly invoice.
+
+array<Core\Time\Date> $orders = [
+    Core\Time\Date::at(2024, 2, 17),
+    Core\Time\Date::at(2024, 4, 3),
+    Core\Time\Date::at(2023, 12, 31),
+];
+
+// `with({day: 1})` gives the first day of the month. One month later, minus one day, is the last day.
+// For the first order, this prints 2024-02-01 to 2024-02-29.
+foreach ($orders as Core\Time\Date $ordered) {
+    var $first = $ordered->with({day: 1});
+    var $last = $first->plus(1, Core\Unit::Month)->minus(1, Core\Unit::Day);
+    echo $first->format("yyyy-MM-dd"), " to ", $last->format("yyyy-MM-dd"), "\n";
+}

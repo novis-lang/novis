@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `with` does when the new parts do not make a real date.
+
+var $leapDay = Core\Time\Date::at(2024, 2, 29);
+
+// 2023 is not a leap year, so 29 February 2023 does not exist.
+// `with` throws a `RuntimeError`. It does not pick a nearby day.
+try {
+    $leapDay->with({year: 2023});
+} catch (RuntimeError $error) {
+    echo "Not a date: ", $error->message, "\n";
+}
+
+// 2028 is a leap year, so this works. This prints 2028-02-29.
+echo $leapDay->with({year: 2028})->format("yyyy-MM-dd"), "\n";

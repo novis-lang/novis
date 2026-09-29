@@ -1,0 +1,20 @@
+<?nvs
+// Changes the day of a date, as a program does when it finds the first day of a month.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): string {
+        var $date = Core\Time\Date::at(2024, 1, 31);
+        uint $day = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: each call starts from last round's date
+            $date = $date->with({day: $day});
+            $day = $day % 28 + 1;
+            $i = $i + 1;
+        }
+        return $date->format("yyyy-MM-dd");
+    }
+}
+
+echo Bench::run(200000), "\n";
