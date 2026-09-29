@@ -11,8 +11,10 @@
 //     [until: gone <path>[:<needle>]]    the path is gone, or no longer holds the needle
 //     [until: rule <topic>/<slug>]       `docs/rules/<topic>/<slug>.md` exists
 //
-// A needle is a plain substring, never a pattern, and holds no `]`. `holds` evaluates one trailer. An
-// expired bullet is deleted rather than archived, because `git log -S` keeps every one of them.
+// A needle is a plain substring, never a pattern, and holds no `]`. The path of an `exists` or a `gone`
+// is never a git-ignored one, because a clean checkout would decide it differently from a working copy
+// that has built it. `holds` evaluates one trailer. An expired bullet is deleted rather than archived,
+// because `git log -S` keeps every one of them.
 //
 //     bun nv playbook --show <selector>       one bullet, or a whole section, as `nv orient` prints it
 //     bun nv playbook --check                 expiry, stale paths, selectors, section sizes; 1 on a gating finding
@@ -137,11 +139,26 @@ async function testNames(root: string): Promise<Set<string>> {
 
 
 /**
+ * Which of `paths` git ignores at `root`, read from the ignore files the tree tracks. A git-ignored path
+ * is one a build or a run writes, such as `fuzz/corpus/`, so whether it is on disk is a fact about this
+ * working copy and never about the tree: a clean checkout lacks it where a used one has it. Only a
+ * repository's own root is asked, since a scratch root inside an ignored directory of another
+ * repository would find every one of its paths ignored.
+ */
+export async function ignoredOf(root: string, paths: Iterable<string>): Promise<Set<string>> {
+  const asked = [...new Set(paths)].filter(Boolean);
+  if (!asked.length || !existsSync(join(root, ".git"))) return new Set();
+  const done = await runProc(["git", "check-ignore", "-z", "--stdin"], { cwd: root, input: `${asked.join("\0")}\0`, timeoutMs: 60_000 });
+  return new Set(done.stdout.split("\0").filter(Boolean));
+}
+
+/**
  * Whether a declared condition holds on `today`, and a word on why: true when the block has expired,
  * false when it stands, and null when the declaration cannot be evaluated, which is a finding rather
- * than a guess either way.
+ * than a guess either way. A `gone` or `exists` on a path in `ignored` is such a finding, because the
+ * tree cannot decide it: a clean checkout and a used working copy would give different answers.
  */
-export function holds(root: string, kind: string, arg: string, _today: Date, tests: ReadonlySet<string>): [boolean | null, string] {
+export function holds(root: string, kind: string, arg: string, _today: Date, tests: ReadonlySet<string>, ignored: ReadonlySet<string> = new Set()): [boolean | null, string] {
   if (kind === "test") {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(arg)) return [null, `\`${arg}\` is not a test function name`];
     const there = tests.has(arg);
@@ -156,6 +173,7 @@ export function holds(root: string, kind: string, arg: string, _today: Date, tes
     const path = (colon < 0 ? arg : arg.slice(0, colon)).trim().replace(/\\/g, "/");
     const needle = colon < 0 ? "" : arg.slice(colon + 1);
     if (!path || /[*?<>]/.test(path)) return [null, `\`${path}\` is not a repo path`];
+    if (ignored.has(path)) return [null, `\`${path}\` is git-ignored, so only a working copy that wrote it has it -- name a tracked file`];
     const full = join(root, path);
     const onDisk = existsSync(full);
     let present = onDisk;
@@ -243,10 +261,13 @@ export async function expiryReport(
   const rows: Finding[] = [];
   let declared = 0;
   const tests = await testNames(root);
-  for (const [file, must] of declaring(root)) {
+  const read = declaring(root).flatMap(([file, must]) => {
     const full = join(root, file);
-    if (!existsSync(full)) continue;
-    const text = readFileSync(full, "utf8").replace(/\r\n/g, "\n");
+    return existsSync(full) ? [{ file, must, text: readFileSync(full, "utf8").replace(/\r\n/g, "\n") }] : [];
+  });
+  const trailers = read.flatMap((r) => blocks(r.text).map((b) => declaration(b.body)));
+  const ignored = await ignoredOf(root, trailers.flatMap((d) => (d && trailerPath(d) ? [trailerPath(d)!] : [])));
+  for (const { file, must, text } of read) {
     if (file === CARRIED_GAPS) {
       const gone = new Set(chainGoals(root).filter((g) => g.retired).map((g) => g.slug));
       for (const r of ownedRows(text)) {
@@ -268,7 +289,7 @@ export async function expiryReport(
         }
         continue;
       }
-      const [ok, why] = holds(root, decl.kind, decl.arg, today, tests);
+      const [ok, why] = holds(root, decl.kind, decl.arg, today, tests, ignored);
       const entry: Expired = { ...b, ...where, kind: decl.kind, arg: decl.arg, why };
       if (ok === null) bad.push({ ...where, why });
       else if (ok) expired.push(entry);
@@ -383,8 +404,10 @@ async function runCheck(root: string = ROOT): Promise<number> {
   else console.log(`\n  ${expired.length} bullet(s). Each is mechanically dead: the thing it waited for is on disk,\n  or the thing it was about is gone. \`git log -S\` keeps the text; the file need not.`);
 
   console.log("\n== BULLET RECORDS THE GATE REFUSES  (each names a file that exists or that its `gone` names, and a kind the tree decides)");
-  const refused = load(playbookBullet, root)
-    .filter((b) => !decided(b.value as BulletValue, root))
+  const records = load(playbookBullet, root);
+  const ignored = await ignoredOf(root, [...records.flatMap((b) => (b.value as BulletValue).files), ...every.flatMap((b) => namedPaths(b.text))]);
+  const refused = records
+    .filter((b) => !decided(b.value as BulletValue, root, ignored))
     .map((b) => b.id)
     .sort();
   for (const id of refused) console.log(`  ${id}  -- \`bun nv playbook --triage ${id.split("/")[0]}\` says what it owes`);
@@ -405,7 +428,7 @@ async function runCheck(root: string = ROOT): Promise<number> {
   for (const b of every) {
     const gone: string[] = [];
     for (const one of namedPaths(b.text)) {
-      if (existsSync(join(root, one))) continue;
+      if (existsSync(join(root, one)) || ignored.has(one)) continue;
       const why = DELIBERATE_STALE.get(`${b.selector}\n${one}`);
       if (why !== undefined) deliberate.push([b.selector, one, why]);
       else gone.push(one);
@@ -518,13 +541,15 @@ function trailerPath(until: Until): string | null {
 
 /**
  * Whether a bullet meets the gate `--check` holds every bullet to: it names a file, each file it names
- * exists or is the one its `gone` trailer names, and its trailer is one the tree decides. The schema
- * holds the first and the last; only this reads the disk for the middle one.
+ * exists, is git-ignored or is the one its `gone` trailer names, and its trailer is one the tree
+ * decides. The schema holds the first and the last; only this reads the disk for the middle one. A
+ * path in `ignored` passes whether or not it is on disk, since a trap can be about what a run writes,
+ * and a clean checkout must give the verdict a used working copy gives.
  */
-export function decided(v: BulletValue, root: string = ROOT): boolean {
+export function decided(v: BulletValue, root: string = ROOT, ignored: ReadonlySet<string> = new Set()): boolean {
   if (!MECHANICAL.has(v.until.kind) || !v.files.length) return false;
   const named = v.until.kind === "gone" ? trailerPath(v.until) : null;
-  return v.files.every((f) => f === named || existsSync(join(root, f)));
+  return v.files.every((f) => f === named || ignored.has(f) || existsSync(join(root, f)));
 }
 
 /** What `resolveTerm` looks a name up in: every tracked path, and the files declaring each Rust `fn`. */
@@ -653,17 +678,20 @@ export async function triage(section: string, root: string = ROOT, say: (line: s
     }
   };
 
+  const pathsOf = (b: BulletValue) => [...new Set([...b.files, ...namedPaths(`${b.lead} ${b.body}`), ...(trailerPath(b.until) ? [trailerPath(b.until)!] : [])])];
+  const ignored = await ignoredOf(root, mine.flatMap(pathsOf));
+
   let owed = 0;
   for (const b of mine) {
-    const done = decided(b, root);
+    const done = decided(b, root, ignored);
     if (!done) owed++;
     const flags = [done ? "DECIDED" : "OWES A DECISION", ...(live.has(b.id) ? ["LIVE MANIFEST"] : [])];
     say(`== ${b.id}  [until: ${b.until.kind} ${b.until.arg}]  ${flags.join("  ")}`);
     say(`  - **${b.lead}**${b.body ? ` ${b.body}` : ""}`);
 
     const spans = [...`${b.lead} ${b.body}`.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]!);
-    const paths = [...new Set([...b.files, ...namedPaths(`${b.lead} ${b.body}`), ...(trailerPath(b.until) ? [trailerPath(b.until)!] : [])])];
-    for (const p of paths) say(`  file   ${p}${existsSync(join(root, p)) ? "" : "  (not in the tree)"}${b.files.includes(p) ? "" : "  (not in its files)"}`);
+    const paths = pathsOf(b);
+    for (const p of paths) say(`  file   ${p}${ignored.has(p) ? "  (git-ignored)" : existsSync(join(root, p)) ? "" : "  (not in the tree)"}${b.files.includes(p) ? "" : "  (not in its files)"}`);
     // Two passes, so a name several files declare is placed beside the ones only one file does.
     const terms = [...new Set(spans)].filter((t) => !paths.includes(t));
     const sure = terms.map((t) => resolveTerm(t, index, paths, root)).filter((r) => r?.of === 1).map((r) => r!.path);

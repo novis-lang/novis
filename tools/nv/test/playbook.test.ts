@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { blocks, declaration, expiryReport, holds, retire, triage } from "../cmd/playbook.ts";
+import { blocks, decided, declaration, expiryReport, holds, ignoredOf, retire, triage } from "../cmd/playbook.ts";
 import { load, write } from "../lib/store.ts";
 import { goal } from "../schema/goal.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
@@ -30,6 +30,28 @@ describe("nv playbook holds", () => {
     expect(holds(tmp.root, "test", "a_test", TODAY, new Set(["a_test"]))).toEqual([true, "fn a_test exists"]);
     expect(holds(tmp.root, "test", "not a name", TODAY, new Set())[0]).toBeNull();
     expect(holds(tmp.root, "rule", "x/y", TODAY, new Set())).toEqual([false, "docs/rules/x/y.md does not exist"]);
+  });
+});
+
+describe("nv playbook ignored paths", () => {
+  test("a git-ignored path passes the gate on disk or not, and no trailer may name one", async () => {
+    const tmp = scratch();
+    tmp.put(".gitignore", "/out/\n");
+    tmp.put("tools/a.py", "");
+    expect(Bun.spawnSync(["git", "init", "-q"], { cwd: tmp.root }).exitCode).toBe(0);
+    const ignored = await ignoredOf(tmp.root, ["out/", "out/seed.bin", "tools/a.py"]);
+    expect([...ignored].sort()).toEqual(["out/", "out/seed.bin"]);
+    const about = { lead: "L.", body: "", files: ["out/", "tools/a.py"], until: { kind: "gone", arg: "tools/a.py:x" } };
+    expect(decided(about, tmp.root)).toBe(false);
+    expect(decided(about, tmp.root, ignored)).toBe(true);
+    expect(holds(tmp.root, "exists", "out/seed.bin", TODAY, new Set(), ignored)[0]).toBeNull();
+    tmp.cleanup();
+  });
+
+  test("a root that is not a repository's own asks git nothing", async () => {
+    const tmp = scratch();
+    expect((await ignoredOf(tmp.root, ["out/"])).size).toBe(0);
+    tmp.cleanup();
   });
 });
 
