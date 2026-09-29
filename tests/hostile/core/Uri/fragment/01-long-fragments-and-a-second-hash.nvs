@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a program reads very long fragments, fragments full of escapes and fragments with a
+// second `#`. Each read should return the fragment as written, or `parse` should throw an error.
+
+class Fragment
+{
+    public static function length(string $address): string
+    {
+        try {
+            ?string $fragment = Core\Uri::parse($address)->fragment();
+            if ($fragment == null) {
+                return 'null';
+            }
+            return Core\Str::length($fragment as string) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A fragment of one million letters. This prints 1000000.
+echo Fragment::length('http://h/#' . Core\Str::repeat('a', 1000000)), "\n";
+
+// 2. A fragment of one million `?` and `/`, which are allowed in a fragment. This prints 1000000.
+echo Fragment::length('http://h/#' . Core\Str::repeat('?/', 500000)), "\n";
+
+// 3. A fragment of 300000 escapes. They stay as written, so this prints 900000.
+echo Fragment::length('http://h/#' . Core\Str::repeat('%23', 300000)), "\n";
+
+// 4. One million `#`. Only the first one is allowed, so this prints "error".
+echo Fragment::length('http://h/' . Core\Str::repeat('#', 1000000)), "\n";
+
+// 5. A `#` alone. The fragment is empty, so this prints 0.
+echo Fragment::length('#'), "\n";
+
+// 6. 100000 different fragments, and every fragment is freed. This prints 100000.
+uint $read = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Uri::parse('https://example.com/guide#part-' . $i)->fragment() != null) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo $read, "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the fragment of an address.
+
+var $link = Core\Uri::parse("https://example.com/guide?lang=en#install");
+
+// The fragment is the text after the `#`. This prints install.
+echo $link->fragment(), "\n";
+
+// Escapes stay in the fragment. This prints getting%20started.
+echo Core\Uri::parse("https://example.com/guide#getting%20started")->fragment(), "\n";

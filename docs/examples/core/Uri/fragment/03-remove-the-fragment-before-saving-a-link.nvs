@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a program removes the fragment, so that two links to one page are saved once.
+
+// In a real program, these links come from the pages a crawler reads.
+array<string> $links = [
+    "https://example.com/guide#install",
+    "https://example.com/guide#usage",
+    "https://example.com/faq",
+];
+
+array<string> $saved = [];
+foreach ($links as string $link) {
+    var $uri = Core\Uri::parse($link);
+    if ($uri->fragment() != null) {
+        // `with` builds a new address. A `null` fragment removes the `#` and the text after it.
+        $uri = $uri->with({fragment: null});
+    }
+    if (!Core\Arr::contains($saved, $uri->toString())) {
+        $saved[] = $uri->toString();
+    }
+}
+
+// This prints https://example.com/guide and https://example.com/faq.
+foreach ($saved as string $page) {
+    echo $page, "\n";
+}

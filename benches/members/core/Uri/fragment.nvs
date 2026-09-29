@@ -1,0 +1,24 @@
+<?nvs
+// Reads the fragment of a parsed address, as a crawler does before it removes it from a link.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $links = [
+            Core\Uri::parse("https://example.com/guide#install"),
+            Core\Uri::parse("https://example.com/faq"),
+            Core\Uri::parse("https://example.com/guide#getting%20started"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?string $fragment = $links[($total % 3) as int]->fragment();
+            $total = $total + Core\Str::length($fragment ?? "-");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
