@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to work out when a free trial ends and when the first payment is due.
+
+// A customer starts a 14-day trial in Sydney, in the evening.
+var $signup = Core\Time::at(2024, 1, 20, Core\Time\Zone::of("Australia/Sydney"), {hour: 21, minute: 15});
+
+// The trial ends 14 days later, at the same time of day. This prints Saturday 3 February, 21:15.
+var $trialEnd = $signup->plus(14, Core\Unit::Day);
+echo "Trial ends: ", $trialEnd->format("EEEE d MMMM, HH:mm"), "\n";
+
+// Each payment is due one month after the one before. The first is one month after the trial ends.
+// This prints 3 March 2024, 3 April 2024 and 3 May 2024.
+int $month = 1;
+while ($month <= 3) {
+    echo "Payment ", $month, ": ", $trialEnd->plus($month, Core\Unit::Month)->format("d MMMM yyyy"), "\n";
+    $month = $month + 1;
+}

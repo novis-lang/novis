@@ -2,6 +2,7 @@
 Spec § 4: every `DateTime` builder answers a new value in the same zone, and never a civil time that zone does not have
 --FILE--
 <?nvs
+// covers: Core\Time\DateTime::plus
 // § 4 gives `DateTime` eight members that answer another `DateTime` — `plus`,
 // `minus`, `next`, `previous`, `with`, `withTime`, `startOf` and `endOf` — and
 // the rule they share is not what any one of them computes but what all of

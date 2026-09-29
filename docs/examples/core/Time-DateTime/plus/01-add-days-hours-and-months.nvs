@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to move a date and time forward by days, hours and months.
+
+var $start = Core\Time::at(2024, 3, 5, Core\Time\Zone::of("Europe/Berlin"), {hour: 9});
+
+// `plus` returns a new value. The first argument is how many steps, and the second is the unit.
+// This prints 2024-03-15 09:00.
+echo $start->plus(10, Core\Unit::Day)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// This prints 2024-03-05 15:30.
+echo $start->plus(390, Core\Unit::Minute)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// This prints 2025-03-05 09:00.
+echo $start->plus(1, Core\Unit::Year)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// `$start` itself does not change. This prints 2024-03-05 09:00.
+echo $start->format("yyyy-MM-dd HH:mm"), "\n";

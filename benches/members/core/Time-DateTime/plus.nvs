@@ -1,0 +1,21 @@
+<?nvs
+// Adds days and months to a date and time, as a program does to work out a due date or an expiry time.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Unit> $units = [Core\Unit::Day, Core\Unit::Month, Core\Unit::Hour];
+        var $at = Core\Time::at(2024, 1, 31, Core\Time\Zone::of("Europe/Berlin"), {hour: 9, minute: 30});
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the count and the unit are picked with last round's total
+            var $moved = $at->plus($total % 30, $units[($total % 3) as uint]);
+            $total = $total + ($moved->dayOfYear() % 7) as int + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
