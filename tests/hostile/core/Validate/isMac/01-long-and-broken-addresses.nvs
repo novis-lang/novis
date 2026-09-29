@@ -1,0 +1,35 @@
+<?nvs
+// Attack: a program checks very long texts and addresses that are broken in small ways.
+// `isMac` should give the right answer each time, stay fast and free every text.
+// hostile: timeout-ms 20000
+
+// 1. A text of 60 million characters with 30 million ":" separators. This prints no.
+string $huge = Core\Str::repeat('0:', 30000000);
+echo Core\Validate::isMac($huge) ? 'yes' : 'no', "\n";
+$huge = '';
+
+// 2. Six pairs where every separator is a different character. This prints no.
+echo Core\Validate::isMac('00:11-22.33:44-55') ? 'yes' : 'no', "\n";
+
+// 3. A null byte in the last pair is not a hex digit. This prints no.
+echo Core\Validate::isMac('00:11:22:33:44:5' . "\0") ? 'yes' : 'no', "\n";
+
+// 4. "é" is two bytes, so the last pair has the right length in bytes. This prints no.
+echo Core\Validate::isMac('00:11:22:33:44:é') ? 'yes' : 'no', "\n";
+
+// 5. A seventh pair after the sixth. This prints no.
+echo Core\Validate::isMac('00:11:22:33:44:55:66') ? 'yes' : 'no', "\n";
+
+// 6. One million new addresses are checked and freed at once. Every second one ends in "zz".
+// This prints 500000.
+int $macs = 0;
+int $i = 0;
+while ($i < 1000000) {
+    string $last = $i % 2 == 0 ? '5e' : 'zz';
+    string $mac = '00-1a-2b-3c-' . ($i % 90 + 10) as string . '-' . $last;
+    if (Core\Validate::isMac($mac)) {
+        $macs = $macs + 1;
+    }
+    $i = $i + 1;
+}
+echo $macs, "\n";

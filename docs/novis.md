@@ -15953,13 +15953,13 @@ Answers whether `$s` is an IP address, as `filter_var` with `FILTER_VALIDATE_IP`
 Core\Validate::isMac(string $s): bool
 ```
 
-Answers whether `$s` is a MAC address, as `filter_var` with `FILTER_VALIDATE_MAC` does: six hex octets joined by `:` or by `-`, or three groups of four hex digits joined by `.`.
+Checks whether `$s` is a MAC address, the hardware address of a network card. It is six pairs of hex digits joined by `:` or by `-`, such as `00:1a:2b:3c:4d:5e`. It can also be three groups of four hex digits joined by `.`, such as `001a.2b3c.4d5e`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The text to test. |
 
-**Returns** `bool` — `true` for one of the three spellings in either letter case; `false` otherwise, including a mix of separators.
+**Returns** `bool` — `true` for one of the three ways to write it, in upper or lower case. `false` otherwise. A text that mixes two separators, such as `00:1a-2b:3c:4d:5e`, gives `false`.
 
 <a id="core-core-validate-isascii"></a>
 #### `Core\Validate::isAscii`

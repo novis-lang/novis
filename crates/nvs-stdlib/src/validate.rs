@@ -303,16 +303,18 @@ const IS_IP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Validate::isMac`'s reference card — `rule:core-api/reference-card`.
 const IS_MAC_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$s` is a MAC address, as `filter_var` with `FILTER_VALIDATE_MAC` \
-            does: six hex octets joined by `:` or by `-`, or three groups of four hex digits \
-            joined by `.`.",
+    short: "Checks whether `$s` is a MAC address, the hardware address of a network card. \
+            It is six pairs of hex digits joined by `:` or by `-`, such as \
+            `00:1a:2b:3c:4d:5e`. It can also be three groups of four hex digits joined by `.`, \
+            such as `001a.2b3c.4d5e`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to test.",
         shape: &[],
     }],
-    ret: "`true` for one of the three spellings in either letter case; `false` otherwise, \
-          including a mix of separators.",
+    ret: "`true` for one of the three ways to write it, in upper or lower case. `false` \
+          otherwise. A text that mixes two separators, such as `00:1a-2b:3c:4d:5e`, gives \
+          `false`.",
     errors: &[],
 };
 
@@ -798,6 +800,7 @@ mod tests {
     }
 
     /// The three spellings PHP accepts, and the mixed separator it does not.
+    // covers: Core\Validate::isMac
     #[test]
     fn a_mac_takes_one_separator_throughout() {
         for accepted in [

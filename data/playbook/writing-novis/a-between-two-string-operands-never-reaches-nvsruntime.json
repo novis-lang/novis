@@ -1,0 +1,11 @@
+{
+  "lead": "A `==` between two `?string` operands never reaches `nvs_runtime::nvs_str_eq`.",
+  "body": "A nullable pair compiles to `value_identical` in `crates/nvs-runtime/src/identity.rs`, and a `$m?->text()` call is nullable, so a fix placed only in `nvs_str_eq` changes nothing for it. A change to string equality goes in both, or it is not a change to `==`.",
+  "files": [
+    "crates/nvs-runtime/src/identity.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-runtime/src/identity.rs:left.str_ptr() == right.str_ptr()"
+  }
+}

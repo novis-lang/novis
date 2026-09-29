@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-validate-and-1-more`: `Core\\Validate::isAscii`, `isDomain` and `isEmail` are finished. Each has its about page, three examples, a bench with its figure in `docs/perf/members.ndjson`, an attack, a Rust `covers:` test and a plain card.\n`isIp`, `isMac` and `isPrintable` still owe everything but their Novis tests, and their cards are still in the dense \"Answers whether …\" voice.\n`Core\\Xml` (the check `dossier-core-xml`) has not been started: it owes its class card and all proofs for `parse`, `reader` and `writer`.\nNothing is blocked.",
+  "state": "Goal `core-validate-and-1-more`: `Core\\Validate::isAscii`, `isDomain`, `isEmail` and `isMac` are finished, each with a plain card and every proof.\n`isIp` and `isPrintable` still owe everything but their Novis tests, and their cards are still in the dense \"Answers whether …\" voice.\n`Core\\Xml` (the check `dossier-core-xml`) has not been started: it owes its class card and all proofs for `parse`, `reader` and `writer`.\nThe floor checks for `Core\\Json`, `Core\\Test`, `Core\\Test\\Response` and `Core\\Test\\SentRequest` were red only because an uncommitted edit to `json.rs` and `test.rs` (the `nvs_runtime::stack_pointer` change, with `safepoint.rs`, `wiring.rs`, `lib.rs`, `perf_guards.rs`, `ci.yml`, `serve.rs`, `mysql.rs`) moved their implementation text. Their figures are re-recorded against that text. That edit is not this loop's, and no commit here stages it.\nThe `Core\\Regex\\Match` floor check is fixed: a string compared with itself no longer reads its bytes.\nNothing is blocked.",
   "next": {
     "stage": 2,
     "title": "Core\\Validate member proofs",
@@ -13,20 +13,17 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Validate::isMac`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). The Rust test at `crates/nvs-stdlib/src/validate.rs:802` needs only a `// covers: Core\\Validate::isMac` line above its `#[test]`. Rewrite the card at `crates/nvs-stdlib/src/validate.rs:305` in the plain voice. `docs/examples/core/Validate/isDomain/` is the model. The bench declares `allocations 0` and `calls 0`, indexes with `(($total + $i) % 3) as int` and adds a multiple of 3 on every path. `bun nv proofs --record-perf --group 'Core\\Validate'` writes the figure after the last edit to `validate.rs`."
+        "text": "**`Core\\Validate::isIp`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). No Rust test exists: write one marked `// covers: Core\\Validate::isIp`, in the shape of `crates/nvs-stdlib/src/validate.rs:831`. Rewrite the card at `crates/nvs-stdlib/src/validate.rs:283` in the plain voice. `docs/examples/core/Validate/isMac/` is the model. The bench declares `allocations 0` and `calls 0`, indexes with `(($total + $i) % 3) as int` and adds a multiple of 3 on every path. `bun nv proofs --record-perf --group 'Core\\Validate'` writes the figure after the last edit to `validate.rs`."
       },
       {
         "done": false,
-        "text": "**`Core\\Validate::isIp`** — the same list. No Rust test exists: write one marked `covers: Core\\Validate::isIp`, in the shape of `crates/nvs-stdlib/src/validate.rs:828`, covering `{version: 4}`, `{version: 6}`, a leading zero and a zone id. Card at `crates/nvs-stdlib/src/validate.rs:283`; its `version` option is a literal union, so one example shows `{version: 6}`."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Validate::isPrintable`** — the same list, and no Rust test either: write one in the shape of `crates/nvs-stdlib/src/validate.rs:828`. Card at `crates/nvs-stdlib/src/validate.rs:335`. Its about page says how it differs from `isAscii` (tab and newline are `false`, `é` is `true`)."
+        "text": "**`Core\\Validate::isPrintable`** — the same list, and no Rust test either: write one in the shape of `crates/nvs-stdlib/src/validate.rs:831`. Rewrite the card at `crates/nvs-stdlib/src/validate.rs:337`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Xml`: class card plus proofs for `parse`, `reader`, `writer` — the check `dossier-core-xml`; `crates/nvs-stdlib/src/xml.rs` and the `CLASSES_STILL_OWING_A_CARD` list in `crates/nvs-stdlib/src/registry.rs`.",
-    "`crates/nvs-cli/src/worker.rs:2837`'s drain-deadline test fails under full-workspace load; its bound needs to hold under load (`tools/nv/cmd/verify.ts`'s module doc). The playbook bullet under *Running things* owns the workaround."
+    "`Core\\Xml` class card and the proofs of `parse`, `reader` and `writer` — check `dossier-core-xml`; the card goes above the class's `CLASS` row, and the name leaves `CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`.",
+    "`tests/hostile/core/Queue/push/01-huge-and-invalid-jobs.nvs` sometimes hangs in the driver's sweep after printing `4: error`. It takes 0.3s alone over an in-memory database, so step 5's 5000 keyed pushes race something under load. Not diagnosed; owner is the `Core\\Queue` module doc if it recurs.",
+    "`tests/hostile/core/Serialize/encode/01-deep-chains-loops-and-hidden-closures.nvs` sometimes panics in the sweep and passes on a rerun. Not diagnosed; it may be the uncommitted `stack_pointer` change."
   ]
 }

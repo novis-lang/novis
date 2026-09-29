@@ -1,0 +1,24 @@
+<?nvs
+// Checks that a hardware address from a device list is a MAC address, as a program does before it saves the device.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $macs = ["00:1a:2b:3c:4d:5e", "00:1a-2b:3c:4d:5e", "001A.2B3C.4D5E"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Validate::isMac($macs[(($total + $i) % 3) as int])) {
+                $total = $total + 3;
+            } else {
+                $total = $total + 6;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

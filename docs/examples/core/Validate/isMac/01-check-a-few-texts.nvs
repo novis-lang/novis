@@ -1,0 +1,12 @@
+<?nvs
+// Shows which texts are MAC addresses.
+
+// "00:1a-2b:3c:4d:5e" mixes ":" and "-", and "00:1a:2b:3c:4d" has only five pairs.
+// "001a2b3c4d5e" has no separator, and "00:1g:2b:3c:4d:5e" contains "g".
+array<string> $texts = ["00:1a:2b:3c:4d:5e", "00:1a-2b:3c:4d:5e", "00:1a:2b:3c:4d", "001a2b3c4d5e", "00:1g:2b:3c:4d:5e"];
+
+// `Core\Validate::isMac` returns `true` for a MAC address.
+// This prints yes for the first text and no for the other four.
+foreach ($texts as string $text) {
+    echo $text, ": ", Core\Validate::isMac($text) ? "yes" : "no", "\n";
+}

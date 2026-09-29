@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check the MAC addresses in a list of devices before a program saves them.
+
+// Each device name has the address somebody typed in for it.
+array<string> $devices = [
+    "printer" => "00:1A:2B:3C:4D:5E",
+    "camera" => " 00-1a-2b-3c-4d-5f ",
+    "router" => "00:1a:2b:3c:4d",
+];
+
+// `trim` removes the spaces, and `lower` makes the letters lower case.
+// The printer and the camera are saved. The router address has only five pairs.
+foreach ($devices as string $device => string $typed) {
+    string $mac = Core\Str::lower(Core\Str::trim($typed));
+    if (Core\Validate::isMac($mac)) {
+        echo $device, ": saved ", $mac, "\n";
+    } else {
+        echo $device, ": not a MAC address\n";
+    }
+}
