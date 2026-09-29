@@ -1,0 +1,23 @@
+<?nvs
+// Reads the microseconds since 1970 of an instant, as a program does before it writes a log line.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Time\Instant> $moments = [
+            Core\Time::fromEpoch(1709294400, {nanos: 123000}),
+            Core\Time::fromEpoch(-86400, {nanos: 500000000}),
+            Core\Time::fromEpoch(253402207200),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the instant
+            $total = $total + $moments[$total % 3]->toEpochMicros() % 13 + 14;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

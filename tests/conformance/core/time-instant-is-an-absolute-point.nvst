@@ -2,6 +2,7 @@
 Spec § 4: an `Instant` is an absolute point with no zone, and moves only by an exact `Duration`
 --FILE--
 <?nvs
+// covers: Core\Time\Instant::toIso
 // An ISO-8601 timestamp carries its own offset, which is the whole of what
 // `strtotime` replaces here — a relative expression is accepted in neither
 // half of § 4.

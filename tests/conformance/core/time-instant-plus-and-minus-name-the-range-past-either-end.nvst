@@ -2,6 +2,7 @@
 `Core\Time\Instant::plus` and `minus` reach the last nanosecond at each end of the timestamp range, and one past it throws the range in the sentence `Core\Time::at` uses — `rule:testing/a-failing-proof-is-fixed-or-recorded`
 --FILE--
 <?nvs
+// covers: Core\Time\Instant::plus, Core\Time\Instant::minus
 // The last moment the range holds is reached from both sides, and one
 // nanosecond more at each end throws the range itself rather than the
 // calendar library's own words.

@@ -12532,13 +12532,13 @@ echo Core\Time::fromEpoch(1709294400, {nanos: 500000000})->toIso(), "\n";
 $instant->in(Core\Time\Zone $zone): Core\Time\DateTime
 ```
 
-Reads this instant on `$zone`'s calendar — the only instant→calendar conversion there is, which is why no zone is ever implicit.
+Shows this instant on the calendar and clock of `$zone`. This is the only way to get a date or an hour from an instant, so you always name the zone.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$zone` | `Core\Time\Zone` | The zone whose civil date and time to read. |
+| `$zone` | `Core\Time\Zone` | The time zone to show the instant in. Its offset at this instant is used, including summer time. |
 
-**Returns** `Core\Time\DateTime` — A `DateTime` at this same instant, in `$zone`.
+**Returns** `Core\Time\DateTime` — A `DateTime` at the same instant, in `$zone`. The instant does not change.
 
 <a id="core-core-time-instant-toepochseconds"></a>
 #### `Core\Time\Instant->toEpochSeconds`
@@ -12547,9 +12547,9 @@ Reads this instant on `$zone`'s calendar — the only instant→calendar convers
 $instant->toEpochSeconds(): int
 ```
 
-Answers the Unix timestamp, replacing `getTimestamp` and `date("U")`.
+Returns the Unix timestamp of this instant: the whole seconds since 1 January 1970 in UTC.
 
-**Returns** `int` — Whole seconds since `1970-01-01T00:00:00Z`, negative before it, with the subsecond part dropped.
+**Returns** `int` — An `int`, negative before 1970. The part of a second is dropped, toward zero.
 
 <a id="core-core-time-instant-toepochmillis"></a>
 #### `Core\Time\Instant->toEpochMillis`
@@ -12558,11 +12558,9 @@ Answers the Unix timestamp, replacing `getTimestamp` and `date("U")`.
 $instant->toEpochMillis(): int
 ```
 
-Answers the Unix timestamp in milliseconds — one of `microtime(true)`'s two halves, as an exact integer rather than a `float`.
+Returns the whole milliseconds since 1 January 1970 in UTC, as JavaScript counts time.
 
-**Returns** `int` — Whole milliseconds since the Unix epoch, truncated toward zero.
-
-**Throws** `RuntimeError` — The instant is further from the epoch than a 64-bit millisecond count reaches.
+**Returns** `int` — An `int`, negative before 1970. The part of a millisecond is dropped, toward zero. Every instant fits.
 
 <a id="core-core-time-instant-toepochmicros"></a>
 #### `Core\Time\Instant->toEpochMicros`
@@ -12571,11 +12569,9 @@ Answers the Unix timestamp in milliseconds — one of `microtime(true)`'s two ha
 $instant->toEpochMicros(): int
 ```
 
-Answers the Unix timestamp in microseconds — `microtime`'s other half, as an exact integer.
+Returns the whole microseconds since 1 January 1970 in UTC.
 
-**Returns** `int` — Whole microseconds since the Unix epoch, truncated toward zero.
-
-**Throws** `RuntimeError` — The instant is further from the epoch than a 64-bit microsecond count reaches.
+**Returns** `int` — An `int`, negative before 1970. The part of a microsecond is dropped, toward zero. Every instant fits.
 
 <a id="core-core-time-instant-plus"></a>
 #### `Core\Time\Instant->plus`

@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to get the Unix timestamp of a moment: the seconds since 1 January 1970 in UTC.
+
+Core\Time\Instant $noon = Core\Time::fromIso("2024-03-01T12:00:00Z");
+
+// This prints 1709294400.
+echo $noon->toEpochSeconds(), "\n";

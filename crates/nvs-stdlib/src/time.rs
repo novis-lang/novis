@@ -1237,48 +1237,44 @@ pub const INSTANT: CoreClass = CoreClass {
 
 /// `Core\Time\Instant::in`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_IN_DOC: MethodDoc = MethodDoc {
-    short: "Reads this instant on `$zone`'s calendar — the only instant→calendar conversion \
-            there is, which is why no zone is ever implicit.",
+    short: "Shows this instant on the calendar and clock of `$zone`. This is the only way to get \
+            a date or an hour from an instant, so you always name the zone.",
     params: &[ParamDoc {
         name: "zone",
-        desc: "The zone whose civil date and time to read.",
+        desc: "The time zone to show the instant in. Its offset at this instant is used, \
+               including summer time.",
         shape: &[],
     }],
-    ret: "A `DateTime` at this same instant, in `$zone`.",
+    ret: "A `DateTime` at the same instant, in `$zone`. The instant does not change.",
     errors: &[],
 };
 
 /// `Core\Time\Instant::toEpochSeconds`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_EPOCH_SECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Answers the Unix timestamp, replacing `getTimestamp` and `date(\"U\")`.",
+    short: "Returns the Unix timestamp of this instant: the whole seconds since 1 January 1970 \
+            in UTC.",
     params: &[],
-    ret: "Whole seconds since `1970-01-01T00:00:00Z`, negative before it, with the subsecond \
-          part dropped.",
+    ret: "An `int`, negative before 1970. The part of a second is dropped, toward zero.",
     errors: &[],
 };
 
 /// `Core\Time\Instant::toEpochMillis`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
-    short: "Answers the Unix timestamp in milliseconds — one of `microtime(true)`'s two \
-            halves, as an exact integer rather than a `float`.",
+    short: "Returns the whole milliseconds since 1 January 1970 in UTC, as JavaScript counts \
+            time.",
     params: &[],
-    ret: "Whole milliseconds since the Unix epoch, truncated toward zero.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The instant is further from the epoch than a 64-bit millisecond count reaches.",
-    }],
+    ret: "An `int`, negative before 1970. The part of a millisecond is dropped, toward zero. \
+          Every instant fits.",
+    errors: &[],
 };
 
 /// `Core\Time\Instant::toEpochMicros`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_EPOCH_MICROS_DOC: MethodDoc = MethodDoc {
-    short: "Answers the Unix timestamp in microseconds — `microtime`'s other half, as an \
-            exact integer.",
+    short: "Returns the whole microseconds since 1 January 1970 in UTC.",
     params: &[],
-    ret: "Whole microseconds since the Unix epoch, truncated toward zero.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The instant is further from the epoch than a 64-bit microsecond count reaches.",
-    }],
+    ret: "An `int`, negative before 1970. The part of a microsecond is dropped, toward zero. \
+          Every instant fits.",
+    errors: &[],
 };
 
 /// `Core\Time\Instant::plus`'s reference card — `rule:core-api/reference-card`.
@@ -6027,6 +6023,120 @@ mod tests {
             let why = past.expect_err("one nanosecond past the range throws");
             assert!(why.contains(r"Core\Time\Instant::minus"), "{why}");
             assert!(why.contains(PAST_THE_RANGE), "{why}");
+        }
+    }
+
+    /// `in` answers the receiver's own instant on the zone's clock, at the
+    /// offset the zone has at that instant, and leaves the receiver alone. The
+    /// first and last instants read in the widest fixed zones land on the
+    /// first and last civil days, so no reading of an `Instant` is out of range.
+    // covers: Core\Time\Instant::in
+    #[test]
+    fn instant_in_reads_the_same_instant_on_the_zones_clock() {
+        let read = |at: Timestamp, zone: &str| {
+            let mut ctx = Ctx::buffered();
+            let args = [instant_built(at), zone_built(zone)];
+            let local = nvs_runtime::call(nvs_core_time_instant_in, &mut ctx, &args)
+                .map(|result| {
+                    let read = zoned_of(&[result], 0, "in").expect("a `DateTime`");
+                    #[expect(unsafe_code, reason = "the member returned a fresh `DateTime`")]
+                    unsafe {
+                        result.release();
+                    }
+                    read
+                })
+                .expect("every instant has a reading in every zone");
+            assert_eq!(
+                instant_of(&args, 0, "in").ok(),
+                Some(at),
+                "the receiver moved"
+            );
+            for held in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built both arguments, and the member borrowed them"
+                )]
+                unsafe {
+                    held.release();
+                }
+            }
+            local
+        };
+        let noon = |date: &str| {
+            format!("{date}T12:00:00Z")
+                .parse::<Timestamp>()
+                .expect("an instant")
+        };
+        let winter = read(noon("2024-01-15"), "Europe/Berlin");
+        let summer = read(noon("2024-07-15"), "Europe/Berlin");
+        assert_eq!((winter.hour(), winter.offset().seconds()), (13, 3600));
+        assert_eq!((summer.hour(), summer.offset().seconds()), (14, 7200));
+        assert_eq!(summer.timestamp(), noon("2024-07-15"));
+        let east = read(Timestamp::MAX, "+25:59:59");
+        let west = read(Timestamp::MIN, "-25:59:59");
+        assert_eq!((east.year(), east.month(), east.day()), (9999, 12, 31));
+        assert_eq!((west.year(), west.month(), west.day()), (-9999, 1, 1));
+        assert_eq!(
+            (east.timestamp(), west.timestamp()),
+            (Timestamp::MAX, Timestamp::MIN)
+        );
+    }
+
+    /// The three epoch readings are one number at three scales, truncated
+    /// toward zero on both sides of the epoch, and all three read the first
+    /// and last instants exactly — so none of them has an input it throws on,
+    /// and the cards promise no error.
+    // covers: Core\Time\Instant::toEpochSeconds, Core\Time\Instant::toEpochMillis, Core\Time\Instant::toEpochMicros
+    #[test]
+    fn instant_epoch_readings_truncate_toward_zero_and_reach_both_ends() {
+        let int = |read: Result<Value, i32>| {
+            read.expect("every instant has an epoch reading")
+                .as_int()
+                .expect("an `int`")
+        };
+        let read = |at: Timestamp| {
+            let mut ctx = Ctx::buffered();
+            let args = [instant_built(at)];
+            let readings = (
+                int(nvs_runtime::call(
+                    nvs_core_time_instant_to_epoch_seconds,
+                    &mut ctx,
+                    &args,
+                )),
+                int(nvs_runtime::call(
+                    nvs_core_time_instant_to_epoch_millis,
+                    &mut ctx,
+                    &args,
+                )),
+                int(nvs_runtime::call(
+                    nvs_core_time_instant_to_epoch_micros,
+                    &mut ctx,
+                    &args,
+                )),
+            );
+            #[expect(unsafe_code, reason = "this frame built the receiver")]
+            unsafe {
+                args[0].release();
+            }
+            readings
+        };
+        let at = |second: i64, nanos: i32| Timestamp::new(second, nanos).expect("in range");
+        assert_eq!(
+            read(at(1_700_000_000, 123_456_789)),
+            (1_700_000_000, 1_700_000_000_123, 1_700_000_000_123_456)
+        );
+        assert_eq!(read(at(-1, -500_000_000)), (-1, -1_500, -1_500_000));
+        assert_eq!(read(at(0, -1)), (0, 0, 0));
+        for end in [Timestamp::MIN, Timestamp::MAX] {
+            let (second, nanos) = (end.as_second(), i64::from(end.subsec_nanosecond()));
+            assert_eq!(
+                read(end),
+                (
+                    second,
+                    second * 1_000 + nanos / 1_000_000,
+                    second * 1_000_000 + nanos / 1_000
+                )
+            );
         }
     }
 

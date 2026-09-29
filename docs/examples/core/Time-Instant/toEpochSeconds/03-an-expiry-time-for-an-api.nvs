@@ -1,0 +1,9 @@
+<?nvs
+// Builds the expiry time of a download link, for an API that wants a Unix timestamp.
+
+// A real program uses `Core\Time::now()` here. A fixed time keeps the output the same.
+Core\Time\Instant $now = Core\Time::fromIso("2024-03-01T12:00:00Z");
+Core\Time\Instant $expires = $now->plus(15m);
+
+echo "https://files.example.com/report.pdf?expires=", $expires->toEpochSeconds(), "\n";
+// This prints a link that ends with expires=1709295300.

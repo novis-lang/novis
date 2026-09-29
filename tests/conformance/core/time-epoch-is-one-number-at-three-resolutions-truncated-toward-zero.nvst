@@ -2,6 +2,7 @@
 Spec § 4: `Core\Time\Instant`'s three epoch readings are one number at three resolutions, each truncated toward zero rather than floored — so below the epoch the coarser reading is the later one, and the seconds scale covers a two-second interval around zero — and `Core\Time::fromEpoch` bounds its seconds against the representable range and its `nanos` below one second, both sides of both bounds named
 --FILE--
 <?nvs
+// covers: Core\Time\Instant::toEpochSeconds, Core\Time\Instant::toEpochMillis, Core\Time\Instant::toEpochMicros
 // § 4 gives an `Instant` three readings of the same point: seconds, millis and
 // micros since the epoch. What a case can assert about three members returning
 // three different numbers is that they are the *same* number at three

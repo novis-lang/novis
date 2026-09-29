@@ -2,6 +2,7 @@
 Spec § 4: an `Instant`'s `compareTo` agrees with the sign of its `since`, `minus` undoes it, and `in` changes only the reading
 --FILE--
 <?nvs
+// covers: Core\Time\Instant::since
 // § 4's `Instant` is a point on the line: it has no zone and no calendar, so
 // every question about *order* and every question about *distance* has to
 // answer the same way, and `in` — the one member that takes a `Zone` — has to

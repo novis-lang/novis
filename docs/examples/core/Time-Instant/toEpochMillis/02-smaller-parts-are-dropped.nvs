@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `toEpochMillis` drops the part of a millisecond. It does not round.
+
+Core\Time\Instant $at = Core\Time::fromIso("2024-03-01T12:00:00.250999Z");
+
+// This prints 1709294400250. The last 0.999 milliseconds are dropped.
+echo $at->toEpochMillis(), "\n";

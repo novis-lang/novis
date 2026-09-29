@@ -1,0 +1,22 @@
+<?nvs
+// Attack: the milliseconds of the first and the last instant are read. These are the largest
+// numbers the method can return. It should return them and not crash or leak.
+
+// 1. The first and the last instant give the smallest and the largest number.
+Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z');
+echo $first->toEpochMillis(), ' ', $last->toEpochMillis(), "\n";
+
+// 2. One nanosecond before and after 1970 both give 0.
+Core\Time\Instant $zero = Core\Time::fromEpoch(0);
+echo $zero->minus(Core\Time\Duration::nanoseconds(1))->toEpochMillis(), ' ',
+     $zero->plus(Core\Time\Duration::nanoseconds(1))->toEpochMillis(), "\n";
+
+// 3. One million instants near the last one are made and read. Each one is freed again.
+int $sum = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $sum = $sum + $last->minus(Core\Time\Duration::nanoseconds($round * 7919))->toEpochMillis() % 7;
+    $round = $round + 1;
+}
+echo $sum, "\n";
