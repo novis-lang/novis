@@ -1,0 +1,60 @@
+<?nvs
+// Attack: `withTime` sets every minute of the day on the last and the first day there is,
+// and on days when the clocks change. A time outside the range should throw a `RuntimeError`.
+
+// 1. Every minute of the last day, in UTC and in the zone furthest east, and of the first day.
+// In UTC, the range ends at 22:00:00 on 30 December 9999, so later minutes throw.
+var $lastUtc = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::UTC);
+var $lastEast = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $firstWest = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+int $refused = 0;
+int $built = 0;
+uint $hour = 0;
+while ($hour < 24) {
+    uint $minute = 0;
+    while ($minute < 60) {
+        var $clock = Core\Time\TimeOfDay::at($hour, $minute, { second: 59, nanos: 999999999 });
+        try { $lastUtc->withTime($clock); $built = $built + 1; } catch (RuntimeError $a) { $refused = $refused + 1; }
+        try { $lastEast->withTime($clock); $built = $built + 1; } catch (RuntimeError $b) { $refused = $refused + 1; }
+        try { $firstWest->withTime($clock); $built = $built + 1; } catch (RuntimeError $c) { $refused = $refused + 1; }
+        $minute = $minute + 1;
+    }
+    $hour = $hour + 1;
+}
+echo $built, ' built, ', $refused, " refused\n";
+
+// 2. Every minute of days when the clocks change, in zones that change at different times.
+array<string> $changes = [
+    '2024-03-31T12:00:00Z', '2024-10-27T12:00:00Z', '2024-03-10T12:00:00Z', '2024-04-07T12:00:00Z',
+];
+array<string> $zones = ['Europe/Berlin', 'America/New_York', 'Australia/Lord_Howe', 'Pacific/Chatham'];
+int $moved = 0;
+foreach ($changes as string $change) {
+    foreach ($zones as string $zone) {
+        var $at = Core\Time::fromIso($change)->in(Core\Time\Zone::of($zone));
+        uint $h = 0;
+        while ($h < 24) {
+            uint $m = 0;
+            while ($m < 60) {
+                var $wanted = Core\Time\TimeOfDay::at($h, $m);
+                if ($at->withTime($wanted)->timeOfDay()->format('HH:mm') != $wanted->format('HH:mm')) {
+                    $moved = $moved + 1;
+                }
+                $m = $m + 1;
+            }
+            $h = $h + 1;
+        }
+    }
+}
+echo $moved, " minutes moved past a gap\n";
+
+// 3. One million new values are built, one at a time. Each new value is freed.
+var $leapDay = Core\Time::at(2000, 2, 29, Core\Time\Zone::of('Asia/Kolkata'));
+int $round = 0;
+int $total = 0;
+while ($round < 1000000) {
+    var $set = $leapDay->withTime(Core\Time\TimeOfDay::at(($round % 24) as uint, ($round % 60) as uint));
+    $total = $total + $set->dayOfYear() as int;
+    $round = $round + 1;
+}
+echo $total, "\n";

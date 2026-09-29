@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to set the time of a date and time and keep its date and time zone.
+
+var $due = Core\Time::at(2024, 11, 5, Core\Time\Zone::of("America/New_York"), {hour: 15, minute: 20});
+
+// `withTime` returns a new value with the time from a `Core\Time\TimeOfDay`.
+// This prints 2024-11-05 09:00:00.
+echo $due->withTime(Core\Time\TimeOfDay::at(9, 0))->format("yyyy-MM-dd HH:mm:ss"), "\n";
+
+// All four clock fields are replaced, also the seconds and the nanoseconds.
+// This prints 2024-11-05 23:59:59.999.
+var $late = Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999000000});
+echo $due->withTime($late)->format("yyyy-MM-dd HH:mm:ss.SSS"), "\n";
+
+// The time zone does not change. This prints America/New_York.
+echo $due->withTime($late)->format("VV"), "\n";
