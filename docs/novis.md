@@ -21263,15 +21263,15 @@ Keywords: parse, reader, writer
 Core\Xml::parse(string $document): Core\Xml\Node
 ```
 
-Reads a whole XML document and answers its document node — replacing `DOMDocument::load`, `simplexml_load_string` and `xml_parse`, none of which agree about what malformed input means. This one refuses it: a document that is not well-formed throws, and nothing is repaired, recovered or guessed. `Core\Html::parse` is the opposite contract on the same node family, because the WHATWG algorithm has no failure mode.
+Reads a whole XML document and returns its document node. It replaces PHP's `DOMDocument::load`, `simplexml_load_string` and `xml_parse`. A document that is not well-formed throws a `ParseError`. Nothing is repaired or guessed. `Core\Html::parse` returns the same kind of tree, and repairs broken HTML instead of throwing.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$document` | `string` (neutral) | The document text. No entity is resolved from anywhere: the five predefined entities and numeric character references expand, and every other reference is refused. |
+| `$document` | `string` (neutral) | The document text. The five predefined entities, such as `&amp;`, and numeric character references, such as `&#65;`, are expanded. Any other entity reference throws a `ParseError`. Nothing is loaded from a file or from the network. |
 
-**Returns** `Core\Xml\Node` — The document node, whose children are the root element and any comments or processing instructions written beside it. Every string reachable through it is `tainted`, whatever this argument was.
+**Returns** `Core\Xml\Node` — The document node. Its children are the root element and any comments or processing instructions next to it. Every string you read from the tree is `tainted`, which means it came from outside the program. This is true even when `$document` was not tainted.
 
-**Throws** `ParseError` — The document is not well-formed — a tag that never closes or closes as something else, more than one root element, an attribute written twice, a reference this parser will not resolve, a document type declaration, or elements nested deeper than the ceiling.
+**Throws** `ParseError` — The document is not well-formed. For example: a tag is never closed or is closed with a different name, there is more than one root element, an attribute is written twice, or an entity reference is not one of the predefined ones. A document type declaration also throws, and so do elements nested more than 1024 levels deep.
 
 <a id="core-core-xml-reader"></a>
 #### `Core\Xml::reader`
@@ -21280,13 +21280,13 @@ Reads a whole XML document and answers its document node — replacing `DOMDocum
 Core\Xml::reader(string $document): Core\Xml\Reader
 ```
 
-Opens a walk over `$document` that holds one node at a time — replacing `XMLReader`. A document a program does not want to materialise is read by asking for the next node until there is none, and what the walk itself holds does not grow with how much of the document is left. Nothing is read here: the first `read` is what reaches the document's first character.
+Returns a reader that goes through `$document` one node at a time. It replaces PHP's `XMLReader`. Call `read` until it returns `null`. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first `read` reads the first node.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$document` | `string` (neutral) | The document text, held as it was handed over rather than copied and read forward from as the walk goes. No entity is resolved from anywhere, exactly as `parse` resolves none. |
+| `$document` | `string` (neutral) | The document text. The reader does not copy it. Entity references are handled the same way as in `Core\Xml::parse`. |
 
-**Returns** `Core\Xml\Reader` — A reader positioned before the first node.
+**Returns** `Core\Xml\Reader` — A reader. Its first `read` returns the first node of the document.
 
 <a id="core-core-xml-writer"></a>
 #### `Core\Xml::writer`
@@ -21295,15 +21295,15 @@ Opens a walk over `$document` that holds one node at a time — replacing `XMLRe
 Core\Xml::writer({indent?: string}): Core\Xml\Writer
 ```
 
-Opens a writer that builds a document a node at a time — replacing `XMLWriter`. What is open is the writer's own state rather than something the caller has to remember, so a mismatched or missing close is refused where it is written instead of reaching a reader as a malformed document. Nothing is escaped by the caller either: every member that takes character data escapes it, which is why there is no member that writes raw bytes into the document.
+Returns a writer that builds an XML document one node at a time. It replaces PHP's `XMLWriter`. The writer remembers which elements are open, so `endElement` needs no name. Ending the document while an element is still open throws a `LogicError`. Every method that takes text escapes it, so you never escape text yourself.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{indent: …}` | `string` (default `""`, neutral) | What one level of nesting is indented by, and the empty string — the default — for no indenting. It has to be whitespace, since anything else would be content the document did not ask for, and it is never inserted beside character data, where it would change what the document says. |
+| `{indent: …}` | `string` (default `""`, neutral) | The text for one level of indentation, such as two spaces. The default is `""`, which means no indentation. It may contain only whitespace. The writer never adds indentation next to text content, because that would change the text. |
 
-**Returns** `Core\Xml\Writer` — A writer holding an empty document, before its `startDocument`.
+**Returns** `Core\Xml\Writer` — A new writer with an empty document. Call `startDocument` first.
 
-**Throws** `LogicError` — The indent is not whitespace.
+**Throws** `LogicError` — `indent` contains a character that is not whitespace.
 
 <a id="core-core-xml-node"></a>
 ### `Core\Xml\Node`

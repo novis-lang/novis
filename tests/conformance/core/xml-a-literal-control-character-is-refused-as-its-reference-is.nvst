@@ -1,0 +1,47 @@
+--TEST--
+A control character XML cannot write is refused written literally, in text, an attribute, a comment, an instruction and a CDATA section, by the tree and the stream alike, as its reference already was — `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+// Each document carries one character no XML document may hold. A tree that
+// kept one could not be written back out by its own `source`.
+array<string> $documents = [
+    "<a>x\0y</a>",
+    "<a b=\"x\x01y\"/>",
+    "<a><!--x\x01y--></a>",
+    "<a><?go x\x01y?></a>",
+    "<a><![CDATA[x\x1Fy]]></a>",
+];
+foreach ($documents as string $document) {
+    try {
+        Core\Xml::parse($document);
+        echo "parsed\n";
+    } catch (ParseError $tree) {
+        echo $tree->message, "\n";
+    }
+}
+
+// The stream reaches the same refusal at the node that carries it.
+Core\Xml\Reader $reader = Core\Xml::reader("<a><b/>x\x01y</a>");
+try {
+    while ($reader->read() != null) {
+        echo "node at depth ", $reader->depth(), "\n";
+    }
+} catch (ParseError $stream) {
+    echo $stream->message, "\n";
+}
+
+// The three whitespace control characters are XML, and are kept.
+Core\Xml\Node $kept = Core\Xml::parse("<a b=\"\t\">x\ty</a>");
+foreach ($kept->children() as Core\Xml\Node $root) {
+    echo Core\Str::length($root->attributes()["b"]), " ", Core\Str::length($root->source()), "\n";
+}
+--EXPECT--
+Core\Xml::parse(): the document holds U+0000, which XML does not allow.
+Core\Xml::parse(): the document holds U+0001, which XML does not allow.
+Core\Xml::parse(): the document holds U+0001, which XML does not allow.
+Core\Xml::parse(): the document holds U+0001, which XML does not allow.
+Core\Xml::parse(): the document holds U+001F, which XML does not allow.
+node at depth 0
+node at depth 1
+Core\Xml\Reader::read(): the document holds U+0001, which XML does not allow.
+1 19

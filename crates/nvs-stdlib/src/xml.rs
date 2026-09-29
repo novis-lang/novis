@@ -146,11 +146,13 @@
 //! document), beside a tree whose names and text already are, and released
 //! with it.
 
+use std::collections::HashSet;
+
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -185,7 +187,7 @@ pub(crate) const WRITER_NAME: &str = r"Core\Xml\Writer";
 /// above.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "parse",
@@ -220,28 +222,38 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Xml`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads and writes XML documents. `parse` reads a whole document into a tree of \
+            `Core\\Xml\\Node` objects. `reader` returns the nodes of a document one at a time and \
+            does not build a tree. `writer` builds a new document one node at a time, and escapes \
+            every text for you.",
+};
+
 /// `Core\Xml::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads a whole XML document and answers its document node — replacing `DOMDocument::load`, \
-            `simplexml_load_string` and `xml_parse`, none of which agree about what malformed input \
-            means. This one refuses it: a document that is not well-formed throws, and nothing is \
-            repaired, recovered or guessed. `Core\\Html::parse` is the opposite contract on the same \
-            node family, because the WHATWG algorithm has no failure mode.",
+    short: "Reads a whole XML document and returns its document node. It replaces PHP's \
+            `DOMDocument::load`, `simplexml_load_string` and `xml_parse`. A document that is not \
+            well-formed throws a `ParseError`. Nothing is repaired or guessed. \
+            `Core\\Html::parse` returns the same kind of tree, and repairs broken HTML instead of \
+            throwing.",
     params: &[ParamDoc {
         name: "document",
-        desc: "The document text. No entity is resolved from anywhere: the five predefined entities \
-               and numeric character references expand, and every other reference is refused.",
+        desc: "The document text. The five predefined entities, such as `&amp;`, and numeric \
+               character references, such as `&#65;`, are expanded. Any other entity reference \
+               throws a `ParseError`. Nothing is loaded from a file or from the network.",
         shape: &[],
     }],
-    ret: "The document node, whose children are the root element and any comments or processing \
-          instructions written beside it. Every string reachable through it is `tainted`, whatever \
-          this argument was.",
+    ret: "The document node. Its children are the root element and any comments or processing \
+          instructions next to it. Every string you read from the tree is `tainted`, which means \
+          it came from outside the program. This is true even when `$document` was not tainted.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "The document is not well-formed — a tag that never closes or closes as something \
-               else, more than one root element, an attribute written twice, a reference this \
-               parser will not resolve, a document type declaration, or elements nested deeper \
-               than the ceiling.",
+        desc: "The document is not well-formed. For example: a tag is never closed or is closed \
+               with a different name, there is more than one root element, an attribute is \
+               written twice, or an entity reference is not one of the predefined ones. A \
+               document type declaration also throws, and so do elements nested more than 1024 \
+               levels deep.",
     }],
 };
 
@@ -539,19 +551,17 @@ pub(crate) const READER: CoreClass = CoreClass {
 
 /// `Core\Xml::reader`'s reference card — `rule:core-api/reference-card`.
 const READER_DOC: MethodDoc = MethodDoc {
-    short: "Opens a walk over `$document` that holds one node at a time — replacing `XMLReader`. \
-            A document a program does not want to materialise is read by asking for the next node \
-            until there is none, and what the walk itself holds does not grow with how much of \
-            the document is left. Nothing is read here: the first `read` is what reaches the \
-            document's first character.",
+    short: "Returns a reader that goes through `$document` one node at a time. It replaces PHP's \
+            `XMLReader`. Call `read` until it returns `null`. The reader does not build a tree. \
+            It keeps the current node and the names of the elements that are open. This call \
+            reads nothing yet. The first `read` reads the first node.",
     params: &[ParamDoc {
         name: "document",
-        desc: "The document text, held as it was handed over rather than copied and read forward \
-               from as the walk goes. No entity is resolved from anywhere, exactly as `parse` \
-               resolves none.",
+        desc: "The document text. The reader does not copy it. Entity references are handled \
+               the same way as in `Core\\Xml::parse`.",
         shape: &[],
     }],
-    ret: "A reader positioned before the first node.",
+    ret: "A reader. Its first `read` returns the first node of the document.",
     errors: &[],
 };
 
@@ -749,24 +759,22 @@ const WRITER_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\Xml::writer`'s reference card — `rule:core-api/reference-card`.
 const WRITER_DOC: MethodDoc = MethodDoc {
-    short: "Opens a writer that builds a document a node at a time — replacing `XMLWriter`. What \
-            is open is the writer's own state rather than something the caller has to remember, \
-            so a mismatched or missing close is refused where it is written instead of reaching \
-            a reader as a malformed document. Nothing is escaped by the caller either: every \
-            member that takes character data escapes it, which is why there is no member that \
-            writes raw bytes into the document.",
+    short: "Returns a writer that builds an XML document one node at a time. It replaces PHP's \
+            `XMLWriter`. The writer remembers which elements are open, so `endElement` needs no \
+            name. Ending the document while an element is still open throws a `LogicError`. \
+            Every method that takes text escapes it, so you never escape text \
+            yourself.",
     params: &[ParamDoc {
         name: "indent",
-        desc: "What one level of nesting is indented by, and the empty string — the default — for \
-               no indenting. It has to be whitespace, since anything else would be content the \
-               document did not ask for, and it is never inserted beside character data, where it \
-               would change what the document says.",
+        desc: "The text for one level of indentation, such as two spaces. The default is `\"\"`, \
+               which means no indentation. It may contain only whitespace. The writer never adds \
+               indentation next to text content, because that would change the text.",
         shape: &[],
     }],
-    ret: "A writer holding an empty document, before its `startDocument`.",
+    ret: "A new writer with an empty document. Call `startDocument` first.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The indent is not whitespace.",
+        desc: "`indent` contains a character that is not whitespace.",
     }],
 };
 
@@ -1193,10 +1201,27 @@ fn numeric(code: Option<u32>, body: &str) -> Result<char, String> {
     let Some(ch) = code.and_then(char::from_u32) else {
         return Err(refused);
     };
-    if ch.is_control() && !matches!(ch, '\t' | '\r' | '\n') {
+    if forbidden(ch) {
         return Err(refused);
     }
     Ok(ch)
+}
+
+/// Whether XML has no way to write `ch`: a control character other than the
+/// three whitespace ones. This is the one test for it — a reference naming one
+/// is refused by [`numeric`], a literal one by [`refused_literal`]'s callers, and a
+/// writer that would emit one by [`unwritable`] — so the parser never accepts
+/// a character the writers refuse to write back out.
+fn forbidden(ch: char) -> bool {
+    ch.is_control() && !matches!(ch, '\t' | '\r' | '\n')
+}
+
+/// The sentence for a literal [`forbidden`] character in the document.
+fn refused_literal(ch: char) -> String {
+    format!(
+        "the document holds U+{:04X}, which XML does not allow",
+        u32::from(ch)
+    )
 }
 
 /// A reader over one document's text, holding a byte cursor into it.
@@ -1333,6 +1358,9 @@ impl<'a> Reader<'a> {
         let end = rest
             .find(close)
             .ok_or_else(|| format!("{what} is never closed by `{close}`"))?;
+        if let Some(ch) = rest[..end].chars().find(|&ch| forbidden(ch)) {
+            return Err(refused_literal(ch));
+        }
         self.pos += end + close.len();
         Ok(&rest[..end])
     }
@@ -1451,6 +1479,9 @@ impl<'a> Reader<'a> {
                 self.reference(&mut out)?;
                 continue;
             }
+            if forbidden(ch) {
+                return Err(refused_literal(ch));
+            }
             out.push(ch);
             self.pos += ch.len_utf8();
         }
@@ -1464,9 +1495,18 @@ impl<'a> Reader<'a> {
     /// [`Self::attribute_value`] refuses, a name written twice, or a tag the
     /// document ends inside.
     fn start_tag(&mut self) -> Result<(Parsed, bool), String> {
+        /// How many attributes a tag may carry before [`Self::start_tag`]
+        /// checks for a repeated name with a set instead of a scan.
+        const SCANNED: usize = 16;
         self.pos += '<'.len_utf8();
         let mut node = Parsed::new(Kind::Element);
         node.name = self.name("an opening tag")?;
+        // A tag with few attributes is checked for a repeated name by scanning
+        // them; past `SCANNED` the names also go into a set, so a tag written
+        // with a great many attributes costs linear time and not quadratic.
+        // What that spends is one copy of each name of a wide tag, freed when
+        // the tag is read.
+        let mut names: Option<HashSet<String>> = None;
         loop {
             let spaced = self.rest().starts_with(is_space);
             self.skip_space();
@@ -1496,7 +1536,18 @@ impl<'a> Reader<'a> {
             }
             self.skip_space();
             let value = self.attribute_value(&attr)?;
-            if node.attributes.iter().any(|(seen, _)| *seen == attr) {
+            let twice = if node.attributes.len() < SCANNED {
+                node.attributes.iter().any(|(seen, _)| *seen == attr)
+            } else {
+                let names = names.get_or_insert_with(|| {
+                    node.attributes
+                        .iter()
+                        .map(|(seen, _)| seen.clone())
+                        .collect()
+                });
+                !names.insert(attr.clone())
+            };
+            if twice {
                 return Err(format!(
                     "attribute `{attr}` is written twice on `{}`",
                     node.name
@@ -1592,6 +1643,9 @@ impl<'a> Reader<'a> {
             if ch == '&' {
                 self.reference(&mut out)?;
                 continue;
+            }
+            if forbidden(ch) {
+                return Err(refused_literal(ch));
             }
             out.push(ch);
             self.pos += ch.len_utf8();
@@ -2693,9 +2747,11 @@ impl Pen {
 
     /// Appends `chunk` to what the document holds.
     ///
-    /// The pieces are kept apart and joined once, in [`end_document`], so a
-    /// document costs what it is rather than what appending to one string over
-    /// and over would. The write cannot move the array for [`Open::push`]'s
+    /// The pieces are kept apart and joined once, in [`end_document`], so no
+    /// write copies what was written before it. Each piece is a string of its
+    /// own, so until the join a document of many small writes holds many times
+    /// its own size: gap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece`.
+    /// The write cannot move the array for [`Open::push`]'s
     /// reason: no member hands a writer's own arrays out, so
     /// [`NvsArray::set_index`]'s copy-on-write separation never fires and the
     /// handle stays the one the slot names.
@@ -2811,8 +2867,7 @@ fn writable(pen: &Pen, text: &str) -> Result<(), Fault> {
 /// document can carry is the module's rule rather than either door's:
 /// [`writable`] is the stream's and [`carried`] is the tree's.
 fn unwritable(text: &str) -> Option<char> {
-    text.chars()
-        .find(|ch| ch.is_control() && !matches!(ch, '\t' | '\r' | '\n'))
+    text.chars().find(|&ch| forbidden(ch))
 }
 
 /// [`nvs_core_xml_writer_start_document`]'s body.
@@ -3500,6 +3555,62 @@ mod tests {
         );
     }
 
+    /// A tag with a great many attributes is read in linear time, and a name
+    /// repeated after the set took over from the scan is still refused.
+    ///
+    /// Fifty thousand names is where a scan over every earlier name stops
+    /// finishing inside a test run, so this is the regression for the set as
+    /// much as for the answer. The short tag keeps the scan's half asserted.
+    // covers: Core\Xml::parse
+    #[test]
+    fn a_wide_tag_is_read_in_linear_time_and_a_repeated_name_is_still_refused() {
+        use std::fmt::Write as _;
+
+        let mut wide = String::from("<item");
+        for i in 0..50_000 {
+            write!(wide, " a{i}=\"{i}\"").expect("writing to a String cannot fail");
+        }
+        let document = parse(&format!("{wide}/>")).expect("distinct names are well-formed");
+        assert_eq!(document.children[0].attributes.len(), 50_000);
+        assert_eq!(document.children[0].attributes[49_999].0, "a49999");
+
+        let err = parse(&format!("{wide} a7=\"again\"/>"))
+            .expect_err("a name repeated past the scan is caught by the set");
+        assert_eq!(err, "attribute `a7` is written twice on `item`");
+
+        let err = parse("<item a=\"1\" b=\"2\" a=\"3\"/>")
+            .expect_err("a name repeated inside the scan is caught by the scan");
+        assert_eq!(err, "attribute `a` is written twice on `item`");
+    }
+
+    /// A control character XML has no way to write is refused written
+    /// literally, in every place a document carries characters, exactly as it
+    /// is refused written as a reference — so no parsed tree holds one that its
+    /// own `source` would then refuse to write.
+    // covers: Core\Xml::parse
+    #[test]
+    fn a_literal_control_character_is_refused_wherever_the_document_carries_one() {
+        for document in [
+            "<a>x\0y</a>",
+            "<a b=\"x\u{1}y\"/>",
+            "<a><!--x\u{1}y--></a>",
+            "<a><?go x\u{1}y?></a>",
+            "<a><![CDATA[x\u{1}y]]></a>",
+        ] {
+            let err = parse(document).expect_err("a control character is not XML");
+            assert!(
+                err.starts_with("the document holds U+000"),
+                "{document:?} answered {err}"
+            );
+        }
+        assert!(
+            parse("<a>&#1;</a>").is_err(),
+            "the reference is refused as before"
+        );
+        let kept = parse("<a b=\"\t\">x\r\ny\t</a>").expect("the three whitespace ones are XML");
+        assert_eq!(kept.children[0].attributes[0].1, "\t");
+    }
+
     /// Whether a signature's type mentions `class` anywhere inside it.
     ///
     /// Exhaustive with the leaves grouped rather than swept up by a `_`,
@@ -3925,6 +4036,7 @@ mod tests {
     /// writes nothing, so the document at the end is exactly what the accepted
     /// calls put in it — a writer that half-applied a refused call would still
     /// answer a well-formed document and fail only on this comparison.
+    // covers: Core\Xml::writer
     #[test]
     fn the_writer_enforces_nesting_from_its_own_state_and_not_from_the_caller() {
         let close = WRITER
@@ -4116,6 +4228,7 @@ mod tests {
     /// node, fails here rather than in a program. The document is
     /// `element_text_comment_processing_instruction_and_document_are_the_whole_family`'s,
     /// so the family reached is that test's roster and not a second one.
+    // covers: Core\Xml::reader
     #[test]
     fn the_reader_answers_stage_twos_node_family_one_node_at_a_time() {
         const DOCUMENT: &str =
