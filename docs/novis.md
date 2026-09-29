@@ -21327,9 +21327,9 @@ Keywords: kind, name, namespaceUri, text, attributes, children, source
 $node->kind(): Core\Xml\NodeKind
 ```
 
-Which of the five kinds of node this is — the question every walk over a tree asks first, and the one a program answers with a comparison rather than with a check for which other members are empty.
+Returns what kind of node this is: an element, a text, a comment, a processing instruction or the document. Compare it with a `Core\Xml\NodeKind` case, for example to skip everything that is not an element.
 
-**Returns** `Core\Xml\NodeKind` — A `Core\Xml\NodeKind` case. The set is closed, so a `match` over it is exhaustive.
+**Returns** `Core\Xml\NodeKind` — A `Core\Xml\NodeKind` case. There are exactly five cases, so a `match` over them covers every node.
 
 <a id="core-core-xml-node-name"></a>
 #### `Core\Xml\Node->name`
@@ -21360,9 +21360,9 @@ The namespace this element's name is in — the URI the nearest enclosing `xmlns
 $node->text(): tainted string
 ```
 
-The character data this node carries itself — a text node's characters, a comment's content, a processing instruction's data. Empty for an element and for the document, whose characters belong to their text children: this is the node's own text and never a walk over its descendants, so what it costs is a slot read.
+Returns the text of this node. For a text node, this is its characters. For a comment, it is the comment's content, and for a processing instruction it is the part after the name. An element and the document return an empty string. Their text is in their text children.
 
-**Returns** `tainted string` — The characters, with the five predefined entities and any character references already expanded and a CDATA section read as the text it spells. `tainted`, as everything read out of a parsed tree is.
+**Returns** `tainted string` — A `tainted` string. Entities such as `&amp;` and character references such as `&#98;` are expanded. A CDATA section gives the text written inside it.
 
 <a id="core-core-xml-node-attributes"></a>
 #### `Core\Xml\Node->attributes`

@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-xml-node-and-1-more`: 2 of 3 members have their feature proofs on disk.\n`Core\\Xml\\Node::attributes` and `Core\\Xml\\Node::children` are done. `children` has about.md,\nthree examples, an attack, a bench with a recorded figure, two `.nvst` cases carrying its\n`covers:` marker, a Rust test, and a plain card.\nThe children attack found a bug, now fixed: `Core\\Xml::parse` built its Rust tree without asking\nthe budget, so a 40 MB document of `<i/>` reached 3.8 GB against a 256 MB cap. The parse now\nasks once per node and per attribute (`Reader::afford`), and a breach is the limit's `FATAL`.\n`a_parse_stops_at_the_memory_limit_while_it_builds_the_tree` pins it.\nEvery Xml bench is re-measured against the changed `xml.rs`.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
+  "state": "Goal `core-xml-node-and-1-more`: `Core\\Xml\\Node::attributes`, `children`, `kind` and `text` have\nall their feature proofs on disk. `bun nv proofs --gate --group 'Core\\Xml\\Node'` names three members\nstill owing: `source`, `name` and `namespaceUri`. `name` was missing from the earlier list, and the gate\nis the list to trust.\nThe two `.nvst` cases `tests/conformance/core/xml-parse-answers-one-node-family-through-the-tree.nvst`\nand `tests/conformance/core/xml-a-comment-and-a-processing-instruction-are-nodes-of-the-family.nvst` call\nevery Node member. They carry `covers:` for `children`, `kind` and `text`. Adding `name` there is the\nwhole `.nvst` edit for `name`.\n`kind` and `text` benches are recorded. Editing only a card in `xml.rs` did not make the older Node\nbenches stale.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
   "next": {
     "stage": 1,
     "title": "member proofs",
@@ -13,15 +13,15 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Node::kind`** — owes about, examples, hostile, perf, tests. Rewrite `KIND_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:376`, member at `crates/nvs-stdlib/src/xml.rs:2321`. The two `.nvst` cases that now cover `children` also call `->kind()` and need only a `// covers:` line. `rule:testing/feature-proofs`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Xml\\Node::text`** — owes about, examples, hostile, perf, tests. Rewrite `TEXT_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:414`, member at `crates/nvs-stdlib/src/xml.rs:2351`. `rule:testing/feature-proofs`"
-      },
-      {
-        "done": false,
         "text": "**`Core\\Xml\\Node::source`** — owes about, examples, hostile, perf, one more test case. Rewrite `SOURCE_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:452`, member at `crates/nvs-stdlib/src/xml.rs:2575`. `rule:testing/feature-proofs`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Xml\\Node::name`** — owes about, examples, hostile, perf, tests. Rewrite `NAME_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:387`, member at `crates/nvs-stdlib/src/xml.rs:2330`. Add it to the two `.nvst` cases' `covers:` line, and write a Rust test beside `text_answers_each_nodes_own_characters_and_nothing_for_an_element`. `rule:testing/feature-proofs`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Xml\\Node::namespaceUri`** — owes about, examples, hostile, perf, tests. Rewrite `NAMESPACE_URI_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:399`, member at `crates/nvs-stdlib/src/xml.rs:2343`. `rule:testing/feature-proofs`"
       }
     ]
   },
