@@ -15224,9 +15224,9 @@ Returns the path of the address. For `https://example.com/docs/guide?page=2` the
 $uri->query(): ?string
 ```
 
-The raw query as written, still encoded — `parse_url`'s `query` key; `Core\Uri::parseQuery` turns it into an array.
+Returns the query of the address, which is the text after the `?`. For `https://example.com/search?q=shoes#top` the result is `q=shoes`. Escapes such as `%20` stay in it, and `Core\Uri::parseQuery` reads it into an array.
 
-**Returns** `?string` — The text after the `?`, or `null` where no `?` was written; a `?` with nothing after it is `""`, not `null`.
+**Returns** `?string` — The query, without the `?`. The result is `null` when the address has no `?`. It is `""` when nothing is written after the `?`.
 
 <a id="core-core-uri-fragment"></a>
 #### `Core\Uri->fragment`
@@ -15279,15 +15279,15 @@ A fresh `Uri` with the named components replaced and every other one carried ove
 $uri->queryParameter(string $name): mixed
 ```
 
-One query parameter by name, read through `Core\Uri::parseQuery`'s bracket convention instead of by parsing the query string at the call site.
+Returns one value from the query of the address, by its name. For `/search?q=red+shoes` the result of `queryParameter("q")` is `red shoes`. The query is read the same way as by `Core\Uri::parseQuery`, and each call reads it again.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The parameter's name, decoded and top-level: the brackets of `a[b]=c` belong to the value, so `"a"` is what reaches it. |
+| `$name` | `string` (neutral) | The name of the parameter, without brackets. For `a[b]=c`, the name is `"a"`. |
 
-**Returns** `mixed` — The value — `bytes`, or a nested `array<mixed>` where the convention built one — and `null` both for a name that is not there and for a URI with no query at all; `query()` is what tells those two apart.
+**Returns** `mixed` — The decoded value as `bytes`. Brackets in the name give an `array<mixed>`. The result is `null` when the name is not in the query, and also when the address has no query. `query()` tells these two apart.
 
-**Throws** `RuntimeError` — A name in the receiver's own query decodes to octets that are not valid UTF-8, which is `Core\Uri::parseQuery`'s refusal reached through it.
+**Throws** `RuntimeError` — A name in the query has escapes that do not decode to valid UTF-8 text. `Core\Uri::parseQuery` throws the same error.
 
 <a id="core-core-uri-withqueryparameter"></a>
 #### `Core\Uri->withQueryParameter`

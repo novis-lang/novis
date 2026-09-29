@@ -1,26 +1,28 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Uri (2/2) has been taken yet.",
+  "state": "Goal `core-uri-2-2`: 2 of the goal's 11 `Core\\Uri` members have their feature proofs.\n`Core\\Uri::query` and `Core\\Uri::queryParameter` are done. Their help cards in\n`crates/nvs-stdlib/src/uri.rs` are now in the plain voice. Nothing is blocked.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "feature proofs, file order",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/uri.rs` and the new `docs/examples/core/Uri/<member>/`, `tests/hostile/core/Uri/<member>/` and `benches/members/core/Uri/`:",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Uri::query`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:519`"
+        "text": "**`Core\\Uri::resolve`** — owes examples, hostile, perf, tests. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:613`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uri::queryParameter`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:586`"
+        "text": "**`Core\\Uri::scheme`** — owes examples, hostile, perf, tests. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:474`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uri::resolve`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:613`"
+        "text": "**`Core\\Uri::userInfo`** — owes examples, hostile, perf, tests. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:483`"
       }
     ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    "after": "The tests owed are usually satisfied by a `// covers:` marker on an existing `.nvst` case and on an existing Rust `#[test]` in `uri.rs`'s test module; `rg -n \"\\->scheme\\(\\)\" tests` finds the cases. Bring the member's `*_DOC` card to the plain voice `FRAGMENT_DOC` uses while you are in it. `bun nv proofs --record-perf --id '<member>'` records the figure once the bench exists."
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Uri::toString`, `tryParse`, `with`, `withQueryParameter`, `sign`, `verifySignature` — the rest of this goal, `docs/agent/goals/core-uri-2-2.md`.",
+    "`Core\\Uri::queryParameter` parses the whole query again on every call (`crates/nvs-stdlib/src/uri.rs:2694`); 1000 reads of a 20000-pair query take about 43 s in the debug build. Caching the parsed array on the instance is a perf item, not a correctness one — owner: whoever takes `uri.rs` perf next; `about.md` tells readers to call `parseQuery` once for many values."
   ]
 }
