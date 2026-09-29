@@ -1,7 +1,8 @@
 // Running the proofs on disk. An example runs and its standard output is compared with the `.out` frozen
 // beside it. An attack runs and passes when the runtime survived it, whatever the program's own fate.
 // `bun nv proofs --run` and `--verify` call this, over any number of groups in one pass: the files of
-// every group go into one pool, and each group's verdict lines are counted from its own files.
+// every group go into one pool, and each group's verdict lines are counted from its own files. A program
+// that runs out of time in the pool runs once more alone before its verdict stands (`timedOut`).
 //
 // A verdict is taken on the proof binary, `target/proof/`, the optimized `proof` profile built without
 // coverage counters: counters slow optimized code several times over, and an attack's time limit is
@@ -463,22 +464,39 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
   let failed = 0;
   const say = () => progress(`proofs: ${ran}/${todo.length} programs run${cached ? ` (${cached} more unchanged)` : ""}${failed ? `, ${failed} failed` : ""}`);
   if (todo.length > 0) say();
+  const runOne = async (t: Program) => {
+    const unlogged = opts.unlogged === true;
+    const [verdict, why, out] = await inPart(t.parts ?? [], async () => {
+      const [raw, rawWhy, ran] = t.what === "examples" ? await runExample(bin.path, t.path, unlogged) : await runHostile(bin.path, t.path, opts.valgrind, unlogged);
+      return [...judgeGap(t.path, raw, rawWhy), ran] as const;
+    });
+    results.set(`${t.what}:${t.path}`, { verdict, why, cached: false, ...(out ? { ran: out } : {}) });
+  };
   const worker = async () => {
     while (next < todo.length) {
       const t = todo[next++]!;
-      const unlogged = opts.unlogged === true;
-      const [verdict, why, out] = await inPart(t.parts ?? [], async () => {
-        const [raw, rawWhy, ran] = t.what === "examples" ? await runExample(bin.path, t.path, unlogged) : await runHostile(bin.path, t.path, opts.valgrind, unlogged);
-        return [...judgeGap(t.path, raw, rawWhy), ran] as const;
-      });
-      results.set(`${t.what}:${t.path}`, { verdict, why, cached: false, ...(out ? { ran: out } : {}) });
+      await runOne(t);
       ran++;
-      if (verdict === "fail") failed++;
+      if (results.get(`${t.what}:${t.path}`)!.verdict === "fail") failed++;
       say();
     }
   };
   await Promise.all(Array.from({ length: width }, worker));
+  const again = new Set(timedOut(results));
+  for (const t of todo.filter((p) => again.has(`${p.what}:${p.path}`))) {
+    progress(`proofs: ${t.path} ran out of time beside others, so it runs once more alone`);
+    await runOne(t);
+  }
   return { results, width, seconds: (performance.now() - started) / 1000 };
+}
+
+/**
+ * The programs whose run ran out of time, each of which is run once more alone before it is judged.
+ * A sweep runs many checks beside one another, and that can slow a bounded program past its limit;
+ * one that really does not end runs out of time alone too, so the retry keeps every hang a failure.
+ */
+export function timedOut(results: Map<string, Result>): string[] {
+  return [...results].filter(([, r]) => r.ran?.timedOut === true).map(([id]) => id);
 }
 
 /** How long a recording run of `path` may take before it is killed as hung: its own limit times

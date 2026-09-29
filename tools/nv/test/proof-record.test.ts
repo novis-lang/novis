@@ -6,7 +6,7 @@ import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV as READS_ENV, readModules } from "../lib/reads.ts";
-import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, spawnProof } from "../proofs/run.ts";
+import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, spawnProof, timedOut } from "../proofs/run.ts";
 import { judgeThenRecord, longestFirst, recordProgram } from "../proofs/select.ts";
 import { proofId } from "../select/atoms.ts";
 import { Recorder } from "../select/record.ts";
@@ -192,6 +192,16 @@ describe("the judged run and the recording run", () => {
     expect(divergence(ran(0, "a\nb\n"), ran(0, "a\nc\n"))).toBe("stdout differs from the judged run's at line 2");
     expect(divergence(ran(0, "a\n"), ran(1, "", true))).toBe("the recording run was still running after 1s");
     expect(divergence(ran(1, "", true), ran(0, "x"))).toBeNull();
+  });
+
+  test("only a program whose judged run ran out of time is run again alone", () => {
+    const results = new Map<string, Result>([
+      ["hostile:slow.nvs", { verdict: "fail", why: "still running after 10s", cached: false, ran: ran(1, "", true) }],
+      ["hostile:crashed.nvs", { verdict: "fail", why: "crash-shaped exit status -1", cached: false, ran: ran(-1, "") }],
+      ["examples:ok.nvs", { verdict: "ok", why: "", cached: false, ran: ran(0, "a\n") }],
+      ["examples:cached.nvs", { verdict: "ok", why: "", cached: true }],
+    ]);
+    expect(timedOut(results)).toEqual(["hostile:slow.nvs"]);
   });
 
   test("a recording run records on the covws build, and marks or clears the program's divergence", async () => {

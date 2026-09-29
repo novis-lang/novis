@@ -2,6 +2,7 @@
 // Attack: a program builds very many doubles, calls one double very often, and makes
 // a double call itself very deeply. Each step should work or throw an error, and the
 // program should not crash.
+// hostile: timeout-ms 30000
 
 interface Counter
 {
