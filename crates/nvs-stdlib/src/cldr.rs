@@ -957,14 +957,19 @@ pub(crate) fn civil_fields_only(pieces: &[Piece]) -> Result<(), String> {
 /// Renders `at` through `pieces`.
 ///
 /// Total: every field reads a component the value already has, so there is
-/// nothing here that can fail once [`compile`] accepted the pattern.
+/// nothing here that can fail once [`compile`] accepted the pattern. `VV`
+/// renders the id `$d->zone()` answers: the IANA name for a region, and the
+/// `±HH:MM[:SS]` spelling for a fixed offset, which has no IANA name.
 pub(crate) fn render(pieces: &[Piece], at: &Zoned) -> String {
-    render_placed(
-        pieces,
-        at.datetime(),
-        at.offset(),
-        at.time_zone().iana_name().unwrap_or("UTC"),
-    )
+    let fixed;
+    let zone = match at.time_zone().iana_name() {
+        Some(name) => name,
+        None => {
+            fixed = crate::time::render_offset(at.offset().seconds());
+            fixed.as_str()
+        }
+    };
+    render_placed(pieces, at.datetime(), at.offset(), zone)
 }
 
 /// [`render`] for a value that names no instant — a `Core\Time\Date` or a

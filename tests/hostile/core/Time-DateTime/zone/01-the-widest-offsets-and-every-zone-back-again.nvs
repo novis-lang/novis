@@ -1,0 +1,43 @@
+<?nvs
+// Attack: `zone` is read from values in the widest fixed offsets and in many named zones.
+// Each zone should give back the same local time, an offset past the limit should throw an error,
+// and nothing should crash.
+
+// 1. The widest fixed offsets. The name of each zone is its offset.
+var $ahead = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $behind = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+echo $ahead->format('VV'), ' ', $behind->format('VV'), "\n";
+echo $ahead->toInstant()->in($ahead->zone())->format('uuuu-MM-dd HH:mm:ss'), "\n";
+echo $behind->toInstant()->in($behind->zone())->format('uuuu-MM-dd HH:mm:ss'), "\n";
+
+// 2. One second more than the widest offset throws an error.
+int $refused = 0;
+try { Core\Time\Zone::fixed(26h); } catch (RuntimeError $wide) { $refused = $refused + 1; }
+try { Core\Time\Zone::fixed(26h->negated()); } catch (RuntimeError $wide) { $refused = $refused + 1; }
+echo $refused, " refused\n";
+
+// 3. One moment is read in many zones, including zones on a half or quarter hour.
+// Reading it again in the zone that `zone` returns gives the same text every time.
+array<string> $names = [
+    'UTC', 'Europe/Berlin', 'America/St_Johns', 'Asia/Kathmandu', 'Australia/Eucla',
+    'Pacific/Chatham', 'Pacific/Kiritimati', 'Pacific/Pago_Pago', 'Asia/Kolkata', 'America/Caracas',
+];
+var $moment = Core\Time::fromIso('2024-03-31T01:30:00Z');
+int $same = 0;
+foreach ($names as string $name) {
+    var $local = $moment->in(Core\Time\Zone::of($name));
+    if ($moment->in($local->zone())->format('yyyy-MM-dd HH:mm XXX VV') == $local->format('yyyy-MM-dd HH:mm XXX VV')) {
+        $same = $same + 1;
+    }
+}
+echo $same, " of 10 the same\n";
+
+// 4. One million zones are made and dropped. Each one is freed.
+int $round = 0;
+int $seconds = 0;
+var $instant = $ahead->toInstant();
+while ($round < 1000000) {
+    $seconds = $seconds + $ahead->zone()->offsetAt($instant)->toSeconds() % 7;
+    $round = $round + 1;
+}
+echo $seconds, "\n";

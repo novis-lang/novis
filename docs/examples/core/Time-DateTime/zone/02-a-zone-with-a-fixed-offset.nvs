@@ -1,0 +1,12 @@
+<?nvs
+// Shows the time zone of a value that was read at a fixed offset from UTC.
+
+// `Zone::fixed` makes a zone that is always 5 hours and 30 minutes ahead of UTC.
+var $reading = Core\Time::fromIso("2024-03-05T10:00:00Z")->in(Core\Time\Zone::fixed(5h30m));
+
+// A fixed zone has no place name, so its name is the offset. This prints +05:30.
+echo $reading->format("VV"), "\n";
+
+// The offset is the same all year. This prints 5h30m.
+var $zone = $reading->zone();
+echo $zone->offsetAt(Core\Time::fromIso("2024-07-01T00:00:00Z"))->toString(), "\n";

@@ -3409,8 +3409,9 @@ fn parse_offset(text: &str) -> Option<Offset> {
 }
 
 /// The `±HH:MM[:SS]` spelling of a whole-second offset — [`parse_offset`]'s
-/// inverse, and the id a fixed [`ZONE`] is stored under.
-fn render_offset(seconds: i32) -> String {
+/// inverse, the id a fixed [`ZONE`] is stored under, and what `VV` renders
+/// for one.
+pub(crate) fn render_offset(seconds: i32) -> String {
     let sign = if seconds < 0 { '-' } else { '+' };
     let total = seconds.unsigned_abs();
     let (hours, minutes, seconds) = (total / 3_600, (total % 3_600) / 60, total % 60);
@@ -6231,6 +6232,164 @@ mod tests {
                 answer.release();
             }
             assert_eq!(read.ok(), Some(at.timestamp()), "{at}");
+        }
+    }
+
+    /// The four instants the zone-view tests read: a zone off the hour, a wall
+    /// time Berlin's clocks skipped, and both ends of the timestamp range at
+    /// the widest offsets, which are the first and the last civil second.
+    fn zone_view_samples() -> [Zoned; 4] {
+        let skipped = civil::date(2024, 3, 31)
+            .at(2, 30, 0, 0)
+            .to_zoned(TimeZone::get("Europe/Berlin").expect("a known zone"))
+            .expect("a skipped wall time resolves forward");
+        [
+            "2024-07-01T12:30:00Z"
+                .parse::<Timestamp>()
+                .expect("a valid instant")
+                .to_zoned(TimeZone::get("Asia/Kolkata").expect("a known zone")),
+            skipped,
+            Timestamp::MAX.to_zoned(TimeZone::fixed(Offset::MAX)),
+            Timestamp::MIN.to_zoned(TimeZone::fixed(Offset::MIN)),
+        ]
+    }
+
+    /// `member` called on the `DateTime` `at` names, the way a compiled call
+    /// site calls it, with the answer handed to `read` before it is released.
+    fn datetime_view<T>(
+        member: nvs_runtime::NvsFn,
+        at: &Zoned,
+        read: impl FnOnce(Value) -> T,
+    ) -> T {
+        let mut ctx = Ctx::buffered();
+        let receiver = datetime_built(at);
+        let answer =
+            nvs_runtime::call(member, &mut ctx, &[receiver]).expect("a view refuses no `DateTime`");
+        let read = read(answer);
+        #[expect(unsafe_code, reason = "this frame owns the receiver and the answer")]
+        unsafe {
+            receiver.release();
+            answer.release();
+        }
+        read
+    }
+
+    /// `timeOfDay` is the wall clock where the value is, to the nanosecond: a
+    /// half-hour zone, a skipped hour read forward, and the last and first
+    /// civil seconds the timestamp range reaches.
+    // covers: Core\Time\DateTime::timeOfDay
+    #[test]
+    fn datetime_time_of_day_is_the_wall_clock_in_the_values_own_zone() {
+        let clocks = zone_view_samples().map(|at| {
+            datetime_view(
+                nvs_core_time_datetime_time_of_day,
+                &at,
+                |answer| match clock_of(&[answer], 0, "timeOfDay") {
+                    Ok(clock) => clock,
+                    Err(_) => panic!("`timeOfDay` answers a `TimeOfDay`"),
+                },
+            )
+        });
+        assert_eq!(
+            clocks,
+            [
+                civil::time(18, 0, 0, 0),
+                civil::time(3, 30, 0, 0),
+                civil::time(23, 59, 59, 999_999_999),
+                civil::time(0, 0, 0, 0),
+            ]
+        );
+    }
+
+    /// `zone` answers the id the value was read in, a fixed offset's spelled
+    /// to the second, and `format("VV")` renders that same id rather than
+    /// `UTC` for a zone with no IANA name.
+    // covers: Core\Time\DateTime::zone
+    #[test]
+    fn datetime_zone_is_the_id_it_reads_in_and_the_one_vv_renders() {
+        let vv = crate::cldr::compile("VV").expect("`VV` is a pattern");
+        for (at, id) in zone_view_samples().into_iter().zip([
+            "Asia/Kolkata",
+            "Europe/Berlin",
+            "+25:59:59",
+            "-25:59:59",
+        ]) {
+            let read = datetime_view(nvs_core_time_datetime_zone, &at, |answer| {
+                match crate::instance::receiver(answer, &ZONE, "zone") {
+                    Ok(object) => crate::instance::slot(object, ZONE_ID_SLOT)
+                        .as_text()
+                        .map(str::to_owned),
+                    Err(_) => None,
+                }
+            });
+            assert_eq!(read.as_deref(), Some(id), "{at}");
+            assert_eq!(crate::cldr::render(&vv, &at), id, "{at}");
+            let resolved = resolve_zone(id).expect("the id resolves");
+            assert_eq!(resolved.to_offset(at.timestamp()), at.offset(), "{at}");
+        }
+    }
+
+    /// `weekday` is Monday-zero, read where the value is: one instant is a
+    /// Monday in Kolkata and a Sunday in Honolulu, and the calendar's last day
+    /// is a Friday and its first a Monday.
+    // covers: Core\Time\DateTime::weekday
+    #[test]
+    fn datetime_weekday_is_monday_zero_in_the_values_own_zone() {
+        let monday_morning = "2024-07-01T02:00:00Z"
+            .parse::<Timestamp>()
+            .expect("a valid instant");
+        let mut cases = vec![
+            (
+                monday_morning.to_zoned(TimeZone::get("Asia/Kolkata").expect("a known zone")),
+                0,
+            ),
+            (
+                monday_morning.to_zoned(TimeZone::get("Pacific/Honolulu").expect("a known zone")),
+                6,
+            ),
+        ];
+        let [_, _, last, first] = zone_view_samples();
+        cases.push((last, 4));
+        cases.push((first, 0));
+        for (at, weekday) in cases {
+            let read = datetime_view(nvs_core_time_datetime_weekday, &at, |answer| {
+                answer.as_int()
+            });
+            assert_eq!(read, Some(weekday), "{at}");
+        }
+    }
+
+    /// `isLeapYear` follows the Gregorian rule where the value is: a century
+    /// is not a leap year unless it divides by 400, and one instant is in
+    /// 2024 in Tokyo and still in 2023 in New York.
+    // covers: Core\Time\DateTime::isLeapYear
+    #[test]
+    fn datetime_is_leap_year_is_the_gregorian_rule_in_the_values_own_zone() {
+        let new_year = "2023-12-31T20:00:00Z"
+            .parse::<Timestamp>()
+            .expect("a valid instant");
+        let utc = |text: &str| {
+            text.parse::<Timestamp>()
+                .expect("a valid instant")
+                .to_zoned(TimeZone::UTC)
+        };
+        for (at, leap) in [
+            (utc("1900-06-01T00:00:00Z"), false),
+            (utc("2000-06-01T00:00:00Z"), true),
+            (utc("2100-06-01T00:00:00Z"), false),
+            (
+                new_year.to_zoned(TimeZone::get("Asia/Tokyo").expect("a known zone")),
+                true,
+            ),
+            (
+                new_year.to_zoned(TimeZone::get("America/New_York").expect("a known zone")),
+                false,
+            ),
+        ] {
+            let read = datetime_view(nvs_core_time_datetime_is_leap_year, &at, |answer| {
+                answer.as_bool()
+            });
+            assert_eq!(read, Some(leap), "{at}");
         }
     }
 }

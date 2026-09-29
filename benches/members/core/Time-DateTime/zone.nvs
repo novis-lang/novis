@@ -1,0 +1,26 @@
+<?nvs
+// Gets the time zone of a date and time, as a program does to show other times in the same zone.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Time\DateTime> $moments = [
+            Core\Time::at(2024, 3, 30, Core\Time\Zone::of("Europe/Berlin"), {hour: 23}),
+            Core\Time::at(2024, 12, 31, Core\Time\Zone::of("Asia/Kolkata"), {hour: 12}),
+            Core\Time::at(2025, 1, 1, Core\Time\Zone::fixed(5h45m)),
+        ];
+        var $instant = Core\Time::fromIso("2024-07-01T00:00:00Z");
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the value read in this round
+            var $zone = $moments[(($total as uint + $i) % 3) as int]->zone();
+            $total = $total + $zone->offsetAt($instant)->toSeconds() % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

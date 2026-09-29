@@ -2,7 +2,7 @@
 Spec § 4: a `DateTime`'s component views, `dayOfYear` and `difference` all answer about the same civil time
 --FILE--
 <?nvs
-// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear, Core\Time\DateTime::difference, Core\Time\DateTime::toInstant
+// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear, Core\Time\DateTime::difference, Core\Time\DateTime::toInstant, Core\Time\DateTime::timeOfDay, Core\Time\DateTime::zone, Core\Time\DateTime::weekday, Core\Time\DateTime::isLeapYear
 // § 4's `DateTime` is one civil time in one named zone, and half its members
 // are views of that: `date`, `timeOfDay` and `zone` each drop part of it, and
 // `dayOfYear`, `isLeapYear` and `difference` count over it. Each of those can
@@ -119,6 +119,13 @@ echo $leapDay->date()->format("yyyy-MM-dd"), "|", $leapDay->timeOfDay()->format(
 echo $leapDay->dayOfYear() as string, "|", $leapDay->isLeapYear() as string, "|\n";
 echo $leapDay->zone()->offsetAt($leapDay->toInstant())->toSeconds() as string, "|\n";
 echo $leapDay->with({year: 2023, month: 2, day: 28})->dayOfYear() as string, "|", $leapDay->with({year: 2023, month: 2, day: 28})->isLeapYear() as string, "|\n";
+
+// A fixed offset has no IANA name, so its id is the offset itself. `VV`
+// renders the id `zone` answers, and a second value read in that zone is at
+// the same offset.
+var $fixed = $leapDay->toInstant()->in(Core\Time\Zone::fixed(5h45m));
+var $again = Core\Time::fromIso("2024-07-01T00:00:00Z")->in($fixed->zone());
+echo $fixed->format("VV"), "|", $again->format("HH:mm VV"), "|", $leapDay->format("VV"), "|\n";
 --EXPECT--
 24|24|24|24|24|24|
 36|36|36|
@@ -132,3 +139,4 @@ Core\Time\DateTime::difference(): the count does not fit in an `int`|
 60|1|
 19800|
 59||
++05:45|05:45 +05:45|Asia/Kolkata|
