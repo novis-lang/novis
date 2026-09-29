@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<products>
+  <product sku="A-100">Salt &amp; Pepper Set</product>
+  <product sku="B-200">Cable &lt;USB-C&gt; 2m</product>
+  <product sku="C-300">Café Crème Cups</product>
+</products>

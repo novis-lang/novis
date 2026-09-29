@@ -839,58 +839,55 @@ const END_DOCUMENT_DOC: MethodDoc = MethodDoc {
 /// `Core\Xml\Writer::startElement`'s reference card —
 /// `rule:core-api/reference-card`.
 const START_ELEMENT_DOC: MethodDoc = MethodDoc {
-    short: "Opens an element, which is the other of the two pairs: everything written until its \
-            `endElement` is inside it. Attributes go on it until the first thing that is not one, \
-            and whether it is written as `<a></a>` or `<a/>` is settled by whether anything was.",
+    short: "Opens an element, such as `<order>`. Everything you write until the matching \
+            `endElement` goes inside it. Call `attribute` right after this method to add \
+            attributes to the element.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The element's name, qualified prefix and all — a qualified name is a name, so \
-               there is no second member for a document that uses them. It has to be a name XML \
-               can write, and is refused rather than escaped when it is not.",
+        desc: "The element's name, such as `order` or `atom:link`. It must be a valid XML name. \
+               The writer does not escape it.",
         shape: &[],
     }],
-    ret: "Nothing; the element is open and is what the next writes go into.",
+    ret: "Nothing. The element is open, and the next calls write inside it.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The name is not a name XML can write, a second root element was started, elements \
-               are nested deeper than the ceiling, or the document is not open.",
+        desc: "The name is not a valid XML name. The root element is already written and closed. \
+               1024 elements are already open inside each other. The document is not open.",
     }],
 };
 
 /// `Core\Xml\Writer::endElement`'s reference card —
 /// `rule:core-api/reference-card`.
 const END_ELEMENT_DOC: MethodDoc = MethodDoc {
-    short: "Closes the innermost open element. The name is not an argument, because the writer \
-            knows what is open — which is the whole of why a mismatched close is not a shape this \
-            API has.",
+    short: "Closes the element that `startElement` opened last. You do not pass a name, because \
+            the writer remembers which elements are open. So the end tags always match the start \
+            tags.",
     params: &[],
-    ret: "Nothing; an element nothing was written into is closed as `<a/>`, and one that holds \
-          something as `</a>`.",
+    ret: "Nothing. An empty element is written as `<a/>`. An element with something inside is \
+          closed with `</a>`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "Nothing is open, or the document is not open.",
+        desc: "No element is open. The document is not open.",
     }],
 };
 
 /// `Core\Xml\Writer::content`'s reference card — `rule:core-api/reference-card`.
 const CONTENT_DOC: MethodDoc = MethodDoc {
-    short: "Writes character data into the open element, escaped. This is the writer's escape \
-            point: `&`, `<` and `>` become references here, so an injection is not reachable by \
-            forgetting a call, and there is no member that writes markup a caller assembled — \
-            `rule:security/launderers-are-sink-named` is why a generic one would not be added.",
+    short: "Writes text inside the open element. The writer escapes it: `&` becomes `&amp;`, `<` \
+            becomes `&lt;` and `>` becomes `&gt;`. A parser reads back exactly the text you \
+            wrote, so the text can never add an element or an attribute.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The characters to write. `tainted` text is accepted and laundered for this one \
-               sink, an XML document, because what reaches the document is the escaped form and \
-               nothing a caller writes here can become markup.",
+        desc: "The text to write. It can contain any character XML allows, including `<`, `&` \
+               and quotes. A `tainted` text is allowed, because the writer escapes it.",
         shape: &[],
     }],
-    ret: "Nothing; the open element now holds character data, and the writer stops indenting \
-          inside it, since whitespace beside text changes what a document says.",
+    ret: "Nothing. After this call, the writer does not indent inside this element, because \
+          added whitespace would change the text.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "No element is open, the text holds a character XML cannot write, or the document \
-               is not open.",
+        desc: "No element is open. The text contains a control character that XML cannot write. \
+               The document is not open.",
     }],
 };
 
@@ -1233,12 +1230,13 @@ fn numeric(code: Option<u32>, body: &str) -> Result<char, String> {
 }
 
 /// Whether XML has no way to write `ch`: a control character other than the
-/// three whitespace ones. This is the one test for it — a reference naming one
-/// is refused by [`numeric`], a literal one by [`refused_literal`]'s callers, and a
-/// writer that would emit one by [`unwritable`] — so the parser never accepts
-/// a character the writers refuse to write back out.
+/// three whitespace ones, or U+FFFE and U+FFFF, which XML's `Char` production
+/// leaves out. This is the one test for it — a reference naming one is refused
+/// by [`numeric`], a literal one by [`refused_literal`]'s callers, and a writer
+/// that would emit one by [`unwritable`] — so the parser never accepts a
+/// character the writers refuse to write back out.
 fn forbidden(ch: char) -> bool {
-    ch.is_control() && !matches!(ch, '\t' | '\r' | '\n')
+    (ch.is_control() && !matches!(ch, '\t' | '\r' | '\n')) || matches!(ch, '\u{FFFE}' | '\u{FFFF}')
 }
 
 /// The sentence for a literal [`forbidden`] character in the document.
@@ -5028,6 +5026,164 @@ mod tests {
 
         dropped(document);
         for held in words.into_iter().chain([writer]) {
+            dropped(held);
+        }
+    }
+
+    /// Text is escaped and parses back exactly as it went in: the three markup
+    /// characters become references, while quotes, a tab and a line break are
+    /// written as they are. It needs an open element on both sides of the
+    /// root, a control character and U+FFFF are refused and write nothing, and an empty
+    /// text still closes the element as `<e></e>`.
+    // covers: Core\Xml\Writer::content
+    #[test]
+    fn content_parses_back_as_written_and_cannot_become_markup() {
+        let start = super::nvs_core_xml_writer_start_element;
+        let end = super::nvs_core_xml_writer_end_element;
+        let content = super::nvs_core_xml_writer_content;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "  ");
+        let raw = "a < b && c > d \"q\" 'r' </b><x> ]]>\t\n";
+        let texts: Vec<Value> = [raw, "", "a\u{1}b", "\u{FFFF}"]
+            .into_iter()
+            .map(word)
+            .collect();
+        let (a, b, e) = (word("a"), word("b"), word("e"));
+
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+        let why = asked(&mut ctx, content, &[writer, texts[0]]).expect_err("no element is open");
+        assert!(why.contains("none is open"), "{why}");
+        wrote(asked(&mut ctx, start, &[writer, a]));
+        wrote(asked(&mut ctx, start, &[writer, b]));
+        wrote(asked(&mut ctx, content, &[writer, texts[0]]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, start, &[writer, e]));
+        wrote(asked(&mut ctx, content, &[writer, texts[1]]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        let why = asked(&mut ctx, content, &[writer, texts[2]]).expect_err("U+0001 has no form");
+        assert!(why.contains("U+0001"), "{why}");
+        let why = asked(&mut ctx, content, &[writer, texts[3]]).expect_err("XML stops at U+FFFD");
+        assert!(why.contains("U+FFFF"), "{why}");
+        wrote(asked(&mut ctx, end, &[writer]));
+        let why = asked(&mut ctx, content, &[writer, texts[0]]).expect_err("the root is closed");
+        assert!(why.contains("none is open"), "{why}");
+
+        let document = asked(&mut ctx, super::nvs_core_xml_writer_end_document, &[writer])
+            .expect("the root element is written and closed");
+        let text = document.as_text().expect("a finished document is text");
+        assert_eq!(
+            text,
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a>\n  <b>a &lt; b &amp;&amp; c &gt; d \
+             \"q\" 'r' &lt;/b&gt;&lt;x&gt; ]]&gt;\t\n</b>\n  <e></e>\n</a>"
+        );
+        let tree = parse(text).expect("what the writer answered is a document");
+        let elements: Vec<&Parsed> = tree.children[0]
+            .children
+            .iter()
+            .filter(|node| node.kind == Kind::Element)
+            .collect();
+        assert_eq!(elements.len(), 2);
+        assert_eq!(elements[0].children.len(), 1);
+        assert_eq!(elements[0].children[0].text, raw);
+        assert!(elements[1].children.is_empty());
+
+        dropped(document);
+        for held in texts.into_iter().chain([a, b, e, writer]) {
+            dropped(held);
+        }
+    }
+
+    /// An element nothing was written into closes as `<a/>`, and one holding
+    /// an element closes as `</b>` on its own indented line. A qualified name
+    /// is a name, while a name XML cannot write is refused and opens nothing.
+    /// [`DEPTH_CEILING`] elements nest and one more is refused, a second root
+    /// is refused, and closing with nothing open is refused on both sides of
+    /// the root.
+    // covers: Core\Xml\Writer::startElement
+    // covers: Core\Xml\Writer::endElement
+    #[test]
+    fn elements_close_in_the_order_they_opened_and_nest_up_to_the_ceiling() {
+        let start = super::nvs_core_xml_writer_start_element;
+        let end = super::nvs_core_xml_writer_end_element;
+        let finish = super::nvs_core_xml_writer_end_document;
+        let ceiling = super::DEPTH_CEILING;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "  ");
+        let words: Vec<Value> = ["root", "x:a", "b", "_c", "1a", "a b", "", "<x>"]
+            .into_iter()
+            .map(word)
+            .collect();
+        let [root, a, b, c, digit, spaced, empty, angled] = words[..] else {
+            unreachable!("eight words were built");
+        };
+
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+        let why = asked(&mut ctx, end, &[writer]).expect_err("nothing is open");
+        assert!(why.contains("nothing to close"), "{why}");
+        wrote(asked(&mut ctx, start, &[writer, root]));
+        for bad in [digit, spaced, empty, angled] {
+            let why = asked(&mut ctx, start, &[writer, bad]).expect_err("not a name");
+            assert!(why.contains("not a name"), "{why}");
+        }
+        wrote(asked(&mut ctx, start, &[writer, a]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, start, &[writer, b]));
+        wrote(asked(&mut ctx, start, &[writer, c]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        let why = asked(&mut ctx, start, &[writer, root]).expect_err("the root is written");
+        assert!(why.contains("one root element"), "{why}");
+        let why = asked(&mut ctx, end, &[writer]).expect_err("the root is closed");
+        assert!(why.contains("nothing to close"), "{why}");
+
+        let document = asked(&mut ctx, finish, &[writer]).expect("the root is closed");
+        assert_eq!(
+            document.as_text().expect("a finished document is text"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root>\n  <x:a/>\n  <b>\n    <_c/>\n  \
+             </b>\n</root>"
+        );
+        dropped(document);
+
+        let deep = pen(&mut ctx, "");
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[deep],
+        ));
+        for _ in 0..ceiling {
+            wrote(asked(&mut ctx, start, &[deep, b]));
+        }
+        let why = asked(&mut ctx, start, &[deep, b]).expect_err("one past the ceiling");
+        assert!(why.contains(&format!("{ceiling} deep")), "{why}");
+        for _ in 0..ceiling {
+            wrote(asked(&mut ctx, end, &[deep]));
+        }
+        let document = asked(&mut ctx, finish, &[deep]).expect("every element is closed");
+        let text = document.as_text().expect("a finished document is text");
+        let body = format!(
+            "{}<b/>{}",
+            "<b>".repeat(ceiling - 1),
+            "</b>".repeat(ceiling - 1)
+        );
+        assert_eq!(
+            text,
+            format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>{body}")
+        );
+        parse(text).expect("the deepest document the writer writes is one the parser reads");
+
+        dropped(document);
+        for held in words.into_iter().chain([writer, deep]) {
             dropped(held);
         }
     }

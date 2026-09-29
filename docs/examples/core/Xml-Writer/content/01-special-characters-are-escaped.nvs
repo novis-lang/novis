@@ -1,0 +1,18 @@
+<?nvs
+// Shows how `content` escapes a text, and how a parser reads the same text back.
+
+string $text = "Fish & Chips <today only> for \"2 people\"";
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+$writer->startElement("offer");
+// `&`, `<` and `>` are written as `&amp;`, `&lt;` and `&gt;`. Quotes are written unchanged.
+$writer->content($text);
+$writer->endElement();
+string $document = $writer->endDocument();
+echo $document, "\n";
+
+// The parser gives back the original text. This prints the text, and then `true`.
+tainted string $read = Core\Xml::parse($document)->children()[0]->children()[0]->text();
+echo $read, "\n";
+echo $read == $text ? "true" : "false", "\n";

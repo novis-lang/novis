@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a program writes texts that try to close the element and add new elements, and writes very long and very many texts.
+// Each text should be escaped or throw a `LogicError`, and the finished document should still be valid XML.
+// hostile: timeout-ms 20000
+
+class Try
+{
+    // Runs one call and prints `ok`, or the class of the error it throws.
+    public static function call(callable $step): void
+    {
+        try {
+            $step();
+            echo "ok\n";
+        } catch (LogicError $error) {
+            echo "LogicError\n";
+        }
+    }
+}
+
+Core\Xml\Writer $out = Core\Xml::writer({ indent: '  ' });
+$out->startDocument();
+
+// 1. Text before the root element. This prints LogicError.
+Try::call(fn(): void => { $out->content('<admin/>'); });
+
+$out->startElement('page');
+$out->startElement('name');
+
+// 2. Texts that try to close the element and add markup. Each prints ok, because the text is escaped.
+Try::call(fn(): void => { $out->content('</name><admin role="root"/><name>'); });
+Try::call(fn(): void => { $out->content('&lt;admin/&gt; &#60; &amp'); });
+Try::call(fn(): void => { $out->content(']]><![CDATA[<admin/>'); });
+Try::call(fn(): void => { $out->content('<!-- --><?php ?><!DOCTYPE x>'); });
+
+// 3. Texts with characters XML cannot write. Each prints LogicError.
+Try::call(fn(): void => { $out->content("a\x00b"); });
+Try::call(fn(): void => { $out->content("a\x1Bb"); });
+Try::call(fn(): void => { $out->content("\u{FFFE}"); });
+Try::call(fn(): void => { $out->content("\u{FFFF}"); });
+
+// 4. A control character at the very end of a long text. This prints LogicError after one scan of the text.
+Try::call(fn(): void => { $out->content(Core\Str::repeat('<&>', 1000000) . "\x01"); });
+
+// 5. A long text where every character is escaped. This prints ok.
+Try::call(fn(): void => { $out->content(Core\Str::repeat('<&>', 1000000)); });
+
+$out->endElement();
+
+// 6. 100,000 texts inside one element. This prints ok.
+$out->startElement('log');
+Try::call(fn(): void => {
+    int $i = 0;
+    while ($i < 100000) {
+        $out->content('<line n="' . $i . '"/>');
+        $i = $i + 1;
+    }
+});
+$out->endElement();
+
+$out->endElement();
+
+// 7. Text after the root element is closed. This prints LogicError.
+Try::call(fn(): void => { $out->content('<admin/>'); });
+
+// 8. The document is finished and parsed again. This prints `no markup`, and then the length.
+string $document = $out->endDocument();
+Core\Xml::parse($document);
+echo Core\Str::contains($document, '<admin') ? 'markup' : 'no markup', "\n";
+echo Core\Str::length($document), "\n";

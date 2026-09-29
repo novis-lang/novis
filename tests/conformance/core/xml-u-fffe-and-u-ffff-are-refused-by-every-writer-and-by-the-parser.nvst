@@ -1,0 +1,58 @@
+--TEST--
+U+FFFE and U+FFFF are outside the characters XML allows, so every writer refuses them and the parser refuses them literally and as a reference, while U+FFFD is written and read back — `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Xml\Writer::content
+// covers: Core\Xml\Writer::attribute
+// covers: Core\Xml\Writer::comment
+// covers: Core\Xml\Writer::cdata
+// XML's `Char` production stops at U+FFFD, so a document holding either
+// character is one no other parser accepts. The writers and the parser
+// share one test, so each refusal below names the same character.
+Core\Xml\Writer $w = Core\Xml::writer();
+$w->startDocument();
+$w->startElement("a");
+try {
+    $w->attribute("x", "\u{FFFE}");
+} catch (LogicError $attribute) {
+    echo $attribute->message, "\n";
+}
+try {
+    $w->content("a\u{FFFF}");
+} catch (LogicError $content) {
+    echo $content->message, "\n";
+}
+try {
+    $w->cdata("\u{FFFF}b");
+} catch (LogicError $cdata) {
+    echo $cdata->message, "\n";
+}
+try {
+    $w->comment("\u{FFFE}");
+} catch (LogicError $comment) {
+    echo $comment->message, "\n";
+}
+$w->content("\u{FFFD}");
+$w->endElement();
+string $written = $w->endDocument();
+echo $written == "<?xml version=\"1.0\" encoding=\"UTF-8\"?><a>\u{FFFD}</a>" ? "one U+FFFD" : $written, "\n";
+echo Core\Xml::parse($written)->children()[0]->children()[0]->text() =="\u{FFFD}" ? "read back" : "lost", "\n";
+array<string> $sources = ["<a>\u{FFFF}</a>", "<a>&#xFFFE;</a>", "<a>&#65535;</a>"];
+foreach ($sources as string $source) {
+    try {
+        Core\Xml::parse($source);
+        echo "accepted\n";
+    } catch (ParseError $parse) {
+        echo "refused\n";
+    }
+}
+--EXPECT--
+Core\Xml\Writer::attribute(): the text holds U+FFFE, which a document has no way to write.
+Core\Xml\Writer::content(): the text holds U+FFFF, which a document has no way to write.
+Core\Xml\Writer::cdata(): the text holds U+FFFF, which a document has no way to write.
+Core\Xml\Writer::comment(): the text holds U+FFFE, which a document has no way to write.
+one U+FFFD
+read back
+refused
+refused
+refused

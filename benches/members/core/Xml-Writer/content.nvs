@@ -1,0 +1,22 @@
+<?nvs
+// Writes short texts with characters to escape into an element, as a program does when it exports product names.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $parts = ["Salt & Pepper", "Cable <USB-C>", "Plain name"];
+        Core\Xml\Writer $writer = Core\Xml::writer();
+        $writer->startDocument();
+        $writer->startElement("products");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $writer->content($parts[(($total + $i) % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";
