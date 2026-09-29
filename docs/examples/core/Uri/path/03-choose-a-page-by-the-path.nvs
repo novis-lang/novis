@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a server chooses which page to show for the path of a request.
+
+class Router {
+    public static function page(string $address): string {
+        string $path = Core\Uri::parse($address)->path();
+        if ($path == "" || $path == "/") {
+            return "home page";
+        }
+        // `/products/42` splits into "", "products" and "42".
+        array<string> $parts = Core\Str::split($path, "/");
+        if (Core\Arr::count($parts) == 3 && $parts[1] == "products") {
+            return "product " . $parts[2];
+        }
+        return "not found";
+    }
+}
+
+// In a real program, the address comes from the request.
+array<string> $requests = [
+    "https://shop.example.com/",
+    "https://shop.example.com/products/42?color=red",
+    "https://shop.example.com/admin",
+];
+
+// This prints home page, product 42 and not found.
+foreach ($requests as string $request) {
+    echo Router::page($request), "\n";
+}
