@@ -5949,6 +5949,83 @@ mod tests {
         }
     }
 
+    /// `microseconds`, `milliseconds` and `minutes` count exact units of 1000,
+    /// 1 000 000 and 60 000 000 000 nanoseconds, in both directions. The
+    /// largest count that fits and the first one past it are asserted together
+    /// at both ends, and the throw names the member.
+    // covers: Core\Time\Duration::microseconds, Core\Time\Duration::milliseconds, Core\Time\Duration::minutes
+    #[test]
+    fn duration_microseconds_milliseconds_and_minutes_are_exact_and_bounded_on_both_sides() {
+        let micros = |n: i64| {
+            let mut ctx = Ctx::buffered();
+            nvs_runtime::call(
+                nvs_core_time_duration_microseconds,
+                &mut ctx,
+                &[Value::int(n)],
+            )
+            .map(read_and_release)
+            .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+        let millis = |n: i64| {
+            let mut ctx = Ctx::buffered();
+            nvs_runtime::call(
+                nvs_core_time_duration_milliseconds,
+                &mut ctx,
+                &[Value::int(n)],
+            )
+            .map(read_and_release)
+            .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+        let minutes = |n: i64| {
+            let mut ctx = Ctx::buffered();
+            nvs_runtime::call(nvs_core_time_duration_minutes, &mut ctx, &[Value::int(n)])
+                .map(read_and_release)
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+        assert_eq!(micros(0), Ok(0));
+        assert_eq!(micros(1_500), Ok(1_500_000));
+        assert_eq!(millis(-250), Ok(-250_000_000));
+        assert_eq!(millis(1), micros(1_000));
+        assert_eq!(minutes(90), Ok(90 * 60_000_000_000));
+        assert_eq!(minutes(-1), millis(-60_000));
+        assert_eq!(micros(9_223_372_036_854_775), Ok(9_223_372_036_854_775_000));
+        assert_eq!(
+            micros(-9_223_372_036_854_775),
+            Ok(-9_223_372_036_854_775_000)
+        );
+        assert_eq!(millis(9_223_372_036_854), Ok(9_223_372_036_854_000_000));
+        assert_eq!(millis(-9_223_372_036_854), Ok(-9_223_372_036_854_000_000));
+        assert_eq!(minutes(153_722_867), Ok(153_722_867 * 60_000_000_000));
+        assert_eq!(minutes(-153_722_867), Ok(-153_722_867 * 60_000_000_000));
+        let past = |member: &str, answers: [Result<i64, String>; 4]| {
+            for refused in answers {
+                let refused = refused.expect_err("past the range");
+                assert!(
+                    refused.starts_with(&format!("Core\\Time\\Duration::{member}(): ")),
+                    "{refused}"
+                );
+            }
+        };
+        past(
+            "microseconds",
+            [
+                9_223_372_036_854_776,
+                -9_223_372_036_854_776,
+                i64::MAX,
+                i64::MIN,
+            ]
+            .map(micros),
+        );
+        past(
+            "milliseconds",
+            [9_223_372_036_855, -9_223_372_036_855, i64::MAX, i64::MIN].map(millis),
+        );
+        past(
+            "minutes",
+            [153_722_868, -153_722_868, i64::MAX, i64::MIN].map(minutes),
+        );
+    }
+
     /// The nanosecond count of a `Duration` this frame was handed, released
     /// once it is read.
     fn read_and_release(made: Value) -> i64 {

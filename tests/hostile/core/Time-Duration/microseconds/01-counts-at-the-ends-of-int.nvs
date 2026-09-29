@@ -1,0 +1,36 @@
+<?nvs
+// Attack: `microseconds` gets the largest and smallest numbers there are, and one million new durations.
+// A number that does not fit should throw a `RuntimeError`, and nothing should crash or leak.
+
+// 1. Every number around the limit and at the ends of `int`, on both sides of zero.
+array<int> $counts = [
+    9223372036854775, 9223372036854776, -9223372036854775, -9223372036854776,
+    9223372036854775807, -9223372036854775807 - 1, 0, 1, -1,
+];
+int $built = 0;
+int $refused = 0;
+foreach ($counts as int $n) {
+    try {
+        Core\Time\Duration::microseconds($n);
+        $built = $built + 1;
+    } catch (RuntimeError $e) {
+        $refused = $refused + 1;
+    }
+}
+echo $built, ' built, ', $refused, " refused\n";
+
+// 2. The largest duration gets one more microsecond added. This throws.
+try {
+    Core\Time\Duration::microseconds(9223372036854775)->plus(Core\Time\Duration::microseconds(1));
+} catch (RuntimeError $f) {
+    echo "sum refused\n";
+}
+
+// 3. One million durations are built, one at a time. Each one is freed again.
+int $round = 0;
+int $total = 0;
+while ($round < 1000000) {
+    $total = $total + Core\Time\Duration::microseconds($round - 500000)->toMicroseconds() % 7;
+    $round = $round + 1;
+}
+echo $total, "\n";
