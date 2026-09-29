@@ -1,0 +1,13 @@
+<?nvs
+// Checks whether a download link is still valid, from a number of hours in the settings.
+
+array<int> $settings = ["linkHours" => 48];
+Core\Time\Duration $valid = Core\Time\Duration::hours($settings["linkHours"]);
+
+var $created = Core\Time::fromIso("2024-06-10T15:30:00Z");
+array<string> $clicks = ["2024-06-11T08:00:00Z", "2024-06-12T15:29:59Z", "2024-06-12T15:30:00Z"];
+
+// The link works until 48 hours after it was created. This prints "ok", "ok" and "expired".
+foreach ($clicks as string $at) {
+    echo Core\Time::fromIso($at) < $created->plus($valid) ? "ok" : "expired", "\n";
+}

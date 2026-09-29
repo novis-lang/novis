@@ -1,26 +1,27 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Time\\Duration (1/2) has been taken yet.",
+  "state": "Goal `core-time-duration-1-2`, 3 of its 10 members done: `Core\\Time\\Duration::compareTo`, `days`\nand `hours` each have `about.md`, three examples, an attack, a bench and a Rust test carrying its\n`covers:` marker. `compareTo` also has its own conformance case,\n`tests/conformance/core/time-duration-compare-to-is-one-total-order-over-the-signed-length.nvst`.\n`Core\\Time\\Duration` now has its class card (`DURATION_CARD` in `crates/nvs-stdlib/src/time.rs`), so\nthe `help` proof is paid for every member of the class. No proof found a bug. Nothing is blocked.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "the constructors",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the rows, the `scaled` helper and the test module beside `duration_hours_and_days_are_exact_and_bounded_on_both_sides`), and `docs/examples/`, `tests/hostile/`, `benches/members/` under `core/Time-Duration/`. The `days` and `hours` proofs are the shape to follow. The limits are `i64::MAX / unit length`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:344`"
+        "text": "**`Core\\Time\\Duration::microseconds`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:198`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::days`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:243`"
+        "text": "**`Core\\Time\\Duration::milliseconds`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:207`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::hours`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:234`"
+        "text": "**`Core\\Time\\Duration::minutes`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:225`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Time\\Duration::nanoseconds` — the same constructor shape; also the literal's route (`FROM_NANOS_SYMBOL`). The goal's item list, `docs/agent/goals/core-time-duration-1-2.md`.",
+    "`Core\\Time\\Duration::minus`, `multipliedBy` and `negated` — the arithmetic members, one file set with `nvs_core_time_duration_plus`. Same goal file."
   ]
 }

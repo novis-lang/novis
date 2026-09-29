@@ -1,0 +1,12 @@
+<?nvs
+// Shows what happens when the number of hours is too large for a duration.
+
+// 2562047 hours is the largest number that fits. This prints 2562047.
+echo Core\Time\Duration::hours(2562047)->toSeconds() / 3600, "\n";
+
+// One more hour does not fit, so `hours` throws a `RuntimeError`.
+try {
+    Core\Time\Duration::hours(2562048);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
