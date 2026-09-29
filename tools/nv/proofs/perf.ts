@@ -19,6 +19,7 @@ import { dirty, head, lastCommit } from "../lib/git.ts";
 import { abs } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
 import { fixed, general } from "../lib/py.ts";
+import { record } from "../lib/written.ts";
 import { fingerprint, implHash, knownGap, LEDGER, ledgerRecords, owed, type Policy, type Proofs, type Skips } from "./collect.ts";
 import { benchFile, implFile, read, type Entry } from "./roster.ts";
 import { skipReason, spawnProof } from "./run.ts";
@@ -280,6 +281,7 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
   if (lines.length) {
     mkdirSync(dirname(abs(LEDGER)), { recursive: true });
     appendFileSync(abs(LEDGER), lines.join("\n") + "\n");
+    record(abs(LEDGER));
   }
   out.push(`nv proofs perf: ${lines.length} records appended to ${LEDGER}` + (failed ? `, ${failed} bench(es) missed what they declared and were not recorded` : ""));
   return failed ? 1 : 0;
@@ -455,6 +457,7 @@ export function perfReport(out: string[]): number {
     doc.push("");
   }
   writeFileSync(abs(PERF_REPORT), doc.join("\n"));
+  record(abs(PERF_REPORT));
   const total = [...history.values()].reduce((n, h) => n + h.recs.length, 0);
   out.push(`nv proofs: wrote ${PERF_REPORT} (${total} records, ${machines.size} machines)`);
   return 0;

@@ -28,6 +28,7 @@ import { digest } from "../keys/scan.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
 import { killTree, reapOrphans, run as runProc } from "../lib/proc.ts";
 import { inPart } from "../lib/reads.ts";
+import { record } from "../lib/written.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { cargoLines, progress } from "../lib/progress.ts";
 import { linked } from "../lib/relink.ts";
@@ -292,6 +293,7 @@ export async function bless(nvs: string, paths: string[]): Promise<{ lines: stri
     const existed = existsSync(abs(dest));
     const text = out.stdout.replace(/\r\n/g, "\n");
     writeFileSync(abs(dest), text);
+    record(abs(dest));
     lines.push(`  ${existed ? "rewrote" : "wrote"}  ${dest}`);
     for (const line of text.trimEnd().split("\n")) lines.push(`      | ${line}`);
   }

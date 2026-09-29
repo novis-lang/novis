@@ -11,7 +11,8 @@
 // It takes the session's own paths and nothing else, because a person works in this tree beside the loop.
 // A path is the session's only when something watched it being written: `Touched.note` reads the target
 // off every `Write`, `Edit`, `MultiEdit` and `NotebookEdit` call on the event stream, and a tool that
-// writes behind a shell call (`nv splice`, the reference generator) records its paths in
+// writes behind a shell call (`nv splice`, the reference generator, `nv proofs`'s blessed `.out` files
+// and perf ledger) records its paths in
 // `.loop/written.txt` through `lib/written.ts`. Every other dirty path is left where it is and listed as
 // `left`. A sweep with nothing of its own to take commits nothing and deletes `interrupted.json`, which
 // is how a session that ends clean closes an earlier interruption. A subagent's writes reach neither
