@@ -32,10 +32,17 @@
 //! already awake — the price of holding no operating-system resource between
 //! sweeps.
 //!
-//! Every other platform is the `None` arm. macOS has no `pthread_getcpuclockid`
-//! and its answer is `thread_info` on a mach port, which nothing in this tree
-//! reaches yet; that is the gap the paragraph above describes rather than a
-//! case anything here pretends to cover.
+//! macOS has no `pthread_getcpuclockid`, and its `CLOCK_THREAD_CPUTIME_ID` only
+//! reads the caller's own thread, so it answers with the thread's mach port
+//! name from `pthread_mach_thread_np`. Any thread in the process may pass that
+//! name to `thread_info(THREAD_BASIC_INFO)`, whose user and system times are
+//! the thread's CPU time. The name is plain data: the send right behind it
+//! belongs to `libpthread` for as long as the thread lives, so this type holds
+//! nothing, and a thread that has ended is refused by the kernel rather than
+//! read.
+//!
+//! Every other platform is the `None` arm, which is the case the section above
+//! describes.
 
 use std::time::Duration;
 
@@ -230,15 +237,70 @@ fn burned(clock: Clock) -> Option<Duration> {
     ))
 }
 
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(target_os = "macos")]
+type Clock = libc::mach_port_t;
+
+#[cfg(target_os = "macos")]
+fn current() -> Option<Clock> {
+    #[expect(
+        unsafe_code,
+        reason = "`pthread_mach_thread_np` is the only way to name a thread's own CPU clock in a \
+                  form another thread may read on macOS, and `std` has no equivalent. The thread \
+                  argument is the caller's own, the call cannot fail on a live thread, and the \
+                  port name it returns is plain data whose send right `libpthread` keeps."
+    )]
+    let port = unsafe { libc::pthread_mach_thread_np(libc::pthread_self()) };
+    // `MACH_PORT_NULL` names no thread, and a clock on no thread is no clock.
+    (port != 0).then_some(port)
+}
+
+#[cfg(target_os = "macos")]
+fn burned(clock: Clock) -> Option<Duration> {
+    /// A mach `time_value_t`: whole seconds and the microseconds past them.
+    fn micros(time: libc::time_value_t) -> Option<Duration> {
+        Some(
+            Duration::from_secs(u64::try_from(time.seconds).ok()?)
+                + Duration::from_micros(u64::try_from(time.microseconds).ok()?),
+        )
+    }
+
+    let flavor = libc::thread_flavor_t::try_from(libc::THREAD_BASIC_INFO).ok()?;
+    let mut count = libc::THREAD_BASIC_INFO_COUNT;
+    #[expect(
+        unsafe_code,
+        reason = "`thread_info` is the macOS spelling of another thread's CPU clock and `std` has \
+                  none. The out-parameter is a stack `thread_basic_info` this call owns \
+                  exclusively, plain integers with no invalid bit pattern, and `count` tells the \
+                  kernel its exact size in `integer_t`s. A port name whose thread has ended is \
+                  refused by the kernel rather than read."
+    )]
+    let info = unsafe {
+        let mut info: libc::thread_basic_info = std::mem::zeroed();
+        let read = libc::thread_info(
+            clock,
+            flavor,
+            (&raw mut info).cast::<libc::integer_t>(),
+            &raw mut count,
+        ) == libc::KERN_SUCCESS;
+        read.then_some(info)
+    }?;
+    // A reply shorter than the struct left part of it unwritten, and a zero
+    // read from there would charge the thread less than it spent.
+    if count != libc::THREAD_BASIC_INFO_COUNT {
+        return None;
+    }
+    Some(micros(info.user_time)? + micros(info.system_time)?)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 type Clock = ();
 
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 fn current() -> Option<Clock> {
     None
 }
 
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 fn burned(_clock: Clock) -> Option<Duration> {
     None
 }
@@ -247,6 +309,40 @@ fn burned(_clock: Clock) -> Option<Duration> {
 mod tests {
     use super::*;
 
+    /// The platforms this module has a clock arm for. On each of them a missing
+    /// clock is a request that loops forever and is never stopped, so the cases
+    /// below fail there rather than skip.
+    const CLOCKED: bool = cfg!(any(target_os = "linux", target_os = "macos", windows));
+
+    /// Every Unix this module has an arm for names the calling thread's clock,
+    /// and that clock moves while the thread spins. `burn_at_least` panics if a
+    /// minute of spinning is charged less than it waits for, so returning is
+    /// the proof.
+    #[cfg(unix)]
+    #[test]
+    fn a_busy_thread_on_a_clocked_unix_is_charged_for_what_it_spins() {
+        if !CLOCKED {
+            assert!(
+                no_ceiling_note().is_some(),
+                "a Unix with no clock arm announced no missing ceiling"
+            );
+            return;
+        }
+        let clock = ThreadClock::current().expect("a clocked Unix answered `None`");
+        let before = clock
+            .burned()
+            .expect("this thread's own clock did not read");
+        burn_at_least(Duration::from_millis(30));
+        let after = clock
+            .burned()
+            .expect("this thread's own clock did not read");
+        assert!(
+            after >= before + Duration::from_millis(30),
+            "a thread charged 30ms by its own clock read {:?} across the spin",
+            after.saturating_sub(before)
+        );
+    }
+
     /// The property the sampler rests on: burning the CPU moves this clock, and
     /// it moves for the thread that burned it rather than for the reader.
     #[test]
@@ -254,7 +350,13 @@ mod tests {
         let Some(idle) = ThreadClock::current() else {
             // The platform's own answer, and this module's docs say what a
             // caller does with it. Nothing here can be asserted about a clock
-            // that does not exist.
+            // that does not exist, and a platform this module gives a clock
+            // to may not skip the case by losing it.
+            if CLOCKED {
+                panic!(
+                    "a platform with a thread clock answered `None` and would enforce no ceiling"
+                );
+            }
             return;
         };
         let before = idle.burned().expect("this thread's own clock did not read");

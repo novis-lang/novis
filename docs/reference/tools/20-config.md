@@ -158,8 +158,9 @@ while a request parked on a slow query is not. A request cannot compute for long
 here, and PHP-FPM's `request_terminate_timeout` is `wall_time`. A request that needs more — a large
 report — raises its own limit with `Core\Config::set("cpu_time", "40s")`, up to `[limits.hard]`,
 rather than the starting value being raised for every request. The CPU clock is sampled about twice
-a second, so a request may overrun `cpu_time` by up to that much; on a platform with no per-thread
-CPU clock (macOS) `cpu_time` is not enforced at all, and an unset `cpu_time` is no limit.
+a second, so a request may overrun `cpu_time` by up to that much. Linux, macOS and Windows have a
+per-thread CPU clock; on a platform without one `cpu_time` is not enforced at all, and the server
+says so when it starts. An unset `cpu_time` is no limit.
 
 In this build **`nvs run` enforces `memory` and `cpu_time`**. `wall_time`, `max_tasks` and
 `max_output` are accepted, readable and settable, and a program that exceeds them under `nvs run`

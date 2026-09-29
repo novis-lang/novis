@@ -62,11 +62,12 @@ rcgen.workspace = true
 
 # `src/cpuclock.rs`: a thread's own CPU time, which `[limits] cpu_time` is
 # measured against and which `std` spells on neither platform.
-# `pthread_getcpuclockid` names the clock and `clock_gettime` reads it; Windows
+# On Linux `pthread_getcpuclockid` names the clock and `clock_gettime` reads it;
+# on macOS `pthread_mach_thread_np` names it and `thread_info` reads it; Windows
 # reopens the thread by id and asks `GetThreadTimes`. Nothing a request chose
-# reaches either — the arguments are the caller's own thread and a stack
+# reaches any of them — the arguments are the caller's own thread and a stack
 # out-parameter — and the answer is a duration.
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 libc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
