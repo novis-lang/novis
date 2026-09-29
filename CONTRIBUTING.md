@@ -172,6 +172,7 @@ benches/
 tests/              the case trees: conformance, differential, db, hostile, config
 examples/           `.nvs` programs the guard tests and the docs compile
 fuzz/               cargo-fuzz targets
+vendor/             html5ever, patched and built in place of the crates.io release (ADR 0223)
 docker/             the container image
 website/            the Astro site
 editors/            the VS Code extension, and where a second editor's would sit
