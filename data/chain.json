@@ -1,5 +1,5 @@
 {
-  "live": "core-uri-2-2",
+  "live": "core-uuid",
   "goals": [
     "core-depth",
     "concurrency",
