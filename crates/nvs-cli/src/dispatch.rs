@@ -6,8 +6,8 @@
 //! ordinary process and waits for that process to connect back through
 //! `StartServiceCtrlDispatcherW`. A process that never does is ended at the
 //! start timeout with error 1053, whatever it was serving — which is what an
-//! installed service did before this module existed. So [`serving`] connects
-//! first: under the SCM the dispatcher runs [`platform::service_main`] on a
+//! installed service did before this module existed. So `serving` connects
+//! first: under the SCM the dispatcher runs `platform::service_main` on a
 //! thread of its own and returns when it ends, and on a console the connect
 //! fails with `ERROR_FAILED_SERVICE_CONTROLLER_CONNECT` and the caller gets
 //! its closure back to run inline, which is `nvs serve` on a terminal exactly
@@ -20,7 +20,7 @@
 //! same two states a `Type=notify` unit is told on Linux — and a
 //! [`hosted::Reporting`] for the checkpoints a stop advances. Both are values
 //! on every platform so that a case drives the whole machine without an SCM,
-//! which is [`hosted`]'s own reason; only [`platform`] is Windows, and it is
+//! which is [`hosted`]'s own reason; only `platform` is Windows, and it is
 //! the thinnest layer there is: one struct into `SetServiceStatus`.
 //!
 //! **A drain a manager asked for is the same drain a signal begins.** The
@@ -52,21 +52,6 @@ use crate::service::{State, Supervisor};
 /// advancing is one the SCM stops believing.
 const BOOT_WAIT: Duration = Duration::from_secs(120);
 
-/// How long the SCM is asked to wait between two checkpoints of a drain.
-///
-/// Comfortably above [`STOP_PACE`]'s poll, which is how often a checkpoint
-/// actually advances, so a machine that is busy does not read one late report
-/// as a stop that has stalled.
-const STOP_WAIT: Duration = Duration::from_secs(10);
-
-/// How a drain the SCM asked for is watched: polled once a second, and
-/// reported finished after the preshutdown window `nvs service install` asks
-/// for whatever is still in flight (`crate::service::registration`).
-const STOP_PACE: hosted::Pace = hosted::Pace {
-    poll: Duration::from_secs(1),
-    bound: Duration::from_secs(180),
-};
-
 /// One thing the service manager is told, and the whole set.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Report {
@@ -96,6 +81,14 @@ pub(crate) trait Reporter: std::fmt::Debug + Send + Sync {
 /// The ids are the message table's (`build/winres.rs`, `MESSAGE_IDS`), and
 /// every record's text is its one insertion string.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    all(test, not(windows)),
+    expect(
+        dead_code,
+        reason = "the cases construct the two records an exit code maps to; only Windows \
+                  writes the other four"
+    )
+)]
 pub(crate) enum Lifecycle {
     /// The boot finished and the service is serving.
     Started,
@@ -245,6 +238,7 @@ pub(crate) mod platform {
 
     use std::process::ExitCode;
     use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+    use std::time::Duration;
 
     use windows_sys::Win32::Foundation::{
         ERROR_CALL_NOT_IMPLEMENTED, ERROR_FAILED_SERVICE_CONTROLLER_CONNECT,
@@ -264,8 +258,23 @@ pub(crate) mod platform {
         StartServiceCtrlDispatcherW,
     };
 
-    use super::{Lifecycle, Machine, Report, Reporter, STOP_PACE, STOP_WAIT};
+    use super::{Lifecycle, Machine, Report, Reporter};
     use crate::service::hosted;
+
+    /// How long the SCM is asked to wait between two checkpoints of a drain.
+    ///
+    /// Comfortably above [`STOP_PACE`]'s poll, which is how often a checkpoint
+    /// actually advances, so a machine that is busy does not read one late report
+    /// as a stop that has stalled.
+    const STOP_WAIT: Duration = Duration::from_secs(10);
+
+    /// How a drain the SCM asked for is watched: polled once a second, and
+    /// reported finished after the preshutdown window `nvs service install` asks
+    /// for whatever is still in flight (`crate::service::registration`).
+    const STOP_PACE: hosted::Pace = hosted::Pace {
+        poll: Duration::from_secs(1),
+        bound: Duration::from_secs(180),
+    };
 
     /// The server to run, parked here between [`serving`] and
     /// [`service_main`], because the dispatcher calls the latter with the

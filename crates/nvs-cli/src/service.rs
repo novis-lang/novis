@@ -61,7 +61,7 @@
 //! asserts the list, so every decision those sections take is held to with no
 //! administrator rights and on either platform.
 //!
-//! **[`registration::scm::Scm`] applies the Windows half** — the SCM for a
+//! **`registration::scm::Scm` applies the Windows half** — the SCM for a
 //! registration and a control, the registry for the event-log source, the file
 //! ACLs for a grant — and no case reaches it, because a real registration needs
 //! administrator rights on a machine somebody chose. That is why 0093's own

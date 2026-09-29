@@ -567,7 +567,8 @@ impl Accepting for mio::net::TcpListener {
     type Peer = SocketAddr;
 
     /// On Windows, one `accept` at a time across the whole process
-    /// ([`ACCEPTING`]); on Unix the syscall itself, which is atomic.
+    /// (the Windows-only `ACCEPTING` lock); on Unix the syscall itself, which
+    /// is atomic.
     fn accept(&self) -> io::Result<(Self::Stream, Self::Peer)> {
         #[cfg(windows)]
         let _one_at_a_time = ACCEPTING
