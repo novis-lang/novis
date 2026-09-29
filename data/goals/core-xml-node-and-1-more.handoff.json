@@ -1,33 +1,29 @@
 {
-  "state": "Goal `core-xml-node-and-1-more`: `Core\\Xml\\Node::attributes`, `children`, `kind` and `text` have\nall their feature proofs on disk. `bun nv proofs --gate --group 'Core\\Xml\\Node'` names three members\nstill owing: `source`, `name` and `namespaceUri`. `name` was missing from the earlier list, and the gate\nis the list to trust.\nThe two `.nvst` cases `tests/conformance/core/xml-parse-answers-one-node-family-through-the-tree.nvst`\nand `tests/conformance/core/xml-a-comment-and-a-processing-instruction-are-nodes-of-the-family.nvst` call\nevery Node member. They carry `covers:` for `children`, `kind` and `text`. Adding `name` there is the\nwhole `.nvst` edit for `name`.\n`kind` and `text` benches are recorded. Editing only a card in `xml.rs` did not make the older Node\nbenches stale.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
+  "state": "Goal `core-xml-node-and-1-more`: every `Core\\Xml\\Node` member but `namespaceUri` has all its\nfeature proofs on disk. `bun nv proofs --verify --group 'Core\\Xml\\Node'` names only\n`namespaceUri` still owing (examples, hostile, perf, tests). `Core\\Xml\\Reader` (`read`, `depth`) owes\neverything, including its class card: `CLASSES_STILL_OWING_A_CARD` in\n`crates/nvs-stdlib/src/registry.rs`.\n`Core\\Xml\\Node::source` now asks the budget before each piece it writes (`afford_writing` in\n`crates/nvs-stdlib/src/xml.rs`), pinned by `source_stops_at_the_memory_limit_before_it_escapes`.\nEvery Xml bench was re-measured after that change.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
   "next": {
-    "stage": 1,
-    "title": "member proofs",
+    "stage": 2,
+    "title": "the dossier",
     "files": [
       "crates/nvs-stdlib/src/xml.rs",
       "docs/examples/core/Xml-Node/",
-      "tests/hostile/core/Xml-Node/",
-      "benches/members/core/Xml-Node/",
+      "docs/examples/core/Xml-Reader/",
+      "tests/hostile/core/Xml-*/",
+      "benches/members/core/Xml-*/",
       "tests/conformance/core/xml-*.nvst"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Node::source`** — owes about, examples, hostile, perf, one more test case. Rewrite `SOURCE_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:452`, member at `crates/nvs-stdlib/src/xml.rs:2575`. `rule:testing/feature-proofs`"
+        "text": "**`Core\\Xml\\Node::namespaceUri`** — owes about, examples, hostile, perf, tests. Rewrite `NAMESPACE_URI_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:398`, member at `crates/nvs-stdlib/src/xml.rs:2339`. `tests/conformance/core/xml-an-element-answers-the-namespace-its-prefix-is-bound-to.nvst` calls it and needs only a `covers:` line; a second case or a Rust test makes two. The attack should try `<a:b:c xmlns:a=\"…\"/>`, which `Core\\Xml::parse` accepts. `rule:testing/feature-proofs`"
       },
       {
         "done": false,
-        "text": "**`Core\\Xml\\Node::name`** — owes about, examples, hostile, perf, tests. Rewrite `NAME_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:387`, member at `crates/nvs-stdlib/src/xml.rs:2330`. Add it to the two `.nvst` cases' `covers:` line, and write a Rust test beside `text_answers_each_nodes_own_characters_and_nothing_for_an_element`. `rule:testing/feature-proofs`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Xml\\Node::namespaceUri`** — owes about, examples, hostile, perf, tests. Rewrite `NAMESPACE_URI_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:399`, member at `crates/nvs-stdlib/src/xml.rs:2343`. `rule:testing/feature-proofs`"
+        "text": "**`Core\\Xml\\Reader` class card, `read` and `depth`** — add its `ClassDoc` above the class's `CLASS` row and delete it from `CLASSES_STILL_OWING_A_CARD`: `crates/nvs-stdlib/src/registry.rs:5283`, `read` at `crates/nvs-stdlib/src/xml.rs:2654`. `bun nv proofs --id 'Core\\Xml\\Reader::read'` prints the paths. `rule:testing/feature-proofs`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Xml\\Reader::read` and `::depth` owe every proof, and the class owes its card: `READ_DOC` at `crates/nvs-stdlib/src/xml.rs:582`, `DEPTH_DOC` at `crates/nvs-stdlib/src/xml.rs:602`, and the class's row in `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283`. Check `dossier-core-xml-reader`.",
-    "`Core\\Html::parse` may build its tree without asking the budget, the same way `Core\\Xml::parse` did. Not checked. The owner is `crates/nvs-stdlib/src/html.rs`'s module doc.",
-    "A 500000-child XML tree holds about 440 bytes per node against the cap. That is footprint, not a bug. The owner is `crates/nvs-stdlib/src/xml.rs` § *What this spends*."
+    "`Core\\Xml::parse` accepts `a:b:c` as an element name; the Namespaces spec allows one colon. Decide in `rule:core-classes/xml-tree-and-stream` whether that is a refusal — owner: this goal's `namespaceUri` slice.",
+    "The `source` refusal message says \"a comment has no escape grammar\", which an end user reads; it is pinned by `tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst` and goal `plain-comments` may rewrite it."
   ]
 }

@@ -21338,9 +21338,9 @@ Returns what kind of node this is: an element, a text, a comment, a processing i
 $node->name(): tainted string
 ```
 
-The name this node was written under — an element's tag name, or a processing instruction's target. Empty for a text node, a comment and the document, which have no name to carry rather than an unknown one.
+Returns the name of this node. For an element, this is the tag name. For a processing instruction, it is the target, such as `print` in `<?print fast?>`. A text node, a comment and the document have no name, so they return an empty string.
 
-**Returns** `tainted string` — The name exactly as the document spelled it, prefix included: `<x:a/>` answers `x:a`, which is the name a serialiser writes back out. What the prefix means is `namespaceUri`. `tainted`, as everything read out of a parsed tree is.
+**Returns** `tainted string` — A `tainted` string. The name is written as in the document, with its prefix: for `<x:a/>` the result is `x:a`. To find the namespace of the prefix, use `namespaceUri`.
 
 <a id="core-core-xml-node-namespaceuri"></a>
 #### `Core\Xml\Node->namespaceUri`
@@ -21393,11 +21393,11 @@ Returns the children of this node, in the order of the document. For the documen
 $node->source(): tainted string
 ```
 
-This node and everything under it, written back out as document text — the way out of a walk, for a program that read a tree, decided something about it and wants the document again without replaying it into a `Core\Xml\Writer` a call at a time. XML rules, whichever door parsed the tree: every element is written with an end tag, and a tree holding something XML cannot spell is refused here rather than written as something a reader would read back differently.
+Returns this node and everything inside it as XML text. Use it to write a document, or one part of it, back out after you read it. Every element is written with an end tag, so `<e/>` is written as `<e></e>`. The XML rules apply, also to a tree from `Core\Html::parse`.
 
-**Returns** `tainted string` — The subtree as text, with no XML declaration in front of it — a parse leaves none behind, so writing one would be inventing the version and encoding it claims. Text and attribute values are escaped, so nothing a document carried can come back out as markup. `tainted`, as everything read out of a parsed tree is.
+**Returns** `tainted string` — A `tainted` string, with no XML declaration at the start. In text, `&`, `<` and `>` are escaped. In an attribute value, `"`, a tab and a line break are escaped too. When you parse the result, you get the same tree again.
 
-**Throws** `LogicError` — The tree holds something no XML document can spell: a name or a target that is not a name, a comment holding `--` or ending in `-`, a processing instruction whose data holds `?>`, or a character a document has no way to write. `Core\Html::parse` recovers from all four rather than failing, so this is where one door's recovery stops being the other door's output.
+**Throws** `LogicError` — The tree contains something XML cannot write: a name that is not a valid XML name, a comment that contains `--` or ends with `-`, a processing instruction that contains `?>`, or a character XML does not allow. Only a tree from `Core\Html::parse` can contain these, because `Core\Xml::parse` does not accept them.
 
 <a id="core-core-xml-reader"></a>
 ### `Core\Xml\Reader`
