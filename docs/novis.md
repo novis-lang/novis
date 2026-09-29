@@ -15937,14 +15937,14 @@ Checks whether `$s` is a domain name, such as `example.com`. A domain name has o
 Core\Validate::isIp(string $s, {version?: 4|6}): bool
 ```
 
-Answers whether `$s` is an IP address, as `filter_var` with `FILTER_VALIDATE_IP` does, with `FILTER_FLAG_IPV4` and `FILTER_FLAG_IPV6` folded into `version`.
+Checks whether `$s` is an IP address. An IPv4 address is four numbers from 0 to 255 joined by dots, such as `192.0.2.1`. An IPv6 address is up to eight groups of hex digits joined by `:`, such as `2001:db8::1`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The text to test. |
-| `{version: …}` | `4\|6` (default `null`) | `4` or `6` to accept exactly that family; omitted, either family is accepted. |
+| `{version: …}` | `4\|6` (default `null`) | `4` accepts only IPv4 addresses, and `6` accepts only IPv6 addresses. Without it, both are accepted. |
 
-**Returns** `bool` — `true` for an address of the chosen family; `false` otherwise, including an IPv4 octet with a leading zero (`192.000.002.001`) and an IPv6 address carrying a zone identifier (`fe80::1%eth0`).
+**Returns** `bool` — `true` for an IP address of the chosen version. `false` for anything else. A number with a leading zero, such as `192.0.2.01`, gives `false`. An IPv6 address with a zone at the end, such as `fe80::1%eth0`, also gives `false`.
 
 <a id="core-core-validate-ismac"></a>
 #### `Core\Validate::isMac`
@@ -15983,13 +15983,13 @@ Checks whether every character of `$s` is an ASCII character. ASCII has 128 char
 Core\Validate::isPrintable(string $s): bool
 ```
 
-Answers whether `$s` holds no control character — no `char` in Unicode general category `Cc` — as `ctype_print` does, but over characters rather than ASCII bytes, so `café` is printable.
+Checks whether `$s` contains no control characters. A control character has no visible form, for example a tab, a new line or the null byte. Letters from any language, such as `é` or `日`, are printable.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The text to test. |
 
-**Returns** `bool` — `true` when no character is a C0 or C1 control or `DEL` — tab, carriage return and newline are controls and answer `false` — and `true` for the empty string. Not a spoofing check: bidirectional overrides and zero-width joiners are printable.
+**Returns** `bool` — `true` when the text has no control character, and `true` for the empty string. `false` for a tab, a new line, a carriage return, `DEL` or any other control character. Some invisible characters are not control characters, such as the zero-width joiner. They give `true`, so this method does not find text that hides what it really says.
 
 <a id="core-core-out"></a>
 ### `Core\Out`

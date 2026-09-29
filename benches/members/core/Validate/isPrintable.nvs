@@ -1,0 +1,24 @@
+<?nvs
+// Checks that a display name from a sign-up form has no control character, as a program does before it saves it.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["Zoë Müller", "admin\nlogin ok", "李雷"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Validate::isPrintable($names[(($total + $i) % 3) as int])) {
+                $total = $total + 3;
+            } else {
+                $total = $total + 6;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

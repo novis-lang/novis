@@ -1,0 +1,14 @@
+<?nvs
+// Shows which texts contain only printable characters.
+
+// The third text has a new line, and the fourth has a tab.
+// "é" and "日本" are letters, so they are printable.
+array<string> $texts = ["Order 1042", "Café 日本", "line one\nline two", "name\tvalue"];
+
+// `Core\Validate::isPrintable` returns `false` when a text contains a control character.
+// This prints yes for the first two texts and no for the other two.
+int $number = 0;
+foreach ($texts as string $text) {
+    $number = $number + 1;
+    echo "text ", $number, ": ", Core\Validate::isPrintable($text) ? "yes" : "no", "\n";
+}

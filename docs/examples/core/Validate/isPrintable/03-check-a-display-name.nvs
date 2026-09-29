@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to check a display name from a sign-up form before a program saves it.
+
+// The second name has a new line in it. Written to a log, it would look like two lines.
+array<string> $names = ["Zoë Müller", "admin\nlogin ok", "李雷"];
+
+// A name with a control character is not saved.
+// This saves the first and the third name.
+foreach ($names as string $name) {
+    if (Core\Validate::isPrintable($name)) {
+        echo "saved: ", $name, "\n";
+    } else {
+        echo "not saved: the name contains a control character\n";
+    }
+}
