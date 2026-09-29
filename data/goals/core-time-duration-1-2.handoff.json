@@ -1,27 +1,31 @@
 {
-  "state": "Goal `core-time-duration-1-2`, 3 of its 10 members done: `Core\\Time\\Duration::compareTo`, `days`\nand `hours` each have `about.md`, three examples, an attack, a bench and a Rust test carrying its\n`covers:` marker. `compareTo` also has its own conformance case,\n`tests/conformance/core/time-duration-compare-to-is-one-total-order-over-the-signed-length.nvst`.\n`Core\\Time\\Duration` now has its class card (`DURATION_CARD` in `crates/nvs-stdlib/src/time.rs`), so\nthe `help` proof is paid for every member of the class. No proof found a bug. Nothing is blocked.",
+  "state": "Goal `core-time-duration-1-2`, 6 of its 10 members done: `Core\\Time\\Duration::compareTo`, `days`,\n`hours`, `microseconds`, `milliseconds` and `minutes` each have `about.md`, three examples, an attack,\na bench and a Rust test carrying its `covers:` marker. The three small units share one Rust test,\n`duration_microseconds_milliseconds_and_minutes_are_exact_and_bounded_on_both_sides` in\n`crates/nvs-stdlib/src/time.rs`. `Core\\Time\\Duration` has its class card (`DURATION_CARD`), so the\n`help` proof is paid for every member. No proof found a bug. Nothing is blocked.",
   "next": {
     "stage": 1,
-    "title": "the constructors",
+    "title": "the last constructor and the arithmetic",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the rows, the `scaled` helper and the test module beside `duration_hours_and_days_are_exact_and_bounded_on_both_sides`), and `docs/examples/`, `tests/hostile/`, `benches/members/` under `core/Time-Duration/`. The `days` and `hours` proofs are the shape to follow. The limits are `i64::MAX / unit length`.",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the helpers and the test module beside `duration_microseconds_milliseconds_and_minutes_are_exact_and_bounded_on_both_sides`), and `docs/examples/`, `tests/hostile/`, `benches/members/` under `core/Time-Duration/`. The `minutes` proofs are the shape to follow.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::microseconds`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:198`"
+        "text": "**`Core\\Time\\Duration::nanoseconds`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). Every `int` fits, so its attack is the ends of `int` and a sum past them. `crates/nvs-stdlib/src/time.rs:789`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::milliseconds`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:207`"
+        "text": "**`Core\\Time\\Duration::negated`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). The duration of `i64::MIN` nanoseconds has no negation. `crates/nvs-stdlib/src/time.rs:945`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::minutes`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:225`"
+        "text": "**`Core\\Time\\Duration::multipliedBy`** — owes examples, hostile, perf and one more test (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:929`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Time\\Duration::minus`** — owes what `bun nv proofs --id 'Core\\Time\\Duration::minus'` prints (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:918`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Time\\Duration::nanoseconds` — the same constructor shape; also the literal's route (`FROM_NANOS_SYMBOL`). The goal's item list, `docs/agent/goals/core-time-duration-1-2.md`.",
-    "`Core\\Time\\Duration::minus`, `multipliedBy` and `negated` — the arithmetic members, one file set with `nvs_core_time_duration_plus`. Same goal file."
+    "A `uint` array subscript renders a string key, two allocations per read, even when the value fits an `int`; a branch on `<= i64::MAX` would keep the no-allocation path (`crates/nvs-ir/src/lower/expr.rs` `lower_array_key`'s doc owns the tradeoff). Eight `Core\\Time\\DateTime`/`Date` benches index with `as uint` and so count it.",
+    "A stale figure is re-measured with `bun nv proofs --record-perf --only <features>`, which appends to `docs/perf/members.ndjson`; the gate does not measure (`benches/members/README.md`)."
   ]
 }

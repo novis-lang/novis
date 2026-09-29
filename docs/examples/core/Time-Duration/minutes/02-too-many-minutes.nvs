@@ -1,0 +1,12 @@
+<?nvs
+// Shows what happens when the number of minutes is too large for a duration.
+
+// 153722867 minutes is the largest number that fits. This prints 153722867.
+echo Core\Time\Duration::minutes(153722867)->toSeconds() / 60, "\n";
+
+// One more minute does not fit, so `minutes` throws a `RuntimeError`.
+try {
+    Core\Time\Duration::minutes(153722868);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
