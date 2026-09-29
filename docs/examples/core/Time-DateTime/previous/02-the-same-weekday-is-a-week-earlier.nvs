@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `previous` returns when the value already falls on that weekday.
+
+// 3 January 2025 is a Friday.
+var $friday = Core\Time::at(2025, 1, 3, Core\Time\Zone::of("Asia/Tokyo"), {hour: 17, minute: 30});
+
+// `previous` always moves back. On a Friday, the last Friday is seven days earlier.
+// This prints 2024-12-27 17:30, which is in the year before.
+echo $friday->previous(Core\Weekday::Friday)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// The value itself does not change. This prints 2025-01-03 17:30.
+echo $friday->format("yyyy-MM-dd HH:mm"), "\n";

@@ -1,0 +1,38 @@
+<?nvs
+// Attack: `previous` looks for every weekday from the first days that can exist, and walks one million weeks back.
+// A day before the range should throw a `RuntimeError`, and nothing should crash.
+
+array<Core\Weekday> $days = [
+    Core\Weekday::Monday, Core\Weekday::Tuesday, Core\Weekday::Wednesday, Core\Weekday::Thursday,
+    Core\Weekday::Friday, Core\Weekday::Saturday, Core\Weekday::Sunday,
+];
+
+// 1. Every weekday is looked for before the first second, and before each of the seven days after it.
+// Most of them are before the range. The ones that exist are counted.
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+int $found = 0;
+int $refused = 0;
+int $ahead = 0;
+while ($ahead < 8) {
+    var $from = $first->plus($ahead, Core\Unit::Day);
+    foreach ($days as Core\Weekday $day) {
+        try {
+            $from->previous($day);
+            $found = $found + 1;
+        } catch (RuntimeError $early) {
+            $refused = $refused + 1;
+        }
+    }
+    $ahead = $ahead + 1;
+}
+echo $found + $refused, " of 56 answered\n";
+
+// 2. One million steps back, one day each, from a time that happens twice when the clocks go back.
+// Each step frees the value before it.
+var $moving = Core\Time::at(9000, 10, 29, Core\Time\Zone::of('Europe/Berlin'), { hour: 2, minute: 30 });
+uint $round = 0;
+while ($round < 1000000) {
+    $moving = $moving->previous($days[6 - $round % 7]);
+    $round = $round + 1;
+}
+echo $moving->format('yyyy-MM-dd'), "\n";

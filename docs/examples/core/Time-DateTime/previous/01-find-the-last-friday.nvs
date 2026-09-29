@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to find the last day before this one that falls on a given weekday.
+
+// 11 June 2024 is a Tuesday.
+var $tuesday = Core\Time::at(2024, 6, 11, Core\Time\Zone::of("Europe/Paris"), {hour: 9, minute: 15});
+
+// `previous` returns a new value on the last Friday before it. The time of day stays the same.
+// This prints Friday 7 June 2024, 09:15.
+echo $tuesday->previous(Core\Weekday::Friday)->format("EEEE d MMMM yyyy, HH:mm"), "\n";
+
+// The last Monday is the day before. This prints Monday 10 June 2024, 09:15.
+echo $tuesday->previous(Core\Weekday::Monday)->format("EEEE d MMMM yyyy, HH:mm"), "\n";

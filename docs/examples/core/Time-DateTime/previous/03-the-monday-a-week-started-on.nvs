@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to find the Monday that the current week started on, for a weekly timesheet.
+
+var $zone = Core\Time\Zone::of("Europe/Madrid");
+array<string> $entries = ["2024-05-15T10:00:00Z", "2024-05-19T10:00:00Z", "2024-05-20T10:00:00Z"];
+
+// On a Monday, `previous` returns the Monday before, so a Monday is kept as it is.
+// This prints Monday 13 May twice, then Monday 20 May.
+foreach ($entries as string $text) {
+    var $day = Core\Time::fromIso($text)->in($zone);
+    if ($day->weekday() != Core\Weekday::Monday) {
+        $day = $day->previous(Core\Weekday::Monday);
+    }
+    echo "Week of ", $day->format("EEEE d MMMM"), "\n";
+}

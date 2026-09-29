@@ -6475,8 +6475,31 @@ mod tests {
         count: i64,
         unit: i64,
     ) -> Result<Zoned, String> {
+        datetime_rebuilt(member, at, &[Value::int(count), Value::int(unit)])
+    }
+
+    /// `member` called on the `DateTime` `at` with the `Core\Weekday` case at
+    /// index `weekday` (Monday 0 to Sunday 6), the way `next` and `previous`
+    /// are called.
+    fn datetime_to_weekday(
+        member: nvs_runtime::NvsFn,
+        at: &Zoned,
+        weekday: i64,
+    ) -> Result<Zoned, String> {
+        datetime_rebuilt(member, at, &[Value::int(weekday)])
+    }
+
+    /// `member` called on the `DateTime` `at` followed by the scalar
+    /// arguments `rest`. It answers the `DateTime` it built, or the sentence
+    /// it threw.
+    fn datetime_rebuilt(
+        member: nvs_runtime::NvsFn,
+        at: &Zoned,
+        rest: &[Value],
+    ) -> Result<Zoned, String> {
         let mut ctx = Ctx::buffered();
-        let args = [datetime_built(at), Value::int(count), Value::int(unit)];
+        let mut args = vec![datetime_built(at)];
+        args.extend_from_slice(rest);
         let answer = match nvs_runtime::call(member, &mut ctx, &args) {
             Ok(moved) => {
                 let read = zoned_of(&[moved], 0, "plus");
@@ -6540,5 +6563,97 @@ mod tests {
         let past = datetime_stepped(nvs_core_time_datetime_plus, &last, 1, day)
             .expect_err("a day after the last second is past the range");
         assert!(past.contains("Core\\Time\\DateTime::plus"), "{past}");
+    }
+
+    /// `minus` is `plus` with the count negated: the two agree at a month end
+    /// and across Berlin's autumn change, a negative count moves forward, and
+    /// the smallest `int`, which has no negation, throws a sentence naming
+    /// `minus` rather than wrapping round.
+    // covers: Core\Time\DateTime::minus
+    #[test]
+    fn datetime_minus_agrees_with_plus_negated_and_refuses_what_cannot_be_negated() {
+        let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
+        let (hour, day, month) = (5, 6, 8);
+        let march = civil::date(2024, 3, 31)
+            .at(9, 0, 0, 0)
+            .to_zoned(berlin.clone())
+            .expect("a valid wall time");
+        let back = datetime_stepped(nvs_core_time_datetime_minus, &march, 1, month)
+            .expect("a month before March is in range");
+        assert_eq!(back.datetime(), civil::date(2024, 2, 29).at(9, 0, 0, 0));
+        assert_eq!(back.time_zone().iana_name(), Some("Europe/Berlin"));
+
+        let sunday = civil::date(2024, 10, 27)
+            .at(12, 0, 0, 0)
+            .to_zoned(berlin)
+            .expect("a valid wall time");
+        for (count, unit) in [(1, day), (24, hour), (-1, day), (13, month)] {
+            let minus = datetime_stepped(nvs_core_time_datetime_minus, &sunday, count, unit)
+                .expect("a small step is in range");
+            let plus = datetime_stepped(nvs_core_time_datetime_plus, &sunday, -count, unit)
+                .expect("a small step is in range");
+            assert_eq!(minus, plus, "minus({count}, {unit}) against plus");
+        }
+        let saturday = datetime_stepped(nvs_core_time_datetime_minus, &sunday, 1, day)
+            .expect("a day is in range");
+        assert_eq!(
+            sunday.timestamp().as_second() - saturday.timestamp().as_second(),
+            25 * 3600
+        );
+
+        let unnegated = datetime_stepped(nvs_core_time_datetime_minus, &sunday, i64::MIN, hour)
+            .expect_err("the smallest `int` has no negation");
+        assert!(
+            unnegated.contains("Core\\Time\\DateTime::minus"),
+            "{unnegated}"
+        );
+        let [_, _, _, first] = zone_view_samples();
+        let early = datetime_stepped(nvs_core_time_datetime_minus, &first, 1, day)
+            .expect_err("a day before the first second is past the range");
+        assert!(early.contains("Core\\Time\\DateTime::minus"), "{early}");
+    }
+
+    /// `next` and `previous` are strict: from a Wednesday each of the seven
+    /// weekdays is one to seven days away, the same weekday is a whole week,
+    /// the time of day and the zone are kept, and a day past either end of
+    /// the range throws a sentence naming the member.
+    // covers: Core\Time\DateTime::next, Core\Time\DateTime::previous
+    #[test]
+    fn datetime_next_and_previous_are_strictly_one_to_seven_days_away() {
+        let paris = TimeZone::get("Europe/Paris").expect("a known zone");
+        let wednesday = civil::date(2024, 6, 12)
+            .at(14, 45, 0, 0)
+            .to_zoned(paris)
+            .expect("a valid wall time");
+        for weekday in 0..7_i64 {
+            let later = datetime_to_weekday(nvs_core_time_datetime_next, &wednesday, weekday)
+                .expect("a week from June 2024 is in range");
+            let earlier = datetime_to_weekday(nvs_core_time_datetime_previous, &wednesday, weekday)
+                .expect("a week before June 2024 is in range");
+            let ahead = (weekday - 2).rem_euclid(7);
+            let ahead = if ahead == 0 { 7 } else { ahead };
+            let behind = (2 - weekday).rem_euclid(7);
+            let behind = if behind == 0 { 7 } else { behind };
+            assert_eq!(
+                later.date(),
+                civil::date(2024, 6, 12) + jiff::Span::new().days(ahead)
+            );
+            assert_eq!(
+                earlier.date(),
+                civil::date(2024, 6, 12) - jiff::Span::new().days(behind)
+            );
+            for built in [&later, &earlier] {
+                assert_eq!(built.time(), civil::time(14, 45, 0, 0));
+                assert_eq!(built.time_zone().iana_name(), Some("Europe/Paris"));
+            }
+        }
+
+        let [_, _, last, first] = zone_view_samples();
+        let late = datetime_to_weekday(nvs_core_time_datetime_next, &last, 0)
+            .expect_err("a Monday after the last second is past the range");
+        assert!(late.contains("Core\\Time\\DateTime::next"), "{late}");
+        let early = datetime_to_weekday(nvs_core_time_datetime_previous, &first, 0)
+            .expect_err("a Monday before the first second is past the range");
+        assert!(early.contains("Core\\Time\\DateTime::previous"), "{early}");
     }
 }
