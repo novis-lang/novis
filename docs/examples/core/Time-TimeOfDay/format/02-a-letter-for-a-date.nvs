@@ -1,0 +1,14 @@
+<?nvs
+// Shows what happens when the pattern asks for a part that a time of day does not have.
+
+Core\Time\TimeOfDay $start = Core\Time\TimeOfDay::at(8, 15);
+
+// `yyyy` is the year. A `TimeOfDay` has no date, so `format` throws a `LogicError`.
+try {
+    echo $start->format("yyyy HH:mm"), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Text in single quotes is copied as it is. This prints "starts at 08:15".
+echo $start->format("'starts at' HH:mm"), "\n";

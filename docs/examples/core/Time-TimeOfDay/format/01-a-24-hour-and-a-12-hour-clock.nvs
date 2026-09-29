@@ -1,0 +1,10 @@
+<?nvs
+// Shows the same time as text on a 24-hour clock and on a 12-hour clock.
+
+Core\Time\TimeOfDay $evening = Core\Time\TimeOfDay::at(21, 5);
+
+// `HH` is the hour from 00 to 23. This prints 21:05.
+echo $evening->format("HH:mm"), "\n";
+
+// `h` is the hour from 1 to 12, and `a` is AM or PM. This prints 9:05 PM.
+echo $evening->format("h:mm a"), "\n";

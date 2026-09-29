@@ -1,0 +1,2 @@
+Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
+starts at 08:15

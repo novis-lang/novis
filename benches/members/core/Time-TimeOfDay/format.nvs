@@ -1,0 +1,23 @@
+<?nvs
+// Shows a time of day as text, as a program does when it writes a time into a page or a log.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Time\TimeOfDay> $times = [
+            Core\Time\TimeOfDay::at(9, 0),
+            Core\Time\TimeOfDay::at(13, 45),
+            Core\Time\TimeOfDay::at(21, 5),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the time
+            $total = $total + Core\Str::length($times[$total % 3]->format("HH:mm")) + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

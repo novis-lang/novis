@@ -1,0 +1,11 @@
+<?nvs
+// Writes the time in front of each line of a log, with milliseconds.
+
+Core\Time\TimeOfDay $at = Core\Time\TimeOfDay::at(14, 2, {second: 9, nanos: 120000000});
+array<string> $events = ["request received", "database query done", "response sent"];
+
+foreach ($events as string $event) {
+    // `SSS` is the milliseconds. The first line starts with 14:02:09.120.
+    echo "[", $at->format("HH:mm:ss.SSS"), "] ", $event, "\n";
+    $at = $at->plus(35, Core\Unit::Millisecond);
+}
