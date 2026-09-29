@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-xml-node-and-1-more` is reached: `bun nv proofs --verify --group 'Core\\Xml\\Node'`\nand `--group 'Core\\Xml\\Reader'` both say nothing owed, 0 failed, and `bun nv verify` is green.\n`Core\\Xml\\Reader` has its class card, and its `read` and `depth` cards are rewritten to\nAGENTS.md § *Text an end user reads*. Both members have `about.md`, three examples, one attack,\none bench with a recorded figure, and a Rust and a Novis test.\nThe lead that each `read` costs time in proportion to the document holds only on the debug\nbuild: it is the UTF-8 `debug_assert!` in `NvsStr::text_of`, and the playbook now says so.\n`owners --closes` and `playbook --closes` name nothing for this goal.",
+  "state": "Goal `core-xml-node-and-1-more` is reached: `bun nv proofs --verify --group 'Core\\Xml\\Node'`\nand `--group 'Core\\Xml\\Reader'` both say nothing owed, 0 failed.\nThe driver's sweep after session 0009 went red on every crate and 2236 conformance cases because\nit overlapped a hand commit to `crates/nvs-host/Cargo.toml` (the macOS CPU clock). On the tree\nas it is now, `bun nv verify` is 15 of 15 green (5731 tests, 2394 conformance, 281 differential),\n`bun nv reference --check` holds 309 of 309 examples, and `bun nv verify --doc` resolves every link.\n`owners --closes` and `playbook --closes` name nothing for this goal.",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -10,15 +10,11 @@
     "items": [
       {
         "done": true,
-        "text": "**`Core\\Xml\\Reader` class card, then `read`** — card at `crates/nvs-stdlib/src/xml.rs:560`. `rule:testing/feature-proofs`"
-      },
-      {
-        "done": true,
-        "text": "**`Core\\Xml\\Reader::depth`** — member at `crates/nvs-stdlib/src/xml.rs:2771`. `rule:testing/feature-proofs`"
+        "text": "**Re-made the goal's claim on a green tree** after the sweep that raced the user's commit — `crates/nvs-stdlib/src/xml.rs:1`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Xml\\Writer` still owes its class card (`CLASSES_STILL_OWING_A_CARD`, `crates/nvs-stdlib/src/registry.rs`); goal `core-class-cards` owns that list."
+    "If the sweep goes red on every crate again with nobody else in the tree, look at how the sweep shares `target/covws` with a hand build (`tools/nv/cmd/verify.ts`)."
   ]
 }
