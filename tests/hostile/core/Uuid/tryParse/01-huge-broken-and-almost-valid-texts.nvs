@@ -1,7 +1,6 @@
 <?nvs
 // Attack: a program checks very long texts, texts with invalid bytes and texts that are one
 // character away from a UUID. Each check should return `null`, and nothing should crash.
-// proof: gap nvs-runtime/a-core-call-with-a-large-string-costs-time-per-byte
 
 // 1. A text of 50 million characters. This prints null.
 string $huge = Core\Str::repeat('f', 50000000);
