@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a program checks very long texts and addresses at every length limit.
+// `isEmail` should give the right answer each time, stay fast and free every text.
+// hostile: timeout-ms 20000
+
+// 1. A text of 64 million characters with one `@` in the middle is far too long. This prints no.
+string $half = Core\Str::repeat('a', 32000000);
+string $huge = $half . '@' . $half . '.test';
+echo Core\Validate::isEmail($huge) ? 'yes' : 'no', "\n";
+$half = '';
+$huge = '';
+
+// 2. One million `@` characters in a row are not an address. This prints no.
+echo Core\Validate::isEmail(Core\Str::repeat('@', 1000000)) ? 'yes' : 'no', "\n";
+
+// 3. An address of exactly 254 characters is allowed. This prints yes.
+string $domain = Core\Str::repeat('b', 62) . '.' . Core\Str::repeat('c', 62) . '.' . Core\Str::repeat('d', 60) . '.te';
+string $longest = Core\Str::repeat('a', 64) . '@' . $domain;
+echo Core\Validate::isEmail($longest) ? 'yes' : 'no', "\n";
+
+// 4. One more character makes 255, which is not allowed. This prints no.
+echo Core\Validate::isEmail('a' . $longest) ? 'yes' : 'no', "\n";
+
+// 5. A null byte and a newline inside an address are not allowed. This prints no twice.
+echo Core\Validate::isEmail("ada\0@example.com") ? 'yes' : 'no', "\n";
+echo Core\Validate::isEmail("ada@example.com\nBcc: eve@example.com") ? 'yes' : 'no', "\n";
+
+// 6. One million new addresses are checked and freed at once. Every second one has two `@`.
+// This prints 500000.
+int $addresses = 0;
+int $i = 0;
+while ($i < 1000000) {
+    string $text = $i % 2 == 0 ? 'user' . $i as string . '@example.com' : 'user' . $i as string . '@@example.com';
+    if (Core\Validate::isEmail($text)) {
+        $addresses = $addresses + 1;
+    }
+    $i = $i + 1;
+}
+echo $addresses, "\n";

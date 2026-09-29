@@ -1,0 +1,12 @@
+<?nvs
+// Shows which texts are email addresses.
+
+// The first two are addresses. "admin@localhost" has no dot after the `@`.
+// The others contain two dots in a row, a space, or no `@` at all.
+array<string> $texts = ["ada@example.com", "ada.lovelace+news@mail.example.org", "admin@localhost", "ada..l@example.com", "ada @example.com", "example.com"];
+
+// `Core\Validate::isEmail` returns `true` for an email address.
+// This prints yes for the first two texts and no for the other four.
+foreach ($texts as string $text) {
+    echo $text, ": ", Core\Validate::isEmail($text) ? "yes" : "no", "\n";
+}

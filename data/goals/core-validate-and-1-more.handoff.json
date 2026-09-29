@@ -1,27 +1,32 @@
 {
-  "state": "Goal `core-validate-and-1-more`: `Core\\Validate::isAscii` is finished. It has its about page, three examples, a bench, an attack and a Rust `covers:` test, and its card is plain.\n`Core\\Validate` has its class card now, so the help proof for the other five `Core\\Validate` members owes only a plain member card each.\nThe member cards for `isEmail`, `isDomain`, `isIp`, `isMac` and `isPrintable` are still in the dense \"Answers whether …\" voice. Rewrite each one in the slice for that member.\nNothing is blocked.",
+  "state": "Goal `core-validate-and-1-more`: `Core\\Validate::isAscii`, `isDomain` and `isEmail` are finished. Each has its about page, three examples, a bench with its figure in `docs/perf/members.ndjson`, an attack, a Rust `covers:` test and a plain card.\n`isIp`, `isMac` and `isPrintable` still owe everything but their Novis tests, and their cards are still in the dense \"Answers whether …\" voice.\n`Core\\Xml` (the check `dossier-core-xml`) has not been started: it owes its class card and all proofs for `parse`, `reader` and `writer`.\nNothing is blocked.",
   "next": {
-    "stage": 1,
+    "stage": 2,
     "title": "Core\\Validate member proofs",
     "files": [
       "crates/nvs-stdlib/src/validate.rs",
       "docs/examples/core/Validate/",
       "tests/hostile/core/Validate/",
-      "benches/members/core/Validate/"
+      "benches/members/core/Validate/",
+      "docs/perf/members.ndjson"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Validate::isDomain`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). The Rust test already exists at `crates/nvs-stdlib/src/validate.rs:770` and needs only a `// covers: Core\\Validate::isDomain` line above its `#[test]`. Rewrite the card at `crates/nvs-stdlib/src/validate.rs:264` in the plain voice. `docs/examples/core/Validate/isAscii/` is the model for the other files. The bench declares `allocations 0` and `calls 0`, indexes with `(($total + $i) % 3) as int` and adds a multiple of 3 on every path, so that every input is visited."
+        "text": "**`Core\\Validate::isMac`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). The Rust test at `crates/nvs-stdlib/src/validate.rs:802` needs only a `// covers: Core\\Validate::isMac` line above its `#[test]`. Rewrite the card at `crates/nvs-stdlib/src/validate.rs:305` in the plain voice. `docs/examples/core/Validate/isDomain/` is the model. The bench declares `allocations 0` and `calls 0`, indexes with `(($total + $i) % 3) as int` and adds a multiple of 3 on every path. `bun nv proofs --record-perf --group 'Core\\Validate'` writes the figure after the last edit to `validate.rs`."
       },
       {
         "done": false,
-        "text": "**`Core\\Validate::isEmail`** — the same list. Its Rust test is `crates/nvs-stdlib/src/validate.rs:706`, which needs a `covers:` line, and its card is `crates/nvs-stdlib/src/validate.rs:248`. The attack should include the 254-byte and 64-byte bounds, and a subject of many megabytes."
+        "text": "**`Core\\Validate::isIp`** — the same list. No Rust test exists: write one marked `covers: Core\\Validate::isIp`, in the shape of `crates/nvs-stdlib/src/validate.rs:828`, covering `{version: 4}`, `{version: 6}`, a leading zero and a zone id. Card at `crates/nvs-stdlib/src/validate.rs:283`; its `version` option is a literal union, so one example shows `{version: 6}`."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Validate::isPrintable`** — the same list, and no Rust test either: write one in the shape of `crates/nvs-stdlib/src/validate.rs:828`. Card at `crates/nvs-stdlib/src/validate.rs:335`. Its about page says how it differs from `isAscii` (tab and newline are `false`, `é` is `true`)."
       }
     ]
   },
   "backlog": [
-    "`isIp`, `isMac` and `isPrintable` are not on this goal's item list, but their cards share the dense voice. When they are listed, they reuse the same file set. The owner is `crates/nvs-stdlib/src/validate.rs`.",
-    "Goal item 3 of 3, the `Core\\Xml` member, follows the `Core\\Validate` pair. The owner is `crates/nvs-stdlib/src/xml.rs`."
+    "`Core\\Xml`: class card plus proofs for `parse`, `reader`, `writer` — the check `dossier-core-xml`; `crates/nvs-stdlib/src/xml.rs` and the `CLASSES_STILL_OWING_A_CARD` list in `crates/nvs-stdlib/src/registry.rs`.",
+    "`crates/nvs-cli/src/worker.rs:2837`'s drain-deadline test fails under full-workspace load; its bound needs to hold under load (`tools/nv/cmd/verify.ts`'s module doc). The playbook bullet under *Running things* owns the workaround."
   ]
 }

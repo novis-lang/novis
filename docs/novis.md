@@ -15907,13 +15907,13 @@ int
 Core\Validate::isEmail(string $s): bool
 ```
 
-Answers whether `$s` is an email address, as `filter_var` with `FILTER_VALIDATE_EMAIL` does: one `@`, an unquoted dot-atom local part of at most 64 bytes, and a hostname of at least two labels, at most 254 bytes in all.
+Checks whether `$s` is an email address, such as `ada@example.com`. The part before the `@` has at most 64 characters: letters, digits, single dots and some symbols such as `+` and `_`. The part after the `@` is a domain name with at least one dot. The whole address has at most 254 characters.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The text to test. |
 
-**Returns** `bool` — `true` for an address; `false` for anything else, including a quoted local part, a domain literal such as `a@[192.0.2.1]`, a bare single-label domain and any non-ASCII byte. Nothing is looked up in DNS.
+**Returns** `bool` — `true` for an email address. `false` for anything else, for example a space, two dots in a row, quotes, an address such as `a@[192.0.2.1]`, a domain without a dot such as `a@localhost`, or a character that is not ASCII. The method does not check whether the address exists.
 
 <a id="core-core-validate-isdomain"></a>
 #### `Core\Validate::isDomain`
@@ -15922,13 +15922,13 @@ Answers whether `$s` is an email address, as `filter_var` with `FILTER_VALIDATE_
 Core\Validate::isDomain(string $s): bool
 ```
 
-Answers whether `$s` is an RFC 1123 hostname, as `filter_var` with `FILTER_VALIDATE_DOMAIN` and `FILTER_FLAG_HOSTNAME` does: one or more labels of 1 to 63 letters, digits and `-`, joined by single dots, at most 253 bytes in all.
+Checks whether `$s` is a domain name, such as `example.com`. A domain name has one or more parts joined by single dots. Each part has 1 to 63 letters, digits or `-`, and does not start or end with `-`. The whole name has at most 253 characters.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The text to test. |
 
-**Returns** `bool` — `true` for a hostname, `localhost` and an all-numeric name included; `false` for a label starting or ending with `-`, an empty label, a trailing root dot or a byte outside ASCII. Syntax only — nothing is resolved.
+**Returns** `bool` — `true` for a domain name. `localhost` and a name of digits such as `1.2.3.4` are `true` too. `false` for an empty part, a dot at the end, a part that starts or ends with `-`, or a character that is not ASCII. The method does not check whether the name exists.
 
 <a id="core-core-validate-isip"></a>
 #### `Core\Validate::isIp`

@@ -246,33 +246,36 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Validate::isEmail`'s reference card — `rule:core-api/reference-card`.
 const IS_EMAIL_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$s` is an email address, as `filter_var` with `FILTER_VALIDATE_EMAIL` \
-            does: one `@`, an unquoted dot-atom local part of at most 64 bytes, and a hostname \
-            of at least two labels, at most 254 bytes in all.",
+    short: "Checks whether `$s` is an email address, such as `ada@example.com`. The part before \
+            the `@` has at most 64 characters: letters, digits, single dots and some symbols such \
+            as `+` and `_`. The part after the `@` is a domain name with at least one dot. The \
+            whole address has at most 254 characters.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to test.",
         shape: &[],
     }],
-    ret: "`true` for an address; `false` for anything else, including a quoted local part, a \
-          domain literal such as `a@[192.0.2.1]`, a bare single-label domain and any non-ASCII \
-          byte. Nothing is looked up in DNS.",
+    ret: "`true` for an email address. `false` for anything else, for example a space, two dots \
+          in a row, quotes, an address such as `a@[192.0.2.1]`, a domain without a dot such as \
+          `a@localhost`, or a character that is not ASCII. The method does not check whether \
+          the address exists.",
     errors: &[],
 };
 
 /// `Core\Validate::isDomain`'s reference card — `rule:core-api/reference-card`.
 const IS_DOMAIN_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$s` is an RFC 1123 hostname, as `filter_var` with \
-            `FILTER_VALIDATE_DOMAIN` and `FILTER_FLAG_HOSTNAME` does: one or more labels of 1 to \
-            63 letters, digits and `-`, joined by single dots, at most 253 bytes in all.",
+    short: "Checks whether `$s` is a domain name, such as `example.com`. A domain name has one or \
+            more parts joined by single dots. Each part has 1 to 63 letters, digits or `-`, and \
+            does not start or end with `-`. The whole name has at most 253 characters.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to test.",
         shape: &[],
     }],
-    ret: "`true` for a hostname, `localhost` and an all-numeric name included; `false` for a \
-          label starting or ending with `-`, an empty label, a trailing root dot or a byte \
-          outside ASCII. Syntax only — nothing is resolved.",
+    ret: "`true` for a domain name. `localhost` and a name of digits such as `1.2.3.4` are \
+          `true` too. `false` for an empty part, a dot at the end, a part that starts or ends \
+          with `-`, or a character that is not ASCII. The method does not check whether the \
+          name exists.",
     errors: &[],
 };
 
@@ -702,6 +705,7 @@ mod tests {
 
     /// The line `isEmail` draws, from both sides — the accepted shapes and
     /// each refusal the module docs name.
+    // covers: Core\Validate::isEmail
     #[test]
     fn an_email_is_a_dot_atom_at_a_multi_label_hostname() {
         for accepted in [
@@ -766,6 +770,7 @@ mod tests {
     }
 
     /// `isDomain` answers the hostname question, which is not `isEmail`'s.
+    // covers: Core\Validate::isDomain
     #[test]
     fn a_domain_is_one_or_more_ldh_labels() {
         for accepted in [
