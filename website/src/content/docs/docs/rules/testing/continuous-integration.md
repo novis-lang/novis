@@ -18,7 +18,7 @@ next:
 
 <div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">6</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">6</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#ci-lanes">One workflow holds every job, and three lanes decide which of them a run needs</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#lane-table">One Python table decides what a diff runs, and the platform matrix is never one of the gates</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#unknown-base-runs-everything">A run with no base commit to diff against runs every lane</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-deep-lane">Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-deferred-job-is-skipped-never-absent">A job a lane defers is skipped by its own <code>if:</code>, never filtered out of the workflow</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#every-push-gets-a-verdict">A run on the default branch is never cancelled by the next commit</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#ci-lanes">One workflow holds every job, and three lanes decide which of them a run needs</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#lane-table">One Python table decides what a diff runs, and the platform matrix is never one of the gates</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#unknown-base-runs-everything">A run with no base commit to diff against runs every lane</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-deep-lane">Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-deferred-job-is-skipped-never-absent">A job a lane defers is skipped by its own <code>if:</code>, never filtered out of the workflow</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#every-push-gets-a-verdict">A run on <code>main</code> is never cancelled by the next commit</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="ci-lanes">
 
@@ -32,7 +32,7 @@ next:
 One workflow file holds every CI job, and a schedule trigger plus a `full` flag decide which of them
 a given run needs.
 
-The **push lane** covers a push to the default branch and every pull request; each job runs under
+The **push lane** covers a push to `main` and every pull request; each job runs under
 its own `if:`. The **deep lane** — the nightly schedule, a manual dispatch, and the release gate
 calling this same workflow — forces every gate true, so every job runs. Always-on are the document
 checks, which cost seconds.
@@ -142,14 +142,14 @@ branch protection on months from now.
 
 <div class="nv-rule" id="every-push-gets-a-verdict">
 
-## A run on the default branch is never cancelled by the next commit
+## A run on `main` is never cancelled by the next commit
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#every-push-gets-a-verdict"><code>testing/every-push-gets-a-verdict</code></a>
 </div>
 
-In-progress runs are cancelled for pull requests only. A run on the default branch is never
+In-progress runs are cancelled for pull requests only. A run on `main` is never
 cancelled by the next commit, so every commit there carries its own result — which is what a bisect
 reads, and what a loop committing one slice at a time needs.
 

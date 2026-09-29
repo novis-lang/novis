@@ -1,5 +1,5 @@
 {
-  "title": "A run on the default branch is never cancelled by the next commit",
+  "title": "A run on `main` is never cancelled by the next commit",
   "status": "shipped",
   "because": [
     "0143"

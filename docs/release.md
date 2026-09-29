@@ -24,27 +24,25 @@ digest that already exists — and [docs/docker.md](docker.md) is the user-facin
 
 Steps 1–3 write nothing to the repository on purpose: a build that fails after the tag was pushed
 would leave a version commit and a tag on `main` for a release that does not exist, and both would
-have to be undone by hand on the default branch. Nothing is written until every test and every
+have to be undone by hand on `main`. Nothing is written until every test and every
 binary is green.
 
 ## Before the first release: setting up GitHub
 
 Six things, once. **None of them is a secret** — see *Credentials* below.
 
-### 1. The repository exists and `main` is its default branch
+### 1. The code is on `main`, and `landing` is the default branch
 
-`origin` today is a Forgejo instance; the release workflow only runs on GitHub. Once
-`github.com/novis-lang/novis` exists:
+`origin` is `github.com/novis-lang/novis`. Its default branch is `landing`, an unrelated branch with
+a short README and the files GitHub reads only from the default branch: the issue forms, the
+security policy, the Dependabot configuration and one file per workflow. `landing`'s `ci.yml` has
+the nightly `schedule` and dispatches CI on `main`. Its other workflow files exist so the **Run
+workflow** button appears, and a run started on `landing` stops with an error.
 
-```sh
-git remote add github https://github.com/novis-lang/novis.git
-git push github main
-git push github --tags
-```
-
-Then set `main` as the default branch in **Settings → General → Default branch**. The `plan` job
-refuses to run on any other ref, so a release cut from a topic branch is impossible rather than
-discouraged.
+Set `landing` in **Settings → General → Default branch**. Cut a release from the Actions tab with
+**Use workflow from → `main`**. The `plan` job refuses to run on any other ref, so a release cut from
+a topic branch or from `landing` is impossible rather than discouraged. Under **Settings →
+Environments → `github-pages`**, the deployment branches must include `main`.
 
 `Cargo.toml`'s `repository` is `novis-lang/novis` and its `homepage` is `novis-lang.org`.
 `bun nv release` builds commit links from the first of those when it runs outside CI; inside CI the

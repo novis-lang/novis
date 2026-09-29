@@ -1,4 +1,4 @@
-In-progress runs are cancelled for pull requests only. A run on the default branch is never
+In-progress runs are cancelled for pull requests only. A run on `main` is never
 cancelled by the next commit, so every commit there carries its own result — which is what a bisect
 reads, and what a loop committing one slice at a time needs.
 

@@ -7,7 +7,7 @@
 #
 # The obvious shape is tag → build → release, and it is wrong: a build that fails after the tag is
 # pushed leaves a version commit and a tag in the history for a release that does not exist, and
-# both have to be reverted by hand on the default branch. So nothing is written to the repository
+# both have to be reverted by hand on `main`. So nothing is written to the repository
 # until every test and every binary is green:
 #
 #     plan → test → build → publish → docker
@@ -103,8 +103,8 @@ jobs:
     name: plan
     runs-on: ubuntu-latest
     # A dispatch can name any ref, and a release built from a topic branch would be a release of
-    # code that never passed review. The tag and the commit both land on the default branch, so
-    # that is the only branch a release may be cut from.
+    # code that never passed review. The tag and the commit both land on `main`, so that is the
+    # only branch a release may be cut from.
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -372,8 +372,8 @@ jobs:
           fi
           ls -la dist/
 
-      # The tip may have moved while the matrix built — this repository's default branch takes
-      # commits from an unattended loop. Rebasing is not enough: the notes must describe what is
+      # The tip may have moved while the matrix built — `main` takes commits from an unattended
+      # loop. Rebasing is not enough: the notes must describe what is
       # actually being tagged, so they are re-rendered here rather than carried from `plan`.
       - name: Take the current tip of main
         run: |
@@ -479,8 +479,8 @@ jobs:
           # `:X.Y.Z-debian` — the same binary, in an image you can get inside.
           - variant: debian
     steps:
-      # At the tag, not at `main`: this repository's default branch takes commits from an
-      # unattended loop and may be several past the release by now. The Dockerfile and the tag
+      # At the tag, not at `main`: `main` takes commits from an unattended loop and may be
+      # several past the release by now. The Dockerfile and the tag
       # arithmetic must both be the ones this version was cut from.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

@@ -459,7 +459,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **A run with no base commit to diff against runs every lane** — A first push to a branch, a force-push and a shallow clone all leave the lane computation without a base commit it can diff against. ([`testing/unknown-base-runs-everything`](rules/testing.md#testing-unknown-base-runs-everything))
 - **Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists** — The memory-safety and fuzzing evidence — the interpreter-under-Miri run, the fuzz smoke runs and the unsafe audit — runs in the nightly and at release, and not on a push. ([`testing/the-deep-lane`](rules/testing.md#testing-the-deep-lane))
 - **A job a lane defers is skipped by its own `if:`, never filtered out of the workflow** — Every lane gate is a job-level `if:`, never a workflow-level path filter. ([`testing/a-deferred-job-is-skipped-never-absent`](rules/testing.md#testing-a-deferred-job-is-skipped-never-absent))
-- **A run on the default branch is never cancelled by the next commit** — In-progress runs are cancelled for pull requests only. ([`testing/every-push-gets-a-verdict`](rules/testing.md#testing-every-push-gets-a-verdict))
+- **A run on `main` is never cancelled by the next commit** — In-progress runs are cancelled for pull requests only. ([`testing/every-push-gets-a-verdict`](rules/testing.md#testing-every-push-gets-a-verdict))
 
 ## Security and isolation
 

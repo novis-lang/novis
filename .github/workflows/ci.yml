@@ -7,7 +7,9 @@ on:
   workflow_dispatch:
   # The deep lane, nightly: every job, unconditionally. A push runs only what its own diff can break
   # (ADR 0143) — never a narrower set of platforms, only a narrower set of jobs — so what this
-  # catches is what no push runs at all: Miri, the fuzzers and the unsafe audit.
+  # catches is what no push runs at all: Miri, the fuzzers and the unsafe audit. GitHub reads
+  # `schedule` only from the default branch, `landing`, whose `ci.yml` has this same cron and
+  # dispatches this workflow on `main`. A `workflow_dispatch` is the deep lane too (`FULL` below).
   schedule:
     - cron: '0 3 * * *'
   # `release.yml` calls this workflow rather than restating any of it. The full suite is what a

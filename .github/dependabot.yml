@@ -11,6 +11,10 @@
 # hand, with docs/agent/dependency-update.md as the procedure -- "bumping a dependency is the one
 # class of change whose entire value is that a person weighed it". A bot opening those PRs would
 # be exactly the automation that ADR refuses.
+#
+# GitHub reads this file only from the default branch, `landing`, so this copy is not the one that
+# runs. `landing`'s `.github/dependabot.yml` has the same entries, each with `target-branch: main`,
+# and a change here is made there as well.
 version: 2
 updates:
   - package-ecosystem: github-actions
