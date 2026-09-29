@@ -1,0 +1,18 @@
+<?nvs
+// Decodes a search text from a query string, as a server does before it runs the search.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $searches = ["red+shoes", "salt+%26+pepper", "Caf%C3%A9+au+lait"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Bytes::length(Core\Uri::decodeFormValue($searches[$total % 3]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

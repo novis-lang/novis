@@ -1,0 +1,11 @@
+<?nvs
+// Shows how `Core\Uri::decodeFormValue` reads a `+`, the escape `%2B` and a broken escape.
+
+// A `+` is a space, and `%2B` is a real `+`. This prints 1+1 = 2.
+echo (Core\Uri::decodeFormValue("1%2B1+%3D+2") as string), "\n";
+
+// `%20` is also a space. This prints a b.
+echo (Core\Uri::decodeFormValue("a%20b") as string), "\n";
+
+// A `%` without two hex digits after it is kept. This prints 100%.
+echo (Core\Uri::decodeFormValue("100%") as string), "\n";

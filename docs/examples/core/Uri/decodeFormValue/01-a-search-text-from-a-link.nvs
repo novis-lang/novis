@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read a search text back from the escaped form it has in a link.
+
+string $inLink = "red+shoes+%26+bags";
+
+// `Core\Uri::decodeFormValue` replaces each `+` with a space and each escape with its
+// character. It returns `bytes`, and `as string` converts the result to text.
+string $search = Core\Uri::decodeFormValue($inLink) as string;
+
+// `%26` is `&`. This prints red shoes & bags.
+echo $search, "\n";
