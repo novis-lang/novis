@@ -2,6 +2,7 @@
 Spec § 4: an `Instant`'s three epoch readings are unchanged by reading it in a zone, including the host's, and they agree either side of the epoch
 --FILE--
 <?nvs
+// covers: Core\Time\Instant::in
 // `rule:core-api/shape-rules` R3 says nothing mutates, and `Instant::in` is the member where that
 // is easiest to get wrong: a zone is the one piece of context an instant does
 // not carry, so an implementation that *attaches* the zone rather than

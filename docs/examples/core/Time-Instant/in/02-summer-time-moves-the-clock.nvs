@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `in` uses the offset the zone has at that moment, including summer time.
+
+Core\Time\Zone $berlin = Core\Time\Zone::of("Europe/Berlin");
+
+// Both instants are at 12:00 UTC. Berlin is one hour ahead in winter and two hours ahead in summer.
+Core\Time\Instant $winter = Core\Time::fromIso("2024-01-15T12:00:00Z");
+Core\Time\Instant $summer = Core\Time::fromIso("2024-07-15T12:00:00Z");
+
+// This prints 13:00 +01:00 and then 14:00 +02:00.
+echo $winter->in($berlin)->format("HH:mm XXX"), "\n";
+echo $summer->in($berlin)->format("HH:mm XXX"), "\n";
