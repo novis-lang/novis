@@ -1,0 +1,14 @@
+<?nvs
+// Shows how `scheme` tells a full address from a path on the same site.
+
+array<string> $links = ["https://example.com/help", "/help", "//cdn.example.com/logo.png", "help.html"];
+
+// `scheme` returns `null` when the address has no scheme.
+// This prints "full address" once and "no scheme" three times.
+foreach ($links as string $link) {
+    if (Core\Uri::parse($link)->scheme() == null) {
+        echo $link, ": no scheme\n";
+    } else {
+        echo $link, ": full address\n";
+    }
+}

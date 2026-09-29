@@ -1,0 +1,24 @@
+<?nvs
+// Reads the scheme of an address, as a server does before it follows a link a user gave it.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $links = [
+            Core\Uri::parse("https://shop.example.com/cart"),
+            Core\Uri::parse("mailto:orders@example.com"),
+            Core\Uri::parse("/orders/1042"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?string $scheme = $links[(($total + $i) % 3) as int]->scheme();
+            $total = $total + 1 + Core\Str::length($scheme ?? "");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

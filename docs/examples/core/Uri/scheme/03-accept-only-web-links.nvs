@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a profile page accepts a website link only when it starts with `http:` or `https:`.
+
+class Profile {
+    public static function website(string $input): string {
+        ?Core\Uri $link = Core\Uri::tryParse($input);
+        if ($link == null) {
+            return "not saved";
+        }
+        // A scheme can be written in upper case, so it is made lower case first.
+        string $scheme = Core\Str::lower($link->scheme() ?? "");
+        if ($scheme != "http" && $scheme != "https") {
+            return "not saved";
+        }
+        return "saved " . $link->toString();
+    }
+}
+
+// This prints two saved links, then "not saved" three times.
+// A `javascript:` link would run code in the browser of every visitor.
+echo Profile::website("https://ann.example.com/"), "\n";
+echo Profile::website("HTTP://example.com/ann"), "\n";
+echo Profile::website("JavaScript:alert(1)"), "\n";
+echo Profile::website("/ann"), "\n";
+echo Profile::website("https://example.com/a b"), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the scheme of an address, which is the part before the first `:`.
+
+array<string> $addresses = [
+    "https://example.com/",
+    "mailto:ann@example.com",
+    "ftp://files.example.com/report.pdf",
+    "HTTP://example.com/",
+];
+
+// This prints https, mailto, ftp and HTTP.
+// The scheme is returned as it was written, so `HTTP` stays upper case.
+foreach ($addresses as string $address) {
+    echo Core\Uri::parse($address)->scheme() as string, "\n";
+}
