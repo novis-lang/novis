@@ -1,22 +1,19 @@
 {
-  "state": "Goal `core-time-duration-2-2`, stage 2 (the dossier). `Core\\Time\\Duration::parse`, `plus`, `seconds`, `toNanoseconds`, `toMicroseconds`, `toMilliseconds` and `toSeconds` have every proof on disk.\nThe four readers share one Rust test, `duration_readers_truncate_toward_zero_at_every_scale` in `crates/nvs-stdlib/src/time.rs`, and one Novis case, `tests/conformance/core/time-duration-constructors-and-readers-are-one-scale.nvst`, which now carries their `covers:` marker.\nTwo members still owe every proof: `toString` and `weeks`.\nA literal argument to `Duration::parse` is folded at compile time, so a proof that means to call it passes its text through a variable.",
+  "state": "Goal `core-time-duration-2-2`, stage 2 (the dossier), is met: its check prints `nothing owed` for all nine members, and 27 examples and 9 attacks run green.\n`toString` and `weeks` each have their own Rust test in `crates/nvs-stdlib/src/time.rs`. `toString`'s Novis half is the `covers:` marker on `tests/conformance/core/time-duration-constructors-and-readers-are-one-scale.nvst`.\nThe `toString` bench found about five allocations per call. `nvs_syntax::duration::render_with` now renders into a stack buffer, so the one `string` the member returns is the only allocation, and the bench declares `allocations 1`.\nThat change moved `crates/nvs-stdlib/src/time.rs`'s code, so all 49 `Core\\Time` figures in `docs/perf/members.ndjson` were measured again against it.\n`bun nv verify --doc`, `bun nv owners --closes` and `bun nv playbook --closes` are green for this goal.",
   "next": {
     "stage": 2,
     "title": "the dossier",
-    "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the two members and their Rust test), `docs/examples/core/Time-Duration/`, `tests/hostile/core/Time-Duration/`, `benches/members/core/Time-Duration/`.",
+    "files": [
+      "benches/members/core/Time-Duration/"
+    ],
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Time\\Duration::toString`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:976`. The conformance case above already calls it; a `covers:` marker there is its Novis half."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Time\\Duration::weeks`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:842`. `duration_hours_and_days_are_exact_and_bounded_on_both_sides` is the Rust shape; 15250 weeks is the last count that fits."
+        "done": true,
+        "text": "**Every member the goal's check names has its proofs** — `rule:testing/feature-proofs`. `benches/members/core/Time-Duration/toString.nvs:4` is the last figure recorded. The driver's sweep moves the chain on from here."
       }
     ]
   },
   "backlog": [
-    "Nothing outside this goal."
+    "Nothing this goal owns is open."
   ]
 }
