@@ -26,7 +26,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::hint::black_box;
 use std::rc::Rc;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -665,52 +665,65 @@ fn concurrent_spawns_leave_the_scheduler_serving_other_tasks() {
     // owns the correctness half over `Core\Process::spawn` itself, and the
     // property measured here is the scheduler's either way.
     //
-    // The bound is a ratio between two figures this one run takes, so it needs
-    // no baseline and holds on any machine: a core that blocked on a child
-    // would reach the neighbour only after the last of them and report about
-    // 1x, where one that hands itself back reaches it in the microseconds
-    // before the first child has started. Measured on x86_64-pc-windows-msvc:
-    // a neighbour served 0.23 ms into a 10.7 ms run, a ratio of ~46x, where the
-    // same four children run one after another take 24.9 ms.
-    const MIN_RATIO: f64 = 10.0;
+    // The bound is an order of events, not a ratio of times, so it holds on any
+    // machine however loaded. Each child's job starts its process and then
+    // waits, with the process still unreaped, until the neighbour has run. A
+    // core that hands itself back reaches the neighbour and opens that gate; a
+    // core held by the wait never reaches it, and the gate's deadline is what
+    // ends the run as a failure. A ratio of elapsed times could not tell the
+    // two apart on a shared host: a child started and reaped in half a
+    // millisecond leaves no room between them for a scheduler to show it was
+    // not blocked.
     const CHILDREN: usize = 4;
+    // Only the failing run ever waits this long.
+    const GATE_DEADLINE: Duration = Duration::from_secs(20);
 
     let _installed =
         nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
     let mut sched = nvs_host::Scheduler::new();
 
-    // The serial figure the concurrent run is printed against: one child, start
-    // to reaped, off any core. It is printed and not asserted, because how far
-    // the children overlap is the blocking pool's bound and the host's core
-    // count, while what this guard fails on is the core being held at all.
-    nvs_abi_probe::process::spawn_noop();
-    let mut serial = Duration::MAX;
-    for _ in 0..3 {
-        let one = Instant::now();
-        nvs_abi_probe::process::spawn_noop();
-        serial = serial.min(one.elapsed());
-    }
-
+    let gate: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false), Condvar::new()));
     let started = Instant::now();
+    let deadline = started + GATE_DEADLINE;
+    let behind_the_neighbour: Rc<Cell<usize>> = Rc::new(Cell::new(0));
     for _ in 0..CHILDREN {
         let ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        let gate = Arc::clone(&gate);
+        let behind = Rc::clone(&behind_the_neighbour);
         sched.spawn(ctx, nvs_runtime::TaskRoot::Worker, move |_ctx| {
-            let status = nvs_host::blocking::run(|| {
-                nvs_abi_probe::process::noop_command()
+            let (status, neighbour_ran) = nvs_host::blocking::run(move || {
+                let mut child = nvs_abi_probe::process::noop_command()
                     .spawn()
-                    .expect("the host must be able to start a do-nothing process")
-                    .wait()
-                    .expect("a started child is one to be reaped")
+                    .expect("the host must be able to start a do-nothing process");
+                let (open, opened) = &*gate;
+                let open = open.lock().unwrap_or_else(PoisonError::into_inner);
+                let wait = deadline.saturating_duration_since(Instant::now());
+                let (open, _) = opened
+                    .wait_timeout_while(open, wait, |open| !*open)
+                    .unwrap_or_else(PoisonError::into_inner);
+                let neighbour_ran = *open;
+                drop(open);
+                let status = child.wait().expect("a started child is one to be reaped");
+                (status, neighbour_ran)
             });
             assert!(status.success(), "a do-nothing process must exit cleanly");
+            if neighbour_ran {
+                behind.set(behind.get() + 1);
+            }
         });
     }
     let served: Rc<Cell<Option<Duration>>> = Rc::new(Cell::new(None));
     let neighbour = Rc::clone(&served);
+    let opens = Arc::clone(&gate);
     sched.spawn(
         nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink),
         nvs_runtime::TaskRoot::Worker,
-        move |_ctx| neighbour.set(Some(started.elapsed())),
+        move |_ctx| {
+            neighbour.set(Some(started.elapsed()));
+            let (open, opened) = &*opens;
+            *open.lock().unwrap_or_else(PoisonError::into_inner) = true;
+            opened.notify_all();
+        },
     );
 
     let report = nvs_host::run_until_idle(&mut sched).expect("the loop failed");
@@ -726,24 +739,23 @@ fn concurrent_spawns_leave_the_scheduler_serving_other_tasks() {
     );
 
     let serve = served.get().expect("the neighbour task never ran");
-    let ratio = total.as_secs_f64() / serve.as_secs_f64().max(1e-9);
+    let behind = behind_the_neighbour.get();
     println!(
         "{CHILDREN} concurrent spawns: neighbour served at {:.2} ms of {:.2} ms, \
-         serially {:.2} ms, ratio {ratio:.0}x{}",
+         {behind} of {CHILDREN} children held open until it ran",
         serve.as_secs_f64() * 1e3,
         total.as_secs_f64() * 1e3,
-        serial.as_secs_f64() * 1e3 * CHILDREN as f64,
-        over(ratio, MIN_RATIO)
     );
 
-    assert!(
-        ratio > MIN_RATIO,
-        "a neighbour task waited {:.2} ms of the {:.2} ms {CHILDREN} children took, a ratio of \
-         {ratio:.1}x and under the {MIN_RATIO}x guard. A child is waited for off the core \
-         through `nvs_host::blocking::run`; at this ratio the wait is holding the core and \
-         every other request on it is behind a process.",
-        serve.as_secs_f64() * 1e3,
-        total.as_secs_f64() * 1e3
+    assert_eq!(
+        behind,
+        CHILDREN,
+        "{} of {CHILDREN} children gave up waiting for the neighbour task, which ran only at \
+         {:.2} ms. A child is waited for off the core through `nvs_host::blocking::run`; a \
+         child that cannot finish until the neighbour runs, and a neighbour that does not run, \
+         mean the wait is holding the core and every other request on it is behind a process.",
+        CHILDREN - behind,
+        serve.as_secs_f64() * 1e3
     );
 }
 
