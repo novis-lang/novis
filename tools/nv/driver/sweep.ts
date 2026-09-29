@@ -14,9 +14,11 @@
 // writes behind a shell call (`nv splice`, the reference generator, `nv proofs`'s blessed `.out` files
 // and perf ledger) records its paths in
 // `.loop/written.txt` through `lib/written.ts`. Every other dirty path is left where it is and listed as
-// `left`. A sweep with nothing of its own to take commits nothing and deletes `interrupted.json`, which
-// is how a session that ends clean closes an earlier interruption. A subagent's writes reach neither
-// watcher, so they are reported as left rather than taken.
+// `left`. A sweep with nothing of its own to take commits nothing. When the session wrote files and
+// committed them all, the sweep deletes `interrupted.json`, which is how a session that ends clean closes
+// an earlier interruption. A session that wrote nothing, such as one the API refused on its first turn,
+// never took up the interrupted slice, so the record stays for the next one. A subagent's writes reach
+// neither watcher, so they are reported as left rather than taken.
 //
 // **The usage wall.** A `rate_limit_event` whose status is `rejected` and whose `resetsAt` is still ahead
 // is a wall: the session is swept, and the turn sleeps until the window reopens and runs the session
@@ -162,7 +164,7 @@ export interface Swept {
 /**
  * Commits what session `index` left uncommitted of its own, and records it in `interrupted.json`. `why` is
  * the sentence that says what cut the session off. With nothing of the session's own dirty, it commits
- * nothing and deletes `interrupted.json`.
+ * nothing, and deletes `interrupted.json` only when the session wrote something.
  */
 export async function markInterrupted(index: number, why: string, touched: Touched, root: string = ROOT, now = new Date()): Promise<Swept> {
   const seen = touched.paths();
@@ -171,7 +173,7 @@ export async function markInterrupted(index: number, why: string, touched: Touch
   const theirs = entries.filter((e) => !seen.has(e.path));
   const left = theirs.map((e) => `${e.code} ${e.path}`);
   if (ours.length === 0) {
-    rmSync(join(root, INTERRUPTED), { force: true });
+    if (seen.size > 0) rmSync(join(root, INTERRUPTED), { force: true });
     return { paths: 0, committed: false, left: theirs.length };
   }
   const paths = [...new Set(ours.map((e) => e.path))];

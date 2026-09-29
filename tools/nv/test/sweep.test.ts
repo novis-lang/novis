@@ -109,16 +109,26 @@ describe("markInterrupted", () => {
     expect(cut.left).toEqual(["?? theirs.txt"]);
   }, GIT_TIMEOUT);
 
-  test("with nothing of its own dirty, it commits nothing and clears the interruption", async () => {
+  test("with everything it wrote committed, it commits nothing and clears the interruption", async () => {
     const dir = await repo();
     const t = new Touched(dir);
     t.start();
     writeFileSync(join(dir, INTERRUPTED), "{}\n");
     writeFileSync(join(dir, "theirs.txt"), "a person's\n");
+    t.note(toolUse("Edit", { file_path: join(dir, "a.txt") }));
     const before = await git(dir, "rev-parse", "HEAD");
     expect(await markInterrupted(3, "it exited without wrapping", t, dir)).toEqual({ paths: 0, committed: false, left: 1 });
     expect(await git(dir, "rev-parse", "HEAD")).toBe(before);
     expect(existsSync(join(dir, INTERRUPTED))).toBe(false);
+  }, GIT_TIMEOUT);
+
+  test("a session that wrote nothing leaves the earlier interruption standing", async () => {
+    const dir = await repo();
+    const t = new Touched(dir);
+    t.start();
+    writeFileSync(join(dir, INTERRUPTED), "{}\n");
+    expect(await markInterrupted(4, "the CLI exited 1", t, dir)).toEqual({ paths: 0, committed: false, left: 0 });
+    expect(existsSync(join(dir, INTERRUPTED))).toBe(true);
   }, GIT_TIMEOUT);
 });
 
