@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to create a duration from a number of seconds.
+
+int $count = 90;
+Core\Time\Duration $pause = Core\Time\Duration::seconds($count);
+
+// This prints 1m30s and 90000.
+echo $pause->toString(), "\n";
+echo $pause->toMilliseconds(), "\n";
+
+// A negative number gives a negative duration. This prints -45s.
+echo Core\Time\Duration::seconds(-45)->toString(), "\n";

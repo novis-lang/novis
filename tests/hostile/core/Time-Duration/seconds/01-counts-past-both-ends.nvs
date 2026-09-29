@@ -1,0 +1,26 @@
+<?nvs
+// Attack: `seconds` gets counts one past the largest and smallest durations, and one million counts.
+// A count that does not fit should throw a `RuntimeError`, and nothing should crash or leak.
+
+// 1. The last count that fits and the first that does not, at both ends and at the ends of `int`.
+array<int> $counts = [
+    9223372036, 9223372037, -9223372036, -9223372037,
+    9223372036854775807, -9223372036854775807 - 1,
+];
+foreach ($counts as int $count) {
+    try {
+        echo Core\Time\Duration::seconds($count)->toNanoseconds(), "\n";
+    } catch (RuntimeError $e) {
+        echo "RuntimeError\n";
+    }
+}
+
+// 2. One million durations are built from counts that grow in both directions. Each one is freed again.
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    int $next = $round % 2 == 0 ? $round * 9000 : -$round * 9000;
+    $total = $total + Core\Time\Duration::seconds($next)->toSeconds() % 7;
+    $round = $round + 1;
+}
+echo $total, "\n";

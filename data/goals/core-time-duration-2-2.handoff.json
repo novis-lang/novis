@@ -1,26 +1,32 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Time\\Duration (2/2) has been taken yet.",
+  "state": "Goal `core-time-duration-2-2`, stage 2 (the dossier). `Core\\Time\\Duration::parse`, `plus` and `seconds` are complete: `bun nv proofs --id` prints `complete.` for each, and their three figures are in `docs/perf/members.ndjson`.\nSix members still owe every proof: `toNanoseconds`, `toMicroseconds`, `toMilliseconds`, `toSeconds`, `toString` and `weeks`.\nThe Rust tests for this group live in `crates/nvs-stdlib/src/time.rs`'s test module, beside `duration_seconds_is_exact_and_bounded_on_both_sides`; `read_and_release` reads a returned `Duration`.\nA literal argument to `Duration::parse` is folded at compile time, so every proof passes its text through a variable.",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the four readers and their Rust test), `docs/examples/core/Time-Duration/`, `tests/hostile/core/Time-Duration/`, `benches/members/core/Time-Duration/`. The four readers truncate toward zero the same way, so one Rust test can cover all four.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:261`"
+        "text": "**`Core\\Time\\Duration::toNanoseconds`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:272`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::plus`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:308`"
+        "text": "**`Core\\Time\\Duration::toMicroseconds`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:281`"
       },
       {
         "done": false,
-        "text": "**`Core\\Time\\Duration::seconds`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/time.rs:216`"
+        "text": "**`Core\\Time\\Duration::toMilliseconds`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:290`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Time\\Duration::toSeconds`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/time.rs:299`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Time\\Duration::toString` and `Core\\Time\\Duration::weeks` owe every proof — this goal's item list, `docs/agent/goals/core-time-duration-2-2.md`.",
+    "`DURATION_PARSE_DOC` (`crates/nvs-stdlib/src/time.rs`) still reads in the repository's own voice (`strtotime`, \"laundered\"); goal `plain-comments` sweeps card text.",
+    "A mis-cased unit's `ParseError` message names `rule:classes/names-resolve-case-sensitively`, which a user reads; `crates/nvs-syntax/src/duration.rs`'s `DurationError::message` owns the sentence."
   ]
 }
