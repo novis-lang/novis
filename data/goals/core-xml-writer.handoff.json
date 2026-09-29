@@ -1,22 +1,22 @@
 {
-  "state": "Goal `core-xml-writer`: `attribute`, `comment`, `cdata`, `instruction`, `doctype`, `content`, `startElement` and `endElement` of `Core\\Xml\\Writer` have all their feature proofs, and their cards in `crates/nvs-stdlib/src/xml.rs` are in plain words.\n`forbidden` now refuses U+FFFE and U+FFFF, in every writer and in the parser. `tests/conformance/core/xml-u-fffe-and-u-ffff-are-refused-by-every-writer-and-by-the-parser.nvst` pins that.\n`startDocument` and `endDocument` still owe about.md, examples, hostile, perf and a Rust test. After them, `dossier-core-xml-writer` should be green.\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands: keep writer attacks and benches under about 500,000 pieces, or mark them with that gap.\nAny later edit to `xml.rs` code makes the whole `Core\\Xml*` perf set stale again. Finish with `bun nv proofs --record-perf --group 'Core\\Xml' --group 'Core\\Xml\\Node' --group 'Core\\Xml\\Reader' --group 'Core\\Xml\\Writer'`.\n`bun nv try` and `--bless` use the pipeline's `covws` binary. After a Rust change, run `cargo build --bin nvs` and set `NVS_BIN=target/debug/nvs.exe`.",
+  "state": "Goal `core-xml-writer` is reached. All ten members of `Core\\Xml\\Writer` have every feature proof, and `bun nv proofs --verify --group 'Core\\Xml\\Writer'` prints \"nothing owed\" with 30 examples and 10 attacks green.\n`startDocument` and `endDocument` were the last two. Their cards in `crates/nvs-stdlib/src/xml.rs` are in plain words, and each has a Rust test with a `covers:` marker.\n`bun nv verify --doc`, `bun nv owners --closes core-xml-writer` and `bun nv playbook --closes core-xml-writer` are all clean.\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands under its own owner. Writer attacks and benches stay under about 500,000 pieces.",
   "next": {
-    "stage": 1,
-    "title": "member proofs",
+    "stage": 2,
+    "title": "the dossier",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` (the cards near `START_DOCUMENT_DOC`, the bodies near `fn start_document`, the writer tests after `elements_close_in_the_order_they_opened_and_nest_up_to_the_ceiling`), plus the proof trees under `core/Xml-Writer/<member>`.",
+    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` and the proof trees under `core/Xml-Writer/`.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Xml\\Writer::startDocument` and `endDocument`** — owe about.md, examples, hostile, perf, a Rust test each; rewrite both cards in plain words. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3084` (`start_document`), `crates/nvs-stdlib/src/xml.rs:3103` (`end_document`), `crates/nvs-stdlib/src/xml.rs:809` (cards)"
+        "done": true,
+        "text": "**`Core\\Xml\\Writer::startDocument` and `endDocument` have their feature proofs** — `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3084` (`start_document`), `crates/nvs-stdlib/src/xml.rs:3103` (`end_document`)"
       },
       {
-        "done": false,
-        "text": "**Close the goal** — run the dossier check, then `bun nv verify --doc`, `bun nv owners --closes core-xml-writer` and `bun nv playbook --closes core-xml-writer`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:5110` (last writer test)"
+        "done": true,
+        "text": "**Close the goal** — dossier check, doc links, owners and playbook gates all green. `crates/nvs-stdlib/src/xml.rs:809`"
       }
     ]
   },
   "backlog": [
-    "`forbidden` refuses U+007F to U+009F, which XML 1.0 allows in a document. PHP's parser reads them. This is a correctness divergence, and it is not a security problem. It is owed by `crates/nvs-stdlib/src/xml.rs`'s module doc, if a later goal decides to allow them."
+    "The writer's refusal sentences still use house words (\"`endDocument` has answered it\", \"what this holds is not a document\"). They print in several example `.out` files and in `tests/conformance/core/xml-a-writer-refuses-every-call-that-would-not-leave-a-document.nvst`. Owner: `crates/nvs-stdlib/src/xml.rs` (`Pen::writing`, `end_document`)."
   ]
 }

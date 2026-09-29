@@ -21458,11 +21458,11 @@ Keywords: startDocument, endDocument, startElement, endElement, content, attribu
 $writer->startDocument(): void
 ```
 
-Opens the document, writing its XML declaration. A document is the outermost of the two pairs, so this comes before every other write and `endDocument` closes it.
+Starts the document and writes the XML declaration `<?xml version="1.0" encoding="UTF-8"?>`. Call it first, before any other method. A writer writes one document, so you call this once.
 
-**Returns** `void` — Nothing; the declaration is written and the writer will accept content.
+**Returns** `void` — Nothing. After this call, you can write the root element.
 
-**Throws** `LogicError` — The document is already open, or is already finished.
+**Throws** `LogicError` — The document is already started. The document is already finished with `endDocument`.
 
 <a id="core-core-xml-writer-enddocument"></a>
 #### `Core\Xml\Writer->endDocument`
@@ -21471,11 +21471,11 @@ Opens the document, writing its XML declaration. A document is the outermost of 
 $writer->endDocument(): string
 ```
 
-Closes the document and answers it. This is where the writer refuses an unbalanced tree rather than emitting one: an element still open here is an error, not a document, so there is no arrangement of calls that produces text a parser would refuse. Reading the document does not raise PHP's question of whether reading it also empties the buffer, because what comes back is a value.
+Finishes the document and returns it as a string. Every element must be closed first. So the string this method returns is always a document that an XML parser can read.
 
-**Returns** `string` — The whole document as written, plain rather than `tainted`: every member that took character data escaped it and every name was checked against XML's own, so nothing a caller handed over survives as markup. Writing anything afterwards is refused.
+**Returns** `string` — The whole document as a `string`. The string is not `tainted`, because the writer escaped every text and checked every name. After this call, every other method of the writer throws an error.
 
-**Throws** `LogicError` — An element is still open, no root element was written, or the document was never opened or is already finished.
+**Throws** `LogicError` — An element is still open. No root element was written. The document was not started with `startDocument`. The document is already finished.
 
 <a id="core-core-xml-writer-startelement"></a>
 #### `Core\Xml\Writer->startElement`

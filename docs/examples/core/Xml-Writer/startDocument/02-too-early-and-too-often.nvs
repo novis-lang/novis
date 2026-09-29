@@ -1,0 +1,31 @@
+<?nvs
+// Shows the errors when you write before `startDocument`, and when you call it twice.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+
+// The document is not started yet. This prints the error message.
+try {
+    $writer->startElement("note");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+$writer->startDocument();
+
+// The document is already started. This prints the error message.
+try {
+    $writer->startDocument();
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+$writer->startElement("note");
+$writer->endElement();
+echo $writer->endDocument(), "\n";
+
+// The document is finished. A writer writes only one document, so this prints the error message.
+try {
+    $writer->startDocument();
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a program writes one XML file for each customer, with a new writer for each file.
+
+class Invoice
+{
+    // Returns the invoice of one customer as a complete XML document.
+    public static function write(string $customer, int $total): string
+    {
+        Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+        $writer->startDocument();
+        $writer->startElement("invoice");
+        $writer->attribute("customer", $customer);
+        $writer->startElement("total");
+        $writer->content($total as string);
+        $writer->endElement();
+        $writer->endElement();
+        return $writer->endDocument();
+    }
+}
+
+// Each call creates its own writer, so each invoice starts with its own declaration.
+echo Invoice::write("Ada", 120), "\n\n";
+echo Invoice::write("Linus", 75), "\n";

@@ -1,0 +1,4 @@
+Core\Xml\Writer::endDocument(): a document has a root element, and none was written.
+Core\Xml\Writer::endDocument(): `<item>` is still open, so what this holds is not a document.
+<?xml version="1.0" encoding="UTF-8"?><order><item/></order>
+Core\Xml\Writer::endDocument(): the document is finished, and `endDocument` has answered it.

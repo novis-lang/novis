@@ -807,32 +807,32 @@ const WRITER_DOC: MethodDoc = MethodDoc {
 /// `Core\Xml\Writer::startDocument`'s reference card —
 /// `rule:core-api/reference-card`.
 const START_DOCUMENT_DOC: MethodDoc = MethodDoc {
-    short: "Opens the document, writing its XML declaration. A document is the outermost of the \
-            two pairs, so this comes before every other write and `endDocument` closes it.",
+    short: "Starts the document and writes the XML declaration \
+            `<?xml version=\"1.0\" encoding=\"UTF-8\"?>`. Call it first, before any other method. \
+            A writer writes one document, so you call this once.",
     params: &[],
-    ret: "Nothing; the declaration is written and the writer will accept content.",
+    ret: "Nothing. After this call, you can write the root element.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The document is already open, or is already finished.",
+        desc: "The document is already started. The document is already finished with \
+               `endDocument`.",
     }],
 };
 
 /// `Core\Xml\Writer::endDocument`'s reference card —
 /// `rule:core-api/reference-card`.
 const END_DOCUMENT_DOC: MethodDoc = MethodDoc {
-    short: "Closes the document and answers it. This is where the writer refuses an unbalanced \
-            tree rather than emitting one: an element still open here is an error, not a \
-            document, so there is no arrangement of calls that produces text a parser would \
-            refuse. Reading the document does not raise PHP's question of whether reading it also \
-            empties the buffer, because what comes back is a value.",
+    short: "Finishes the document and returns it as a string. Every element must be closed \
+            first. So the string this method returns is always a document that an XML parser \
+            can read.",
     params: &[],
-    ret: "The whole document as written, plain rather than `tainted`: every member that took \
-          character data escaped it and every name was checked against XML's own, so nothing a \
-          caller handed over survives as markup. Writing anything afterwards is refused.",
+    ret: "The whole document as a `string`. The string is not `tainted`, because the writer \
+          escaped every text and checked every name. After this call, every other method of the \
+          writer throws an error.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "An element is still open, no root element was written, or the document was never \
-               opened or is already finished.",
+        desc: "An element is still open. No root element was written. The document was not \
+               started with `startDocument`. The document is already finished.",
     }],
 };
 
@@ -5302,6 +5302,51 @@ mod tests {
         dropped(writer);
     }
 
+    /// A document opens once, and nothing is written before it opens.
+    ///
+    /// Before `startDocument`, an element and `endDocument` are both refused
+    /// as not open. `startDocument` writes the declaration and nothing else,
+    /// so an indenting writer puts the root on the next line. A second
+    /// `startDocument` is refused while the document is open and again after
+    /// `endDocument` has returned it, and neither refusal writes a byte.
+    // covers: Core\Xml\Writer::startDocument
+    #[test]
+    fn a_document_opens_once_and_nothing_is_written_before_it() {
+        let open = super::nvs_core_xml_writer_start_document;
+        let start = super::nvs_core_xml_writer_start_element;
+        let end = super::nvs_core_xml_writer_end_element;
+        let finish = super::nvs_core_xml_writer_end_document;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "  ");
+        let root = word("root");
+
+        let why = asked(&mut ctx, start, &[writer, root]).expect_err("nothing is open");
+        assert!(why.contains("the document is not open"), "{why}");
+        let why = asked(&mut ctx, finish, &[writer]).expect_err("nothing is open");
+        assert!(why.contains("the document is not open"), "{why}");
+
+        wrote(asked(&mut ctx, open, &[writer]));
+        let why = asked(&mut ctx, open, &[writer]).expect_err("the document is open");
+        assert!(why.contains("the document is already open"), "{why}");
+
+        wrote(asked(&mut ctx, start, &[writer, root]));
+        wrote(asked(&mut ctx, end, &[writer]));
+        let document = asked(&mut ctx, finish, &[writer]).expect("the root is closed");
+        assert_eq!(
+            document.as_text(),
+            Some("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root/>"),
+            "the declaration is written once, and the refusals wrote nothing"
+        );
+
+        let why = asked(&mut ctx, open, &[writer]).expect_err("the document is finished");
+        assert!(why.contains("the document is finished"), "{why}");
+
+        dropped(document);
+        dropped(root);
+        dropped(writer);
+    }
+
     /// The end of a document with something still open is not a document.
     ///
     /// The reader's half of this is pinned by
@@ -5311,6 +5356,7 @@ mod tests {
     /// emit it. A refusal leaves the writer where it was, so closing the
     /// element it named and asking again is what finishes the document — the
     /// error is about the state, not about the writer being spent.
+    // covers: Core\Xml\Writer::endDocument
     #[test]
     fn an_unclosed_element_at_the_end_is_an_error_and_not_a_document() {
         let start = super::nvs_core_xml_writer_start_element;

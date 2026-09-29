@@ -1,0 +1,34 @@
+<?nvs
+// Shows the errors when you finish a document without a root element, or with an element still open.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+
+// No element is written yet. This prints the error message.
+try {
+    echo $writer->endDocument(), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+$writer->startElement("order");
+$writer->startElement("item");
+
+// `item` is still open. This prints the error message, which names `item`.
+try {
+    echo $writer->endDocument(), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// The errors did not change the writer. After both elements are closed, the document is complete.
+$writer->endElement();
+$writer->endElement();
+echo $writer->endDocument(), "\n";
+
+// The document is finished. A second `endDocument` prints the error message.
+try {
+    echo $writer->endDocument(), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

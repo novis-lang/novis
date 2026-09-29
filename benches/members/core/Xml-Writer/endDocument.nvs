@@ -1,0 +1,23 @@
+<?nvs
+// Finishes a small document and returns it as a string, as a program does for every XML reply it sends.
+// bench: iterations 40000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["reply", "status", "result"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Xml\Writer $writer = Core\Xml::writer();
+            $writer->startDocument();
+            $writer->startElement($names[($total % 3) as int]);
+            $writer->endElement();
+            // The length of the returned document is added, so the next round depends on it.
+            $total = $total + (Core\Str::length($writer->endDocument()) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(40000), "\n";

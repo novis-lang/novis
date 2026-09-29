@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `endDocument` returns the whole document as one string.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+$writer->startElement("greeting");
+$writer->content("Hello");
+$writer->endElement();
+
+// `endDocument` returns the document. Nothing is printed until you print the string.
+string $document = $writer->endDocument();
+
+// This prints the document, and then its length: 64.
+echo $document, "\n";
+echo Core\Str::length($document), "\n";
