@@ -1,0 +1,25 @@
+<?nvs
+// Compares two dates, as a program does when it sorts orders or checks a deadline.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Time\Date> $dates = [
+            Core\Time\Date::at(2023, 12, 31),
+            Core\Time\Date::at(2024, 1, 1),
+            Core\Time\Date::at(2024, 6, 15),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the two dates are picked with last round's total
+            uint $pick = ($total % 3) as uint;
+            $total = $total + 2 + $dates[$pick]->compareTo($dates[($pick + 1) % 3]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

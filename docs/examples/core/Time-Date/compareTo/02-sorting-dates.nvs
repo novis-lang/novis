@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to sort a list of dates from the earliest to the latest.
+
+array<Core\Time\Date> $deliveries = [
+    Core\Time\Date::at(2024, 11, 2),
+    Core\Time\Date::at(2023, 12, 24),
+    Core\Time\Date::at(2024, 2, 9),
+];
+
+// `Core\Arr::sort` needs a function that compares two values, and `compareTo` is that function.
+array<Core\Time\Date> $sorted = Core\Arr::sort($deliveries, {
+    comparator: fn (Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
+});
+// This prints 2023-12-24, then 2024-02-09, then 2024-11-02.
+foreach ($sorted as Core\Time\Date $day) {
+    echo $day->format("yyyy-MM-dd"), "\n";
+}

@@ -1,0 +1,36 @@
+<?nvs
+// Attack: `compareTo` compares the first and last days of the calendar, and sorts a long list that starts in the wrong order.
+// Every answer should be -1, 0 or 1, and the sort should finish without a leak.
+
+var $first = Core\Time\Date::at(-9999, 1, 1);
+var $last = Core\Time\Date::at(9999, 12, 31);
+
+// 1. The two ends of the calendar, compared both ways and with themselves.
+// This prints -1 1 0 0.
+echo $first->compareTo($last), ' ', $last->compareTo($first), ' ', $first->compareTo($first), ' ', $last->compareTo($last), "\n";
+
+// 2. A list of 20000 dates from the latest to the earliest, sorted from the earliest.
+array<Core\Time\Date> $dates = [];
+var $date = $last;
+uint $i = 0;
+while ($i < 20000) {
+    $dates[] = $date;
+    $date = $date->minus(1, Core\Unit::Month);
+    $i = $i + 1;
+}
+array<Core\Time\Date> $sorted = Core\Arr::sort($dates, {
+    comparator: fn (Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
+});
+echo $sorted[0]->format('yyyy-MM-dd'), ' to ', $sorted[19999]->format('yyyy-MM-dd'), "\n";
+
+// 3. The same list, where every date is the same day. Every comparison returns 0.
+array<Core\Time\Date> $same = [];
+uint $j = 0;
+while ($j < 20000) {
+    $same[] = $first;
+    $j = $j + 1;
+}
+array<Core\Time\Date> $sortedSame = Core\Arr::sort($same, {
+    comparator: fn (Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
+});
+echo $sortedSame[19999]->compareTo($first), "\n";
