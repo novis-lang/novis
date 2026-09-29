@@ -1,0 +1,25 @@
+<?nvs
+// Turns a local date and time into an exact moment, as a program does before it stores a time or compares two.
+// bench: iterations 400000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        var $zone = Core\Time\Zone::of("Europe/Berlin");
+        array<Core\Time\DateTime> $times = [
+            Core\Time::at(2024, 1, 3, $zone),
+            Core\Time::at(2024, 7, 16, $zone, {hour: 9}),
+            Core\Time::at(2023, 12, 29, $zone, {hour: 23}),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the time converted in this round
+            $total = $total + $times[(($total as uint + $i) % 3) as int]->toInstant()->toEpochSeconds() % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

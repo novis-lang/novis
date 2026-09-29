@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to get the exact moment of a local date and time, without its time zone.
+
+var $vienna = Core\Time\Zone::of("Europe/Vienna");
+var $meeting = Core\Time::at(2024, 7, 1, $vienna, {hour: 14, minute: 30});
+
+// `toInstant` returns the moment as an `Instant`. An `Instant` has no time zone.
+// `toIso` writes it in UTC. Vienna is 2 hours ahead in summer, so this prints 2024-07-01T12:30:00Z.
+echo $meeting->toInstant()->toIso(), "\n";
+
+// The number of seconds since 1 January 1970, UTC. This prints 1719837000.
+echo $meeting->toInstant()->toEpochSeconds(), "\n";

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to check whether two local times in different time zones are the same moment.
+
+var $london = Core\Time::at(2024, 1, 15, Core\Time\Zone::of("Europe/London"), {hour: 9});
+var $tokyo = Core\Time::at(2024, 1, 15, Core\Time\Zone::of("Asia/Tokyo"), {hour: 18});
+var $newYork = Core\Time::at(2024, 1, 15, Core\Time\Zone::of("America/New_York"), {hour: 9});
+
+// 9:00 in London is 18:00 in Tokyo, so `compareTo` returns 0.
+echo $london->toInstant()->compareTo($tokyo->toInstant()), "\n";
+
+// 9:00 in New York is 5 hours after 9:00 in London. `since` returns the time between them.
+// This prints 18000, the number of seconds in 5 hours.
+echo $newYork->toInstant()->since($london->toInstant())->toSeconds(), "\n";
