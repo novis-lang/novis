@@ -1,0 +1,11 @@
+{
+  "lead": "A timing taken on the pipeline `nvs` is a debug build's timing, and the proof sweep runs the release one.",
+  "body": "`target/covws/<triple>/debug/nvs`, which `tools/nv/cmd/try.ts` runs unless `NVS_BIN` is set, can be hundreds of times slower on one path, so an attack that hangs there can pass in under a second under `bun nv proofs --verify`, and a `// proof: gap` marker written from the debug run then fails the sweep as \"passes, but is still marked\". Before you record a slow attack as a gap, time it with `target/release/nvs.exe run <file>` too, and say in the gap record which build it was measured on.",
+  "files": [
+    "tools/nv/cmd/try.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/try.ts:covwsNvs"
+  }
+}

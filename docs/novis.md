@@ -14761,9 +14761,9 @@ Reads sixteen bytes as a UUID. Many databases store a UUID in a binary column in
 $uuid->toString(): string
 ```
 
-Renders the receiver in RFC 9562's canonical lower-case hyphenated `8-4-4-4-12` form — the only way its text comes back out, and what `echo $uuid` writes.
+Returns the text of the UUID, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. The digits are in groups of 8, 4, 4, 4 and 12, joined by hyphens. `echo $uuid` writes the same text.
 
-**Returns** `string` — The 36-character text, lower case whatever case `parse` read.
+**Returns** `string` — A string of 36 characters. The letters are always lower case, even when `parse` read them in upper case.
 
 <a id="core-core-uuid-tobytes"></a>
 #### `Core\Uuid->toBytes`

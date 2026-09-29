@@ -1,22 +1,22 @@
 {
-  "state": "Goal `core-uuid`: `Core\\Uuid::fromBytes`, `parse`, `toBytes`, `v4`, `v7` and `tryParse` have all\ntheir feature proofs. Their cards in `crates/nvs-stdlib/src/uuid.rs` are in the plain voice. The\nclass card is done. Only `toString` is still owed: examples, hostile, perf, a Rust `covers:`\nmarker, and a plain-voice `TO_STRING_DOC`.\n\n`tests/hostile/core/Uuid/tryParse/01-huge-broken-and-almost-valid-texts.nvs` carries\n`// proof: gap nvs-runtime/a-core-call-with-a-large-string-costs-time-per-byte`. Any `Core` call\nwhose argument is a 50 MB `string` costs about 0.7 ms, and `Core\\Str::startsWith` costs the same, so\nthe cause is outside `Core\\Uuid`. The gap record says what was measured. It is owned by M12 and is\nnot this goal's to fix.",
+  "state": "Goal `core-uuid` is reached. All seven `Core\\Uuid` members have every feature proof, and\n`bun nv proofs --verify --group 'Core\\Uuid'` reports nothing owed and 0 failed. Their cards in\n`crates/nvs-stdlib/src/uuid.rs` are in the plain voice. `bun nv verify --doc`,\n`bun nv owners --closes core-uuid` and `bun nv playbook --closes core-uuid` are green.\n\nThe `tryParse` attack no longer carries a gap marker: the release `nvs` runs it in about 0.3 s.\nGap `nvs-runtime/a-core-call-with-a-large-string-costs-time-per-byte` now records that the per-byte\ncost is in the debug build only. It is owned by M12. Until it is fixed, the sweep's recording run on\nthe debug binary never finishes that attack, so it prints `diverged` and runs on every sweep. That is\nnot a failure.",
   "next": {
     "stage": 1,
-    "title": "the last member, then the goal's end gates",
+    "title": "none -- the goal is reached",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/uuid.rs` plus the `toString` proof trees.",
+    "note": "-- the next goal on the chain starts from its own handoff record.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Uuid::toString`**: examples, hostile, perf, a plain-voice `TO_STRING_DOC`, and `covers: Core\\Uuid::toString` on `the_canonical_form_parses_in_either_case_and_renders_lower` (it already carries `covers: Core\\Uuid::parse`, so extend that line). It is an instance member, so a `.nvst` case that calls `->toString()` needs a `covers:` marker too: the check still reads `tests: 0 of 2 cases` (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/uuid.rs:311`"
+        "done": true,
+        "text": "**`Core\\Uuid::toString`** has its feature proofs (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/uuid.rs:318`"
       },
       {
-        "done": false,
-        "text": "**Close the goal**: `bun nv proofs --verify --group 'Core\\Uuid'`, then `bun nv verify --doc`, `bun nv owners --closes core-uuid` and `bun nv playbook --closes core-uuid`, then `DONE` (`rule:testing/a-failing-proof-is-fixed-or-recorded` for the marked tryParse attack). `crates/nvs-stdlib/src/uuid.rs:136`"
+        "done": true,
+        "text": "**Close the goal**: the dossier check and the three end gates are green. `data/goals/core-uuid.json:1`"
       }
     ]
   },
   "backlog": [
-    "The per-byte cost of a large `string` argument at the `Core` call boundary: `data/gaps/nvs-runtime/a-core-call-with-a-large-string-costs-time-per-byte.json`, owned by M12."
+    "Locate the debug-only per-byte cost of a large `string` argument to a `Core` call -- `data/gaps/nvs-runtime/a-core-call-with-a-large-string-costs-time-per-byte.json` (M12)."
   ]
 }
