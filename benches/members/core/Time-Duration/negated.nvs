@@ -1,0 +1,18 @@
+<?nvs
+// Turns a duration around, as a program does when it moves a time back by a stored offset.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the duration comes from last round's total
+            $total = $total - Core\Time\Duration::nanoseconds($total % 1000 + 7)->negated()->toNanoseconds() % 13;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

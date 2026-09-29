@@ -1,0 +1,33 @@
+<?nvs
+// Attack: `negated` gets both ends of the range, and one million negations in a row.
+// Only the smallest duration should throw a `RuntimeError`, and nothing should crash or leak.
+
+// 1. Every count at the ends and around zero is negated. Only the smallest one throws.
+array<int> $counts = [9223372036854775807, -9223372036854775807, -9223372036854775807 - 1, 0, 1, -1];
+int $negated = 0;
+int $refused = 0;
+foreach ($counts as int $n) {
+    try {
+        Core\Time\Duration::nanoseconds($n)->negated();
+        $negated = $negated + 1;
+    } catch (RuntimeError $e) {
+        $refused = $refused + 1;
+    }
+}
+echo $negated, ' negated, ', $refused, " refused\n";
+
+// 2. The largest duration is negated, and then two nanoseconds are taken away. This throws.
+try {
+    Core\Time\Duration::nanoseconds(9223372036854775807)->negated()->minus(Core\Time\Duration::nanoseconds(2));
+} catch (RuntimeError $f) {
+    echo "difference refused\n";
+}
+
+// 3. One duration is negated one million times. Each result replaces the last one and is freed.
+Core\Time\Duration $flip = Core\Time\Duration::nanoseconds(9223372036854775807);
+int $round = 0;
+while ($round < 1000000) {
+    $flip = $flip->negated();
+    $round = $round + 1;
+}
+echo $flip->toNanoseconds(), "\n";

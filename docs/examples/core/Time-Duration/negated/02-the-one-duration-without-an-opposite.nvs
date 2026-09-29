@@ -1,0 +1,13 @@
+<?nvs
+// Shows the one duration that `negated` cannot turn around.
+
+// The largest duration has an opposite. This prints -9223372036854775807.
+echo Core\Time\Duration::nanoseconds(9223372036854775807)->negated()->toNanoseconds(), "\n";
+
+// The smallest duration is one nanosecond longer than the largest one.
+// Its opposite does not fit, so `negated` throws a `RuntimeError`.
+try {
+    Core\Time\Duration::nanoseconds(-9223372036854775807 - 1)->negated();
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
