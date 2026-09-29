@@ -2871,9 +2871,17 @@ mod tests {
 
     /// A directory of this case's own, with one script in it for an entry to
     /// name.
+    ///
+    /// The directory is returned canonical. A resolve canonicalizes every
+    /// `script.spawn` root it reads, and [`nvs_config::tree::Capabilities::allows`]
+    /// compares the canonical script path against those roots. [`tree_of`] runs
+    /// no resolve, so the case writes the root in the form a resolve would have
+    /// left it. The platform temporary root is often not canonical: an 8.3 alias
+    /// on Windows, a path under the `/var` symlink on macOS.
     fn scheduled_script(case: &str) -> (PathBuf, PathBuf) {
         let root = std::env::temp_dir().join(format!("nvs-serve-{case}-{}", std::process::id()));
         std::fs::create_dir_all(&root).expect("the platform temporary root is writable");
+        let root = nvs_config::trust::canonical(&root).expect("the case's directory is there");
         let script = root.join("nightly.nvs");
         std::fs::write(&script, b"<?php\n").expect("the case writes its own script");
         (root, script)
