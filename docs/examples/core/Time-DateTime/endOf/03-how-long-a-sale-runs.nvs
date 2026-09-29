@@ -1,0 +1,13 @@
+<?nvs
+// Shows how a shop tells its customers how long a sale still runs. The sale ends with the month.
+
+var $now = Core\Time::at(2024, 4, 28, Core\Time\Zone::of("America/Chicago"), {hour: 18, minute: 30});
+
+// `endOf(Core\Unit::Month)` gives the last moment of April. This prints 30 April at 23:59.
+var $saleEnd = $now->endOf(Core\Unit::Month);
+echo "The sale ends on ", $saleEnd->format("d MMMM 'at' HH:mm"), "\n";
+
+// `difference` counts whole days and whole hours until the sale ends.
+// This prints 2 and 53.
+echo "Days left: ", $now->difference($saleEnd, Core\Unit::Day), "\n";
+echo "Hours left: ", $now->difference($saleEnd, Core\Unit::Hour), "\n";

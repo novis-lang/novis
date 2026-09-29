@@ -1,0 +1,52 @@
+<?nvs
+// Attack: `endOf` gets every unit at the first and the last moment there is, in the zones furthest
+// apart. An end after the last moment should throw a `RuntimeError`, and nothing should crash.
+
+array<Core\Unit> $units = [
+    Core\Unit::Nanosecond, Core\Unit::Microsecond, Core\Unit::Millisecond, Core\Unit::Second,
+    Core\Unit::Minute, Core\Unit::Hour, Core\Unit::Day, Core\Unit::Week,
+    Core\Unit::Month, Core\Unit::Quarter, Core\Unit::Year,
+];
+array<Core\Time\Zone> $zones = [
+    Core\Time\Zone::fixed(25h59m59s), Core\Time\Zone::UTC, Core\Time\Zone::fixed(25h59m59s->negated()),
+    Core\Time\Zone::of('Pacific/Kiritimati'), Core\Time\Zone::of('Pacific/Pago_Pago'),
+];
+
+// 1. Every unit, at the first and the last moment, in every zone.
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
+var $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z');
+int $built = 0;
+int $refused = 0;
+foreach ($zones as Core\Time\Zone $zone) {
+    foreach ($units as Core\Unit $unit) {
+        try { $first->in($zone)->endOf($unit); $built = $built + 1; } catch (RuntimeError $a) { $refused = $refused + 1; }
+        try { $last->in($zone)->endOf($unit); $built = $built + 1; } catch (RuntimeError $b) { $refused = $refused + 1; }
+    }
+}
+echo $built, ' built, ', $refused, " refused\n";
+
+// 2. Every unit, on days when a zone skips its midnight or repeats an hour.
+array<string> $days = ['2018-11-03T12:00:00Z', '2024-03-31T12:00:00Z', '2024-10-27T12:00:00Z', '2011-12-29T12:00:00Z'];
+array<string> $names = ['America/Sao_Paulo', 'Europe/Berlin', 'Asia/Beirut', 'Pacific/Apia', 'America/Havana'];
+int $late = 0;
+foreach ($days as string $day) {
+    foreach ($names as string $name) {
+        var $at = Core\Time::fromIso($day)->in(Core\Time\Zone::of($name));
+        foreach ($units as Core\Unit $each) {
+            if ($at->difference($at->endOf($each), Core\Unit::Nanosecond) >= 0) {
+                $late = $late + 1;
+            }
+        }
+    }
+}
+echo $late, " ends at or after the value\n";
+
+// 3. One million ends are built, one at a time. Each new value is freed.
+var $moving = Core\Time::at(2000, 1, 31, Core\Time\Zone::of('America/New_York'), { hour: 23, minute: 59 });
+int $round = 0;
+int $total = 0;
+while ($round < 1000000) {
+    $total = $total + $moving->endOf($units[($round % 11) as uint])->dayOfYear() as int;
+    $round = $round + 1;
+}
+echo $total, "\n";

@@ -1,30 +1,30 @@
 {
-  "state": "Goal `core-time-datetime`: `Core\\Time\\DateTime::date`, `::dayOfYear`, `::difference`, `::toInstant`, `::timeOfDay`, `::zone`, `::weekday`, `::isLeapYear`, `::format`, `::plus`, `::minus`, `::next` and `::previous` have every feature proof, perf figure included. Four members still owe proofs: `with`, `withTime`, `startOf`, `endOf`. **A perf figure is a session's job, not the driver's**: after any edit to `time.rs` or `cldr.rs` outside its test module, run `bun nv proofs --record-perf` over all four groups before the wrap (the test module does not move the impl hash). A first `--record-perf` on a busy host can print a nonsense clock (`0.0` ns/op); re-measure with `--force --reps 9` and keep the second. The Rust tests share helpers at the end of the `time.rs` test module: `zone_view_samples()`, `datetime_view` for a view member, `datetime_formatted`, and `datetime_rebuilt(member, at, rest)` for any builder, with `datetime_stepped` (count and `Core\\Unit` case index: Hour 5, Day 6, Week 7, Month 8, Year 10) and `datetime_to_weekday` (Monday 0) on top of it. Nothing is blocked.",
+  "state": "Goal `core-time-datetime` is met: all 17 `Core\\Time\\DateTime` members have every feature proof, and `bun nv proofs --verify --group 'Core\\Time\\DateTime'` prints nothing owed, 51 examples and 17 hostile cases green. The last four members, `with`, `withTime`, `startOf` and `endOf`, landed this session with their Rust tests, their `covers:` on the builders `.nvst`, and perf figures for all three `Core\\Time` groups. Writing the `endOf` attack found a bug, and it is fixed: at the last representable second, `endOf` threw for every unit from `Second` up because the next unit's start was past the range. It now finds the last instant on the civil fields (`nvs_core_time_datetime_end_of`'s doc says how), pinned from Rust and by the builders `.nvst`. `bun nv verify --doc`, `bun nv owners --closes` and `bun nv playbook --closes` are clean for this goal. Nothing is blocked.",
   "next": {
     "stage": 2,
-    "title": "DateTime builder proofs, in file order",
+    "title": "DateTime builder proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (registry rows, the test module tail with `datetime_rebuilt`), `tests/conformance/core/time-datetime-builders-answer-a-new-value-in-the-same-zone.nvst` (add each member to its `// covers:` line), and new files under `docs/examples/core/Time-DateTime/`, `tests/hostile/core/Time-DateTime/`, `benches/members/core/Time-DateTime/`. The `plus` and `minus` proofs are the model. Numeric results in `.nvs` need `as int`, because `dayOfYear` returns `uint`. `with` takes an options block, so its Rust test builds seven option arguments with `Value::null()` for an omitted one (`nvs_core_time_datetime_with`'s doc says so).",
+    "note": "one file set: `crates/nvs-stdlib/src/time.rs` and the proof trees under `Time-DateTime/`. All four done; the driver moves to the next goal on the chain.",
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Time\\DateTime::with`** — owes examples, hostile, and a Rust test with its `covers:` marker (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1638`"
+        "done": true,
+        "text": "**`Core\\Time\\DateTime::with`** — proofs landed (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1638`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Time\\DateTime::withTime`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1647`"
+        "done": true,
+        "text": "**`Core\\Time\\DateTime::withTime`** — proofs landed (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1647`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Time\\DateTime::startOf`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1656`"
+        "done": true,
+        "text": "**`Core\\Time\\DateTime::startOf`** — proofs landed (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1656`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Time\\DateTime::endOf`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/time.rs:1665`"
+        "done": true,
+        "text": "**`Core\\Time\\DateTime::endOf`** — proofs landed, and the fix for the end of the range (`rule:testing/a-failing-proof-is-fixed-or-recorded`). `crates/nvs-stdlib/src/time.rs:1665`"
       }
     ]
   },
   "backlog": [
-    "The `plain-comments` goal sweeps landed proof comments; nothing here is owed to it (`docs/agent/goals/plain-comments.md`)."
+    "None owed by this goal. The comments in `tests/conformance/core/time-datetime-builders-answer-a-new-value-in-the-same-zone.nvst` are in the dense voice; that file is not published, so goal `plain-comments` does not cover it."
   ]
 }
