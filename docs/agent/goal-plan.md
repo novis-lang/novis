@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 180 goals. 155 are walked (120 of them retired), `core-time-datetime` is live at 156 of 180, and 24 are ahead.
+The chain holds 180 goals. 156 are walked (120 of them retired), `core-time-duration-1-2` is live at 157 of 180, and 23 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -168,8 +168,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 153 | [`core-test-2-2`](goals/core-test-2-2.md) | Core\Test (2/2) | walked |  | **2** the dossier |
 | 154 | [`core-test-response-and-1-more`](goals/core-test-response-and-1-more.md) | Core\Test\Response and 1 more | walked |  | **2** the dossier |
 | 155 | [`core-time-and-1-more`](goals/core-time-and-1-more.md) | Core\Time and 1 more | walked |  | **2** the dossier |
-| 156 | [`core-time-datetime`](goals/core-time-datetime.md) | Core\Time\DateTime | **live** |  | **2** the dossier |
-| 157 | [`core-time-duration-1-2`](goals/core-time-duration-1-2.md) | Core\Time\Duration (1/2) | ahead |  | **2** the dossier |
+| 156 | [`core-time-datetime`](goals/core-time-datetime.md) | Core\Time\DateTime | walked |  | **2** the dossier |
+| 157 | [`core-time-duration-1-2`](goals/core-time-duration-1-2.md) | Core\Time\Duration (1/2) | **live** |  | **2** the dossier |
 | 158 | [`core-time-duration-2-2`](goals/core-time-duration-2-2.md) | Core\Time\Duration (2/2) | ahead |  | **2** the dossier |
 | 159 | [`core-time-instant-and-1-more`](goals/core-time-instant-and-1-more.md) | Core\Time\Instant and 1 more | ahead |  | **2** the dossier |
 | 160 | [`core-time-zone-and-2-more`](goals/core-time-zone-and-2-more.md) | Core\Time\Zone and 2 more | ahead |  | **2** the dossier |
