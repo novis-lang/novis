@@ -850,14 +850,20 @@ fn a_malformed_switch_does_not_hang_or_grow_without_bound() {
 /// input is two full orders of magnitude past the limit; if the guard
 /// regresses, this crashes the test process rather than failing it
 /// cleanly.
+///
+/// Under Miri the input is one order of magnitude past the limit, not two.
+/// What Miri checks here is the parse that runs once the guard has tripped,
+/// and a thousand levels reach that as surely as ten thousand. The native
+/// run keeps the larger input, because the stack it guards is a native one.
 #[test]
 fn extremely_deep_nesting_does_not_overflow_the_stack() {
+    let depth = if cfg!(miri) { 1_000 } else { 10_000 };
     for opener in ['(', '['] {
         let closer = if opener == '(' { ')' } else { ']' };
         let mut src = String::from("<?nvs $x = ");
-        src.extend(std::iter::repeat_n(opener, 10_000));
+        src.extend(std::iter::repeat_n(opener, depth));
         src.push('1');
-        src.extend(std::iter::repeat_n(closer, 10_000));
+        src.extend(std::iter::repeat_n(closer, depth));
         src.push(';');
         let mut map = SourceMap::new();
         let id = map.add("t.nvs", src);
@@ -879,10 +885,16 @@ fn extremely_deep_nesting_does_not_overflow_the_stack() {
 /// assertion from being exactly the kind of unbounded recursive walk
 /// this is guarding against) and checks it stops within a small
 /// multiple of the guard's limit.
+///
+/// Under Miri the chain is a thousand links, the shortest one the assertion
+/// below still tells apart from an unfolded chain. Every link past the limit
+/// is still parsed, one token at a time, and at ten thousand links Miri
+/// spends longer on this one test than on the rest of the crate together.
 #[test]
 fn a_long_postfix_chain_is_folded_back_to_a_bounded_depth() {
+    let links = if cfg!(miri) { 1_000 } else { 10_000 };
     let mut src = String::from("<?nvs $x");
-    for i in 0..10_000 {
+    for i in 0..links {
         src.push_str(&format!("[{i}]"));
     }
     src.push(';');

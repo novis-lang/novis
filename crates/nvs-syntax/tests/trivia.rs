@@ -223,6 +223,11 @@ fn source_of(path: &Path, text: &str) -> Option<String> {
 /// stopped carrying doc comments from passing silently. A case that expects a
 /// compile error is not corpus for this purpose ([`source_of`]).
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "only slow: the lexer and parser have no unsafe code, their unit tests and the \
+              cases above run under Miri, and reading the whole corpus takes Miri too long"
+)]
 fn the_existing_triple_slash_comments_attach_to_their_declarations() {
     let mut paths = Vec::new();
     collect(&nvs_repo::path("examples"), &["nvs"], &mut paths);

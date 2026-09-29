@@ -163,6 +163,11 @@ fn holes_in(paths: &[PathBuf], to_source: impl Fn(&str) -> Option<String> + Sync
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "only slow: the lexer has no unsafe code, its unit tests run under Miri, and \
+              walking and lexing the whole corpus takes Miri hours"
+)]
 fn tokens_and_trivia_reproduce_every_corpus_file_byte_for_byte() {
     let examples = nvs_repo::path("examples");
     let tests = nvs_repo::path("tests");

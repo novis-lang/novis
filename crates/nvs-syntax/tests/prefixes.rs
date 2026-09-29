@@ -110,6 +110,11 @@ fn span_outside(nodes: &[walk::Node], len: u32) -> Option<String> {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "only slow: the parser has no unsafe code, its unit tests run under Miri, and \
+              parsing every prefix of every example takes Miri hours"
+)]
 fn every_prefix_of_every_example_parses_without_panicking() {
     let mut prefixes = 0_usize;
     let mut escaped = Vec::new();
@@ -139,6 +144,11 @@ fn every_prefix_of_every_example_parses_without_panicking() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "only slow: the parser has no unsafe code, its unit tests run under Miri, and \
+              parsing every prefix of every example takes Miri hours"
+)]
 fn every_prefix_answers_a_syntax_index_lookup_at_its_end() {
     let mut answered = 0_usize;
     let mut broken = Vec::new();
@@ -207,6 +217,11 @@ fn every_prefix_answers_a_syntax_index_lookup_at_its_end() {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "only slow: the parser has no unsafe code, its unit tests run under Miri, and \
+              parsing every prefix of every example takes Miri hours"
+)]
 fn an_incomplete_prefix_still_reports_a_diagnostic() {
     let mut incomplete = 0_usize;
     let mut silent = Vec::new();
