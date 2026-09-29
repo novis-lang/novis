@@ -2,6 +2,7 @@
 Spec § 4: `$d->date()` and `$d->timeOfDay()` are the two halves of a `DateTime` — over a table of moments in four zones they partition the rendering with nothing shared and nothing lost, each is invariant under every change to the other, and either spelling of putting them back together, through text or through values, answers the moment they came from; neither half carries the zone, so one instant read in two zones has two pairs of halves
 --FILE--
 <?nvs
+// covers: Core\Time\DateTime::date
 // § 4 splits a `DateTime` into a zone-free calendar half and a zone-free clock
 // half. What makes them *halves* rather than two more accessors is the pair of
 // properties asserted below: together they are the whole value, and separately

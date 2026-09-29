@@ -1586,7 +1586,7 @@ const WITH_OPTIONS: &[CoreOption] = &[
 /// asked for in.
 pub const DATETIME: CoreClass = CoreClass {
     name: DATETIME_NAME,
-    doc: None,
+    doc: Some(&DATETIME_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1745,6 +1745,14 @@ pub const DATETIME: CoreClass = CoreClass {
     ],
     slots: &["seconds", "nanos", "zone"],
     constants: &[],
+};
+
+/// `Core\Time\DateTime`'s class card — `rule:core-api/reference-card`.
+const DATETIME_CARD: ClassDoc = ClassDoc {
+    short: "A date and a time of day in one time zone, such as the start of a meeting in \
+            Berlin. `Core\\Time::at` builds one from its parts, and `in` on an `Instant` gives \
+            one for a moment. `date` and `timeOfDay` return its two halves, and `format` turns \
+            it into text.",
 };
 
 /// `Core\Time\DateTime::format`'s reference card — `rule:core-api/reference-card`.
@@ -5971,5 +5979,98 @@ mod tests {
                 "{year}-{month}-{day}"
             );
         }
+    }
+
+    /// `date` called on the `DateTime` `at` names, the way a compiled call site
+    /// calls it. It answers the calendar day the member built.
+    fn datetime_date(at: &Zoned) -> civil::Date {
+        let mut ctx = Ctx::buffered();
+        let receiver = datetime_built(at);
+        let answer = nvs_runtime::call(nvs_core_time_datetime_date, &mut ctx, &[receiver])
+            .expect("`date` refuses no `DateTime`");
+        let read = match date_of(&[answer], 0, "date") {
+            Ok(day) => day,
+            Err(_) => panic!("`date` answers a `Date`"),
+        };
+        #[expect(unsafe_code, reason = "this frame owns the receiver and the answer")]
+        unsafe {
+            receiver.release();
+            answer.release();
+        }
+        read
+    }
+
+    /// `date` reads the day where the value is: one instant is two different
+    /// days on either side of a date line, a half-hour offset moves it like a
+    /// whole one, and the two ends of the timestamp range, read at the widest
+    /// offsets, are the first and the last day the calendar has.
+    // covers: Core\Time\DateTime::date
+    #[test]
+    fn datetime_date_is_the_day_in_the_values_own_zone() {
+        for (instant, zone, day) in [
+            ("2024-12-31T01:00:00Z", "UTC", (2024, 12, 31)),
+            ("2024-12-31T01:00:00Z", "America/New_York", (2024, 12, 30)),
+            ("2024-12-31T01:00:00Z", "Pacific/Pago_Pago", (2024, 12, 30)),
+            ("2024-12-31T01:00:00Z", "Pacific/Kiritimati", (2024, 12, 31)),
+            ("2024-12-31T23:30:00Z", "UTC", (2024, 12, 31)),
+            ("2024-12-31T23:30:00Z", "Europe/Berlin", (2025, 1, 1)),
+            ("2024-12-31T18:29:59Z", "Asia/Kolkata", (2024, 12, 31)),
+            ("2024-12-31T18:30:00Z", "Asia/Kolkata", (2025, 1, 1)),
+            ("2024-02-29T12:00:00Z", "Pacific/Kiritimati", (2024, 3, 1)),
+        ] {
+            let at = instant
+                .parse::<Timestamp>()
+                .expect("a valid instant")
+                .to_zoned(TimeZone::get(zone).expect("a known zone"));
+            assert_eq!(
+                datetime_date(&at),
+                civil::date(day.0, day.1, day.2),
+                "{instant} in {zone}"
+            );
+        }
+        let last = Timestamp::MAX.to_zoned(TimeZone::fixed(Offset::MAX));
+        assert_eq!(datetime_date(&last), civil::date(9999, 12, 31));
+        let first = Timestamp::MIN.to_zoned(TimeZone::fixed(Offset::MIN));
+        assert_eq!(datetime_date(&first), civil::date(-9999, 1, 1));
+    }
+
+    /// `dayOfYear` called on the `DateTime` `at` names. It answers the `uint`
+    /// the member returned.
+    fn datetime_day_of_year(at: &Zoned) -> u64 {
+        let mut ctx = Ctx::buffered();
+        let receiver = datetime_built(at);
+        let answer = nvs_runtime::call(nvs_core_time_datetime_day_of_year, &mut ctx, &[receiver])
+            .expect("`dayOfYear` refuses no `DateTime`");
+        #[expect(unsafe_code, reason = "this frame owns the receiver")]
+        unsafe {
+            receiver.release();
+        }
+        answer.as_uint().expect("`dayOfYear` answers a `uint`")
+    }
+
+    /// `dayOfYear` is one-based and runs to `365` or `366`, counts in the
+    /// value's own zone, and holds at both ends of the timestamp range.
+    // covers: Core\Time\DateTime::dayOfYear
+    #[test]
+    fn datetime_day_of_year_is_one_based_and_read_in_the_values_own_zone() {
+        for (instant, zone, ordinal) in [
+            ("2024-01-01T00:00:00Z", "UTC", 1),
+            ("2023-12-31T23:59:59Z", "UTC", 365),
+            ("2024-12-31T12:00:00Z", "UTC", 366),
+            ("2024-03-01T00:00:00Z", "UTC", 61),
+            ("2023-03-01T00:00:00Z", "UTC", 60),
+            ("2023-12-31T23:30:00Z", "Europe/Berlin", 1),
+            ("2024-01-01T01:00:00Z", "America/New_York", 365),
+        ] {
+            let at = instant
+                .parse::<Timestamp>()
+                .expect("a valid instant")
+                .to_zoned(TimeZone::get(zone).expect("a known zone"));
+            assert_eq!(datetime_day_of_year(&at), ordinal, "{instant} in {zone}");
+        }
+        let last = Timestamp::MAX.to_zoned(TimeZone::fixed(Offset::MAX));
+        assert_eq!(datetime_day_of_year(&last), 365);
+        let first = Timestamp::MIN.to_zoned(TimeZone::fixed(Offset::MIN));
+        assert_eq!(datetime_day_of_year(&first), 1);
     }
 }

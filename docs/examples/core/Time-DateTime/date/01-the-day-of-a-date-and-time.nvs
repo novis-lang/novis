@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to take the calendar day out of a date and time.
+
+var $meeting = Core\Time::at(2024, 3, 5, Core\Time\Zone::of("Europe/Berlin"), {hour: 14, minute: 30});
+
+// `date` returns a `Core\Time\Date` with only the year, month and day.
+// This prints 2024-03-05.
+var $day = $meeting->date();
+echo $day->format("yyyy-MM-dd"), "\n";
+
+// The time of day is gone, so the result is equal to a date built from the same three numbers.
+// This prints 0.
+echo $day->compareTo(Core\Time\Date::at(2024, 3, 5)), "\n";
+
+// The result has the methods of a `Date`. This prints 2024-03-12.
+echo $day->plus(1, Core\Unit::Week)->format("yyyy-MM-dd"), "\n";

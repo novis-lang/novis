@@ -1,0 +1,42 @@
+<?nvs
+// Attack: `date` reads the first and the last moment in time in the time zones farthest behind and ahead.
+// The dates should be the ends of the calendar, and the steps past them should throw an error.
+
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+int $refused = 0;
+
+// 1. The last moment in time, read in the zone farthest ahead, is on the last day of the calendar.
+var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->date();
+echo $last->format('yyyy-MM-dd'), "\n";
+try { $last->plus(1, Core\Unit::Day); } catch (RuntimeError $past) { $refused = $refused + 1; }
+
+// 2. The first moment in time, read in the zone farthest behind, is on the first day of the calendar.
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->date();
+echo $first->format('yyyy-MM-dd'), "\n";
+try { $first->minus(1, Core\Unit::Day); } catch (RuntimeError $before) { $refused = $refused + 1; }
+echo $refused, " refused\n";
+
+// 3. Samoa skipped 30 December 2011. Every hour from 29 to 31 December is read, and no date is the 30th.
+var $apia = Core\Time\Zone::of('Pacific/Apia');
+var $hour = Core\Time::at(2011, 12, 29, $apia);
+int $skipped = 0;
+int $step = 0;
+while ($step < 72) {
+    if ($hour->date()->compareTo(Core\Time\Date::at(2011, 12, 30)) == 0) {
+        $skipped = $skipped + 1;
+    }
+    $hour = $hour->plus(1, Core\Unit::Hour);
+    $step = $step + 1;
+}
+echo $skipped, " hours on 30 December\n";
+
+// 4. One million dates are made and dropped. Each one is freed.
+var $now = Core\Time::at(2024, 2, 29, $ahead, { hour: 23, minute: 59, second: 59 });
+int $round = 0;
+int $leap = 0;
+while ($round < 1000000) {
+    $leap = $leap + $now->date()->compareTo(Core\Time\Date::at(2024, 2, 29)) + 1;
+    $round = $round + 1;
+}
+echo $leap, "\n";

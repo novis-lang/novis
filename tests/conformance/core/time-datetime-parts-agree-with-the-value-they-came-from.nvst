@@ -2,6 +2,7 @@
 Spec § 4: a `DateTime`'s component views, `dayOfYear` and `difference` all answer about the same civil time
 --FILE--
 <?nvs
+// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear
 // § 4's `DateTime` is one civil time in one named zone, and half its members
 // are views of that: `date`, `timeOfDay` and `zone` each drop part of it, and
 // `dayOfYear`, `isLeapYear` and `difference` count over it. Each of those can

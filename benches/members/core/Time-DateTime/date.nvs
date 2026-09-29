@@ -1,0 +1,29 @@
+<?nvs
+// Takes the calendar day out of a date and time, as a program does when it groups orders by day.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): int {
+        var $zone = Core\Time\Zone::of("Europe/Berlin");
+        var $first = Core\Time::at(2024, 3, 30, $zone, {hour: 23});
+        var $second = Core\Time::at(2024, 12, 31, $zone, {hour: 12});
+        var $third = Core\Time::at(2025, 1, 1, $zone);
+        var $newYear = Core\Time\Date::at(2025, 1, 1);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the three values move one place each round
+            $total = $total + $first->date()->compareTo($newYear) + 1;
+            var $moved = $first;
+            $first = $second;
+            $second = $third;
+            $third = $moved;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

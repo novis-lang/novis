@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to count a shop's orders for each day in the shop's own time zone.
+
+// The server saves each order time in UTC.
+array<string> $saved = [
+    "2024-06-03T08:15:00Z",
+    "2024-06-03T17:40:00Z",
+    "2024-06-03T22:30:00Z",
+    "2024-06-04T09:05:00Z",
+    "2024-06-04T23:10:00Z",
+];
+var $shop = Core\Time\Zone::of("Europe/Berlin");
+
+// Berlin is two hours ahead of UTC in June. So an order at 22:30 UTC is at 00:30 on the next day in Berlin.
+// This prints 2 orders for 3 June, 2 for 4 June and 1 for 5 June.
+var $day = Core\Time::fromIso($saved[0])->in($shop)->date();
+int $count = 0;
+foreach ($saved as string $text) {
+    var $next = Core\Time::fromIso($text)->in($shop)->date();
+    if ($next->compareTo($day) != 0) {
+        echo "Orders on ", $day->format("d MMMM"), ": ", $count, "\n";
+        $day = $next;
+        $count = 0;
+    }
+    $count = $count + 1;
+}
+echo "Orders on ", $day->format("d MMMM"), ": ", $count, "\n";
