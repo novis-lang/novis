@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to read the values of a small XML settings file into an array.
+
+string $xml = '<settings>
+  <host>db.example.com</host>
+  <port>5432</port>
+  <password/>
+</settings>';
+
+array<tainted string> $settings = [];
+Core\Xml\Node $document = Core\Xml::parse($xml);
+
+foreach ($document->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $setting) {
+        if ($setting->kind() != Core\Xml\NodeKind::Element) {
+            continue;
+        }
+        // The value is the text of the text node inside the element.
+        // An empty element like `<password/>` has no text node, so its value stays "".
+        tainted string $value = "";
+        foreach ($setting->children() as Core\Xml\Node $child) {
+            $value = $value . $child->text();
+        }
+        $settings[$setting->name()] = $value;
+    }
+}
+
+// This prints host = db.example.com, port = 5432 and password = with nothing after it.
+foreach ($settings as string $name => tainted string $value) {
+    echo $name, " = ", $value, "\n";
+}

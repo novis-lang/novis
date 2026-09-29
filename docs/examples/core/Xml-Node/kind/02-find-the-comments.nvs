@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to find the comments in a document.
+
+string $xml = '<settings>
+  <!-- The port must be free. -->
+  <port>8080</port>
+  <!-- Use false in production. -->
+  <debug>true</debug>
+</settings>';
+
+Core\Xml\Node $document = Core\Xml::parse($xml);
+
+foreach ($document->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $child) {
+        // Only a comment has the kind `Comment`. This prints the two notes.
+        if ($child->kind() == Core\Xml\NodeKind::Comment) {
+            echo Core\Str::trim($child->text()), "\n";
+        }
+    }
+}

@@ -1,0 +1,2 @@
+ runs in the browser 
+if (a < b && b < c) { ok(); }

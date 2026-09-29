@@ -374,11 +374,12 @@ const NODE_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Xml\Node::kind`'s reference card — `rule:core-api/reference-card`.
 const KIND_DOC: MethodDoc = MethodDoc {
-    short: "Which of the five kinds of node this is — the question every walk over a tree asks \
-            first, and the one a program answers with a comparison rather than with a check for \
-            which other members are empty.",
+    short: "Returns what kind of node this is: an element, a text, a comment, a processing \
+            instruction or the document. Compare it with a `Core\\Xml\\NodeKind` case, for \
+            example to skip everything that is not an element.",
     params: &[],
-    ret: "A `Core\\Xml\\NodeKind` case. The set is closed, so a `match` over it is exhaustive.",
+    ret: "A `Core\\Xml\\NodeKind` case. There are exactly five cases, so a `match` over them \
+          covers every node.",
     errors: &[],
 };
 
@@ -412,14 +413,13 @@ const NAMESPACE_URI_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Xml\Node::text`'s reference card — `rule:core-api/reference-card`.
 const TEXT_DOC: MethodDoc = MethodDoc {
-    short: "The character data this node carries itself — a text node's characters, a comment's \
-            content, a processing instruction's data. Empty for an element and for the document, \
-            whose characters belong to their text children: this is the node's own text and never \
-            a walk over its descendants, so what it costs is a slot read.",
+    short: "Returns the text of this node. For a text node, this is its characters. For a comment, \
+            it is the comment's content, and for a processing instruction it is the part after the \
+            name. An element and the document return an empty string. Their text is in their \
+            text children.",
     params: &[],
-    ret: "The characters, with the five predefined entities and any character references already \
-          expanded and a CDATA section read as the text it spells. `tainted`, as everything read \
-          out of a parsed tree is.",
+    ret: "A `tainted` string. Entities such as `&amp;` and character references such as `&#98;` \
+          are expanded. A CDATA section gives the text written inside it.",
     errors: &[],
 };
 
@@ -4175,6 +4175,94 @@ mod tests {
         dropped(again);
         dropped(first);
         assert_eq!(top.refcount(), 1, "the node's slot is the one owner left");
+        dropped(tree);
+        dropped(source);
+    }
+
+    /// `kind` answers each node's case as the integer `KIND` gives that case,
+    /// for all five: the document, and a processing instruction, a comment, an
+    /// element and a text under it.
+    // covers: Core\Xml\Node::kind
+    #[test]
+    fn kind_answers_the_case_of_every_node_in_the_family() {
+        let source = word("<?go now?><!--note--><r>t</r>");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
+        let kind_of = |ctx: &mut Ctx, node: Value| -> &'static str {
+            let kind = call(super::nvs_core_xml_node_kind, ctx, &[node])
+                .expect("every node answers kind")
+                .as_int()
+                .expect("a case is an int");
+            KIND.cases[usize::try_from(kind).expect("a case's integer is its own index")].0
+        };
+        assert_eq!(kind_of(&mut ctx, tree), "Document");
+
+        let children = call(super::nvs_core_xml_node_children, &mut ctx, &[tree])
+            .expect("the document has children");
+        let top = crate::arr::borrowed(children.array_ptr().expect("children is an array"));
+        let kinds: Vec<&str> = (0..top.count())
+            .map(|at| kind_of(&mut ctx, top.value_at(at).expect("children are packed")))
+            .collect();
+        assert_eq!(kinds, ["ProcessingInstruction", "Comment", "Element"]);
+
+        let root = top.value_at(2).expect("the root element comes last");
+        let inner = call(super::nvs_core_xml_node_children, &mut ctx, &[root])
+            .expect("an element has children");
+        let text = crate::arr::borrowed(inner.array_ptr().expect("children is an array"))
+            .value_at(0)
+            .expect("the root holds one text node");
+        assert_eq!(kind_of(&mut ctx, text), "Text");
+
+        dropped(inner);
+        dropped(children);
+        dropped(tree);
+        dropped(source);
+    }
+
+    /// `text` answers a node's own characters with references expanded and a
+    /// CDATA section read as what it spells: a comment's content, a processing
+    /// instruction's data, and nothing for an element or the document.
+    // covers: Core\Xml\Node::text
+    #[test]
+    fn text_answers_each_nodes_own_characters_and_nothing_for_an_element() {
+        let source = word("<r>a &amp; &#98;<e>inner</e><![CDATA[<c>]]><!--n--><?p d?></r>");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
+        let text_of = |ctx: &mut Ctx, node: Value| -> String {
+            let text =
+                call(super::nvs_core_xml_node_text, ctx, &[node]).expect("every node has text");
+            let owned = text.as_text().expect("text is a string").to_owned();
+            dropped(text);
+            owned
+        };
+        assert_eq!(
+            text_of(&mut ctx, tree),
+            "",
+            "the document has no text of its own"
+        );
+
+        let top = call(super::nvs_core_xml_node_children, &mut ctx, &[tree])
+            .expect("the document has children");
+        let root = crate::arr::borrowed(top.array_ptr().expect("children is an array"))
+            .value_at(0)
+            .expect("the root element");
+        let inner = call(super::nvs_core_xml_node_children, &mut ctx, &[root])
+            .expect("an element has children");
+        let nodes = crate::arr::borrowed(inner.array_ptr().expect("children is an array"));
+        let texts: Vec<String> = (0..nodes.count())
+            .map(|at| text_of(&mut ctx, nodes.value_at(at).expect("children are packed")))
+            .collect();
+        assert_eq!(texts, ["a & b", "", "<c>", "n", "d"]);
+        assert_eq!(
+            text_of(&mut ctx, root),
+            "",
+            "an element's text is its children's"
+        );
+
+        dropped(inner);
+        dropped(top);
         dropped(tree);
         dropped(source);
     }

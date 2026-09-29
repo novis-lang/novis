@@ -1,0 +1,29 @@
+<?nvs
+// Shows what kind of node each part of a small document is.
+
+class Label {
+    // This returns a short word for each of the five kinds of node.
+    public static function of(Core\Xml\NodeKind $kind): string {
+        return match ($kind) {
+            Core\Xml\NodeKind::Element => "element",
+            Core\Xml\NodeKind::Text => "text",
+            Core\Xml\NodeKind::Comment => "comment",
+            Core\Xml\NodeKind::ProcessingInstruction => "processing instruction",
+            Core\Xml\NodeKind::Document => "document",
+        };
+    }
+}
+
+Core\Xml\Node $document = Core\Xml::parse('<?style dark?><!--saved--><note>Buy milk</note>');
+
+// `Core\Xml::parse` returns the document node. This prints document.
+echo Label::of($document->kind()), "\n";
+
+// This prints processing instruction, comment and element.
+// The text inside the `note` element is a text node.
+foreach ($document->children() as Core\Xml\Node $child) {
+    echo Label::of($child->kind()), "\n";
+    foreach ($child->children() as Core\Xml\Node $inside) {
+        echo "  ", Label::of($inside->kind()), "\n";
+    }
+}

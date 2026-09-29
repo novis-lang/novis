@@ -2,7 +2,7 @@
 `Core\Xml::parse` materialises a document node over the one node family both parsers produce — element, text, comment, processing instruction and document, and no sixth thing — `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
-// covers: Core\Xml\Node::children
+// covers: Core\Xml\Node::children, Core\Xml\Node::kind, Core\Xml\Node::text
 // One name per case of the family, so the walk below prints what a program
 // compares against rather than the integer a case is. It is a class because
 // `rule:classes/no-free-functions-or-constants` makes every callable one, and

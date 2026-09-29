@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to get the plain text of a product description that is written as XHTML.
+
+class PlainText {
+    // This joins the text of every text node below `$node`.
+    // It skips comments and processing instructions.
+    public static function of(Core\Xml\Node $node): tainted string {
+        if ($node->kind() == Core\Xml\NodeKind::Text) {
+            return $node->text();
+        }
+        tainted string $text = "";
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Core\Xml\NodeKind $kind = $child->kind();
+            if ($kind == Core\Xml\NodeKind::Text || $kind == Core\Xml\NodeKind::Element) {
+                $text = $text . PlainText::of($child);
+            }
+        }
+        return $text;
+    }
+}
+
+string $description = '<p>A <b>large</b> mug<!-- check the size -->, dishwasher safe.</p>';
+
+// This prints A large mug, dishwasher safe.
+echo PlainText::of(Core\Xml::parse($description)), "\n";

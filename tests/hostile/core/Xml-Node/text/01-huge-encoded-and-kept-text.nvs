@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a program reads very long texts, texts made of many entities, and a text kept after its
+// document is gone. Each step should print the right length. The last step should stop at the
+// memory limit, and must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. One text node of ten million characters, read 10 times. This prints 100000000.
+Core\Xml\Node $long = Core\Xml::parse('<t>' . Core\Str::repeat('a', 10000000) . '</t>');
+uint $total = 0;
+foreach ($long->children() as Core\Xml\Node $t) {
+    foreach ($t->children() as Core\Xml\Node $text) {
+        int $i = 0;
+        while ($i < 10) {
+            $total = $total + Core\Str::length($text->text());
+            $i = $i + 1;
+        }
+    }
+}
+echo $total, "\n";
+
+// 2. One million `&amp;` entities and character references. Each one becomes one character.
+// This prints 2000000.
+Core\Xml\Node $encoded = Core\Xml::parse('<t>' . Core\Str::repeat('&amp;&#x1F600;', 1000000) . '</t>');
+foreach ($encoded->children() as Core\Xml\Node $t) {
+    foreach ($t->children() as Core\Xml\Node $text) {
+        echo Core\Str::length($text->text()), "\n";
+    }
+}
+
+// 3. A comment and a CDATA section with a `]]` and a `--` near the end. This prints -a- and ]x.
+Core\Xml\Node $edges = Core\Xml::parse('<t><!---a- --><![CDATA[]x]]></t>');
+foreach ($edges->children() as Core\Xml\Node $t) {
+    foreach ($t->children() as Core\Xml\Node $child) {
+        echo Core\Str::trim($child->text()), "\n";
+    }
+}
+
+// 4. The program keeps a text value and replaces the document. The text is still read. This prints 5.
+Core\Xml\Node $holder = Core\Xml::parse('<t>kept!</t>');
+tainted string $kept = '';
+foreach ($holder->children() as Core\Xml\Node $t) {
+    foreach ($t->children() as Core\Xml\Node $text) {
+        $kept = $text->text();
+    }
+}
+$holder = Core\Xml::parse('<u/>');
+echo Core\Str::length($kept), "\n";
+
+// 5. A comment that is never closed. This throws a `ParseError`.
+try {
+    Core\Xml::parse('<t><!-- open' . Core\Str::repeat(' ', 1000000) . '</t>');
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "not closed\n";
+}
+
+// 6. The program keeps one million copies of a long text. It should stop at its memory limit.
+array<tainted string> $copies = [];
+foreach ($long->children() as Core\Xml\Node $t) {
+    foreach ($t->children() as Core\Xml\Node $text) {
+        int $n = 0;
+        while ($n < 1000000) {
+            $copies[] = $text->text() . $n as string;
+            $n = $n + 1;
+        }
+    }
+}
+echo Core\Arr::count($copies), "\n";

@@ -1,0 +1,31 @@
+<?nvs
+// Reads the text of a node, as a program does when it takes a value out of an XML document.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Xml\Node $document = Core\Xml::parse(
+            '<order>Mug<line/>2 x Tea towel<!--gift--><?print fast?></order>'
+        );
+        array<Core\Xml\Node> $nodes = [];
+        foreach ($document->children() as Core\Xml\Node $root) {
+            $nodes[] = $root;
+            foreach ($root->children() as Core\Xml\Node $child) {
+                $nodes[] = $child;
+            }
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($nodes[(($total + $i) % 6) as int]->text() == "") {   // chained: $total is last round's
+                $total = $total + 6;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program reads the kind of every node in very deep and very wide trees. It also keeps a
+// node after its document is gone. Each step should print the right count. The last step should
+// stop at the memory limit, and must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Count
+{
+    // This counts the nodes of one kind below `$node`, `$node` included.
+    public static function of(Core\Xml\Node $node, Core\Xml\NodeKind $kind): int
+    {
+        int $count = 0;
+        if ($node->kind() == $kind) {
+            $count = 1;
+        }
+        foreach ($node->children() as Core\Xml\Node $child) {
+            $count = $count + Count::of($child, $kind);
+        }
+        return $count;
+    }
+}
+
+// 1. Elements nested 1024 deep, which is the most `Core\Xml::parse` allows. This prints 1024.
+Core\Xml\Node $deep = Core\Xml::parse(Core\Str::repeat('<a>', 1024) . Core\Str::repeat('</a>', 1024));
+echo Count::of($deep, Core\Xml\NodeKind::Element), "\n";
+
+// 2. One element with 100000 children of four kinds. This prints 25000 four times, and then 1.
+Core\Xml\Node $mixed = Core\Xml::parse('<r>' . Core\Str::repeat('<e/>t<!--c--><?p d?>', 25000) . '</r>');
+echo Count::of($mixed, Core\Xml\NodeKind::Text), "\n";
+echo Count::of($mixed, Core\Xml\NodeKind::Comment), "\n";
+echo Count::of($mixed, Core\Xml\NodeKind::ProcessingInstruction), "\n";
+echo Count::of($mixed, Core\Xml\NodeKind::Element) - 1, "\n";
+echo Count::of($mixed, Core\Xml\NodeKind::Document), "\n";
+
+// 3. The program keeps the deepest comment, and the document variable is replaced.
+// The kind of the kept node is still read. This prints yes.
+Core\Xml\Node $holder = Core\Xml::parse('<a><b><!--kept--></b></a>');
+Core\Xml\Node $kept = $holder;
+while (Core\Arr::count($kept->children()) > 0) {
+    foreach ($kept->children() as Core\Xml\Node $child) {
+        $kept = $child;
+    }
+}
+$holder = Core\Xml::parse('<c/>');
+if ($kept->kind() == Core\Xml\NodeKind::Comment) {
+    echo "yes\n";
+}
+
+// 4. 200000 small documents are parsed and the kind of each root is read. This prints 200000.
+int $roots = 0;
+int $n = 0;
+while ($n < 200000) {
+    Core\Xml\Node $doc = Core\Xml::parse('<r>' . $n as string . '</r>');
+    foreach ($doc->children() as Core\Xml\Node $r) {
+        if ($r->kind() == Core\Xml\NodeKind::Element) {
+            $roots = $roots + 1;
+        }
+    }
+    $n = $n + 1;
+}
+echo $roots, "\n";
+
+// 5. Ten million comments in one element. The program should stop at its memory limit.
+Core\Xml\Node $huge = Core\Xml::parse('<r>' . Core\Str::repeat('<!--x-->', 10000000) . '</r>');
+echo Count::of($huge, Core\Xml\NodeKind::Comment), "\n";
