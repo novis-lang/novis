@@ -1,0 +1,15 @@
+<?nvs
+// Shows where a week and a quarter start, and a day that does not start at midnight.
+
+var $friday = Core\Time::at(2024, 8, 23, Core\Time\Zone::of("Europe/Madrid"), {hour: 10});
+
+// A week starts on Monday. This prints Monday 2024-08-19.
+echo $friday->startOf(Core\Unit::Week)->format("EEEE yyyy-MM-dd"), "\n";
+
+// A quarter is three months, and the third quarter starts on 1 July. This prints 2024-07-01.
+echo $friday->startOf(Core\Unit::Quarter)->format("yyyy-MM-dd"), "\n";
+
+// On 4 November 2018, São Paulo moved its clocks from 00:00 to 01:00.
+// That day had no midnight, so it started at 01:00. This prints 2018-11-04 01:00.
+var $saoPaulo = Core\Time::at(2018, 11, 4, Core\Time\Zone::of("America/Sao_Paulo"), {hour: 12});
+echo $saoPaulo->startOf(Core\Unit::Day)->format("yyyy-MM-dd HH:mm"), "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a monthly report finds the period it covers, which is all of last month.
+
+var $shop = Core\Time\Zone::of("Europe/Madrid");
+var $today = Core\Time::at(2024, 3, 12, $shop, {hour: 7, minute: 15});
+
+// The report starts at the first moment of last month. It stops when this month starts.
+// This prints From 2024-02-01 00:00 to 2024-03-01 00:00.
+var $to = $today->startOf(Core\Unit::Month);
+var $from = $to->minus(1, Core\Unit::Month);
+echo "From ", $from->format("yyyy-MM-dd HH:mm"), " to ", $to->format("yyyy-MM-dd HH:mm"), "\n";
+
+// Both orders are on 29 February in UTC. In Madrid, the second one is already on 1 March.
+array<string> $orders = ["2024-02-29T22:30:00Z", "2024-02-29T23:30:00Z"];
+
+// An order is in the report when it is at or after `$from`, and before `$to`.
+// This prints yes and then no.
+foreach ($orders as string $placed) {
+    var $at = Core\Time::fromIso($placed)->in($shop);
+    if ($from->difference($at, Core\Unit::Second) >= 0 && $at->difference($to, Core\Unit::Second) > 0) {
+        echo $placed, " is in the report: yes\n";
+    } else {
+        echo $placed, " is in the report: no\n";
+    }
+}
