@@ -6027,10 +6027,10 @@ mod tests {
     }
 
     /// `nanoseconds` takes every `int`, so both ends of `int` are durations.
-    /// `negated`, `minus` and `multipliedBy` are exact up to the last value
-    /// that fits and throw one step past it, at both ends, naming the member.
-    /// `negated` has exactly one refusal: `nanoseconds(i64::MIN)`.
-    // covers: Core\Time\Duration::nanoseconds, Core\Time\Duration::negated, Core\Time\Duration::minus, Core\Time\Duration::multipliedBy
+    /// `negated`, `plus`, `minus` and `multipliedBy` are exact up to the last
+    /// value that fits and throw one step past it, at both ends, naming the
+    /// member. `negated` has exactly one refusal: `nanoseconds(i64::MIN)`.
+    // covers: Core\Time\Duration::nanoseconds, Core\Time\Duration::negated, Core\Time\Duration::plus, Core\Time\Duration::minus, Core\Time\Duration::multipliedBy
     #[test]
     fn duration_nanoseconds_takes_every_int_and_arithmetic_is_bounded_on_both_sides() {
         let answered = |member: nvs_runtime::NvsFn, args: [Value; 2], arity: usize| {
@@ -6058,6 +6058,7 @@ mod tests {
         };
         let negated =
             |n: i64| answered(nvs_core_time_duration_negated, [built(n), Value::null()], 1);
+        let plus = |a: i64, b: i64| answered(nvs_core_time_duration_plus, [built(a), built(b)], 2);
         let minus =
             |a: i64, b: i64| answered(nvs_core_time_duration_minus, [built(a), built(b)], 2);
         let times = |a: i64, f: i64| {
@@ -6074,6 +6075,11 @@ mod tests {
         assert_eq!(negated(0), Ok(0));
         assert_eq!(negated(i64::MAX), Ok(-i64::MAX));
         assert_eq!(negated(i64::MIN + 1), Ok(i64::MAX));
+        assert_eq!(plus(90, 30), Ok(120));
+        assert_eq!(plus(30, -90), Ok(-60));
+        assert_eq!(plus(i64::MAX - 1, 1), Ok(i64::MAX));
+        assert_eq!(plus(i64::MIN + 1, -1), Ok(i64::MIN));
+        assert_eq!(plus(i64::MAX, i64::MIN), Ok(-1));
         assert_eq!(minus(90, 30), Ok(60));
         assert_eq!(minus(30, 90), Ok(-60));
         assert_eq!(minus(i64::MIN + 1, 1), Ok(i64::MIN));
@@ -6091,11 +6097,86 @@ mod tests {
             );
         };
         past("negated", negated(i64::MIN));
+        past("plus", plus(i64::MAX, 1));
+        past("plus", plus(i64::MIN, -1));
         past("minus", minus(i64::MIN, 1));
         past("minus", minus(i64::MAX, -1));
         past("multipliedBy", times(i64::MIN, -1));
         past("multipliedBy", times(i64::MAX / 2 + 1, 2));
         past("multipliedBy", times(i64::MIN / 2 - 1, 2));
+    }
+
+    /// `seconds` counts exact units of 1 000 000 000 nanoseconds in both
+    /// directions. The largest count that fits and the first one past it are
+    /// asserted together at both ends, and the throw names the member.
+    // covers: Core\Time\Duration::seconds
+    #[test]
+    fn duration_seconds_is_exact_and_bounded_on_both_sides() {
+        let seconds = |n: i64| {
+            let mut ctx = Ctx::buffered();
+            nvs_runtime::call(nvs_core_time_duration_seconds, &mut ctx, &[Value::int(n)])
+                .map(read_and_release)
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned())
+        };
+        assert_eq!(seconds(0), Ok(0));
+        assert_eq!(seconds(90), Ok(90_000_000_000));
+        assert_eq!(seconds(-1), Ok(-1_000_000_000));
+        assert_eq!(seconds(9_223_372_036), Ok(9_223_372_036_000_000_000));
+        assert_eq!(seconds(-9_223_372_036), Ok(-9_223_372_036_000_000_000));
+        for past in [9_223_372_037, -9_223_372_037, i64::MAX, i64::MIN] {
+            let refused = seconds(past).expect_err("past the range");
+            assert!(
+                refused.starts_with("Core\\Time\\Duration::seconds(): "),
+                "{refused}"
+            );
+        }
+    }
+
+    /// `parse` reads the literal grammar into the nanosecond count the lexer
+    /// gives the same text, up to `int`'s last value, and throws naming the
+    /// member for a text the grammar refuses or a count one past that value.
+    // covers: Core\Time\Duration::parse
+    #[test]
+    fn duration_parse_reads_the_literal_grammar_up_to_the_last_nanosecond() {
+        let parsed = |text: &str| {
+            let mut ctx = Ctx::buffered();
+            let args = [Value::str(NvsStr::new(text.as_bytes()))];
+            let answer = nvs_runtime::call(nvs_core_time_duration_parse, &mut ctx, &args)
+                .map(read_and_release)
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned());
+            for held in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built the argument, and the member borrowed it"
+                )]
+                unsafe {
+                    held.release();
+                }
+            }
+            answer
+        };
+        assert_eq!(parsed("0s"), Ok(0));
+        assert_eq!(parsed("1h30m"), Ok(5_400_000_000_000));
+        assert_eq!(parsed("250ms"), Ok(250_000_000));
+        assert_eq!(parsed("1w2d3h4m5s6ms7us8ns"), Ok(788_645_006_007_008));
+        assert_eq!(parsed("9223372036854775807ns"), Ok(i64::MAX));
+        assert_eq!(parsed("0009223372036854775807ns"), Ok(i64::MAX));
+        for refused in [
+            "",
+            "9223372036854775808ns",
+            "15251w",
+            "30S",
+            "30m1h",
+            "-7d",
+            "1.5s",
+            "30ü",
+        ] {
+            let message = parsed(refused).expect_err(refused);
+            assert!(
+                message.starts_with("Core\\Time\\Duration::parse(): "),
+                "{refused}: {message}"
+            );
+        }
     }
 
     /// The nanosecond count of a `Duration` this frame was handed, released

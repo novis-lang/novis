@@ -1,0 +1,4 @@
+connect: 5000 ms
+read: 150000 ms
+The setting idle is not valid, so the default is used.
+idle: 30000 ms

@@ -1,0 +1,44 @@
+<?nvs
+// Attack: `parse` gets counts one past the largest duration, texts of one million characters,
+// and one million valid texts. Each bad text should throw a `ParseError`, and nothing should crash or leak.
+
+// 1. The largest count each unit allows, and one more.
+array<string> $edges = [
+    '9223372036854775807ns', '9223372036854775808ns',
+    '15250w', '15251w',
+    '106751d23h47m16s854ms775us807ns', '106751d23h47m16s854ms775us808ns',
+    '99999999999999999999999999999999999999s',
+];
+foreach ($edges as string $text) {
+    try {
+        echo Core\Time\Duration::parse($text)->toNanoseconds(), "\n";
+    } catch (ParseError $e) {
+        echo "ParseError\n";
+    }
+}
+
+// 2. Texts of one million characters: digits, zeros before a valid count, and a unit nobody knows.
+array<string> $long = [
+    Core\Str::repeat('9', 1000000) . 's',
+    Core\Str::repeat('0', 1000000) . '1s',
+    '1' . Core\Str::repeat('x', 1000000),
+    '1s' . Core\Str::repeat('ü', 500000),
+    '30' . Core\Str::repeat('🙂', 250000),
+];
+foreach ($long as string $text) {
+    try {
+        echo Core\Time\Duration::parse($text)->toString(), "\n";
+    } catch (ParseError $e) {
+        echo 'ParseError of ', Core\Str::length($e->message), " characters\n";
+    }
+}
+
+// 3. One million valid texts are read, one at a time. Each duration is freed again.
+array<string> $texts = ['30s', '1h30m', '250ms', '7d', '1w2d3h4m5s6ms7us8ns'];
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $total = $total + Core\Time\Duration::parse($texts[$round % 5])->toNanoseconds() % 7;
+    $round = $round + 1;
+}
+echo $total, "\n";
