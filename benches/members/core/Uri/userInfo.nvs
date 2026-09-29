@@ -1,0 +1,24 @@
+<?nvs
+// Reads the user part of an address, as a program does when it reads a database address from its settings.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $links = [
+            Core\Uri::parse("postgres://app@db.example.com/shop"),
+            Core\Uri::parse("ftp://reports@files.example.com/"),
+            Core\Uri::parse("https://example.com/"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?string $user = $links[($i % 3) as int]->userInfo();
+            $total = $total + 1 + Core\Str::length($user ?? "");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

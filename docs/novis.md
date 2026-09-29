@@ -15169,9 +15169,9 @@ Writes the array `$parameters` as a query string, such as `page=2&sort=name`. It
 $uri->scheme(): ?string
 ```
 
-The scheme as written, never case-folded — `parse_url`'s `scheme` key.
+Returns the scheme of the address, which is the part before the first `:`. For `https://example.com/` the result is `https`. The scheme is returned as it was written, so `HTTPS` stays upper case.
 
-**Returns** `?string` — The scheme without its `:`, or `null` for a relative reference.
+**Returns** `?string` — The scheme, without the `:`. The result is `null` when the address has no scheme, such as `/about` or `//example.com/`.
 
 <a id="core-core-uri-userinfo"></a>
 #### `Core\Uri->userInfo`
@@ -15180,9 +15180,9 @@ The scheme as written, never case-folded — `parse_url`'s `scheme` key.
 $uri->userInfo(): ?string
 ```
 
-The whole userinfo subcomponent as written — `parse_url`'s `user` and `pass` keys as one reader, because RFC 3986 deprecates the `user:password` form and a member that split it would recommend writing one.
+Returns the user part of the address, which is the text between `//` and `@`. For `ftp://ann@files.example.com/` the result is `ann`. A password written as `ann:secret` is returned as one text. Escapes such as `%40` stay in it.
 
-**Returns** `?string` — The text before the authority's `@`, still percent-encoded, or `null` where no `@` was written.
+**Returns** `?string` — The user part, without the `@`. The result is `null` when the address has no `@` before its host. It is `""` when nothing is written before the `@`.
 
 <a id="core-core-uri-host"></a>
 #### `Core\Uri->host`
@@ -15314,15 +15314,15 @@ A fresh `Uri` with one query parameter set, replaced or removed and every other 
 $uri->resolve(string $reference): Core\Uri
 ```
 
-Resolves `$reference` against the receiver as a base, RFC 3986 § 5's reference resolution, which PHP has no function for: the receiver's fragment is dropped first, and dot segments are removed from the result — the one member here that rewrites a path.
+Turns a link found on a page into a full address, the way a browser does. The address of the page is the base. For the base `https://example.com/blog/post` and the link `../about`, the result is `https://example.com/about`. The `.` and `..` parts are removed from the path.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$reference` | `string` | The URI reference to resolve, relative or absolute. |
+| `$reference` | `string` | The link to follow. It can be a full address, a path such as `/about` or `photo.jpg`, a query such as `?page=2`, or a fragment such as `#top`. |
 
-**Returns** `Core\Uri` — A fresh absolute `Uri`; the receiver is unchanged.
+**Returns** `Core\Uri` — A new `Uri` with a scheme. The fragment of the base is not used. The base itself does not change.
 
-**Throws** `RuntimeError` — The receiver is a relative reference and so no base; `$reference` is text the RFC 3986 grammar does not admit; or the base is opaque — no authority and a rootless path, as in `mailto:a@b` — so there is no path to merge into.
+**Throws** `RuntimeError` — The base has no scheme, such as `/blog/post`. The link has a character that is not allowed in an address, such as a space. Or the base has no `/` after its scheme, such as `mailto:ann@example.com`, so there is no path to add the link to.
 
 <a id="core-core-uri-compareto"></a>
 #### `Core\Uri->compareTo`

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the user part of an address, which is the text between `//` and `@`.
+
+array<string> $addresses = [
+    "ftp://ann@files.example.com/report.pdf",
+    "ssh://deploy@build.example.com/",
+    "https://example.com/",
+];
+
+// This prints ann, deploy and "no user".
+foreach ($addresses as string $address) {
+    ?string $user = Core\Uri::parse($address)->userInfo();
+    echo $user ?? "no user", "\n";
+}
