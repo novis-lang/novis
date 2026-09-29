@@ -1,26 +1,27 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Zip has been taken yet.",
+  "state": "Goal `core-zip`: `Core\\Zip::entries` is complete (`bun nv proofs --id 'Core\\Zip::entries'` prints `complete.`), and `Core\\Zip` has its class card.\nThe attack on `entries` found a hang: the repeated-name check scanned every earlier entry, so 100,000 entries never finished listing. `directory` now keeps a `HashSet` of the names it borrows from the archive (module doc § *What this spends*).\n`read` and `extract` still owe examples, hostile, perf and a Rust test with a `covers:` marker. Their three `.nvst` cases already exist.",
   "next": {
     "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "title": "Feature proofs for the rest of `Core\\Zip`",
+    "files": [
+      "crates/nvs-stdlib/src/zip.rs",
+      "docs/examples/core/Zip/",
+      "tests/hostile/core/Zip/",
+      "benches/members/core/Zip/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Zip::entries`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:126`"
+        "text": "**`Core\\Zip::read`** — owes about, examples, hostile, perf, a Rust `// covers:` test (`rule:testing/feature-proofs`). `crates/nvs-stdlib/src/zip.rs:150`, member body `crates/nvs-stdlib/src/zip.rs:994`. Use the test module's `listed` helper as the pattern for driving the member through `nvs_runtime::call`, and `Archive::record` in the `entries` attack for building archives with `Core\\Bytes::pack`. The attack should target the bound: a deflate bomb, a `maxBytes` of 0, and a ratio just over its limit."
       },
       {
         "done": false,
-        "text": "**`Core\\Zip::extract`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:152`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Zip::read`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/zip.rs:135`"
+        "text": "**`Core\\Zip::extract`** — owes about, examples, hostile, perf, a Rust `// covers:` test. `crates/nvs-stdlib/src/zip.rs:167`, member body `crates/nvs-stdlib/src/zip.rs:1039`. It needs `fs.write` and `fs.read` granted for the destination: read the capability door comment at `crates/nvs-stdlib/src/registry.rs:2793` before writing an example."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`Core\\Zip`'s three member cards (`ENTRIES_DOC`, `READ_DOC`, `EXTRACT_DOC` in `crates/nvs-stdlib/src/zip.rs`) are in the dense internal voice, not the voice of AGENTS.md § *Text an end user reads*. Goal `plain-comments` owns that sweep.",
+    "Listing 5 entries costs 22 allocations (`docs/perf/members.ndjson`), because each `Entry` owns a `String` beside the `NvsStr` the member returns. This is a possible perf slice, owned by the module doc of `crates/nvs-stdlib/src/zip.rs`."
   ]
 }
