@@ -91,7 +91,9 @@ use subtle::ConstantTimeEq as _;
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class name, once, for the messages that all name it.
 const NAME: &str = r"Core\Totp";
@@ -122,7 +124,7 @@ const SECRET: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 /// `rule:security/protocol-roster`'s third roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "code",
@@ -153,58 +155,65 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Totp`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "One-time codes for two-factor login (TOTP, RFC 6238). These are the six-digit codes \
+            that an authenticator app on a phone shows, and a new one starts every 30 seconds. \
+            `code` returns the current code for a secret, and `check` tests a code that a user \
+            typed.",
+};
+
 /// `Core\Totp::code`'s reference card — `rule:core-api/reference-card`.
 const CODE_DOC: MethodDoc = MethodDoc {
-    short: "Answers the RFC 6238 code for `$secret` at this moment — the same six digits the \
-            authenticator application holding that secret is showing. For enrolment and for \
-            testing; verifying what a user typed is `check`.",
+    short: "Returns the current six-digit code for `$secret`. An authenticator app with the same \
+            secret shows the same code now. Use `check` to test a code that a user typed.",
     params: &[ParamDoc {
         name: "secret",
-        desc: "The shared secret, at least 16 octets. `Core\\Random::bytes(20)` is RFC 4226 \
-               § 4's recommended length.",
+        desc: "The shared secret, at least 16 bytes long. `Core\\Random::bytes(20)` makes one of \
+               the recommended length.",
         shape: &[],
     }],
-    ret: "Six decimal digits, zero-padded — `042311` is a code, and comparing it as a number \
-          would lose the leading zero, which is why it is text.",
+    ret: "Six digits as a string, with leading zeros, such as `042311`. It is a string so that \
+          the leading zeros stay.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$secret` is shorter than 16 octets, which RFC 4226 § 4 refuses; or the clock is \
-               outside the range a step count reaches.",
+        desc: "`$secret` is shorter than 16 bytes, or the clock is outside the range of dates a \
+               code can have.",
     }],
 };
 
 /// `Core\Totp::check`'s reference card — `rule:core-api/reference-card`.
 const CHECK_DOC: MethodDoc = MethodDoc {
-    short: "Reports which time step `$code` belonged to, or `null`. Accepts the current 30-second \
-            step and one either side, and nothing at or below `$after` — so storing the answer \
-            and passing it back next time is what refuses a replayed code.",
+    short: "Tests a code that a user typed. It accepts the code of the current 30-second step \
+            and of the step before and after it. It returns the number of the step, or `null`. \
+            Store that number and pass it as `$after` next time. Then the same code cannot be \
+            used twice.",
     params: &[
         ParamDoc {
             name: "code",
-            desc: "What the user typed. Anything that is not six digits is `null` rather than an \
-                   error: a mistyped code is the ordinary case, not an exceptional one.",
+            desc: "The code the user typed. A text that is not six digits returns `null` and \
+                   does not throw an error.",
             shape: &[],
         },
         ParamDoc {
             name: "secret",
-            desc: "The same secret `code` was issued against, at least 16 octets.",
+            desc: "The same secret that `code` uses, at least 16 bytes long.",
             shape: &[],
         },
         ParamDoc {
             name: "after",
-            desc: "The step this account last accepted, as a previous call answered it. Store it \
-                   beside the secret. `0` accepts anything in the window, which is right exactly \
-                   once, at enrolment.",
+            desc: "The step number that the last accepted code returned. Codes of this step and \
+                   earlier steps return `null`. The default is `0`, which accepts every code of \
+                   the current steps. Use it only for the first code of an account.",
             shape: &[],
         },
     ],
-    ret: "The step number the code belonged to — pass it back as `$after` — or `null` for a code \
-          that is wrong, out of the window, or already used. There is no spelling that widens the \
-          window.",
+    ret: "The step number of the code, or `null` when the code is wrong, too old, too new or \
+          already used.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$secret` is shorter than 16 octets, which RFC 4226 § 4 refuses; or the clock is \
-               outside the range a step count reaches.",
+        desc: "`$secret` is shorter than 16 bytes, or the clock is outside the range of dates a \
+               code can have.",
     }],
 };
 
@@ -269,7 +278,9 @@ fn step_now(ctx: &nvs_runtime::Ctx, member: &str) -> Result<i64, Fault> {
 ///
 /// The counter is the step as eight octets big-endian, which RFC 6238 § 4.2
 /// specifies and which is the whole of the difference between HOTP and TOTP.
-fn code_at(secret: &[u8], step: i64) -> String {
+/// The code comes back as ASCII digits in a fixed array, so [`check`]'s three
+/// candidates allocate nothing.
+fn code_at(secret: &[u8], step: i64) -> [u8; DIGITS as usize] {
     let mac = crate::hash::hmac_sha1(secret, &step.to_be_bytes());
 
     // Dynamic truncation: the low nibble of the last octet picks where to read
@@ -284,11 +295,15 @@ fn code_at(secret: &[u8], step: i64) -> String {
         mac[offset + 3],
     ]);
 
-    format!(
-        "{:0width$}",
-        binary % 10_u32.pow(DIGITS),
-        width = DIGITS as usize
-    )
+    // Written from the last digit backwards, so a short number keeps the
+    // leading zeros the array starts with.
+    let mut value = binary % 10_u32.pow(DIGITS);
+    let mut code = [b'0'; DIGITS as usize];
+    for digit in code.iter_mut().rev() {
+        *digit = b"0123456789"[(value % 10) as usize];
+        value /= 10;
+    }
+    code
 }
 
 /// The step `$code` belongs to, among the ones a clock at `now` admits and
@@ -308,7 +323,7 @@ fn match_step(secret: &[u8], code: &[u8], now: i64, after: i64) -> Option<i64> {
         if step <= after {
             continue;
         }
-        if bool::from(code_at(secret, step).as_bytes().ct_eq(code)) {
+        if bool::from(code_at(secret, step).as_slice().ct_eq(code)) {
             matched = Some(step);
         }
     }
@@ -327,7 +342,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_totp_code(ctx, args: [1]) {
         let secret = secret_at(args, 0, "code")?;
         let step = step_now(ctx, "code")?;
-        Ok(Value::str(NvsStr::new(code_at(secret, step).as_bytes())))
+        Ok(Value::str(NvsStr::new(&code_at(secret, step))))
     }
 }
 
@@ -378,6 +393,7 @@ mod tests {
     /// [`crate::crypto`]'s reason: the truncation, the counter's width and the
     /// window's arithmetic are what could go wrong, and all three are visible
     /// here without a compiler in front of them.
+    // covers: Core\Totp::code
     #[test]
     fn a_totp_window_is_bounded_and_a_replay_is_refused() {
         // RFC 6238 Appendix B, the SHA-1 rows, truncated to six digits. The
@@ -393,7 +409,7 @@ mod tests {
         ] {
             assert_eq!(
                 code_at(secret, seconds.div_euclid(STEP)),
-                want,
+                want.as_bytes(),
                 "RFC 6238 Appendix B at T={seconds}"
             );
         }
@@ -440,7 +456,7 @@ mod tests {
         // distinct answers rather than one code that happens to span 90
         // seconds. A counter packed at the wrong width — 32 bits, or the
         // seconds rather than the step — collapses these.
-        let window: Vec<String> = ((now - DRIFT)..=(now + DRIFT))
+        let window: Vec<[u8; DIGITS as usize]> = ((now - DRIFT)..=(now + DRIFT))
             .map(|step| code_at(secret, step))
             .collect();
         assert_eq!(
@@ -465,6 +481,7 @@ mod tests {
     /// offset at once. That is also why the window is asked of `match_step`
     /// rather than of a `((now - DRIFT)..=(now + DRIFT))` written out again:
     /// a reconstruction agrees with itself by construction.
+    // covers: Core\Totp::check
     #[test]
     fn code_and_check_agree_at_every_offset_the_window_accepts() {
         let secret = b"12345678901234567890";
@@ -478,7 +495,7 @@ mod tests {
                 let code = code_at(secret, now + offset);
                 let inside = offset.abs() <= DRIFT;
                 assert_eq!(
-                    match_step(secret, code.as_bytes(), now, now - DRIFT - 1),
+                    match_step(secret, &code, now, now - DRIFT - 1),
                     inside.then_some(now + offset),
                     "the code for step {} against a clock at {now}",
                     now + offset
@@ -492,13 +509,13 @@ mod tests {
             for offset in -DRIFT..=DRIFT {
                 let code = code_at(secret, now + offset);
                 assert_eq!(
-                    match_step(secret, code.as_bytes(), now, now + offset),
+                    match_step(secret, &code, now, now + offset),
                     None,
                     "step {} is spent, so its own code is not in the window",
                     now + offset
                 );
                 assert_eq!(
-                    match_step(secret, code.as_bytes(), now, now + offset - 1),
+                    match_step(secret, &code, now, now + offset - 1),
                     Some(now + offset),
                     "step {} is still in the window with the one below it spent",
                     now + offset
@@ -527,6 +544,7 @@ mod tests {
         for secret in secrets {
             for step in 0..400_i64 {
                 let code = code_at(secret, step);
+                let code = String::from_utf8_lossy(&code);
                 assert_eq!(
                     code.len(),
                     DIGITS as usize,

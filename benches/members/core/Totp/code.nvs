@@ -1,0 +1,23 @@
+<?nvs
+// Makes a one-time code from a secret, as a login test or a setup page does.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<secret bytes> $secrets = [
+            Core\Random::bytes(20),
+            Core\Random::bytes(32),
+            Core\Random::bytes(64),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the secret
+            $total = $total + 1 + Core\Str::length(Core\Totp::code($secrets[($total % 3) as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

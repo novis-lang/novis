@@ -1,0 +1,16 @@
+<?nvs
+// Shows how an automated test logs in to an account that has two-factor login.
+
+// The test account has its own secret, like every real account.
+secret bytes $secret = Core\Random::bytes(20);
+
+// A person reads the code from a phone. The test computes the same code instead.
+string $typed = Core\Totp::code($secret);
+
+// The login code of the server checks it. This prints "Logged in".
+?int $step = Core\Totp::check($typed, $secret);
+if ($step == null) {
+    echo "Wrong code\n";
+} else {
+    echo "Logged in\n";
+}

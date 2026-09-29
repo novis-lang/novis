@@ -5346,7 +5346,6 @@ mod tests {
         r"Core\Script\Handle",
         r"Core\Task\Channel",
         r"Core\Topic",
-        r"Core\Totp",
         r"Core\Uri",
         r"Core\Uuid",
         r"Core\Validate",
