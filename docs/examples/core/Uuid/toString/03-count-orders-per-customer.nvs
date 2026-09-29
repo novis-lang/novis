@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to use the text of a UUID as an array key, to count the orders of each customer.
+
+array<string> $customerIds = [
+    "0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a",
+    "F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4",
+    "0190D1E6-8E3C-7C2A-9A4B-1F2E3D4C5B6A",
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a",
+];
+
+// Some rows write the same customer in upper case.
+// `toString()` gives one text for each customer, so each customer gets one key.
+array<int> $orders = [];
+foreach ($customerIds as string $text) {
+    string $key = Core\Uuid::parse($text)->toString();
+    $orders[$key] = ($orders[$key] ?? 0) + 1;
+}
+
+// This prints 3 orders for the first customer and 2 for the second.
+foreach ($orders as string $key => int $count) {
+    echo $key, ": ", $count, "\n";
+}

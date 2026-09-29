@@ -316,10 +316,12 @@ const FROM_BYTES_DOC: MethodDoc = MethodDoc {
 
 /// `$uuid->toString`'s reference card — `rule:core-api/reference-card`.
 const TO_STRING_DOC: MethodDoc = MethodDoc {
-    short: "Renders the receiver in RFC 9562's canonical lower-case hyphenated `8-4-4-4-12` \
-            form — the only way its text comes back out, and what `echo $uuid` writes.",
+    short: "Returns the text of the UUID, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. The \
+            digits are in groups of 8, 4, 4, 4 and 12, joined by hyphens. `echo $uuid` writes \
+            the same text.",
     params: &[],
-    ret: "The 36-character text, lower case whatever case `parse` read.",
+    ret: "A string of 36 characters. The letters are always lower case, even when `parse` read \
+          them in upper case.",
     errors: &[],
 };
 
@@ -933,7 +935,7 @@ mod tests {
         parsed
     }
 
-    // covers: Core\Uuid::parse
+    // covers: Core\Uuid::parse, Core\Uuid::toString
     #[test]
     fn the_canonical_form_parses_in_either_case_and_renders_lower() {
         let subject = Value::str(nvs_runtime::NvsStr::new(

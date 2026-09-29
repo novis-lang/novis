@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a program asks for the text of UUIDs millions of times and keeps many of them.
+// Each call should return 36 lower-case characters, and every copy should be freed.
+
+// 1. The nil UUID and the max UUID in upper case.
+// This prints 36 characters of zeros and hyphens, and then 36 of "f" and hyphens.
+echo Core\Uuid::parse('00000000-0000-0000-0000-000000000000')->toString(), "\n";
+echo Core\Uuid::parse('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF')->toString(), "\n";
+
+// 2. The text of one UUID is asked for one million times. Each copy is freed.
+// This prints 36000000.
+var $id = Core\Uuid::v7();
+uint $total = 0;
+int $i = 0;
+while ($i < 1000000) {
+    $total = $total + Core\Str::length($id->toString());
+    $i = $i + 1;
+}
+echo $total, "\n";
+
+// 3. Every hexadecimal letter is written in upper case in every group.
+// Each text should come back in lower case. This prints 6.
+array<string> $letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+int $lower = 0;
+foreach ($letters as string $letter) {
+    string $upper = Core\Str::repeat($letter, 8) . '-' . Core\Str::repeat($letter, 4) . '-'
+        . Core\Str::repeat($letter, 4) . '-' . Core\Str::repeat($letter, 4) . '-'
+        . Core\Str::repeat($letter, 12);
+    string $text = Core\Uuid::parse($upper)->toString();
+    if ($text == Core\Str::lower($upper)) {
+        $lower = $lower + 1;
+    }
+}
+echo $lower, "\n";
+
+// 4. The texts of 100000 new UUIDs are kept as array keys.
+// Each text is read back to the same UUID. This prints 100000 and then 100000.
+array<int> $seen = [];
+array<Core\Uuid> $ids = [];
+$i = 0;
+while ($i < 100000) {
+    var $drawn = Core\Uuid::v4();
+    $ids[] = $drawn;
+    $seen[$drawn->toString()] = $i;
+    $i = $i + 1;
+}
+echo Core\Arr::count($seen), "\n";
+int $same = 0;
+foreach ($ids as Core\Uuid $drawn) {
+    if (Core\Uuid::parse($drawn->toString())->toBytes() == $drawn->toBytes()) {
+        $same = $same + 1;
+    }
+}
+echo $same, "\n";
