@@ -1,0 +1,9 @@
+<?nvs
+// Shows what happens when the text is not in the form `parse` reads.
+
+// This UUID is in `{}` braces. `parse` does not allow them, so it throws a `RuntimeError`.
+try {
+    Core\Uuid::parse("{f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4}");
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

@@ -1,0 +1,23 @@
+<?nvs
+// Reads a UUID from its text, as a server does for each id it gets in a web address or a form.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $ids = [
+            "0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a",
+            "F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4",
+            "00112233-4455-6677-8899-aabbccddeeff",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $id = Core\Uuid::parse($ids[($total % 3) as int]);
+            $total = $total + ($i % 5) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
