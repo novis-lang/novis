@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="/feed.xsl" type="text/xsl"?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>New teas in stock</title>
+      <link>https://example.com/news/new-teas</link>
+    </item>
+    <item>
+      <title>Summer sale</title>
+      <link>https://example.com/news/summer-sale</link>
+    </item>
+  </channel>
+</rss>

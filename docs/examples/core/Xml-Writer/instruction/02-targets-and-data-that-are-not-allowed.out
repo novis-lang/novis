@@ -1,0 +1,4 @@
+Core\Xml\Writer::instruction(): `xml` is the declaration's own target, which `startDocument` writes.
+Core\Xml\Writer::instruction(): `my app` is not a name a document can write.
+Core\Xml\Writer::instruction(): a processing instruction has no escape grammar, so its data cannot hold `?>`.
+<?xml version="1.0" encoding="UTF-8"?><page/>

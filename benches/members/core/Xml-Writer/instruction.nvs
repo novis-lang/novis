@@ -1,0 +1,22 @@
+<?nvs
+// Writes processing instructions inside an element, as a program does when it adds notes for the program that reads the document.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $data = ['href="feed.css"', "step=1", ""];
+        Core\Xml\Writer $writer = Core\Xml::writer();
+        $writer->startDocument();
+        $writer->startElement("feed");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $writer->instruction("app", $data[(($total + $i) % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";
