@@ -1,0 +1,10 @@
+<?nvs
+// Works out when to send the reminders for an appointment.
+
+Core\Time\TimeOfDay $appointment = Core\Time\TimeOfDay::at(14, 0);
+array<int> $minutesBefore = [60, 15];
+
+// This prints "reminder at 13:00" and "reminder at 13:45".
+foreach ($minutesBefore as int $minutes) {
+    echo "reminder at ", $appointment->minus($minutes, Core\Unit::Minute)->format("HH:mm"), "\n";
+}

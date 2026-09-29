@@ -1,0 +1,10 @@
+<?nvs
+// Shows that the time goes back around the clock when it passes midnight.
+
+Core\Time\TimeOfDay $early = Core\Time\TimeOfDay::at(0, 15);
+
+// This prints 23:45.
+echo $early->minus(30, Core\Unit::Minute)->format("HH:mm"), "\n";
+
+// One second before midnight. This prints 23:59:59.
+echo Core\Time\TimeOfDay::at(0, 0)->minus(1, Core\Unit::Second)->format("HH:mm:ss"), "\n";
