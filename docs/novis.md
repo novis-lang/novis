@@ -20795,15 +20795,15 @@ Keywords: code, check
 Core\Totp::code(secret bytes $secret): string
 ```
 
-Answers the RFC 6238 code for `$secret` at this moment — the same six digits the authenticator application holding that secret is showing. For enrolment and for testing; verifying what a user typed is `check`.
+Returns the current six-digit code for `$secret`. An authenticator app with the same secret shows the same code now. Use `check` to test a code that a user typed.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$secret` | `secret bytes` (neutral) | The shared secret, at least 16 octets. `Core\Random::bytes(20)` is RFC 4226 § 4's recommended length. |
+| `$secret` | `secret bytes` (neutral) | The shared secret, at least 16 bytes long. `Core\Random::bytes(20)` makes one of the recommended length. |
 
-**Returns** `string` — Six decimal digits, zero-padded — `042311` is a code, and comparing it as a number would lose the leading zero, which is why it is text.
+**Returns** `string` — Six digits as a string, with leading zeros, such as `042311`. It is a string so that the leading zeros stay.
 
-**Throws** `LogicError` — `$secret` is shorter than 16 octets, which RFC 4226 § 4 refuses; or the clock is outside the range a step count reaches.
+**Throws** `LogicError` — `$secret` is shorter than 16 bytes, or the clock is outside the range of dates a code can have.
 
 <a id="core-core-totp-check"></a>
 #### `Core\Totp::check`
@@ -20812,17 +20812,17 @@ Answers the RFC 6238 code for `$secret` at this moment — the same six digits t
 Core\Totp::check(string $code, secret bytes $secret, int $after = 0): ?int
 ```
 
-Reports which time step `$code` belonged to, or `null`. Accepts the current 30-second step and one either side, and nothing at or below `$after` — so storing the answer and passing it back next time is what refuses a replayed code.
+Tests a code that a user typed. It accepts the code of the current 30-second step and of the step before and after it. It returns the number of the step, or `null`. Store that number and pass it as `$after` next time. Then the same code cannot be used twice.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$code` | `string` (neutral) | What the user typed. Anything that is not six digits is `null` rather than an error: a mistyped code is the ordinary case, not an exceptional one. |
-| `$secret` | `secret bytes` (neutral) | The same secret `code` was issued against, at least 16 octets. |
-| `$after` | `int` (default `0`) | The step this account last accepted, as a previous call answered it. Store it beside the secret. `0` accepts anything in the window, which is right exactly once, at enrolment. |
+| `$code` | `string` (neutral) | The code the user typed. A text that is not six digits returns `null` and does not throw an error. |
+| `$secret` | `secret bytes` (neutral) | The same secret that `code` uses, at least 16 bytes long. |
+| `$after` | `int` (default `0`) | The step number that the last accepted code returned. Codes of this step and earlier steps return `null`. The default is `0`, which accepts every code of the current steps. Use it only for the first code of an account. |
 
-**Returns** `?int` — The step number the code belonged to — pass it back as `$after` — or `null` for a code that is wrong, out of the window, or already used. There is no spelling that widens the window.
+**Returns** `?int` — The step number of the code, or `null` when the code is wrong, too old, too new or already used.
 
-**Throws** `LogicError` — `$secret` is shorter than 16 octets, which RFC 4226 § 4 refuses; or the clock is outside the range a step count reaches.
+**Throws** `LogicError` — `$secret` is shorter than 16 bytes, or the clock is outside the range of dates a code can have.
 
 <a id="core-core-jwt"></a>
 ### `Core\Jwt`

@@ -1,27 +1,26 @@
 {
-  "state": "Goal `core-time-zone-and-2-more` has finished `Core\\Time\\Zone`: all four members (`of`, `fixed`, `system`,\n`offsetAt`) have a description, three examples, an attack, a bench with a recorded figure, a Rust test with\nits `covers:` marker and an end-user card. `dossier-core-time-zone` passes. Stage 2's other two checks,\n`dossier-core-topic` and `dossier-core-totp`, owe everything: no examples, attacks, benches or Rust\n`covers:` markers, and both classes are still in `CLASSES_STILL_OWING_A_CARD`. Nothing is blocked.",
+  "state": "Goal `core-time-zone-and-2-more` has finished `Core\\Time\\Zone` and `Core\\Totp`. Both `Totp` members\n(`code`, `check`) have a description, three examples, an attack, a bench with a recorded figure, a Rust\ntest with its `covers:` marker and an end-user card, and the class card is in. `dossier-core-time-zone`\nand `dossier-core-totp` pass. `code_at` now writes into a `[u8; 6]`, so `check` allocates nothing\n(`docs/perf/members.ndjson`). The one red check in stage 2 is `dossier-core-topic`, which still owes\neverything, and `Core\\Topic` is still in `CLASSES_STILL_OWING_A_CARD`. Nothing is blocked.",
   "next": {
     "stage": 2,
-    "title": "the dossier, `Core\\Totp`",
+    "title": "the dossier, `Core\\Topic`",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/totp.rs` (the `CLASS` row, its cards and the `tests` module), `crates/nvs-stdlib/src/registry.rs` (`CLASSES_STILL_OWING_A_CARD`), plus `docs/examples/core/Totp/`, `tests/hostile/core/Totp/` and `benches/members/core/Totp/`.",
+    "note": "one file set: `crates/nvs-stdlib/src/topic.rs` (the `CLASS` row, its cards and the `tests` module), `crates/nvs-stdlib/src/registry.rs` (`CLASSES_STILL_OWING_A_CARD`), plus `docs/examples/core/Topic/`, `tests/hostile/core/Topic/` and `benches/members/core/Topic/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Totp::code`** — owes about, examples, hostile, perf, tests, and the class card (`rule:testing/feature-proofs`, `rule:core-api/reference-card`). Add `Core\\Totp`'s `ClassDoc` above the row and delete its line from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5349`. Rewrite the member cards in the end-user voice. `crates/nvs-stdlib/src/totp.rs:128`"
+        "text": "**`Core\\Topic::subscribe`** — owes about, examples, hostile, perf, tests, and the class card (`rule:testing/feature-proofs`, `rule:core-api/reference-card`). Add `Core\\Topic`'s `ClassDoc` above the row (`doc: None` at `crates/nvs-stdlib/src/topic.rs:211`) and delete its line from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5348`. Rewrite the member cards in the end-user voice. `crates/nvs-stdlib/src/topic.rs:214`"
       },
       {
         "done": false,
-        "text": "**`Core\\Totp::check`** — owes the same, less the class card. The Rust test goes in the `tests` module and carries `// covers: Core\\Totp::check`. `crates/nvs-stdlib/src/totp.rs:140`"
+        "text": "**`Core\\Topic::publish` and `Core\\Topic::unsubscribe`** — owe the same, less the class card. Their Rust tests go in the `tests` module at `crates/nvs-stdlib/src/topic.rs:695` and carry `// covers: Core\\Topic::publish` / `unsubscribe`, placed between the doc comment and `#[test]`. `crates/nvs-stdlib/src/topic.rs:226`"
       },
       {
         "done": false,
-        "text": "**Record both figures** with `bun nv proofs --record-perf --group 'Core\\Totp'` after the last edit to `totp.rs`: the freshness key is that file's content hash, and `nv verify`'s fmt step can rewrite it. `crates/nvs-stdlib/src/totp.rs:367`"
+        "text": "**Record the three figures** with `bun nv proofs --record-perf --group 'Core\\Topic'` after the last edit to `topic.rs`. The freshness key is that file's content. Index bench arrays with `($total % N) as int` (`benches/members/README.md`), and keep the output of a hostile case the same on every run, or the sweep re-runs it every time. `crates/nvs-stdlib/src/topic.rs:209`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Topic`'s three members (`subscribe`, `publish`, `unsubscribe`) owe every proof and the class card: `crates/nvs-stdlib/src/topic.rs:209`, card line at `crates/nvs-stdlib/src/registry.rs:5348` — the group after `Core\\Totp`.",
-    "`Zone::of` accepts a name in any letter case (`EUROPE/BERLIN`) and stores it as written; the zone database lookup ignores case. Not a bug, and not pinned by a `.nvst` case yet — `crates/nvs-stdlib/src/time.rs` module doc owns `Zone`."
+    "`bun nv proofs --record-perf` refuses to calibrate while another process loads the CPU. Re-run it; it passed on the third try (`tools/nv/cmd/proofs.ts`)."
   ]
 }
