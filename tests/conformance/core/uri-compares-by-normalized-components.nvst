@@ -2,6 +2,7 @@
 `$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — spec § 12, `rule:classes/comparable`, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
+// covers: Core\Uri::compareTo
 // § 6.2.2.1 and § 6.2.2.2: the scheme and the host fold to lower case, and an
 // escape that spells an unreserved character is that character. `parse` still
 // reports what was written, which is what the second line pins.

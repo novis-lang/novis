@@ -2,6 +2,7 @@
 `$uri->compareTo`'s two normalizations have two different scopes: RFC 3986 § 6.2.2.1 folds case in exactly two of the six components that can hold a letter, while § 6.2.2.2 rewrites an escape in all five that can hold one — and normalizing an escape's spelling is never decoding it — spec § 12, `rule:classes/comparable`
 --FILE--
 <?nvs
+// covers: Core\Uri::compareTo
 // The neighbouring `uri-compares-by-normalized-components` case asks *whether*
 // each of § 6.2.2's three rewrites happens, one row each. This one asks how far
 // each reaches, which no single row can show: a member that lower-cased the

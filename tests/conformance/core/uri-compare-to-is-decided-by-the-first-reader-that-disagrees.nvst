@@ -2,6 +2,7 @@
 `$uri->compareTo` is the lexicographic order over the seven component readers in their declared order — for every ordered pair of a corpus its answer is the answer the *first* reader that disagrees would give, and every one of the seven decides some pair — spec § 12, `rule:classes/comparable`
 --FILE--
 <?nvs
+// covers: Core\Uri::compareTo
 // The compositional question, which is the one no row of a table asks: not
 // "what did this pair answer" but "is the answer a function of the parts at
 // all". The neighbouring total-order case names two orderings by hand (a

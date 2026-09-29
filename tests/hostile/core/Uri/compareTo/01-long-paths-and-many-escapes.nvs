@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program compares addresses with very long paths, many `..` parts and many escapes.
+// Every comparison should return -1, 0 or 1, and the runtime must not crash or run out of memory.
+
+class Compare
+{
+    public static function of(string $left, string $right): int
+    {
+        return Core\Uri::parse($left)->compareTo(Core\Uri::parse($right));
+    }
+}
+
+// 1. A path with 200000 `..` parts. They all go above the root, so the path is `/a`.
+// This prints 0.
+string $up = Core\Str::repeat('/..', 200000);
+echo Compare::of('http://example.com' . $up . '/a', 'http://example.com/a'), "\n";
+
+// 2. 200000 `.` and `x/..` parts that remove each other. This prints 0.
+string $round = Core\Str::repeat('/x/..', 100000) . Core\Str::repeat('/.', 100000);
+echo Compare::of('http://example.com' . $round . '/a', 'http://example.com/a'), "\n";
+
+// 3. Two paths of 300000 escapes each. `%7E` and `~` are the same character. This prints 0.
+string $escaped = Core\Str::repeat('%7E', 300000);
+string $plain = Core\Str::repeat('~', 300000);
+echo Compare::of('http://example.com/' . $escaped, 'http://example.com/' . $plain), "\n";
+
+// 4. Two long paths that differ only in the last character. This prints -1.
+string $long = Core\Str::repeat('a', 1000000);
+echo Compare::of('http://example.com/' . $long . 'a', 'http://example.com/' . $long . 'b'), "\n";
+
+// 5. 20000 comparisons, and every result is freed. This prints 20000.
+uint $same = 0;
+uint $i = 0;
+while ($i < 20000) {
+    if (Compare::of('HTTP://Example.COM/p/' . $i, 'http://example.com/p/./' . $i) == 0) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo $same, "\n";
+
+// 6. 5000 addresses are sorted with `compareTo`. This prints 5000.
+array<string> $links = [];
+uint $j = 0;
+while ($j < 5000) {
+    $links[] = 'http://example.com/' . (($j * 7919) % 5000) . '/..%2F?q=' . $j;
+    $j = $j + 1;
+}
+var $sorted = Core\Arr::sort($links, { comparator: fn (string $x, string $y): int => Compare::of($x, $y) });
+echo Core\Arr::count($sorted), "\n";

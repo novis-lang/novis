@@ -2,6 +2,7 @@
 `$uri->compareTo` is a total order and not only an equality test: antisymmetric, reflexive and transitive over a corpus, decided component by component in the readers' declared order rather than over the text, with an absent component sorting before an empty one — spec § 12, `rule:classes/comparable`, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
+// covers: Core\Uri::compareTo
 // The neighbouring case asserts *what* § 6.2.2 normalizes before the
 // comparison happens, row by row. This one asserts the thing no row can show:
 // that the answer is an order at all. `rule:classes/comparable` makes `compareTo` the member

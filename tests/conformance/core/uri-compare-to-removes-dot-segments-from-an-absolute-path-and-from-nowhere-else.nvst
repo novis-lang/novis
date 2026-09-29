@@ -2,6 +2,7 @@
 `$uri->compareTo` applies RFC 3986 § 5.2.4 to an *absolute* path and to nothing else: the same six rewrites all hold with a leading `/` and none of them holds without one, a query and a fragment keep their dot segments, and § 5.2.4's two trailing cases leave the path ending in `/` — spec § 12, RFC 3986 § 6.2.2.3
 --FILE--
 <?nvs
+// covers: Core\Uri::compareTo
 // § 6.2.2.3 is the one of § 6.2.2's three rewrites with a *precondition*, and
 // the precondition is the whole content: a relative reference's leading `..`
 // is meaningful until something resolves it, so folding it away would answer

@@ -2,6 +2,7 @@
 `$uri->compareTo` is bounded to exactly `-1`, `0` and `1` over every ordered pair of a corpus, and it is the only ordering two `Uri`s have: `Core\Arr`'s natural order refuses one at `min`, `max` and `sort` alike, and the way through is `{comparator: ...}` calling this member — spec § 12, `rule:classes/comparable`, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
+// covers: Core\Uri::compareTo
 // One neighbouring case shows this member is a total order, another that it
 // decides on the normal forms. Neither asks what the answer may *be*: an order
 // that is antisymmetric, reflexive and transitive is still all three when it

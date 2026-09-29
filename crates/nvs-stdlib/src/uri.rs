@@ -1017,19 +1017,21 @@ const RESOLVE_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->compareTo`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders the receiver against `$other` over their RFC 3986 § 6.2.2 normal forms — \
-            `Comparable`'s member, and the spelling of \"are these the same URI\": scheme and \
-            host fold to lower case, escapes' hex digits to upper, an escaped unreserved \
-            character becomes itself, and dot segments leave an absolute path. Neither side is \
-            rewritten.",
+    short: "Compares this address with `$other`, to sort addresses or to check if two are the \
+            same. Before it compares, it changes a copy of each one. The scheme and the host \
+            become lower case. An escape such as `%7E` becomes `~` when that character needs no \
+            escape. The `.` and `..` parts are removed from a path that starts with `/`. Neither \
+            address itself changes.",
     params: &[ParamDoc {
         name: "other",
-        desc: "The `Uri` to compare against.",
+        desc: "The `Uri` to compare with.",
         shape: &[],
     }],
-    ret: "`-1`, `0` or `1`: component by component in `scheme`, `userInfo`, `host`, `port`, \
-          `path`, `query`, `fragment` order, an absent component before a present one. \
-          `http://h:80/` and `http://h/` differ — no scheme default is known.",
+    ret: "`0` when both are the same address, `-1` when this address comes first, and `1` when \
+          `$other` comes first. The parts are compared in this order: `scheme`, `userInfo`, \
+          `host`, `port`, `path`, `query`, `fragment`. A missing part comes before a part that \
+          is there. `http://example.com:80/` and `http://example.com/` are different, because \
+          the default port of a scheme is not known.",
     errors: &[],
 };
 
@@ -3913,6 +3915,7 @@ mod tests {
     /// RFC 3986 § 6.2.2's three normalizations, and the three places the
     /// member deliberately stops short of them — the module docs' *Comparison
     /// normalizes* section, asserted rather than described.
+    // covers: Core\Uri::compareTo
     #[test]
     fn two_uris_compare_by_normalized_components() {
         // One URI, two spellings, per § 6.2.2.1 (case), § 6.2.2.2

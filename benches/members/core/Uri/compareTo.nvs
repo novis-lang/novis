@@ -1,0 +1,23 @@
+<?nvs
+// Compares two parsed addresses, as a program does when it checks if a link points to a page it already knows.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $pages = [
+            Core\Uri::parse("https://example.com/shop/cart?step=2"),
+            Core\Uri::parse("https://EXAMPLE.com/shop/./cart?step=2"),
+            Core\Uri::parse("https://example.com/blog/../shop/%63art?step=3"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $answer = $pages[$total % 3]->compareTo($pages[($total + 1) % 3]);
+            $total = $total + ($answer + 2) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

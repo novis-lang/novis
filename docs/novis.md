@@ -15331,13 +15331,13 @@ Resolves `$reference` against the receiver as a base, RFC 3986 § 5's reference 
 $uri->compareTo(Core\Uri $other): int
 ```
 
-Orders the receiver against `$other` over their RFC 3986 § 6.2.2 normal forms — `Comparable`'s member, and the spelling of "are these the same URI": scheme and host fold to lower case, escapes' hex digits to upper, an escaped unreserved character becomes itself, and dot segments leave an absolute path. Neither side is rewritten.
+Compares this address with `$other`, to sort addresses or to check if two are the same. Before it compares, it changes a copy of each one. The scheme and the host become lower case. An escape such as `%7E` becomes `~` when that character needs no escape. The `.` and `..` parts are removed from a path that starts with `/`. Neither address itself changes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$other` | `Core\Uri` | The `Uri` to compare against. |
+| `$other` | `Core\Uri` | The `Uri` to compare with. |
 
-**Returns** `int` — `-1`, `0` or `1`: component by component in `scheme`, `userInfo`, `host`, `port`, `path`, `query`, `fragment` order, an absent component before a present one. `http://h:80/` and `http://h/` differ — no scheme default is known.
+**Returns** `int` — `0` when both are the same address, `-1` when this address comes first, and `1` when `$other` comes first. The parts are compared in this order: `scheme`, `userInfo`, `host`, `port`, `path`, `query`, `fragment`. A missing part comes before a part that is there. `http://example.com:80/` and `http://example.com/` are different, because the default port of a scheme is not known.
 
 <a id="core-core-uri-sign"></a>
 #### `Core\Uri->sign`

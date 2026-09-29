@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to check if two addresses are the same, even when they are written in a different way.
+
+var $written = Core\Uri::parse("HTTP://Example.COM/docs/./guide%7Eone");
+var $plain = Core\Uri::parse("http://example.com/docs/guide~one");
+
+// The scheme and the host are compared in lower case. `%7E` is compared as `~`,
+// and the `/./` part is removed. This prints 0.
+echo $written->compareTo($plain), "\n";
+
+// `compareTo` does not change either address. This prints the text as it was written.
+echo $written->toString(), "\n";
+
+// The path is case-sensitive, so `/Docs` is a different address. This prints 1.
+var $upper = Core\Uri::parse("http://example.com/Docs/guide~one");
+echo $plain->compareTo($upper), "\n";

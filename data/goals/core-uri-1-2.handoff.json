@@ -1,8 +1,8 @@
 {
-  "state": "Goal `core-uri-1-2`, 1 of 3 items landed. `Core\\Uri::buildQuery` has all its feature proofs. `Core\\Uri` now has its class card, so the `help` proof is no longer owed by any `Uri` member. The attack found a bug, and it is fixed: `build` asks the budget before it grows its query text (`crate::regex::grow`, now `pub(crate)`). `Core\\Router::url` shares that walk. Every `Core\\Uri` bench figure other than `buildQuery`'s reads stale, because `uri.rs` changed. `bun nv proofs --record-perf --only '<id>'` re-measures one.",
+  "state": "Goal `core-uri-1-2`. Its floor check `dossier-core-uri-1-2` names 12 `Core\\Uri` members. `buildQuery` and `compareTo` have all their feature proofs, and 10 still owe some. `Core\\Uri` has its class card, so no member owes the `help` proof. The `Core\\Regex` and `Core\\Regex\\Match` figures are measured again after the `grow` change and are no longer stale. A change to `crates/nvs-stdlib/src/uri.rs` makes every `Core\\Uri` bench figure stale. `bun nv proofs --record-perf --group 'Core\\Uri'` measures them again, and it runs after `bun nv verify` has rebuilt the binary. `bun nv proofs --verify --group 'Core\\Uri' --no-perf` lists what each member still owes.",
   "next": {
-    "stage": null,
-    "title": "Core\\Uri proofs, in file order",
+    "stage": 2,
+    "title": "Core\\Uri proofs, the four encoders",
     "files": [
       "crates/nvs-stdlib/src/uri.rs",
       "docs/examples/core/Uri/",
@@ -12,16 +12,25 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Uri::compareTo`** — owes about, tests (0 of 2 cases, no Rust `covers:`), examples, hostile, perf. Rewrite `COMPARE_TO_DOC` in the end-user voice. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:622`"
+        "text": "**`Core\\Uri::decodeComponent`** — owes about, examples, hostile, perf, and a Rust `covers:` marker. Rewrite `DECODE_COMPONENT_DOC` in the end-user voice. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:425`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uri::decodeComponent`** — owes about, examples, hostile, perf, and a Rust `covers:` marker. Rewrite `DECODE_COMPONENT_DOC` in the end-user voice. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:424`"
+        "text": "**`Core\\Uri::encodeComponent`** — the same owed list, and its card. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:416`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Uri::decodeFormValue`** — the same owed list, and its card. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:445`"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Uri::encodeFormValue`** — the same owed list, and its card. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:436`"
       }
     ]
   },
   "backlog": [
-    "The other `Core\\Uri` cards (`encodeComponent`, `parseQuery`, the instance readers) are still in the old voice. Rewrite each one in the slice that proves it (`crates/nvs-stdlib/src/uri.rs`).",
-    "`buildQuery` makes 38 allocations per call in its bench, mostly one `String` for each encoded name and value. Encoding straight into the output would remove most of them (`crates/nvs-stdlib/src/uri.rs` `build`)."
+    "`Core\\Uri::parse` and `Core\\Uri::parseQuery` — `crates/nvs-stdlib/src/uri.rs:398`, `:455`; each owes examples, hostile, and a Rust `covers:` marker.",
+    "`Core\\Uri::host`, `port`, `path`, `fragment` — `crates/nvs-stdlib/src/uri.rs:493`–`:529`; each owes two `.nvst` cases with a `covers:` marker, examples, hostile and perf.",
+    "The header of `tests/conformance/core/uri-compare-to-answers-one-of-three-values-and-is-the-only-order-two-uris-have.nvst` says `Core\\Arr` `min`, `max` and `sort` throw an error for two `Uri`s. Its `--EXPECT--` shows that all three return a value. Rewrite the header to match what the case asserts."
   ]
 }
