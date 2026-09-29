@@ -156,7 +156,7 @@
 use nvs_runtime::{Fault, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -174,7 +174,7 @@ pub(crate) const NAME: &str = r"Core\Validate";
 /// hold this class are `examples/collect.nvs` and `conformance_coverage.rs`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "isEmail",
@@ -234,6 +234,14 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Validate`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Checks whether a text has a certain format. `isEmail`, `isDomain`, `isIp` and `isMac` \
+            check for an email address, a domain name, an IP address and a MAC address. \
+            `isAscii` and `isPrintable` check which characters a text contains. Each method \
+            returns `true` or `false` and never changes the text.",
 };
 
 /// `Core\Validate::isEmail`'s reference card — `rule:core-api/reference-card`.
@@ -307,15 +315,16 @@ const IS_MAC_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Validate::isAscii`'s reference card — `rule:core-api/reference-card`.
 const IS_ASCII_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether every byte of `$s` is ASCII (`0x00`–`0x7F`) — the encoding \
-            question, a byte scan with no decoding.",
+    short: "Checks whether every character of `$s` is an ASCII character. ASCII has 128 \
+            characters: the English letters, the digits, common punctuation and the control \
+            characters. Each of them is one byte, from `0x00` to `0x7F`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to test.",
         shape: &[],
     }],
-    ret: "`true` when no byte is above `0x7F`, and `true` for the empty string where `ctype_*` \
-          answers `false`; `false` otherwise.",
+    ret: "`true` when every character is ASCII, and `true` for the empty string. `false` when \
+          the text contains any other character, such as `é` or `日`.",
     errors: &[],
 };
 
@@ -803,5 +812,54 @@ mod tests {
         ] {
             assert!(!is_mac_address(refused), "{refused} should not be a MAC");
         }
+    }
+
+    /// `isAscii` through the boundary compiled code reaches it at: `true`
+    /// exactly where the subject's byte count equals its character count, at
+    /// both edges of the one-byte range and wherever the other character sits.
+    /// A subject that is not a `string` is the ABI's own fatal, not a verdict.
+    // covers: Core\Validate::isAscii
+    #[test]
+    fn is_ascii_is_true_exactly_when_every_character_is_one_byte() {
+        use nvs_runtime::{Ctx, NvsStr, OutputSink, call};
+
+        let ask = |subject: Value| {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            call(nvs_core_validate_is_ascii, &mut ctx, &[subject])
+        };
+        for text in [
+            "",
+            "a",
+            "\0",
+            "\x7f",
+            "~",
+            "Order 1042",
+            "\u{80}",
+            "é",
+            "aé",
+            "éa",
+            "a日b",
+            "🙂",
+        ] {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let answer = ask(subject).expect("`isAscii` answers a `string` without throwing");
+            assert_eq!(
+                answer.as_bool(),
+                Some(text.len() == text.chars().count()),
+                "`isAscii({text:?})`"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the string it built; the helper borrowed its argument \
+                          and answered a scalar"
+            )]
+            unsafe {
+                subject.release();
+            }
+        }
+        assert!(
+            ask(Value::int(7)).is_err(),
+            "a non-`string` subject is refused"
+        );
     }
 }

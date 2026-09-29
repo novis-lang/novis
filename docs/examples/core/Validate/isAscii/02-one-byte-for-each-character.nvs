@@ -1,0 +1,12 @@
+<?nvs
+// Shows that an ASCII text uses exactly one byte for each character.
+
+// "ë" and "ü" are not ASCII. Each of them needs two bytes.
+array<string> $names = ["Anna", "Zoë", "Jürgen Müller", "Li Wei"];
+
+// `Core\Str::length` counts characters and `Core\Bytes::length` counts bytes.
+// For "Anna" and "Li Wei", the two numbers are the same.
+foreach ($names as string $name) {
+    string $kind = Core\Validate::isAscii($name) ? "ASCII" : "not ASCII";
+    echo $name, " ", Core\Str::length($name), " ", Core\Bytes::length($name as bytes), " ", $kind, "\n";
+}

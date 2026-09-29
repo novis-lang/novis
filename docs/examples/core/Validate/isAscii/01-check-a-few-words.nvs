@@ -1,0 +1,11 @@
+<?nvs
+// Shows which texts contain only ASCII characters.
+
+// "café" and "東京" are not ASCII. A tab is ASCII, and so is the empty text.
+array<string> $words = ["hello", "Order #1042", "café", "東京", "tab\there", ""];
+
+// `Core\Validate::isAscii` returns `true` when every character is ASCII.
+// This prints yes, yes, no, no, yes and yes.
+foreach ($words as string $word) {
+    echo Core\Validate::isAscii($word) ? "yes" : "no", "\n";
+}

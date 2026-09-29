@@ -1,0 +1,24 @@
+<?nvs
+// Checks that a short form field contains only ASCII, as a program does before it saves a code or a name.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $fields = ["SKU-1042", "Jürgen Müller", "order@example.com"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Validate::isAscii($fields[(($total + $i) % 3) as int])) {
+                $total = $total + 3;
+            } else {
+                $total = $total + 6;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

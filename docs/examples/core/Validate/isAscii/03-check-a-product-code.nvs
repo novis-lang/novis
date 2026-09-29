@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to check a product code from a form before it is saved.
+
+class ProductCode {
+    // The warehouse system accepts only ASCII codes of 3 to 12 characters.
+    // This function returns an error message, or an empty text when the code is fine.
+    public static function problem(string $code): string {
+        if (!Core\Validate::isAscii($code)) {
+            return "use only the letters A to Z, digits and simple punctuation";
+        }
+        uint $length = Core\Str::length($code);
+        if ($length < 3 || $length > 12) {
+            return "use 3 to 12 characters";
+        }
+        return "";
+    }
+}
+
+// Four codes as a user typed them. "ØL-7" contains "Ø", which is not ASCII.
+array<string> $codes = ["SKU-1042", "ØL-7", "AB", "TSHIRT-RED-XL"];
+
+// Only "SKU-1042" is saved. The other three codes each print their problem.
+foreach ($codes as string $code) {
+    string $problem = ProductCode::problem($code);
+    echo $code, ": ", $problem == "" ? "saved" : $problem, "\n";
+}

@@ -5345,7 +5345,6 @@ mod tests {
         r"Core\Request\PartContent",
         r"Core\Script\Handle",
         r"Core\Task\Channel",
-        r"Core\Validate",
         r"Core\Xml",
         r"Core\Xml\Node",
         r"Core\Xml\Reader",
