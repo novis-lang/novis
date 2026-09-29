@@ -884,11 +884,12 @@ const PATH_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->query`'s reference card — `rule:core-api/reference-card`.
 const QUERY_DOC: MethodDoc = MethodDoc {
-    short: "The raw query as written, still encoded — `parse_url`'s `query` key; \
-            `Core\\Uri::parseQuery` turns it into an array.",
+    short: "Returns the query of the address, which is the text after the `?`. For \
+            `https://example.com/search?q=shoes#top` the result is `q=shoes`. Escapes such as \
+            `%20` stay in it, and `Core\\Uri::parseQuery` reads it into an array.",
     params: &[],
-    ret: "The text after the `?`, or `null` where no `?` was written; a `?` with nothing after \
-          it is `\"\"`, not `null`.",
+    ret: "The query, without the `?`. The result is `null` when the address has no `?`. It is \
+          `\"\"` when nothing is written after the `?`.",
     errors: &[],
 };
 
@@ -965,21 +966,21 @@ const WITH_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->queryParameter`'s reference card — `rule:core-api/reference-card`.
 const QUERY_PARAMETER_DOC: MethodDoc = MethodDoc {
-    short: "One query parameter by name, read through `Core\\Uri::parseQuery`'s bracket \
-            convention instead of by parsing the query string at the call site.",
+    short: "Returns one value from the query of the address, by its name. For \
+            `/search?q=red+shoes` the result of `queryParameter(\"q\")` is `red shoes`. The query \
+            is read the same way as by `Core\\Uri::parseQuery`, and each call reads it again.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The parameter's name, decoded and top-level: the brackets of `a[b]=c` belong to \
-               the value, so `\"a\"` is what reaches it.",
+        desc: "The name of the parameter, without brackets. For `a[b]=c`, the name is `\"a\"`.",
         shape: &[],
     }],
-    ret: "The value — `bytes`, or a nested `array<mixed>` where the convention built one — and \
-          `null` both for a name that is not there and for a URI with no query at all; `query()` \
-          is what tells those two apart.",
+    ret: "The decoded value as `bytes`. Brackets in the name give an `array<mixed>`. The result \
+          is `null` when the name is not in the query, and also when the address has no query. \
+          `query()` tells these two apart.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A name in the receiver's own query decodes to octets that are not valid UTF-8, \
-               which is `Core\\Uri::parseQuery`'s refusal reached through it.",
+        desc: "A name in the query has escapes that do not decode to valid UTF-8 text. \
+               `Core\\Uri::parseQuery` throws the same error.",
     }],
 };
 
@@ -4346,6 +4347,7 @@ mod tests {
     /// is a third answer again, and `with` can produce and clear either — the
     /// distinction PHP's own `parse_url` does not report at all, and the one
     /// that collapses the day `""` becomes a removal spelling.
+    // covers: Core\Uri::query
     #[test]
     fn an_empty_query_stays_distinct_from_an_absent_one() {
         const SUBJECT: &str = "http://h/p?x=1";
@@ -4623,6 +4625,7 @@ mod tests {
     /// is handed an array and the reader answers one, with [`super::build`]
     /// and [`super::parse_query`] the only two places the convention is
     /// written down at all.
+    // covers: Core\Uri::queryParameter
     #[test]
     fn a_query_parameter_round_trips_an_array_value_through_the_bracket_convention() {
         let nested_value = || {

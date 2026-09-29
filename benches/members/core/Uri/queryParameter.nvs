@@ -1,0 +1,23 @@
+<?nvs
+// Reads one parameter from the query of an address, as a server does for the page number of a list.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $links = [
+            Core\Uri::parse("https://shop.example.com/search?q=shoes&page=2&sort=price"),
+            Core\Uri::parse("/orders?status=open&page=14&limit=50"),
+            Core\Uri::parse("/news?page=3"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            mixed $page = $links[($total % 3) as int]->queryParameter("page");
+            $total = $total + Core\Str::length($page as string);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

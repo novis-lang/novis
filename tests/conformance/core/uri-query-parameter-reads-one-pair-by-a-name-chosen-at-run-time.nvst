@@ -2,6 +2,7 @@
 `$uri->queryParameter` reads one query parameter by name, and answers `null` for a name that is not there — `rule:core-classes/uri-removable-components`
 --FILE--
 <?nvs
+// covers: Core\Uri::queryParameter
 // The rule's second level, read half. A URI's components are fixed and few,
 // so `with` can name each of them as a bag key; a parameter's name is chosen
 // at run time, so it gets a member instead. The answer comes through

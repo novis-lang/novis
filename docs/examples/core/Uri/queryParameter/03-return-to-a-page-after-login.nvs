@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a login page reads the page to return to, and accepts only a page on the same site.
+
+class Login {
+    public static function returnTo(string $request): string {
+        mixed $next = Core\Uri::parse($request)->queryParameter("next");
+        if ($next == null) {
+            return "/";
+        }
+        string $path = $next as string;
+        // A path on this site starts with one `/`. `//` or `https:` leads to another site.
+        if (!Core\Str::startsWith($path, "/") || Core\Str::startsWith($path, "//")) {
+            return "/";
+        }
+        return $path;
+    }
+}
+
+// This prints /account/orders, /, / and /.
+echo Login::returnTo("/login?next=%2Faccount%2Forders"), "\n";
+echo Login::returnTo("/login"), "\n";
+echo Login::returnTo("/login?next=https%3A%2F%2Fevil.example.net%2F"), "\n";
+echo Login::returnTo("/login?next=%2F%2Fevil.example.net%2F"), "\n";

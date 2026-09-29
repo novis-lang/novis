@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a request sends very large queries and asks for one parameter many times.
+// Each call should return a value, `null` or an error, and every value should be freed.
+
+class Param
+{
+    public static function length(string $address, string $name): string
+    {
+        try {
+            mixed $value = Core\Uri::parse($address)->queryParameter($name);
+            if ($value == null) {
+                return 'none';
+            }
+            return Core\Str::length($value as string) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+
+    public static function count(string $address, string $name): string
+    {
+        try {
+            mixed $value = Core\Uri::parse($address)->queryParameter($name);
+            return Core\Arr::count($value as array<mixed>) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. The name `a` is written 200001 times. The last value, `22`, is kept.
+// Its length is 2, so this prints 2.
+echo Param::length('/?' . Core\Str::repeat('a=1&', 200000) . 'a=22', 'a'), "\n";
+
+// 2. A name of one million letters that is not in the query. This prints "none".
+echo Param::length('/?a=1', Core\Str::repeat('n', 1000000)), "\n";
+
+// 3. The name `a` with 100000 levels of brackets, written as `%5B` and `%5D`.
+// The whole nested array is returned and freed. This prints 1.
+echo Param::count('/?a' . Core\Str::repeat('%5Bx%5D', 100000) . '=1', 'a'), "\n";
+
+// 4. Another name in the query has escapes that are not valid text.
+// This prints "error".
+echo Param::length('/?a=1&%FF%FE=2', 'a'), "\n";
+
+// 5. A value of one million escaped zero bytes. This prints 1000000.
+echo Param::length('/?v=' . Core\Str::repeat('%00', 1000000), 'v'), "\n";
+
+// 6. 300000 values added to one list with `a%5B%5D`. This prints 300000.
+echo Param::count('/?' . Core\Str::repeat('a%5B%5D=1&', 300000), 'a'), "\n";
+
+// 7. Each call reads the whole query again. 200 names are read from a query
+// of 5000 pairs. This prints 200.
+string $pairs = '';
+uint $i = 0;
+while ($i < 5000) {
+    $pairs = $pairs . 'n' . $i . '=v&';
+    $i = $i + 1;
+}
+var $big = Core\Uri::parse('/?' . $pairs);
+uint $found = 0;
+$i = 0;
+while ($i < 200) {
+    if ($big->queryParameter('n' . ($i * 25)) != null) {
+        $found = $found + 1;
+    }
+    $i = $i + 1;
+}
+echo $found, "\n";
+
+// 8. 100000 addresses, and a nested array is read from each one.
+// Every `Uri` and every array is freed. This prints 100000.
+uint $read = 0;
+$i = 0;
+while ($i < 100000) {
+    var $uri = Core\Uri::parse('/p?f%5Bid%5D=' . $i . '&f%5Btag%5D=x');
+    if (Core\Arr::count($uri->queryParameter('f') as array<mixed>) == 2) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo $read, "\n";

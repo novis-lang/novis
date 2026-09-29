@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read one value from the query of a link.
+
+var $link = Core\Uri::parse("https://shop.example.com/search?q=red+shoes&page=2");
+
+// The value is decoded, so `+` becomes a space. The value is `bytes`,
+// and `as string` turns it into text. This prints "red shoes".
+echo $link->queryParameter("q") as string, "\n";
+
+// This prints 2.
+echo $link->queryParameter("page") as string, "\n";
+
+// A name that is not in the query returns `null`. This prints "no sort".
+if ($link->queryParameter("sort") == null) {
+    echo "no sort\n";
+}
