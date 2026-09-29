@@ -2,6 +2,7 @@
 `Core\Xml\Node::namespaceUri` answers the URI the enclosing declaration bound an element's prefix to, while `name` still answers the spelling the document wrote — spec § 17, `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
+// covers: Core\Xml\Node::namespaceUri
 // The two questions a qualified name raises, asked separately: what the
 // document spelled, and what that spelling means where it sits.
 class Ns {

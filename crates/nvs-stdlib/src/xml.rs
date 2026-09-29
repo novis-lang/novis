@@ -148,7 +148,7 @@
 //! document), beside a tree whose names and text already are, and released
 //! with it.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
@@ -396,17 +396,15 @@ const NAME_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Xml\Node::namespaceUri`'s reference card — `rule:core-api/reference-card`.
 const NAMESPACE_URI_DOC: MethodDoc = MethodDoc {
-    short: "The namespace this element's name is in — the URI the nearest enclosing `xmlns:x` \
-            bound its prefix to, or the one an `xmlns` bound names written without a prefix to. \
-            Resolved against the declarations in scope where the element sits, so an inner \
-            declaration shadows an outer one, and `name` stays the spelling the document wrote. \
-            The `xml` prefix answers the URI the XML specification fixes it to, which no document \
-            may rebind.",
+    short: "Returns the namespace URI of this element. For `<x:item>`, the URI comes from the \
+            nearest `xmlns:x` declaration on the element or above it. For a name without a \
+            prefix, it comes from the nearest `xmlns` declaration. An inner declaration replaces \
+            an outer one. The prefix `xml` always has the URI \
+            `http://www.w3.org/XML/1998/namespace`.",
     params: &[],
-    ret: "The namespace URI, `tainted` as everything read out of a parsed tree is. `null` for a \
-          node that is not an element, for an element no declaration covers, and for one under an \
-          `xmlns=\"\"` that undeclared the default namespace — three answers rather than errors, \
-          because a document is free to use no namespace at all.",
+    ret: "A `tainted` string, or `null`. The result is `null` for a node that is not an element, \
+          for an element that no declaration covers, and for an element under `xmlns=\"\"`. The \
+          name does not change: `name` still returns `x:item`.",
     errors: &[],
 };
 
@@ -1976,24 +1974,126 @@ fn declared(attribute: &str) -> Option<&str> {
     }
 }
 
-/// The namespace `name` is in under `scope`, whose entries are the declarations
-/// that cover it as `(prefix, uri)` pairs, outermost first.
+/// The prefix `name` is written with — `""` for a name written without one.
+/// Only the first `:` separates it, so `a:b:c` is prefix `a`.
+fn prefix_of(name: &str) -> &str {
+    name.split_once(':').map_or("", |(prefix, _)| prefix)
+}
+
+/// The namespace declarations covering the node being built, as a stack that
+/// is pushed as an element opens and cut back as it closes.
 ///
-/// The innermost declaration of a prefix wins, which is what makes a nested
-/// `xmlns` a rebinding rather than a conflict. An empty URI is the `xmlns=""`
-/// that undeclares the default namespace, and answers as no namespace rather
-/// than as one whose name is the empty string.
-fn resolved(scope: &[(String, String)], name: &str) -> Option<String> {
-    let prefix = name.split_once(':').map_or("", |(prefix, _)| prefix);
-    if prefix == "xml" {
-        return Some(XML_NAMESPACE.to_owned());
+/// Each prefix's innermost declaration is one hash lookup away, so resolving a
+/// name costs the same under one declaration as under a hundred thousand.
+/// Scanning the stack instead costs one comparison per declaration in scope for
+/// every element, which is quadratic in a document whose root declares many
+/// prefixes over many children. It spends one map entry per prefix in scope,
+/// for the length of one parse.
+///
+/// **A URI is one string, shared by every element it covers.** Each
+/// declaration's URI is a Novis string made once, and an element in that
+/// namespace holds a reference to it. A copy per element grows with elements
+/// times URI length, which a short document can make far larger than itself —
+/// and the copies are made while the tree is built, where nothing refuses them.
+#[derive(Debug, Default)]
+struct Scope {
+    /// Every declaration in scope, outermost first, as its prefix, its URI and
+    /// the index of the declaration of the same prefix it shadows. The scope
+    /// owns one reference to each URI.
+    stack: Vec<(String, Value, Option<usize>)>,
+    /// The index in [`Self::stack`] of each prefix's innermost declaration.
+    innermost: HashMap<String, usize>,
+}
+
+impl Scope {
+    /// A scope holding `declarations`, which are `(prefix, uri)` pairs,
+    /// outermost first, each URI borrowed from the caller.
+    fn of(declarations: &[(String, Value)]) -> Self {
+        let mut scope = Self::default();
+        for (prefix, uri) in declarations {
+            let uri = *uri;
+            #[expect(
+                unsafe_code,
+                reason = "the caller holds `uri` alive, and the scope keeps its own reference"
+            )]
+            unsafe {
+                uri.retain();
+            }
+            scope.push(prefix, uri);
+        }
+        scope
     }
-    scope
-        .iter()
-        .rev()
-        .find(|(declared, _)| declared.as_str() == prefix)
-        .map(|(_, uri)| uri.clone())
-        .filter(|uri| !uri.is_empty())
+
+    /// How many declarations are in scope, which is what [`Self::truncate`]
+    /// cuts back to.
+    fn len(&self) -> usize {
+        self.stack.len()
+    }
+
+    /// Declares `prefix` as `uri`, shadowing any outer declaration of it. The
+    /// scope takes over the reference `uri` is.
+    fn push(&mut self, prefix: &str, uri: Value) {
+        let shadowed = self.innermost.insert(prefix.to_owned(), self.stack.len());
+        self.stack.push((prefix.to_owned(), uri, shadowed));
+    }
+
+    /// Takes every declaration past the first `mark` out of scope, and puts
+    /// back each one it had shadowed.
+    fn truncate(&mut self, mark: usize) {
+        while self.stack.len() > mark {
+            let Some((prefix, uri, shadowed)) = self.stack.pop() else {
+                break;
+            };
+            match shadowed {
+                Some(at) => self.innermost.insert(prefix, at),
+                None => self.innermost.remove(&prefix),
+            };
+            #[expect(
+                unsafe_code,
+                reason = "the reference is the scope's own, and it just left the scope"
+            )]
+            unsafe {
+                uri.release();
+            }
+        }
+    }
+
+    /// The namespace `name` is in, as a reference the caller owns, or `null`.
+    ///
+    /// The innermost declaration of a prefix wins, which is what makes a nested
+    /// `xmlns` a rebinding rather than a conflict. An empty URI is the
+    /// `xmlns=""` that undeclares the default namespace, and answers as no
+    /// namespace rather than as one whose name is the empty string.
+    fn resolved(&self, name: &str) -> Value {
+        let prefix = prefix_of(name);
+        if prefix == "xml" {
+            return Value::str(NvsStr::new(XML_NAMESPACE.as_bytes()));
+        }
+        let Some(&(_, uri, _)) = self
+            .innermost
+            .get(prefix)
+            .and_then(|&at| self.stack.get(at))
+        else {
+            return Value::null();
+        };
+        if uri.as_text().is_none_or(str::is_empty) {
+            return Value::null();
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the scope holds `uri` alive, and the caller needs a reference of its own"
+        )]
+        unsafe {
+            uri.retain();
+        }
+        uri
+    }
+}
+
+impl Drop for Scope {
+    fn drop(&mut self) {
+        self.truncate(0);
+    }
 }
 
 /// One node part-way through becoming a [`NODE`] instance: the node itself with
@@ -2011,8 +2111,9 @@ struct Building {
     /// The children already built, in document order.
     built: NvsArray,
     /// The namespace this node's name resolved to, read while the walk was
-    /// standing on it and the scope was its own.
-    namespace: Option<String>,
+    /// standing on it and the scope was its own: a reference this frame owns,
+    /// or `null`.
+    namespace: Value,
     /// How many declarations were in scope before this node's own were pushed,
     /// which is what the scope is cut back to once it is built.
     mark: usize,
@@ -2026,16 +2127,16 @@ impl Building {
     /// scope beside it is exactly the declarations covering the node being
     /// opened — which is why an element resolves here rather than by walking
     /// for a parent it does not hold.
-    fn opened(mut node: Parsed, scope: &mut Vec<(String, String)>) -> Self {
+    fn opened(mut node: Parsed, scope: &mut Scope) -> Self {
         let mark = scope.len();
-        let mut namespace = None;
+        let mut namespace = Value::null();
         if node.kind == Kind::Element {
             for (attribute, value) in &node.attributes {
                 if let Some(prefix) = declared(attribute) {
-                    scope.push((prefix.to_owned(), value.clone()));
+                    scope.push(prefix, Value::str(NvsStr::new(value.as_bytes())));
                 }
             }
-            namespace = resolved(scope, &node.name);
+            namespace = scope.resolved(&node.name);
         }
         let mut pending = std::mem::take(&mut node.children);
         pending.reverse();
@@ -2066,8 +2167,8 @@ impl Building {
 /// ceiling and by [`crate::html`]'s parse flattening one past it — this
 /// function is simply no longer the thing that has to survive the bound being
 /// wrong.
-pub(crate) fn instance_of(node: Parsed, inherited: &[(String, String)]) -> Value {
-    let mut scope = inherited.to_vec();
+pub(crate) fn instance_of(node: Parsed, inherited: &[(String, Value)]) -> Value {
+    let mut scope = Scope::of(inherited);
     let mut stack = vec![Building::opened(node, &mut scope)];
     loop {
         let top = stack
@@ -2091,7 +2192,7 @@ pub(crate) fn instance_of(node: Parsed, inherited: &[(String, String)]) -> Value
 }
 
 /// One node with its children already built, as the [`NODE`] instance.
-fn built(node: Parsed, namespace: Option<String>, children: NvsArray) -> Value {
+fn built(node: Parsed, namespace: Value, children: NvsArray) -> Value {
     let mut attributes = NvsArray::new();
     for (name, value) in node.attributes {
         attributes.set(
@@ -2107,7 +2208,7 @@ fn built(node: Parsed, namespace: Option<String>, children: NvsArray) -> Value {
             Value::str(NvsStr::new(node.text.as_bytes())),
             Value::array(attributes),
             Value::array(children),
-            namespace.map_or_else(Value::null, |uri| Value::str(NvsStr::new(uri.as_bytes()))),
+            namespace,
         ],
     )
 }
@@ -2230,43 +2331,48 @@ fn read(receiver: Value) -> Result<Value, Fault> {
         return Ok(Value::null());
     };
     crate::instance::set_slot(object, DEPTH_SLOT, counted(at));
-    let carried = inherited(open.scopes, at);
+    let carried = inherited(open.scopes, at, &node);
     Ok(instance_of(node, &carried))
 }
 
-/// The namespace declarations the elements open above `depth` wrote, outermost
-/// first — the scope a node a reader has just read sits in.
+/// The declarations, of those the elements open above `depth` wrote, that
+/// `node`'s names resolve against — the innermost one of each prefix an element
+/// in `node` is written with.
 ///
 /// A streaming walk holds its ancestors where a tree door holds its descendants
-/// (`rule:core-classes/xml-tree-and-stream`), so this is the same list
+/// (`rule:core-classes/xml-tree-and-stream`), so this is the scope
 /// [`Building::opened`] carries down a tree, read back off the slots a reader
-/// keeps it in between two calls.
-fn inherited(scopes: &NvsArray, depth: usize) -> Vec<(String, String)> {
+/// keeps it in between two calls. Only the prefixes `node` uses are looked up,
+/// one hash lookup per open element each, so a read costs the same under a
+/// root declaring one prefix as under one declaring a hundred thousand.
+///
+/// Each URI is borrowed from the reader's own slots, so a read shares the
+/// string its declaration made rather than copying it.
+fn inherited(scopes: &NvsArray, depth: usize, node: &Parsed) -> Vec<(String, Value)> {
+    let mut wanted: HashSet<&str> = HashSet::new();
+    let mut walk = vec![node];
+    while let Some(next) = walk.pop() {
+        if next.kind == Kind::Element && prefix_of(&next.name) != "xml" {
+            wanted.insert(prefix_of(&next.name));
+        }
+        walk.extend(&next.children);
+    }
     let mut carried = Vec::new();
-    for open in 0..depth {
-        let at = i64::try_from(open).expect("`DEPTH_CEILING` is far under `i64::MAX`");
-        let Some(held) = scopes.get_index(at) else {
-            continue;
+    for prefix in wanted {
+        let attribute = if prefix.is_empty() {
+            "xmlns".to_owned()
+        } else {
+            format!("xmlns:{prefix}")
         };
-        let Some(declarations) = held.array_ptr() else {
-            continue;
-        };
-        let declarations = crate::arr::borrowed(declarations);
-        let mut from = 0usize;
-        while let Some(slot) = declarations.next_slot(from) {
-            from = slot + 1;
-            let Some(key) = declarations.key_at(slot) else {
-                continue;
-            };
-            let Ok(attribute) = std::str::from_utf8(key.as_bytes()) else {
-                continue;
-            };
-            let uri = declarations
-                .value_at(slot)
-                .and_then(|value| value.as_text().map(str::to_owned));
-            if let (Some(prefix), Some(uri)) = (declared(attribute), uri) {
-                carried.push((prefix.to_owned(), uri));
-            }
+        let uri = (0..depth).rev().find_map(|open| {
+            let at = i64::try_from(open).expect("`DEPTH_CEILING` is far under `i64::MAX`");
+            let declarations = scopes.get_index(at)?.array_ptr()?;
+            crate::arr::borrowed(declarations)
+                .get(attribute.as_bytes())
+                .filter(|uri| uri.as_text().is_some())
+        });
+        if let Some(uri) = uri {
+            carried.push((prefix.to_owned(), uri));
         }
     }
     carried
@@ -4003,6 +4109,47 @@ mod tests {
         }
     }
 
+    /// Every element a declaration covers holds that declaration's one URI
+    /// string, so a long URI over many elements costs the URI once. A copy per
+    /// element made a short document build a tree far past its memory limit.
+    // covers: Core\Xml\Node::namespaceUri
+    #[test]
+    fn elements_in_one_namespace_share_its_uri() {
+        let source = word("<r xmlns='urn:shared'><a/><b/><x:c xmlns:x='urn:shared'/></r>");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
+        let top = call(super::nvs_core_xml_node_children, &mut ctx, &[tree])
+            .expect("the document has children");
+        let root = crate::arr::borrowed(top.array_ptr().expect("children is an array"))
+            .value_at(0)
+            .expect("the root element");
+        let inner = call(super::nvs_core_xml_node_children, &mut ctx, &[root])
+            .expect("an element has children");
+        let uri_of = |at: usize| {
+            let child = crate::arr::borrowed(inner.array_ptr().expect("children is an array"))
+                .value_at(at)
+                .expect("the root holds three elements");
+            let receiver = child.obj_ptr().expect("a node is an object");
+            crate::instance::slot(receiver, NAMESPACE_SLOT).str_ptr()
+        };
+        let root_uri = crate::instance::slot(root.obj_ptr().expect("an object"), NAMESPACE_SLOT);
+        assert!(root_uri.str_ptr().is_some(), "the root is in the namespace");
+        assert_eq!(uri_of(0), root_uri.str_ptr(), "`a` shares the root's URI");
+        assert_eq!(uri_of(1), root_uri.str_ptr(), "`b` shares the root's URI");
+        assert!(uri_of(2).is_some(), "`x:c` is in a namespace");
+        assert_ne!(
+            uri_of(2),
+            root_uri.str_ptr(),
+            "a second declaration of the same URI is a string of its own"
+        );
+
+        dropped(inner);
+        dropped(top);
+        dropped(tree);
+        dropped(source);
+    }
+
     /// An element answers the namespace its name is in, resolved against the
     /// declarations in scope where it sits rather than against its own
     /// attributes alone — and the two doors onto the family answer alike.
@@ -4012,6 +4159,7 @@ mod tests {
     /// rebinds the default for a subtree, an `xmlns=""` undeclares it, a
     /// prefix declared on the root covers a descendant that declares nothing,
     /// and `xml` is bound with no declaration anywhere.
+    // covers: Core\Xml\Node::namespaceUri, Core\Xml\Reader::read
     #[test]
     fn an_xml_element_answers_its_namespace_uri() {
         let document = "<r xmlns=\"urn:d\" xmlns:x=\"urn:x\">\

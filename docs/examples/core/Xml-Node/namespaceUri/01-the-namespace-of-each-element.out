@@ -1,0 +1,4 @@
+shop https://example.com/shop
+item https://example.com/shop
+p:amount https://example.com/price
+none

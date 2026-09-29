@@ -1,0 +1,25 @@
+<?nvs
+// Shows that a declaration inside the document replaces the one outside it.
+
+string $xml = '<page xmlns="https://example.com/page">'
+    . '<svg xmlns="https://example.com/svg"><circle/></svg>'
+    . '<plain xmlns=""><line/></plain>'
+    . '</page>';
+
+// `svg` declares its own namespace, so `svg` and `circle` are in it.
+// `xmlns=""` removes the namespace, so `plain` and `line` return `null`.
+foreach (Core\Xml::parse($xml)->children() as Core\Xml\Node $page) {
+    foreach ($page->children() as Core\Xml\Node $part) {
+        echo $part->name(), " ", $part->namespaceUri() ?? "none", "\n";
+        foreach ($part->children() as Core\Xml\Node $inner) {
+            echo $inner->name(), " ", $inner->namespaceUri() ?? "none", "\n";
+        }
+    }
+}
+
+// A text node is not an element, so its namespace is `null`. This prints none.
+foreach (Core\Xml::parse('<a xmlns="https://example.com/a">hi</a>')->children() as Core\Xml\Node $a) {
+    foreach ($a->children() as Core\Xml\Node $text) {
+        echo $text->namespaceUri() ?? "none", "\n";
+    }
+}

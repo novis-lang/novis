@@ -21349,9 +21349,9 @@ Returns the name of this node. For an element, this is the tag name. For a proce
 $node->namespaceUri(): ?tainted string
 ```
 
-The namespace this element's name is in — the URI the nearest enclosing `xmlns:x` bound its prefix to, or the one an `xmlns` bound names written without a prefix to. Resolved against the declarations in scope where the element sits, so an inner declaration shadows an outer one, and `name` stays the spelling the document wrote. The `xml` prefix answers the URI the XML specification fixes it to, which no document may rebind.
+Returns the namespace URI of this element. For `<x:item>`, the URI comes from the nearest `xmlns:x` declaration on the element or above it. For a name without a prefix, it comes from the nearest `xmlns` declaration. An inner declaration replaces an outer one. The prefix `xml` always has the URI `http://www.w3.org/XML/1998/namespace`.
 
-**Returns** `?tainted string` — The namespace URI, `tainted` as everything read out of a parsed tree is. `null` for a node that is not an element, for an element no declaration covers, and for one under an `xmlns=""` that undeclared the default namespace — three answers rather than errors, because a document is free to use no namespace at all.
+**Returns** `?tainted string` — A `tainted` string, or `null`. The result is `null` for a node that is not an element, for an element that no declaration covers, and for an element under `xmlns=""`. The name does not change: `name` still returns `x:item`.
 
 <a id="core-core-xml-node-text"></a>
 #### `Core\Xml\Node->text`

@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to find the authors in two feeds that use different prefixes for the same namespace.
+
+// Each feed chooses its own prefix. Only the URI tells you what the name means.
+string $dublinCore = "http://purl.org/dc/elements/1.1/";
+array<string> $feeds = [
+    '<rss xmlns:dc="http://purl.org/dc/elements/1.1/"><item><dc:creator>Ana</dc:creator></item></rss>',
+    '<rss xmlns:meta="http://purl.org/dc/elements/1.1/"><item><meta:creator>Ben</meta:creator></item>'
+        . '<item><creator>Not an author</creator></item></rss>',
+];
+
+class Authors {
+    // This function prints the text of every `creator` element in the namespace `$uri`.
+    public static function print(Core\Xml\Node $node, string $uri): void {
+        // `Core\Str::after` removes the prefix. A name without a prefix stays as it is.
+        tainted string $local = Core\Str::after($node->name(), ":") ?? $node->name();
+        if ($local == "creator" && $node->namespaceUri() == $uri) {
+            foreach ($node->children() as Core\Xml\Node $text) {
+                echo $text->text(), "\n";
+            }
+        }
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Authors::print($child, $uri);
+        }
+    }
+}
+
+// The second `creator` in the second feed has no namespace, so it is skipped.
+// This prints Ana and then Ben.
+foreach ($feeds as string $feed) {
+    Authors::print(Core\Xml::parse($feed), $dublinCore);
+}

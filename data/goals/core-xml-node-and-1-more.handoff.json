@@ -1,29 +1,27 @@
 {
-  "state": "Goal `core-xml-node-and-1-more`: every `Core\\Xml\\Node` member but `namespaceUri` has all its\nfeature proofs on disk. `bun nv proofs --verify --group 'Core\\Xml\\Node'` names only\n`namespaceUri` still owing (examples, hostile, perf, tests). `Core\\Xml\\Reader` (`read`, `depth`) owes\neverything, including its class card: `CLASSES_STILL_OWING_A_CARD` in\n`crates/nvs-stdlib/src/registry.rs`.\n`Core\\Xml\\Node::source` now asks the budget before each piece it writes (`afford_writing` in\n`crates/nvs-stdlib/src/xml.rs`), pinned by `source_stops_at_the_memory_limit_before_it_escapes`.\nEvery Xml bench was re-measured after that change.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
+  "state": "Goal `core-xml-node-and-1-more`: every `Core\\Xml\\Node` member has all its feature proofs, and\n`bun nv proofs --verify --group 'Core\\Xml\\Node'` says nothing owed, 0 failed.\nIts attack found two bugs, both fixed in `crates/nvs-stdlib/src/xml.rs`: resolving a namespace\nscanned every declaration in scope for each element (quadratic), and each element copied its URI\n(a short document built a tree far past the memory limit). `Scope` now indexes prefixes and\nshares one URI string per declaration; `elements_in_one_namespace_share_its_uri` pins the sharing.\n`Core\\Xml\\Reader` (`read`, `depth`) owes everything, including its class card.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [
       "crates/nvs-stdlib/src/xml.rs",
-      "docs/examples/core/Xml-Node/",
+      "crates/nvs-stdlib/src/registry.rs",
       "docs/examples/core/Xml-Reader/",
-      "tests/hostile/core/Xml-*/",
-      "benches/members/core/Xml-*/",
-      "tests/conformance/core/xml-*.nvst"
+      "tests/hostile/core/Xml-Reader/",
+      "benches/members/core/Xml-Reader/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Node::namespaceUri`** — owes about, examples, hostile, perf, tests. Rewrite `NAMESPACE_URI_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:398`, member at `crates/nvs-stdlib/src/xml.rs:2339`. `tests/conformance/core/xml-an-element-answers-the-namespace-its-prefix-is-bound-to.nvst` calls it and needs only a `covers:` line; a second case or a Rust test makes two. The attack should try `<a:b:c xmlns:a=\"…\"/>`, which `Core\\Xml::parse` accepts. `rule:testing/feature-proofs`"
+        "text": "**`Core\\Xml\\Reader` class card, then `read`** — add its `ClassDoc` above the class's `CLASS` row and delete it from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283`; `read` is at `crates/nvs-stdlib/src/xml.rs:2760`. A lead for its attack, found this session: each `read` costs time in proportion to the whole document, even with no namespaces — 100000 reads of `<e/>` under a root of 100000 plain attributes take about 7s, and 3 reads about 1s. Suspect `held.as_text()` on the document slot in `read` (`NvsStr::text_of`); not checked. `an_xml_element_answers_its_namespace_uri` already carries `covers: Core\\Xml\\Reader::read`. `rule:testing/feature-proofs`"
       },
       {
         "done": false,
-        "text": "**`Core\\Xml\\Reader` class card, `read` and `depth`** — add its `ClassDoc` above the class's `CLASS` row and delete it from `CLASSES_STILL_OWING_A_CARD`: `crates/nvs-stdlib/src/registry.rs:5283`, `read` at `crates/nvs-stdlib/src/xml.rs:2654`. `bun nv proofs --id 'Core\\Xml\\Reader::read'` prints the paths. `rule:testing/feature-proofs`"
+        "text": "**`Core\\Xml\\Reader::depth`** — card `DEPTH_DOC` at `crates/nvs-stdlib/src/xml.rs:596`, member at `crates/nvs-stdlib/src/xml.rs:2771`; owes about, examples, hostile, perf and two test cases. `rule:testing/feature-proofs`"
       }
     ]
   },
   "backlog": [
-    "`Core\\Xml::parse` accepts `a:b:c` as an element name; the Namespaces spec allows one colon. Decide in `rule:core-classes/xml-tree-and-stream` whether that is a refusal — owner: this goal's `namespaceUri` slice.",
-    "The `source` refusal message says \"a comment has no escape grammar\", which an end user reads; it is pinned by `tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst` and goal `plain-comments` may rewrite it."
+    "The goal's `DONE` gates (`bun nv verify --doc`, `bun nv owners --closes`, `bun nv playbook --closes`) run once `Core\\Xml\\Reader` is green — `docs/agent/goals/core-xml-node-and-1-more.md`."
   ]
 }

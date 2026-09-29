@@ -2,6 +2,7 @@
 A namespace declaration binds under the element that wrote it, so an inner one shadows an outer one and an empty default undeclares it — spec § 17, `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
+// covers: Core\Xml\Node::namespaceUri
 class Ns {
     public static function show(Core\Xml\Node $node): void {
         ?tainted string $uri = $node->namespaceUri();
