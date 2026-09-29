@@ -1,0 +1,14 @@
+<?nvs
+// Writes the time of each database query in microseconds, and marks the slow ones.
+
+array<Core\Time\Duration> $timings = [450us, 1200500ns, 87us, 3ms];
+Core\Time\Duration $limit = 1ms;
+
+// This prints 450, 1200 slow, 87 and 3000 slow, one per line.
+foreach ($timings as Core\Time\Duration $took) {
+    echo $took->toMicroseconds();
+    if ($took->compareTo($limit) > 0) {
+        echo " slow";
+    }
+    echo "\n";
+}

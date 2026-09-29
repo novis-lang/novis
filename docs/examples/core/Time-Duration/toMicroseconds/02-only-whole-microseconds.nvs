@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `toMicroseconds` counts only whole microseconds.
+
+// 1999 nanoseconds is 1 whole microsecond and 999 nanoseconds more. This prints 1.
+echo Core\Time\Duration::nanoseconds(1999)->toMicroseconds(), "\n";
+
+// The same is true below zero. This prints -1.
+echo Core\Time\Duration::nanoseconds(-1999)->toMicroseconds(), "\n";
+
+// A duration shorter than one microsecond gives 0. This prints 0.
+echo Core\Time\Duration::nanoseconds(999)->toMicroseconds(), "\n";

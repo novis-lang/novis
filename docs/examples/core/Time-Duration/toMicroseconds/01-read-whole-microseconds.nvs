@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the length of a duration as a number of microseconds.
+
+Core\Time\Duration $wait = 2ms;
+// 2 milliseconds is 2000 microseconds. This prints 2000.
+echo $wait->toMicroseconds(), "\n";
+
+// A negative duration gives a negative number. This prints -75.
+Core\Time\Duration $back = 75us;
+echo $back->negated()->toMicroseconds(), "\n";
