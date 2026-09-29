@@ -38,7 +38,6 @@ crates/nvs-stdlib/tests/capability.rs  "../srcmore/thing.rs"  --  resolved again
 crates/nvs-stdlib/src/storage.rs  "../escape"  --  a storage key the validator is expected to refuse
 crates/nvs-stdlib/src/storage.rs  "../report.csv"  --  a storage key `get` is expected to refuse, never opened
 crates/nvs-stdlib/src/uri.rs  "../a"  --  a URI reference, never a file
-crates/nvs-stdlib/src/uri.rs  ".."  --  a URI reference `resolve` works on as text, never a file
 crates/nvs-stdlib/src/uri.rs  "../g"  --  a URI reference `resolve` works on as text, never a file
 crates/nvs-stdlib/src/uri.rs  "../../g"  --  a URI reference `resolve` works on as text, never a file
 crates/nvs-stdlib/src/zip.rs  "../escape"  --  an entry name in an archive built in memory, expected to be refused

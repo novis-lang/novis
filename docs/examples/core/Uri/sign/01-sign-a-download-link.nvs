@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to sign a download link that works for one hour.
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// `sign` returns a new `Uri`. It is the same address with a `_sig` parameter added at the end.
+Core\Uri $link = Core\Uri::parse("https://files.example.com/download?file=report.pdf")
+    ->sign({keys: $keys, until: Core\Time::now()->plus(1h)});
+
+// This prints true, report.pdf and verified.
+echo Core\Str::startsWith($link->toString(), "https://files.example.com/download?file=report.pdf&_sig=") ? "true" : "false", "\n";
+echo $link->queryParameter("file") as string, "\n";
+$link->verifySignature($keys);
+echo "verified", "\n";

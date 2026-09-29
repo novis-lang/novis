@@ -1062,72 +1062,66 @@ const COMPARE_TO_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
-    short: "Answers the receiver with the reserved `_sig` query parameter set, over a signature \
-            taken across everything `compareTo` normalizes — scheme, userInfo, host, port, path \
-            and the query's parameters. Appending, removing or editing any parameter invalidates \
-            it; reordering them does not, and neither does a fragment.",
+    short: "Returns a copy of the address with a signature in the `_sig` query parameter. The \
+            signature covers the scheme, user info, host, port, path and every query parameter. \
+            If a parameter is added, removed or changed, `verifySignature` throws an error. A \
+            different order of the parameters and a fragment do not change the result.",
     params: &[ParamDoc {
         name: "settings",
-        desc: "The key ring and the lifetime, written as one literal because neither has a \
-               sensible value this member could choose.",
+        desc: "The keys and the end date. You must write both.",
         shape: &[
             ShapeKeyDoc {
                 key: "keys",
                 ty: "array<secret bytes>",
-                desc: "The key ring, **newest first**: `$keys[0]` signs, and the rest exist so \
-                       that a link minted before the last rotation still verifies. The same ring \
-                       `Core\\Signature` takes, and a token minted at one door does not verify at \
-                       the other.",
+                desc: "A list of 32-byte keys, newest first. `$keys[0]` signs. The older keys are \
+                       there so that `verifySignature` still accepts links signed before you \
+                       changed the key. `Core\\Signature` takes the same list, but a token from \
+                       one does not work in the other.",
             },
             ShapeKeyDoc {
                 key: "until",
                 ty: "?Core\\Time\\Instant",
-                desc: "When the link stops working, inside the signed bytes where a holder cannot \
-                       edit it. `null` is the forever spelling, and it has to be written — a \
-                       permanent signed URL is a permanent bearer credential, and it ends up in \
-                       browser history, `Referer` headers and chat unfurls.",
+                desc: "The moment the link stops working. It is inside the signature, so nobody \
+                       can change it. `null` means the link never expires. A link that never \
+                       expires works for anybody who finds it later, for example in a browser \
+                       history.",
             },
         ],
     }],
-    ret: "A new `Uri`, the receiver with `_sig` set — so it composes with `with` and `toString` \
-          like every other member here. A receiver already carrying `_sig` has it replaced rather \
-          than nested, and the same URL under the same key and lifetime always mints the same \
-          token. The token carries the signed form as well as the tag, so it adds about \
-          `4/3 × (URL + 40)` characters. A **relative** reference signs without a scheme, host or \
-          port, so its token is valid on any origin: `$uri->scheme()` is what says which you are \
-          holding.",
+    ret: "A new `Uri` with `_sig` set. You can use `with` and `toString` on it. If the address \
+          already has `_sig`, it is replaced. The same address, keys and end date always give the \
+          same link. The signature makes the address about twice as long. A relative address, \
+          such as `/download?file=a`, has no host in its signature, so it is valid on any site.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$settings.keys` is empty, so there is no newest key; or its first entry is not 32 \
-               octets long — a `bytes` that was never a key.",
+        desc: "`keys` is empty, or its first key is not 32 bytes long.",
     }],
 };
 
 /// `$uri->verifySignature`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_SIGNATURE_DOC: MethodDoc = MethodDoc {
-    short: "Checks the receiver's `_sig` against every key in `$keys`, and the lifetime that rode \
-            inside it. Answers nothing: a signed URL carries no claims to hand back — the claim is \
-            the URL the caller already holds — and a `bool` is a value a caller can drop.",
+    short: "Checks the signature in the `_sig` query parameter with the keys in `$keys`, and \
+            checks that the link has not expired. It returns nothing. If the check fails, it \
+            throws an error, so the next line runs only for a valid link.",
     params: &[ParamDoc {
         name: "keys",
-        desc: "The same ring `sign` was given, newest first. A link minted under any key still in \
-               the ring verifies; one minted under a key that has been dropped off the end does \
+        desc: "The same list of keys that `sign` used, newest first. A link signed with any key \
+               in the list is accepted. A link signed with a key you removed from the list is \
                not.",
         shape: &[],
     }],
-    ret: "Nothing. Reaching the next statement is what says the URL is authentic and live.",
+    ret: "Nothing. When the method returns, the link is valid and has not expired.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$keys` is empty, or one of its entries is not 32 octets long.",
+            desc: "`$keys` is empty, or one of its keys is not 32 bytes long.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The URL is not one this ring signed — a parameter was added, removed or \
-                   edited, the token was altered, it was minted for another door or under a \
-                   retired key, there is no `_sig` at all, or there are two of them. Every one of \
-                   those is one message. Expiry is the single refusal with a sentence of its own, \
-                   because only the holder of a genuinely signed link ever reaches it.",
+            desc: "The link was not signed with these keys. This is the case when a parameter \
+                   was added, removed or changed, when the token was changed, when the key was \
+                   removed from the list, when there is no `_sig`, and when there are two. All of \
+                   these give the same message. An expired link gives a different message.",
         },
     ],
 };
@@ -4926,6 +4920,7 @@ mod tests {
     /// This is the bypass every framework in this space has shipped — an
     /// option naming which parameters are signed — asserted as absent rather
     /// than described (`rule:core-api/signing-is-over-a-payload`).
+    // covers: Core\Uri::sign, Core\Uri::verifySignature
     #[test]
     fn a_signed_uri_round_trips_and_one_appended_query_parameter_invalidates_it() {
         let keys = ring();

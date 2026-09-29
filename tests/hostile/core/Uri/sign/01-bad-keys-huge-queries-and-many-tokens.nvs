@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program signs addresses with bad keys, huge queries and many old `_sig` parameters.
+// Each call should return a link or throw an error, and every link should be freed.
+
+class Signer
+{
+    public static function tryLink(string $address, array<secret bytes> $keys): string
+    {
+        try {
+            Core\Uri $link = Core\Uri::parse($address)->sign({ keys: $keys, until: null });
+            $link->verifySignature($keys);
+            return 'verified';
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+
+// 1. An empty list of keys. This prints "error".
+array<secret bytes> $none = [];
+echo Signer::tryLink('https://example.com/a?id=7', $none), "\n";
+
+// 2. A first key of 31 bytes instead of 32. This prints "error".
+array<secret bytes> $short = ['0123456789012345678901234567890' as bytes as secret bytes];
+echo Signer::tryLink('https://example.com/a?id=7', $short), "\n";
+
+// 3. A list of 100000 keys. Only the first key signs, so this prints "verified".
+array<secret bytes> $many = [];
+int $k = 0;
+while ($k < 100000) {
+    $many[] = Core\Crypto::generateKey();
+    $k = $k + 1;
+}
+echo Signer::tryLink('https://example.com/a?id=7', $many), "\n";
+
+// 4. A query with 100000 parameters. This prints "verified".
+echo Signer::tryLink('https://example.com/a?' . Core\Str::repeat('p=1&', 100000) . 'end=1', $keys), "\n";
+
+// 5. A query that already has 50000 `_sig` parameters. They are all replaced, so this prints "verified".
+echo Signer::tryLink('https://example.com/a?' . Core\Str::repeat('_sig=x&', 50000) . 'id=7', $keys), "\n";
+
+// 6. A parameter name with a bad escape after one million letters. This prints "error".
+echo Signer::tryLink('https://example.com/a?' . Core\Str::repeat('n', 1000000) . '%zz=1', $keys), "\n";
+
+// 7. A signed link is signed again 20000 times. It does not grow, so this prints true.
+Core\Uri $link = Core\Uri::parse('/download?file=a.pdf')->sign({ keys: $keys, until: null });
+uint $first = Core\Str::length($link->toString());
+int $i = 0;
+while ($i < 20000) {
+    $link = $link->sign({ keys: $keys, until: null });
+    $i = $i + 1;
+}
+echo Core\Str::length($link->toString()) == $first ? 'true' : 'false', "\n";

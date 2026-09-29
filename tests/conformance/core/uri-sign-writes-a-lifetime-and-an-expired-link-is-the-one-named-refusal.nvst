@@ -2,6 +2,7 @@
 $uri->sign takes a written lifetime with `null` as the forever spelling, the lifetime rides inside the signed bytes, and an expired link is the one refusal $uri->verifySignature names apart from the others — `rule:core-api/a-lifetime-is-written`, `rule:core-api/one-refusal-except-expiry`
 --FILE--
 <?nvs
+// covers: Core\Uri::sign, Core\Uri::verifySignature
 // A permanent signed URL is a permanent bearer credential — it ends up in
 // browser history, `Referer` headers, proxy logs and chat unfurls — so
 // "forever" is a thing a person types rather than a key they leave out.

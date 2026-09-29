@@ -1,0 +1,25 @@
+<?nvs
+// Signs a short link with a lifetime, as a server does before it sends a download or reset link.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        Core\Time\Instant $until = Core\Time::now()->plus(1h);
+        array<Core\Uri> $links = [
+            Core\Uri::parse("https://files.example.com/download?file=report.pdf"),
+            Core\Uri::parse("/reset?user=42"),
+            Core\Uri::parse("https://example.com/orders/7/invoice?format=pdf&lang=en"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Uri $signed = $links[($total % 3) as int]->sign({keys: $keys, until: $until});
+            $total = $total + Core\Str::length($signed->toString());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";
