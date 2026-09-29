@@ -877,13 +877,13 @@ pub fn memory_budget() -> Option<u64> {
 
 #[cfg(unix)]
 mod platform {
-    //! The files a Unix host answers with, in the order a container makes correct.
+    //! The sources a Unix host answers with, in the order a container makes correct.
     //!
-    //! Each is a plain read, so this half needs no `unsafe` and no `libc`: cgroup v2's
-    //! `memory.max` is a decimal number or the word `max`, cgroup v1's `memory.limit_in_bytes` is a
-    //! decimal number with [`NO_LIMIT`]'s sentinel for the same thing, and `/proc/meminfo` states
-    //! `MemTotal` in kibibytes. A host with none of them — macOS is the one that matters — answers
-    //! `None`, which is § 13's inert case and not a wrong number.
+    //! cgroup v2's `memory.max` is a decimal number or the word `max`, cgroup v1's
+    //! `memory.limit_in_bytes` is a decimal number with [`NO_LIMIT`]'s sentinel for the same thing,
+    //! and `/proc/meminfo` states `MemTotal` in kibibytes. A host with none of those files — macOS
+    //! and the BSDs — is asked `sysconf` for its physical page count and page size, which every
+    //! Unix answers, so the memory half of the admission ceiling binds there too.
 
     /// Anything at or above this is a sentinel rather than a limit: cgroup v1 spells "no limit" as
     /// a number near `u64::MAX` rounded down to a page, and no machine has four exabytes.
@@ -894,6 +894,24 @@ mod platform {
         cgroup("/sys/fs/cgroup/memory.max")
             .or_else(|| cgroup("/sys/fs/cgroup/memory/memory.limit_in_bytes"))
             .or_else(mem_total)
+            .or_else(physical_pages)
+    }
+
+    /// The installed physical memory as `sysconf` states it: a page count times the page size,
+    /// each in its own unit, or `None` where either call answers `-1` or the product overflows.
+    #[expect(
+        unsafe_code,
+        reason = "`sysconf` has no safe spelling in `std`; it takes one integer, touches no memory \
+                  of the caller's, and returns a plain `c_long`, so the call is unsafe only because \
+                  it is `extern`"
+    )]
+    pub(super) fn physical_pages() -> Option<u64> {
+        let pages = unsafe { libc::sysconf(libc::_SC_PHYS_PAGES) };
+        let size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        let bytes = u64::try_from(pages)
+            .ok()?
+            .checked_mul(u64::try_from(size).ok()?)?;
+        (bytes > 0).then_some(bytes)
     }
 
     /// One cgroup limit file: a decimal count of bytes, `max`, or the v1 sentinel.
@@ -987,6 +1005,26 @@ mod tests {
             )
             .expect_err("a value that is not a file mode was accepted");
             assert_eq!(refused.code, Some(code::E_BAD_SOCKET_MODE), "for {written}");
+        }
+    }
+
+    /// Every host the server builds for answers a budget, so the memory half of the admission
+    /// ceiling binds on each of them. The Unix fallback is asserted on its own because a Linux
+    /// runner answers from `/proc/meminfo` first and would never reach it.
+    #[test]
+    fn every_supported_host_answers_a_memory_budget() {
+        let budget = memory_budget().expect("this host answered no memory budget");
+        assert!(
+            budget >= 1 << 20,
+            "a budget of {budget} bytes is not a machine's memory"
+        );
+        #[cfg(unix)]
+        {
+            let physical = platform::physical_pages().expect("`sysconf` answered no memory");
+            assert!(
+                physical >= 1 << 20,
+                "{physical} bytes is not a machine's memory"
+            );
         }
     }
 
