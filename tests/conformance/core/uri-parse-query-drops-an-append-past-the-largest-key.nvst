@@ -1,0 +1,16 @@
+--TEST--
+`Core\Uri::parseQuery` drops a `[]` pair when the largest integer key is already taken, as `parse_str` does
+--FILE--
+<?nvs
+// covers: Core\Uri::parseQuery
+// A flat append after the largest key: the pair is dropped, and the pairs after it are kept.
+array<mixed> $flat = Core\Uri::parseQuery("a[9223372036854775807]=x&a[]=y&b=1");
+array<mixed> $a = $flat["a"] as array<mixed>;
+echo Core\Arr::count($flat), " ", Core\Arr::count($a), " ", $a[9223372036854775807] as string, " ", $flat["b"] as string, "\n";
+
+// A nested append after the largest key: the whole pair is dropped, and no empty array is left.
+array<mixed> $deep = Core\Uri::parseQuery("a[9223372036854775807][]=x&a[][]=y")["a"] as array<mixed>;
+echo Core\Arr::count($deep), " ", Core\Arr::count($deep[9223372036854775807] as array<mixed>), "\n";
+--EXPECT--
+2 1 x 1
+1 1

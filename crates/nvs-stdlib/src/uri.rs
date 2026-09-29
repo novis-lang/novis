@@ -162,6 +162,8 @@
 //! replaces the scalar with a list and `a[]=1&a=2` replaces the list with the
 //! scalar, and `a[]=1&a[3]=x&a[]=y` numbers its appends 0, 3, 4 — the last
 //! because [`NvsArray::append`] already keeps PHP's next-free-integer counter.
+//! Past a key of `i64::MAX` there is no next integer, so `a[9223372036854775807]=x&a[]=y`
+//! drops its second pair, as `parse_str` does.
 //!
 //! `buildQuery` writes the same convention back, matching `http_build_query`
 //! down to its escaping: a nested value goes under its whole path, and the
@@ -671,21 +673,25 @@ pub const CLASS: CoreClass = CoreClass {
 
 /// `Core\Uri::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads `$uri` as an RFC 3986 URI reference, as `parse_url` does — reporting, never \
-            normalizing: every component comes back exactly as written, still percent-encoded \
-            and in its own case.",
+    short: "Reads the text of an address, such as `https://example.com/cart?id=4`, and returns \
+            a `Uri`. Its methods return the parts: `scheme`, `userInfo`, `host`, `port`, `path`, \
+            `query` and `fragment`. Each part is returned as it was written. Escapes such as \
+            `%20` stay, and upper-case letters stay upper case. PHP's `parse_url` reads the same \
+            parts.",
     params: &[ParamDoc {
         name: "uri",
-        desc: "The text to read; a relative reference such as `/a?b` is accepted and answers a \
-               `null` scheme.",
+        desc: "The text to read. A relative link, such as `/a?b`, is allowed. Its scheme is \
+               `null`.",
         shape: &[],
     }],
-    ret: "A `Uri` whose readers answer the components as written.",
+    ret: "A `Uri`. Its methods return the parts of the address as they were written.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`$uri` is text the RFC 3986 grammar does not admit — a space, a control byte, a \
-               non-ASCII byte, a bare `%` or a bracketed host that is no IPv6 address — or its \
-               authority's port is outside `0`–`65535`. The text is not quoted back.",
+        desc: "The text is not an address under RFC 3986 (the standard for addresses). A space, \
+               a control character, a non-ASCII character, a `%` without two hex digits and a \
+               host in brackets that is not an IPv6 address all cause this. A port larger than \
+               `65535` causes it too. The message does not repeat the text, because the text \
+               can contain a password.",
     }],
 };
 
@@ -774,24 +780,24 @@ const DECODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Uri::parseQuery`'s reference card — `rule:core-api/reference-card`.
 const PARSE_QUERY_DOC: MethodDoc = MethodDoc {
-    short: "Reads a query string into an array, as `parse_str` does but returning it rather than \
-            populating variables: pairs split at `&`, each at its first `=`, both halves \
-            form-decoded, and PHP's bracket convention in full — `a[]=1&a[]=2` builds a list, \
-            `a[b]=c` a map, nested to any depth.",
+    short: "Reads a query string, such as `q=red+shoes&page=2`, into an array. The text is split \
+            into pairs at each `&`, and each pair is split at its first `=`. Names and values \
+            are decoded like `decodeFormValue`, so `+` becomes a space. Brackets in a name build \
+            nested arrays: `a[]=1&a[]=2` gives a list, and `a[b]=c` gives an array with the key \
+            `b`. PHP's `parse_str` reads query strings the same way.",
     params: &[ParamDoc {
         name: "query",
-        desc: "The query text, without its leading `?`.",
+        desc: "The query text, without the `?` at its start.",
         shape: &[],
     }],
-    ret: "An array whose every value is a `bytes` or a nested `array<mixed>` — a value is \
-          percent-decoded by the same decoder `decodeFormValue` is, so it answers octets; a pair \
-          without `=` has empty `bytes` for its value, a pair whose name decodes to nothing is \
-          dropped, and a repeated name without brackets keeps the last value.",
+    ret: "An array. Each value is `bytes` or another array. A value is `bytes` because an \
+          escape can give any byte, and `as string` converts it to text. A pair without `=` has \
+          an empty value. A pair with an empty name is left out. When a name appears twice \
+          without brackets, the last value is kept.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A name's escapes decode to octets that are not valid UTF-8, and a name is the \
-               array key the pair is placed under, which is a `string`. A value has no such \
-               refusal.",
+        desc: "A name decodes to bytes that are not valid UTF-8. A name is a key of the array, \
+               and a key must be text. A value can contain any bytes.",
     }],
 };
 
@@ -2162,24 +2168,31 @@ fn path_of(name: &[u8]) -> Option<(&[u8], Vec<Index<'_>>)> {
 /// The array `key` names inside `parent`, displacing whatever was there when
 /// it is not an array already — which is `a=1&a[]=2` answering `{a: ["2"]}`,
 /// exactly as PHP does. `None` always builds a fresh one and appends it, since
-/// `a[][x]=1&a[][y]=2` is two arrays rather than one.
+/// `a[][x]=1&a[][y]=2` is two arrays rather than one, and answers `None` where
+/// `parent`'s next integer key is already taken — a key of `i64::MAX` written
+/// earlier in the same query leaves no next one.
 ///
 /// The handle is **borrowed and never dropped**: `parent` owns the only
 /// reference to the array it hands back, so writing through this handle finds
 /// a refcount of one and mutates in place rather than separating. That is what
 /// makes the whole parse O(input) — retaining a second reference would make
 /// every descent copy the subtree it descends into.
-fn branch(parent: &mut NvsArray, key: Option<&[u8]>) -> ManuallyDrop<NvsArray> {
+fn branch(parent: &mut NvsArray, key: Option<&[u8]>) -> Option<ManuallyDrop<NvsArray>> {
     if let Some(key) = key
         && let Some(existing) = parent.get(key).and_then(Value::array_ptr)
     {
-        return crate::arr::borrowed(existing);
+        return Some(crate::arr::borrowed(existing));
     }
     let fresh = Value::array(NvsArray::new());
     let address = fresh.array_ptr().expect("just built from an array");
     match key {
         Some(key) => parent.set(NvsStr::new(key), fresh),
-        None => parent.append(fresh),
+        None => {
+            if let Err(fresh) = parent.try_append(fresh) {
+                discard(fresh);
+                return None;
+            }
+        }
     }
     let child = crate::arr::borrowed(address);
     debug_assert_eq!(
@@ -2187,7 +2200,7 @@ fn branch(parent: &mut NvsArray, key: Option<&[u8]>) -> ManuallyDrop<NvsArray> {
         1,
         "the array just handed to `parent` is owned by it alone"
     );
-    child
+    Some(child)
 }
 
 /// Writes `value` at `base` + `path` inside `out`, building the arrays the
@@ -2200,19 +2213,30 @@ fn branch(parent: &mut NvsArray, key: Option<&[u8]>) -> ManuallyDrop<NvsArray> {
 /// so nesting is bounded by the input's length and by nothing else — PHP's
 /// `max_input_nesting_level` has no equivalent here because it does not need
 /// one.
+///
+/// A pair whose `[]` finds no free integer key is dropped whole, as `parse_str`
+/// drops it: the arrays are built from the caller's text, so an occupied next
+/// key is input, never a broken invariant.
 fn insert(out: &mut NvsArray, base: &[u8], path: &[Index<'_>], value: Value) {
     let Some((last, descents)) = path.split_last() else {
         out.set(NvsStr::new(base), value);
         return;
     };
-    let mut current = branch(out, Some(base));
+    let mut current = branch(out, Some(base)).expect("a named key is never refused");
     for index in descents {
-        let next = branch(&mut current, index.key());
+        let Some(next) = branch(&mut current, index.key()) else {
+            discard(value);
+            return;
+        };
         current = next;
     }
     match last.key() {
         Some(key) => current.set(NvsStr::new(key), value),
-        None => current.append(value),
+        None => {
+            if let Err(value) = current.try_append(value) {
+                discard(value);
+            }
+        }
     }
 }
 
@@ -3388,7 +3412,9 @@ mod tests {
     /// The bracket convention, row for row against what PHP 8.5's `parse_str`
     /// answers for the same query — including the parts that look like
     /// accidents: last-value-wins, a scalar and a list replacing each other,
-    /// and appends numbered from the highest integer key already used.
+    /// and appends numbered from the highest integer key already used, and an
+    /// append after `i64::MAX` dropping its pair.
+    // covers: Core\Uri::parseQuery
     #[test]
     fn the_bracket_convention_answers_what_parse_str_answers() {
         for (query, expected) in [
@@ -3413,6 +3439,14 @@ mod tests {
             ("x[0]=a&x[]=b", "{x:{0:a,1:b}}"),
             ("a[0][x]=1&a[]=2", "{a:{0:{x:1},1:2}}"),
             ("a[07]=x&a[]=y", "{a:{07:x,0:y}}"),
+            (
+                "a[9223372036854775807]=x&a[]=y&b=1",
+                "{a:{9223372036854775807:x},b:1}",
+            ),
+            (
+                "a[9223372036854775807][]=x&a[][]=y",
+                "{a:{9223372036854775807:{0:x}}}",
+            ),
         ] {
             assert_eq!(parsed(query).expect("no throw"), expected, "for {query:?}");
         }
@@ -3685,6 +3719,7 @@ mod tests {
     /// A `.nvst` case pins the components one at a time; this pins that the
     /// *text* is untouched, which is the assertion that fails the day someone
     /// swaps the crate underneath.
+    // covers: Core\Uri::parse
     #[test]
     fn nothing_is_normalized_on_the_way_through() {
         for subject in [
