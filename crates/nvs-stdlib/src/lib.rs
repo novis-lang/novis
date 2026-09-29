@@ -466,13 +466,24 @@ mod tests {
     /// configuration file can say. Inside this module rather than beside it
     /// because `nvs_stdlib_reaches_the_os_only_through_the_gate` scans each file
     /// down to its *first* `#[cfg(test)]` and asserts there is only one.
+    ///
+    /// The path-scoped grants are canonicalized, as a boot canonicalizes them
+    /// (`nvs_config::Snapshot`'s build), because the check compares a canonical
+    /// argument against them. A case that grants a directory under the platform
+    /// temporary root would otherwise pass only where that root is canonical:
+    /// it is an 8.3 alias on some Windows machines and under the `/var` symlink
+    /// on macOS.
     pub(crate) fn granting(written: &str) -> std::sync::Arc<nvs_config::Snapshot> {
         let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        let mut config: nvs_config::Config = table
+            .clone()
+            .try_into()
+            .expect("the case writes a block this tree has");
+        if let Some(capabilities) = config.capabilities.as_mut() {
+            capabilities.canonicalize(&nvs_config::resolve::Disk);
+        }
         std::sync::Arc::new(nvs_config::Snapshot {
-            config: table
-                .clone()
-                .try_into()
-                .expect("the case writes a block this tree has"),
+            config,
             table,
             ..nvs_config::Snapshot::default()
         })
