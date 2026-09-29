@@ -1,5 +1,5 @@
 {
-  "live": "core-uuid",
+  "live": "core-validate-and-1-more",
   "goals": [
     "core-depth",
     "concurrency",
