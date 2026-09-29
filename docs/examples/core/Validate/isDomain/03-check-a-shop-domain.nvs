@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to check the domain name a customer types into a settings form.
+
+class ShopDomain {
+    // This function returns an error message, or an empty text when the name is fine.
+    public static function problem(string $name): string {
+        if (Core\Str::startsWith($name, "http://") || Core\Str::startsWith($name, "https://")) {
+            return "enter only the name, without http:// or https://";
+        }
+        if (!Core\Validate::isDomain($name)) {
+            return "this is not a domain name";
+        }
+        // `isDomain` accepts a name with one part, such as "localhost".
+        // A shop on the internet needs at least two parts.
+        if (!Core\Str::contains($name, ".")) {
+            return "enter the full name, such as shop.example.com";
+        }
+        return "";
+    }
+}
+
+// Four names as customers typed them.
+// `trim` removes the spaces and `lower` changes "Shop" to "shop".
+array<string> $inputs = ["  Shop.Example.com ", "https://shop.example.com", "my shop.com", "myshop"];
+
+// Only the first name is saved. The other three names each print their problem.
+foreach ($inputs as string $input) {
+    string $name = Core\Str::lower(Core\Str::trim($input));
+    string $problem = ShopDomain::problem($name);
+    echo $name, ": ", $problem == "" ? "saved" : $problem, "\n";
+}

@@ -1,0 +1,4 @@
+shop.example.com: saved
+https://shop.example.com: enter only the name, without http:// or https://
+my shop.com: this is not a domain name
+myshop: enter the full name, such as shop.example.com

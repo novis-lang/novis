@@ -1,0 +1,7 @@
+example.com: yes
+mail.example.org: yes
+localhost: yes
+-shop.test: no
+a..b: no
+example.com.: no
+münchen.de: no

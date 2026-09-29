@@ -1,0 +1,12 @@
+<?nvs
+// Shows which texts are domain names.
+
+// "-shop.test" starts a part with "-", and "a..b" has an empty part.
+// "example.com." ends with a dot, and "münchen.de" contains "ü".
+array<string> $names = ["example.com", "mail.example.org", "localhost", "-shop.test", "a..b", "example.com.", "münchen.de"];
+
+// `Core\Validate::isDomain` returns `true` for a domain name.
+// This prints yes for the first three names and no for the other four.
+foreach ($names as string $name) {
+    echo $name, ": ", Core\Validate::isDomain($name) ? "yes" : "no", "\n";
+}
