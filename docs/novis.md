@@ -15152,15 +15152,15 @@ Reads a query string into an array, as `parse_str` does but returning it rather 
 Core\Uri::buildQuery(array<mixed> $parameters): string
 ```
 
-Writes `$parameters` as a query string, as `http_build_query` does — pairs joined by `&`, both halves form-encoded, and a nested array written under its whole bracket path with the indexes spelled out, so `Core\Uri::parseQuery` reads it back to the same array.
+Writes the array `$parameters` as a query string, such as `page=2&sort=name`. It gives the same text as PHP's `http_build_query`, and `Core\Uri::parseQuery` reads it back to the same array.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$parameters` | `array<mixed>` | The parameters: scalars, or arrays nested to any depth. |
+| `$parameters` | `array<mixed>` | The names and values to write. A value is a scalar or another array. A nested value is written under its whole path, such as `filter[size][0]=M`, with the brackets escaped as `%5B` and `%5D`. |
 
-**Returns** `string` — The query text, without a leading `?`; a `bool` is written as `1` or `0`, and a `null` value drops its pair entirely.
+**Returns** `string` — The query string, without a leading `?`. Names and values are escaped as `Core\Uri::encodeFormValue` escapes them, so a space is `+`. `true` is written as `1` and `false` as `0`. A `null` value writes nothing, and neither does an empty array.
 
-**Throws** `RuntimeError` — A value is neither a scalar nor a nested array — an object or a closure — so there is no text to write it as.
+**Throws** `RuntimeError` — A value is an object or a function, so it has no text form.
 
 <a id="core-core-uri-scheme"></a>
 #### `Core\Uri->scheme`

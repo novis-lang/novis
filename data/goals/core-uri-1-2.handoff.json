@@ -1,26 +1,27 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Uri (1/2) has been taken yet.",
+  "state": "Goal `core-uri-1-2`, 1 of 3 items landed. `Core\\Uri::buildQuery` has all its feature proofs. `Core\\Uri` now has its class card, so the `help` proof is no longer owed by any `Uri` member. The attack found a bug, and it is fixed: `build` asks the budget before it grows its query text (`crate::regex::grow`, now `pub(crate)`). `Core\\Router::url` shares that walk. Every `Core\\Uri` bench figure other than `buildQuery`'s reads stale, because `uri.rs` changed. `bun nv proofs --record-perf --only '<id>'` re-measures one.",
   "next": {
     "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "title": "Core\\Uri proofs, in file order",
+    "files": [
+      "crates/nvs-stdlib/src/uri.rs",
+      "docs/examples/core/Uri/",
+      "tests/hostile/core/Uri/",
+      "benches/members/core/Uri/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Uri::buildQuery`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:463`"
+        "text": "**`Core\\Uri::compareTo`** — owes about, tests (0 of 2 cases, no Rust `covers:`), examples, hostile, perf. Rewrite `COMPARE_TO_DOC` in the end-user voice. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:622`"
       },
       {
         "done": false,
-        "text": "**`Core\\Uri::compareTo`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:622`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Uri::decodeComponent`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/uri.rs:424`"
+        "text": "**`Core\\Uri::decodeComponent`** — owes about, examples, hostile, perf, and a Rust `covers:` marker. Rewrite `DECODE_COMPONENT_DOC` in the end-user voice. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/uri.rs:424`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "The other `Core\\Uri` cards (`encodeComponent`, `parseQuery`, the instance readers) are still in the old voice. Rewrite each one in the slice that proves it (`crates/nvs-stdlib/src/uri.rs`).",
+    "`buildQuery` makes 38 allocations per call in its bench, mostly one `String` for each encoded name and value. Encoding straight into the output would remove most of them (`crates/nvs-stdlib/src/uri.rs` `build`)."
   ]
 }
