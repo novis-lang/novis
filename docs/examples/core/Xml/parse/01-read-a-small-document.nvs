@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read a small XML document and print what is in it.
+
+string $xml = "<book><title>Dune</title><author>Frank Herbert</author></book>";
+
+// `Core\Xml::parse` returns the document node. Its only child is the root element, `book`.
+Core\Xml\Node $document = Core\Xml::parse($xml);
+
+// The text of an element is in a child of its own: a text node.
+// This prints the root name, then one line for `title` and one for `author`.
+foreach ($document->children() as Core\Xml\Node $book) {
+    echo $book->name(), "\n";
+    foreach ($book->children() as Core\Xml\Node $field) {
+        foreach ($field->children() as Core\Xml\Node $text) {
+            echo "  ", $field->name(), ": ", $text->text(), "\n";
+        }
+    }
+}

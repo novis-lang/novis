@@ -1,0 +1,27 @@
+<?nvs
+// Shows what happens when a document is not well-formed.
+
+// The `<price>` tag is never closed. `Core\Xml::parse` throws a `ParseError`.
+// It does not try to repair the document.
+try {
+    Core\Xml::parse("<item><name>Lamp</name><price>30</item>");
+    echo "parsed\n";
+} catch (ParseError $error) {
+    echo $error->message, "\n";
+}
+
+// `&amp;` is one of the five predefined entities, so it becomes `&`. This prints `Salt & Pepper`.
+Core\Xml\Node $shop = Core\Xml::parse("<shop>Salt &amp; Pepper</shop>");
+foreach ($shop->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $text) {
+        echo $text->text(), "\n";
+    }
+}
+
+// `&nbsp;` is not one of the five. The parser does not look it up anywhere, so this throws too.
+try {
+    Core\Xml::parse("<shop>Salt&nbsp;Pepper</shop>");
+    echo "parsed\n";
+} catch (ParseError $error) {
+    echo $error->message, "\n";
+}

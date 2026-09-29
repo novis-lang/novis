@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to read a stock list that a supplier sends as XML, and find what is sold out.
+
+string $feed = "<stock>
+  <item sku=\"A-100\" qty=\"12\"/>
+  <item sku=\"B-200\" qty=\"0\"/>
+  <item sku=\"C-300\" qty=\"5\"/>
+</stock>";
+
+Core\Xml\Node $document = Core\Xml::parse($feed);
+
+int $total = 0;
+foreach ($document->children() as Core\Xml\Node $stock) {
+    foreach ($stock->children() as Core\Xml\Node $item) {
+        // The line breaks between the items are text nodes. This loop skips them.
+        if ($item->kind() != Core\Xml\NodeKind::Element) {
+            continue;
+        }
+        // `attributes` returns the attributes of the element, keyed by name.
+        // The values are `tainted`, because they came from outside the program.
+        array<tainted string> $attributes = $item->attributes();
+        // `as ?int` converts the text to a whole number. If that is not possible, the result is `null`.
+        // `?? 0` then gives 0, so an unreadable quantity counts as sold out.
+        int $qty = ($attributes["qty"] as ?int) ?? 0;
+        if ($qty == 0) {
+            echo "sold out: ", $attributes["sku"], "\n";
+        } else {
+            $total = $total + $qty;
+        }
+    }
+}
+
+// This prints 17: the quantities of the two items that are not sold out.
+echo "in stock: ", $total, "\n";

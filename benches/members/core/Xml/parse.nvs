@@ -1,0 +1,25 @@
+<?nvs
+// Reads a small XML document into a tree, as a program does with each order a partner system sends.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $documents = [
+            '<order id="1"><item sku="A-100" qty="2"/></order>',
+            '<order id="2"><item sku="B-200" qty="1"/><item sku="C-300" qty="5"/></order>',
+            '<order id="3"><note>Leave it at the door.</note></order>',
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Xml\Node $document = Core\Xml::parse($documents[(($total + $i) % 3) as int]);
+            foreach ($document->children() as Core\Xml\Node $order) {
+                $total = $total + Core\Arr::count($order->children());
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";
