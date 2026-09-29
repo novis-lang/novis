@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to print a date and time in a few common ways.
+// `format` prints the value with a pattern. Each letter in the pattern is one part of the date or time.
+
+var $order = Core\Time::at(2024, 3, 5, Core\Time\Zone::of("Europe/Berlin"), {hour: 14, minute: 7, second: 9});
+
+// `yyyy` is the year, `MM` the month, `dd` the day, `HH` the hour, `mm` the minute and `ss` the second.
+// This prints 2024-03-05 14:07:09.
+echo $order->format("yyyy-MM-dd HH:mm:ss"), "\n";
+
+// More letters give a longer form. `EEEE` is the name of the weekday and `MMMM` the name of the month.
+// This prints Tuesday, 5 March 2024.
+echo $order->format("EEEE, d MMMM yyyy"), "\n";
+
+// Other characters, such as `.` and `/`, are printed as they are. This prints 05.03.2024.
+echo $order->format("dd.MM.yyyy"), "\n";

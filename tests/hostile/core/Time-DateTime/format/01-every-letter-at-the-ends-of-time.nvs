@@ -1,0 +1,55 @@
+<?nvs
+// Attack: `format` prints the first and last moments a date and time can have, in the widest zones,
+// with every letter at many lengths. A bad pattern should throw a `LogicError`, and nothing should crash.
+
+// 1. The last and the first moment, at the widest fixed offsets, and one moment in a named zone.
+array<Core\Time\DateTime> $moments = [
+    Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s)),
+    Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated())),
+    Core\Time::fromIso('2024-03-31T01:30:00Z')->in(Core\Time\Zone::of('Pacific/Chatham')),
+];
+foreach ($moments as Core\Time\DateTime $moment) {
+    echo $moment->format('uuuu-MM-dd HH:mm:ss.SSSSSSSSS XXX VV G'), "\n";
+}
+
+// 2. Every letter from A to Z and from a to z, from one to seven times in a row, on each moment.
+array<string> $alphabets = ['ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'];
+int $rendered = 0;
+int $refused = 0;
+foreach ($moments as Core\Time\DateTime $at) {
+    foreach ($alphabets as string $letters) {
+        int $i = 0;
+        while ($i < 26) {
+            uint $count = 1;
+            while ($count <= 7) {
+                string $pattern = Core\Str::repeat(Core\Str::slice($letters, $i, 1), $count);
+                try {
+                    $rendered = $rendered + Core\Str::length($at->format($pattern)) as int;
+                } catch (LogicError $unknown) {
+                    $refused = $refused + 1;
+                }
+                $count = $count + 1;
+            }
+            $i = $i + 1;
+        }
+    }
+}
+echo $refused, " refused\n";
+
+// 3. A pattern of a million fraction digits, and one that opens a quote and never closes it.
+echo Core\Str::length($moments[0]->format(Core\Str::repeat('S', 1000000))), " digits\n";
+try {
+    $moments[1]->format(Core\Str::repeat('VV', 100000) . "'open");
+} catch (LogicError $open) {
+    echo "unclosed quote refused\n";
+}
+
+// 4. One million patterns are made while the program runs and printed. Each result is freed.
+int $round = 0;
+int $total = 0;
+while ($round < 1000000) {
+    string $made = 'yyyy-MM-dd HH:mm' . Core\Str::repeat('s', ($round % 3) as uint);
+    $total = $total + Core\Str::length($moments[$round % 3]->format($made)) as int;
+    $round = $round + 1;
+}
+echo $total, "\n";

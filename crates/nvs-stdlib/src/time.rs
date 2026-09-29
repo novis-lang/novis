@@ -6392,4 +6392,153 @@ mod tests {
             assert_eq!(read, Some(leap), "{at}");
         }
     }
+
+    /// `format` called on the `DateTime` `at` with `pattern` and the call
+    /// site's prepared word `word`. It answers the rendered text, or the
+    /// sentence it threw.
+    fn datetime_formatted(at: &Zoned, word: i64, pattern: &str) -> Result<String, String> {
+        let mut ctx = Ctx::buffered();
+        let args = [
+            Value::int(word),
+            datetime_built(at),
+            Value::str(NvsStr::new(pattern.as_bytes())),
+        ];
+        let answer = match nvs_runtime::call(nvs_core_time_datetime_format, &mut ctx, &args) {
+            Ok(text) => {
+                let read = text
+                    .as_text()
+                    .expect("`format` answers a `string`")
+                    .to_owned();
+                #[expect(unsafe_code, reason = "this frame owns the text the member answered")]
+                unsafe {
+                    text.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// `format` renders the wall clock and zone where the value is, the same
+    /// text whether the call site prepared the pattern or the program built
+    /// it, and a computed pattern that does not compile throws a sentence
+    /// naming the member and the letter.
+    // covers: Core\Time\DateTime::format
+    #[test]
+    fn datetime_format_renders_the_values_own_wall_clock_prepared_or_not() {
+        let pattern = "uuuu-MM-dd HH:mm:ss VV";
+        for (at, rendered) in zone_view_samples().into_iter().zip([
+            "2024-07-01 18:00:00 Asia/Kolkata",
+            "2024-03-31 03:30:00 Europe/Berlin",
+            "9999-12-31 23:59:59 +25:59:59",
+            "-9999-01-01 00:00:00 -25:59:59",
+        ]) {
+            for word in [crate::cldr::PREPARED_PATTERN, crate::cldr::PREPARED_NONE] {
+                assert_eq!(
+                    datetime_formatted(&at, word, pattern).as_deref(),
+                    Ok(rendered),
+                    "{at} with word {word}"
+                );
+            }
+        }
+        let [kolkata, ..] = zone_view_samples();
+        let refused = datetime_formatted(&kolkata, crate::cldr::PREPARED_NONE, "yyyy j")
+            .expect_err("`j` is not a pattern letter");
+        assert!(
+            refused.starts_with("Core\\Time\\DateTime::format(): `j` "),
+            "{refused}"
+        );
+        let open = datetime_formatted(&kolkata, crate::cldr::PREPARED_NONE, "HH 'open")
+            .expect_err("an unclosed quote does not compile");
+        assert!(
+            open.starts_with("Core\\Time\\DateTime::format(): "),
+            "{open}"
+        );
+    }
+
+    /// `member` called on the `DateTime` `at` with `count` steps of the
+    /// `Core\Unit` case at index `unit`. It answers the value it built, or the
+    /// sentence it threw.
+    fn datetime_stepped(
+        member: nvs_runtime::NvsFn,
+        at: &Zoned,
+        count: i64,
+        unit: i64,
+    ) -> Result<Zoned, String> {
+        let mut ctx = Ctx::buffered();
+        let args = [datetime_built(at), Value::int(count), Value::int(unit)];
+        let answer = match nvs_runtime::call(member, &mut ctx, &args) {
+            Ok(moved) => {
+                let read = zoned_of(&[moved], 0, "plus");
+                #[expect(unsafe_code, reason = "this frame owns the value the member built")]
+                unsafe {
+                    moved.release();
+                }
+                Ok(read.unwrap_or_else(|_| panic!("a step answers a `DateTime`")))
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// `plus` is calendar arithmetic in the value's own zone: a month from
+    /// 31 January clamps to 29 February, a day across Berlin's spring change
+    /// is 23 hours, the zone is kept, and a count no span can hold and a step
+    /// past the last second both throw a sentence naming the member.
+    // covers: Core\Time\DateTime::plus
+    #[test]
+    fn datetime_plus_steps_the_calendar_in_the_values_own_zone() {
+        let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
+        let (day, month, year) = (6, 8, 10);
+        let january = civil::date(2024, 1, 31)
+            .at(9, 0, 0, 0)
+            .to_zoned(berlin.clone())
+            .expect("a valid wall time");
+        let moved = datetime_stepped(nvs_core_time_datetime_plus, &january, 1, month)
+            .expect("a month from January is in range");
+        assert_eq!(moved.datetime(), civil::date(2024, 2, 29).at(9, 0, 0, 0));
+        assert_eq!(moved.time_zone().iana_name(), Some("Europe/Berlin"));
+
+        let saturday = civil::date(2024, 3, 30)
+            .at(12, 0, 0, 0)
+            .to_zoned(berlin)
+            .expect("a valid wall time");
+        let sunday = datetime_stepped(nvs_core_time_datetime_plus, &saturday, 1, day)
+            .expect("a day is in range");
+        assert_eq!(sunday.datetime(), civil::date(2024, 3, 31).at(12, 0, 0, 0));
+        assert_eq!(
+            sunday.timestamp().as_second() - saturday.timestamp().as_second(),
+            23 * 3600
+        );
+
+        let too_many = datetime_stepped(nvs_core_time_datetime_plus, &saturday, i64::MAX, year)
+            .expect_err("no span holds that many years");
+        assert!(
+            too_many.contains("Core\\Time\\DateTime::plus"),
+            "{too_many}"
+        );
+        let [_, _, last, _] = zone_view_samples();
+        let past = datetime_stepped(nvs_core_time_datetime_plus, &last, 1, day)
+            .expect_err("a day after the last second is past the range");
+        assert!(past.contains("Core\\Time\\DateTime::plus"), "{past}");
+    }
 }

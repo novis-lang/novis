@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to write the date for an HTTP header such as `Last-Modified`.
+// An HTTP date is always in UTC, with short English names for the weekday and the month.
+
+// The dates of three saved files, each with the offset of the server that saved it.
+array<string> $saved = ["2024-06-14T09:05:00+02:00", "2024-12-01T23:30:00-08:00", "2025-01-02T00:00:00Z"];
+
+// `in(Core\Time\Zone::UTC)` converts each date to UTC before `format` prints it.
+// The first line this prints is Last-Modified: Fri, 14 Jun 2024 07:05:00 GMT.
+foreach ($saved as string $text) {
+    var $utc = Core\Time::fromIso($text)->in(Core\Time\Zone::UTC);
+    echo "Last-Modified: ", $utc->format("EEE, dd MMM yyyy HH:mm:ss 'GMT'"), "\n";
+}

@@ -1,0 +1,27 @@
+<?nvs
+// Writes a date and time as text, as a program does for every timestamp it shows on a page or in a log.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $patterns = ["yyyy-MM-dd HH:mm:ss", "EEE, dd MMM yyyy HH:mm:ss 'GMT'", "h:mm a XXX"];
+        var $at = Core\Time::at(2024, 4, 5, Core\Time\Zone::of("Europe/Berlin"), {hour: 9, minute: 30});
+        string $previous = "";
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the pattern is picked with last round's total
+            string $text = $at->format($patterns[($total % 3) as uint]);
+            if ($text == $previous) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $previous = $text;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
