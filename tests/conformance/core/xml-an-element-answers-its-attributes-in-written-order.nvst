@@ -2,6 +2,7 @@
 `Core\Xml\Node::attributes` answers an element's attributes as the pairs they always were, in the order the document wrote them, and every other kind of node carries none — spec § 17, `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
+// covers: Core\Xml\Node::attributes
 // The root element of a parsed document, found by its kind rather than by a
 // position — the prolog's comments and processing instructions are children of
 // the document too.

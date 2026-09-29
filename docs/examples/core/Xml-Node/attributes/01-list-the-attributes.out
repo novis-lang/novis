@@ -1,0 +1,4 @@
+src = cat.png
+width = 640
+height = 480
+alt = A cat & a dog

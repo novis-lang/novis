@@ -283,7 +283,7 @@ const NAMESPACE_SLOT: usize = 5;
 /// out, and is the one that can refuse.
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
-    doc: None,
+    doc: Some(&NODE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -361,6 +361,15 @@ pub(crate) const NODE: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Xml\Node`'s class card — `rule:core-api/reference-card`.
+const NODE_CARD: ClassDoc = ClassDoc {
+    short: "One node of a document tree. `Core\\Xml::parse` and `Core\\Html::parse` return the \
+            document node, and you reach the other nodes through `children`. A node is an element, \
+            a text, a comment, a processing instruction or the document itself, and `kind` tells \
+            you which. Every string you read from a node is `tainted`, because it came from \
+            outside the program.",
+};
+
 /// `Core\Xml\Node::kind`'s reference card — `rule:core-api/reference-card`.
 const KIND_DOC: MethodDoc = MethodDoc {
     short: "Which of the five kinds of node this is — the question every walk over a tree asks \
@@ -414,11 +423,14 @@ const TEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Xml\Node::attributes`'s reference card — `rule:core-api/reference-card`.
 const ATTRIBUTES_DOC: MethodDoc = MethodDoc {
-    short: "This element's attributes, in the order they were written — replacing `DOMElement`'s \
-            attribute nodes with the pairs they always were. Empty for every other kind of node.",
+    short: "Returns the attributes of this element, in the order the document wrote them. It \
+            replaces PHP's `DOMElement::getAttribute` and the `attributes` property. For a node that \
+            is not an element, the array is empty.",
     params: &[],
-    ret: "One entry per attribute, keyed by the name as written and holding the value with its \
-          references expanded. `tainted`, as everything read out of a parsed tree is.",
+    ret: "An array keyed by attribute name. The name is written as in the document, with its \
+          prefix, such as `xml:lang`. Entities such as `&amp;` are expanded in the value. A tab or \
+          a line break written inside the value becomes a space, as XML requires. The values are \
+          `tainted`.",
     errors: &[],
 };
 
@@ -1444,7 +1456,12 @@ impl<'a> Reader<'a> {
         Ok(())
     }
 
-    /// One attribute value, quotes and references consumed.
+    /// One attribute value, quotes and references consumed, and normalised as
+    /// XML 1.0 § 3.3.3 says a value with no declared type is: a tab, a line
+    /// feed or a carriage return written literally reads as one space, and a
+    /// `\r\n` pair as one space rather than two. A character reference is not
+    /// normalised, so `&#9;` stays a tab — which is how [`quoted`] writes one
+    /// back out.
     ///
     /// # Errors
     ///
@@ -1482,8 +1499,15 @@ impl<'a> Reader<'a> {
             if forbidden(ch) {
                 return Err(refused_literal(ch));
             }
-            out.push(ch);
             self.pos += ch.len_utf8();
+            if ch == '\r' && self.rest().starts_with('\n') {
+                self.pos += 1;
+            }
+            out.push(if matches!(ch, '\t' | '\n' | '\r') {
+                ' '
+            } else {
+                ch
+            });
         }
     }
 
@@ -3608,7 +3632,10 @@ mod tests {
             "the reference is refused as before"
         );
         let kept = parse("<a b=\"\t\">x\r\ny\t</a>").expect("the three whitespace ones are XML");
-        assert_eq!(kept.children[0].attributes[0].1, "\t");
+        assert_eq!(
+            kept.children[0].attributes[0].1, " ",
+            "a literal tab in an attribute value reads as a space"
+        );
     }
 
     /// Whether a signature's type mentions `class` anywhere inside it.
@@ -3988,6 +4015,68 @@ mod tests {
             tree.release();
             source.release();
         }
+    }
+
+    /// Every entry of the array `attributes` answered for `node`, as
+    /// `(name, value)` pairs in the order the array holds them.
+    fn attribute_pairs(node: Value, ctx: &mut Ctx) -> Vec<(String, String)> {
+        let answered =
+            call(super::nvs_core_xml_node_attributes, ctx, &[node]).expect("a node has attributes");
+        let array = answered.array_ptr().expect("attributes is an array");
+        let array = crate::arr::borrowed(array);
+        let mut pairs = Vec::new();
+        let mut from = 0usize;
+        while let Some(at) = array.next_slot(from) {
+            from = at + 1;
+            let key = array.key_at(at).expect("an attribute is keyed by its name");
+            let value = array
+                .value_at(at)
+                .expect("next_slot only names live entries");
+            pairs.push((
+                String::from_utf8_lossy(key.as_bytes()).into_owned(),
+                value
+                    .as_text()
+                    .expect("an attribute value is text")
+                    .to_owned(),
+            ));
+        }
+        dropped(answered);
+        pairs
+    }
+
+    /// An element's attributes come back keyed by name, in the order the tag
+    /// wrote them, with references expanded and a literal tab, line feed or
+    /// `\r\n` read as one space (XML 1.0 § 3.3.3); every other kind of node
+    /// answers an empty array.
+    // covers: Core\Xml\Node::attributes
+    #[test]
+    fn attributes_keep_written_order_and_normalise_literal_whitespace() {
+        let document = "<item b=\"2\" a=\"1 &amp; 2\" c=\"x\r\ny\tz\n\" d=\"&#9;\"/><!--c-->";
+        let source = Value::str(NvsStr::new(document.as_bytes()));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
+        assert!(
+            attribute_pairs(tree, &mut ctx).is_empty(),
+            "the document node has no attributes"
+        );
+
+        let children = call(super::nvs_core_xml_node_children, &mut ctx, &[tree])
+            .expect("the document has children");
+        let list = crate::arr::borrowed(children.array_ptr().expect("children is an array"));
+        let item = list.value_at(0).expect("the root element comes first");
+        let comment = list.value_at(1).expect("the comment follows it");
+        let written = [("b", "2"), ("a", "1 & 2"), ("c", "x y z "), ("d", "\t")]
+            .map(|(name, value)| (name.to_owned(), value.to_owned()));
+        assert_eq!(attribute_pairs(item, &mut ctx), written);
+        assert!(
+            attribute_pairs(comment, &mut ctx).is_empty(),
+            "a comment has no attributes"
+        );
+
+        dropped(children);
+        dropped(tree);
+        dropped(source);
     }
 
     /// A writer indenting by `indent`, over the argument list its option takes.

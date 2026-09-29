@@ -1,26 +1,28 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Xml\\Node and 1 more has been taken yet.",
+  "state": "Goal `core-xml-node-and-1-more`: 1 of 3 members has its feature proofs on disk.\n`Core\\Xml\\Node::attributes` is done: about.md, three examples, an attack, a bench with a recorded\nfigure, two `.nvst` cases and one Rust test, and a plain card. `Core\\Xml\\Node` now has its class\ncard (`NODE_CARD` in `crates/nvs-stdlib/src/xml.rs`) and is off `CLASSES_STILL_OWING_A_CARD`.\nThe attributes slice found and fixed a bug: a literal tab, line feed or `\\r\\n` in an attribute\nvalue now reads as one space (XML 1.0 § 3.3.3, and PHP's `DOMDocument` agrees), which is what\n`quoted` in `xml.rs` already assumed when it writes those three as references.\n`bun nv proofs --id` reads `target/release/nvs.exe` unless `--nvs target/covws/x86_64-pc-windows-msvc/debug/nvs.exe`\nis passed, so its help column can report a card that is already written.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "member proofs",
+    "files": [
+      "crates/nvs-stdlib/src/xml.rs",
+      "docs/examples/core/Xml-Node/",
+      "tests/hostile/core/Xml-Node/",
+      "benches/members/core/Xml-Node/",
+      "tests/conformance/core/xml-*.nvst"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Node::attributes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:313`"
+        "text": "**`Core\\Xml\\Node::children`** — owes about, examples, hostile, perf, tests (an existing `xml-*.nvst` case that calls `->children()` needs only a `// covers:` marker). Rewrite `CHILDREN_DOC` in the plain voice first: `crates/nvs-stdlib/src/xml.rs:438`, member at `crates/nvs-stdlib/src/xml.rs:2335`. `rule:testing/feature-proofs`"
       },
       {
         "done": false,
-        "text": "**`Core\\Xml\\Node::children`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:322`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Xml\\Node::kind`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/xml.rs:277`"
+        "text": "**`Core\\Xml\\Node::kind`** — owes about, examples, hostile, perf, tests. Rewrite `KIND_DOC` plainly: `crates/nvs-stdlib/src/xml.rs:374`, member at `crates/nvs-stdlib/src/xml.rs:2289`. A bench here can declare `// bench: allocations 0`, since the member returns an enum case. `rule:testing/feature-proofs`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "Text nodes may keep a literal `\\r\\n` as two characters, where XML 1.0 § 2.11 reads it as one `\\n`. Not checked. Belongs to `Core\\Xml\\Node::text`, a member outside this goal; check with a probe before it goes in `crates/nvs-stdlib/src/xml.rs`'s `# Known gaps`.",
+    "The cards of `name`, `namespaceUri`, `text` and `source` are still in the dense voice. They are goal `plain-comments`'s to sweep."
   ]
 }

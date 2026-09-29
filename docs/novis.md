@@ -21371,9 +21371,9 @@ The character data this node carries itself — a text node's characters, a comm
 $node->attributes(): array<tainted string>
 ```
 
-This element's attributes, in the order they were written — replacing `DOMElement`'s attribute nodes with the pairs they always were. Empty for every other kind of node.
+Returns the attributes of this element, in the order the document wrote them. It replaces PHP's `DOMElement::getAttribute` and the `attributes` property. For a node that is not an element, the array is empty.
 
-**Returns** `array<tainted string>` — One entry per attribute, keyed by the name as written and holding the value with its references expanded. `tainted`, as everything read out of a parsed tree is.
+**Returns** `array<tainted string>` — An array keyed by attribute name. The name is written as in the document, with its prefix, such as `xml:lang`. Entities such as `&amp;` are expanded in the value. A tab or a line break written inside the value becomes a space, as XML requires. The values are `tainted`.
 
 <a id="core-core-xml-node-children"></a>
 #### `Core\Xml\Node->children`

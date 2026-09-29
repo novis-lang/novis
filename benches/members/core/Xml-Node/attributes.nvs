@@ -1,0 +1,26 @@
+<?nvs
+// Reads the attributes of an element, as a program does for each item in an XML feed.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Xml\Node $document = Core\Xml::parse(
+            '<items><item sku="A-100" qty="2"/><item sku="B-200" qty="1" note="gift"/><item id="3"/></items>'
+        );
+        array<Core\Xml\Node> $items = [];
+        foreach ($document->children() as Core\Xml\Node $root) {
+            foreach ($root->children() as Core\Xml\Node $item) {
+                $items[] = $item;
+            }
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($items[($total % 3) as int]->attributes());   // chained: $total is last round's
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

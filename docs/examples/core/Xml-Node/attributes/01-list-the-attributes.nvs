@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to list every attribute of an element, in the order the document wrote them.
+
+Core\Xml\Node $document = Core\Xml::parse('<image src="cat.png" width="640" height="480" alt="A cat &amp; a dog"/>');
+
+foreach ($document->children() as Core\Xml\Node $image) {
+    // The array is keyed by the attribute name. `&amp;` in the value is read as `&`.
+    // This prints four lines, starting with src = cat.png.
+    foreach ($image->attributes() as string $name => tainted string $value) {
+        echo $name, " = ", $value, "\n";
+    }
+}

@@ -1,0 +1,26 @@
+--TEST--
+`Core\Xml\Node::attributes` answers a value with each literal tab, line feed and `\r\n` read as one space, and a character reference for one kept as written — XML 1.0 § 3.3.3, spec § 17
+--FILE--
+<?nvs
+// covers: Core\Xml\Node::attributes
+// A value broken across lines in the document reads as one line: a literal
+// line break is one space, and `\r\n` is one space rather than two.
+Core\Xml\Node $document = Core\Xml::parse("<a note=\"first\r\nsecond\nthird\tfourth\" tab=\"x&#9;y\" line=\"x&#10;y\"/>");
+foreach ($document->children() as Core\Xml\Node $a) {
+    foreach ($a->attributes() as string $name => tainted string $value) {
+        echo $name, " = [", Core\Str::replace(Core\Str::replace($value, "\t", "<TAB>"), "\n", "<LF>"), "]\n";
+    }
+    // Writing the element back out spells the kept tab and line feed as
+    // references, so parsing the output answers the same values again.
+    echo $a->source(), "\n";
+    Core\Xml\Node $again = Core\Xml::parse($a->source());
+    foreach ($again->children() as Core\Xml\Node $b) {
+        echo "same after a round trip: ", $b->attributes() == $a->attributes() ? "yes" : "no", "\n";
+    }
+}
+--EXPECT--
+note = [first second third fourth]
+tab = [x<TAB>y]
+line = [x<LF>y]
+<a note="first second third fourth" tab="x&#9;y" line="x&#10;y"></a>
+same after a round trip: yes

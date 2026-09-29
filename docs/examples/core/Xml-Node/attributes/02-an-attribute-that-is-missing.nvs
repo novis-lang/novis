@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read one attribute, and use a default value when the element does not have it.
+
+Core\Xml\Node $document = Core\Xml::parse('<prices><price currency="USD">12.50</price><price>9.90</price></prices>');
+
+foreach ($document->children() as Core\Xml\Node $prices) {
+    foreach ($prices->children() as Core\Xml\Node $price) {
+        array<tainted string> $attributes = $price->attributes();
+        // The second price has no `currency` attribute, so `??` gives "EUR".
+        tainted string $currency = $attributes["currency"] ?? "EUR";
+        // A text node is not an element, so its array is empty.
+        foreach ($price->children() as Core\Xml\Node $text) {
+            echo $text->text(), " ", $currency, " (the text has ", Core\Arr::count($text->attributes()), " attributes)\n";
+        }
+    }
+}

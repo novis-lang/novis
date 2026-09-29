@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a program reads attributes that are very many, very long or broken, and changes the array it gets.
+// Each step should give the right count or throw a `ParseError`, and the tree must not change.
+// hostile: timeout-ms 20000
+
+// 1. One element with 100000 attributes, read 1000 times. This prints 100000000.
+array<string> $parts = [];
+int $i = 0;
+while ($i < 100000) {
+    $parts[] = ' a' . $i as string . '="' . $i as string . '"';
+    $i = $i + 1;
+}
+Core\Xml\Node $wide = Core\Xml::parse('<item' . Core\Str::join($parts, '') . '/>');
+uint $total = 0;
+foreach ($wide->children() as Core\Xml\Node $item) {
+    $i = 0;
+    while ($i < 1000) {
+        $total = $total + Core\Arr::count($item->attributes());
+        $i = $i + 1;
+    }
+}
+echo $total, "\n";
+
+// 2. The program changes the array it got. The next call returns the original. This prints 3, 2 and 1.
+Core\Xml\Node $small = Core\Xml::parse('<a x="1" y="2"/>');
+foreach ($small->children() as Core\Xml\Node $a) {
+    array<tainted string> $changed = $a->attributes();
+    $changed['z'] = '3';
+    $changed['x'] = 'changed';
+    echo Core\Arr::count($changed), "\n";
+    echo Core\Arr::count($a->attributes()), "\n";
+    echo $a->attributes()['x'], "\n";
+}
+
+// 3. A value of one million `\r\n` pairs. Each pair is one space, so this prints 1000000.
+Core\Xml\Node $lines = Core\Xml::parse('<a v="' . Core\Str::repeat("\r\n", 1000000) . '"/>');
+foreach ($lines->children() as Core\Xml\Node $a) {
+    echo Core\Str::length($a->attributes()['v']), "\n";
+}
+
+// 4. A value that ends in a lone `\r`, and one that ends in `\r` just before the end of the document.
+Core\Xml\Node $edge = Core\Xml::parse("<a v=\"x\r\"/>");
+foreach ($edge->children() as Core\Xml\Node $a) {
+    echo '[', $a->attributes()['v'], "]\n";
+}
+try {
+    Core\Xml::parse("<a v=\"x\r");
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "value never closed\n";
+}
+
+// 5. A value of ten million characters that is never closed. This throws a `ParseError`.
+try {
+    Core\Xml::parse('<a v="' . Core\Str::repeat('x', 10000000));
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "value never closed\n";
+}
+
+// 6. The same name with 1000 different prefixes. They are different attributes, so this prints 1000.
+array<string> $prefixed = [];
+$i = 0;
+while ($i < 1000) {
+    $prefixed[] = ' p' . $i as string . ':id="' . $i as string . '"';
+    $i = $i + 1;
+}
+Core\Xml\Node $names = Core\Xml::parse('<a' . Core\Str::join($prefixed, '') . '/>');
+foreach ($names->children() as Core\Xml\Node $a) {
+    echo Core\Arr::count($a->attributes()), "\n";
+}
+
+// 7. 200000 documents are parsed, their attributes read and the trees freed. This prints 400000.
+uint $count = 0;
+$i = 0;
+while ($i < 200000) {
+    Core\Xml\Node $doc = Core\Xml::parse('<n a="' . $i as string . '" b="x"/>');
+    foreach ($doc->children() as Core\Xml\Node $n) {
+        $count = $count + Core\Arr::count($n->attributes());
+    }
+    $i = $i + 1;
+}
+echo $count, "\n";

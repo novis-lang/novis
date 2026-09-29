@@ -30,7 +30,9 @@ try {
     echo $stream->message, "\n";
 }
 
-// The three whitespace control characters are XML, and are kept.
+// The three whitespace control characters are XML. A tab in text is kept, and a
+// literal tab in an attribute value reads as one space (XML 1.0 § 3.3.3), so
+// `source` writes `<a b=" ">x\ty</a>`, 16 characters.
 Core\Xml\Node $kept = Core\Xml::parse("<a b=\"\t\">x\ty</a>");
 foreach ($kept->children() as Core\Xml\Node $root) {
     echo Core\Str::length($root->attributes()["b"]), " ", Core\Str::length($root->source()), "\n";
@@ -44,4 +46,4 @@ Core\Xml::parse(): the document holds U+001F, which XML does not allow.
 node at depth 0
 node at depth 1
 Core\Xml\Reader::read(): the document holds U+0001, which XML does not allow.
-1 19
+1 16
