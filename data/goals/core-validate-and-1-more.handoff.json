@@ -1,26 +1,27 @@
 {
-  "state": "This goal has just been installed. Nothing in Core\\Validate and 1 more has been taken yet.",
+  "state": "Goal `core-validate-and-1-more`: `Core\\Validate::isAscii` is finished. It has its about page, three examples, a bench, an attack and a Rust `covers:` test, and its card is plain.\n`Core\\Validate` has its class card now, so the help proof for the other five `Core\\Validate` members owes only a plain member card each.\nThe member cards for `isEmail`, `isDomain`, `isIp`, `isMac` and `isPrintable` are still in the dense \"Answers whether …\" voice. Rewrite each one in the slice for that member.\nNothing is blocked.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "Core\\Validate member proofs",
+    "files": [
+      "crates/nvs-stdlib/src/validate.rs",
+      "docs/examples/core/Validate/",
+      "tests/hostile/core/Validate/",
+      "benches/members/core/Validate/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Validate::isAscii`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:215`"
+        "text": "**`Core\\Validate::isDomain`** — owes about, examples, hostile, perf, tests (`rule:testing/feature-proofs`). The Rust test already exists at `crates/nvs-stdlib/src/validate.rs:770` and needs only a `// covers: Core\\Validate::isDomain` line above its `#[test]`. Rewrite the card at `crates/nvs-stdlib/src/validate.rs:264` in the plain voice. `docs/examples/core/Validate/isAscii/` is the model for the other files. The bench declares `allocations 0` and `calls 0`, indexes with `(($total + $i) % 3) as int` and adds a multiple of 3 on every path, so that every input is visited."
       },
       {
         "done": false,
-        "text": "**`Core\\Validate::isDomain`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:188`"
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Validate::isEmail`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/validate.rs:179`"
+        "text": "**`Core\\Validate::isEmail`** — the same list. Its Rust test is `crates/nvs-stdlib/src/validate.rs:706`, which needs a `covers:` line, and its card is `crates/nvs-stdlib/src/validate.rs:248`. The attack should include the 254-byte and 64-byte bounds, and a subject of many megabytes."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`isIp`, `isMac` and `isPrintable` are not on this goal's item list, but their cards share the dense voice. When they are listed, they reuse the same file set. The owner is `crates/nvs-stdlib/src/validate.rs`.",
+    "Goal item 3 of 3, the `Core\\Xml` member, follows the `Core\\Validate` pair. The owner is `crates/nvs-stdlib/src/xml.rs`."
   ]
 }

@@ -15968,13 +15968,13 @@ Answers whether `$s` is a MAC address, as `filter_var` with `FILTER_VALIDATE_MAC
 Core\Validate::isAscii(string $s): bool
 ```
 
-Answers whether every byte of `$s` is ASCII (`0x00`–`0x7F`) — the encoding question, a byte scan with no decoding.
+Checks whether every character of `$s` is an ASCII character. ASCII has 128 characters: the English letters, the digits, common punctuation and the control characters. Each of them is one byte, from `0x00` to `0x7F`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The text to test. |
 
-**Returns** `bool` — `true` when no byte is above `0x7F`, and `true` for the empty string where `ctype_*` answers `false`; `false` otherwise.
+**Returns** `bool` — `true` when every character is ASCII, and `true` for the empty string. `false` when the text contains any other character, such as `é` or `日`.
 
 <a id="core-core-validate-isprintable"></a>
 #### `Core\Validate::isPrintable`
