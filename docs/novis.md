@@ -13208,18 +13208,18 @@ echo $d->timeOfDay()->format("HH:mm"), "\n";
 Core\Time\TimeOfDay::at(uint $hour, uint $minute, {second?: uint, nanos?: uint}): Core\Time\TimeOfDay
 ```
 
-Builds a zone-free wall-clock reading from its fields, with the two a clock usually leaves off defaulting to zero.
+Makes a time of day from an hour and a minute. The seconds and the nanoseconds are optional, and their default is `0`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$hour` | `uint` | The hour, `0` to `23`. |
 | `$minute` | `uint` | The minute, `0` to `59`. |
-| `{second: …}` | `uint` (default `0`) | The second, `0` to `59`; the default is `0`. |
-| `{nanos: …}` | `uint` (default `0`) | The subsecond nanoseconds, below `1000000000`; the default is `0`. |
+| `{second: …}` | `uint` (default `0`) | The second, `0` to `59`. The default is `0`. |
+| `{nanos: …}` | `uint` (default `0`) | The nanoseconds inside that second, `0` to `999999999`. The default is `0`. |
 
-**Returns** `Core\Time\TimeOfDay` — The `TimeOfDay`.
+**Returns** `Core\Time\TimeOfDay` — The new `TimeOfDay`.
 
-**Throws** `RuntimeError` — A field is outside its range, so the four are not a time of day.
+**Throws** `RuntimeError` — A field is outside its range, for example an hour of `24`.
 
 <a id="core-core-time-timeofday-format"></a>
 #### `Core\Time\TimeOfDay->format`
@@ -13228,15 +13228,15 @@ Builds a zone-free wall-clock reading from its fields, with the two a clock usua
 $timeOfDay->format(string $pattern): string
 ```
 
-Renders the clock reading through a CLDR pattern of time fields — `HH:mm:ss`, `h:mm a` — the same grammar `DateTime::format` takes, narrowed to what a clock carries.
+Returns the time as text in the pattern you give, such as `HH:mm:ss` or `h:mm a`. The pattern uses the letters of `DateTime::format`, but only the letters for a time.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$pattern` | `string` (sink) | A CLDR pattern naming only time-of-day fields; a grammar, so a `tainted` one is refused. |
+| `$pattern` | `string` (sink) | The pattern, such as `HH:mm`. It may use letters for the hour, the minute, the second, parts of a second and AM or PM. A `tainted` pattern (text from outside the program) is not allowed. |
 
-**Returns** `string` — The rendered text.
+**Returns** `string` — The time as text.
 
-**Throws** `LogicError` — `$pattern` does not compile, or names a calendar or zone field, which a clock reading would have to invent.
+**Throws** `LogicError` — `$pattern` is not a valid pattern, or it uses a letter for a date or a time zone.
 
 <a id="core-core-time-timeofday-plus"></a>
 #### `Core\Time\TimeOfDay->plus`
@@ -13245,16 +13245,16 @@ Renders the clock reading through a CLDR pattern of time fields — `HH:mm:ss`, 
 $timeOfDay->plus(int $count, Core\Unit $unit): Core\Time\TimeOfDay
 ```
 
-Moves the reading forward by `$count` steps of `$unit`, wrapping within the day: `23:30` plus an hour is `00:30`, since a time of day has no date for a carry to go to — a step that carries a day is `DateTime::plus`.
+Moves the time forward by `$count` steps of `$unit`. The result wraps around at midnight, so `23:30` plus one hour is `00:30`. To move a time across days, use `DateTime::plus`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$count` | `int` | How many steps; negative moves back. |
-| `$unit` | `Core\Unit` | `Unit::Hour` or smaller. |
+| `$count` | `int` | How many steps. A negative count moves the time back. |
+| `$unit` | `Core\Unit` | `Unit::Hour` or a smaller unit. |
 
-**Returns** `Core\Time\TimeOfDay` — A new `TimeOfDay`; the receiver is unchanged.
+**Returns** `Core\Time\TimeOfDay` — A new `TimeOfDay`. The original does not change.
 
-**Throws** `LogicError` — `$unit` is `Unit::Day` or larger, which does not move a time of day.; `RuntimeError` — `$count` is past what a span can hold.
+**Throws** `LogicError` — `$unit` is `Unit::Day` or larger. A time of day has no days to move.; `RuntimeError` — `$count` is too large for `$unit`.
 
 <a id="core-core-time-timeofday-minus"></a>
 #### `Core\Time\TimeOfDay->minus`
@@ -13263,16 +13263,16 @@ Moves the reading forward by `$count` steps of `$unit`, wrapping within the day:
 $timeOfDay->minus(int $count, Core\Unit $unit): Core\Time\TimeOfDay
 ```
 
-Moves the reading back by `$count` steps of `$unit`, wrapping within the day — `plus` with the count negated.
+Moves the time back by `$count` steps of `$unit`. The result wraps around at midnight, so `00:15` minus 30 minutes is `23:45`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$count` | `int` | How many steps; negative moves forward. |
-| `$unit` | `Core\Unit` | `Unit::Hour` or smaller. |
+| `$count` | `int` | How many steps. A negative count moves the time forward. |
+| `$unit` | `Core\Unit` | `Unit::Hour` or a smaller unit. |
 
-**Returns** `Core\Time\TimeOfDay` — A new `TimeOfDay`; the receiver is unchanged.
+**Returns** `Core\Time\TimeOfDay` — A new `TimeOfDay`. The original does not change.
 
-**Throws** `LogicError` — `$unit` is `Unit::Day` or larger, which does not move a time of day.; `RuntimeError` — `$count` is past what a span can hold.
+**Throws** `LogicError` — `$unit` is `Unit::Day` or larger. A time of day has no days to move.; `RuntimeError` — `$count` is too large for `$unit`.
 
 <a id="core-core-time-timeofday-with"></a>
 #### `Core\Time\TimeOfDay->with`
@@ -13281,18 +13281,18 @@ Moves the reading back by `$count` steps of `$unit`, wrapping within the day —
 $timeOfDay->with({hour?: uint, minute?: uint, second?: uint, nanos?: uint}): Core\Time\TimeOfDay
 ```
 
-Replaces any of the four clock fields and leaves the rest.
+Returns a copy of the time with the fields you give changed. The fields you leave out keep their value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{hour: …}` | `uint` (default `null`) | The new hour, `0` to `23`; omitted leaves the field alone. |
-| `{minute: …}` | `uint` (default `null`) | The new minute, `0` to `59`; omitted leaves the field alone. |
-| `{second: …}` | `uint` (default `null`) | The new second, `0` to `59`; omitted leaves the field alone. |
-| `{nanos: …}` | `uint` (default `null`) | The new subsecond nanoseconds, below `1000000000`; omitted leaves the field alone. |
+| `{hour: …}` | `uint` (default `null`) | The new hour, `0` to `23`. If you leave it out, the hour stays the same. |
+| `{minute: …}` | `uint` (default `null`) | The new minute, `0` to `59`. If you leave it out, the minute stays the same. |
+| `{second: …}` | `uint` (default `null`) | The new second, `0` to `59`. If you leave it out, the second stays the same. |
+| `{nanos: …}` | `uint` (default `null`) | The new nanoseconds inside the second, `0` to `999999999`. If you leave it out, they stay the same. |
 
-**Returns** `Core\Time\TimeOfDay` — A new `TimeOfDay`; the receiver is unchanged.
+**Returns** `Core\Time\TimeOfDay` — A new `TimeOfDay`. The original does not change.
 
-**Throws** `RuntimeError` — An option is outside its field's range.
+**Throws** `RuntimeError` — A field is outside its range, for example a minute of `60`.
 
 <a id="core-core-time-timeofday-compareto"></a>
 #### `Core\Time\TimeOfDay->compareTo`
@@ -13301,13 +13301,13 @@ Replaces any of the four clock fields and leaves the rest.
 $timeOfDay->compareTo(Core\Time\TimeOfDay $other): int
 ```
 
-Orders two clock readings within the day, as `Comparable` requires.
+Checks which of two times comes first in the day, as `Comparable` requires. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` on two times checks whether they are the same object, so test for the same time with `$a->compareTo($b) == 0`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$other` | `Core\Time\TimeOfDay` | The reading to compare against. |
+| `$other` | `Core\Time\TimeOfDay` | The time to compare against. |
 
-**Returns** `int` — `-1` when the receiver is earlier in the day than `$other`, `0` when they are the same reading, `1` when it is later.
+**Returns** `int` — `-1` when the receiver is earlier in the day than `$other`, `0` when both are the same time, `1` when it is later.
 
 <a id="core-core-time-duration"></a>
 ### `Core\Time\Duration`
