@@ -1,0 +1,31 @@
+<?nvs
+// Reads the name of a node, as a program does when it looks for the elements it needs.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Xml\Node $document = Core\Xml::parse(
+            '<order><?print fast?><line>Mug</line><x:note xmlns:x="https://example.com/x"/></order>'
+        );
+        array<Core\Xml\Node> $nodes = [];
+        foreach ($document->children() as Core\Xml\Node $root) {
+            $nodes[] = $root;
+            foreach ($root->children() as Core\Xml\Node $child) {
+                $nodes[] = $child;
+            }
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($nodes[(($total + $i) % 4) as int]->name() != "") {   // chained: $total is last round's
+                $total = $total + 4;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

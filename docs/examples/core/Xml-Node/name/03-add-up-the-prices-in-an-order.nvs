@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to find every element with one name, at any depth, and add up their values.
+
+string $xml = '<order>
+  <line><product>Mug</product><price>4.50</price></line>
+  <line><product>Teapot</product><price>19.90</price></line>
+  <shipping><price>5.00</price></shipping>
+</order>';
+
+// The loop reads the next node in the list and adds its children to the end of the list.
+// In this way it visits every node in the document.
+array<Core\Xml\Node> $todo = [Core\Xml::parse($xml)];
+int $next = 0;
+float $total = 0.0;
+while ($next < Core\Arr::count($todo)) {
+    Core\Xml\Node $node = $todo[$next];
+    $next = $next + 1;
+    if ($node->name() == "price") {
+        foreach ($node->children() as Core\Xml\Node $text) {
+            $total = $total + ($text->text() as ?float ?? 0.0);
+        }
+    }
+    foreach ($node->children() as Core\Xml\Node $child) {
+        $todo[] = $child;
+    }
+}
+
+// This prints 29.4.
+echo $total, "\n";

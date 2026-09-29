@@ -2,7 +2,7 @@
 A comment and a processing instruction are nodes of the same family an element is, carried rather than dropped, and each answers the members the family declares — `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
-// covers: Core\Xml\Node::children, Core\Xml\Node::kind, Core\Xml\Node::text
+// covers: Core\Xml\Node::children, Core\Xml\Node::kind, Core\Xml\Node::name, Core\Xml\Node::text
 class Kind {
     public static function name(Core\Xml\NodeKind $kind): string {
         if ($kind == Core\Xml\NodeKind::Element) {

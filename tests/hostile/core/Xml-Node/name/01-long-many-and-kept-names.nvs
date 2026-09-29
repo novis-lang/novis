@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program reads a very long name, many different names, names in other scripts, and a
+// name kept after its document is gone. Each step should print the right result. The last step
+// should stop at the memory limit, and must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. An element name of one million characters. This prints 1000000.
+string $long = Core\Str::repeat('n', 1000000);
+Core\Xml\Node $big = Core\Xml::parse('<' . $long . '/>');
+foreach ($big->children() as Core\Xml\Node $element) {
+    echo Core\Str::length($element->name()), "\n";
+}
+
+// 2. 100000 elements, each with its own name. This prints 100000.
+string $xml = '<list>';
+int $i = 0;
+while ($i < 100000) {
+    $xml = $xml . '<e' . $i as string . '/>';
+    $i = $i + 1;
+}
+Core\Xml\Node $list = Core\Xml::parse($xml . '</list>');
+int $named = 0;
+foreach ($list->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $child) {
+        if (Core\Str::startsWith($child->name(), 'e')) {
+            $named = $named + 1;
+        }
+    }
+}
+echo $named, "\n";
+
+// 3. Names in other scripts, a prefix, and a target. This prints größe, 名前, a:b:c and go.
+Core\Xml\Node $scripts = Core\Xml::parse('<größe><名前/><a:b:c xmlns:a="https://example.com/a"/><?go now?></größe>');
+foreach ($scripts->children() as Core\Xml\Node $root) {
+    echo $root->name(), "\n";
+    foreach ($root->children() as Core\Xml\Node $child) {
+        echo $child->name(), "\n";
+    }
+}
+
+// 4. `Core\Html::parse` accepts names that XML does not allow. Reading them works. This prints a<b.
+foreach (Core\Html::parse('<a<b>x</a<b>')->children() as Core\Xml\Node $html) {
+    foreach ($html->children() as Core\Xml\Node $body) {
+        foreach ($body->children() as Core\Xml\Node $odd) {
+            echo $odd->name(), "\n";
+        }
+    }
+}
+
+// 5. The program keeps a name and replaces the document. The name is still read. This prints 1000000.
+tainted string $kept = '';
+foreach ($big->children() as Core\Xml\Node $element) {
+    $kept = $element->name();
+}
+$big = Core\Xml::parse('<u/>');
+echo Core\Str::length($kept), "\n";
+
+// 6. The program keeps one million changed copies of the long name. It should stop at its memory limit.
+array<tainted string> $copies = [];
+int $n = 0;
+while ($n < 1000000) {
+    $copies[] = $kept . $n as string;
+    $n = $n + 1;
+}
+echo Core\Arr::count($copies), "\n";
