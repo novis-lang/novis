@@ -1,5 +1,5 @@
 {
-  "live": "core-xml-node-and-1-more",
+  "live": "core-xml-writer",
   "goals": [
     "core-depth",
     "concurrency",
