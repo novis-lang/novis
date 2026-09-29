@@ -1,0 +1,47 @@
+<?nvs
+// Attack: `timeOfDay` reads the clock at the first and last moments in time, and across hours
+// that a time zone skips or repeats. Every result should be a valid time, and nothing should crash.
+
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+
+// 1. The last moment in time, read in the zone farthest ahead, is the last nanosecond of a day.
+var $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z')->in($ahead)->timeOfDay();
+echo $last->format('HH:mm:ss.SSSSSSSSS'), "\n";
+echo $last->plus(1, Core\Unit::Nanosecond)->format('HH:mm:ss.SSSSSSSSS'), "\n";
+
+// 2. The first moment in time, read in the zone farthest behind, is midnight.
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->timeOfDay();
+echo $first->format('HH:mm:ss'), "\n";
+echo $first->minus(1, Core\Unit::Nanosecond)->format('HH:mm:ss'), "\n";
+
+// 3. Berlin skips 02:00 to 03:00 on 31 March 2024 and repeats 02:00 to 03:00 on 27 October.
+// Every minute of both nights is read. This counts 0 minutes in the spring and 120 in the autumn.
+var $berlin = Core\Time\Zone::of('Europe/Berlin');
+var $two = Core\Time\TimeOfDay::at(2, 0);
+var $three = Core\Time\TimeOfDay::at(3, 0);
+array<string> $nights = ['2024-03-30T23:00:00Z', '2024-10-26T23:00:00Z'];
+foreach ($nights as string $night) {
+    var $minute = Core\Time::fromIso($night);
+    int $inside = 0;
+    int $step = 0;
+    while ($step < 300) {
+        var $clock = $minute->in($berlin)->timeOfDay();
+        if ($clock->compareTo($two) >= 0 && $clock->compareTo($three) < 0) {
+            $inside = $inside + 1;
+        }
+        $minute = $minute->plus(1m);
+        $step = $step + 1;
+    }
+    echo $inside, " minutes between 02:00 and 03:00\n";
+}
+
+// 4. One million clock readings are made and dropped. Each one is freed.
+var $now = Core\Time::at(2024, 2, 29, $ahead, { hour: 23, minute: 59, second: 59 });
+int $round = 0;
+int $late = 0;
+while ($round < 1000000) {
+    $late = $late + $now->timeOfDay()->compareTo($three) + 1;
+    $round = $round + 1;
+}
+echo $late, "\n";

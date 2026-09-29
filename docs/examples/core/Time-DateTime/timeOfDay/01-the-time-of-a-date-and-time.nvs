@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to take the time of day out of a date and time.
+
+var $meeting = Core\Time::at(2024, 3, 5, Core\Time\Zone::of("Europe/Berlin"), {hour: 14, minute: 30});
+
+// `timeOfDay` returns a `Core\Time\TimeOfDay` with only the hour, minute, second and nanoseconds.
+// This prints 14:30:00.
+var $clock = $meeting->timeOfDay();
+echo $clock->format("HH:mm:ss"), "\n";
+
+// The date is gone, so the result is equal to a time built from the same numbers.
+// This prints 0.
+echo $clock->compareTo(Core\Time\TimeOfDay::at(14, 30)), "\n";
+
+// A `TimeOfDay` has no date, so adding time goes around the clock.
+// This prints 00:30.
+echo $clock->plus(10, Core\Unit::Hour)->format("HH:mm"), "\n";
