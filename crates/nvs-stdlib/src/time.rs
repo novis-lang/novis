@@ -1146,7 +1146,7 @@ pub const INSTANT_NAME: &str = r"Core\Time\Instant";
 /// own that trade.
 pub const INSTANT: CoreClass = CoreClass {
     name: INSTANT_NAME,
-    doc: None,
+    doc: Some(&INSTANT_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1331,9 +1331,20 @@ const INSTANT_SINCE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Time\Instant`'s class card — `rule:core-api/reference-card`.
+const INSTANT_CARD: ClassDoc = ClassDoc {
+    short: "One exact point in time, the same everywhere in the world. It has no time zone \
+            and no calendar. `Core\\Time::now`, `Core\\Time::fromEpoch` and \
+            `Core\\Time::fromIso` return one. `plus`, `minus` and `since` do exact arithmetic \
+            with a `Duration`, and `in` shows the instant on a zone's calendar.",
+};
+
 /// `Core\Time\Instant::compareTo`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders two instants on the timeline, as `Comparable` requires.",
+    short: "Checks which of two instants comes first, as `Comparable` requires. The operators \
+            `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` on two instants checks \
+            whether they are the same object, so test for the same moment with \
+            `$a->compareTo($b) == 0`.",
     params: &[ParamDoc {
         name: "other",
         desc: "The instant to compare against.",
@@ -5904,6 +5915,118 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// `compareTo` orders instants on the timeline and answers only `-1`, `0`
+    /// or `1`, from the first representable instant to the last. Pairs one
+    /// nanosecond apart inside one second, on both sides of the epoch, are
+    /// the rows that tell the `nanos` slot being read from it being ignored.
+    /// The table is in ascending order, so every pair's answer is the order of
+    /// the two positions.
+    // covers: Core\Time\Instant::compareTo
+    #[test]
+    fn instant_compare_to_is_the_order_on_the_timeline() {
+        let one = SignedDuration::from_nanos(1);
+        let at = |second: i64, nanos: i32| Timestamp::new(second, nanos).expect("in range");
+        let table = [
+            Timestamp::MIN,
+            Timestamp::MIN.checked_add(one).expect("in range"),
+            at(-1, -999_999_999),
+            at(-1, 0),
+            at(0, -1),
+            at(0, 0),
+            at(0, 1),
+            at(1_700_000_000, 0),
+            at(1_700_000_000, 1),
+            Timestamp::MAX.checked_sub(one).expect("in range"),
+            Timestamp::MAX,
+        ];
+        for (i, &left) in table.iter().enumerate() {
+            for (j, &right) in table.iter().enumerate() {
+                let mut ctx = Ctx::buffered();
+                let args = [instant_built(left), instant_built(right)];
+                let answer = nvs_runtime::call(nvs_core_time_instant_compare_to, &mut ctx, &args)
+                    .expect("any two instants compare")
+                    .as_int();
+                let expected = match i.cmp(&j) {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Equal => 0,
+                    std::cmp::Ordering::Greater => 1,
+                };
+                assert_eq!(answer, Some(expected), "{left} against {right}");
+                for held in args {
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame built both `Instant`s, and the member borrowed them"
+                    )]
+                    unsafe {
+                        held.release();
+                    }
+                }
+            }
+        }
+    }
+
+    /// `minus` moves an instant back by the exact duration, a negative one
+    /// moves it forward, and the receiver is unchanged. Each end of the range
+    /// is reached from one nanosecond inside it, and one nanosecond past it
+    /// throws the range, naming the member.
+    // covers: Core\Time\Instant::minus
+    #[test]
+    fn instant_minus_is_exact_and_bounded_at_both_ends() {
+        let one = SignedDuration::from_nanos(1);
+        let at = |second: i64, nanos: i32| Timestamp::new(second, nanos).expect("in range");
+        let minus = |from: Timestamp, nanos: i64| {
+            let mut ctx = Ctx::buffered();
+            let args = [instant_built(from), built(nanos)];
+            let moved = nvs_runtime::call(nvs_core_time_instant_minus, &mut ctx, &args)
+                .map(|result| {
+                    let read = instant_of(&[result], 0, "minus").expect("an `Instant`");
+                    #[expect(unsafe_code, reason = "the member returned a fresh `Instant`")]
+                    unsafe {
+                        result.release();
+                    }
+                    read
+                })
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned());
+            assert_eq!(
+                instant_of(&args, 0, "minus").ok(),
+                Some(from),
+                "the receiver moved"
+            );
+            for held in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built both arguments, and the member borrowed them"
+                )]
+                unsafe {
+                    held.release();
+                }
+            }
+            moved
+        };
+        assert_eq!(
+            minus(at(1_700_000_000, 0), 5_400_000_000_000),
+            Ok(at(1_699_994_600, 0))
+        );
+        assert_eq!(minus(at(0, 0), 1), Ok(at(0, -1)));
+        assert_eq!(minus(at(0, 0), -1), Ok(at(0, 1)));
+        assert_eq!(minus(at(1, 0), 1), Ok(at(0, 999_999_999)));
+        let first = Timestamp::MIN;
+        let last = Timestamp::MAX;
+        assert_eq!(
+            minus(first.checked_add(one).expect("in range"), 1),
+            Ok(first)
+        );
+        assert_eq!(
+            minus(last.checked_sub(one).expect("in range"), -1),
+            Ok(last)
+        );
+        for past in [minus(first, 1), minus(last, -1)] {
+            let why = past.expect_err("one nanosecond past the range throws");
+            assert!(why.contains(r"Core\Time\Instant::minus"), "{why}");
+            assert!(why.contains(PAST_THE_RANGE), "{why}");
         }
     }
 

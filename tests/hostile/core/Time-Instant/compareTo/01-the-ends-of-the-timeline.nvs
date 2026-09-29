@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `compareTo` gets the first and the last instants there are, and one million
+// comparisons. Every answer should be `-1`, `0` or `1`, and nothing should crash or leak.
+
+Core\Time\Instant $first = Core\Time::fromEpoch(-377705023201);
+Core\Time\Instant $last = Core\Time::fromEpoch(253402207200, { nanos: 999999999 });
+array<Core\Time\Instant> $edges = [
+    $first, $first->plus(1ns), Core\Time::fromEpoch(-1, { nanos: 999999999 }), Core\Time::fromEpoch(0),
+    Core\Time::fromEpoch(0, { nanos: 1 }), $last->minus(1ns), $last,
+];
+
+// 1. Every pair of values at the ends of the range, both ways round.
+int $odd = 0;
+foreach ($edges as Core\Time\Instant $left) {
+    foreach ($edges as Core\Time\Instant $right) {
+        int $sign = $left->compareTo($right);
+        if ($sign < -1 || $sign > 1 || $sign != -$right->compareTo($left)) {
+            $odd = $odd + 1;
+        }
+    }
+}
+echo $odd, " odd answers\n";
+
+// 2. A value is compared with itself, and with a copy read back from its own text.
+int $same = 0;
+foreach ($edges as Core\Time\Instant $each) {
+    $same = $same + $each->compareTo($each) + $each->compareTo(Core\Time::fromIso($each->toIso()));
+}
+echo $same, "\n";
+
+// 3. One million new instants are built and compared. Each one is freed again.
+int $round = 0;
+int $total = 0;
+while ($round < 1000000) {
+    Core\Time\Instant $at = Core\Time::fromEpoch($round * 250000, { nanos: (($round * 7919) % 1000000000) as uint });
+    $total = $total + $at->compareTo($edges[($round % 7) as uint]);
+    $round = $round + 1;
+}
+echo $total, "\n";

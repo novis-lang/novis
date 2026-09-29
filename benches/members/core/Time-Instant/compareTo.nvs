@@ -1,0 +1,26 @@
+<?nvs
+// Compares two instants, as a program does when it checks whether a token has expired.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Core\Time\Instant> $sent = [
+            Core\Time::fromEpoch(1709293500),
+            Core\Time::fromEpoch(1709294400),
+            Core\Time::fromEpoch(1709294400, {nanos: 1}),
+            Core\Time::fromEpoch(1709286600),
+        ];
+        Core\Time\Instant $now = Core\Time::fromEpoch(1709294400);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the instant is picked with last round's total
+            $total = $total + 2 + $sent[$total % 4]->compareTo($now);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
