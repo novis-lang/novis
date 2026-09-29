@@ -2,6 +2,7 @@
 Spec § 4, `rule:classes/comparable`: `Core\Time\Date::compareTo` is a total order, asserted by counting the laws over a table rather than reading a row — trichotomy, antisymmetry over 144 pairs and transitivity over 1,728 triples — that the order is year before month before day and not any other precedence, that it is not the order its own rendering sorts under, and that `Core\Arr::sort` reaches it from a comparator that never asks it
 --FILE--
 <?nvs
+// covers: Core\Time\Date::compareTo, Core\Time\Date::format
 // `rule:classes/comparable` makes `compareTo` the one order a value has, and § 4 gives a civil
 // date exactly one. A row-by-row case cannot tell a total order from a member
 // that answers plausibly: the laws are statements about *triples* and about

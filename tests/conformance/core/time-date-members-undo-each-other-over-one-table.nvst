@@ -2,6 +2,7 @@
 Spec § 4: `Core\Time\Date`'s six members agree over one table of dates — `at` and `format` are inverses, a step undoes itself except where a month clamps, `with` is the identity on the parts `format` just read, and `compareTo` is the table's own order
 --FILE--
 <?nvs
+// covers: Core\Time\Date::plus, Core\Time\Date::minus, Core\Time\Date::with, Core\Time\Date::compareTo, Core\Time\Date::format
 // § 4: one table, in calendar order, carrying every civil boundary a date
 // member can be wrong about — the two century rules (1900 is not a leap year,
 // 2000 and 2400 are), a month end that a step has to clamp, and a year on

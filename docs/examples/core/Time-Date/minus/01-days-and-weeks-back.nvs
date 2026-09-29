@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to move a date back by days and by weeks.
+
+var $due = Core\Time\Date::at(2024, 3, 10);
+
+// `minus` returns a new date that is 7 days earlier. This prints 2024-03-03.
+echo $due->minus(7, Core\Unit::Day)->format("yyyy-MM-dd"), "\n";
+
+// A step can go back past the start of a month or a year.
+// Three weeks before 21 January 2024 is 2023-12-31.
+echo Core\Time\Date::at(2024, 1, 21)->minus(3, Core\Unit::Week)->format("yyyy-MM-dd"), "\n";
+
+// `minus` does not change the date it is called on. This prints 2024-03-10.
+echo $due->format("yyyy-MM-dd"), "\n";

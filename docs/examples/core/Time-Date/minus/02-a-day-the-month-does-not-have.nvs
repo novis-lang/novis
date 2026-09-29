@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `minus` does when the day does not exist in the month it reaches.
+
+// March has 31 days, but February 2024 has only 29.
+// The result is the last day of February. This prints 2024-02-29.
+echo Core\Time\Date::at(2024, 3, 31)->minus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
+
+// 29 February exists only in a leap year. One year earlier, the result is 28 February.
+// This prints 2023-02-28.
+echo Core\Time\Date::at(2024, 2, 29)->minus(1, Core\Unit::Year)->format("yyyy-MM-dd"), "\n";
+
+// A date has no time of day, so `Core\Unit::Hour` throws a `LogicError`.
+try {
+    Core\Time\Date::at(2024, 3, 31)->minus(12, Core\Unit::Hour);
+} catch (LogicError $error) {
+    echo "Not allowed: ", $error->message, "\n";
+}

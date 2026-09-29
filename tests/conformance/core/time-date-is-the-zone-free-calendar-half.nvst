@@ -2,6 +2,7 @@
 Spec § 4: `Core\Time\Date` is the zone-free calendar half, and `$d->date()` is the component view
 --FILE--
 <?nvs
+// covers: Core\Time\Date::plus, Core\Time\Date::minus, Core\Time\Date::with, Core\Time\Date::compareTo, Core\Time\Date::format
 // `Date::at` is the constructor, and a date that does not exist throws where
 // it is built — which is § 4's stated reason there is no `checkdate`.
 var $leap = Core\Time\Date::at(2024, 2, 29);

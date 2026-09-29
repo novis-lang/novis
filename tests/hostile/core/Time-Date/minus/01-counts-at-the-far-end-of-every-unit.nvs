@@ -1,0 +1,38 @@
+<?nvs
+// Attack: `minus` gets the largest and smallest counts in every unit, and steps back past the first day of the calendar.
+// Each bad call should throw an error, and the long loop at the end should finish without a leak.
+
+var $start = Core\Time\Date::at(2024, 3, 31);
+var $first = Core\Time\Date::at(-9999, 1, 1);
+array<Core\Unit> $calendar = [Core\Unit::Day, Core\Unit::Week, Core\Unit::Month, Core\Unit::Quarter, Core\Unit::Year];
+array<Core\Unit> $clock = [Core\Unit::Nanosecond, Core\Unit::Microsecond, Core\Unit::Millisecond, Core\Unit::Second, Core\Unit::Minute, Core\Unit::Hour];
+int $refused = 0;
+
+foreach ($calendar as Core\Unit $unit) {
+    // 1. The largest and the smallest whole number as the count.
+    try { $start->minus(9223372036854775807, $unit); } catch (RuntimeError $high) { $refused = $refused + 1; }
+    try { $start->minus(-9223372036854775807 - 1, $unit); } catch (RuntimeError $low) { $refused = $refused + 1; }
+    // 2. One step back from the first day the calendar has.
+    try { $first->minus(1, $unit); } catch (RuntimeError $past) { $refused = $refused + 1; }
+}
+echo $refused, " refused\n";
+
+// 3. Every unit smaller than a day, with the largest count.
+int $notAllowed = 0;
+foreach ($clock as Core\Unit $unit) {
+    try { $start->minus(9223372036854775807, $unit); } catch (LogicError $small) { $notAllowed = $notAllowed + 1; }
+}
+echo $notAllowed, " not allowed\n";
+
+// 4. Walk back one year at a time from the last day of year 9999 until the calendar ends.
+// Every date on the way is freed, and the last step throws.
+var $date = Core\Time\Date::at(9999, 12, 31);
+int $steps = 0;
+try {
+    while (true) {
+        $date = $date->minus(1, Core\Unit::Year);
+        $steps = $steps + 1;
+    }
+} catch (RuntimeError $end) {
+    echo $steps, ' steps back to ', $date->format('yyyy-MM-dd'), "\n";
+}
