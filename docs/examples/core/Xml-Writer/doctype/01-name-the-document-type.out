@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE note>
+<note>Call the supplier on Monday.</note>
+Core\Xml::parse(): a document type declaration is not read at all — no entity is resolved from an external subset, from an internal subset or from the network, so there is nothing a `<!DOCTYPE …>` could mean here.

@@ -21583,16 +21583,16 @@ Writes text inside the open element as a CDATA section, such as `<![CDATA[a < b]
 $writer->instruction(string $target, string $data): void
 ```
 
-Writes a processing instruction, as one call: it is a target and its data, both text, with nothing to nest inside it.
+Writes a processing instruction, such as `<?xml-stylesheet href="a.css"?>`. It is a note for the program that reads the document. It has a target and data, and nothing goes inside it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$target` | `string` (launder) | What the instruction is addressed to. `xml` in any casing is refused, because that target is the XML declaration `startDocument` already wrote. |
-| `$data` | `string` (launder) | The instruction's data, written as it stands — an instruction has no escape grammar, so a `?>` inside it is refused. The empty string writes the target alone. |
+| `$target` | `string` (launder) | The name of the program or purpose the instruction is for. It must be an XML name. It cannot be `xml` in any casing, because `startDocument` already writes that one. |
+| `$data` | `string` (launder) | The instruction's data. It is written unchanged, because XML cannot escape anything inside an instruction. It cannot contain `?>`. When it is `""`, only the target is written. |
 
-**Returns** `void` — Nothing; the instruction is written where the writer stands.
+**Returns** `void` — Nothing. The instruction is written at the place the writer has reached.
 
-**Throws** `LogicError` — The target is not a name XML can write or is `xml`, the data holds `?>` or a character XML cannot write, or the document is not open.
+**Throws** `LogicError` — The target is not an XML name, or it is `xml`. The data contains `?>`. The data contains a control character that XML cannot write. The document is not open.
 
 <a id="core-core-xml-writer-doctype"></a>
 #### `Core\Xml\Writer->doctype`
@@ -21601,15 +21601,15 @@ Writes a processing instruction, as one call: it is a target and its data, both 
 $writer->doctype(string $name): void
 ```
 
-Writes a document type declaration naming `$name`, before the root element. Naming a document type is not resolving one: this takes no external identifier and no internal subset, so nothing it writes declares an entity or points at one. It is written for a reader outside Novis, because `Core\Xml::parse` and `Core\Xml::reader` refuse a `<!DOCTYPE …>` whole — a document carrying one is the one thing this class writes and will not read back.
+Writes a document type declaration, such as `<!DOCTYPE html>`, before the root element. It writes only the name. It does not write a link to a DTD file or any entity definitions. The declaration is for programs outside Novis. `Core\Xml::parse` and `Core\Xml::reader` throw an error for any document that contains `<!DOCTYPE`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (launder) | The document type's name, which is the root element's name in every document that a validator would accept. |
+| `$name` | `string` (launder) | The name of the document type. It must be an XML name. Usually it is the name of the root element. |
 
-**Returns** `void` — Nothing; the declaration is written above the root element.
+**Returns** `void` — Nothing. The declaration is written before the root element.
 
-**Throws** `LogicError` — The root element is already open or written, the name is not a name XML can write, or the document is not open.
+**Throws** `LogicError` — The root element is already started. A declaration is already written. The name is not an XML name. The document is not open.
 
 <a id="core-core-compress"></a>
 ### `Core\Compress`

@@ -1,0 +1,36 @@
+--TEST--
+A writer writes one document type declaration above the root element, and refuses a second one and a late one without writing a byte — `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+// covers: Core\Xml\Writer::doctype
+// A prolog carries at most one declaration, so a second call would leave a
+// document no parser accepts. A comment before it and one between it and
+// the root are both allowed.
+Core\Xml\Writer $w = Core\Xml::writer();
+$w->startDocument();
+$w->comment("first");
+$w->doctype("html");
+try {
+    $w->doctype("html");
+} catch (LogicError $twice) {
+    echo $twice->message, "\n";
+}
+try {
+    $w->doctype("other");
+} catch (LogicError $other) {
+    echo $other->message, "\n";
+}
+$w->comment("second");
+$w->startElement("html");
+$w->endElement();
+try {
+    $w->doctype("html");
+} catch (LogicError $late) {
+    echo $late->message, "\n";
+}
+echo $w->endDocument(), "\n";
+--EXPECT--
+Core\Xml\Writer::doctype(): a document has at most one document type declaration, and one is already written.
+Core\Xml\Writer::doctype(): a document has at most one document type declaration, and one is already written.
+Core\Xml\Writer::doctype(): a document type declaration goes above the root element, and the root element is already written.
+<?xml version="1.0" encoding="UTF-8"?><!--first--><!DOCTYPE html><!--second--><html/>

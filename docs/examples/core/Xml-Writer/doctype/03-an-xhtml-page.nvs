@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to write an XHTML page that a browser shows in standards mode.
+
+array<string> $items = ["Green tea", "Black tea", "Herbal tea"];
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+// A browser reads `<!DOCTYPE html>` and uses its standards mode for the page.
+$writer->doctype("html");
+$writer->startElement("html");
+$writer->attribute("xmlns", "http://www.w3.org/1999/xhtml");
+
+$writer->startElement("head");
+$writer->startElement("title");
+$writer->content("Our teas");
+$writer->endElement();
+$writer->endElement();
+
+$writer->startElement("body");
+$writer->startElement("ul");
+foreach ($items as string $item) {
+    $writer->startElement("li");
+    $writer->content($item);
+    $writer->endElement();
+}
+$writer->endElement();
+$writer->endElement();
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

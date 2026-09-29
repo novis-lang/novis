@@ -1,0 +1,21 @@
+<?nvs
+// Starts a document and writes its document type declaration, as a program does before it writes an XHTML page.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["html", "svg", "note"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Xml\Writer $writer = Core\Xml::writer();
+            $writer->startDocument();
+            $writer->doctype($names[(($total + $i) % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

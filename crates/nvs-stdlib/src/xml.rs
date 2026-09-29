@@ -760,6 +760,7 @@ pub(crate) const WRITER: CoreClass = CoreClass {
         "mixed",
         "state",
         "rooted",
+        "typed",
     ],
     constants: &[],
 };
@@ -963,50 +964,50 @@ const CDATA_DOC: MethodDoc = MethodDoc {
 /// `Core\Xml\Writer::instruction`'s reference card —
 /// `rule:core-api/reference-card`.
 const INSTRUCTION_DOC: MethodDoc = MethodDoc {
-    short: "Writes a processing instruction, as one call: it is a target and its data, both text, \
-            with nothing to nest inside it.",
+    short: "Writes a processing instruction, such as `<?xml-stylesheet href=\"a.css\"?>`. It is a \
+            note for the program that reads the document. It has a target and data, and nothing \
+            goes inside it.",
     params: &[
         ParamDoc {
             name: "target",
-            desc: "What the instruction is addressed to. `xml` in any casing is refused, because \
-                   that target is the XML declaration `startDocument` already wrote.",
+            desc: "The name of the program or purpose the instruction is for. It must be an XML \
+                   name. It cannot be `xml` in any casing, because `startDocument` already writes \
+                   that one.",
             shape: &[],
         },
         ParamDoc {
             name: "data",
-            desc: "The instruction's data, written as it stands — an instruction has no escape \
-                   grammar, so a `?>` inside it is refused. The empty string writes the target \
-                   alone.",
+            desc: "The instruction's data. It is written unchanged, because XML cannot escape \
+                   anything inside an instruction. It cannot contain `?>`. When it is `\"\"`, only \
+                   the target is written.",
             shape: &[],
         },
     ],
-    ret: "Nothing; the instruction is written where the writer stands.",
+    ret: "Nothing. The instruction is written at the place the writer has reached.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The target is not a name XML can write or is `xml`, the data holds `?>` or a \
-               character XML cannot write, or the document is not open.",
+        desc: "The target is not an XML name, or it is `xml`. The data contains `?>`. The data \
+               contains a control character that XML cannot write. The document is not open.",
     }],
 };
 
 /// `Core\Xml\Writer::doctype`'s reference card — `rule:core-api/reference-card`.
 const DOCTYPE_DOC: MethodDoc = MethodDoc {
-    short: "Writes a document type declaration naming `$name`, before the root element. Naming a \
-            document type is not resolving one: this takes no external identifier and no internal \
-            subset, so nothing it writes declares an entity or points at one. It is written for a \
-            reader outside Novis, because `Core\\Xml::parse` and `Core\\Xml::reader` refuse a \
-            `<!DOCTYPE …>` whole — a document carrying one is the one thing this class writes and \
-            will not read back.",
+    short: "Writes a document type declaration, such as `<!DOCTYPE html>`, before the root \
+            element. It writes only the name. It does not write a link to a DTD file or any entity \
+            definitions. The declaration is for programs outside Novis. `Core\\Xml::parse` and \
+            `Core\\Xml::reader` throw an error for any document that contains `<!DOCTYPE`.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The document type's name, which is the root element's name in every document that \
-               a validator would accept.",
+        desc: "The name of the document type. It must be an XML name. Usually it is the name of \
+               the root element.",
         shape: &[],
     }],
-    ret: "Nothing; the declaration is written above the root element.",
+    ret: "Nothing. The declaration is written before the root element.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The root element is already open or written, the name is not a name XML can write, \
-               or the document is not open.",
+        desc: "The root element is already started. A declaration is already written. The name \
+               is not an XML name. The document is not open.",
     }],
 };
 
@@ -1028,8 +1029,10 @@ const INDENT_SLOT: usize = 5;
 const MIXED_SLOT: usize = 6;
 /// … which of [`BEFORE`], [`WRITING`] and [`FINISHED`] the writer is in …
 const STATE_SLOT: usize = 7;
-/// … and whether the root element has been written.
+/// … whether the root element has been written …
 const ROOT_SLOT: usize = 8;
+/// … and whether the document type declaration has been written.
+const DOCTYPE_SLOT: usize = 9;
 
 /// [`STATE_SLOT`] before `startDocument`, when the writer holds nothing.
 const BEFORE: usize = 0;
@@ -3348,7 +3351,8 @@ fn instruction(receiver: Value, target: &str, data: &str) -> Result<Value, Fault
 ///
 /// # Errors
 ///
-/// A `LogicError` once the root element is written, for a name a document
+/// A `LogicError` once the root element is written, once a declaration is
+/// already written (a document carries at most one), for a name a document
 /// cannot carry, and for a document that is not open.
 fn doctype(receiver: Value, name: &str) -> Result<Value, Fault> {
     let pen = Pen::of(receiver, "doctype")?;
@@ -3359,6 +3363,11 @@ fn doctype(receiver: Value, name: &str) -> Result<Value, Fault> {
              already written",
         );
     }
+    if pen.flag(DOCTYPE_SLOT)? {
+        return pen.refuse(
+            "a document has at most one document type declaration, and one is already written",
+        );
+    }
     if !is_name(name) {
         return pen.refuse(&format!("`{name}` is not a name a document can write"));
     }
@@ -3366,6 +3375,7 @@ fn doctype(receiver: Value, name: &str) -> Result<Value, Fault> {
     pen.emit("<!DOCTYPE ")?;
     pen.emit(name)?;
     pen.emit(">")?;
+    pen.set_flag(DOCTYPE_SLOT, true);
     Ok(Value::null())
 }
 
@@ -3422,6 +3432,7 @@ nvs_runtime::nvs_helper! {
                 Value::str(NvsStr::new(indent.as_bytes())),
                 counted(0),
                 counted(BEFORE),
+                Value::bool(false),
                 Value::bool(false),
             ],
         ))
@@ -4860,6 +4871,163 @@ mod tests {
 
         dropped(document);
         for held in texts.into_iter().chain([a, b, c, writer]) {
+            dropped(held);
+        }
+    }
+
+    /// An instruction is written beside the root and inside an element, and
+    /// parses back as the target and data it was given; empty data writes the
+    /// target alone. The declaration's target in any casing, a target that is
+    /// not a name and data holding `?>` are refused and write nothing, while
+    /// data ending in a bare `?` is accepted and survives the round trip.
+    // covers: Core\Xml\Writer::instruction
+    #[test]
+    fn instructions_parse_back_as_written_and_refuse_what_would_end_them() {
+        let instruction = super::nvs_core_xml_writer_instruction;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "  ");
+        let words: Vec<Value> = [
+            "app", "v=\"2\"", "go", "", "q", "a?", "XmL", "1a", "a b", "x ?> y",
+        ]
+        .into_iter()
+        .map(word)
+        .collect();
+        let [
+            app,
+            v2,
+            go,
+            empty,
+            q,
+            ends_in_mark,
+            declaration,
+            digit,
+            spaced,
+            closes,
+        ] = words[..]
+        else {
+            unreachable!("ten words were built");
+        };
+
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+        wrote(asked(&mut ctx, instruction, &[writer, app, v2]));
+        for (target, data, reason) in [
+            (declaration, empty, "declaration's own target"),
+            (digit, go, "not a name"),
+            (spaced, go, "not a name"),
+            (app, closes, "cannot hold `?>`"),
+        ] {
+            let why = asked(&mut ctx, instruction, &[writer, target, data])
+                .expect_err("that instruction cannot be written");
+            assert!(why.contains(reason), "{why}");
+        }
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_element,
+            &[writer, app],
+        ));
+        wrote(asked(&mut ctx, instruction, &[writer, go, empty]));
+        wrote(asked(&mut ctx, instruction, &[writer, q, ends_in_mark]));
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_end_element,
+            &[writer],
+        ));
+
+        let document = asked(&mut ctx, super::nvs_core_xml_writer_end_document, &[writer])
+            .expect("the root element is written and closed");
+        let text = document.as_text().expect("a finished document is text");
+        assert_eq!(
+            text,
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<?app v=\"2\"?>\n<app>\n  <?go?>\n  \
+             <?q a??>\n</app>"
+        );
+        let tree = parse(text).expect("what the writer answered is a document");
+        assert_eq!(
+            (
+                tree.children[0].name.as_str(),
+                tree.children[0].text.as_str()
+            ),
+            ("app", "v=\"2\"")
+        );
+        let inside: Vec<(&str, &str)> = tree.children[1]
+            .children
+            .iter()
+            .filter(|node| node.kind == Kind::ProcessingInstruction)
+            .map(|node| (node.name.as_str(), node.text.as_str()))
+            .collect();
+        assert_eq!(inside, [("go", ""), ("q", "a?")]);
+
+        dropped(document);
+        for held in words.into_iter().chain([writer]) {
+            dropped(held);
+        }
+    }
+
+    /// A declaration is written once, above the root element, after a comment
+    /// if one came first. A second declaration, one after the root element
+    /// has started and a name that is not a name are refused and write
+    /// nothing, so the prolog holds exactly one `<!DOCTYPE`.
+    // covers: Core\Xml\Writer::doctype
+    #[test]
+    fn a_doctype_is_written_once_above_the_root_and_refused_after_either() {
+        let doctype = super::nvs_core_xml_writer_doctype;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "  ");
+        let words: Vec<Value> = ["html", "other", "1st", "a b", "c"]
+            .into_iter()
+            .map(word)
+            .collect();
+        let [html, other, digit, spaced, remark] = words[..] else {
+            unreachable!("five words were built");
+        };
+
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+        for bad in [digit, spaced] {
+            let why = asked(&mut ctx, doctype, &[writer, bad]).expect_err("not a name");
+            assert!(why.contains("not a name"), "{why}");
+        }
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_comment,
+            &[writer, remark],
+        ));
+        wrote(asked(&mut ctx, doctype, &[writer, html]));
+        for again in [html, other] {
+            let why = asked(&mut ctx, doctype, &[writer, again]).expect_err("one is written");
+            assert!(why.contains("at most one"), "{why}");
+        }
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_element,
+            &[writer, html],
+        ));
+        let why = asked(&mut ctx, doctype, &[writer, html]).expect_err("the root has started");
+        assert!(why.contains("root element is already written"), "{why}");
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_end_element,
+            &[writer],
+        ));
+
+        let document = asked(&mut ctx, super::nvs_core_xml_writer_end_document, &[writer])
+            .expect("the root element is written and closed");
+        assert_eq!(
+            document.as_text().expect("a finished document is text"),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--c-->\n<!DOCTYPE html>\n<html/>"
+        );
+
+        dropped(document);
+        for held in words.into_iter().chain([writer]) {
             dropped(held);
         }
     }

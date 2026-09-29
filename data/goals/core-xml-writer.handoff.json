@@ -1,23 +1,26 @@
 {
-  "state": "Goal `core-xml-writer`: `Core\\Xml\\Writer::attribute`, `comment` and `cdata` have all their feature proofs, and their cards (`ATTRIBUTE_DOC`, `COMMENT_DOC`, `CDATA_DOC` in `crates/nvs-stdlib/src/xml.rs`) are in plain words. `Core\\Xml`, `Core\\Xml\\Node` and `Core\\Xml\\Reader` pass `bun nv proofs --verify` again: their perf records were re-measured after `xml.rs` moved.\nSeven Writer members still owe examples, hostile, perf and a Rust test: `startDocument`, `endDocument`, `startElement`, `endElement`, `content`, `instruction`, `doctype`.\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands: keep writer attacks and benches under about 500,000 pieces, or mark them with that gap.\nAny later edit to `xml.rs` code stales the whole `Core\\Xml*` perf set again: finish with `bun nv proofs --record-perf --group 'Core\\Xml' --group 'Core\\Xml\\Node' --group 'Core\\Xml\\Reader' --group 'Core\\Xml\\Writer'`.\n`Core\\Xml\\Node::text` returns `\"\"` for an element (its text is in its text children), so an example reads `->children()[0]->text()`.",
+  "state": "Goal `core-xml-writer`: `attribute`, `comment`, `cdata`, `instruction` and `doctype` of `Core\\Xml\\Writer` have all their feature proofs, and their cards in `crates/nvs-stdlib/src/xml.rs` are in plain words.\n`doctype` now refuses a second declaration (new writer slot `typed`, `DOCTYPE_SLOT`), pinned by `tests/conformance/core/xml-a-writer-writes-at-most-one-document-type-declaration.nvst`.\nFive Writer members still owe examples, hostile, perf and a Rust test: `startDocument`, `endDocument`, `startElement`, `endElement`, `content`.\nGap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece` still stands: keep writer attacks and benches under about 500,000 pieces, or mark them with that gap.\nAny later edit to `xml.rs` code stales the whole `Core\\Xml*` perf set again: finish with `bun nv proofs --record-perf --group 'Core\\Xml' --group 'Core\\Xml\\Node' --group 'Core\\Xml\\Reader' --group 'Core\\Xml\\Writer'`.\n`bun nv try` runs the pipeline's `covws` binary, which does not have a fix made this session; run it with `NVS_BIN=target/debug/nvs.exe` after `cargo build --bin nvs`, and bless the same way.",
   "next": {
     "stage": 1,
     "title": "member proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` (the cards near `INSTRUCTION_DOC`, the bodies near `fn instruction`, the writer tests after `cdata_parses_back_unchanged_and_refuses_what_would_end_it`), plus the proof trees under `core/Xml-Writer/<member>`.",
+    "note": "one file set: `crates/nvs-stdlib/src/xml.rs` (the cards near `CONTENT_DOC`, the bodies near `fn content`, the writer tests after `a_doctype_is_written_once_above_the_root_and_refused_after_either`), plus the proof trees under `core/Xml-Writer/<member>`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Xml\\Writer::instruction`** — owes about.md, examples, hostile, perf, tests; rewrite `INSTRUCTION_DOC` in plain words. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3320` (body), `crates/nvs-stdlib/src/xml.rs:965` (card)"
+        "text": "**`Core\\Xml\\Writer::content`** — owes about.md, examples, hostile, perf, a Rust test; rewrite `CONTENT_DOC` in plain words. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3215` (body), `crates/nvs-stdlib/src/xml.rs:876` (card)"
       },
       {
         "done": false,
-        "text": "**`Core\\Xml\\Writer::doctype`** — the same proofs; rewrite `DOCTYPE_DOC`. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3353` (body), `crates/nvs-stdlib/src/xml.rs:992` (card)"
+        "text": "**`Core\\Xml\\Writer::startElement` and `endElement`** — the same proofs, one pair of cards. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3142` (`start_element`), `crates/nvs-stdlib/src/xml.rs:3185` (`end_element`), `crates/nvs-stdlib/src/xml.rs:841` (card)"
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Xml\\Writer::startDocument` and `endDocument`** — the same proofs. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/xml.rs:3086` (`start_document`), `crates/nvs-stdlib/src/xml.rs:3105` (`end_document`), `crates/nvs-stdlib/src/xml.rs:809` (card)"
       }
     ]
   },
   "backlog": [
-    "`startDocument`, `endDocument`, `startElement`, `endElement`, `content` owe the same four proofs — this goal, `rule:testing/feature-proofs`.",
-    "The writer's refusal messages still say \"has no escape grammar\" and \"a document has no way to write\"; they are printed in the `comment` and `cdata` examples' `.out` files. A plainer sentence changes those files and the `.nvst` case that pins it — `crates/nvs-stdlib/src/xml.rs` module doc."
+    "A processing instruction's data that starts with whitespace loses it on the way back through `Core\\Xml::parse`, as XML's grammar says (`crates/nvs-stdlib/src/xml.rs` `processing_instruction`); no card says so yet."
   ]
 }
