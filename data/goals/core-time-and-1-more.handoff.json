@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-time-and-1-more`: `Core\\Time::at` has all its feature proofs — `about.md`, three examples, one attack, one bench with a recorded figure, a Rust test and a `.nvst` case — and `Core\\Time` now has its class card (`TIME_CARD` in `crates/nvs-stdlib/src/time.rs`, struck from `CLASSES_STILL_OWING_A_CARD`).\nThe attack found that `at` threw jiff's own overflow sentence for a time past the timestamp range (`9999-12-31` in UTC, though the card said any year up to 9999 worked). It now throws `Core\\Time::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`, and the card names that range.\n`fromEpoch` and `fromIso` are untaken, and live in the same file.",
+  "state": "Goal `core-time-and-1-more`: `Core\\Time::at`, `fromEpoch` and `fromIso` have all their feature proofs — `about.md`, three examples, one attack, one bench with a recorded figure, a Rust test with its `covers:` marker and a `.nvst` case — and `Core\\Time` has its class card (`TIME_CARD` in `crates/nvs-stdlib/src/time.rs`).\n`fromEpoch` and `fromIso` both threw jiff's own sentence for a time past the timestamp range. Each now throws a plain sentence naming the range: `fromEpoch` in seconds (`RuntimeError`), `fromIso` in the same `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z` sentence `at` uses (`ParseError`, like every other `fromIso` refusal). A `fromIso` text that is not written as a timestamp still gets jiff's sentence, on purpose (the member's doc comment says why).\n`Core\\Time::parse` and `Core\\Time::sleep` are untaken, and live in the same file.",
   "next": {
     "stage": 1,
     "title": "the `Core\\Time` entry points",
@@ -8,16 +8,16 @@
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Time::fromEpoch`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). Row at `crates/nvs-stdlib/src/time.rs:2137`, card `TIME_FROM_EPOCH_DOC` at `crates/nvs-stdlib/src/time.rs:2259`. The attack should push `seconds` to both ends of the range the card calls \"about ±9999 years\": check that the refusal is a plain sentence and does not quote jiff, the way `at`'s did. `built_at` in `mod tests` is the shape for a Rust test that calls a member directly."
+        "text": "**`Core\\Time::parse`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). Row at `crates/nvs-stdlib/src/time.rs:2163`, card `TIME_PARSE_DOC` at `crates/nvs-stdlib/src/time.rs:2306`, body at `crates/nvs-stdlib/src/time.rs:4403`. Its `$format` is a `Qual::Sink` CLDR pattern, so the attack should give it a hostile pattern (very long, every field letter, unbalanced quotes) as well as a text past the range; check that a range failure is a plain sentence, the way `at`, `fromEpoch` and `fromIso` now are. `built_from_iso` in `mod tests` is the shape for a Rust test that passes a string argument."
       },
       {
         "done": false,
-        "text": "**`Core\\Time::fromIso`** — owes examples, hostile, perf, tests (`rule:testing/feature-proofs`). Row at `crates/nvs-stdlib/src/time.rs:2153`, card `TIME_FROM_ISO_DOC` at `crates/nvs-stdlib/src/time.rs:2285`. Its `ParseError` is thrown with a message. From Rust, assert `is_err()` if `take_pending` gives `\"\"` (playbook: `thrown_with_issues`)."
+        "text": "**`Core\\Time::sleep`** — owes examples, hostile, perf, tests. Card `TIME_SLEEP_DOC` at `crates/nvs-stdlib/src/time.rs:2245`, body at `crates/nvs-stdlib/src/time.rs:3553`. A bench of a member whose whole job is waiting measures the clock, not the member: decide between a bench of `sleep(0s)` and a `data/proofs/policy.json` skip with its reason, and say which in the commit."
       }
     ]
   },
   "backlog": [
-    "`Core\\Time::at`'s refusal for a date that does not exist still quotes jiff's wording (`parameter 'day' for `2023-02` is invalid, must be in range `1..=28``), and `docs/examples/core/Time/at/02-a-date-that-does-not-exist.out` pins it. It is readable, but it is not the member's own sentence — owner: goal `plain-comments` if it sweeps messages, otherwise `crates/nvs-stdlib/src/time.rs`'s module doc.",
-    "`Core\\Time\\Date`, `DateTime`, `Duration`, `Instant`, `TimeOfDay` and `Zone` still owe class cards (`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`) — goal `core-class-cards`."
+    "`Core\\Time\\Date::minus`, `with`, `compareTo` and the `Core\\Time\\Date` class card (`CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283`) — the goal's second class, after the `Core\\Time` entry points.",
+    "`fromIso` accepts an offset up to `±25:59`, which is jiff's bound; RFC 3339 allows only `±23:59`. The card says RFC 3339. Not a safety problem; owner is the `Core\\Time` module doc if anybody tightens it."
   ]
 }

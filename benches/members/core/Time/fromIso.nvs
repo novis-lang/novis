@@ -1,0 +1,19 @@
+<?nvs
+// Reads a timestamp written as text, as a program does with a time it gets from a web service.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $texts = ["2024-06-01T09:30:00Z", "2024-06-01T11:30:00.250+02:00", "2024-05-31T23:59:59-05:00"];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the text is picked by last round's total
+            $total = $total + 1 + Core\Time::fromIso($texts[$total % 3])->toEpochSeconds() % 1000;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

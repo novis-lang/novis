@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read a date and time that is written with an offset from UTC.
+
+// `+02:00` means the clock was two hours ahead of UTC. `toIso` prints the moment in UTC.
+// This prints 2024-06-01T07:30:00Z.
+var $local = Core\Time::fromIso("2024-06-01T09:30:00+02:00");
+echo $local->toIso(), "\n";
+
+// The same moment written in UTC is an equal instant, so `compareTo` returns 0.
+var $utc = Core\Time::fromIso("2024-06-01T07:30:00Z");
+echo $local->compareTo($utc), "\n";

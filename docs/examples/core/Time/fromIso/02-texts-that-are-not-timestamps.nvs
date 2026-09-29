@@ -1,0 +1,13 @@
+<?nvs
+// Shows what happens when a text is not a complete, valid timestamp.
+
+// The second text has no offset. The third has a day that does not exist.
+// Both throw a `ParseError`, and its message says which part is wrong.
+array<string> $inputs = ["2024-06-01T09:30:00Z", "2024-06-01T09:30:00", "2024-02-30T09:30:00Z"];
+foreach ($inputs as string $text) {
+    try {
+        echo Core\Time::fromIso($text)->toIso(), "\n";
+    } catch (ParseError $error) {
+        echo "not a timestamp: ", $text, "\n";
+    }
+}

@@ -12411,7 +12411,7 @@ Builds the instant at a Unix timestamp, replacing `DateTime::setTimestamp`; the 
 
 **Returns** `Core\Time\Instant` — The `Instant`.
 
-**Throws** `RuntimeError` — `nanos` is not below `1000000000`, or `$seconds` lies outside the representable range, about ±9999 years.
+**Throws** `RuntimeError` — `nanos` is not below `1000000000`, or `$seconds` is outside `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to `9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-fromiso"></a>
 #### `Core\Time::fromIso`
@@ -12428,7 +12428,7 @@ Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — `2024-03-
 
 **Returns** `Core\Time\Instant` — The `Instant` the text names.
 
-**Throws** `ParseError` — `$text` is not such a timestamp, with the component it stopped at named.
+**Throws** `ParseError` — `$text` is not such a timestamp, with the component it stopped at named. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-parse"></a>
 #### `Core\Time::parse`

@@ -143,6 +143,7 @@ use std::sync::OnceLock;
 use std::time::SystemTime;
 
 use jiff::civil::{self, Weekday};
+use jiff::fmt::temporal::Pieces;
 use jiff::tz::{Offset, TimeZone};
 use jiff::{SignedDuration, Timestamp, Zoned};
 use nvs_runtime::host::Woken;
@@ -2296,7 +2297,8 @@ const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
     ret: "The `Instant` the text names.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "`$text` is not such a timestamp, with the component it stopped at named.",
+        desc: "`$text` is not such a timestamp, with the component it stopped at named. It is \
+               also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
     }],
 };
 
@@ -3620,15 +3622,25 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_time_parse`] splits its two classes by: this member's one
     /// argument is text, which arrives from somewhere else, so a text that
     /// does not spell a timestamp is the input's failure and not the call
-    /// site's. The sentence past the member's own name is `jiff`'s, since it
-    /// says which component it stopped at and nothing here could say it
-    /// better.
+    /// site's. For a text that is not written as a timestamp, the sentence
+    /// past the member's own name is `jiff`'s, since it says which component
+    /// it stopped at and nothing here could say it better. A text that is
+    /// written as one — a date, a time and an offset all read — and still
+    /// fails names a time past either end of the timestamp range, and throws
+    /// the range in the sentence [`nvs_core_time_at`] uses for the same bound.
     fn nvs_core_time_from_iso(_ctx, args: [1]) {
         let text = text_of(args, 0, "Core\\Time::fromIso")?;
         text.parse::<Timestamp>()
             .map(instant_built)
             .map_err(|err| {
-                Fault::thrown_as(ThrownClass::Parse, format!("Core\\Time::fromIso(): {err}"))
+                let written_as_one = Pieces::parse(text.as_bytes())
+                    .is_ok_and(|read| read.time().is_some() && read.offset().is_some());
+                let why = if written_as_one {
+                    "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z".to_owned()
+                } else {
+                    err.to_string()
+                };
+                Fault::thrown_as(ThrownClass::Parse, format!("Core\\Time::fromIso(): {why}"))
             })
     }
 }
@@ -5245,8 +5257,9 @@ mod tests {
             built_from_epoch(1_700_000_000, 0),
             Ok((second_of("2023-11-14T22:13:20Z"), 0))
         );
-        // One nanosecond after `-1` is still inside second `-1`.
-        assert_eq!(built_from_epoch(-1, 1), Ok((-1, 1)));
+        // One nanosecond after `-1` is `-0.999999999`. The instant keeps its
+        // two slots at one sign, so that is second `0` and nanos `-999999999`.
+        assert_eq!(built_from_epoch(-1, 1), Ok((0, -999_999_999)));
         assert_eq!(
             built_from_epoch(253_402_207_200, 999_999_999),
             Ok((253_402_207_200, 999_999_999))
@@ -5265,6 +5278,82 @@ mod tests {
                 built_from_epoch(0, nanos),
                 Err(r"Core\Time::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000".to_owned())
             );
+        }
+    }
+
+    /// `Core\Time::fromIso` called the way a compiled call site calls it. It
+    /// answers the built `Instant`'s seconds and nanoseconds, or the sentence it
+    /// threw.
+    fn built_from_iso(text: &str) -> Result<(i64, i64), String> {
+        let mut ctx = Ctx::buffered();
+        let args = [Value::str(NvsStr::new(text.as_bytes()))];
+        let answer = match nvs_runtime::call(nvs_core_time_from_iso, &mut ctx, &args) {
+            Ok(built) => {
+                let held = crate::instance::receiver(built, &INSTANT, "test")
+                    .expect("`fromIso` answers an `Instant`");
+                let read = (
+                    crate::instance::slot(held, INSTANT_SECONDS_SLOT)
+                        .as_int()
+                        .expect("the seconds slot is an int"),
+                    crate::instance::slot(held, INSTANT_NANOS_SLOT)
+                        .as_int()
+                        .expect("the nanos slot is an int"),
+                );
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns the `Instant` the member answered"
+                )]
+                unsafe {
+                    built.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// `fromIso` applies the offset, keeps the fraction, accepts the last
+    /// instant of the range, and throws a time past either end in its own
+    /// sentence while a text that is not a timestamp keeps `jiff`'s.
+    // covers: Core\Time::fromIso
+    #[test]
+    fn from_iso_applies_the_offset_and_refuses_past_the_range_plainly() {
+        assert_eq!(
+            built_from_iso("2024-03-01T13:00:00+01:00"),
+            Ok((second_of("2024-03-01T12:00:00Z"), 0))
+        );
+        assert_eq!(
+            built_from_iso("2024-03-01T12:00:00.5Z"),
+            Ok((second_of("2024-03-01T12:00:00Z"), 500_000_000))
+        );
+        assert_eq!(
+            built_from_iso("9999-12-30T22:00:00Z"),
+            Ok((253_402_207_200, 0))
+        );
+
+        let past = r"Core\Time::fromIso(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
+        for text in ["9999-12-31T23:59:59Z", "-009999-01-01T00:00:00Z"] {
+            assert_eq!(built_from_iso(text), Err(past.to_owned()));
+        }
+        for text in [
+            "2024-03-01T12:00:00",
+            "2024-02-30T12:00:00Z",
+            "tomorrow",
+            "",
+        ] {
+            let said = built_from_iso(text).expect_err("not a timestamp");
+            assert!(said.starts_with(r"Core\Time::fromIso(): "), "{said}");
+            assert_ne!(said, past, "{text:?} is not a range failure");
         }
     }
 }
