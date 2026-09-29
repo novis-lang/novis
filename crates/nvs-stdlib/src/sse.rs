@@ -1478,14 +1478,17 @@ mod tests {
         let mut stream = upgraded(&slot);
         let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
             .expect("an event stream's isolate answers `current()`");
-        let topic = Value::str(NvsStr::new(b"room:feed"));
+        // A topic no other test uses: every test in this binary shares the
+        // process's topic table, so a subscriber count is only this test's own
+        // on a topic nobody else subscribes to.
+        let topic = Value::str(NvsStr::new(b"room:farewell"));
         nvs_runtime::call(
             crate::topic::nvs_core_topic_subscribe,
             &mut stream,
             &[topic],
         )
         .expect("an event stream's isolate is a connection and may subscribe");
-        assert_eq!(crate::topic::publish_text("room:feed", "last word"), 1);
+        assert_eq!(crate::topic::publish_text("room:farewell", "last word"), 1);
 
         // The connection's half going away is the client disconnecting.
         drop(
