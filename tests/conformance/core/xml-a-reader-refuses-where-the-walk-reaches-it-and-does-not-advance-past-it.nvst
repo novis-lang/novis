@@ -2,6 +2,7 @@
 A walk refuses everything `Core\Xml::parse` refuses, but where the walk reaches it: the nodes before the refusal were answered, and the reader does not advance past what it refused — `rule:core-classes/xml-tree-and-stream`, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
+// covers: Core\Xml\Reader::depth
 // The stream is the same strict parser as the tree, read one node at a time, so
 // the refusals are the same sentences. What differs is *when*: a tree is all or
 // nothing, and a walk has already answered every node before the one it

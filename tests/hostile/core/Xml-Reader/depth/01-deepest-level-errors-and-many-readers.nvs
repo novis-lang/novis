@@ -1,0 +1,91 @@
+<?nvs
+// Attack: a program reads the depth at the deepest level a document may have, after errors, and
+// from many readers at once. Each step should print the right number or throw an error, and must
+// not crash.
+// hostile: timeout-ms 30000
+
+class Walk
+{
+    // This reads every node and returns the largest depth it saw.
+    public static function deepest(Core\Xml\Reader $reader): uint
+    {
+        uint $deepest = 0;
+        ?Core\Xml\Node $node = $reader->read();
+        while ($node != null) {
+            if ($reader->depth() > $deepest) {
+                $deepest = $reader->depth();
+            }
+            $node = $reader->read();
+        }
+        return $deepest;
+    }
+}
+
+// 1. 1024 elements inside each other, which is the most a document may have, with a text in the
+// innermost one. The text has depth 1024. This prints 1024, and then 0 after the end.
+Core\Xml\Reader $deep = Core\Xml::reader(Core\Str::repeat('<d>', 1024) . 'x' . Core\Str::repeat('</d>', 1024));
+echo Walk::deepest($deep), "\n";
+echo $deep->depth(), "\n";
+
+// 2. One more level. `read` throws an error, and the depth stays at the last node read. This prints 1023.
+Core\Xml\Reader $tooDeep = Core\Xml::reader(Core\Str::repeat('<d>', 1025) . Core\Str::repeat('</d>', 1025));
+try {
+    Walk::deepest($tooDeep);
+    echo "read past the deepest level\n";
+} catch (ParseError $error) {
+    echo $tooDeep->depth(), "\n";
+}
+
+// 3. The program calls `read` 10000 more times after the error. The depth does not change. This prints 1023.
+int $i = 0;
+while ($i < 10000) {
+    try {
+        $tooDeep->read();
+    } catch (ParseError $again) {
+    }
+    $i = $i + 1;
+}
+echo $tooDeep->depth(), "\n";
+
+// 4. 10000 readers over one document, each stopped at a different node. This prints 10000.
+string $xml = '<a><b><c><d/></c></b></a>';
+array<Core\Xml\Reader> $readers = [];
+$i = 0;
+while ($i < 10000) {
+    Core\Xml\Reader $reader = Core\Xml::reader($xml);
+    int $step = 0;
+    while ($step <= $i % 5) {
+        $reader->read();
+        $step = $step + 1;
+    }
+    $readers[] = $reader;
+    $i = $i + 1;
+}
+int $right = 0;
+$i = 0;
+foreach ($readers as Core\Xml\Reader $kept) {
+    // The fifth `read` returns `null`, so its depth is 0.
+    uint $expected = 0;
+    if ($i % 5 != 4) {
+        $expected = ($i % 5) as uint;
+    }
+    if ($kept->depth() == $expected) {
+        $right = $right + 1;
+    }
+    $i = $i + 1;
+}
+echo $right, "\n";
+
+// 5. The depth is read one million times from one node. This prints 3000000.
+Core\Xml\Reader $one = Core\Xml::reader($xml);
+$one->read();
+$one->read();
+$one->read();
+$one->read();
+uint $sum = 0;
+$i = 0;
+while ($i < 1000000) {
+    $sum = $sum + $one->depth();
+    $i = $i + 1;
+}
+echo $sum, "\n";

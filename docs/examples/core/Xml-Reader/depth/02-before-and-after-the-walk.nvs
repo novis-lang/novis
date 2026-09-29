@@ -1,0 +1,17 @@
+<?nvs
+// Shows the depth before the first `read`, during the walk and after the end of the document.
+
+Core\Xml\Reader $reader = Core\Xml::reader('<a><b><c/></b></a>');
+
+// Nothing is read yet. This prints 0.
+echo $reader->depth(), "\n";
+
+// `c` is inside `a` and `b`. This prints 0, 1 and 2.
+?Core\Xml\Node $node = $reader->read();
+while ($node != null) {
+    echo $reader->depth(), "\n";
+    $node = $reader->read();
+}
+
+// `read` returned `null`, so the document is finished. This prints 0.
+echo $reader->depth(), "\n";

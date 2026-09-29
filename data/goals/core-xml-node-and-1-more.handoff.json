@@ -1,27 +1,24 @@
 {
-  "state": "Goal `core-xml-node-and-1-more`: every `Core\\Xml\\Node` member has all its feature proofs, and\n`bun nv proofs --verify --group 'Core\\Xml\\Node'` says nothing owed, 0 failed.\nIts attack found two bugs, both fixed in `crates/nvs-stdlib/src/xml.rs`: resolving a namespace\nscanned every declaration in scope for each element (quadratic), and each element copied its URI\n(a short document built a tree far past the memory limit). `Scope` now indexes prefixes and\nshares one URI string per declaration; `elements_in_one_namespace_share_its_uri` pins the sharing.\n`Core\\Xml\\Reader` (`read`, `depth`) owes everything, including its class card.\n`crates/nvs-stdlib/src/lib.rs` has an uncommitted change that is not this goal's (the `granting`\ntest helper canonicalizes grants). Leave it alone.",
+  "state": "Goal `core-xml-node-and-1-more` is reached: `bun nv proofs --verify --group 'Core\\Xml\\Node'`\nand `--group 'Core\\Xml\\Reader'` both say nothing owed, 0 failed, and `bun nv verify` is green.\n`Core\\Xml\\Reader` has its class card, and its `read` and `depth` cards are rewritten to\nAGENTS.md § *Text an end user reads*. Both members have `about.md`, three examples, one attack,\none bench with a recorded figure, and a Rust and a Novis test.\nThe lead that each `read` costs time in proportion to the document holds only on the debug\nbuild: it is the UTF-8 `debug_assert!` in `NvsStr::text_of`, and the playbook now says so.\n`owners --closes` and `playbook --closes` name nothing for this goal.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [
       "crates/nvs-stdlib/src/xml.rs",
-      "crates/nvs-stdlib/src/registry.rs",
-      "docs/examples/core/Xml-Reader/",
-      "tests/hostile/core/Xml-Reader/",
-      "benches/members/core/Xml-Reader/"
+      "docs/examples/core/Xml-Reader/"
     ],
     "items": [
       {
-        "done": false,
-        "text": "**`Core\\Xml\\Reader` class card, then `read`** — add its `ClassDoc` above the class's `CLASS` row and delete it from `CLASSES_STILL_OWING_A_CARD` at `crates/nvs-stdlib/src/registry.rs:5283`; `read` is at `crates/nvs-stdlib/src/xml.rs:2760`. A lead for its attack, found this session: each `read` costs time in proportion to the whole document, even with no namespaces — 100000 reads of `<e/>` under a root of 100000 plain attributes take about 7s, and 3 reads about 1s. Suspect `held.as_text()` on the document slot in `read` (`NvsStr::text_of`); not checked. `an_xml_element_answers_its_namespace_uri` already carries `covers: Core\\Xml\\Reader::read`. `rule:testing/feature-proofs`"
+        "done": true,
+        "text": "**`Core\\Xml\\Reader` class card, then `read`** — card at `crates/nvs-stdlib/src/xml.rs:560`. `rule:testing/feature-proofs`"
       },
       {
-        "done": false,
-        "text": "**`Core\\Xml\\Reader::depth`** — card `DEPTH_DOC` at `crates/nvs-stdlib/src/xml.rs:596`, member at `crates/nvs-stdlib/src/xml.rs:2771`; owes about, examples, hostile, perf and two test cases. `rule:testing/feature-proofs`"
+        "done": true,
+        "text": "**`Core\\Xml\\Reader::depth`** — member at `crates/nvs-stdlib/src/xml.rs:2771`. `rule:testing/feature-proofs`"
       }
     ]
   },
   "backlog": [
-    "The goal's `DONE` gates (`bun nv verify --doc`, `bun nv owners --closes`, `bun nv playbook --closes`) run once `Core\\Xml\\Reader` is green — `docs/agent/goals/core-xml-node-and-1-more.md`."
+    "`Core\\Xml\\Writer` still owes its class card (`CLASSES_STILL_OWING_A_CARD`, `crates/nvs-stdlib/src/registry.rs`); goal `core-class-cards` owns that list."
   ]
 }

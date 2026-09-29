@@ -1,0 +1,31 @@
+<?nvs
+// Reads the depth of the current node, as a program does to see where an element ends.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Xml\Reader> $readers = [];
+        uint $n = 0;
+        while ($n < 4) {
+            Core\Xml\Reader $reader = Core\Xml::reader('<a><b><c><d/></c></b></a>');
+            uint $step = 0;
+            while ($step <= $n) {
+                $reader->read();
+                $step = $step + 1;
+            }
+            $readers[] = $reader;
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + 1 + $readers[(($total + $i) % 4) as int]->depth();   // chained: $total is last round's
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

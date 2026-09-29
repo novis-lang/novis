@@ -1,0 +1,6 @@
+menu
+  file
+    open
+    save
+  help
+    about
