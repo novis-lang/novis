@@ -2,6 +2,7 @@
 Spec § 4, `rule:classes/comparable`: `Core\Time\TimeOfDay::compareTo` is a total order, asserted by counting the laws over a table rather than reading a row — trichotomy, antisymmetry over 144 pairs and transitivity over 1,728 triples — and the order it answers is the one `Core\Arr::sort` produces over the same table from a comparator that never asks it
 --FILE--
 <?nvs
+// covers: Core\Time\TimeOfDay::compareTo
 // `rule:classes/comparable` makes `compareTo` the one order a value has, and § 4 gives a clock
 // reading exactly one. A row-by-row case cannot tell a total order from a
 // member that answers plausibly: the laws are statements about *triples* and

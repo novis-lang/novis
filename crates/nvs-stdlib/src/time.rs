@@ -2802,7 +2802,7 @@ const TIME_OF_DAY_WITH_OPTIONS: &[CoreOption] = &[
 /// that produced it.
 pub const TIME_OF_DAY: CoreClass = CoreClass {
     name: TIME_OF_DAY_NAME,
-    doc: None,
+    doc: Some(&TIME_OF_DAY_CARD),
     methods: &[CoreMethod {
         name: "at",
         names: &["hour", "minute"],
@@ -2863,10 +2863,18 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Time\TimeOfDay`'s class card — `rule:core-api/reference-card`.
+const TIME_OF_DAY_CARD: ClassDoc = ClassDoc {
+    short: "A time on a clock, such as 10:30, with no date and no time zone. \
+            `TimeOfDay::at` makes one, and `DateTime::timeOfDay` returns the time of a \
+            `DateTime`. `plus` and `minus` move it and wrap around at midnight. `with` \
+            changes single fields, and `format` returns it as text.",
+};
+
 /// `Core\Time\TimeOfDay::at`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
-    short: "Builds a zone-free wall-clock reading from its fields, with the two a clock \
-            usually leaves off defaulting to zero.",
+    short: "Makes a time of day from an hour and a minute. The seconds and the nanoseconds \
+            are optional, and their default is `0`.",
     params: &[
         ParamDoc {
             name: "hour",
@@ -2880,143 +2888,150 @@ const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "second",
-            desc: "The second, `0` to `59`; the default is `0`.",
+            desc: "The second, `0` to `59`. The default is `0`.",
             shape: &[],
         },
         ParamDoc {
             name: "nanos",
-            desc: "The subsecond nanoseconds, below `1000000000`; the default is `0`.",
+            desc: "The nanoseconds inside that second, `0` to `999999999`. The default is `0`.",
             shape: &[],
         },
     ],
-    ret: "The `TimeOfDay`.",
+    ret: "The new `TimeOfDay`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A field is outside its range, so the four are not a time of day.",
+        desc: "A field is outside its range, for example an hour of `24`.",
     }],
 };
 
 /// `Core\Time\TimeOfDay::format`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_FORMAT_DOC: MethodDoc = MethodDoc {
-    short: "Renders the clock reading through a CLDR pattern of time fields — `HH:mm:ss`, \
-            `h:mm a` — the same grammar `DateTime::format` takes, narrowed to what a clock \
-            carries.",
+    short: "Returns the time as text in the pattern you give, such as `HH:mm:ss` or \
+            `h:mm a`. The pattern uses the letters of `DateTime::format`, but only the \
+            letters for a time.",
     params: &[ParamDoc {
         name: "pattern",
-        desc: "A CLDR pattern naming only time-of-day fields; a grammar, so a `tainted` one \
-               is refused.",
+        desc: "The pattern, such as `HH:mm`. It may use letters for the hour, the minute, \
+               the second, parts of a second and AM or PM. A `tainted` pattern (text from \
+               outside the program) is not allowed.",
         shape: &[],
     }],
-    ret: "The rendered text.",
+    ret: "The time as text.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$pattern` does not compile, or names a calendar or zone field, which a clock \
-               reading would have to invent.",
+        desc: "`$pattern` is not a valid pattern, or it uses a letter for a date or a time \
+               zone.",
     }],
 };
 
 /// `Core\Time\TimeOfDay::plus`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_PLUS_DOC: MethodDoc = MethodDoc {
-    short: "Moves the reading forward by `$count` steps of `$unit`, wrapping within the day: \
-            `23:30` plus an hour is `00:30`, since a time of day has no date for a carry to \
-            go to — a step that carries a day is `DateTime::plus`.",
+    short: "Moves the time forward by `$count` steps of `$unit`. The result wraps around at \
+            midnight, so `23:30` plus one hour is `00:30`. To move a time across days, use \
+            `DateTime::plus`.",
     params: &[
         ParamDoc {
             name: "count",
-            desc: "How many steps; negative moves back.",
+            desc: "How many steps. A negative count moves the time back.",
             shape: &[],
         },
         ParamDoc {
             name: "unit",
-            desc: "`Unit::Hour` or smaller.",
+            desc: "`Unit::Hour` or a smaller unit.",
             shape: &[],
         },
     ],
-    ret: "A new `TimeOfDay`; the receiver is unchanged.",
+    ret: "A new `TimeOfDay`. The original does not change.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$unit` is `Unit::Day` or larger, which does not move a time of day.",
+            desc: "`$unit` is `Unit::Day` or larger. A time of day has no days to move.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$count` is past what a span can hold.",
+            desc: "`$count` is too large for `$unit`.",
         },
     ],
 };
 
 /// `Core\Time\TimeOfDay::minus`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_MINUS_DOC: MethodDoc = MethodDoc {
-    short: "Moves the reading back by `$count` steps of `$unit`, wrapping within the day — \
-            `plus` with the count negated.",
+    short: "Moves the time back by `$count` steps of `$unit`. The result wraps around at \
+            midnight, so `00:15` minus 30 minutes is `23:45`.",
     params: &[
         ParamDoc {
             name: "count",
-            desc: "How many steps; negative moves forward.",
+            desc: "How many steps. A negative count moves the time forward.",
             shape: &[],
         },
         ParamDoc {
             name: "unit",
-            desc: "`Unit::Hour` or smaller.",
+            desc: "`Unit::Hour` or a smaller unit.",
             shape: &[],
         },
     ],
-    ret: "A new `TimeOfDay`; the receiver is unchanged.",
+    ret: "A new `TimeOfDay`. The original does not change.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$unit` is `Unit::Day` or larger, which does not move a time of day.",
+            desc: "`$unit` is `Unit::Day` or larger. A time of day has no days to move.",
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$count` is past what a span can hold.",
+            desc: "`$count` is too large for `$unit`.",
         },
     ],
 };
 
 /// `Core\Time\TimeOfDay::with`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Replaces any of the four clock fields and leaves the rest.",
+    short: "Returns a copy of the time with the fields you give changed. The fields you \
+            leave out keep their value.",
     params: &[
         ParamDoc {
             name: "hour",
-            desc: "The new hour, `0` to `23`; omitted leaves the field alone.",
+            desc: "The new hour, `0` to `23`. If you leave it out, the hour stays the same.",
             shape: &[],
         },
         ParamDoc {
             name: "minute",
-            desc: "The new minute, `0` to `59`; omitted leaves the field alone.",
+            desc: "The new minute, `0` to `59`. If you leave it out, the minute stays the \
+                   same.",
             shape: &[],
         },
         ParamDoc {
             name: "second",
-            desc: "The new second, `0` to `59`; omitted leaves the field alone.",
+            desc: "The new second, `0` to `59`. If you leave it out, the second stays the \
+                   same.",
             shape: &[],
         },
         ParamDoc {
             name: "nanos",
-            desc: "The new subsecond nanoseconds, below `1000000000`; omitted leaves the field \
-                   alone.",
+            desc: "The new nanoseconds inside the second, `0` to `999999999`. If you leave \
+                   it out, they stay the same.",
             shape: &[],
         },
     ],
-    ret: "A new `TimeOfDay`; the receiver is unchanged.",
+    ret: "A new `TimeOfDay`. The original does not change.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "An option is outside its field's range.",
+        desc: "A field is outside its range, for example a minute of `60`.",
     }],
 };
 
 /// `Core\Time\TimeOfDay::compareTo`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_COMPARE_TO_DOC: MethodDoc = MethodDoc {
-    short: "Orders two clock readings within the day, as `Comparable` requires.",
+    short: "Checks which of two times comes first in the day, as `Comparable` requires. \
+            The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` on two \
+            times checks whether they are the same object, so test for the same time with \
+            `$a->compareTo($b) == 0`.",
     params: &[ParamDoc {
         name: "other",
-        desc: "The reading to compare against.",
+        desc: "The time to compare against.",
         shape: &[],
     }],
-    ret: "`-1` when the receiver is earlier in the day than `$other`, `0` when they are the \
-          same reading, `1` when it is later.",
+    ret: "`-1` when the receiver is earlier in the day than `$other`, `0` when both are the \
+          same time, `1` when it is later.",
     errors: &[],
 };
 
@@ -7719,6 +7734,258 @@ mod tests {
                 datetime_rebuilt(nvs_core_time_datetime_start_of, &first, &[Value::int(unit)])
                     .unwrap_or_else(|refused| panic!("unit {unit}: {refused}"));
             assert_eq!(start, first, "unit {unit}");
+        }
+    }
+
+    /// `member` called with `args` the way a compiled call site calls it, with
+    /// the answer handed to `read` before it is released. It answers what
+    /// `read` returned, or the sentence the member threw.
+    fn clock_called<T>(
+        member: nvs_runtime::NvsFn,
+        args: Vec<Value>,
+        read: impl FnOnce(Value) -> T,
+    ) -> Result<T, String> {
+        let mut ctx = Ctx::buffered();
+        let answer = match nvs_runtime::call(member, &mut ctx, &args) {
+            Ok(value) => {
+                let read = read(value);
+                #[expect(unsafe_code, reason = "this frame owns the value the member answered")]
+                unsafe {
+                    value.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// The clock reading a member answered, for [`clock_called`].
+    fn clock_read(value: Value) -> civil::Time {
+        match clock_of(&[value], 0, "test") {
+            Ok(clock) => clock,
+            Err(_) => panic!("the member answers a `TimeOfDay`"),
+        }
+    }
+
+    /// `plus` or `minus` called on `at` with `count` steps of the `Core\Unit`
+    /// case at index `unit` (nanosecond 0 to hour 5, day 6).
+    fn clock_moved(
+        member: nvs_runtime::NvsFn,
+        at: civil::Time,
+        count: i64,
+        unit: i64,
+    ) -> Result<civil::Time, String> {
+        clock_called(
+            member,
+            vec![clock_built(at), Value::int(count), Value::int(unit)],
+            clock_read,
+        )
+    }
+
+    /// `at` builds the reading from its four fields, reaches the last
+    /// nanosecond of the day, and throws a sentence naming the member for the
+    /// first value past each field's range and for a number no field can hold.
+    // covers: Core\Time\TimeOfDay::at
+    #[test]
+    fn time_of_day_at_builds_every_field_and_bounds_each_one() {
+        let at = |fields: [u64; 4]| {
+            clock_called(
+                nvs_core_time_of_day_at,
+                fields.map(Value::uint).to_vec(),
+                clock_read,
+            )
+        };
+        assert_eq!(at([10, 30, 0, 0]), Ok(civil::time(10, 30, 0, 0)));
+        assert_eq!(
+            at([23, 59, 59, 999_999_999]),
+            Ok(civil::time(23, 59, 59, 999_999_999))
+        );
+        assert_eq!(at([0, 0, 0, 0]), Ok(civil::Time::midnight()));
+        for fields in [
+            [24, 0, 0, 0],
+            [0, 60, 0, 0],
+            [0, 0, 60, 0],
+            [0, 0, 0, 1_000_000_000],
+            [u64::MAX, 0, 0, 0],
+        ] {
+            let refused = at(fields).expect_err("not a time of day");
+            assert!(
+                refused.contains("Core\\Time\\TimeOfDay::at"),
+                "{fields:?}: {refused}"
+            );
+        }
+    }
+
+    /// `format` renders only the clock, with a 12-hour pattern and the parts
+    /// of a second, and a pattern with a date or a zone letter throws a
+    /// `LogicError` sentence naming the member.
+    // covers: Core\Time\TimeOfDay::format
+    #[test]
+    fn time_of_day_format_renders_the_clock_and_refuses_a_date_or_zone_letter() {
+        let formatted = |at: civil::Time, pattern: &str| {
+            clock_called(
+                nvs_core_time_of_day_format,
+                vec![clock_built(at), Value::str(NvsStr::new(pattern.as_bytes()))],
+                |text| {
+                    text.as_text()
+                        .expect("`format` answers a `string`")
+                        .to_owned()
+                },
+            )
+        };
+        let evening = civil::time(21, 5, 7, 250_000_000);
+        assert_eq!(formatted(evening, "HH:mm:ss").as_deref(), Ok("21:05:07"));
+        assert_eq!(formatted(evening, "h:mm a").as_deref(), Ok("9:05 PM"));
+        assert_eq!(
+            formatted(evening, "HH:mm:ss.SSS").as_deref(),
+            Ok("21:05:07.250")
+        );
+        for pattern in ["yyyy HH:mm", "HH:mm VV", "HH:mm XXX"] {
+            let refused = formatted(evening, pattern).expect_err("not a clock letter");
+            assert!(
+                refused.contains("Core\\Time\\TimeOfDay::format"),
+                "{pattern}: {refused}"
+            );
+        }
+    }
+
+    /// `plus` wraps within the day in both directions, is exact at the
+    /// largest nanosecond count, refuses a day, and refuses a count no span
+    /// can hold with a sentence naming the member.
+    // covers: Core\Time\TimeOfDay::plus
+    #[test]
+    fn time_of_day_plus_wraps_at_midnight_and_is_exact_at_the_largest_count() {
+        let plus = |at, count, unit| clock_moved(nvs_core_time_of_day_plus, at, count, unit);
+        assert_eq!(
+            plus(civil::time(23, 30, 0, 0), 1, 5),
+            Ok(civil::time(0, 30, 0, 0))
+        );
+        assert_eq!(
+            plus(civil::Time::midnight(), -1, 4),
+            Ok(civil::time(23, 59, 0, 0))
+        );
+        assert_eq!(
+            plus(civil::Time::midnight(), 25, 5),
+            Ok(civil::time(1, 0, 0, 0))
+        );
+        // `i64::MAX` nanoseconds is 106,751 whole days and 23:47:16.854775807.
+        assert_eq!(
+            plus(civil::Time::midnight(), i64::MAX, 0),
+            Ok(civil::time(23, 47, 16, 854_775_807))
+        );
+        let day = plus(civil::Time::midnight(), 1, 6).expect_err("a day does not move a clock");
+        assert!(day.contains("does not move a time of day"), "{day}");
+        let far = plus(civil::Time::midnight(), i64::MAX, 5).expect_err("past a span");
+        assert!(far.contains("Core\\Time\\TimeOfDay::plus"), "{far}");
+    }
+
+    /// `minus` is `plus` with the count negated over a table of counts and
+    /// units, wraps back over midnight, is exact at the largest nanosecond
+    /// count, and refuses the one count that has no negation.
+    // covers: Core\Time\TimeOfDay::minus
+    #[test]
+    fn time_of_day_minus_is_plus_negated_and_wraps_back_over_midnight() {
+        let minus = |at, count, unit| clock_moved(nvs_core_time_of_day_minus, at, count, unit);
+        let start = civil::time(0, 15, 30, 5);
+        for unit in 0..6 {
+            for count in [0, 1, 59, 3_600, -7_201, 100_000_007] {
+                assert_eq!(
+                    minus(start, count, unit),
+                    clock_moved(nvs_core_time_of_day_plus, start, -count, unit),
+                    "{count} of unit {unit}"
+                );
+            }
+        }
+        assert_eq!(
+            minus(civil::time(0, 15, 0, 0), 30, 4),
+            Ok(civil::time(23, 45, 0, 0))
+        );
+        assert_eq!(
+            minus(civil::Time::midnight(), i64::MAX, 0),
+            Ok(civil::time(0, 12, 43, 145_224_193))
+        );
+        let lowest = minus(civil::Time::midnight(), i64::MIN, 0).expect_err("no negation");
+        assert!(lowest.contains("Core\\Time\\TimeOfDay::minus"), "{lowest}");
+        let day = minus(start, 1, 6).expect_err("a day does not move a clock");
+        assert!(day.contains("Core\\Time\\TimeOfDay::minus"), "{day}");
+    }
+
+    /// `with` replaces only the fields it is given, no fields at all rebuild
+    /// the same reading, and the first value past each range and a number no
+    /// field can hold throw a sentence naming the member.
+    // covers: Core\Time\TimeOfDay::with
+    #[test]
+    fn time_of_day_with_replaces_only_the_given_fields() {
+        let reading = civil::time(16, 45, 12, 500);
+        let with = |options: [Option<i64>; 4]| {
+            let mut args = vec![clock_built(reading)];
+            args.extend(options.map(|option| option.map_or_else(Value::null, Value::int)));
+            clock_called(nvs_core_time_of_day_with, args, clock_read)
+        };
+        assert_eq!(
+            with([None, Some(0), None, None]),
+            Ok(civil::time(16, 0, 12, 500))
+        );
+        assert_eq!(with([None; 4]), Ok(reading));
+        assert_eq!(
+            with([Some(23), Some(59), Some(59), Some(999_999_999)]),
+            Ok(civil::time(23, 59, 59, 999_999_999))
+        );
+        for options in [
+            [Some(24), None, None, None],
+            [None, Some(60), None, None],
+            [None, None, Some(60), None],
+            [None, None, None, Some(1_000_000_000)],
+            [None, Some(i64::MAX), None, None],
+            [None, None, None, Some(i64::MAX)],
+        ] {
+            let refused = with(options).expect_err("not a time of day");
+            assert!(
+                refused.contains("Core\\Time\\TimeOfDay::with"),
+                "{options:?}: {refused}"
+            );
+        }
+    }
+
+    /// `compareTo` answers `-1`, `0` or `1` by the position in the day, one
+    /// nanosecond apart is enough, and swapping the two sides negates it.
+    // covers: Core\Time\TimeOfDay::compareTo
+    #[test]
+    fn time_of_day_compare_to_orders_by_the_position_in_the_day() {
+        let compared = |left: civil::Time, right: civil::Time| {
+            clock_called(
+                nvs_core_time_of_day_compare_to,
+                vec![clock_built(left), clock_built(right)],
+                |order| order.as_int().expect("`compareTo` answers an `int`"),
+            )
+            .expect("`compareTo` throws for no reading")
+        };
+        let readings = [
+            civil::Time::midnight(),
+            civil::time(0, 0, 0, 1),
+            civil::time(9, 30, 0, 0),
+            civil::time(21, 30, 0, 0),
+            civil::time(23, 59, 59, 999_999_999),
+        ];
+        for (i, left) in readings.iter().enumerate() {
+            for (j, right) in readings.iter().enumerate() {
+                let expected = match i.cmp(&j) {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Equal => 0,
+                    std::cmp::Ordering::Greater => 1,
+                };
+                assert_eq!(compared(*left, *right), expected, "{left} against {right}");
+            }
         }
     }
 }
