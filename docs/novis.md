@@ -12919,7 +12919,7 @@ Counts whole units of `$unit` from the receiver to `$other`, in the receiver's z
 
 **Returns** `int` — The whole count, truncated toward zero — negative when `$other` is earlier, `0` within one unit.
 
-**Throws** `RuntimeError` — The span between the two lies outside what a calendar span can hold.
+**Throws** `RuntimeError` — The count does not fit in an `int`. Only `Unit::Nanosecond` can reach this, for two values more than about 292 years apart.
 
 <a id="core-core-time-datetime-toinstant"></a>
 #### `Core\Time\DateTime->toInstant`
