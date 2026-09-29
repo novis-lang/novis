@@ -1,0 +1,40 @@
+<?nvs
+// Attack: `dayOfYear` reads the first and last moment in time in the farthest time zones, and a day that one country skipped.
+// Each result should be a day number from 1 to 366, and nothing should crash.
+
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+
+// 1. The last moment in time, read in the zone farthest ahead, is 31 December 9999. This prints 365.
+echo Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->dayOfYear(), "\n";
+
+// 2. The first moment in time, read in the zone farthest behind, is 1 January -9999. This prints 1.
+echo Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->dayOfYear(), "\n";
+
+// 3. Samoa skipped 30 December 2011, which is day 364. Every hour of the last four days is read.
+var $apia = Core\Time\Zone::of('Pacific/Apia');
+var $hour = Core\Time::at(2011, 12, 28, $apia);
+int $missing = 0;
+int $step = 0;
+while ($step < 96) {
+    if ($hour->dayOfYear() == 364) {
+        $missing = $missing + 1;
+    }
+    $hour = $hour->plus(1, Core\Unit::Hour);
+    $step = $step + 1;
+}
+echo $missing, " hours on day 364\n";
+
+// 4. Every day from the year 1 to the year 2400 is read. The number never goes outside 1 to 366.
+var $day = Core\Time::at(1, 1, 1, Core\Time\Zone::UTC, { hour: 12 });
+int $outside = 0;
+int $count = 0;
+while ($count < 876582) {
+    uint $number = $day->dayOfYear();
+    if ($number < 1 || $number > 366) {
+        $outside = $outside + 1;
+    }
+    $day = $day->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+echo $outside, " outside\n";

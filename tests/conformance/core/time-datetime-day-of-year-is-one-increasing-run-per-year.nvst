@@ -2,6 +2,7 @@
 Spec § 4: `Core\Time\DateTime::dayOfYear` is one increasing run per year — walked a day at a time it starts at 1, gains exactly one at every step, is its own position in the walk, and stops at the year's length before restarting at 1 on the next January — and every one of those readings agrees with the `D` pattern letter and with the zone-free `Date` half
 --FILE--
 <?nvs
+// covers: Core\Time\DateTime::dayOfYear
 // § 4's `dayOfYear` replaces `date("z")` and is one-based where PHP's is
 // zero-based, so what a case can assert about it is not a number but the shape
 // of the whole run: no gap, no repeat, and no reading that disagrees with the
