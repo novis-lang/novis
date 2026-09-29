@@ -1,26 +1,13 @@
 {
-  "state": "Goal `core-time-and-1-more`: every `Core\\Time` member has all its feature proofs, and `bun nv proofs --verify --group 'Core\\Time'` and `--group 'Core\\Cldr'` both print \"nothing owed\". The `Core\\Time` group itself owes nothing.\nThe stage's last check, `proofs: Core\\Time\\Date`, covers six members, not three: `minus`, `with` and `compareTo` now have examples, an attack, a bench, `.nvst` cases and a Rust `#[test]`. `plus`, `format` and `at` still owe examples, an attack and a bench each. `format` and `at` also owe a Rust `#[test]` with a `// covers:` marker. `plus` has one (`date_minus_is_plus_negated_and_refuses_a_unit_or_count_it_cannot_take` covers both).\nThree existing `time-date-*.nvst` cases now carry `// covers:` markers, so every Date member has enough `.nvst` cases.\n`with`'s attack found that a `uint` option past the `int` range ended the request with a FATAL in all three `with` members. `optional` in `crates/nvs-stdlib/src/time.rs` now reads it as `i64::MAX`, so each member throws its field's out-of-range sentence. `tests/conformance/core/time-with-members-throw-for-a-uint-past-the-int-range.nvst` pins this.\nAny `time.rs` edit stales every `Core\\Time` figure, and this session edited it. The session that closes the stage re-runs `bun nv proofs --record-perf --group 'Core\\Time'` and `--group 'Core\\Time\\Date'` after its last edit.",
+  "state": "Goal `core-time-and-1-more` is met. `bun nv proofs --verify --group 'Core\\Time'` and `--group 'Core\\Time\\Date'` both print \"nothing owed\" with 0 failed, and `bun nv proofs --gate --group 'Core\\Cldr'` prints \"nothing owed\".\nAll six `Core\\Time\\Date` members have examples, an attack, a bench, `.nvst` cases and a Rust `#[test]` with a `// covers:` marker in `crates/nvs-stdlib/src/time.rs`'s test module.\nEvery `Core\\Time` and `Core\\Time\\Date` figure was re-measured on this tree and is current in `docs/perf/members.ndjson`.\n`bun nv verify --doc`, `bun nv owners --closes core-time-and-1-more` and `bun nv playbook --closes core-time-and-1-more` are all green.",
   "next": {
-    "stage": 2,
-    "title": "the dossier, `Core\\Time\\Date`'s last three members",
+    "stage": null,
+    "title": "Goal met: nothing is open in this goal",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/time.rs` (the `DATE` rows, their bodies and the `date_called` test helper), plus each member's own proof directories under `docs/examples/core/Time-Date/`, `tests/hostile/core/Time-Date/` and `benches/members/core/Time-Date/`. The `minus`, `with` and `compareTo` directories there show the shape.",
-    "items": [
-      {
-        "done": false,
-        "text": "**`Core\\Time\\Date::plus`** — owes examples, hostile and perf (`rule:testing/feature-proofs`). Row at `crates/nvs-stdlib/src/time.rs:2495`, body at `crates/nvs-stdlib/src/time.rs:4681`. Its Rust test and `.nvst` cases already exist."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Time\\Date::format`** — owes examples, hostile, perf and a Rust `#[test]` with `// covers: Core\\Time\\Date::format`. Body at `crates/nvs-stdlib/src/time.rs:4659`. `date_called` in the test module cannot read a string return, so the test needs its own call."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Time\\Date::at`** — owes examples, hostile, perf and a Rust `#[test]` with `// covers: Core\\Time\\Date::at`. Body at `crates/nvs-stdlib/src/time.rs:4636`. Then run `bun nv proofs --record-perf --group 'Core\\Time'` and `--group 'Core\\Time\\Date'`, and check that `bun nv proofs --verify --group 'Core\\Time\\Date'` prints \"nothing owed\"."
-      }
-    ]
+    "note": "The driver moves to the next goal on `data/chain.json`, which starts from its own handoff record.",
+    "items": []
   },
   "backlog": [
-    "`Core\\Time\\Date::with` and `plus`/`minus` still throw jiff's own sentence for a date that does not exist or is past the calendar (\"parameter 'day' for `2023-02` is invalid\", \"parameter 'Unix epoch days' ...\"). `Instant::plus` replaced its with `PAST_THE_RANGE`. A plain sentence here would change `tests/conformance/core/time-date-ends-refuse-where-the-clock-wraps.nvst` and `docs/examples/core/Time-Date/with/02-a-date-that-does-not-exist.out` — owner: `crates/nvs-stdlib/src/time.rs` module doc."
+    "The old `compareTo` bench read two dates out of an `array<Core\\Time\\Date>` by a computed `uint` key each round and counted 4 allocations per round, where the member itself allocates nothing (`crates/nvs-stdlib/src/time.rs:4733`). Which expression allocates is not checked. It is a latency question for the codegen of an indexed object read, and has no owner doc yet."
   ]
 }

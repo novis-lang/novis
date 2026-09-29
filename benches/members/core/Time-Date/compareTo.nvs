@@ -5,17 +5,18 @@
 
 class Bench {
     public static function run(uint $rounds): int {
-        array<Core\Time\Date> $dates = [
-            Core\Time\Date::at(2023, 12, 31),
-            Core\Time\Date::at(2024, 1, 1),
-            Core\Time\Date::at(2024, 6, 15),
-        ];
+        var $first = Core\Time\Date::at(2023, 12, 31);
+        var $second = Core\Time\Date::at(2024, 1, 1);
+        var $third = Core\Time\Date::at(2024, 6, 15);
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // chained: the two dates are picked with last round's total
-            uint $pick = ($total % 3) as uint;
-            $total = $total + 2 + $dates[$pick]->compareTo($dates[($pick + 1) % 3]);
+            // chained: the three dates move one place each round
+            $total = $total + 2 + $first->compareTo($second);
+            var $moved = $first;
+            $first = $second;
+            $second = $third;
+            $third = $moved;
             $i = $i + 1;
         }
         return $total;
