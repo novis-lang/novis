@@ -1,12 +1,15 @@
 .vscode-test/**
 .vscode-test.*
 test/**
+out/src/**
 out/test/**
 scripts/**
-src/**/*.ts
+src/**
+node_modules/**
 **/*.map
 **/tsconfig.json
 **/eslint.config.mjs
 **/.eslintrc.json
 .gitignore
+.nvmrc
 *.vsix

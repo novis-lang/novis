@@ -96,6 +96,7 @@ __pycache__/
 /editors/*/out/
 /editors/*/.vscode-test/
 /editors/*/*.vsix
+/editors/*/LICENSE
 
 # The tools' package cache (`bun install`, from the committed `bun.lock`) and `bun nv`'s index,
 # `.cache/nv.sqlite`, which is rebuilt from the records under `data/` and never read as a source.

@@ -24,7 +24,7 @@
   "activationEvents": [
     "onLanguage:nvs"
   ],
-  "main": "./out/src/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "configurationDefaults": {
       "[nvs]": {
@@ -300,12 +300,14 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -p ./ --watch",
+    "compile": "tsc -p ./ && npm run --silent bundle",
+    "bundle": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --sourcemap",
+    "watch": "npm run --silent bundle -- --watch",
     "lint": "eslint .",
     "test:headless": "tsc -p ./ && node scripts/headless.mjs",
-    "test:host": "tsc -p ./ && node scripts/host.mjs",
-    "package": "vsce package --out nvs.vsix"
+    "test:host": "npm run --silent compile && node scripts/host.mjs",
+    "vscode:prepublish": "npm run --silent bundle",
+    "package": "node -e \"require('node:fs').copyFileSync('../../LICENSE', 'LICENSE')\" && vsce package --no-dependencies --out nvs.vsix"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
@@ -317,6 +319,7 @@
     "@types/vscode": "^1.97.0",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9.13.0",
     "mocha": "^10.8.0",
     "typescript": "^5.6.0",

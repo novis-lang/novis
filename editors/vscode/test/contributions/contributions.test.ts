@@ -224,6 +224,15 @@ describe("the extension's identity", () => {
               "the Marketplace wants at least 128x128");
   });
 
+  it("ships the repository's own license", () => {
+    // The extension is licensed as Novis is. `vsce package` wants a LICENSE inside the package
+    // and a package carries no path out of its own directory, so the `package` script copies the
+    // root file in before packaging, and the copy is git-ignored rather than a second home.
+    const license = readFileSync(join(ROOT, "..", "..", "LICENSE"), "utf8");
+    assert.equal(manifest.license, /^(\S+) License$/m.exec(license)?.[1]);
+    assert.match(manifest.scripts.package, /copyFileSync\('\.\.\/\.\.\/LICENSE', 'LICENSE'\)/);
+  });
+
   it("carries the mark for the status item as a font glyph", () => {
     // A `LanguageStatusItem`'s `text` renders `$(name)` and no image path, so the mark reaches it
     // as a one-glyph font that the editor tints with the item's own severity colour
@@ -237,16 +246,21 @@ describe("the extension's identity", () => {
     assert.equal(font.readUInt32BE(8), font.length, "the icon font is truncated");
   });
 
-  it("points main at the compiled client", () => {
-    // `tsc` puts `src/extension.ts` here, and a manifest naming anything else installs an
+  it("points main at the bundled client", () => {
+    // `bundle` writes `src/extension.ts` and everything it imports, `vscode-languageclient`
+    // included, into this one file, and `vsce` runs it through `vscode:prepublish`. The `.vsix`
+    // then carries no `node_modules/`, and a manifest naming any other file installs an
     // extension that activates and does nothing.
-    assert.equal(manifest.main, "./out/src/extension.js");
+    assert.equal(manifest.main, "./out/extension.js");
+    assert.match(manifest.scripts.bundle, /--outfile=out\/extension\.js /);
+    assert.equal(manifest.scripts["vscode:prepublish"], "npm run --silent bundle");
+    assert.match(manifest.scripts.package, /vsce package --no-dependencies /);
   });
 
   it("carries the npm scripts the repository's tooling calls", () => {
     // `nv verify` runs `test:headless`; the loop's acceptance sweep runs `test:host` on every
     // iteration and `package` at stage 8.
-    for (const script of ["compile", "lint", "test:headless", "test:host", "package"]) {
+    for (const script of ["compile", "bundle", "lint", "test:headless", "test:host", "package"]) {
       assert.ok(manifest.scripts[script], `package.json declares no ${script} script`);
     }
   });
@@ -396,7 +410,7 @@ describe("what the extension may depend on", () => {
   it("keeps the tooling in devDependencies", () => {
     // A runtime dependency ships to users and a test library does not. `@vscode/test-electron`
     // downloads an editor, which is the clearest case of the two there is.
-    for (const tool of ["typescript", "mocha", "eslint", "@vscode/test-electron"]) {
+    for (const tool of ["typescript", "esbuild", "mocha", "eslint", "@vscode/test-electron"]) {
       assert.ok(manifest.devDependencies?.[tool], `${tool} is not a devDependency`);
       assert.equal(manifest.dependencies?.[tool], undefined);
     }

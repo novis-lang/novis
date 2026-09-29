@@ -11,12 +11,17 @@ arriving here as an npm dependency is what the contributions suite's allowlist r
 
 ```
 npm ci                      the lockfile is committed; npm ci needs it
-npm run compile             tsc into out/
+npm run compile             tsc into out/, then the bundle
+npm run bundle              esbuild writes the client and its dependencies into out/extension.js
+npm run watch               the bundle, rebuilt on every save
 npm run lint
 npm run test:headless       every suite under out/test/, no editor and no display
 npm run test:host           the same suites' other tier, in a real VS Code
 npm run package             the .vsix
 ```
+
+The extension runs from `out/extension.js`, the bundle, and not from the files `tsc` writes under
+`out/src/`. Those are for the test suites. The `.vsix` carries the bundle and no `node_modules/`.
 
 `bun nv verify` from the repository root runs `test:headless` as its last step, after the Rust
 gates. `test:host` is the other tier and runs on every acceptance sweep, here and in CI:
