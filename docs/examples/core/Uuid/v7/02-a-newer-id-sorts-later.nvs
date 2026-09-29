@@ -1,0 +1,11 @@
+<?nvs
+// Shows that a UUID created later sorts after one created earlier.
+
+// The program waits two milliseconds between the two UUIDs.
+string $older = Core\Uuid::v7()->toString();
+Core\Time::sleep(Core\Time\Duration::milliseconds(2));
+string $newer = Core\Uuid::v7()->toString();
+
+// `Core\Str::compare` returns a number greater than 0 when the first text sorts later.
+// The newer UUID sorts later. This prints yes.
+echo Core\Str::compare($newer, $older) > 0 ? "yes" : "no", "\n";
