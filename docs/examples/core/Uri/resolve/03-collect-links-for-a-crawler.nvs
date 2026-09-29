@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a crawler turns the links of a page into full addresses and keeps the ones on the same site.
+
+class Crawler {
+    public static function sameSite(string $pageAddress, array<string> $links): array<string> {
+        Core\Uri $page = Core\Uri::parse($pageAddress);
+        array<string> $found = [];
+        foreach ($links as string $link) {
+            try {
+                Core\Uri $target = $page->resolve($link);
+                if ($target->host() == $page->host()) {
+                    $found[] = $target->toString();
+                }
+            } catch (RuntimeError $error) {
+                // A link with a space is not a valid address, so it is skipped.
+                echo "skipped: ", $link, "\n";
+            }
+        }
+        return $found;
+    }
+}
+
+array<string> $links = ["/shop/shoes", "sale.html", "https://ads.example.net/", "size guide.pdf"];
+
+// This prints one skipped link, then two addresses on shop.example.com.
+foreach (Crawler::sameSite("https://shop.example.com/shop/", $links) as string $address) {
+    echo $address, "\n";
+}

@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a page sends links with very long paths and very many `..` parts.
+// Each call should return an address or an error in a short time, and every address should be freed.
+
+class Link
+{
+    public static function length(string $base, string $link): string
+    {
+        try {
+            return Core\Str::length(Core\Uri::parse($base)->resolve($link)->toString()) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A link of 200000 `..` parts climbs above the top of the path.
+// It stops at `/`, so the result is https://example.com/ and this prints 20.
+echo Link::length('https://example.com/a/b/c', Core\Str::repeat('../', 200000)), "\n";
+
+// 2. A base with 200000 folders, and a link that goes up by all of them.
+// This prints 23, the length of https://example.com/top.
+echo Link::length('https://example.com/' . Core\Str::repeat('d/', 200000), Core\Str::repeat('../', 200000) . 'top'), "\n";
+
+// 3. A link of 300000 `./` and `a/../` parts that removes itself.
+// This prints 23, the length of https://example.com/end.
+echo Link::length('https://example.com/', Core\Str::repeat('./a/../', 300000) . 'end'), "\n";
+
+// 4. A link with a bad escape at the end of one million letters.
+// This prints "error".
+echo Link::length('https://example.com/', Core\Str::repeat('x', 1000000) . '%zz'), "\n";
+
+// 5. A base with no scheme. This prints "error".
+echo Link::length(Core\Str::repeat('/p', 100000), 'g'), "\n";
+
+// 6. Each result is used as the base of the next link, 20000 times.
+// The address does not grow, so this prints 27, the length of https://example.com/a/b/c/d.
+Core\Uri $current = Core\Uri::parse('https://example.com/a/b/c/x');
+int $i = 0;
+while ($i < 20000) {
+    $current = $current->resolve('../../b/c/d');
+    $i = $i + 1;
+}
+echo Core\Str::length($current->toString()), "\n";

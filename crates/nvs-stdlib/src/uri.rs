@@ -832,20 +832,23 @@ const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->scheme`'s reference card — `rule:core-api/reference-card`.
 const SCHEME_DOC: MethodDoc = MethodDoc {
-    short: "The scheme as written, never case-folded — `parse_url`'s `scheme` key.",
+    short: "Returns the scheme of the address, which is the part before the first `:`. For \
+            `https://example.com/` the result is `https`. The scheme is returned as it was \
+            written, so `HTTPS` stays upper case.",
     params: &[],
-    ret: "The scheme without its `:`, or `null` for a relative reference.",
+    ret: "The scheme, without the `:`. The result is `null` when the address has no scheme, \
+          such as `/about` or `//example.com/`.",
     errors: &[],
 };
 
 /// `$uri->userInfo`'s reference card — `rule:core-api/reference-card`.
 const USER_INFO_DOC: MethodDoc = MethodDoc {
-    short: "The whole userinfo subcomponent as written — `parse_url`'s `user` and `pass` keys \
-            as one reader, because RFC 3986 deprecates the `user:password` form and a member \
-            that split it would recommend writing one.",
+    short: "Returns the user part of the address, which is the text between `//` and `@`. For \
+            `ftp://ann@files.example.com/` the result is `ann`. A password written as \
+            `ann:secret` is returned as one text. Escapes such as `%40` stay in it.",
     params: &[],
-    ret: "The text before the authority's `@`, still percent-encoded, or `null` where no `@` \
-          was written.",
+    ret: "The user part, without the `@`. The result is `null` when the address has no `@` \
+          before its host. It is `\"\"` when nothing is written before the `@`.",
     errors: &[],
 };
 
@@ -1017,21 +1020,23 @@ const WITH_QUERY_PARAMETER_DOC: MethodDoc = MethodDoc {
 
 /// `$uri->resolve`'s reference card — `rule:core-api/reference-card`.
 const RESOLVE_DOC: MethodDoc = MethodDoc {
-    short: "Resolves `$reference` against the receiver as a base, RFC 3986 § 5's reference \
-            resolution, which PHP has no function for: the receiver's fragment is dropped \
-            first, and dot segments are removed from the result — the one member here that \
-            rewrites a path.",
+    short: "Turns a link found on a page into a full address, the way a browser does. The \
+            address of the page is the base. For the base `https://example.com/blog/post` and \
+            the link `../about`, the result is `https://example.com/about`. The `.` and `..` \
+            parts are removed from the path.",
     params: &[ParamDoc {
         name: "reference",
-        desc: "The URI reference to resolve, relative or absolute.",
+        desc: "The link to follow. It can be a full address, a path such as `/about` or \
+               `photo.jpg`, a query such as `?page=2`, or a fragment such as `#top`.",
         shape: &[],
     }],
-    ret: "A fresh absolute `Uri`; the receiver is unchanged.",
+    ret: "A new `Uri` with a scheme. The fragment of the base is not used. The base itself does \
+          not change.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The receiver is a relative reference and so no base; `$reference` is text the \
-               RFC 3986 grammar does not admit; or the base is opaque — no authority and a \
-               rootless path, as in `mailto:a@b` — so there is no path to merge into.",
+        desc: "The base has no scheme, such as `/blog/post`. The link has a character that is \
+               not allowed in an address, such as a space. Or the base has no `/` after its \
+               scheme, such as `mailto:ann@example.com`, so there is no path to add the link to.",
     }],
 };
 
@@ -4687,6 +4692,127 @@ mod tests {
             ),
             Some("c".to_owned())
         );
+    }
+
+    /// `Core\Uri::parse($base)->resolve($reference)->toString()` — the text
+    /// answered, or the message the member threw.
+    fn resolved(base: &str, reference: &str) -> Result<String, String> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let args = [uri_of(base), wrote(reference)];
+        let answered = call(super::nvs_core_uri_resolve, &mut ctx, &args);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the receiver it parsed and the reference \
+                      it wrote, and `resolve` borrows rather than consumes"
+        )]
+        unsafe {
+            for arg in args {
+                arg.release();
+            }
+        }
+        answered
+            .map(text_of)
+            .map_err(|_| refusal.expect("a refusal leaves its message in the context"))
+    }
+
+    /// RFC 3986 § 5.4.1's normal examples against its own base, the base's
+    /// fragment dropped before § 5.3 recomposes, and the two bases § 5.2.1 and
+    /// § 5.2.3 leave without an answer — each a throw rather than a guess.
+    // covers: Core\Uri::resolve
+    #[test]
+    fn resolve_runs_the_rfc_normal_examples_and_throws_for_a_base_with_no_answer() {
+        const BASE: &str = "http://a/b/c/d;p?q";
+        for (reference, expected) in [
+            ("g:h", "g:h"),
+            ("g", "http://a/b/c/g"),
+            ("./g", "http://a/b/c/g"),
+            ("g/", "http://a/b/c/g/"),
+            ("/g", "http://a/g"),
+            ("//g", "http://g"),
+            ("?y", "http://a/b/c/d;p?y"),
+            ("g?y", "http://a/b/c/g?y"),
+            ("#s", "http://a/b/c/d;p?q#s"),
+            ("", "http://a/b/c/d;p?q"),
+            ("..", "http://a/b/"),
+            ("../g", "http://a/b/g"),
+            ("../../g", "http://a/g"),
+        ] {
+            assert_eq!(
+                resolved(BASE, reference).as_deref(),
+                Ok(expected),
+                "RFC 3986 § 5.4.1: {reference:?}"
+            );
+        }
+
+        assert_eq!(
+            resolved("http://a/b?q#f", "").as_deref(),
+            Ok("http://a/b?q"),
+            "§ 5.1: a base carries no fragment"
+        );
+
+        let relative = resolved("/relative/base", "g").expect_err("a relative base has no answer");
+        assert!(
+            relative.contains("the receiver is a relative reference"),
+            "{relative}"
+        );
+        let opaque = resolved("mailto:a@b", "g").expect_err("an opaque base has no path");
+        assert!(opaque.contains("it is opaque"), "{opaque}");
+        let unread = resolved(BASE, "a b").expect_err("a space is outside the grammar");
+        assert!(
+            unread.contains("Core\\Uri::resolve(): this text is not a URI reference"),
+            "{unread}"
+        );
+    }
+
+    /// The scheme comes back in the case it was written in, for a hierarchical
+    /// URI and an opaque one alike, and a relative reference — the network-path
+    /// one included — has none.
+    // covers: Core\Uri::scheme
+    #[test]
+    fn scheme_is_reported_as_written_and_absent_from_a_relative_reference() {
+        for (subject, scheme) in [
+            ("https://example.com/", Some("https")),
+            ("HTTPS://example.com/", Some("HTTPS")),
+            ("mailto:ann@example.com", Some("mailto")),
+            ("urn:isbn:0451450523", Some("urn")),
+            ("git+ssh://example.com/repo", Some("git+ssh")),
+            ("//example.com/a", None),
+            ("/a/b", None),
+            ("a:b/c", Some("a")),
+            ("./a:b", None),
+            ("", None),
+        ] {
+            assert_eq!(
+                reader(super::nvs_core_uri_scheme, subject).as_deref(),
+                scheme,
+                "{subject:?}"
+            );
+        }
+    }
+
+    /// The userinfo is one piece, still escaped: nothing splits it at its `:`,
+    /// an `@` written with nothing before it is `""` rather than `null`, and a
+    /// `@` outside the authority is not userinfo at all.
+    // covers: Core\Uri::userInfo
+    #[test]
+    fn user_info_is_one_escaped_piece_and_empty_differs_from_absent() {
+        for (subject, user_info) in [
+            ("https://ann@example.com/", Some("ann")),
+            ("https://ann:s3cret@example.com/", Some("ann:s3cret")),
+            ("https://ann%40work@example.com/", Some("ann%40work")),
+            ("https://@example.com/", Some("")),
+            ("https://example.com/", None),
+            ("https://example.com/@ann", None),
+            ("mailto:ann@example.com", None),
+            ("/a/b", None),
+        ] {
+            assert_eq!(
+                reader(super::nvs_core_uri_user_info, subject).as_deref(),
+                user_info,
+                "{subject:?}"
+            );
+        }
     }
 
     /// A key ring of one, as `array<secret bytes>`. A fixed key rather than a

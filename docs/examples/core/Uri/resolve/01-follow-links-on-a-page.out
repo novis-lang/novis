@@ -1,0 +1,6 @@
+photo.jpg -> https://example.com/blog/2024/photo.jpg
+/about -> https://example.com/about
+../archive -> https://example.com/blog/archive
+?lang=de -> https://example.com/blog/2024/post.html?lang=de
+#top -> https://example.com/blog/2024/post.html?lang=en#top
+https://example.org/news -> https://example.org/news
