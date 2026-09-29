@@ -1,0 +1,14 @@
+<?nvs
+// Saves a duration as a number, for example in a database column, and reads it back later.
+
+Core\Time\Duration $timeout = 2m30s;
+// A database column has no duration type, so the program saves the number of nanoseconds.
+// This prints 150000000000.
+string $saved = $timeout->toNanoseconds() as string;
+echo $saved, "\n";
+
+// Later, the program reads the text and creates the same duration again. This prints 2m30s.
+?int $count = $saved as ?int;
+if ($count != null) {
+    echo Core\Time\Duration::nanoseconds($count)->toString(), "\n";
+}

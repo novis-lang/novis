@@ -6179,6 +6179,56 @@ mod tests {
         }
     }
 
+    /// The four readers are the nanosecond count divided by their own unit and
+    /// truncated toward zero: one nanosecond short of a unit reads as `0` on
+    /// both sides of zero, and both ends of `int` read without a throw.
+    // covers: Core\Time\Duration::toNanoseconds, Core\Time\Duration::toMicroseconds, Core\Time\Duration::toMilliseconds, Core\Time\Duration::toSeconds
+    #[test]
+    fn duration_readers_truncate_toward_zero_at_every_scale() {
+        let read = |reader: nvs_runtime::NvsFn, nanos: i64| {
+            let mut ctx = Ctx::buffered();
+            let held = [duration_of(nanos)];
+            let answer = nvs_runtime::call(reader, &mut ctx, &held)
+                .ok()
+                .and_then(|value| value.as_int());
+            for value in held {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built the `Duration`, and the reader borrowed it"
+                )]
+                unsafe {
+                    value.release();
+                }
+            }
+            answer.expect("every `Duration` reads as an `int`")
+        };
+        let readers: [(nvs_runtime::NvsFn, i64); 4] = [
+            (nvs_core_time_duration_to_nanoseconds, 1),
+            (nvs_core_time_duration_to_microseconds, 1_000),
+            (nvs_core_time_duration_to_milliseconds, 1_000_000),
+            (nvs_core_time_duration_to_seconds, 1_000_000_000),
+        ];
+        for (reader, unit) in readers {
+            assert_eq!(read(reader, 0), 0);
+            assert_eq!(read(reader, unit), 1);
+            assert_eq!(read(reader, -unit), -1);
+            assert_eq!(read(reader, 3 * unit - 1), 2);
+            assert_eq!(read(reader, 1 - 3 * unit), -2);
+            assert_eq!(read(reader, unit - 1), 0);
+            assert_eq!(read(reader, 1 - unit), 0);
+            assert_eq!(read(reader, i64::MAX), i64::MAX / unit);
+            assert_eq!(read(reader, i64::MIN), i64::MIN / unit);
+        }
+        assert_eq!(read(nvs_core_time_duration_to_microseconds, 1_500), 1);
+        assert_eq!(read(nvs_core_time_duration_to_microseconds, -1_500), -1);
+        assert_eq!(read(nvs_core_time_duration_to_seconds, 1_999_999_999), 1);
+        assert_eq!(read(nvs_core_time_duration_to_seconds, -1_999_999_999), -1);
+        assert_eq!(
+            read(nvs_core_time_duration_to_seconds, i64::MIN),
+            -9_223_372_036
+        );
+    }
+
     /// The nanosecond count of a `Duration` this frame was handed, released
     /// once it is read.
     fn read_and_release(made: Value) -> i64 {

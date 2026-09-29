@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `toNanoseconds` keeps every part of a duration.
+
+Core\Time\Duration $step = 1s;
+$step = $step->plus(1ns);
+// This prints 1000000001. The last nanosecond is still there.
+echo $step->toNanoseconds(), "\n";
+// `toSeconds` counts only whole seconds. This prints 1.
+echo $step->toSeconds(), "\n";
+
+// The longest duration is about 292 years. It still fits in an `int`.
+// This prints 9223372036854775807.
+echo Core\Time\Duration::nanoseconds(9223372036854775807)->toNanoseconds(), "\n";
