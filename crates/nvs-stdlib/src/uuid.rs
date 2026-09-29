@@ -235,23 +235,26 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Uuid::v4`'s reference card — `rule:core-api/reference-card`.
 const V4_DOC: MethodDoc = MethodDoc {
-    short: "Draws a random UUID — 122 bits from the CSPRNG under RFC 9562's version-4 layout — \
-            replacing `uniqid`, `com_create_guid` and the userland libraries around them.",
+    short: "Creates a new random UUID, such as `f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4`. 122 of \
+            its 128 bits come from a secure random number generator. The other six bits say \
+            that it is a version 4 UUID.",
     params: &[],
-    ret: "A fresh `Uuid`, unguessable and carrying no clock; the one to hand to a stranger.",
+    ret: "A new `Uuid`. Nobody can guess it, and it contains no date or time, so it is safe to \
+          show to other people.",
     errors: &[],
 };
 
 /// `Core\Uuid::v7`'s reference card — `rule:core-api/reference-card`.
 const V7_DOC: MethodDoc = MethodDoc {
-    short: "Draws a time-ordered UUID — a 48-bit millisecond timestamp then 74 random bits, RFC \
-            9562's version 7 — for a database key, where an ascending identifier appends to the \
-            index instead of dirtying a random page. PHP has no equivalent.",
+    short: "Creates a new UUID that starts with the current time, such as \
+            `0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a`. The first 48 bits are the number of \
+            milliseconds since 1970. 74 of the other bits are random. Use it as a database key, \
+            because new keys sort after older ones.",
     params: &[],
-    ret: "A fresh `Uuid` that sorts after every one drawn in an earlier millisecond and randomly \
-          against those drawn in the same one; its creation time is readable from it, so it is \
-          the wrong identifier to show a stranger. A host clock before 1970 is pinned to the \
-          epoch.",
+    ret: "A new `Uuid`. It sorts after every UUID created in an earlier millisecond. Two UUIDs \
+          created in the same millisecond sort in a random order. Anybody who has the UUID can \
+          read the time it was created, so use `Core\\Uuid::v4` for an ID that other people \
+          see. If the computer's clock is before 1970, the time part is zero.",
     errors: &[],
 };
 
@@ -278,14 +281,18 @@ const PARSE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Uuid::tryParse`'s reference card — `rule:core-api/reference-card`.
 const TRY_PARSE_DOC: MethodDoc = MethodDoc {
-    short: "`Core\\Uuid::parse` with `null` where it throws — the one spelling of \"is this text \
-            a UUID\", replacing `uuid_is_valid` and every userland `isValid`.",
+    short: "Reads the text `$s` as a UUID, like `Core\\Uuid::parse`. When the text is not a \
+            UUID, it returns `null` and does not throw an error. Use it to check whether a text \
+            is a UUID.",
     params: &[ParamDoc {
         name: "s",
-        desc: "The text to read.",
+        desc: "The text to read. It must be 32 hexadecimal digits in groups of 8, 4, 4, 4 and 12, \
+               joined by hyphens. Upper case and lower case letters are both allowed.",
         shape: &[],
     }],
-    ret: "The `Uuid` for the canonical hyphenated form in either case; `null` for anything else.",
+    ret: "The `Uuid` that the text gives, or `null` when the text is in any other form. The 32 \
+          digits without hyphens, a UUID in `{}` braces and a UUID after `urn:uuid:` all give \
+          `null`.",
     errors: &[],
 };
 
@@ -733,6 +740,7 @@ mod tests {
         assert_eq!(CLASS.slots.len(), 2);
     }
 
+    // covers: Core\Uuid::v4
     #[test]
     fn a_v4_is_canonical_lower_case_hex_with_its_version_and_variant() {
         for _ in 0..64 {
@@ -758,6 +766,7 @@ mod tests {
         }
     }
 
+    // covers: Core\Uuid::v7
     #[test]
     fn a_v7_carries_its_version_and_a_clock_that_moves_forward() {
         let first = rendered(run(super::nvs_core_uuid_v7, &[]).expect("`v7` never fails"));
@@ -945,6 +954,7 @@ mod tests {
     /// RFC 9562 §§ 5.9 and 5.10: neither the nil nor the max UUID names a
     /// version, and both are UUIDs — the module docs own why no member here
     /// reads the version nibble as a checksum.
+    // covers: Core\Uuid::tryParse
     #[test]
     fn the_nil_and_max_uuids_are_valid() {
         assert!(valid("00000000-0000-0000-0000-000000000000"));
@@ -953,6 +963,7 @@ mod tests {
 
     /// The three spellings `uuid` itself would take and this module refuses,
     /// each written as the same value the canonical form above holds.
+    // covers: Core\Uuid::tryParse
     #[test]
     fn the_three_non_canonical_spellings_are_refused() {
         assert!(!valid("f9168c5eceb24faab6bf329bf39fa1e4"));

@@ -1,0 +1,17 @@
+<?nvs
+// Creates a new random UUID, as a program does when it gives a new record its ID.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Bytes::length(Core\Uuid::v4()->toBytes()) + ($total % 3);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

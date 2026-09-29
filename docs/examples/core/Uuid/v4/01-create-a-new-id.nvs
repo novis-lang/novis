@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to create a new random UUID and which of its characters are always the same.
+
+// `Core\Uuid::v4` creates a new UUID. Its digits are different on every run.
+string $id = Core\Uuid::v4()->toString();
+
+// The text is always 36 characters long. This prints 36.
+echo Core\Str::length($id), "\n";
+
+// The third group always starts with the version of the UUID. This prints 4.
+echo Core\Str::slice($id, 14, 1), "\n";
+
+// The groups are always 8, 4, 4, 4 and 12 digits long. This prints 8 4 4 4 12.
+array<string> $lengths = [];
+foreach (Core\Str::split($id, "-") as string $group) {
+    $lengths[] = Core\Str::length($group) as string;
+}
+echo Core\Str::join($lengths, " "), "\n";
