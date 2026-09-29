@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `next` returns when the value already falls on that weekday.
+
+// 30 December 2024 is a Monday.
+var $monday = Core\Time::at(2024, 12, 30, Core\Time\Zone::of("Asia/Tokyo"), {hour: 8});
+
+// `next` always moves forward. On a Monday, the next Monday is seven days later.
+// This prints 2025-01-06 08:00, which is in the next year.
+echo $monday->next(Core\Weekday::Monday)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// The value itself does not change. This prints 2024-12-30 08:00.
+echo $monday->format("yyyy-MM-dd HH:mm"), "\n";

@@ -1,0 +1,38 @@
+<?nvs
+// Attack: `next` looks for every weekday from the last days that can exist, and walks one million weeks.
+// A day past the range should throw a `RuntimeError`, and nothing should crash.
+
+array<Core\Weekday> $days = [
+    Core\Weekday::Monday, Core\Weekday::Tuesday, Core\Weekday::Wednesday, Core\Weekday::Thursday,
+    Core\Weekday::Friday, Core\Weekday::Saturday, Core\Weekday::Sunday,
+];
+
+// 1. Every weekday is looked for after the last second, and after each of the seven days before it.
+// Most of them are past the range. The ones that exist are counted.
+var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+int $found = 0;
+int $refused = 0;
+int $back = 0;
+while ($back < 8) {
+    var $from = $last->minus($back, Core\Unit::Day);
+    foreach ($days as Core\Weekday $day) {
+        try {
+            $from->next($day);
+            $found = $found + 1;
+        } catch (RuntimeError $late) {
+            $refused = $refused + 1;
+        }
+    }
+    $back = $back + 1;
+}
+echo $found + $refused, " of 56 answered\n";
+
+// 2. One million steps forward, one day each, from a time that a clock change skips in spring.
+// Each step frees the value before it.
+var $moving = Core\Time::at(2000, 3, 26, Core\Time\Zone::of('Europe/Berlin'), { hour: 2, minute: 30 });
+uint $round = 0;
+while ($round < 1000000) {
+    $moving = $moving->next($days[$round % 7]);
+    $round = $round + 1;
+}
+echo $moving->format('yyyy-MM-dd'), "\n";

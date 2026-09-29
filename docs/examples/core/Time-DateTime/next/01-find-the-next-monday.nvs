@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to find the next day that falls on a given weekday.
+
+// 12 June 2024 is a Wednesday.
+var $wednesday = Core\Time::at(2024, 6, 12, Core\Time\Zone::of("Europe/Paris"), {hour: 14, minute: 45});
+
+// `next` returns a new value on the next Monday. The time of day stays the same.
+// This prints Monday 17 June 2024, 14:45.
+echo $wednesday->next(Core\Weekday::Monday)->format("EEEE d MMMM yyyy, HH:mm"), "\n";
+
+// The next Friday is in the same week. This prints Friday 14 June 2024, 14:45.
+echo $wednesday->next(Core\Weekday::Friday)->format("EEEE d MMMM yyyy, HH:mm"), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to list the next times a weekly report runs.
+
+// The report runs every Monday at 06:00 in Chicago. The last run was on Monday 21 October 2024.
+var $run = Core\Time::at(2024, 10, 21, Core\Time\Zone::of("America/Chicago"), {hour: 6});
+
+// Each run is the next Monday after the one before. The clocks change on 3 November, but each run is at 06:00.
+// This prints 28 October, 4 November and 11 November, each at 06:00.
+int $count = 0;
+while ($count < 3) {
+    $run = $run->next(Core\Weekday::Monday);
+    echo $run->format("EEEE d MMMM, HH:mm XXX"), "\n";
+    $count = $count + 1;
+}
