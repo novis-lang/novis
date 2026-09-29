@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to accept only IPv4 addresses or only IPv6 addresses.
+
+// "::ffff:192.0.2.1" contains an IPv4 address, but it is written as an IPv6 address.
+array<string> $addresses = ["192.0.2.1", "2001:db8::1", "::ffff:192.0.2.1"];
+
+// `{version: 4}` accepts only IPv4, and `{version: 6}` accepts only IPv6.
+// This prints "4 yes, 6 no" for the first address and "4 no, 6 yes" for the other two.
+foreach ($addresses as string $address) {
+    echo $address, ": 4 ", Core\Validate::isIp($address, {version: 4}) ? "yes" : "no";
+    echo ", 6 ", Core\Validate::isIp($address, {version: 6}) ? "yes" : "no", "\n";
+}

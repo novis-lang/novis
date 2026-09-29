@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check an allow list of IP addresses before a program saves it.
+
+// Each line is an address that somebody typed into a settings form.
+array<string> $lines = ["192.0.2.10", " 198.51.100.7 ", "10.0.0.300", "2001:db8::42", "localhost"];
+
+// `trim` removes the spaces around each line. Only real IP addresses go into the list.
+// "10.0.0.300" has a number over 255, and "localhost" is a name.
+array<string> $allowed = [];
+foreach ($lines as string $line) {
+    string $address = Core\Str::trim($line);
+    if (Core\Validate::isIp($address)) {
+        $allowed[] = $address;
+    } else {
+        echo "skipped: ", $address, "\n";
+    }
+}
+
+// This prints 3 and then the three saved addresses.
+echo "saved ", Core\Arr::count($allowed), ": ", Core\Str::join($allowed, ", "), "\n";

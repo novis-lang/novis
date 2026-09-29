@@ -1,0 +1,24 @@
+<?nvs
+// Checks that an address from a settings form is an IP address, as a program does before it saves it.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $addresses = ["192.0.2.1", "2001:db8::1", "256.0.0.1"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Validate::isIp($addresses[(($total + $i) % 3) as int])) {
+                $total = $total + 3;
+            } else {
+                $total = $total + 6;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

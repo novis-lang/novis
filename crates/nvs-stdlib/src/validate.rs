@@ -281,8 +281,9 @@ const IS_DOMAIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Validate::isIp`'s reference card — `rule:core-api/reference-card`.
 const IS_IP_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$s` is an IP address, as `filter_var` with `FILTER_VALIDATE_IP` \
-            does, with `FILTER_FLAG_IPV4` and `FILTER_FLAG_IPV6` folded into `version`.",
+    short: "Checks whether `$s` is an IP address. An IPv4 address is four numbers from 0 to 255 \
+            joined by dots, such as `192.0.2.1`. An IPv6 address is up to eight groups of hex \
+            digits joined by `:`, such as `2001:db8::1`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -291,13 +292,14 @@ const IS_IP_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "version",
-            desc: "`4` or `6` to accept exactly that family; omitted, either family is accepted.",
+            desc: "`4` accepts only IPv4 addresses, and `6` accepts only IPv6 addresses. Without \
+                   it, both are accepted.",
             shape: &[],
         },
     ],
-    ret: "`true` for an address of the chosen family; `false` otherwise, including an IPv4 octet \
-          with a leading zero (`192.000.002.001`) and an IPv6 address carrying a zone \
-          identifier (`fe80::1%eth0`).",
+    ret: "`true` for an IP address of the chosen version. `false` for anything else. A number \
+          with a leading zero, such as `192.0.2.01`, gives `false`. An IPv6 address with a zone \
+          at the end, such as `fe80::1%eth0`, also gives `false`.",
     errors: &[],
 };
 
@@ -335,17 +337,19 @@ const IS_ASCII_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Validate::isPrintable`'s reference card — `rule:core-api/reference-card`.
 const IS_PRINTABLE_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$s` holds no control character — no `char` in Unicode general \
-            category `Cc` — as `ctype_print` does, but over characters rather than ASCII bytes, \
-            so `café` is printable.",
+    short: "Checks whether `$s` contains no control characters. A control character has no \
+            visible form, for example a tab, a new line or the null byte. Letters from any \
+            language, such as `é` or `日`, are printable.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to test.",
         shape: &[],
     }],
-    ret: "`true` when no character is a C0 or C1 control or `DEL` — tab, carriage return and \
-          newline are controls and answer `false` — and `true` for the empty string. Not a \
-          spoofing check: bidirectional overrides and zero-width joiners are printable.",
+    ret: "`true` when the text has no control character, and `true` for the empty string. \
+          `false` for a tab, a new line, a carriage return, `DEL` or any other control \
+          character. Some invisible characters are not control characters, such as the \
+          zero-width joiner. They give `true`, so this method does not find text that hides \
+          what it really says.",
     errors: &[],
 };
 
@@ -856,6 +860,121 @@ mod tests {
                 Some(text.len() == text.chars().count()),
                 "`isAscii({text:?})`"
             );
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the string it built; the helper borrowed its argument \
+                          and answered a scalar"
+            )]
+            unsafe {
+                subject.release();
+            }
+        }
+        assert!(
+            ask(Value::int(7)).is_err(),
+            "a non-`string` subject is refused"
+        );
+    }
+
+    /// `isIp` through the boundary compiled code reaches it at, under each of
+    /// the three `version` answers: omitted takes either family, `4` and `6`
+    /// take exactly theirs. The leading-zero octet, the zone identifier and an
+    /// octet one past 255 are refused under all three, and a `version` the
+    /// checker cannot let through is the ABI's own fatal.
+    // covers: Core\Validate::isIp
+    #[test]
+    fn is_ip_takes_the_family_its_version_names_and_nothing_malformed() {
+        use nvs_runtime::{Ctx, NvsStr, OutputSink, call};
+
+        let ask = |text: &str, version: Value| {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let answer = call(nvs_core_validate_is_ip, &mut ctx, &[subject, version]);
+            #[expect(
+                unsafe_code,
+                reason = "this closure owns the string it built; the helper borrowed its \
+                          argument and answered a scalar"
+            )]
+            unsafe {
+                subject.release();
+            }
+            answer
+        };
+        // (subject, either, only 4, only 6)
+        for (text, either, v4, v6) in [
+            ("192.0.2.1", true, true, false),
+            ("0.0.0.0", true, true, false),
+            ("255.255.255.255", true, true, false),
+            ("2001:db8::1", true, false, true),
+            ("::", true, false, true),
+            ("::ffff:192.0.2.1", true, false, true),
+            ("256.0.0.1", false, false, false),
+            ("192.0.2.01", false, false, false),
+            ("192.0.2", false, false, false),
+            (" 192.0.2.1", false, false, false),
+            ("fe80::1%eth0", false, false, false),
+            ("2001:db8::1::2", false, false, false),
+            ("", false, false, false),
+        ] {
+            for (version, want) in [
+                (Value::null(), either),
+                (Value::int(4), v4),
+                (Value::int(6), v6),
+            ] {
+                let answer = ask(text, version)
+                    .expect("`isIp` answers a `string` and a declared version without throwing");
+                assert_eq!(
+                    answer.as_bool(),
+                    Some(want),
+                    "`isIp({text:?})` with version {:?}",
+                    version.as_int()
+                );
+            }
+        }
+        assert!(
+            ask("192.0.2.1", Value::int(5)).is_err(),
+            "a version outside `4|6` is refused"
+        );
+    }
+
+    /// `isPrintable` through the boundary compiled code reaches it at: every
+    /// C0 control, `DEL` and the C1 range are refused wherever they sit, and
+    /// a character outside category `Cc` is printable even when it has no
+    /// width — the zero-width joiner and a bidi override are the two the
+    /// module docs name, because this is not a spoofing check.
+    // covers: Core\Validate::isPrintable
+    #[test]
+    fn is_printable_is_false_exactly_where_a_control_character_sits() {
+        use nvs_runtime::{Ctx, NvsStr, OutputSink, call};
+
+        let ask = |subject: Value| {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            call(nvs_core_validate_is_printable, &mut ctx, &[subject])
+        };
+        for (text, want) in [
+            ("", true),
+            ("Order 1042", true),
+            ("café", true),
+            ("日本語", true),
+            ("🙂", true),
+            ("~", true),
+            ("\u{a0}", true),
+            ("\u{200d}", true),
+            ("\u{202e}", true),
+            ("\0", false),
+            ("\t", false),
+            ("\n", false),
+            ("\r", false),
+            ("\x1f", false),
+            ("\x7f", false),
+            ("\u{80}", false),
+            ("\u{9f}", false),
+            ("a\nb", false),
+            ("abc\t", false),
+            ("\x1bcafé", false),
+        ] {
+            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let answer = ask(subject).expect("`isPrintable` answers a `string` without throwing");
+            assert_eq!(answer.as_bool(), Some(want), "`isPrintable({text:?})`");
             #[expect(
                 unsafe_code,
                 reason = "this test owns the string it built; the helper borrowed its argument \

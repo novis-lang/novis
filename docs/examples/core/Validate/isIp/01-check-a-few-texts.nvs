@@ -1,0 +1,12 @@
+<?nvs
+// Shows which texts are IP addresses.
+
+// "256.0.0.1" has a number over 255, and "192.0.2.01" has a number with a leading zero.
+// "example.com" is a domain name, not an IP address.
+array<string> $texts = ["192.0.2.1", "2001:db8::1", "256.0.0.1", "192.0.2.01", "example.com"];
+
+// `Core\Validate::isIp` returns `true` for an IPv4 or an IPv6 address.
+// This prints yes for the first two texts and no for the other three.
+foreach ($texts as string $text) {
+    echo $text, ": ", Core\Validate::isIp($text) ? "yes" : "no", "\n";
+}
