@@ -1,0 +1,23 @@
+<?nvs
+// Sets the page number in the query of an address, as a list page does for each link to another page.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $links = [
+            Core\Uri::parse("https://shop.example.com/search?q=shoes&page=2&sort=price"),
+            Core\Uri::parse("/orders?status=open&page=14&limit=50"),
+            Core\Uri::parse("/news"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $next = $links[($total % 3) as int]->withQueryParameter("page", $i);
+            $total = $total + Core\Str::length($next->toString());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

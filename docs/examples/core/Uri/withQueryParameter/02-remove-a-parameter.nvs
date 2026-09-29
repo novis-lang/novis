@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to remove a parameter from the query of an address.
+
+var $link = Core\Uri::parse("/orders?status=open&page=4");
+
+// `null` removes the parameter. This prints /orders?status=open.
+echo $link->withQueryParameter("page", null), "\n";
+
+// When the last parameter is removed, the `?` is removed too. This prints /orders.
+echo $link->withQueryParameter("page", null)->withQueryParameter("status", null), "\n";
+
+// The other pairs are written again in one standard way. `%20` becomes `+`.
+echo Core\Uri::parse("/find?q=blue%20shirt&page=1")->withQueryParameter("page", null), "\n";

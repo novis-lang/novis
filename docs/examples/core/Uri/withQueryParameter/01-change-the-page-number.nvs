@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to change one value in the query of an address.
+
+var $link = Core\Uri::parse("https://shop.example.com/search?q=red+shoes&page=2");
+
+// The value of `page` is replaced. This prints the address with `page=3`.
+echo $link->withQueryParameter("page", 3), "\n";
+
+// A name that is not in the query is added at the end. The space becomes `+`.
+echo $link->withQueryParameter("sort", "price low"), "\n";
+
+// `$link` does not change. This prints the first address again.
+echo $link, "\n";

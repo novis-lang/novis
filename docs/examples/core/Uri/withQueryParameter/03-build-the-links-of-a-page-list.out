@@ -1,0 +1,3 @@
+/products?q=lamp&sort=price
+/products?q=lamp&sort=price&page=2
+/products?q=lamp&sort=price&page=3
