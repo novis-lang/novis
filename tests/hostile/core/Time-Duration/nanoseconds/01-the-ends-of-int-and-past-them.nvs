@@ -1,0 +1,43 @@
+<?nvs
+// Attack: `nanoseconds` gets the largest and smallest `int`, and sums that go past them.
+// Every `int` should give a duration, every sum past the end should throw a `RuntimeError`, and nothing should crash or leak.
+
+// 1. Every number at the ends of `int` and around zero. All of them fit.
+array<int> $counts = [9223372036854775807, -9223372036854775807 - 1, 9223372036854775806, 0, 1, -1];
+int $built = 0;
+foreach ($counts as int $n) {
+    if (Core\Time\Duration::nanoseconds($n)->toNanoseconds() == $n) {
+        $built = $built + 1;
+    }
+}
+echo $built, " built\n";
+
+// 2. One nanosecond is added past each end. Both sums throw.
+int $refused = 0;
+try {
+    Core\Time\Duration::nanoseconds(9223372036854775807)->plus(Core\Time\Duration::nanoseconds(1));
+} catch (RuntimeError $e) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Time\Duration::nanoseconds(-9223372036854775807 - 1)->minus(Core\Time\Duration::nanoseconds(1));
+} catch (RuntimeError $f) {
+    $refused = $refused + 1;
+}
+echo $refused, " refused\n";
+
+// 3. The smallest duration has no positive opposite. Making it negative throws.
+try {
+    Core\Time\Duration::nanoseconds(-9223372036854775807 - 1)->negated();
+} catch (RuntimeError $g) {
+    echo "negation refused\n";
+}
+
+// 4. One million durations are built and added up. Each one is freed again.
+Core\Time\Duration $sum = Core\Time\Duration::nanoseconds(0);
+int $round = 0;
+while ($round < 1000000) {
+    $sum = $sum->plus(Core\Time\Duration::nanoseconds(($round % 1000 - 500) * 9000000000000));
+    $round = $round + 1;
+}
+echo $sum->toSeconds(), "\n";

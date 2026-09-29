@@ -6026,6 +6026,78 @@ mod tests {
         );
     }
 
+    /// `nanoseconds` takes every `int`, so both ends of `int` are durations.
+    /// `negated`, `minus` and `multipliedBy` are exact up to the last value
+    /// that fits and throw one step past it, at both ends, naming the member.
+    /// `negated` has exactly one refusal: `nanoseconds(i64::MIN)`.
+    // covers: Core\Time\Duration::nanoseconds, Core\Time\Duration::negated, Core\Time\Duration::minus, Core\Time\Duration::multipliedBy
+    #[test]
+    fn duration_nanoseconds_takes_every_int_and_arithmetic_is_bounded_on_both_sides() {
+        let answered = |member: nvs_runtime::NvsFn, args: [Value; 2], arity: usize| {
+            let mut ctx = Ctx::buffered();
+            let answer = nvs_runtime::call(member, &mut ctx, &args[..arity])
+                .map(read_and_release)
+                .map_err(|_| ctx.take_pending().unwrap_or_default().into_owned());
+            for held in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame built both arguments, and the member borrowed them"
+                )]
+                unsafe {
+                    held.release();
+                }
+            }
+            answer
+        };
+        let nanoseconds = |n: i64| {
+            answered(
+                nvs_core_time_duration_nanoseconds,
+                [Value::int(n), Value::null()],
+                1,
+            )
+        };
+        let negated =
+            |n: i64| answered(nvs_core_time_duration_negated, [built(n), Value::null()], 1);
+        let minus =
+            |a: i64, b: i64| answered(nvs_core_time_duration_minus, [built(a), built(b)], 2);
+        let times = |a: i64, f: i64| {
+            answered(
+                nvs_core_time_duration_multiplied_by,
+                [built(a), Value::int(f)],
+                2,
+            )
+        };
+        for n in [0, 1, -1, 5_400_000_000_000, i64::MAX, i64::MIN] {
+            assert_eq!(nanoseconds(n), Ok(n));
+        }
+        assert_eq!(negated(90), Ok(-90));
+        assert_eq!(negated(0), Ok(0));
+        assert_eq!(negated(i64::MAX), Ok(-i64::MAX));
+        assert_eq!(negated(i64::MIN + 1), Ok(i64::MAX));
+        assert_eq!(minus(90, 30), Ok(60));
+        assert_eq!(minus(30, 90), Ok(-60));
+        assert_eq!(minus(i64::MIN + 1, 1), Ok(i64::MIN));
+        assert_eq!(minus(i64::MAX - 1, -1), Ok(i64::MAX));
+        assert_eq!(times(90, 3), Ok(270));
+        assert_eq!(times(90, -1), Ok(-90));
+        assert_eq!(times(i64::MAX, 1), Ok(i64::MAX));
+        assert_eq!(times(i64::MIN, 1), Ok(i64::MIN));
+        assert_eq!(times(i64::MAX / 2, 2), Ok(i64::MAX - 1));
+        let past = |member: &str, refused: Result<i64, String>| {
+            let refused = refused.expect_err("past the range");
+            assert!(
+                refused.starts_with(&format!("Core\\Time\\Duration::{member}(): ")),
+                "{refused}"
+            );
+        };
+        past("negated", negated(i64::MIN));
+        past("minus", minus(i64::MIN, 1));
+        past("minus", minus(i64::MAX, -1));
+        past("multipliedBy", times(i64::MIN, -1));
+        past("multipliedBy", times(i64::MAX / 2 + 1, 2));
+        past("multipliedBy", times(i64::MIN / 2 - 1, 2));
+    }
+
     /// The nanosecond count of a `Duration` this frame was handed, released
     /// once it is read.
     fn read_and_release(made: Value) -> i64 {

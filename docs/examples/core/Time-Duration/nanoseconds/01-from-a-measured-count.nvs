@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to create a duration from a number of nanoseconds, the smallest unit a duration has.
+
+// A timer measured 1500000 nanoseconds. That is 1.5 milliseconds.
+Core\Time\Duration $elapsed = Core\Time\Duration::nanoseconds(1500000);
+
+// `toMilliseconds` gives whole milliseconds, so this prints 1.
+echo $elapsed->toMilliseconds(), "\n";
+
+// No part is lost. This prints 1500000 again.
+echo $elapsed->toNanoseconds(), "\n";
+
+// 90 seconds in nanoseconds has the same length as the literal `90s`.
+// `compareTo` returns 0 for two durations of the same length, so this prints 0.
+echo Core\Time\Duration::nanoseconds(90000000000)->compareTo(90s), "\n";
