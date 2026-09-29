@@ -11,12 +11,12 @@ try { Core\Time::fromEpoch(9223372036854775807); } catch (RuntimeError $intHigh)
 try { Core\Time::fromEpoch(-9223372036854775807 - 1); } catch (RuntimeError $intLow) { $refused = $refused + 1; }
 
 // 2. The largest unsigned whole number as `nanos`, and exactly one second of nanoseconds.
-try { Core\Time::fromEpoch(0, {nanos: 18446744073709551615}); } catch (RuntimeError $nanosMax) { $refused = $refused + 1; }
-try { Core\Time::fromEpoch(253402207200, {nanos: 1000000000}); } catch (RuntimeError $nanosSecond) { $refused = $refused + 1; }
+try { Core\Time::fromEpoch(0, { nanos: 18446744073709551615 }); } catch (RuntimeError $nanosMax) { $refused = $refused + 1; }
+try { Core\Time::fromEpoch(253402207200, { nanos: 1000000000 }); } catch (RuntimeError $nanosSecond) { $refused = $refused + 1; }
 echo $refused, " refused\n";
 
 // 3. The last nanosecond at the top of the range, and the first second at the bottom.
-echo Core\Time::fromEpoch(253402207200, {nanos: 999999999})->toIso(), "\n";
+echo Core\Time::fromEpoch(253402207200, { nanos: 999999999 })->toIso(), "\n";
 echo Core\Time::fromEpoch(-377705023201)->toIso(), "\n";
 
 // 4. Many refused calls in a loop. Every error is caught and freed.
@@ -37,7 +37,7 @@ int $total = 0;
 uint $j = 0;
 while ($j < 200000) {
     int $seconds = -377705023201 + ($j as int) * 3155000000 % 631107230401;
-    $total = $total + Core\Time::fromEpoch($seconds, {nanos: $j})->toEpochSeconds() % 1000;
+    $total = $total + Core\Time::fromEpoch($seconds, { nanos: $j })->toEpochSeconds() % 1000;
     $j = $j + 1;
 }
 echo $total, "\n";

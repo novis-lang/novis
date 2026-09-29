@@ -6,4 +6,4 @@ echo Core\Time::fromEpoch(-14182940)->toIso(), "\n";
 
 // `nanos` is added after the second, also for a negative second.
 // -1 is 23:59:59 on the last day of 1969. Half a second later is 23:59:59.5.
-echo Core\Time::fromEpoch(-1, {nanos: 500000000})->toIso(), "\n";
+echo Core\Time::fromEpoch(-1, { nanos: 500000000 })->toIso(), "\n";
