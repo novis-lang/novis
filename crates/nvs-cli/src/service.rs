@@ -2123,7 +2123,7 @@ pub(crate) mod registration {
     /// Not `#[cfg(unix)]`, for the reason [`Platform`] is a parameter rather
     /// than a `cfg!`: a write, a remove and a child process are `std` on every
     /// platform, so compiling this everywhere is what keeps it compiled at all
-    /// on the machine somebody happens to be working on. [`scm::Scm`] has no
+    /// on the machine somebody happens to be working on. `scm::Scm` has no
     /// such choice — `windows-sys` is a dependency only where it exists.
     #[cfg_attr(
         all(test, windows),
