@@ -1,0 +1,4 @@
+# Every request starts in production mode. There is no ceiling, so production is also
+# the most permissive mode a program may choose.
+[mode]
+default = "production"

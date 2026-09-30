@@ -1,0 +1,27 @@
+<?nvs
+// Attack: a request on a production server tries to switch itself to development mode.
+// Only the person who runs the server may allow that, so every attempt should fail.
+
+// 1. Switch the mode directly, with other spellings, and with no key at all.
+// Each call should return `false`.
+array<string> $modes = ['development', 'Development', 'DEVELOPMENT', ' development', 'development ', ''];
+foreach ($modes as string $mode) {
+    echo Core\Config::set('mode.default', $mode) ? 'yes' : 'no', "\n";
+}
+echo Core\Config::set('mode', 'development') ? 'yes' : 'no', "\n";
+echo Core\Config::set('mode..default', 'development') ? 'yes' : 'no', "\n";
+
+// 2. Raise the ceiling first, then switch. Each call should return `false`.
+echo Core\Config::set('mode.ceiling', 'development') ? 'yes' : 'no', "\n";
+echo Core\Config::set('mode', 'false') ? 'yes' : 'no', "\n";
+echo Core\Config::set('mode.default', 'development') ? 'yes' : 'no', "\n";
+
+// 3. Set a mode name that does not exist, and a very long one. Each call should return `false`.
+echo Core\Config::set('mode.default', 'staging') ? 'yes' : 'no', "\n";
+echo Core\Config::set('mode.default', Core\Str::repeat('development', 100000)) ? 'yes' : 'no', "\n";
+
+// 4. Set the mode the request already has. This call returns `true`, and the mode is still production.
+// The file sets no ceiling, so the last line prints `null`.
+echo Core\Config::set('mode.default', 'production') ? 'yes' : 'no', "\n";
+echo Core\Config::get('mode.default'), "\n";
+echo Core\Config::get('mode.ceiling') ?? 'null', "\n";

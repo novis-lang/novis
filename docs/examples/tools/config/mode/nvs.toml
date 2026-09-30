@@ -1,0 +1,5 @@
+# Every request starts in production mode.
+# A program may switch its own request to development mode, and no further.
+[mode]
+default = "production"
+ceiling = "development"

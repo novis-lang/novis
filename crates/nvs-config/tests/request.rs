@@ -501,6 +501,7 @@ fn every_derived_default_names_a_directive_the_registry_holds() {
 /// The last clause is the one a shared registry would get wrong, and it is asked here for the same
 /// reason `config_set_is_invisible_to_the_next_request_on_the_same_core` asks it of a limit: a mode
 /// that leaked would be one request putting another into development.
+// covers: tools:config/mode
 #[test]
 fn a_mode_flip_is_bounded_derived_and_request_local() {
     let snapshot = snapshot_of("[mode]\ndefault = \"production\"\nceiling = \"development\"\n");
