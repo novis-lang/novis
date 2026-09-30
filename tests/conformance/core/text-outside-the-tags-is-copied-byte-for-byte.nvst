@@ -1,0 +1,16 @@
+--TEST--
+Text outside the tags is copied to the output byte for byte: `<?` alone and `#!` past offset 0 are text, `<?=` echoes, and `<?php` inside a string is data (`rule:statements/nvs-is-the-only-open-tag`, `rule:tooling/shebang-opens-code-mode`)
+--FILE--
+Report <? draft #! not a shebang <?= "v2" ?> end
+<?nvs
+// covers: tools:cli/files-extensions-and-tags
+// Only `<?nvs` opens code. Inside code, the tags below are the content of a string.
+echo "<?php is data here", "\n";
+?>
+footer
+<?nvs echo "done", "\n";
+--EXPECT--
+Report <? draft #! not a shebang v2 end
+<?php is data here
+footer
+done
