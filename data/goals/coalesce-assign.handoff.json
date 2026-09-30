@@ -1,0 +1,40 @@
+{
+  "state": "**Goal `coalesce-assign` — `??=` works as PHP's does, and `??+=`, `??-=` and `??.=` start from a default — has just started; nothing of it has landed yet.** Goal `program-enumeration`'s whole list is this goal's Stage 1 floor.\n\nThe design is settled and is the user's: `??=` writes an absent key and its value is typed as what\nwas written; the three operators are `$a = ($a ?? d) op $v` with the target evaluated once and `d`\nthe zero of the target's type; no syntax overrides a default. The goal file's § *Standing decisions*\nanswers every call a session meets, and no session re-decides one.\n\nThree facts about the tree as the goal was written. `check_compound_assign` returns the target's\ntype for every operator, which is why `return $this->x ??= f();` is `E0403` against a non-null\nreturn type. `$options[\"theme\"] ??= \"light\"` on an absent key throws `undefined array key`, which is\ngap `nvs-ir/throws-on-an-array-key-that`, and that gap's record says why marking\n`Env::coalesce_guarded` alone turns an `E0482` into a panic. `$a ??+= 1` is a parse error today\n(`E0102`), and `$a ??-1` is a `??` and a `-1`.",
+  "next": {
+    "stage": 2,
+    "title": "`??=` as PHP's",
+    "files": [
+      "crates/nvs-types/src/expr/assign.rs",
+      "crates/nvs-types/src/expr/presence.rs",
+      "crates/nvs-types/src/lib.rs",
+      "crates/nvs-ir/src/lower/stmt.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The decision record** — one new record, written first, from the goal's § *Standing decisions*, for the whole goal; it `modifies` `rule:php-migration/absent-storage-is-never-a-zero-value` and `adds` one rule under `docs/rules/expressions/` for the three operators. Anchor for the behaviour it changes: `crates/nvs-types/src/expr/assign.rs:@check_compound_assign`."
+      },
+      {
+        "done": false,
+        "text": "**The guarded read of a compound target** — `crates/nvs-types/src/expr/assign.rs:@check_compound_assign` marks the target's levels for the read when the operator is `??=`, with the walk `crates/nvs-types/src/expr/presence.rs:@mark_guarded_places` is; the mark is one the read consults and the write does not, so `crates/nvs-ir/src/lower/stmt.rs:@row_ty_of` still sees the ordinary row and `array<?array<int>> $g; $g[\"0\"][\"1\"] ??= 5;` stays `E0482`."
+      },
+      {
+        "done": false,
+        "text": "**An absent key is written** — `crates/nvs-ir/src/lower/stmt.rs:@lower_compound_assignment`: the read of the target is the guarded one at every level, and the write is the plain one, so `$g[\"k\"][\"j\"] ??= 5` with no `\"k\"` creates the row. Gap `data/gaps/nvs-ir/throws-on-an-array-key-that.json` is deleted and example 03 of `and-the-ternary` loses its `// proof: gap` line in the same commit."
+      },
+      {
+        "done": false,
+        "text": "**The result type** — `crates/nvs-types/src/expr/assign.rs:@check_compound_assign` returns, for `??=` alone, the target's type with `null` removed when the value's type has no `null`; every other operator and `crates/nvs-types/src/expr/assign.rs:@check_assign`'s plain `=` keep the target's type."
+      },
+      {
+        "done": false,
+        "text": "**The two conformance cases and the named tests** of the goal file's Stage 2 checks, the hooked-property test in `crates/nvs-ir/src/lower/tests.rs` included."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: the three operators** — the syntax file set first (`crates/nvs-syntax/src/lexer.rs:1008`, `token.rs`, `ast.rs`'s `AssignOp`, `parser/expr.rs:256`, `walk.rs:878`), then the meaning (`check_compound_assign`, `lower_read_modify_write`, `crates/nvs-lsp/src/completion.rs:1081`). Shares `assign.rs` and `stmt.rs` with Stage 2.",
+    "**Stage 4: the feature proofs, and everything already on disk** — the new example and attack step under `lang:expressions/assignment`, the memoising getter under `lang:expressions/and-the-ternary`, then the documents Stage 0 lists, both `about.md` files, the regenerated `docs/novis.md`, and the closing search. Prose and programs only; no crate is open.",
+    "When this goal's last check goes green the driver takes goal `ci-green`."
+  ]
+}
