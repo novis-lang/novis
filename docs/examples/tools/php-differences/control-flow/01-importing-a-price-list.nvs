@@ -1,0 +1,39 @@
+<?nvs
+// Shows the Novis syntax for PHP control flow, in code that imports a price list.
+
+class BadRow extends RuntimeError {}
+
+class Import {
+    // A generator yields one value at a time. It has no keys.
+    public static function rows(): Iterator<string> {
+        yield "apple;120";
+        yield "pear;x";
+        yield "plum;90";
+    }
+
+    public static function parse(string $row): array<string> {
+        array<string> $parts = Core\Str::split($row, ";");
+        // `match` throws an error when no arm matches, so this one has a `default` arm.
+        return match (Core\Arr::count($parts)) {
+            2 => $parts,
+            default => throw new BadRow("expected two fields: " . $row),
+        };
+    }
+}
+
+int $total = 0;
+foreach (Import::rows() as string $row) {
+    try {
+        // Each variable in `[ ]` declares its type. This replaces `list()`.
+        [string $name, string $cents] = Import::parse($row);
+        $total = $total + ($cents as int);
+        echo $name, " imported\n";
+    } catch (BadRow $bad) {
+        echo "skipped: ", $bad->message, "\n";
+    } catch (RuntimeError $err) {
+        // `$err->message` replaces `getMessage()`. "x" is not a whole number, so this runs for "pear".
+        echo "skipped: ", $err->message, "\n";
+    }
+}
+// This prints 210.
+echo "total: ", $total, "\n";

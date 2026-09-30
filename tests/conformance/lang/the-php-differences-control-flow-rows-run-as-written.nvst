@@ -1,0 +1,111 @@
+--TEST--
+Every Novis spelling in the control flow table of the PHP-differences chapter compiles and runs — `rule:statements/inout-is-the-by-reference-spelling`, `rule:types/declaration`
+--FILE--
+<?nvs
+// covers: tools:php-differences/control-flow
+// The PHP column of every row is pinned under `tests/conformance/reject/`;
+// this case runs the replacement column.
+class NotFound extends RuntimeError {}
+
+class Flow {
+    // A generator yields values only; `yield from` is a loop.
+    public static function inner(): Iterator<int> {
+        yield 1;
+        yield 2;
+    }
+
+    public static function outer(): Iterator<int> {
+        foreach (Flow::inner() as int $v) {
+            yield $v;
+        }
+        yield 3;
+    }
+
+    // An early `return` replaces `goto`.
+    public static function firstEven(array<int> $xs): ?int {
+        foreach ($xs as int $x) {
+            if ($x % 2 == 0) {
+                return $x;
+            }
+        }
+        return null;
+    }
+}
+
+# A `#` comment is a line comment.
+echo Flow::firstEven([3, 5, 8, 9]) ?? -1, "\n";
+
+// Destructuring declares the type of every leaf.
+array<int> $pair = [4, 5];
+[int $a, int $b] = $pair;
+echo $a + $b, "\n";
+
+foreach (Flow::outer() as int $v) {
+    echo $v;
+}
+echo "\n";
+
+// A `try` with only a `finally`.
+try {
+    echo "body ";
+} finally {
+    echo "finally\n";
+}
+
+// Two `catch` clauses, each with its own variable.
+string $caught = "";
+try {
+    throw new NotFound("missing");
+} catch (LogicError $logic) {
+    $caught = "logic";
+} catch (RuntimeError $runtime) {
+    $caught = $runtime->message;
+}
+echo $caught, "\n";
+
+// `elseif` and `else if` both work.
+int $n = 2;
+if ($n == 1) {
+    echo "one\n";
+} elseif ($n == 2) {
+    echo "two\n";
+} else if ($n == 3) {
+    echo "three\n";
+}
+
+// `print` takes one expression; `echo` takes a list.
+print "p\n";
+echo "e", "c", "\n";
+
+// `switch` falls through without `break`.
+switch ($n) {
+    case 2:
+        echo "two ";
+    case 3:
+        echo "three\n";
+        break;
+    default:
+        echo "other\n";
+}
+
+// A `match` with no matching arm throws.
+try {
+    echo match ($n) {
+        1 => "one",
+        3 => "three",
+    }, "\n";
+} catch (LogicError $e) {
+    echo "no arm\n";
+}
+?>
+--EXPECT--
+8
+9
+123
+body finally
+missing
+two
+p
+ec
+two three
+no arm
