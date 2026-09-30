@@ -117,7 +117,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         // which the constant walk above has just done — and its values are
         // then inferred so that what each names is on record.
         if constant && payload.clean {
-            infer_fields(&attr.fields, ctx, env);
+            infer_fields(&attr.fields, false, ctx, env);
         }
         return;
     };
@@ -184,8 +184,13 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             } else if payload.clean {
                 // A recognized name with no roster — `#[Json\Field]`,
                 // `#[TestWith]` — has its payload read by its own pass, which
-                // reads the literal and records nothing about the values.
-                infer_fields(&attr.fields, ctx, env);
+                // reads the literal and records nothing about the values. A
+                // `#[TestWith]` row is judged there against the parameter it
+                // names, a `uint` one included, so an integer only a `uint`
+                // holds is inferred as one here and left for that pass to
+                // place.
+                let rows = recognized(crate::derive::TEST_WITH);
+                infer_fields(&attr.fields, rows, ctx, env);
             }
         }
         return;
@@ -249,12 +254,38 @@ impl Payload {
 /// constant infers over no scope at all. What a name that resolves to nothing
 /// gets is the ordinary `E0303`, which is the answer every other position
 /// gives it.
-fn infer_fields(fields: &[ObjectLiteralField], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+///
+/// `uint_magnitudes` is set for a payload whose own pass places each value
+/// against a declared type afterwards: an integer literal no `int` holds is
+/// then inferred at `uint`, where a payload nothing places gets the ordinary
+/// `E0429` for it.
+fn infer_fields(
+    fields: &[ObjectLiteralField],
+    uint_magnitudes: bool,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
     let mut live = FxHashSet::default();
     let scope = LocalScope::new();
     for field in fields {
-        check_expr(&field.value, None, &mut live, &scope, ctx, env);
+        let expected = if uint_magnitudes && exceeds_int(&field.value, env) {
+            Some(env.interner.uint())
+        } else {
+            None
+        };
+        check_expr(&field.value, expected, &mut live, &scope, ctx, env);
     }
+}
+
+/// Whether `expr` is a bare integer literal whose magnitude a `uint` holds and
+/// an `int` does not.
+fn exceeds_int(expr: &Expr, env: &Env<'_>) -> bool {
+    matches!(
+        &expr.kind,
+        ExprKind::Int(span)
+            if crate::defaults::int_magnitude(*span, env)
+                .is_some_and(|magnitude| i64::try_from(magnitude).is_err())
+    )
 }
 
 /// One recognized attribute's payload, checked against its roster of options.
