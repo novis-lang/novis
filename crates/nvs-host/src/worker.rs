@@ -1137,9 +1137,9 @@ fn ring(bell: &Mutex<Option<RemoteWake>>) {
 
 /// Arms the bell for the next core that writes here, if nobody is holding one.
 ///
-/// Never a second one while the first is in flight: dropping a [`RemoteWake`]
-/// delivers it, so replacing an armed bell would wake this task with nothing to
-/// find and park it again on the next turn, forever.
+/// Never a second one while the first is still armed: the bell in the slot
+/// already wakes this task, and replacing it would issue a handle on every turn
+/// to say nothing new.
 fn arm(inbox: &Inbox) {
     let Some(me) = current_task() else {
         return;

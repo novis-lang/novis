@@ -1,7 +1,7 @@
 {
   "totals": {
-    "total": 1016,
-    "shipped": 779,
+    "total": 1017,
+    "shipped": 780,
     "designed": 237,
     "diverging": 589
   },
@@ -5076,8 +5076,8 @@
       "url": "/docs/rules/concurrency/",
       "single": false,
       "counts": {
-        "total": 66,
-        "shipped": 55,
+        "total": 67,
+        "shipped": 56,
         "designed": 11,
         "diverging": 50
       },
@@ -5590,8 +5590,8 @@
           "blurb": "Futures, wakers and parking: how a task suspends, what a wake is permission to do, and why a task never migrates cores.",
           "url": "/docs/rules/concurrency/the-scheduler/",
           "counts": {
-            "total": 12,
-            "shipped": 12,
+            "total": 13,
+            "shipped": 13,
             "designed": 0,
             "diverging": 6
           },
@@ -5626,6 +5626,14 @@
               "title": "A wake from another core queues an id on the task's own core and never migrates it",
               "status": "shipped",
               "href": "/docs/rules/concurrency/the-scheduler/#a-wake-never-moves-a-task",
+              "diverges": null
+            },
+            {
+              "id": "concurrency/a-handle-given-up-by-its-task-wakes-nothing",
+              "slug": "a-handle-given-up-by-its-task-wakes-nothing",
+              "title": "A wake handle dropped unused wakes its task, unless that task is the one dropping it",
+              "status": "shipped",
+              "href": "/docs/rules/concurrency/the-scheduler/#a-handle-given-up-by-its-task-wakes-nothing",
               "diverges": null
             },
             {

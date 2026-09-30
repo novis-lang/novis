@@ -34,15 +34,16 @@
 //! # One permission per call, not per park
 //!
 //! The reason is [`crate::Reactor`]'s outstanding count: it goes up when a
-//! [`RemoteWake`] is issued and comes down only when the id that handle queued
-//! is drained on the core, so **every handle issued is a wake delivered** — by
-//! [`RemoteWake::wake`] or by the drop that stands in for it. A handle taken
-//! freshly for every park would therefore poke the core once per readiness edge
-//! for a wake nobody asked for. Instead the drive installs one and leaves it
+//! [`RemoteWake`] is issued and comes down on the core — when the id the handle
+//! queued is drained, or on the spot when the task it names gives it up — so
+//! **every handle issued is collected there**. A handle taken freshly for every
+//! park would therefore be issued and collected once per readiness edge for a
+//! wake nobody asked for. Instead the drive installs one and leaves it
 //! installed across parks; the waker *takes* it when it fires; the next park
 //! finds the slot empty and issues a fresh one. A connection woken only by
 //! socket readiness — the ordinary case, since the reactor wakes a task by id
-//! and never through a waker — issues exactly one for its whole life.
+//! and never through a waker — issues exactly one for its whole life, and gives
+//! it back unused when the drive ends.
 //!
 //! What it spends, per `rule:programs/memory-priority`:
 //! one `Arc` holding a flag and a slot, one `Waker`, at most one `RemoteWake`,
@@ -210,8 +211,8 @@ impl Signal {
         if held.is_some() {
             // Still armed, so the last park ended in readiness on this task's
             // own reactor registration rather than in a waker. Re-issuing here
-            // is what would cost a delivered poke per readiness edge — `rule:concurrency/one-permission-per-drive`
-            // .
+            // is what would cost a handle per readiness edge —
+            // `rule:concurrency/one-permission-per-drive`.
             return;
         }
         let Some(me) = current_task() else {
@@ -222,12 +223,11 @@ impl Signal {
 
     /// Gives up any permission still outstanding, at the end of the drive.
     ///
-    /// Delivering it is not optional and dropping it is how that is done: the
-    /// reactor's outstanding count comes back down when the id the handle
-    /// queued is drained, so a handle merely forgotten would keep the core from
-    /// ever concluding that nothing can wake it. The wake it delivers names a
-    /// task that is running, which the reactor's rule 2 already allows for and
-    /// which wakes nothing.
+    /// Giving it up is not optional and dropping it is how that is done: the
+    /// reactor's outstanding count comes back down when a handle is collected,
+    /// so one merely forgotten would keep the core from ever concluding that
+    /// nothing can wake it. The drive is the task the handle names and it is
+    /// running, so the drop queues no wake — [`RemoteWake`]'s own doc.
     fn disarm(&self) {
         if let Route::Core { permit } = &self.route {
             drop(lock(permit).take());
@@ -397,8 +397,8 @@ mod tests {
             Some(1),
             "a drive issued a permission per park"
         );
-        // Left tidy: the cancellation ends the drive, which delivers the one
-        // permission it was holding.
+        // Left tidy: the cancellation ends the drive, and the one permission it
+        // was holding goes with it.
         assert_eq!(sched.cancel(id), 1);
         sched.run();
     }

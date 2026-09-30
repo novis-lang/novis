@@ -3,11 +3,13 @@
   "status": "shipped",
   "because": [
     "0138",
-    "0115"
+    "0115",
+    "0229"
   ],
   "seeAlso": [
     "concurrency/a-waker-is-one-permission-to-poll",
-    "concurrency/a-wake-never-moves-a-task"
+    "concurrency/a-wake-never-moves-a-task",
+    "concurrency/a-handle-given-up-by-its-task-wakes-nothing"
   ],
   "guardedBy": [
     "crates/nvs-host/src/block_on.rs"

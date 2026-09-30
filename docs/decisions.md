@@ -1580,3 +1580,11 @@ two workers cannot claim the same job; the row-locking clause the other database
 nothing there and is not written. The transaction is opened as immediate rather than deferred
 because a read followed by a write would otherwise try to upgrade a shared lock, which SQLite
 refuses without waiting. Nothing about this is visible from a program.
+
+**An idle server does no work**
+
+A task can hold a wake handle for itself while it waits. When the task let such a handle go, the
+runtime used to queue a wake, and that wake ended the task's next wait at once. One task in the
+server takes a handle for every wait, so it never waited, and an idle server kept one core busy. The
+handle is now collected without a wake when the task it names is the one letting it go. A handle
+dropped by another thread still wakes its task.

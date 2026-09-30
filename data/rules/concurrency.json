@@ -60,6 +60,7 @@
     "concurrency/a-waker-is-one-permission-to-poll",
     "concurrency/one-permission-per-drive",
     "concurrency/a-wake-never-moves-a-task",
+    "concurrency/a-handle-given-up-by-its-task-wakes-nothing",
     "concurrency/a-cancelled-drive-never-parks-again",
     "concurrency/the-park-route-is-chosen-once",
     "concurrency/the-parking-contract",

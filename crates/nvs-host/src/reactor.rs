@@ -99,6 +99,15 @@
 //! task just the same, because a pool thread that panicked must not leave a
 //! task parked on an answer that is not coming.
 //!
+//! **A handle its own task gives up wakes nothing.** The drop stands in for a
+//! wake because the task may be parked on the far side's answer, and a task
+//! that drops the handle itself is running, so there is no park to end. That
+//! drop is settled on the spot — the count comes down and nothing is queued.
+//! A queued wake is collected only once the task has parked again, so it would
+//! end *that* wait instead, and a loop that takes a handle, waits and lets it
+//! go would never wait at all.
+//! `rule:concurrency/a-handle-given-up-by-its-task-wakes-nothing`.
+//!
 //! **The wake is a queue plus one poke, not a token per waiter.** `mio` allows
 //! exactly one [`Waker`] per `Poll`, so [`WAKE_TOKEN`] is the single token here
 //! that is not a [`TaskId`], and the ids themselves travel in a mutex-guarded
@@ -111,9 +120,9 @@
 //! can wake anything, return rather than block forever" test would have
 //! abandoned it. [`Reactor::remote_waits`] is the third thing that test asks
 //! about, and it is a count both of whose ends are on the core — up when a
-//! handle is issued, down when its ids are drained — so it can never read zero
-//! with a wake in flight. That ordering is the whole correctness argument;
-//! [`Remote::outstanding`] holds it in full.
+//! handle is issued, down when its id is drained or its own task gives it up —
+//! so it can never read zero with a wake in flight. That ordering is the whole
+//! correctness argument; [`Remote::outstanding`] holds it in full.
 //!
 //! # One reactor per worker
 //!
@@ -184,8 +193,9 @@ struct Remote {
     /// collected.
     ///
     /// **Both ends of this count are on the core**: it goes up when a handle is
-    /// made and down when the ids it queued are drained, so it never reads zero
-    /// while a wake is still in flight. That is what makes it safe for
+    /// made, and down when the id it queued is drained or when the task it
+    /// names gives it up unused, so it never reads zero while a wake is still in
+    /// flight. That is what makes it safe for
     /// [`Reactor::turn`] to read as *something off this core can still wake a
     /// task*. A count the waking thread decremented would have a window between
     /// its decrement and its push in which the core concluded the opposite and
@@ -196,6 +206,20 @@ struct Remote {
     /// boundary at all, not because two threads write it; `Relaxed` is enough
     /// for the same reason.
     outstanding: AtomicUsize,
+}
+
+impl Remote {
+    /// Takes `handles` off [`Remote::outstanding`]. Called on the core and
+    /// nowhere else.
+    ///
+    /// A `saturating_sub` over a plain load and store rather than a `fetch_sub`
+    /// because no other thread writes the count, and an underflow would be a
+    /// wrap to `usize::MAX`, which reads as *a wake is coming forever*.
+    fn collected(&self, handles: usize) {
+        let outstanding = self.outstanding.load(Ordering::Relaxed);
+        self.outstanding
+            .store(outstanding.saturating_sub(handles), Ordering::Relaxed);
+    }
 }
 
 /// A one-shot permission to wake one task from another thread.
@@ -216,6 +240,14 @@ struct Remote {
 /// that is never coming. Waking it turns that into a retry that observes the
 /// failure, which is tier B containment rather than a wedged core. The delivery
 /// is idempotent: `wake` and the drop that follows it deliver once between them.
+///
+/// **Unless the task it names is the one dropping it.** That task is running,
+/// so it is parked on nothing, and a wake queued now would wait until the task
+/// had parked again and end that wait instead. The handle is settled on the
+/// spot — [`Remote::outstanding`] comes down and nothing is queued or poked —
+/// which is what lets a task take one for a single wait and let it go when the
+/// wait ends for its own reason. [`RemoteWake::wake`] does not ask who calls
+/// it: a wake that is asked for is always queued.
 #[derive(Debug)]
 pub struct RemoteWake {
     remote: Arc<Remote>,
@@ -261,10 +293,38 @@ impl RemoteWake {
             .push(self.id);
         self.remote.waker.wake()
     }
+
+    /// Whether the thread dropping this handle is the core that issued it,
+    /// running the task it names.
+    ///
+    /// Both halves are asked, because an id is issued per scheduler and so
+    /// names a different task on every core. A reactor that is borrowed, gone,
+    /// or another core's answers `false`, which leaves the drop to queue its
+    /// wake as any other does.
+    fn is_held_by_its_running_task(&self) -> bool {
+        crate::scheduler::current_task() == Some(self.id)
+            && INSTALLED
+                .try_with(|slot| {
+                    slot.try_borrow().is_ok_and(|reactor| {
+                        reactor
+                            .as_ref()
+                            .is_some_and(|reactor| Arc::ptr_eq(&reactor.remote, &self.remote))
+                    })
+                })
+                .unwrap_or(false)
+    }
 }
 
 impl Drop for RemoteWake {
     fn drop(&mut self) {
+        if !self.delivered && self.is_held_by_its_running_task() {
+            // Nothing is parked on this handle, so there is no wake for the
+            // drop to stand in for. It is collected here, on the core, the way
+            // a drained id is.
+            self.delivered = true;
+            self.remote.collected(1);
+            return;
+        }
         // A failed poke is not reportable from a drop and must not panic out of
         // one: the thread dropping this handle is quite possibly already
         // unwinding, and a panic there is the abort `rule:http-server/containment-does-not-end-at-the-helper` spent a
@@ -491,10 +551,7 @@ impl Reactor {
     ///
     /// Called for [`WAKE_TOKEN`] and nothing else. The count comes down by
     /// exactly what was taken, here on the core, which is the invariant
-    /// [`Remote::outstanding`] documents; a `saturating_sub` over a plain
-    /// load and store rather than a `fetch_sub` because nothing else writes it
-    /// and an underflow would be a wrap to `usize::MAX`, which reads as *a wake
-    /// is coming forever*.
+    /// [`Remote::outstanding`] documents.
     fn drain_remote(&mut self) {
         let mut pending = self
             .remote
@@ -504,10 +561,7 @@ impl Reactor {
         let taken = pending.len();
         self.ready.append(&mut pending);
         drop(pending);
-        let outstanding = self.remote.outstanding.load(Ordering::Relaxed);
-        self.remote
-            .outstanding
-            .store(outstanding.saturating_sub(taken), Ordering::Relaxed);
+        self.remote.collected(taken);
     }
 
     /// Waits for readiness and reports the tasks it names.
@@ -747,9 +801,11 @@ pub fn is_installed() -> bool {
 /// in which case the wake has fired before this returns and the caller's next
 /// read of the bit is what tells it so.
 ///
-/// Dropping the handle deregisters, and the undelivered [`RemoteWake`] in it
-/// pokes this core on its way out: one wake into a task that is already running
-/// is what rule 2 exists to make harmless.
+/// Dropping the handle deregisters and wakes nothing: the task that held it
+/// across its wait is the one letting it go, and a [`RemoteWake`] its own task
+/// gives up is collected without a wake. A wait that ends for its own reason
+/// therefore costs the core no poke, and a task may register afresh for every
+/// wait.
 pub fn wake_at_drain(drain: &Drain) -> Option<DrainWake> {
     let id = crate::scheduler::current_task()?;
     let wake = with_current(|reactor| reactor.remote_wake(id))?;
@@ -1187,6 +1243,122 @@ mod tests {
         );
         assert_eq!(reactor.remote_waits(), 0);
         assert_eq!(sched.run().finished, 1);
+    }
+
+    /// The other drop: the task a handle names lets it go while it is running.
+    /// Nothing is parked on it, so nothing is queued, and the park that follows
+    /// is one this core has no reason to end.
+    #[test]
+    fn a_remote_wake_its_own_task_gives_up_wakes_nothing() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let resumed = Rc::new(Cell::new(false));
+        let flag = Rc::clone(&resumed);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let me = current_task().expect("a running task had no id");
+            let wake =
+                with_current(|reactor| reactor.remote_wake(me)).expect("no reactor was installed");
+            assert_eq!(with_current(|reactor| reactor.remote_waits()), Some(1));
+            drop(wake);
+            assert_eq!(
+                with_current(|reactor| reactor.remote_waits()),
+                Some(0),
+                "a handle its task gave up stayed outstanding"
+            );
+            suspend_current(Waiting::Parked);
+            flag.set(true);
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.parked, 1, "the task did not stay parked");
+        assert!(
+            !resumed.get(),
+            "a handle the task gave up itself ended its next park"
+        );
+    }
+
+    /// The shape a task that looks at something on a period has: a drain wake
+    /// taken for one wait and let go when that wait ends on its deadline. Each
+    /// wait lasts until its own deadline, because letting the last wake go
+    /// queued nothing for the next wait to be ended by.
+    #[test]
+    fn a_drain_wake_let_go_by_its_task_does_not_end_that_tasks_next_wait() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let drain = Drain::detached();
+        let early = Rc::new(Cell::new(0_usize));
+        let counted = Rc::clone(&early);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            for _ in 0..3 {
+                let at = Instant::now() + Duration::from_millis(20);
+                {
+                    let _woken = wake_at_drain(&drain).expect("the drain had begun");
+                    crate::timer::wait_until(at);
+                }
+                if Instant::now() < at {
+                    counted.set(counted.get() + 1);
+                }
+            }
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.finished, 1);
+        assert_eq!(
+            early.get(),
+            0,
+            "a wait ended before its deadline with no drain begun"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.remote_waits()),
+            Some(0),
+            "a drain wake its task let go stayed outstanding"
+        );
+    }
+
+    /// What the wake is held for: a drain begun on another thread ends the wait
+    /// long before its deadline, and the task reads the bit when it resumes.
+    #[test]
+    fn a_drain_begun_on_another_thread_ends_the_wait_its_wake_is_held_across() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let drain = Drain::detached();
+        let far = drain.clone();
+        let seen = Rc::new(Cell::new(false));
+        let read = Rc::clone(&seen);
+        let bound = Duration::from_secs(60);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let _woken = wake_at_drain(&drain).expect("the drain had begun");
+            crate::timer::wait_until(Instant::now() + bound);
+            read.set(drain.is_draining());
+        });
+
+        let far_side = std::thread::spawn(move || {
+            // Long enough that the core is inside its poll rather than racing
+            // it. A drain begun early is still not lost: the task reads the bit.
+            std::thread::sleep(Duration::from_millis(20));
+            far.begin();
+        });
+
+        let started = Instant::now();
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        far_side.join().expect("the far side panicked");
+        assert_eq!(report.finished, 1);
+        assert!(
+            seen.get(),
+            "the task resumed without the drain having begun"
+        );
+        assert!(
+            started.elapsed() < bound,
+            "the drain did not end the wait before its deadline"
+        );
+        assert_eq!(
+            with_current(|reactor| reactor.remote_waits()),
+            Some(0),
+            "the fired wake was never collected"
+        );
     }
 
     #[test]

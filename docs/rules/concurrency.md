@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*11 of 66 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -1509,19 +1509,19 @@ inert, and it is the same reading as a wake that raced with the task ending.
 `rule:concurrency/one-permission-per-drive`
 
 A wake permission is taken per **drive**, not per park. The reactor raises its outstanding count when
-it issues a handle and lowers it only when the id that handle queued is drained on the core, so every
-handle issued is a wake delivered — by the wake itself, or by the drop that stands in for it. A
-handle taken freshly for each park would poke the core once per readiness edge with a wake nobody
-asked for.
+it issues a handle and lowers it on the core: when the id that handle queued is drained, or on the spot
+when the task it names gives the handle up ([`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing)).
+So every handle issued is collected there, and a handle taken freshly for each park would be issued and
+collected once per readiness edge for a wake nobody asked for.
 
 So the loop installs one permission and leaves it installed across parks; the waker **takes** it out
 of the slot when it fires; the next park finds the slot empty and issues a fresh one.
 
 A connection whose every wait ends in socket readiness — the ordinary one, since the reactor wakes a
 task by id and never through a waker — therefore issues exactly one permission for the whole
-connection, and delivers it when the drive returns.
+connection, and gives it back unused when the drive returns.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0229](../decisions/0229.md).</sub>
 
 <a id="concurrency-a-wake-never-moves-a-task"></a>
 
@@ -1544,6 +1544,28 @@ wake, which is deliberately not thread-safe: a waker built over that would be so
 clone crossed a thread, and unsound with no diagnostic afterwards.
 
 <sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
+
+<a id="concurrency-a-handle-given-up-by-its-task-wakes-nothing"></a>
+
+## A wake handle dropped unused wakes its task, unless that task is the one dropping it
+
+`rule:concurrency/a-handle-given-up-by-its-task-wakes-nothing`
+
+A wake handle dropped unused wakes the task it names, unless that task is the one dropping it. The far
+side of a handoff that gave up, panicked or was torn down leaves its task parked on an answer that is
+not coming, and the drop is the wake that turns that into a retry.
+
+A task that drops its own handle is running, so it is parked on nothing. A wake queued at that moment
+is collected only after the task has parked again, and it ends **that** wait instead: a task that takes
+a handle for each wait in a loop would be woken by the handle of the wait before, and would never wait
+at all. So the handle is collected on the spot. The reactor's outstanding count comes down on the core,
+and nothing is queued or poked.
+
+This is what lets a wait take a handle for itself and let it go when the wait ends for its own reason:
+a drain wake held across one sleep, or the permission a drive gives back when it returns
+([`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive)). A wake that is **asked for** is queued whoever asks.
+
+<sub>See also [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract). Decided in [0229](../decisions/0229.md).</sub>
 
 <a id="concurrency-a-cancelled-drive-never-parks-again"></a>
 

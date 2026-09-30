@@ -1,0 +1,16 @@
+{
+  "title": "a wake handle the task it names gives up is collected without a wake",
+  "status": "accepted",
+  "scope": "what dropping a `RemoteWake` does when the thread dropping it is the core that issued it,\nrunning the task the handle names. It does not change what a drop does anywhere else, what\n`RemoteWake::wake` does, or [0115](0115.md) § 2's parking contract.",
+  "dependsOn": [
+    "0115",
+    "0138"
+  ],
+  "dependsOnText": "[0115](0115.md) (the reactor, its cross-thread wake and the outstanding count),\n[0138](0138.md) (one permission per drive, given up when the drive ends).",
+  "validatedBy": "`a_remote_wake_its_own_task_gives_up_wakes_nothing` and\n`a_drain_wake_let_go_by_its_task_does_not_end_that_tasks_next_wait` in\n`crates/nvs-host/src/reactor.rs`, and the measurement under *Verification*.",
+  "summary": {
+    "group": "internal",
+    "headline": "An idle server does no work",
+    "body": "A task can hold a wake handle for itself while it waits. When the task let such a handle go,\nthe runtime used to queue a wake, and that wake ended the task's next wait at once. One task in\nthe server takes a handle for every wait, so it never waited, and an idle server kept one core\nbusy. The handle is now collected without a wake when the task it names is the one letting it\ngo. A handle dropped by another thread still wakes its task."
+  }
+}

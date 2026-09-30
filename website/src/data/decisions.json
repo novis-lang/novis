@@ -1091,6 +1091,12 @@
           "headline": "On SQLite a queue claim is an immediate transaction, and that is the lock",
           "body": "SQLite has a single writer, so inside an immediate transaction no other connection is writing and two workers cannot claim the same job; the row-locking clause the other databases use would do nothing there and is not written. The transaction is opened as immediate rather than deferred because a read followed by a write would otherwise try to upgrade a shared lock, which SQLite refuses without waiting. Nothing about this is visible from a program.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0170.md"
+        },
+        {
+          "adr": "0229",
+          "headline": "An idle server does no work",
+          "body": "A task can hold a wake handle for itself while it waits. When the task let such a handle go, the runtime used to queue a wake, and that wake ended the task's next wait at once. One task in the server takes a handle for every wait, so it never waited, and an idle server kept one core busy. The handle is now collected without a wake when the task it names is the one letting it go. A handle dropped by another thread still wakes its task.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0229.md"
         }
       ]
     }
