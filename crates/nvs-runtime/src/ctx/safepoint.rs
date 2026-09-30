@@ -60,6 +60,22 @@ impl Ctx {
         self.tree = std::sync::Arc::clone(&parent.tree);
         self.safepoint = std::ptr::from_ref(&self.tree.word);
         self.on_root_core = parent.on_root_core;
+        self.tree_root = false;
+    }
+
+    /// Writes this context's CPU ceiling into the state its tree shares, where
+    /// this context is the tree's root, and nothing where it is not.
+    ///
+    /// Owed by everything that moves [`Self::cpu_limit`] for longer than a
+    /// handler's call — [`Self::refresh_limits`] and [`Self::set_cpu_limit`] —
+    /// and by [`Self::reroot`], which starts a tree that carries none.
+    /// [`Self::tree_root`]'s field doc owns why a child writes nothing.
+    pub(super) fn publish_cpu_limit(&self) {
+        if self.tree_root {
+            self.tree
+                .cpu_limit
+                .store(self.cpu_limit, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     /// Starts a request tree of its own on this context: a safepoint word and a
@@ -122,6 +138,9 @@ impl Ctx {
         } else {
             self.deadline = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         }
+        // The tree this context was the root of carried its CPU ceiling beside
+        // the flags, and the fresh one carries none until it is written here.
+        self.publish_cpu_limit();
     }
 
     /// Joins `tree` as a member running on a core **other** than the one that
@@ -145,6 +164,7 @@ impl Ctx {
         self.tree = tree;
         self.safepoint = std::ptr::from_ref(&self.tree.word);
         self.on_root_core = false;
+        self.tree_root = false;
         self.tree_share = Some(TreeShare::default());
     }
 
@@ -408,10 +428,21 @@ impl SafepointView {
     pub fn deadline_expired(&self) -> bool {
         self.deadline.load(std::sync::atomic::Ordering::Relaxed) != 0
     }
+
+    /// The CPU time the request tree may burn, in nanoseconds, or `0` for a
+    /// tree under no cap — [`Ctx::cpu_limit`] of the tree's root as it stands
+    /// now, which is what a sampler compares the tree's charge with.
+    #[must_use]
+    pub fn cpu_limit(&self) -> u64 {
+        self.tree
+            .cpu_limit
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 /// The state a request **tree** shares: the word every context in it is stopped
-/// through, and the counters a context running off its root's core charges into.
+/// through, the CPU ceiling it is charged against, and the counters a context
+/// running off its root's core charges into.
 ///
 /// One allocation per tree, held by every context in it through [`Ctx::tree`]
 /// and by a stranger thread through [`SafepointView`]. The two live together
@@ -423,13 +454,24 @@ impl SafepointView {
 /// (`rule:concurrency/on-worker-runs-the-child-on-another-core`).
 ///
 /// **What it spends:** one allocation per request tree — which is what the
-/// safepoint word alone already cost — and two words more inside it, which stay
-/// zero and unwritten for a tree that places nothing off its core.
+/// safepoint word alone already cost — and three words more inside it: the CPU
+/// ceiling, written when the root's moves, and the two off-core counters, which
+/// stay zero and unwritten for a tree that places nothing off its core.
 #[derive(Debug, Default)]
 pub struct TreeState {
     /// The safepoint word itself, named by [`Ctx::safepoint`] and polled by
     /// compiled code through that address.
     pub(super) word: std::sync::atomic::AtomicU64,
+    /// The CPU ceiling this tree is charged against in nanoseconds, or `0` for
+    /// a tree under no cap — the root's [`Ctx::cpu_limit`], written by
+    /// [`Ctx::publish_cpu_limit`] each time that number moves.
+    ///
+    /// Here because the thread that charges a tree owns none of it. What
+    /// `nvs_host::watchdog` holds is a [`SafepointView`], and a ceiling copied
+    /// into its record would be the one in force where the request was
+    /// published for as long as the request ran, whatever `Core\Config::set`
+    /// had narrowed `limits.cpu_time` to since.
+    pub(super) cpu_limit: std::sync::atomic::AtomicU64,
     /// What this tree holds, and has written, on cores other than its root's —
     /// [`crate::budget::OffCore`] owns what the pair means and what it costs.
     pub(super) off_core: crate::budget::OffCore,
@@ -507,9 +549,9 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         // the request was over.
         //
         // One thing that sampler is not told, and it is not an edit here: the
-        // ceiling a publication carries is the one that stood before the
-        // handler below widened it, so a handler is bounded by the next sweep
-        // rather than by its reserve.
+        // handler below widens this context's ceiling and leaves the one its
+        // tree carries where it stood, so a handler is bounded by the next
+        // sweep rather than by its reserve.
         ctx.run_limit_handler(Limit::CpuTime);
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;

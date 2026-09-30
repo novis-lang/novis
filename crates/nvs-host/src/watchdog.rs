@@ -75,14 +75,17 @@
 //! [`crate::timer`]'s docs own that argument — because it is rewritten every
 //! time any task arms or disarms one.
 //!
-//! What a core publishes is a [`RunningRequest`]: that handle, the CPU ceiling
-//! the request runs under, and the reading the core's own [`ThreadClock`] gave
-//! at the instant of publication. The handle alone cannot be charged against a
-//! ceiling — the watchdog has to know where this request's spending starts —
-//! and a core is the only thread that may take a clock on itself, so the
-//! baseline is taken where the publication is. A request under no cap, and a
-//! core on a platform with no per-thread clock, publish nothing and are
-//! sampled not at all.
+//! What a core publishes is a [`RunningRequest`]: that handle, and the reading
+//! the core's own [`ThreadClock`] gave at the instant of publication. The
+//! handle alone cannot be charged against a ceiling — the watchdog has to know
+//! where this request's spending starts — and a core is the only thread that
+//! may take a clock on itself, so the baseline is taken where the publication
+//! is. The ceiling is not part of the record: it is read through the handle on
+//! every sweep, so one a program narrowed with `Core\Config::set` is the one
+//! charged, from the baseline its request started with. A request under no cap
+//! is published and compared with nothing until it has one. A core on a
+//! platform with no per-thread clock publishes nothing and is sampled not at
+//! all.
 //!
 //! [`Shared::sweep`] reads that charge on the walk it already makes, and a
 //! request whose charge has reached its ceiling is asked to stop through the
@@ -173,18 +176,17 @@ pub struct Stall {
 type Sink = Box<dyn Fn(&Stall) + Send + Sync + 'static>;
 
 /// What a core publishes about the request it is running: the handle that stops
-/// it, the CPU ceiling it runs under, and where its charge starts.
+/// it and carries the CPU ceiling it runs under, and where its charge starts.
 ///
 /// Minted on the core's own thread by [`RunningRequest::new`] and handed to
 /// [`Registration::publish_safepoint`]. It holds no borrow of the request — the
-/// handle is `Send` where a `Ctx` is not, and the rest is two durations and an
+/// handle is `Send` where a `Ctx` is not, and the rest is a duration and an
 /// identifier — so the watchdog thread reads all of it without touching
 /// anything the request owns.
 #[derive(Clone, Debug)]
 pub struct RunningRequest {
     view: SafepointView,
     clock: ThreadClock,
-    limit: Duration,
     baseline: Duration,
 }
 
@@ -196,19 +198,26 @@ impl RunningRequest {
     /// is read here is the baseline every later charge is measured from, and a
     /// clock on any other thread measures somebody else's work.
     ///
-    /// `None` in three cases a caller does not have to tell apart, because the
-    /// answer to all of them is the same — publish nothing, be sampled not at
-    /// all: `limit_nanos` is `0`, which is `rule:errors/on-limit`'s spelling
-    /// for a request under no cap; the platform has no per-thread clock a
-    /// stranger may read; or the clock refuses a reading.
+    /// `None` in two cases a caller does not have to tell apart, because the
+    /// answer to both is the same — publish nothing, be sampled not at all: the
+    /// platform has no per-thread clock a stranger may read, or the clock
+    /// refuses a reading.
+    ///
+    /// **A request under no cap is published like any other.** Its ceiling is
+    /// read through the handle on every sweep ([`Self::limit`]) and is not
+    /// copied here, because `Core\Config::set` may narrow `limits.cpu_time`
+    /// while the request runs, and the charge that ceiling is compared with has
+    /// to start where the request did. A baseline taken at the narrowing would
+    /// let a program clear its own charge by setting the directive again.
+    ///
+    /// **What it spends:** one reading of the thread's clock per publication,
+    /// capped or not.
     #[must_use]
-    pub fn new(view: SafepointView, clock: Option<ThreadClock>, limit_nanos: u64) -> Option<Self> {
-        let limit = (limit_nanos > 0).then(|| Duration::from_nanos(limit_nanos))?;
+    pub fn new(view: SafepointView, clock: Option<ThreadClock>) -> Option<Self> {
         let clock = clock?;
         Some(Self {
             view,
             clock,
-            limit,
             baseline: clock.burned()?,
         })
     }
@@ -220,11 +229,13 @@ impl RunningRequest {
         &self.view
     }
 
-    /// The CPU time this request may burn — `[limits] cpu_time`, as
-    /// `Ctx::cpu_limit` reports it.
+    /// The CPU time this request may burn as its tree's root states it now —
+    /// `[limits] cpu_time`, as `Ctx::cpu_limit` reports it — or `None` while
+    /// the request is under no cap.
     #[must_use]
-    pub fn limit(&self) -> Duration {
-        self.limit
+    pub fn limit(&self) -> Option<Duration> {
+        let nanos = self.view.cpu_limit();
+        (nanos > 0).then(|| Duration::from_nanos(nanos))
     }
 
     /// What the core had burned at the instant this request was published.
@@ -259,7 +270,7 @@ struct Watched {
     /// there is no deadline table to read and nothing to shed it onto.
     core: Option<(CpuId, DeadlineView)>,
     /// The request tree this core is running and the baseline it is charged
-    /// from, or `None` while it is running none that a ceiling reaches —
+    /// from, or `None` while it is running none —
     /// [`Registration::publish_safepoint`] is the only writer, and this
     /// module's docs say why it lives behind the same lock as the rest of the
     /// entry.
@@ -549,10 +560,10 @@ impl Registration {
     ///
     /// Called from the core's own thread, so a request is published before it
     /// can wedge the core; a core that never publishes is watched exactly as it
-    /// is today and stops nothing. [`RunningRequest::new`]'s `None` — a request
-    /// under no cap, or a platform with no clock — belongs here unchanged: it
-    /// clears whatever this core was running before, which is what a core
-    /// taking up an unsampled request has to do.
+    /// is today and stops nothing. [`RunningRequest::new`]'s `None` — a platform
+    /// with no clock — belongs here unchanged: it clears whatever this core was
+    /// running before, which is what a core taking up an unsampled request has
+    /// to do.
     pub fn publish_safepoint(&self, running: Option<RunningRequest>) {
         let mut state = lock(&self.shared.state);
         if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
@@ -565,17 +576,16 @@ impl Registration {
     ///
     /// The same store [`Self::publish_safepoint`] makes, for the caller that
     /// holds the request rather than a [`RunningRequest`]: `view` is the tree
-    /// root's handle, `limit_nanos` is `Ctx::cpu_limit`, and the baseline comes
-    /// from the clock taken where this handle was made. A request under no cap
-    /// clears the slot rather than filling it, which is
-    /// [`RunningRequest::new`]'s `None` and what a thread taking up an unsampled
-    /// request has to do.
+    /// root's handle, which carries the ceiling, and the baseline comes from
+    /// the clock taken where this handle was made. A request under no cap is
+    /// published too, because its program may narrow the ceiling later and the
+    /// charge has to start here — [`RunningRequest::new`] owns that.
     ///
     /// Called from the thread that registered, like every other writer here:
     /// the ceiling is charged against *that* thread's clock, so publishing a
     /// request running anywhere else would charge it to a stranger.
-    pub fn publish(&self, view: SafepointView, limit_nanos: u64) {
-        self.publish_safepoint(RunningRequest::new(view, self.clock, limit_nanos));
+    pub fn publish(&self, view: SafepointView) {
+        self.publish_safepoint(RunningRequest::new(view, self.clock));
     }
 
     /// Clears whatever this thread was running, leaving it registered and
@@ -617,8 +627,8 @@ impl Shared {
     /// decision is testable without waiting for one. A CPU ceiling is not
     /// measured against `now` — it is `rule:errors/on-limit`'s cpu time and
     /// never wall clock — so that half reads the core's own clock here, once
-    /// per core that has published a request and not at all for a core that has
-    /// not. That is the one read per core per interval
+    /// per core whose published request is under a cap and not at all for any
+    /// other. That is the one read per core per interval
     /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline` prices this
     /// thread at, and it stays on the walk the deadlines already cost.
     ///
@@ -634,9 +644,11 @@ impl Shared {
         let mut stalls = Vec::new();
         for watched in &mut state.watching {
             let past_its_ceiling = watched.running.as_ref().filter(|running| {
+                // The ceiling first, so a request under no cap costs this walk
+                // one load and no reading of its core's clock.
                 running
-                    .burned()
-                    .is_some_and(|burned| burned >= running.limit())
+                    .limit()
+                    .is_some_and(|limit| running.burned().is_some_and(|burned| burned >= limit))
             });
             if let Some(running) = past_its_ceiling {
                 // Both halves, because they are two different polls: the flag
@@ -729,9 +741,16 @@ mod tests {
     }
 
     /// A ceiling no case here comes near, in the nanoseconds `Ctx::cpu_limit`
-    /// reports and [`RunningRequest::new`] takes.
+    /// reports and `Ctx::set_cpu_limit` takes.
     fn a_minute() -> u64 {
         u64::try_from(Duration::from_secs(60).as_nanos()).expect("a minute does not fit a u64")
+    }
+
+    /// A request whose tree is charged against `nanos` of CPU time.
+    fn capped(nanos: u64) -> Ctx {
+        let mut request = ctx();
+        request.set_cpu_limit(nanos);
+        request
     }
 
     fn watchdog_of(margin: Duration, sink: mpsc::Sender<Stall>) -> Watchdog {
@@ -1024,9 +1043,8 @@ mod tests {
             "a core running no request still offered a handle to stop one"
         );
 
-        let request = ctx();
-        let Some(running) =
-            RunningRequest::new(request.safepoint_view(), ThreadClock::current(), a_minute())
+        let request = capped(a_minute());
+        let Some(running) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
         else {
             // This platform has no per-thread clock, so it enforces no CPU
             // ceiling and a core on it publishes nothing — `crate::cpuclock`'s
@@ -1080,8 +1098,8 @@ mod tests {
         let timers = Timers::default();
         let registered = dog.register(a_cpu(), timers.view());
 
-        let request = ctx();
-        registered.publish(request.safepoint_view(), a_minute());
+        let request = capped(a_minute());
+        registered.publish(request.safepoint_view());
         let published = dog.running();
         if ThreadClock::current().is_none() {
             // No per-thread clock here, so this core enforces no ceiling and
@@ -1090,7 +1108,10 @@ mod tests {
             return;
         }
         assert_eq!(published.len(), 1, "the published request was not readable");
-        assert_eq!(published[0].1.limit(), Duration::from_nanos(a_minute()));
+        assert_eq!(
+            published[0].1.limit(),
+            Some(Duration::from_nanos(a_minute()))
+        );
         // The baseline is this thread's own reading, taken at the registration
         // and not at some zero: a clock read from the watchdog's thread would
         // charge this request whatever *that* thread had burned since it
@@ -1110,21 +1131,54 @@ mod tests {
         );
     }
 
-    /// `rule:errors/on-limit`'s spelling for a request under no cap is a
-    /// ceiling of `0`, and publishing one **clears** the slot rather than
-    /// filling it: a thread that takes up an unsampled request must stop
-    /// offering the one it was running before.
+    /// A request under no cap is published like any other and compared with
+    /// nothing, and a ceiling its program narrows afterwards is charged from
+    /// the baseline it was published with — what `Core\Config::set` does to
+    /// `limits.cpu_time` in a request that started uncapped,
+    /// `rule:errors/on-limit`.
     #[test]
-    fn publishing_a_request_under_no_cap_clears_what_was_published() {
+    fn a_request_published_under_no_cap_is_stopped_at_a_ceiling_narrowed_later() {
         let (tx, _rx) = mpsc::channel();
         let dog = watchdog_of(Duration::from_secs(3600), tx);
         let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so nothing is sampled at all —
+            // `crate::cpuclock`'s docs own that answer.
+            return;
+        }
 
-        registered.publish(ctx().safepoint_view(), a_minute());
-        registered.publish(ctx().safepoint_view(), 0);
+        let mut request = ctx();
+        registered.publish(request.safepoint_view());
+        let published = dog.running();
+        assert_eq!(published.len(), 1, "an uncapped request was not published");
+        assert_eq!(published[0].1.limit(), None);
+        let baseline = published[0].1.baseline();
+
+        burn_a_charge();
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
         assert!(
-            dog.running().is_empty(),
-            "an uncapped request left the one before it published"
+            !request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a request under no cap was stopped at one"
+        );
+
+        // Narrowed where it stands and published by nobody again. A millisecond
+        // is far under what was burned above and far over what the lines since
+        // have cost, so the request is past it only if its charge still starts
+        // where the request did.
+        request.set_cpu_limit(1_000_000);
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a ceiling narrowed after the publication was charged from a later start, or not at all"
+        );
+        assert_eq!(
+            dog.running()[0].1.baseline(),
+            baseline,
+            "narrowing the ceiling moved where the charge starts"
         );
     }
 
@@ -1137,11 +1191,10 @@ mod tests {
         let dog = watchdog_of(Duration::from_secs(3600), tx);
         let registered = dog.register_requests();
 
-        let request = ctx();
         // One nanosecond: the ceiling is passed by the time the publication
         // returns, so this case asserts the walk rather than the clock.
-        let Some(running) =
-            RunningRequest::new(request.safepoint_view(), ThreadClock::current(), 1)
+        let request = capped(1);
+        let Some(running) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
         else {
             // No per-thread clock here, so nothing is sampled at all —
             // `a_published_handle_stops_the_whole_request_tree` owns why that
@@ -1173,29 +1226,24 @@ mod tests {
         );
     }
 
-    /// What a core publishes is what a ceiling can be charged against: a
-    /// request under no cap offers nothing to sample, and a capped one carries
-    /// the baseline its charge is measured from — `rule:errors/on-limit`.
+    /// What a core publishes is what a ceiling can be charged against: the
+    /// baseline its charge is measured from, beside a handle that reads the
+    /// ceiling its tree states — `rule:errors/on-limit`.
     #[test]
-    fn a_capped_request_publishes_a_baseline_and_an_uncapped_one_publishes_nothing() {
+    fn a_published_request_carries_a_baseline_and_reads_its_trees_ceiling() {
         let (tx, _rx) = mpsc::channel();
         let dog = watchdog_of(Duration::from_secs(3600), tx);
         let timers = Timers::default();
         let registered = dog.register(a_cpu(), timers.view());
-        let request = ctx();
+        let request = capped(a_minute());
 
-        assert!(
-            RunningRequest::new(request.safepoint_view(), ThreadClock::current(), 0).is_none(),
-            "a request under no cap was published, and so would be sampled against no ceiling"
-        );
-
-        let Some(running) =
-            RunningRequest::new(request.safepoint_view(), ThreadClock::current(), a_minute())
+        let Some(running) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
         else {
             // The platform's own answer, as the case above this one gives it.
             return;
         };
-        assert_eq!(running.limit(), Duration::from_secs(60));
+        let limit = running.limit().expect("a capped request read as uncapped");
+        assert_eq!(limit, Duration::from_secs(60));
         let baseline = running.baseline();
         registered.publish_safepoint(Some(running));
 
@@ -1218,7 +1266,7 @@ mod tests {
             "a core that spun was charged nothing against the request it published"
         );
         assert!(
-            after < running.limit(),
+            after < limit,
             "a hundred milliseconds of spinning reached a ceiling of a minute"
         );
     }
@@ -1234,10 +1282,9 @@ mod tests {
         let dog = watchdog_of(Duration::from_secs(3600), tx);
         let timers = Timers::default();
         let registered = dog.register(a_cpu(), timers.view());
-        let request = ctx();
+        let mut request = capped(a_minute());
 
-        let Some(under) =
-            RunningRequest::new(request.safepoint_view(), ThreadClock::current(), a_minute())
+        let Some(under) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
         else {
             // The platform's own answer: no per-thread clock, so no CPU
             // ceiling — `crate::cpuclock`'s docs own it.
@@ -1257,14 +1304,11 @@ mod tests {
             "a request a long way under its ceiling had its deadline expired"
         );
 
-        // Republished, so the charge starts again here — a nanosecond's ceiling
-        // rather than a real one, because what is under test is the comparison
-        // and spinning to a ceiling worth configuring would price this case in
-        // seconds.
-        let over = RunningRequest::new(request.safepoint_view(), ThreadClock::current(), 1)
-            .expect("a clock that read a moment ago refused a second reading");
-        registered.publish_safepoint(Some(over));
-        burn_a_charge();
+        // Narrowed where it stands, and the same publication is charged against
+        // the new ceiling — a nanosecond's rather than a real one, because what
+        // is under test is the comparison and spinning to a ceiling worth
+        // configuring would price this case in seconds.
+        request.set_cpu_limit(1);
         assert!(dog.shared.sweep(Instant::now()).is_empty());
         assert!(
             request
@@ -1292,18 +1336,16 @@ mod tests {
         let dog = watchdog_of(Duration::from_secs(3600), tx);
         let timers = Timers::default();
         let registered = dog.register(a_cpu(), timers.view());
-        let request = ctx();
-
         // Fifty milliseconds, passed several times over by the wait below in
         // wall time and not at all in CPU time. A sleep rather than a socket:
         // what the clock sees of either is the same nothing, and a socket would
         // put a reactor between this case and the reading under test.
         let ceiling = Duration::from_millis(50);
-        let Some(parked) = RunningRequest::new(
-            request.safepoint_view(),
-            ThreadClock::current(),
+        let request = capped(
             u64::try_from(ceiling.as_nanos()).expect("fifty milliseconds does not fit a u64"),
-        ) else {
+        );
+        let Some(parked) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
+        else {
             // The platform's own answer: no per-thread clock, so no CPU
             // ceiling — `crate::cpuclock`'s docs own it.
             return;

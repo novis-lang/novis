@@ -442,6 +442,10 @@ impl Ctx {
         self.fatal_reserve_time =
             Self::reserve_time_within(cpu_ceiling, self.configured_fatal_reserve_time());
         self.cpu_limit = cpu_ceiling.saturating_sub(self.fatal_reserve_time);
+        // The thread that charges this tree reads the ceiling out of the tree's
+        // own state, so the one `Core\Config::set` just narrowed is the one its
+        // next sweep compares with.
+        self.publish_cpu_limit();
         // Read in the same pass and for the same reason, though there is nothing
         // to carve out of it: a request's ceilings are one reading of one
         // configuration.
@@ -503,9 +507,9 @@ impl Ctx {
     /// owns why a handler entered under [`SafepointFlags::CPU_LIMIT`] would
     /// otherwise stop at its own first back edge. What samples the clock is
     /// `nvs_host::watchdog`, and it is told of neither edit: it charges against
-    /// the ceiling that stood when the request was published, so a handler is
-    /// bounded by that sampler's next sweep rather than by the slice this
-    /// names.
+    /// the ceiling the tree carries ([`Self::publish_cpu_limit`]), which the
+    /// handler's widening leaves alone, so a handler is bounded by that
+    /// sampler's next sweep rather than by the slice this names.
     #[must_use]
     pub fn fatal_reserve_time(&self) -> u64 {
         self.fatal_reserve_time
@@ -517,6 +521,7 @@ impl Ctx {
     /// [`Self::set_config`] instead.
     pub fn set_cpu_limit(&mut self, nanos: u64) {
         self.cpu_limit = nanos;
+        self.publish_cpu_limit();
     }
 
     /// Sets the reserved slice of CPU time directly, the way

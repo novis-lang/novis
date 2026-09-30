@@ -247,8 +247,8 @@ impl Isolate {
     /// the root's, its `Ctx::cpu_limit` is the ceiling the whole tree divides
     /// (`rule:security/isolate-budget-is-the-trees`), and a caller that
     /// published at this line would be publishing whatever context it built the
-    /// isolate from. A tree under no cap publishes nothing —
-    /// [`Registration::publish`] clears the slot instead of filling it.
+    /// isolate from. A tree under no cap is published like any other —
+    /// [`Registration::publish`] owns why.
     ///
     /// The publication is cleared when this isolate's body ends, however it
     /// ends. One slot per registered thread is the whole of what a registration
@@ -638,8 +638,8 @@ impl Isolate {
         // `rule:errors/on-limit`'s CPU ceiling reaches a request that allocates
         // nothing, writes nothing and calls nothing only if a thread that is not
         // this one is charging it, and what such a thread charges is the
-        // **tree's** handle and the tree's ceiling. Both are read off this
-        // context rather than off the child below, and they have to be: the CPU
+        // **tree's** handle, which carries the tree's ceiling. It is read off this
+        // context rather than off the child below, and it has to be: the CPU
         // ceiling stays the root's and `Ctx::isolate` carries none of it down,
         // where the memory half crosses as what remains of the same number. The
         // word is the child's either way, `Ctx::share_safepoint_with` being what
@@ -650,7 +650,7 @@ impl Isolate {
         // symmetrical: the publication is one store made here, and the guard
         // that undoes it goes wherever the body it belongs to ends.
         if let Some(watch) = &watch {
-            watch.publish(ctx.safepoint_view(), ctx.cpu_limit());
+            watch.publish(ctx.safepoint_view());
         }
 
         // The isolate's own root. Buffered under both options; § 4's fresh

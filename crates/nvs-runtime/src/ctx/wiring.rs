@@ -133,6 +133,7 @@ impl Ctx {
             // otherwise, and the only thing that can is `Ctx::join_tree` on the
             // core the child was placed on.
             on_root_core: true,
+            tree_root: true,
             tree_share: None,
             memory_limit: 0,
             output_limit: 0,

@@ -204,6 +204,45 @@ fn a_request_cannot_set_its_own_max_script_depth() {
     );
 }
 
+/// The ceiling a request tree is charged against is its root's, as it stands now: a `cpu_time` the
+/// root narrows after it started under no cap reaches the handle a sampler holds, and a child that
+/// narrows its own leaves the tree's where the root put it — `rule:security/isolate-budget-is-the-trees`.
+#[test]
+fn a_narrowed_cpu_time_reaches_the_trees_handle_from_the_root_and_never_from_a_child() {
+    let mut root = ctx_reading("[limits]\nmemory = \"128M\"\n");
+    let charged = root.safepoint_view();
+    assert_eq!(
+        charged.cpu_limit(),
+        0,
+        "a tree under no cap carried a ceiling"
+    );
+
+    // What `Core\Config::set` does: the overlay moves, then the cached ceilings are re-read.
+    assert!(
+        root.config_mut()
+            .expect("the case set one")
+            .set("limits.cpu_time", "200ms")
+    );
+    root.refresh_limits();
+    assert!(root.cpu_limit() > 0, "the narrowing was not read");
+    assert_eq!(charged.cpu_limit(), root.cpu_limit());
+
+    let mut child = root.isolate(OutputSink::Buffer(Vec::new()));
+    assert!(
+        child
+            .config_mut()
+            .expect("the child inherits one")
+            .set("limits.cpu_time", "100ms")
+    );
+    child.refresh_limits();
+    assert!(child.cpu_limit() < root.cpu_limit());
+    assert_eq!(
+        charged.cpu_limit(),
+        root.cpu_limit(),
+        "a child moved the ceiling its whole tree is charged against"
+    );
+}
+
 /// A `spawn script` chain is counted on the contexts it crosses: the request is depth `0` and each
 /// isolate is one deeper than whatever built it, carrying the ceiling down unchanged.
 ///

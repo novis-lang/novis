@@ -2727,10 +2727,10 @@ fn run_run(
         std::rc::Rc::new(std::cell::Cell::new(None));
     // Read off the context while it is still here, because the spawn below
     // moves it into the task: the handle is what a sampler stops this run
-    // through, and the ceiling is what it charges against. Both are the tree
-    // root's — this is the root — so one store through the handle reaches every
+    // through, and it carries the ceiling the sampler charges against. It is the
+    // tree root's — this is the root — so one store through it reaches every
     // isolate and task the program goes on to build.
-    let ceiling = (ctx.safepoint_view(), ctx.cpu_limit());
+    let tree = ctx.safepoint_view();
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, {
         let status = std::rc::Rc::clone(&status);
         let workers = workers.clone();
@@ -2917,12 +2917,15 @@ fn run_run(
     // for its ceiling and never reported as a wedged core — and publishes the
     // one request it is: this whole run, from here until the scheduler is idle.
     //
-    // Built only where there is something to charge, so the ordinary run starts
-    // no thread and wakes for nothing: `RunningRequest::new` answers `None` for
-    // a request under no cap and for a platform with no per-thread clock alike,
-    // and the clock it is handed is this thread's because this is the thread
-    // the program runs on.
-    let (view, cpu_limit) = ceiling;
+    // Built for a run under no cap as well, because the program may narrow
+    // `limits.cpu_time` with `Core\Config::set`, and the charge that ceiling is
+    // compared with has to start here — `RunningRequest::new` owns that. It
+    // answers `None` only for a platform with no per-thread clock, where no
+    // thread is started, and the clock it is handed is this thread's because
+    // this is the thread the program runs on.
+    //
+    // **What it spends:** one thread for the length of the run, which wakes once
+    // per sweep interval and reads one word while the run is under no cap.
     // The allocator's counters are this thread's and never reset, so the
     // run's share is the difference across it. Taken here, after the reactor
     // and the compiler are up, so what is counted is the program and the
@@ -2934,7 +2937,7 @@ fn run_run(
             nvs_runtime::budget::allocated_bytes(),
         )
     });
-    let charged = nvs_host::RunningRequest::new(view, nvs_host::ThreadClock::current(), cpu_limit);
+    let charged = nvs_host::RunningRequest::new(tree, nvs_host::ThreadClock::current());
     let watchdog = charged.is_some().then(nvs_host::Watchdog::new);
     let watched = watchdog.as_ref().map(|watchdog| {
         let watched = watchdog.register_requests();
