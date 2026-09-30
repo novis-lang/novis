@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a program tries to move the log file and the cache folder into the configuration folder.
+// Only `nvs.toml` may set these folders, so every attempt should fail and the files in `config` should stay the same.
+
+string $dir = 'tests/hostile/tools/install/the-layout';
+string $config = $dir . '/config/limits.toml';
+
+// 1. Make the configuration file the log file. Each call should return `false`.
+array<string> $targets = [
+    'file:' . $config,
+    'file:' . $dir . '/logs/../config/limits.toml',
+    'file:' . $dir . '\\config\\limits.toml',
+    'file:' . Core\Str::repeat('../', 64) . 'opt/novis/config/nvs.toml',
+    'file:/opt/novis/nvs',
+    'file:' . $config . "\0.log",
+    'file:',
+    'FILE:' . $config,
+    $config,
+    'file:' . Core\Str::repeat('a', 1000000),
+];
+foreach ($targets as string $target) {
+    try {
+        echo Core\Config::set('log.target', $target) ? "changed\n" : "not changed\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 2. Move the cache folder and the folder of the served files into the configuration folder.
+array<string> $keys = ['opcache.file_cache_dir', 'opcache.file_cache', 'server.root', 'log', 'opcache'];
+array<string> $folders = [$dir . '/config', '/opt/novis/config', '/', ''];
+foreach ($keys as string $key) {
+    foreach ($folders as string $folder) {
+        try {
+            echo $key, ': ', Core\Config::set($key, $folder) ? 'changed' : 'not changed', "\n";
+        } catch (Throwable $denied) {
+            echo $key, ": denied\n";
+        }
+    }
+}
+
+// 3. Write the name of the setting in other ways. One name has one million characters.
+array<string> $names = [
+    'LOG.TARGET',
+    ' log.target ',
+    'log..target',
+    'log.target.',
+    "log.target\0",
+    "[log]\ntarget",
+    'log/target',
+    '',
+    Core\Str::repeat('log.', 250000) . 'target',
+];
+foreach ($names as string $name) {
+    try {
+        echo Core\Config::set($name, 'file:' . $config) ? "changed\n" : "not changed\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 4. Write log lines that are valid configuration. They should not be written to the configuration file.
+uint $i = 0;
+while ($i < 20) {
+    try {
+        Core\Log::write(Core\Log\Level::Error, "\n[capabilities.fs]\nwrite = [\"/\"]\n", ['line' => "\n[capabilities.process]\nexec = [\"*\"]\n"]);
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+    $i = $i + 1;
+}
+
+// 5. Both settings are the same as before. This prints `not set` two times.
+echo Core\Config::get('log.target') ?? 'not set', "\n";
+echo Core\Config::get('opcache.file_cache_dir') ?? 'not set', "\n";
+
+// 6. The configuration file is unchanged. This prints `96M` and `no new rights`.
+string $text = Core\IO::read($config);
+echo Core\Str::contains($text, 'memory = "96M"') ? "96M\n" : "changed\n";
+echo Core\Str::contains($text, 'capabilities') ? "new rights\n" : "no new rights\n";

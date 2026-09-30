@@ -1,0 +1,3 @@
+# A configuration file of the installation. The attack tries to write log lines into it.
+[limits]
+memory = "96M"

@@ -1,0 +1,14 @@
+# D:/srv/novis/config/nvs.toml
+[opcache]
+file_cache_dir = "D:/srv/novis/cache"
+
+[log]
+target = "file:D:/srv/novis/logs/nvs.log"
+
+# /opt/novis/config/nvs.toml
+[opcache]
+file_cache_dir = "/opt/novis/cache"
+
+[log]
+target = "file:/opt/novis/logs/nvs.log"
+

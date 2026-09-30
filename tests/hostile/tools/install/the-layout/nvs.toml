@@ -1,0 +1,3 @@
+# The attack may read the folder `config` and nothing else. It may write nowhere.
+[capabilities.fs]
+read = ["config"]
