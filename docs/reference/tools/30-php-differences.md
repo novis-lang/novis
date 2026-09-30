@@ -287,6 +287,62 @@ packages do are built into this toolchain or into the language itself:
   identifier casing, a written visibility on every member, one spelling per construct — with no
   suppression and nothing to configure.
 
+A test is a method with `#[Test]` in any class. `nvs test` runs this file and reports three tests:
+one for each `#[TestWith]` row, and one that is skipped with its reason.
+
+```nvs test
+<?nvs
+use Core\Test;
+use Core\Test\TestWith;
+
+final class Price {
+    public static function withTax(int $cents, int $percent): int {
+        return $cents + Core\Math::intDiv($cents * $percent, 100);
+    }
+}
+
+final class PriceTest {
+    #[TestWith(cents: 1000, percent: 20, want: 1200)]
+    #[TestWith(cents: 999, percent: 10, want: 1098)]
+    #[Test]
+    public function taxIsAdded(int $cents, int $percent, int $want): void {
+        Test::assertSame(Price::withTax($cents, $percent), $want);
+    }
+
+    #[Test(skip: "refunds are not written yet")]
+    public function aRefundGivesTheTaxBack(): void {
+        Test::assertSame(Price::withTax(-1000, 20), -1200);
+    }
+}
+```
+```output
+  PriceTest
+    ✓ taxIsAdded#0
+    ✓ taxIsAdded#1
+    - aRefundGivesTheTaxBack
+      skipped: refunds are not written yet
+  0 failed, 2 passed, 1 skipped, 0 flaky in
+```
+
+`nvs check` reports a method that does not return a value on every path. No analyser is set up
+for it:
+
+```nvs error
+<?nvs
+class Stock {
+    public static function label(int $count): string {
+        if ($count > 0) {
+            return "in stock";
+        }
+    }
+}
+
+echo Stock::label(3), "\n";
+```
+```output
+E0739
+```
+
 # Two spellings side by side
 
 ```nvs error

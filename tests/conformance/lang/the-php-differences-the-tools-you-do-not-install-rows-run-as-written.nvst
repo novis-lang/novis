@@ -1,0 +1,96 @@
+--TEST--
+What "The tools you do not install" in the PHP-differences chapter says `#[Test]`, `Core\Test` and `nvs test` do in PHPUnit's place is what one run reports: data rows, a fixture, a skip with its reason and a retry — `rule:testing/fixtures`, `rule:testing/data-rows`, `rule:testing/runner-is-strict`, `rule:testing/report-formats`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: tools:php-differences/the-tools-you-do-not-install
+// The chapter's PHPUnit row, one claim per method. The two machine formats
+// are pinned beside this case, and what `nvs check` reports in place of an
+// analyser and a style checker is pinned in
+// `tests/conformance/reject/what-an-analyser-and-a-style-checker-report-does-not-compile.nvst`.
+use Core\Test;
+use Core\Test\Fixture;
+use Core\Test\TestWith;
+
+final class Price {
+    public static function withTax(int $cents, int $percent): int {
+        return $cents + Core\Math::intDiv($cents * $percent, 100);
+    }
+}
+
+final class TaxTable {
+    public function constructor(public int $standard, public int $reduced) {}
+}
+
+final class PriceTest {
+    public static int $attempts = 0;
+
+    // A fixture: built once for the class and handed over by type.
+    #[Fixture]
+    public static function taxes(): TaxTable {
+        return new TaxTable(20, 10);
+    }
+
+    // Data rows: each row is its own reported case.
+    #[TestWith(cents: 1000, percent: 20, want: 1200)]
+    #[TestWith(cents: 999, percent: 10, want: 1098)]
+    #[TestWith(cents: 0, percent: 20, want: 0)]
+    #[Test]
+    public function taxIsAdded(int $cents, int $percent, int $want): void {
+        Test::assertSame(Price::withTax($cents, $percent), $want);
+    }
+
+    // A row value is a constant of the parameter's declared type, so a `uint`
+    // parameter takes the largest `uint`, which no `int` holds.
+    #[TestWith(stock: 18446744073709551615, floor: 9223372036854775807, top: true)]
+    #[TestWith(stock: 0, floor: -9223372036854775807, top: false)]
+    #[Test]
+    public function aRowReachesTheEndOfItsType(uint $stock, int $floor, bool $top): void {
+        Test::assertSame($stock == 18446744073709551615, $top);
+        Test::assertSame($floor == 9223372036854775807, $top);
+    }
+
+    #[Test]
+    public function theStandardRateIsUsed(TaxTable $taxes): void {
+        Test::assertSame(Price::withTax(500, $taxes->standard), 600);
+    }
+
+    // A skip states its reason, and the body is never entered.
+    #[Test(skip: "refunds are not written yet")]
+    public function aRefundIsNegative(): void {
+        Test::assertSame(Price::withTax(-500, 20), 0);
+    }
+
+    // A retry that passes is reported flaky, never green.
+    #[Test(retries: 2, because: "the first attempt stands in for a slow network")]
+    public function theSecondAttemptPasses(): void {
+        PriceTest::$attempts = PriceTest::$attempts + 1;
+        Test::assertSame(PriceTest::$attempts, 2);
+    }
+
+    #[Test]
+    public function aFailureNamesBothValues(): void {
+        Test::assertSame(Price::withTax(999, 10), 1099);
+    }
+}
+
+echo "the entry file's statements do not run under nvs test\n";
+--EXPECTF--
+  PriceTest
+    ✓ taxIsAdded#0                     %f ms
+    ✓ taxIsAdded#1                     %f ms
+    ✓ taxIsAdded#2                     %f ms
+    ✓ aRowReachesTheEndOfItsType#0     %f ms
+    ✓ aRowReachesTheEndOfItsType#1     %f ms
+    ✓ theStandardRateIsUsed            %f ms
+    - aRefundIsNegative                %f ms
+      skipped: refunds are not written yet
+    ! theSecondAttemptPasses           %f ms
+      flaky: it passed on attempt 2, having failed with:
+      Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+    ✗ aFailureNamesBothValues          %f ms
+      Core\Test::assertSame failed: `$actual` is 1098, `$expected` is 1099
+
+  1 failed, 6 passed, 1 skipped, 1 flaky in %d ms
+--EXPECTF-ERROR--

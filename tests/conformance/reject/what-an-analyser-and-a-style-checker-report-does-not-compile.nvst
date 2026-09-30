@@ -1,0 +1,61 @@
+--TEST--
+What "The tools you do not install" in the PHP-differences chapter says an analyser and a style checker report is nine compile errors from `nvs check` alone: an unassigned property, a missing visibility, a miscased name, a path that does not return, an unresolved member, an untyped binding, a tainted value at a sink, a `secret` written out and a second spelling — `rule:security/sink-predicate`, `rule:types/conversion`
+--FILE--
+<?nvs
+// covers: tools:php-differences/the-tools-you-do-not-install
+// What the PHP-differences chapter's "The tools you do not install" says
+// `nvs check` reports with no analyser and no style checker installed, one
+// line each: a property never assigned, a member with no visibility, a name
+// in the wrong case, a path that does not return, a member that does not
+// resolve, an untyped binding, a tainted value at a sink, a `secret` written
+// out and a second spelling of one operator.
+class Cart {
+    public int $count;
+    int $discount = 0;
+
+    public function Total(): int {
+        if ($this->count > 0) {
+            return $this->count;
+        }
+    }
+
+    public function size(): void {
+        $this->recount();
+    }
+}
+
+$lines = 3;
+tainted string $name = "guest";
+string $content = Core\IO::read($name);
+secret string $key = "k" as secret string;
+echo $key, "\n";
+echo 1 <> 2, "\n";
+--EXPECTF-ERROR--
+error[E0409]: `$count` has no default value, and `Cart` declares no constructor to assign it
+   --> case.nvs:10:16
+%A
+error[E0122]: a property must declare `public`, `protected` or `private`
+   --> case.nvs:11:9
+%A
+error[E0111]: method names must be camelCase, e.g. `total`
+   --> case.nvs:13:21
+%A
+error[E0739]: `Total` declares `int` but a path reaches the end of its body
+   --> case.nvs:13:30
+%A
+error[E0405]: `Cart` has no method named `recount`
+   --> case.nvs:20:9
+%A
+error[E0301]: `$lines` is assigned to but was never declared
+   --> case.nvs:24:1
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:26:33
+%A
+error[E0790]: a `secret`-qualified value cannot be written by `echo`; output is read by a person or captured into a log, so the value would be disclosed rather than used
+   --> case.nvs:28:6
+%A
+error[E0241]: `<>` is not supported
+   --> case.nvs:29:8
+%A
+error: aborting due to 9 errors

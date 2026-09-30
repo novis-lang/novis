@@ -1,0 +1,161 @@
+<?nvs
+// Attack: the assertions of `Core\Test` get very large and very deep values, outside a test.
+// Each step should end with an error or a result. The program must not crash.
+// hostile: timeout-ms 60000
+use Core\Test;
+use Core\Test\TestWith;
+
+final class Node
+{
+    public ?Node $next = null;
+    public int $value = 0;
+}
+
+final class Deep
+{
+    public static function down(int $n): int
+    {
+        return Deep::down($n + 1) + 1;
+    }
+}
+
+final class EdgeTest
+{
+    public static int $attempts = 0;
+
+    #[TestWith(stock: 18446744073709551615, floor: 9223372036854775807, ratio: 1.0e308, label: "")]
+    #[TestWith(stock: 0, floor: -9223372036854775807, ratio: -1.0e308, label: "\u{0301}\u{0301}")]
+    #[Test]
+    public function rowsAtTheEndOfTheirRange(uint $stock, int $floor, float $ratio, string $label): void
+    {
+        Test::assertTrue($floor != 0);
+        Test::assertTrue($ratio != 0.0);
+        Test::assertTrue(Core\Str::length($label) < 2);
+        Test::assertSame($stock + 1, 1);
+    }
+
+    #[Test(retries: 9223372036854775807, because: "the largest number of retries an int can state")]
+    public function itNeverPasses(): void
+    {
+        EdgeTest::$attempts = EdgeTest::$attempts + 1;
+        Test::assertSame(EdgeTest::$attempts, 0);
+    }
+
+    #[Test(skip: "")]
+    public function theReasonIsEmpty(): void
+    {
+        int $big = 9223372036854775807;
+        Test::assertSame($big + 1, 0);
+    }
+}
+
+// 1. One million assertions fail, and each error is caught.
+int $caught = 0;
+int $i = 0;
+while ($i < 1000000) {
+    try {
+        Test::assertSame($i, -1, { message: 'row' });
+    } catch (Core\Test\Failure $failed) {
+        $caught = $caught + 1;
+    }
+    $i = $i + 1;
+}
+echo $caught, "\n";
+
+// 2. A failing assertion gets a message of five million characters.
+try {
+    Test::assertTrue(false, { message: Core\Str::repeat('x', 5000000) });
+} catch (Core\Test\Failure $long) {
+    echo Core\Str::length($long->message), "\n";
+}
+
+// 3. The clock of a test is moved, but no test is running.
+try {
+    Test::advance(90m);
+    echo "advanced\n";
+} catch (Throwable $noClock) {
+    echo 'advance: ', $noClock->message, "\n";
+}
+
+// 4. `assertThrows` runs a function that calls itself without an end.
+try {
+    Test::assertThrows(fn(): int => Deep::down(0), RecursionError::class);
+    echo "it threw RecursionError\n";
+} catch (Throwable $deep) {
+    echo 'deep: ', Core\Str::slice($deep->message, 0, 60), "\n";
+}
+
+// 5. `assertEqualsDeep` compares two chains of one hundred thousand objects.
+Node $left = new Node();
+Node $right = new Node();
+Node $leftEnd = $left;
+Node $rightEnd = $right;
+$i = 0;
+while ($i < 100000) {
+    Node $leftNext = new Node();
+    Node $rightNext = new Node();
+    $leftEnd->next = $leftNext;
+    $rightEnd->next = $rightNext;
+    $leftEnd = $leftNext;
+    $rightEnd = $rightNext;
+    $i = $i + 1;
+}
+$rightEnd->value = 1;
+try {
+    Test::assertEqualsDeep($left, $right);
+    echo "equal\n";
+} catch (Throwable $chain) {
+    echo 'chain: ', Core\Str::slice($chain->message, 0, 60), "\n";
+}
+
+// 6. The same two chains are closed into circles and compared again.
+$leftEnd->next = $left;
+$rightEnd->next = $right;
+try {
+    Test::assertEqualsDeep($left, $right);
+    echo "equal\n";
+} catch (Throwable $circle) {
+    echo 'circle: ', Core\Str::slice($circle->message, 0, 60), "\n";
+}
+$leftEnd->next = null;
+$rightEnd->next = null;
+
+// 7. `expectFailure` is called inside `expectFailure`, and nothing fails inside.
+try {
+    Test::expectFailure(fn(): void => Test::expectFailure(fn(): void => Test::assertTrue(true)));
+    echo "expected\n";
+} catch (Throwable $nested) {
+    echo 'nested: ', Core\Str::slice($nested->message, 0, 60), "\n";
+}
+
+// 8. `assertCount` gets an array of one million elements and the largest `uint`.
+array<int> $big = [];
+$i = 0;
+while ($i < 1000000) {
+    $big[] = $i;
+    $i = $i + 1;
+}
+try {
+    Test::assertCount($big, 18446744073709551615);
+} catch (Throwable $count) {
+    echo 'count: ', Core\Str::slice($count->message, 0, 60), "\n";
+}
+
+// 9. The test methods are called as normal methods, with values at the end of their range.
+EdgeTest $direct = new EdgeTest();
+try {
+    $direct->rowsAtTheEndOfTheirRange(18446744073709551615, 9223372036854775807, 1.0e308, '');
+} catch (Throwable $row) {
+    echo 'row: ', Core\Str::slice($row->message, 0, 60), "\n";
+}
+try {
+    $direct->itNeverPasses();
+} catch (Throwable $never) {
+    echo 'retry: ', Core\Str::slice($never->message, 0, 60), "\n";
+}
+try {
+    $direct->theReasonIsEmpty();
+} catch (Throwable $overflow) {
+    echo 'skip: ', Core\Str::slice($overflow->message, 0, 60), "\n";
+}
+echo "done\n";
