@@ -1,20 +1,28 @@
 {
-  "state": "This goal has just been installed. The description is not owed yet.",
+  "state": "Milestone `dossier`, goal `the-description-is-owed`, stage 2. `data/proofs/policy.json` now carries\n`owes.all.about: true`, so `bun nv proofs --gate` counts a missing or misshapen `about.md`. It names\n104 of 1159 features: 17 `Core\\Time\\DateTime` members, 1 language section and 46 tool sections with\nno description, 27 descriptions over 200 words, and 13 features that owe more than a description.\nSixteen descriptions were written: `Core\\Str::length`, `Core\\RateLimit\\Decision` (4),\n`Core\\Reflect\\AttributeInfo` (5) and `Core\\Time\\Date` (6).\n\n**The chain order cannot reach this goal as it stands.** Its check is the whole roster, and the 13\nfeatures are the 5 of `tools:install` and 8 of `tools:server`, which owe a test, an example and an\nattack as well. Goals `tools-install` and `tools-server` own those and sit behind this goal on the\nchain, and only the driver moves `live`. Nothing is blocked until every other description is written.\nThe closed goals' group checks (`bun nv proofs --verify --group <G>`) are red for every group in\nthe list above until its descriptions land; that is this goal's work and not a regression.\n\n**One call made for the user, to look at.** Gap `nvs-ir/throws-on-an-array-key-that` named goal\n`coalesce-assign` as its owner, and `bun nv owners --check` refuses every goal-owned gap, so\n`bun nv verify` stopped at its `owners` step in every session. The record is back at\n`milestone: M10`, and `docs/agent/goals/coalesce-assign.md` still has that goal delete it. If the\nowner gate is meant to hold that goal open, `tools/nv/cmd/owners.ts:79` is what has to accept it.\n\nThe pack does not print `docs/examples/README.md` § *The description*; it is one `bun nv peek`.",
   "next": {
-    "stage": null,
+    "stage": 2,
+    "title": "the description is owed",
     "files": [],
+    "note": "one file set: `docs/examples/**/about.md`, read beside each feature's own examples. `nvs agent show '<id>'` on the pipeline binary plus the top comment of each example is enough to write a member's description; open an example only for a value the text names.",
     "items": [
       {
         "done": false,
-        "text": "Add `\"about\": true` under `owes.all` in `data/proofs/policy.json`."
+        "text": "**The 17 `Core\\Time\\DateTime` descriptions** (`rule:testing/feature-proofs`), one `about.md` in each directory under `docs/examples/core/Time-DateTime/`; the members are the rows from `crates/nvs-stdlib/src/time.rs:1620` to `crates/nvs-stdlib/src/time.rs:1764`. The six `docs/examples/core/Time-Date/*/about.md` are the wording to stay consistent with."
       },
       {
         "done": false,
-        "text": "`bun nv proofs --owed`, and write or rewrite each description it names."
+        "text": "**`lang:expressions/the-pipeline-operator`** has no description: `docs/reference/lang/30-expressions.md:483`, written to `docs/examples/lang/expressions/the-pipeline-operator/about.md`."
+      },
+      {
+        "done": false,
+        "text": "**The six `Core` descriptions over 200 words are rewritten, never trimmed** (the goal's standing decision): `docs/examples/core/Cli-Style/of/about.md:1`, `docs/examples/core/Db-Connection/stream/about.md:1`, `docs/examples/core/Db-Transaction/stream/about.md:1`, `docs/examples/core/Db-Transaction/streamAs/about.md:1`, `docs/examples/core/Db-Transaction/transaction/about.md:1`, `docs/examples/core/Db-Schema/planAgainst/about.md:1`."
       }
     ]
   },
   "backlog": [
-    "(nothing yet)"
+    "21 more descriptions over 200 words: `IOError`, `ParseError`, `Core\\Crypto\\KeyFormat`, ten directives under `docs/examples/config/` and eight sections under `docs/examples/lang/`. `bun nv proofs --gate` names each with its word count.",
+    "46 tool sections with no description, each written from its own reference section and its one example: `tools:cli` (13), `tools:config` (13), `tools:php-differences` (12), `tools:agents` (4), `tools:editor` (3) and `tools:server/what-reaches-a-running-server`.",
+    "The 13 `tools:install` and `tools:server` features, last. The plan that needs no decision from the user is to write all their proofs here under the standing decisions of `docs/agent/goals/tools-install.md`, so those two goals pass on arrival. If the user would sooner reorder the chain, this is the point to report `BLOCKED` and say so."
   ]
 }

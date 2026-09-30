@@ -1,0 +1,11 @@
+{
+  "lead": "A feature named `target` has a proof directory git ignores, and nothing on the machine that wrote it can tell.",
+  "body": "`.gitignore`'s `**/target` is for cargo's output and matches `docs/examples/**/target/` and `tests/hostile/**/target/` as well, while `bun nv proofs` reads the disk and sees every file. `.gitignore` re-includes those two trees; for a new tree that is attributed by path, check `git status --short --ignored <tree>` once.",
+  "files": [
+    ".gitignore"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": ".gitignore:target"
+  }
+}
