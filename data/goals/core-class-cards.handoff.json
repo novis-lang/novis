@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `core-class-cards`: Stages 2 and 3 are done, and Stage 4 is under way.** The `codes!` macro in\n`crates/nvs-diagnostics/src/lib.rs` reads an optional `.card(\"…\")` after each `Code::new(…)` and\nwrites `code::card(code) -> Option<&'static str>` beside `code::ALL`. The ten lexer codes\n`E0001`–`E0010` carry cards; every other code is in the test module's `CODES_STILL_OWING_A_CARD`, in\ndeclaration order, and `every_code_carries_its_card_or_is_listed` holds the two together both ways.\n`nvs agent show E0007` prints a code's card.\n\n`Renderer::render_all` closes every run that rendered a coded diagnostic with the constant\n`AGENT_SHOW_LINE` (\"To read what a code means and how to fix it, run `nvs agent show <code>`.\"), after\nthe summary, warnings-only runs included. Every `.nvst` case that pins the summary pins that line too.\nThe rule's terminal half is shipped; its card half waits on the list emptying. Stage 5 is not started.",
+  "state": "**Goal `core-class-cards`: Stages 2 and 3 are done, and Stage 4 is under way.** The `codes!` macro in\n`crates/nvs-diagnostics/src/lib.rs` reads an optional `.card(\"…\")` after each `Code::new(…)` and\nwrites `code::card(code) -> Option<&'static str>` beside `code::ALL`. The lexer band `E0001`–`E0010`\nand the parser band `E0101`–`E0135` carry cards; every other code is in the test module's\n`CODES_STILL_OWING_A_CARD`, in declaration order, and `every_code_carries_its_card_or_is_listed` holds\nthe two together both ways. `nvs agent show E0101` prints a code's card.\n\n`Renderer::render_all` closes every run that rendered a coded diagnostic with `AGENT_SHOW_LINE`, and\nevery `.nvst` case that pins the summary pins that line too. Four parser codes are declared and never\nraised anywhere (`E0103`, `E0104`, `E0106`, `E0107`); they carry cards all the same, because the test\ncounts declarations. Stage 5 is not started.",
   "next": {
     "stage": 4,
     "title": "every diagnostic code carries its card",
@@ -9,15 +9,16 @@
     "items": [
       {
         "done": false,
-        "text": "**Drain the list, one band per session, in file order** — `rule:tooling/a-diagnostic-code-carries-its-card`; the parser band starts at `crates/nvs-diagnostics/src/lib.rs:194` (`E0101`). A card is one to three sentences for the person who met the error, in the voice of AGENTS.md § *Text an end user reads*. Read the `///` above the code and the site that raises it, never only the constant's name — a delegated `Explore` search for each band's raise sites (`file.rs:NN` per code) keeps that reading out of the session. Delete each code from `CODES_STILL_OWING_A_CARD` at `crates/nvs-diagnostics/src/lib.rs:4090` in the same commit. The first sentence becomes the index line, so it must read alone."
+        "text": "**Drain the list, one band per session, in file order** — `rule:tooling/a-diagnostic-code-carries-its-card`; the rejected-PHP-constructs band starts at `crates/nvs-diagnostics/src/lib.rs:492` (`E0201`). A card is one to three sentences for the person who met the error, in the voice of AGENTS.md § *Text an end user reads*. Read the `///` above the code and the site that raises it: one delegated `Explore` search returning `file.rs:NN  CONSTANT  message  help` per code keeps that reading out of the session, and it also reports a code nothing raises. Write every card of the band as one `bun nv splice --patch` (OLD `Code::new(\"E0201\");`, NEW the `.card(…)` form), plus one block deleting the band from `CODES_STILL_OWING_A_CARD` at `crates/nvs-diagnostics/src/lib.rs:4206`, then `rustfmt --edition 2024` the file to reflow the list. The first sentence becomes the index line, so it must read alone. PHP may be named in a card of this band, since each code is a PHP construct, but once and plainly."
       },
       {
         "done": false,
-        "text": "**`no_code_still_owes_a_card`** — `rule:tooling/a-diagnostic-code-carries-its-card`; add it beside `every_code_carries_its_card_or_is_listed` at `crates/nvs-diagnostics/src/lib.rs:4140` in the session that deletes the last entry from `CODES_STILL_OWING_A_CARD`, as an assertion that the list is empty."
+        "text": "**`no_code_still_owes_a_card`** — `rule:tooling/a-diagnostic-code-carries-its-card`; add it beside `every_code_carries_its_card_or_is_listed` at `crates/nvs-diagnostics/src/lib.rs:4253`, asserting `CODES_STILL_OWING_A_CARD` is empty. It lands with the commit that empties the list, never before: until then it is a red test."
       }
     ]
   },
   "backlog": [
-    "Stage 5, `bun nv proofs` owes help — `docs/agent/goals/core-class-cards.md`."
+    "Stage 5, help is owed for the whole roster: `docs/agent/goals/core-class-cards.md` § Stage 5.",
+    "The four parser codes nothing raises (`E0103`, `E0104`, `E0106`, `E0107`) are candidates for retirement; that is a decision for `crates/nvs-diagnostics/src/lib.rs`'s code table, not this goal."
   ]
 }
