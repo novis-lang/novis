@@ -1,0 +1,48 @@
+<?nvs
+// Shows how to read the messages of `nvs init` and of the compile cache.
+// Each line of the input is one message. The program prints the path to change and what to do.
+
+class Advice {
+    // Returns the path to change. A message puts each path between two "`" characters.
+    // The second path is the folder that failed the check. A message with one path is about the file.
+    public static function path(tainted string $message): tainted string {
+        array<tainted string> $parts = Core\Str::split($message, "`");
+        if (Core\Arr::count($parts) > 3) {
+            return $parts[3];
+        }
+        return Core\Arr::count($parts) > 1 ? $parts[1] : "";
+    }
+
+    // Returns what to do. Each test looks for words that only one kind of message has.
+    public static function about(tainted string $message): string {
+        // Windows prints the first text. Linux and macOS print the second text.
+        if (Core\Str::contains($message, " grants write access to ")
+            || Core\Str::contains($message, "-writable (mode ")) {
+            return "remove the write access of the group";
+        }
+        if (Core\Str::contains($message, " is owned by ")) {
+            return "make the owner the account that runs nvs";
+        }
+        // Windows prints `os error 5`. Linux and macOS print `os error 13`.
+        if (Core\Str::contains($message, "(os error 5)")
+            || Core\Str::contains($message, "(os error 13)")) {
+            return "use an administrator prompt or sudo";
+        }
+        if (Core\Str::contains($message, "never overwritten")) {
+            return "edit the file, or delete it and run nvs init again";
+        }
+        return "this is not a message about permissions";
+    }
+}
+
+// The input is the file `01-print-what-to-do-for-each-message.in` beside this one.
+foreach (Core\Str::lines(Core\IO::stdin()) as tainted string $message) {
+    if ($message == "") {
+        continue;
+    }
+    echo Advice::path($message), "\n  ", Advice::about($message), "\n";
+    // A warning does not stop the program. Only the compile cache prints one.
+    if (Core\Str::startsWith($message, "warning:")) {
+        echo "  until then the program runs and starts more slowly\n";
+    }
+}

@@ -1,0 +1,11 @@
+D:\srv\novis
+  remove the write access of the group
+/opt/novis/config
+  make the owner the account that runs nvs
+/opt/novis/config/nvs.toml
+  use an administrator prompt or sudo
+/opt/novis/config/nvs.toml
+  edit the file, or delete it and run nvs init again
+/opt/novis
+  remove the write access of the group
+  until then the program runs and starts more slowly

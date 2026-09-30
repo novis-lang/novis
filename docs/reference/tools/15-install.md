@@ -189,8 +189,8 @@ folder you were working in.
 
 | Message | Meaning | What to do |
 |---|---|---|
-| `... grants write access to ...` (Windows), `... is group-writable` or `... is world-writable` (Linux) | a group of ordinary accounts can write to the named path | remove that right from the named path. On Windows the message prints the SID to use |
-| `... is owned by ..., which is neither this account nor ...` | the owner of the named path is another ordinary account | make the owner the account that runs `nvs`, or an administrator |
+| `... grants write access to ...` (Windows), `... is group-writable`, `... is world-writable` or `... is group- and world-writable` (Linux and macOS) | a group of ordinary accounts can write to the named path | remove that right from the named path. On Windows the message prints the SID to use |
+| `... is owned by ..., which is neither this account ...` | the owner of the named path is another ordinary account | make the owner the account that runs `nvs`, or an administrator |
 | `Access is denied` or `Permission denied` (`os error 5`, `os error 13`) | the permissions are strict enough, and **your** account cannot write there | use an administrator prompt or `sudo`, or give your account the right |
 | `... it already exists, and it is never overwritten` | `nvs init` found a file at that path | edit the file, or delete it and run `nvs init` again |
 | `warning: [opcache] file_cache_dir ... is not used` | the cache folder, or the folder that contains it, failed the check | fix the named path. Until then the program works and starts more slowly |

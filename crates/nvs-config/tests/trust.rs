@@ -248,3 +248,30 @@ fn a_grant_a_deny_entry_cancels_is_not_a_breach() {
     icacls(&dir, &["/remove", USERS]);
     drop(fs::remove_dir_all(&dir));
 }
+
+/// § 6's owner half, and the install chapter's row for it: a path another account owns is a breach
+/// whatever its DACL grants, and the refusal names the path and the owner's SID.
+///
+/// The system directory is the one path every Windows has whose owner is none of the three the
+/// boundary accepts, because it belongs to `NT SERVICE\TrustedInstaller`, and the check only reads
+/// it.
+// covers: tools:install/when-something-is-refused
+#[cfg(windows)]
+#[test]
+fn a_directory_another_account_owns_is_a_breach_that_names_the_owner() {
+    let root = std::env::var_os("SystemRoot").expect("Windows sets `SystemRoot`");
+    let system = nvs_config::trust::canonical(&PathBuf::from(root).join("System32"))
+        .expect("the system directory exists");
+
+    let why = check(&system).expect_err("neither this account nor an administrator owns it");
+    assert!(
+        matches!(why, Untrusted::Breach(_))
+            && why
+                .message()
+                .starts_with(&format!("`{}` is owned by `S-1-5-80-", system.display()))
+            && why
+                .message()
+                .ends_with("`, which is neither this account nor an administrative one"),
+        "the refusal names the path and the owner that is outside the boundary: {why:?}",
+    );
+}

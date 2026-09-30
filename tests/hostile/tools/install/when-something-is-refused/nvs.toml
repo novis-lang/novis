@@ -1,0 +1,4 @@
+# The attack may read its own folder. It may write only in `uploads`.
+[capabilities.fs]
+read = ["."]
+write = ["uploads"]

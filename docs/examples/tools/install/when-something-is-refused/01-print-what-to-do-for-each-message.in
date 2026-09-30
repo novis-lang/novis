@@ -1,0 +1,5 @@
+error: `D:\srv\novis\config\nvs.toml` was not written: `D:\srv\novis` grants write access to `NT AUTHORITY\Authenticated Users` (`*S-1-5-11`, rights 0x001301bf)
+error: `/opt/novis/config/nvs.toml` was not written: `/opt/novis/config` is owned by uid 1002, which is neither this account (uid 1001) nor root
+error: `/opt/novis/config/nvs.toml` was not written: Permission denied (os error 13)
+error: `/opt/novis/config/nvs.toml` was not written: it already exists, and it is never overwritten
+warning: `[opcache] file_cache_dir = "/opt/novis/cache"` is not used, so every program is compiled again on each start: `/opt/novis` is world-writable (mode 0757, gid 0)

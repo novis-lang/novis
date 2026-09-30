@@ -609,3 +609,220 @@ fn the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_wri
     drop(std::fs::remove_dir_all(&drive));
     drop(std::fs::remove_dir_all(&elsewhere));
 }
+
+/// Takes from this account the right to create a file in `dir`, or gives it back, and changes
+/// nothing `rule:config/ownership-is-the-trust-boundary` reads: no account gains a right.
+///
+/// On Windows that is an entry denying `Everyone` the one right, because a read-only folder there
+/// still takes a new file. On Unix it is the owner's write bit.
+fn writable_by_this_account(dir: &Path, writable: bool) {
+    #[cfg(windows)]
+    {
+        const EVERYONE: &str = "*S-1-1-0";
+        if writable {
+            icacls(dir, &["/remove:d", EVERYONE]);
+        } else {
+            icacls(dir, &["/deny", &format!("{EVERYONE}:(WD)")]);
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = if writable { 0o755 } else { 0o555 };
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode))
+            .expect("a scratch directory's mode is this process's to change");
+    }
+}
+
+/// The install chapter's table of messages, row by row: every refusal names a path, and what the
+/// table says to do about that path is the whole repair.
+///
+/// A folder a group of ordinary accounts may write is named in the message, the outer folder here
+/// although the file was going one level below it, and on Windows the SID to remove is printed
+/// beside it. A file already there is kept byte for byte, and deleting it is what lets the next
+/// run write one. A folder that passes the check and that this account may not write is the
+/// operating system's own refusal: its error number, the file named, and no remedy, because
+/// nothing about the folder is too open. A cache folder that fails the check is a `warning:` and a
+/// program that still runs, with nothing stored until the named folder is repaired.
+///
+/// The row for a path another account owns is `nvs-config`'s `tests/trust.rs`: giving a folder to
+/// another account takes a right a test does not have.
+// covers: tools:install/when-something-is-refused
+#[test]
+fn each_refusal_names_a_path_and_the_tables_repair_is_the_whole_repair() {
+    let outer = scratch("refused");
+    let elsewhere = scratch("refused-cwd");
+    let inner = outer.join("config");
+    let cache = outer.join("cache");
+    for folder in [&inner, &cache] {
+        std::fs::create_dir(folder).expect("a folder of the layout is creatable");
+    }
+    let target = inner.join("nvs.toml");
+    let nvs = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        // A recorded run of this test binary sets the switch, and the last row is the cache.
+        command
+            .current_dir(&elsewhere)
+            .env_remove("NOVIS_NO_FILE_CACHE")
+            .arg("--config")
+            .arg(&target);
+        command
+    };
+    let init = || {
+        let ran = nvs()
+            .arg("init")
+            .output()
+            .expect("the binary under test runs");
+        (
+            ran.status.code(),
+            String::from_utf8_lossy(&ran.stderr).into_owned(),
+        )
+    };
+    let outer_named = format!(
+        "`{}` ",
+        nvs_config::trust::canonical(&outer)
+            .expect("the folder exists")
+            .display()
+    );
+
+    // Row 1: a group of ordinary accounts can write to the named path.
+    #[cfg(windows)]
+    let open: [(&dyn Fn(), &str); 1] = [(
+        &|| writable_by_others(&outer, true),
+        "grants write access to `BUILTIN\\Users` (`*S-1-5-32-545`",
+    )];
+    #[cfg(unix)]
+    let chmod = |bits: u32| {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&outer, std::fs::Permissions::from_mode(bits))
+            .expect("a scratch directory's mode is this process's to change");
+    };
+    #[cfg(unix)]
+    let open: [(&dyn Fn(), &str); 3] = [
+        (&|| chmod(0o775), "is group-writable"),
+        (&|| chmod(0o757), "is world-writable"),
+        (&|| chmod(0o777), "is group- and world-writable"),
+    ];
+    for (opened, said) in open {
+        opened();
+        let (status, stderr) = init();
+        assert_eq!(
+            status,
+            Some(1),
+            "a folder others may write is a refusal: {stderr}"
+        );
+        assert!(
+            stderr.starts_with("error:") && stderr.contains(&format!("{outer_named}{said}")),
+            "the message names the outer folder and says `{said}`: {stderr}"
+        );
+        assert!(!target.exists(), "and nothing is written");
+        writable_by_others(&outer, false);
+    }
+    let (status, stderr) = init();
+    assert!(
+        status == Some(0) && target.exists(),
+        "removing that right from the named folder is the whole repair: {stderr}"
+    );
+
+    // Row 4: `nvs init` found a file at that path.
+    let edited = "[limits]\nmemory = \"96M\"\n";
+    std::fs::write(&target, edited).expect("the configuration is editable");
+    let (status, stderr) = init();
+    assert_eq!(
+        status,
+        Some(1),
+        "a file already there is a refusal: {stderr}"
+    );
+    assert!(
+        stderr
+            .contains("nvs.toml` was not written: it already exists, and it is never overwritten"),
+        "the message names the file and says it is kept: {stderr}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&target).expect("the file is still there"),
+        edited,
+        "and the edited file is kept byte for byte"
+    );
+    std::fs::remove_file(&target).expect("the file is this account's to delete");
+
+    // Row 3: the permissions are strict enough, and this account cannot write there. `root`
+    // writes whatever the mode says, so the row is not reachable as that account.
+    #[cfg(windows)]
+    let (denied, reachable) = ("(os error 5)", true);
+    #[cfg(unix)]
+    let (denied, reachable) = ("(os error 13)", {
+        use std::os::unix::fs::MetadataExt as _;
+        std::fs::metadata(&outer).expect("the folder exists").uid() != 0
+    });
+    if reachable {
+        writable_by_this_account(&inner, false);
+        let (status, stderr) = init();
+        assert_eq!(
+            status,
+            Some(1),
+            "a folder this account may not write is a refusal: {stderr}"
+        );
+        assert!(
+            stderr.contains("nvs.toml` was not written: ") && stderr.contains(denied),
+            "the message names the file and carries `{denied}`: {stderr}"
+        );
+        assert!(
+            !stderr.contains("help:") && !target.exists(),
+            "with no remedy, because no permission is too open, and no file: {stderr}"
+        );
+        writable_by_this_account(&inner, true);
+    }
+    let (status, stderr) = init();
+    assert!(
+        status == Some(0) && target.exists(),
+        "with no file there and the right to write, the file is written: {stderr}"
+    );
+
+    // Row 5: the cache folder, or the folder that contains it, failed the check.
+    let slashed = cache.display().to_string().replace('\\', "/");
+    std::fs::write(
+        &target,
+        format!("[opcache]\nfile_cache_dir = \"{slashed}\"\n"),
+    )
+    .expect("the configuration is editable");
+    let program = elsewhere.join("index.nvs");
+    std::fs::write(&program, "<?nvs\necho \"served\\n\";\n").expect("the program is written");
+    let run = || {
+        let ran = nvs()
+            .arg("run")
+            .arg(&program)
+            .output()
+            .expect("the binary under test runs");
+        assert!(
+            ran.status.success() && String::from_utf8_lossy(&ran.stdout) == "served\n",
+            "the program works whatever the cache folder is: {}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+        String::from_utf8_lossy(&ran.stderr).into_owned()
+    };
+    let stored = || {
+        files_under(&cache)
+            .iter()
+            .any(|path| path.extension().is_some_and(|ext| ext == "nvsc"))
+    };
+
+    writable_by_others(&outer, true);
+    let stderr = run();
+    assert!(
+        stderr.starts_with(&format!(
+            "warning: `[opcache] file_cache_dir = \"{slashed}\"` is not used"
+        )) && stderr.contains(&outer_named),
+        "the warning quotes the setting and names the folder to change: {stderr}"
+    );
+    assert!(!stored(), "and until then nothing is stored");
+
+    writable_by_others(&outer, false);
+    let stderr = run();
+    assert!(
+        stderr.is_empty() && stored(),
+        "with the named folder repaired the cache is used and nothing is said: {stderr}"
+    );
+
+    drop(std::fs::remove_dir_all(&outer));
+    drop(std::fs::remove_dir_all(&elsewhere));
+}

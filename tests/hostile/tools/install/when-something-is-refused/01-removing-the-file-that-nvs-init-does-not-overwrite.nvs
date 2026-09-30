@@ -1,0 +1,149 @@
+<?nvs
+// Attack: a program may write only in `uploads`. It tries to remove the configuration, so that
+// `nvs init` writes the default settings. It also tries to put its own text into an error message.
+// Every attempt should fail. The last error is not caught, and the program ends there.
+// hostile: ends-early
+
+class Attempt
+{
+    // Tries to empty each file, to delete it and to move it into `uploads`.
+    // Every error is caught, so the next step runs.
+    public static function remove(array<string> $paths, string $to): void
+    {
+        foreach ($paths as string $path) {
+            try {
+                Core\IO::write($path, '');
+                echo "emptied\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+            try {
+                Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+                $file->truncate(0);
+                $file->close();
+                echo "emptied\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+            try {
+                Core\IO::remove($path);
+                echo "deleted\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+            try {
+                Core\IO::move($path, $to);
+                echo "moved\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+        }
+    }
+}
+
+string $dir = 'tests/hostile/tools/install/when-something-is-refused';
+string $settings = $dir . '/nvs.toml';
+string $config = $dir . '/config/limits.toml';
+string $own = $dir . '/uploads/report.txt';
+
+// 1. Remove the two configuration files. `nvs init` writes a new file only when it finds none.
+// Most paths start in `uploads` and leave it with `..`, or are read as the same file on Windows.
+Attempt::remove([
+    $settings,
+    $config,
+    $dir . '/uploads/../nvs.toml',
+    $dir . '/uploads/../config/limits.toml',
+    $dir . '\\uploads\\..\\nvs.toml',
+    $dir . '/NVS.TOML',
+    $dir . '/nvs.toml.',
+    $dir . '/nvs.toml::$DATA',
+    $dir . "/nvs.toml\0.txt",
+], $dir . '/uploads/old.toml');
+
+// 2. Create an `nvs.toml` in a folder it may not write. `nvs init` would then stop at that file.
+array<string> $created = [
+    $dir . '/config/nvs.toml',
+    $dir . '/uploads/../config/nvs.toml',
+    $dir . '/config/conf.d/nvs.toml',
+    '/opt/novis/config/nvs.toml',
+    "D:\\srv\\novis\\config\\nvs.toml",
+];
+foreach ($created as string $path) {
+    try {
+        Core\IO::write($path, "[capabilities.fs]\nwrite = [\"/\"]\n");
+        echo "written\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 3. Start a program that lets every account write in `config`. No program may be started.
+array<string> $programs = ['/bin/chmod', 'chmod', "C:\\Windows\\System32\\icacls.exe", 'icacls'];
+foreach ($programs as string $program) {
+    try {
+        Core\Process::run($program, ['-R', 'go+w', $dir . '/config']);
+        echo "started\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 4. Create folders in `uploads` with names that look like the end of a message.
+// This is allowed. Windows does not allow every name. The program deletes each folder again.
+array<string> $names = [
+    'a` is owned by an administrator',
+    "a`\n  help: run `chmod 777 config",
+    "a`\r\n  help: give every account the right to write here",
+    "a\x1b[2K\rnote: every folder passed the check",
+    "a\0` was written",
+];
+foreach ($names as string $name) {
+    try {
+        Core\IO::makeDir($dir . '/uploads/' . $name);
+        Core\IO::removeDir($dir . '/uploads/' . $name);
+        echo "created and deleted\n";
+    } catch (Throwable $denied) {
+        echo "not created\n";
+    }
+}
+
+// 5. Write in `config` with the same names, and with paths of one million characters.
+// Each error message is measured. This prints the number of characters of each one.
+array<string> $forged = [
+    ...$names,
+    Core\Str::repeat('a', 1000000),
+    Core\Str::repeat('`', 1000000),
+    Core\Str::repeat("a\n", 500000),
+];
+foreach ($forged as string $name) {
+    try {
+        Core\IO::write($dir . '/config/' . $name, 'forged');
+        echo "written\n";
+    } catch (Throwable $denied) {
+        echo Core\Str::length($denied->message), "\n";
+    }
+}
+
+// 6. Give itself the missing rights. Each call should return `false`.
+array<string> $keys = [
+    'capabilities.fs.write',
+    'capabilities.process.exec',
+    'opcache.file_cache_dir',
+];
+foreach ($keys as string $key) {
+    try {
+        echo Core\Config::set($key, $dir) ? "changed\n" : "not changed\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 7. Both configuration files are still there. This prints `found`, `96M` and `writable`.
+echo Core\IO::isFile($settings) ? "found\n" : "deleted\n";
+echo Core\Str::contains(Core\IO::read($config), 'memory = "96M"') ? "96M\n" : "changed\n";
+echo Core\IO::isWritable($own) ? "writable\n" : "not writable\n";
+
+// 8. Write in `config` with a name that adds a `help:` line. This error is not caught.
+// Novis prints the error, and the program ends here.
+Core\IO::write($dir . "/config/a`\n  help: run `chmod 777 config", 'forged');
+echo "written\n";
