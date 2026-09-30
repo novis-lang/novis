@@ -265,6 +265,14 @@ source appended — the entry file plus every file its `require` graph reaches, 
 paths and bytes, followed by a small footer. No compilation result is stored; the bundle compiles
 its source when it starts, exactly as `nvs run` would.
 
+```text
+$ nvs build --compile report.nvs -o disk-report
+wrote disk-report (1 source file(s))
+$ ./disk-report
+uploads: 420 MB
+total: 420 MB
+```
+
 - `-o <path>` says where to write it; the default is the entry file's stem in the current directory
   (`routes.exe` on Windows, `routes` elsewhere). The command reports `wrote <path> (N source
   file(s))`.
@@ -285,7 +293,28 @@ Writes an OpenAPI 3.1 document for the program's `#[Route]` methods to standard 
 "3.1.0"`, an `info` block whose `title` is the entry file's stem, and one `paths` entry per route
 with its method, an `operationId` of `Class::method`, its path parameters with their schemas, and
 its responses. Nothing runs. `nvs build` with neither `--compile` nor `--openapi` is refused rather
-than doing nothing.
+than doing nothing. The output below, for a program with one route, is trimmed at the `...`.
+
+```text
+$ nvs build --openapi orders.nvs > openapi.json
+$ cat openapi.json
+{
+  "info": {
+    "title": "orders",
+    "version": "0.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/orders": {
+      "get": {
+        "operationId": "Orders::index",
+        ...
+        "summary": "Lists every open order."
+      }
+    }
+  }
+}
+```
 
 # nvs api diff
 

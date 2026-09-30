@@ -1,0 +1,24 @@
+<?nvs
+// Shows a small web API and the OpenAPI document that describes it.
+// `nvs build --openapi 01-a-document-for-the-frontend-team.nvs > openapi.json` writes that document.
+// Another team can read the file, or generate a client from it, without reading this code.
+
+class Orders {
+    /// Lists every open order.
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string {
+        return "all open orders";
+    }
+
+    /// Shows one order.
+    /// The document says that `id` is a whole number of 0 or more, because the parameter is a `uint`.
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string {
+        return "order " . $id;
+    }
+}
+
+// Run with `nvs run`, the program only prints a link to one order: `/orders/1042`.
+echo Core\Router::url("Orders::show", ["id" => 1042]), "\n";

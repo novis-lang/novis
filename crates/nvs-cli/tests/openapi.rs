@@ -40,6 +40,7 @@ fn build(file: &str) -> (String, String, bool) {
 /// § 1 and the *Fidelity* bullet: every route in the table appears exactly once
 /// in the document, at its own path, under its own verb, carrying the
 /// `operationId` its `name` gave it.
+// covers: tools:cli/nvs-build-openapi
 #[test]
 fn an_openapi_document_names_every_route_of_the_fixture_once() {
     let (doc, _, ok) = build(&in_repo(ROUTES));
@@ -77,6 +78,7 @@ fn an_openapi_document_names_every_route_of_the_fixture_once() {
 /// § 3: two builds of the same source produce byte-identical documents, which
 /// is what makes § 4's diff mean anything. The cheapest way for it not to be is
 /// a hash map in the emitter, and this is what would catch one.
+// covers: tools:cli/nvs-build-openapi
 #[test]
 fn an_openapi_document_is_byte_identical_across_two_emissions() {
     let (first, _, ok) = build(&in_repo(ROUTES));
@@ -88,6 +90,7 @@ fn an_openapi_document_is_byte_identical_across_two_emissions() {
 /// § 1's "a program with no `#[Route]` generates nothing and runs no pass": no
 /// document, a sentence saying why, and a success exit — having nothing to emit
 /// is not a failure.
+// covers: tools:cli/nvs-build-openapi
 #[test]
 fn a_program_declaring_no_route_emits_no_document() {
     let (doc, err, ok) = build(&in_repo(HELLO));
@@ -108,6 +111,48 @@ fn a_program_with_a_diagnostic_emits_no_document() {
     let (doc, _, ok) = build(&missing);
     assert!(!ok, "a file that cannot be read is a failure");
     assert!(doc.is_empty(), "and writes no document: {doc}");
+}
+
+/// The attack written against the document: doc comments holding quotes, a
+/// backslash, a tab, a JSON fragment that tries to open a `paths` entry of its
+/// own, a closing `</script>` and text outside ASCII. The output parses as
+/// JSON, it has the two paths the program declares and no third, and each
+/// text reads back exactly as written.
+// covers: tools:cli/nvs-build-openapi
+#[test]
+fn a_doc_comment_full_of_json_syntax_reaches_the_document_as_text() {
+    let (doc, err, ok) = build(&in_repo(
+        "tests/hostile/tools/cli/nvs-build-openapi/01-doc-comments-that-break-the-document.nvs",
+    ));
+    assert!(ok, "the attack compiles, so the emitter runs: {err}");
+    let parsed: serde_json::Value = serde_json::from_str(&doc).expect("the document is valid JSON");
+
+    let paths = parsed["paths"]
+        .as_object()
+        .expect("the document has a `paths` object");
+    let mut keys: Vec<&str> = paths.keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        ["/notes", "/notes/{id}/{version}"],
+        "the paths the program declares, and not the one a comment wrote"
+    );
+
+    let index = &paths["/notes"]["get"];
+    assert_eq!(
+        index["summary"], "Lists \"all\" notes \\ every one of them.",
+        "the first sentence, quotes and backslash intact"
+    );
+    assert_eq!(
+        index["description"],
+        "A tab is here:\tand \"}, \"paths\": {\"/admin\": {}}, \"x\": \" tries to add a path.",
+        "the rest, as one string"
+    );
+    assert_eq!(
+        paths["/notes/{id}/{version}"]["get"]["summary"],
+        "Shows one note </script><!-- and ends a script block ✓ ünïcödé 🗒.",
+        "text outside ASCII is kept byte for byte"
+    );
 }
 
 /// § 1's last row: the summary is the doc comment's first sentence, the

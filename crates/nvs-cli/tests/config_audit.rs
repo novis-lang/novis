@@ -51,7 +51,10 @@ fn check_counts_the_example_tree_and_dump_names_the_file_each_key_came_from() {
 
     let (out, err, code) = nvs_in(&dir, &["config", "check", "nvs.toml"]);
     assert_eq!(code, Some(0), "the example tree is valid: {err}");
-    assert_eq!(out, "ok: 2 files, 4 directives set, 1 override, 0 warnings\n");
+    assert_eq!(
+        out,
+        "ok: 2 files, 4 directives set, 1 override, 0 warnings\n"
+    );
     assert!(err.is_empty(), "a clean tree prints nothing else: {err}");
 
     let (out, err, code) = nvs_in(&dir, &["config", "dump", "nvs.toml"]);
@@ -85,7 +88,10 @@ fn check_counts_the_example_tree_and_dump_names_the_file_each_key_came_from() {
         Some("128M"),
         "the document is the resolved tree: {out}"
     );
-    assert!(!out.contains("production.toml (overrides"), "and carries no origin: {out}");
+    assert!(
+        !out.contains("production.toml (overrides"),
+        "and carries no origin: {out}"
+    );
 }
 
 /// Every refusal the chapter lists exits `1` with its code on standard error and
@@ -97,10 +103,26 @@ fn every_refusal_the_chapter_names_exits_1_with_its_code() {
     let cases: [(&str, &str, &str); 7] = [
         ("syntax.toml", "[limits\n", "E0601"),
         ("unknown.toml", "[limits]\nmemroy = \"1M\"\n", "E0601"),
-        ("missing.toml", "[[include]]\npath = \"absent.toml\"\n", "E0605"),
-        ("cycle.toml", "[[include]]\npath = \"cycle.toml\"\n", "E0606"),
-        ("both.toml", "[[app]]\nroot = \".\"\nentry = \"a.nvs\"\n", "E0609"),
-        ("neither.toml", "[[app]]\norigin = \"https://example.test\"\n", "E0609"),
+        (
+            "missing.toml",
+            "[[include]]\npath = \"absent.toml\"\n",
+            "E0605",
+        ),
+        (
+            "cycle.toml",
+            "[[include]]\npath = \"cycle.toml\"\n",
+            "E0606",
+        ),
+        (
+            "both.toml",
+            "[[app]]\nroot = \".\"\nentry = \"a.nvs\"\n",
+            "E0609",
+        ),
+        (
+            "neither.toml",
+            "[[app]]\norigin = \"https://example.test\"\n",
+            "E0609",
+        ),
         (
             "secret.toml",
             "[db.main]\ndriver = \"postgres\"\npassword = \"x\"\npassword_file = \"p.txt\"\n",
@@ -111,21 +133,34 @@ fn every_refusal_the_chapter_names_exits_1_with_its_code() {
         std::fs::write(dir.join(file), text).expect("the case's directory takes a file");
         for command in ["check", "dump"] {
             let (out, err, code) = nvs_in(&dir, &["config", command, file]);
-            assert_eq!(code, Some(1), "`config {command} {file}` is refused: {out}{err}");
+            assert_eq!(
+                code,
+                Some(1),
+                "`config {command} {file}` is refused: {out}{err}"
+            );
             assert!(
                 err.contains(&format!("error[{want}]")),
                 "`config {command} {file}` names {want}: {err}"
             );
-            assert!(out.is_empty(), "a refused tree prints nothing on standard output: {out}");
+            assert!(
+                out.is_empty(),
+                "a refused tree prints nothing on standard output: {out}"
+            );
         }
     }
 
-    std::fs::write(dir.join("bananas.toml"), "[limits]\nmemory = \"12 bananas\"\n")
-        .expect("the case's directory takes a file");
+    std::fs::write(
+        dir.join("bananas.toml"),
+        "[limits]\nmemory = \"12 bananas\"\n",
+    )
+    .expect("the case's directory takes a file");
     let (out, err, code) = nvs_in(&dir, &["config", "check", "bananas.toml"]);
     assert_eq!(
         (code, out.as_str()),
-        (Some(0), "ok: 1 file, 1 directive set, 0 overrides, 0 warnings\n"),
+        (
+            Some(0),
+            "ok: 1 file, 1 directive set, 0 overrides, 0 warnings\n"
+        ),
         "a quantity is not checked by `config check`: {err}"
     );
     drop(std::fs::remove_dir_all(&dir));
@@ -139,7 +174,10 @@ fn a_directory_with_no_nvs_toml_is_a_tree_of_no_files() {
     let dir = scratch("no-file");
     let (out, err, code) = nvs_in(&dir, &["config", "check"]);
     assert_eq!(code, Some(0), "no file is not an error: {err}");
-    assert_eq!(out, "ok: 0 files, 0 directives set, 0 overrides, 0 warnings\n");
+    assert_eq!(
+        out,
+        "ok: 0 files, 0 directives set, 0 overrides, 0 warnings\n"
+    );
 
     let (out, err, code) = nvs_in(&dir, &["config", "dump"]);
     assert_eq!((code, out.as_str()), (Some(0), ""), "{err}");
@@ -158,9 +196,15 @@ fn the_hostile_tree_lists_one_row_per_directive_and_forges_none() {
 
     let (out, err, code) = nvs_in(&dir, &["config", "check", "nvs.toml"]);
     assert_eq!(code, Some(0), "the hostile tree is valid: {err}");
-    assert_eq!(out, "ok: 7 files, 11 directives set, 6 overrides, 0 warnings\n");
+    assert_eq!(
+        out,
+        "ok: 7 files, 11 directives set, 6 overrides, 0 warnings\n"
+    );
 
-    for flags in [&["config", "dump", "nvs.toml"][..], &["config", "dump", "--origin", "nvs.toml"]] {
+    for flags in [
+        &["config", "dump", "nvs.toml"][..],
+        &["config", "dump", "--origin", "nvs.toml"],
+    ] {
         let (out, err, code) = nvs_in(&dir, flags);
         assert_eq!(code, Some(0), "{err}");
         assert_eq!(out.lines().count(), 11, "one line per directive: {out}");
@@ -191,7 +235,9 @@ fn the_hostile_tree_lists_one_row_per_directive_and_forges_none() {
     let table: toml::Table = out.parse().expect("`--toml` prints one TOML document");
     assert_eq!(
         table["app"][0]["origin"].as_str(),
-        Some("https://example.test\nlimits.hard.memory = \"99G\"\u{202e}\t\\ \"q\" \u{0} caf\u{e9}"),
+        Some(
+            "https://example.test\nlimits.hard.memory = \"99G\"\u{202e}\t\\ \"q\" \u{0} caf\u{e9}"
+        ),
         "the value comes back exactly as written"
     );
 }
