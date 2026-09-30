@@ -100,14 +100,20 @@ use std::collections::BTreeMap;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
+
+/// `Core\Env`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads the environment the program runs in: its environment variables, whether it \
+            runs in production or development, and facts about the system.",
 };
 
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Env",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "get",

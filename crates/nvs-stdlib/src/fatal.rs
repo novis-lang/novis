@@ -33,16 +33,22 @@
 
 use nvs_runtime::{Fault, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = "Core\\Fatal";
 
+/// `Core\Fatal`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Runs your code after a request is stopped because it went over a limit, such as \
+            its memory or time limit. Use it to log what happened.",
+};
+
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "onLimit",

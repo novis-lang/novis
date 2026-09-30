@@ -73,7 +73,15 @@ use nvs_runtime::decimal::Discard;
 use nvs_runtime::{Decimal, Fault, NvsArray, ThrownClass, Value};
 
 use crate::math::{RoundMode, round_mode};
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+};
+
+/// `Core\Decimal`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Calculations on `decimal` numbers that the operators cannot do, such as a division \
+            with a chosen rounding, or a split into parts that add up exactly.",
+};
 
 /// `rule:types/decimal`'s named members in that rule's own order — the two
 /// divisions that say their rounding out loud, then the split that has no
@@ -83,7 +91,7 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc,
 /// narrowing to.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Decimal",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "divExact",

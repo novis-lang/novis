@@ -90,10 +90,16 @@
 use nvs_render::{Level, Node, Record, Source};
 use nvs_runtime::{Ctx, Fault, LogChannel, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name.
 pub(crate) const NAME: &str = r"Core\Debug";
+
+/// `Core\Debug`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Shows any value in a readable form while you debug a program. It can print the \
+            value to stderr or return it as a string.",
+};
 
 /// Spec § 16's `Core\Debug`, as much of it as `rule:errors/debug-dump` declares.
 ///
@@ -103,7 +109,7 @@ pub(crate) const NAME: &str = r"Core\Debug";
 /// attribute `dump` to as well.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "dump",

@@ -166,7 +166,7 @@ use encoding_rs::{DecoderResult, Encoding};
 use nvs_runtime::{Fault, NvsStr, Value};
 
 use crate::registry::{
-    CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -332,11 +332,17 @@ static SCHEMES: [Scheme; CHARSET.cases.len()] = [
     Scheme::Whatwg(encoding_rs::X_USER_DEFINED),
 ];
 
+/// `Core\Encoding`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Converts between `string` and `bytes`. It changes text to and from a character \
+            set, and writes bytes as base64, base32 or hex text.",
+};
+
 /// `Core\Encoding`'s registry rows — § 7's text trio, its hex pair, its base64
 /// family and its base32 pair.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "encodeText",
