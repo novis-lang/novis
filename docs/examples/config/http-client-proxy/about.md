@@ -1,17 +1,16 @@
-The forward proxy every outbound HTTP call leaves through, named by the deployment and by nothing
-else.
+The forward proxy that every outbound HTTP call uses. Only the configuration file can set it.
 
-A call goes through a proxy when an operator has written this block in the configuration file, and
-never otherwise. There is no call option and no program-side spelling for one, and no environment
-variable is read — not `HTTP_PROXY`, not `HTTPS_PROXY`, not `NO_PROXY`, in any spelling. Leaving the
-block out is how a deployment says it wants no proxy at all.
+When the `[http.client.proxy]` block is in the configuration file, calls use that proxy. When the
+block is missing, no proxy is used. There is no proxy option for a single call. Novis also does not
+read `HTTP_PROXY`, `HTTPS_PROXY` or `NO_PROXY` from the environment.
 
-The reason is not the cost of a proxy but who gets to choose the destination. Novis pins every
-outbound call to an address it checked before dialling, and a proxy is the one thing that can stand
-between the program and that check. A per-call proxy would therefore be a per-call way to move the
-address question somewhere else, which is exactly the widening the address rules exist to refuse.
-The environment is the same argument with a worse reach: ambient, shared by every request, settable
-by anything, and written down nowhere an auditor looks.
+`url` is the proxy. `resolve` says whether Novis or the proxy looks up the destination host.
+`bypass` lists the hosts that are reached without the proxy. `username`, `password` and
+`password_file` are the login for the proxy.
 
-The block names the proxy, whether Novis or the proxy resolves the destination, which hosts are
-reached directly, and a credential sent on the tunnel request alone.
+Novis checks the address of every outbound call before it connects. A proxy makes the connection
+for Novis, so the person who runs the server must choose it. A program that could choose a proxy
+could avoid that check.
+
+The example reads the keys and tries to set each one. `Core\Config::set` returns `false` every
+time.

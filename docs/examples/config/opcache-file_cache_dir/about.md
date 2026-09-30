@@ -1,19 +1,16 @@
-Where this deployment keeps the code it has already compiled.
+The directory where Novis stores compiled code.
 
-A compile is expensive and its result is worth keeping, so Novis writes compiled units to disk and
-maps them back on the next start. This key is where that directory is, and it is the only spelling of
-it: `[cache]` is the data cache an application uses from its own code and holds nothing about
-compiled units.
+Compiling a program takes time, so Novis writes the compiled code to disk and loads it again at the
+next start. `[opcache] file_cache_dir` is that directory. It is separate from `[cache]`, which is
+the data cache that your application uses.
 
-**In plain words:** this is where the bytes the process is about to execute come from.
+A program cannot change this key, and it cannot turn the cache off. The server runs the compiled
+code that it finds in this directory. A program that could change the directory could choose which
+code runs.
 
-Which is why no program may point it anywhere. Redirecting where already-compiled, about-to-be-trusted
-native code is read from is a way to choose what gets executed, not a performance knob, and there is
-no safer direction to move it in either — a request cannot narrow it any more than it can widen it.
+**Good to know:** a running server applies a new directory at the next reload, and the next compile
+writes there. Programs that are already compiled keep running. If other accounts can write to the
+new directory, the server keeps the old directory. The reload then reports the key as not applied.
 
-A running server takes a new directory at the next reload, and the next compile writes there.
-Programs that are already compiled keep running. If other accounts may write to the new directory,
-the server does not use it. The reload then names the key as not applied, and the old directory stays
-in use.
-
-The example prints the file cache this checkout uses and is turned away trying to move it.
+The example prints the cache settings and tries to change the directory. `Core\Config::set` returns
+`false`.

@@ -1,16 +1,15 @@
-The CPU time a request keeps back for its own last words.
+The part of a request's CPU time limit that is kept for the code that reports a limit error.
 
-The other half of the same safety net. A request stopped for spending too much memory still has time
-to report it; a request stopped for spending too much time does not, so the handler that reports a
-limit needs a slice of the clock held back for it as well as a slice of the heap. There are two
-reserves and not one per limit, because those are the only two resources a handler cannot run without
-spending.
+A request that uses all of its CPU time, `[limits] cpu_time`, stops. The function you passed to
+`Core\Fatal::onLimit` then runs to report what happened, and it needs some time to do that. This
+setting keeps that time free. `[limits] fatal_reserve_memory` does the same for memory.
 
-Like its memory half it comes out of the budget rather than on top of it, so what ordinary work may
-spend is the configured CPU time less this. Sizing it is the operator's for the same reason: a
-program choosing how long its own crash report may take is choosing it at the worst possible moment.
-Written nowhere, it is 50 milliseconds — enough to format a message and write it to a log target that
-is being slow — and never more than a quarter of the ceiling it is carved out of.
+The reserve is taken from the CPU time limit and is not added to it. The default is 50
+milliseconds, which is enough to build a message and write it to a slow log. The reserve is never
+more than a quarter of the CPU time limit.
 
-The example prints both halves of the net together and shows which of the three numbers a program may
-move.
+Only the person who runs the server sets this value. A program cannot change it, and
+`Core\Config::set` returns `false`.
+
+The example prints the CPU time limit and both reserves, and then tries to change all three. The
+program may lower its own CPU time limit. Both reserves stay the same.

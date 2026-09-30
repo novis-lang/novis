@@ -1,15 +1,16 @@
-How long a finished outbound connection may sit unused before it is closed rather than kept.
+How long an unused outbound HTTP connection stays open before Novis closes it.
 
-A connection kept for the next call is worth having only while the other end still has it too.
-Servers, proxies and load balancers all close connections that have gone quiet, and they do it
-without telling anybody — so a connection held too long is not a saved handshake, it is a call that
-fails on its first byte and has to be made again.
+After a call finishes, Novis keeps the connection open, so the next call to the same server can use
+it and does not need to connect again. Servers, proxies and load balancers close connections that
+are unused for some time, and they do not announce it. A call on such a connection fails and must
+be sent again. This setting closes an unused connection before the other side does.
 
-This is the wait that decides it, and it is the second half of a bound the count beside it cannot
-state on its own. The count says how many connections a core may hold; this says how long any one of
-them may sit there. Under the count alone, a connection the far end retired hours ago is still one
-of the ones being held.
+`[http.client] pool_idle` is how many unused connections are kept. `pool_idle_timeout` is how long
+each one is kept. The default is 30 seconds, which is shorter than the idle timeout of common
+proxies. A value with no unit is in seconds, so `30` and `"30s"` are the same.
 
-Like the count, it belongs to the core rather than to any one request, so a program may read it and
-never change it. It ships shorter than the idle timeout of every common proxy, so that this side is
-normally the one that closes — the side that cannot lose a request to the race.
+**Good to know:** a kept connection is used by many requests, so a program can read this setting
+and cannot change it.
+
+The example prints both settings and then tries to change the timeout. `Core\Config::set` returns
+`false`.

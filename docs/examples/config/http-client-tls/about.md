@@ -1,18 +1,15 @@
-Whose certificates an outbound `https` call believes, the oldest TLS version it will speak, and the
-debugging file it may write its session secrets to.
+Settings for every outbound `https` call: which certificates are trusted, the oldest TLS version
+that is allowed, and a debug file for session secrets.
 
-Novis ships with the Mozilla certificate set and believes it where nothing says otherwise. A
-deployment with an authority of its own names that authority beside the shipped set, or names only
-its own files where nothing public should be believed at all. The version floor is `1.2` or `1.3`:
-the client implements nothing beneath them, so nothing beneath them can be asked for. The secrets
-file exists so an operator can read their own traffic in a protocol analyser, and it is refused
-outright on a production host — it decrypts everything that host sends, credentials included, for
-whoever can read the file.
+`roots` is the list of trusted certificate authorities. When it is not set, Novis uses the Mozilla
+set that ships with it. You can add your own authority to that set, or list only your own files.
+`min_version` is `1.2` or `1.3`, and the default is `1.2`. `keylog` is a file that Novis writes
+session secrets to, so you can read your own traffic in a protocol analyser. That file can decrypt
+everything the host sends, so `keylog` is not allowed on a production host.
 
-Only the operator sets these three keys. Every request in the process uses one client, and these
-three keys configure it. A program cannot change them for one call or for one request.
+Only the person who runs the server sets these keys. All requests use one HTTP client, so a program
+cannot change them.
 
-A running server takes a change at the next reload, and the next connection uses the new settings.
-A connection opened before the reload is not used again. If a file in `roots` has no certificate,
-the server does not use the new settings. The reload then names the key as not applied, and the old
-settings stay in use.
+**Good to know:** a running server applies a change at the next reload, and new connections use
+it. If a file in `roots` contains no certificate, the old settings stay in use. The reload then
+reports the key as not applied.
