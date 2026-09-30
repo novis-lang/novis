@@ -27808,10 +27808,11 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 
 | PHP | Novis | Code |
 |---|---|---|
-| `$a = [1, 2];`, `var $a = [1, 2];` | `array<int> $a = [1, 2];` — an array literal needs a declared target type | `E0414` |
+| `$a = [1, 2];` | `array<int> $a = [1, 2];` — a variable is declared with its type before it is assigned | `E0301` |
+| `var $a = [1, 2];` | `array<int> $a = [1, 2];` — `var` cannot find the element type of an array literal | `E0414` |
 | `foreach ([1, 2] as $n)` | bind the literal to a typed local first | `E0401` |
 | `array(1, 2)` | accepted; `[1, 2]` is the usual spelling | — |
-| `["a" => $x] = $arr;` keyed destructuring | index by key: `int $x = $arr["a"];` | parse error `E0101` |
+| `["a" => $x] = $arr;` keyed destructuring | give each variable its type: `["a" => int $x] = $arr;` | parse error `E0101` |
 | `print_r($v)`, `var_dump($v)`, `var_export($v)` | `Core\Debug::dump($v)` — writes to standard error, never to the output | `E0320` |
 | `"$name"`, `"$a[0]"`, `"{$a[0]}"`, `"$o->x"`, `"{$o->x}"` | all interpolate as in PHP | — |
 | `<<<EOT … EOT;`, `<<<'EOT' … EOT;` | both work, with PHP's interpolation rule for each | — |
