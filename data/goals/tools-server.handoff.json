@@ -1,26 +1,28 @@
 {
-  "state": "This goal has just been installed. Nothing in tools:server has been taken yet.",
+  "state": "Goal `tools-server`: one of the chapter's eight features has its proofs,\n`tools:server/behind-a-proxy-trusted-proxies`. `bun nv proofs --owed --group tools:server` lists the\nseven still owed. Nothing is blocked.\n\nIts proofs found one bug, fixed in the same slice: `nvs serve` skipped the empty-`trusted_proxies`\nboot warning for any listen set holding a Unix socket, against\n`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`. The question is now\n`forgot_its_proxies` in `crates/nvs-cli/src/serve.rs`, with a test.\n\nThe pack's `modules` named only the chapter. `crates/nvs-cli/src/serve.rs` and\n`crates/nvs-cli/tests/live_config.rs` are added to it: the first is where `nvs serve` boots, the\nsecond holds the `Server` harness that starts a real server and reads its standard error.",
   "next": {
     "stage": null,
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "One slice is one feature with all its feature proofs. Take them in this order — the first two read the same mount rows, so the second costs a fraction of the first:",
     "items": [
       {
         "done": false,
-        "text": "**`tools:server/behind-a-proxy-trusted-proxies`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:165`"
+        "text": "**`tools:server/mounts-which-file-answers-a-request`** — owes about, examples, hostile, tests. `rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/a-request-resolves-in-five-steps`. `docs/reference/tools/25-server.md:74`"
       },
       {
         "done": false,
-        "text": "**`tools:server/mounts-which-file-answers-a-request`** — owes about, examples, hostile, tests. `docs/reference/tools/25-server.md:70`"
+        "text": "**`tools:server/what-a-program-reads-about-its-door`** — owes about, examples, hostile, tests. `rule:routing/a-request-reads-its-mount`. A `.nvsr` file's `--MOUNT--` section gives a program its mount. `docs/reference/tools/25-server.md:145`"
       },
       {
         "done": false,
-        "text": "**`tools:server/nvs-ctl`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:190`"
+        "text": "**`tools:server/nvs-ctl`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:294`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`tools:server/nvs-serve`, `tools:server/the-server-block`, `tools:server/stopping-and-reloading-the-drain` and `tools:server/nvs-service` are owed after the group above — `bun nv proofs --owed --group tools:server`.",
+    "A question for the user, not decided here: a server that listens only on a Unix socket has to write some `trusted_proxies` entry before its proxy's headers are read, and no entry names a socket. `crates/nvs-server/src/forwarded.rs:335` returns before it asks whether the peer is a socket. `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` owns the answer.",
+    "The warning for a trusted proxy that sends `X-Real-IP` and no `X-Forwarded-For` is computed and logged nowhere: `crates/nvs-server/src/serve.rs:1209`. The chapter does not promise it. Not checked: whether a gap record already names it.",
+    "`nvs agent find trusted_proxies` finds nothing, and `find proxy` or `find trusted` reaches the section: `find` matches a heading's symbol, which writes `-` for `_`. `rule:tooling/the-index-names-every-key-command-and-code` is designed, not shipped, and gives every key its own line; this goal does not change `find`. The same holds for `nvs ctl` typed with its space."
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "lead": "A proof for a `[server]` key cannot print a list key with `Core\\Config::get`, and `nvs run --request` does not run the forwarded walk.",
+  "body": "`get` returns `null` for a key that holds a list (`listen`, `trusted_proxies`), and a `.nvsr` file's `--CLIENT_IP--` and `--SCHEME--` are the walk's answer, stated outright, so an `x-forwarded-for` line in it changes nothing whatever the directory's `nvs.toml` trusts. Show the list in the `nvs.toml` beside the example, write the `.nvsr` with the address a served request would have, and pin the walk itself from Rust in `crates/nvs-server/src/forwarded.rs`.",
+  "files": [
+    "crates/nvs-server/src/forwarded.rs",
+    "nvs.toml",
+    "crates/nvs-test/src/request.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-test/src/request.rs:CLIENT_IP"
+  }
+}

@@ -4,7 +4,9 @@
   "files": [],
   "context": {
     "modules": [
-      "docs/reference/tools/25-server.md"
+      "docs/reference/tools/25-server.md",
+      "crates/nvs-cli/src/serve.rs",
+      "crates/nvs-cli/tests/live_config.rs"
     ],
     "rules": [
       "testing/feature-proofs",
