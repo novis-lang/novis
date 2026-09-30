@@ -1,21 +1,17 @@
 {
-  "state": "Goal `tools-install`: the five sections of `docs/reference/tools/15-install.md` each owe their\nfeature proofs (`rule:testing/feature-proofs`), and two of the five are complete:\n`tools:install/linux-and-macos` and `tools:install/the-layout`. `bun nv proofs --owed --group\ntools:install` lists the other three, each owing about, examples, hostile and tests. None owes help\nor perf.\n\nNothing is blocked. One proof found a wrong answer and it is recorded, not fixed:\n`data/gaps/nvs-config/a-set-of-a-name-that-is-not-a-key-answers-true.json`, owned by M10. The\nattack that found it passes, because the runtime survives every step, so it carries no marker.\n\nA section about a command has its Rust proof where that command is driven through the binary:\n`tools:install/the-layout`'s is in `crates/nvs-cli/tests/init.rs`, and `context.modules` now names\nthat file, `docs/examples/README.md` and `tests/hostile/README.md`, which the pack printed none of.\n\nA `#[cfg(unix)]` test is not compiled on this host and is run by hand in WSL; the playbook's\n*Running things* bullet on a crate's `cfg(unix)` half owns the trap. A `#[cfg(windows)]` one runs\nhere.",
+  "state": "Goal `tools-install`: the five sections of `docs/reference/tools/15-install.md` each owe their\nfeature proofs (`rule:testing/feature-proofs`), and three of the five are complete:\n`tools:install/linux-and-macos`, `tools:install/the-layout` and `tools:install/what-novis-checks`.\n`bun nv proofs --owed --group tools:install` lists the other two, each owing about, examples,\nhostile and tests. Neither owes help or perf.\n\nNothing is blocked. One proof found a wrong answer and it is recorded, not fixed:\n`data/gaps/nvs-config/a-set-of-a-name-that-is-not-a-key-answers-true.json`, owned by M10. The\nattack that found it passes, because the runtime survives every step, so it carries no marker.\n\nA section about a command has its Rust proof where that command is driven through the binary,\n`crates/nvs-cli/tests/init.rs`. Its `writable_by_others` opens a scratch folder to every account\nand closes it again on both platforms, so a case there runs on Windows and on Linux alike. The\nLinux run is by hand in WSL, `cargo test --test init` under the WSL target directory; the playbook's\n*Running things* bullet on a crate's `cfg(unix)` half owns the call.\n\n`context.modules` now also names `crates/nvs-cli/src/config.rs` and `crates/nvs-cli/src/cache.rs`,\nwhich hold the two messages the chapter quotes and which the pack printed neither of.",
   "next": {
     "stage": null,
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in file order.\n\n**Stage 2: the dossier** — one file set: `docs/reference/tools/15-install.md`, `crates/nvs-config/tests/trust.rs`, `crates/nvs-cli/tests/init.rs`.",
+    "note": "One slice is one feature with all its feature proofs. Take them in file order.\n\n**Stage 2: the dossier** — one file set: `docs/reference/tools/15-install.md`, `crates/nvs-cli/tests/init.rs`, `crates/nvs-config/tests/trust.rs`, `crates/nvs-cli/src/config.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`tools:install/what-novis-checks`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:72`. Its table of what each command checks names `nvs init`'s check of the folder one level up, which no test asks about yet: `crates/nvs-cli/tests/init.rs:95` is the test it sits beside."
+        "text": "**`tools:install/windows`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:107`. Its numbered `icacls` steps are the claim to drive: the `icacls` fixtures are at `crates/nvs-config/tests/trust.rs:215` and `crates/nvs-cli/tests/init.rs:297`, and the remedy the binary prints is `crates/nvs-config/src/trust.rs:243`."
       },
       {
         "done": false,
-        "text": "**`tools:install/windows`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:107`. The `icacls` fixtures it needs are already at `crates/nvs-config/tests/trust.rs:215`."
-      },
-      {
-        "done": false,
-        "text": "**`tools:install/when-something-is-refused`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:186`."
+        "text": "**`tools:install/when-something-is-refused`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:186`. Each row of its table quotes a message: `nvs init`'s are written at `crates/nvs-cli/src/config.rs:217`, the cache warning at `crates/nvs-cli/src/cache.rs:1714`, and `crates/nvs-cli/tests/init.rs:343` already reads two of them off `stderr`."
       }
     ]
   },

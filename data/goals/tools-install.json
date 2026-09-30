@@ -9,7 +9,9 @@
       "crates/nvs-config/tests/trust.rs",
       "docs/examples/README.md",
       "tests/hostile/README.md",
-      "crates/nvs-cli/tests/init.rs"
+      "crates/nvs-cli/tests/init.rs",
+      "crates/nvs-cli/src/config.rs",
+      "crates/nvs-cli/src/cache.rs"
     ],
     "rules": [
       "testing/feature-proofs",
