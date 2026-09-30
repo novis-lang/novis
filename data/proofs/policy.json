@@ -1,4 +1,9 @@
 {
+  "owes": {
+    "all": {
+      "about": true
+    }
+  },
   "report": {
     "outlierFactor": 5,
     "ceiling": {
