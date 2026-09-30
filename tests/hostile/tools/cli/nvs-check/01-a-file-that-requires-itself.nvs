@@ -1,0 +1,11 @@
+<?nvs
+// Attack: a file requires itself, and one expression is nested 200 parentheses deep.
+// `nvs check` should report both as errors and stop. It must not loop forever or run out of stack.
+// hostile: expect-refusal
+
+// 1. The file requires itself. Following that require would never end.
+require "01-a-file-that-requires-itself.nvs";
+
+// 2. The parser stops at its nesting limit. It must not recurse 200 times.
+int $total = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((1))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+echo $total, "\n";

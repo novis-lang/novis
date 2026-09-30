@@ -1,0 +1,20 @@
+<?nvs
+// Shows a file that `nvs check` accepts. `nvs check 01-check-before-you-commit.nvs` prints `no errors`.
+// The command runs nothing, so a team can run it before every commit.
+// If a line passed a string to `addItem`, the check would print error `E0401` and exit with status 1.
+
+class Cart
+{
+    public int $total = 0;
+
+    public function addItem(int $price): void
+    {
+        $this->total = $this->total + $price;
+    }
+}
+
+Cart $cart = new Cart();
+$cart->addItem(1200);
+$cart->addItem(350);
+// This prints `1550` when you run the file.
+echo $cart->total, "\n";
