@@ -55,6 +55,44 @@ fn calling_a_non_callable_object_is_diagnosed() {
     );
 }
 
+/// PHP's variable function: the variable is a `string`, and no `string` is a
+/// closure, so the call is refused where it is written. So is a call on every
+/// other type whose values are never closures, and on a union of only those.
+#[test]
+fn calling_a_value_whose_type_is_never_a_closure_is_diagnosed() {
+    for local in [
+        "string $f = 'strlen';",
+        "int $f = 7;",
+        "float $f = 1.5;",
+        "bool $f = true;",
+        "array<string> $f = ['Core\\\\Str', 'length'];",
+        "?string $f = null;",
+        "int|string $f = 7;",
+    ] {
+        let diags = check_in_method(&format!("{local}\n$f('Zoë');\n"));
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_NOT_CALLABLE)),
+            "{local}: {diags:?}"
+        );
+    }
+}
+
+/// A callee that may be a closure is left to the call: `mixed` holds anything,
+/// and a nullable `callable` is a closure on one of its arms.
+#[test]
+fn calling_a_value_whose_type_may_be_a_closure_is_not_diagnosed() {
+    for local in [
+        "mixed $f = fn (string $s): uint => 1;",
+        "?callable $f = fn (string $s): uint => 1;",
+    ] {
+        let diags = check_in_method(&format!("{local}\n$f('Zoë');\n"));
+        assert!(
+            !diags.iter().any(|d| d.code == Some(code::E_NOT_CALLABLE)),
+            "{local}: {diags:?}"
+        );
+    }
+}
+
 #[test]
 fn calling_a_closure_value_is_unaffected() {
     let diags = check_in_method("callable $fn = fn(): int => 1;\n$fn();\n");

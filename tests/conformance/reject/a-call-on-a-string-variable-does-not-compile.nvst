@@ -1,0 +1,18 @@
+--TEST--
+A call on a variable whose type can never be a closure does not compile, which refuses PHP's variable function — `rule:types/callable-is-a-closure`
+--FILE--
+<?nvs
+// `rule:types/callable-is-a-closure`: only a closure is callable, so a
+// `string` holding a function's name is refused where it is called.
+string $name = "Zoë";
+string $function = 'strlen';
+echo $function($name), "\n";
+--EXPECTF-ERROR--
+error[E0420]: a value of type `string` is not callable
+  --> case.nvs:6:6
+  |
+6 | echo $function($name), "\n";
+  |      ^^^^^^^^^^^^^^^^ called with `(...)` here
+  = help: only a closure is callable (`rule:types/callable-is-a-closure`): write an `fn` literal, or take a reference with first-class callable syntax — `Class::method(...)` or `$obj->method(...)`. A string holding a function's name is not one
+
+error: aborting due to 1 error

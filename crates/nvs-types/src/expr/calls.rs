@@ -1193,25 +1193,78 @@ pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
     }
 }
 
-/// `rule:types/callable-is-a-closure`: `$obj(...)` is refused whenever `$obj`'s static type
-/// resolves to a class — Novis has no `__invoke`, so no class ever makes `()`
-/// mean anything else, regardless of what methods it declares. A `Ty::Mixed`
-/// callee (nothing statically known) and an already-`Ty::Callable` one are
-/// both left alone.
+/// `rule:types/callable-is-a-closure`: `$x(...)` is refused whenever `$x`'s static type can
+/// never be a closure. A class is one such type — Novis has no `__invoke`, so
+/// no class ever makes `()` mean anything else, regardless of what methods it
+/// declares — and so is every scalar, text, array, enum and shape type, which
+/// is what refuses PHP's `$name = 'strlen'; $name($s)`. A `Ty::Mixed` callee
+/// (nothing statically known), an already-`Ty::Callable` one and a union with
+/// an arm that may be a closure are all left alone.
 pub(crate) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &mut Env<'_>) {
-    let Ty::Class(qname, _) = env.interner.get(callee_ty).clone() else {
+    if let Ty::Class(qname, _) = env.interner.get(callee_ty).clone() {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_NOT_CALLABLE,
+                format!(
+                    "`{qname}` is not callable; Novis has no `__invoke` — call a named method \
+                     instead, e.g. `$obj->methodName(...)`"
+                ),
+            )
+            .with_primary(span, "called with `(...)` here"),
+        );
         return;
-    };
+    }
+    if !never_a_closure(callee_ty, env.interner) {
+        return;
+    }
+    let described = env.interner.describe(callee_ty);
     env.diags.report(
         Diagnostic::error(
             code::E_NOT_CALLABLE,
-            format!(
-                "`{qname}` is not callable; Novis has no `__invoke` — call a named method \
-                 instead, e.g. `$obj->methodName(...)`"
-            ),
+            format!("a value of type `{described}` is not callable"),
         )
-        .with_primary(span, "called with `(...)` here"),
+        .with_primary(span, "called with `(...)` here")
+        .with_help(
+            "only a closure is callable (`rule:types/callable-is-a-closure`): write an `fn` \
+             literal, or take a reference with first-class callable syntax — \
+             `Class::method(...)` or `$obj->method(...)`. A string holding a function's name \
+             is not one",
+        ),
     );
+}
+
+/// Whether no value of type `ty` is a closure: the types whose values are
+/// never objects, a class (no class is callable), and a union of nothing but
+/// those. Everything else — `mixed`, `object`, a type variable, `callable`
+/// itself — may hold one and answers `false`.
+fn never_a_closure(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Null
+        | Ty::Bool
+        | Ty::True
+        | Ty::False
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::String
+        | Ty::Bytes
+        | Ty::TaintedString
+        | Ty::TaintedBytes
+        | Ty::SecretString
+        | Ty::SecretBytes
+        | Ty::SecretTaintedString
+        | Ty::SecretTaintedBytes
+        | Ty::StringLiteral(_)
+        | Ty::IntLiteral(_)
+        | Ty::Array(_)
+        | Ty::Enum(..)
+        | Ty::EnumCase(..)
+        | Ty::Shape(_)
+        | Ty::Class(..) => true,
+        Ty::Union(arms) => arms.iter().all(|arm| never_a_closure(*arm, interner)),
+        _ => false,
+    }
 }
 
 /// `$m->method(...)` — `rule:types/callable-is-a-closure`'s first-class callable spelling on a `mixed`
