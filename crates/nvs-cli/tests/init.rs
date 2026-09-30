@@ -299,23 +299,11 @@ fn writable_by_others(dir: &Path, open: bool) {
     {
         const USERS: &str = "*S-1-5-32-545";
         let grant = format!("{USERS}:(WD)");
-        let edit: [&str; 2] = if open {
-            ["/grant:r", &grant]
+        if open {
+            icacls(dir, &["/grant:r", &grant]);
         } else {
-            ["/remove:g", USERS]
-        };
-        // `icacls` edits the scratch directory it is given and opens nothing in the repository.
-        let ran = nvs_repo::spawn("icacls", &[])
-            .arg(dir)
-            .args(edit)
-            .output()
-            .expect("`icacls` ships with Windows");
-        assert!(
-            ran.status.success(),
-            "icacls {edit:?} on `{}`: {}",
-            dir.display(),
-            String::from_utf8_lossy(&ran.stdout)
-        );
+            icacls(dir, &["/remove:g", USERS]);
+        }
     }
     #[cfg(unix)]
     {
@@ -324,6 +312,23 @@ fn writable_by_others(dir: &Path, open: bool) {
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode))
             .expect("a scratch directory's mode is this process's to change");
     }
+}
+
+/// One `icacls` edit of `dir`, which has to succeed.
+#[cfg(windows)]
+fn icacls(dir: &Path, edit: &[&str]) {
+    // `icacls` edits the scratch directory it is given and opens nothing in the repository.
+    let ran = nvs_repo::spawn("icacls", &[])
+        .arg(dir)
+        .args(edit)
+        .output()
+        .expect("`icacls` ships with Windows");
+    assert!(
+        ran.status.success(),
+        "icacls {edit:?} on `{}`: {}",
+        dir.display(),
+        String::from_utf8_lossy(&ran.stdout)
+    );
 }
 
 /// The install chapter's table of what each command checks, for the two rows that look one level
@@ -448,5 +453,159 @@ fn nvs_init_and_the_cache_are_checked_one_folder_up_and_nvs_run_does_not_check_t
     assert!(stored(), "and the compiled program is stored");
 
     drop(std::fs::remove_dir_all(&outer));
+    drop(std::fs::remove_dir_all(&elsewhere));
+}
+
+/// The install chapter's Windows steps, run with `icacls` on a layout that starts the way Windows
+/// creates one on a drive that is not the system drive: `Authenticated Users` may change the
+/// folder the layout is made in, and every folder of the layout takes that entry from it.
+///
+/// `nvs init` refuses that layout, and its message names the group, the SID `icacls` takes for it
+/// and the commands of step 2. `/remove:g` alone is no repair, because an entry a folder takes
+/// from the one above it is not that folder's to remove; after `/inheritance:d` it is, and the two
+/// commands on the one outer folder are the repair for the folders inside it as well. Steps 3 and
+/// 4, and the grant that gives reading back, change nothing the check reads: a group that may only
+/// read and run passes, and so does a single account that may change the cache folder.
+///
+/// Each group in the chapter's SID table is then given the right to change the configuration
+/// folder by the SID the table has for it. The three groups of ordinary accounts are refused with
+/// that SID printed back, and `Administrators` passes.
+// covers: tools:install/windows
+#[cfg(windows)]
+#[test]
+fn the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_writes_into() {
+    const AUTHENTICATED_USERS: &str = "*S-1-5-11";
+    const USERS: &str = "*S-1-5-32-545";
+    const EVERYONE: &str = "*S-1-1-0";
+    const ADMINISTRATORS: &str = "*S-1-5-32-544";
+    // `LOCAL SERVICE` is the chapter's `svc-novis` here: an account every Windows has, which is
+    // not the one running this test and is in none of the groups the check reads.
+    const SERVICE: &str = "*S-1-5-19";
+
+    let drive = scratch("windows-steps");
+    let elsewhere = scratch("windows-steps-cwd");
+    icacls(
+        &drive,
+        &["/grant", &format!("{AUTHENTICATED_USERS}:(OI)(CI)M")],
+    );
+    let novis = drive.join("novis");
+    let config = novis.join("config");
+    let cache = novis.join("cache");
+    for folder in [&config, &cache, &novis.join("logs")] {
+        std::fs::create_dir_all(folder).expect("step 1 creates the folders");
+    }
+    let target = config.join("nvs.toml");
+    let nvs = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        // A recorded run of this test binary sets the switch, and the last step is the cache.
+        command
+            .current_dir(&elsewhere)
+            .env_remove("NOVIS_NO_FILE_CACHE")
+            .arg("--config")
+            .arg(&target);
+        command
+    };
+    let refused = |why: &str| {
+        let ran = nvs()
+            .arg("init")
+            .output()
+            .expect("the binary under test runs");
+        let stderr = String::from_utf8_lossy(&ran.stderr).into_owned();
+        assert_eq!(ran.status.code(), Some(1), "{why}: {stderr}");
+        assert!(
+            stderr.starts_with("error:") && !target.exists(),
+            "{why}, and nothing is written: {stderr}"
+        );
+        stderr
+    };
+    let written = |why: &str| {
+        let ran = nvs()
+            .arg("init")
+            .output()
+            .expect("the binary under test runs");
+        assert!(
+            ran.status.success() && target.exists(),
+            "{why}: {}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+        std::fs::remove_file(&target).expect("the file it wrote is this account's to delete");
+    };
+
+    let stderr = refused("a layout made on such a drive is one every account may change");
+    assert!(
+        stderr.contains("Authenticated Users")
+            && stderr.contains(&format!("`{AUTHENTICATED_USERS}`")),
+        "the message names the group and the SID to remove: {stderr}"
+    );
+    for command in [
+        "icacls <path> /inheritance:d",
+        "icacls <path> /remove:g <SID>",
+        "icacls <path> /grant *S-1-5-32-545:(OI)(CI)RX",
+    ] {
+        assert!(
+            stderr.contains(command),
+            "and gives the chapter's `{command}`: {stderr}"
+        );
+    }
+
+    icacls(&novis, &["/remove:g", AUTHENTICATED_USERS]);
+    refused("`/remove:g` leaves an entry the folder takes from the one above it");
+
+    icacls(&novis, &["/inheritance:d"]);
+    icacls(&novis, &["/remove:g", AUTHENTICATED_USERS]);
+    written("step 2 on the outer folder repairs `config` with it");
+
+    icacls(&config, &["/inheritance:d"]);
+    icacls(&config, &["/remove:g", USERS]);
+    icacls(&config, &["/grant", &format!("{SERVICE}:(OI)(CI)RX")]);
+    for folder in [&cache, &novis.join("logs")] {
+        icacls(folder, &["/grant", &format!("{SERVICE}:(OI)(CI)M")]);
+    }
+    written("steps 3 and 4 leave a layout `nvs init` writes into");
+    icacls(&config, &["/grant", &format!("{USERS}:(OI)(CI)RX")]);
+    written("a group that may read and run is not one that may write");
+
+    for (group, sid) in [
+        ("Authenticated Users", AUTHENTICATED_USERS),
+        ("Users", USERS),
+        ("Everyone", EVERYONE),
+    ] {
+        icacls(&config, &["/grant", &format!("{sid}:(OI)(CI)M")]);
+        let stderr = refused("a group of ordinary accounts that may change the folder");
+        assert!(
+            stderr.contains(group) && stderr.contains(&format!("`{sid}`")),
+            "`{group}` is refused by the SID the chapter's table gives it, `{sid}`: {stderr}"
+        );
+        icacls(&config, &["/remove:g", sid]);
+    }
+    icacls(&config, &["/grant", &format!("{ADMINISTRATORS}:(OI)(CI)F")]);
+    written("`Administrators` with every right is inside the boundary");
+
+    let slashed = cache.display().to_string().replace('\\', "/");
+    std::fs::write(
+        &target,
+        format!("[opcache]\nfile_cache_dir = \"{slashed}\"\n"),
+    )
+    .expect("the configuration is editable");
+    let program = elsewhere.join("index.nvs");
+    std::fs::write(&program, "<?nvs\necho \"served\\n\";\n").expect("the program is written");
+    let ran = nvs()
+        .arg("run")
+        .arg(&program)
+        .output()
+        .expect("the binary under test runs");
+    let stderr = String::from_utf8_lossy(&ran.stderr);
+    assert!(
+        ran.status.success() && stderr.is_empty(),
+        "a cache folder one named account may change is not refused: {stderr}"
+    );
+    assert!(
+        files_under(&cache)
+            .iter()
+            .any(|path| path.extension().is_some_and(|ext| ext == "nvsc")),
+        "and the compiled program is stored in it"
+    );
+
+    drop(std::fs::remove_dir_all(&drive));
     drop(std::fs::remove_dir_all(&elsewhere));
 }

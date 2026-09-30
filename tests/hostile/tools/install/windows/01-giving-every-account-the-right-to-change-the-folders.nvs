@@ -1,0 +1,165 @@
+<?nvs
+// Attack: a program may write only in `logs`. It tries to give every account the right to change
+// the configuration folder. It also tries to write the configuration with paths that only Windows
+// reads as that file. Every attempt should fail, and the files should stay the same.
+
+class Attempt
+{
+    // Tries to replace each file, to add text to it and to delete it.
+    // Every error is caught, so the next step runs.
+    public static function change(array<string> $paths): void
+    {
+        foreach ($paths as string $path) {
+            try {
+                Core\IO::write($path, "[capabilities.fs]\nwrite = [\"/\"]\n");
+                echo "written\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+            try {
+                Core\IO::append($path, "[capabilities.fs]\nwrite = [\"/\"]\n");
+                echo "appended\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+            try {
+                Core\IO::remove($path);
+                echo "deleted\n";
+            } catch (Throwable $denied) {
+                echo "denied\n";
+            }
+        }
+    }
+}
+
+string $dir = 'tests/hostile/tools/install/windows';
+string $log = $dir . '/logs/nvs.log';
+string $config = $dir . '/config/limits.toml';
+string $system = 'C:\\Windows\\System32\\';
+
+// 1. Start `icacls` to give `Authenticated Users` and `Everyone` the right to change `config`.
+// No program may be started.
+array<string> $programs = [
+    'icacls',
+    'icacls.exe',
+    $system . 'icacls.exe',
+    'C:/Windows/System32/icacls.exe',
+    '\\\\?\\' . $system . 'icacls.exe',
+    $system . 'ICACLS.EXE',
+    $system . 'icacls.exe.',
+    $system . 'icacls.exe::$DATA',
+];
+array<string> $grants = ['*S-1-5-11:(OI)(CI)M', '*S-1-1-0:(OI)(CI)F'];
+foreach ($programs as string $program) {
+    foreach ($grants as string $grant) {
+        try {
+            Core\Process::run($program, [$dir . '/config', '/grant', $grant]);
+            echo "started\n";
+        } catch (Throwable $denied) {
+            echo "denied\n";
+        }
+    }
+}
+
+// 2. Start a shell that runs `icacls`. Then start `takeown`, which changes the owner of a folder.
+array<string> $shells = [
+    'cmd.exe',
+    $system . 'cmd.exe',
+    $system . 'WindowsPowerShell\\v1.0\\powershell.exe',
+    $dir . '/logs/open.bat',
+    $dir . '/logs/open.cmd',
+];
+foreach ($shells as string $shell) {
+    try {
+        Core\Process::run($shell, ['/c', 'icacls ' . $dir . '\\config /grant *S-1-1-0:(OI)(CI)F']);
+        echo "started\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+try {
+    Core\Process::run($system . 'takeown.exe', ['/f', $dir . '\\config', '/r']);
+    echo "started\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 3. Change the configuration. Windows reads each of these paths as the file `config/limits.toml`.
+// On Linux and macOS the third path is a new file in `logs`, and the program deletes it again.
+Attempt::change([
+    $dir . '\\config\\limits.toml',
+    $dir . '/logs\\..\\config\\limits.toml',
+    $dir . '/logs/..\\config\\limits.toml',
+    $dir . '/CONFIG/LIMITS.TOML',
+    $dir . '/config/limits.toml.',
+    $dir . '/config/limits.toml ',
+    $dir . '/config./limits.toml',
+    $dir . '/config/limits.toml::$DATA',
+    $dir . '/config/LIMITS~1.TOM',
+]);
+
+// 4. Write a second stream of the file and of the folder. Windows does not list a stream as a file.
+Attempt::change([
+    $dir . '/config/limits.toml:hidden',
+    $dir . '/config:hidden',
+    $dir . '/config::$INDEX_ALLOCATION',
+]);
+
+// 5. Change the configuration and the binary of an installation on `D:`.
+// Some of these paths start with `\\?\` or with the name of a computer.
+Attempt::change([
+    'D:\\srv\\novis\\config\\nvs.toml',
+    'D:/srv/novis/nvs.exe',
+    'D:srv\\novis\\nvs.exe',
+    '\\srv\\novis\\nvs.exe',
+    '\\\\?\\D:\\srv\\novis\\config\\nvs.toml',
+    '\\\\.\\D:\\srv\\novis\\config\\nvs.toml',
+    '\\\\localhost\\D$\\srv\\novis\\config\\nvs.toml',
+    '//127.0.0.1/D$/srv/novis/nvs.exe',
+    '\\\\?\\UNC\\localhost\\D$\\srv\\novis\\nvs.exe',
+    '\\\\?\\GLOBALROOT\\Device\\HarddiskVolume1\\srv\\novis\\nvs.exe',
+]);
+
+// 6. Copy and move its own log file to the place of the configuration file.
+try {
+    Core\IO::copy($log, $config);
+    echo "copied\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+try {
+    Core\IO::move($log, $dir . '/CONFIG/limits.toml');
+    echo "moved\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 7. Move the configuration folder into `logs`, where it may write. Then delete the folder.
+array<string> $folders = [$dir . '/config', $dir . '/CONFIG', $dir . '\\config', $dir . '/config.'];
+foreach ($folders as string $folder) {
+    try {
+        Core\IO::move($folder, $dir . '/logs/config');
+        echo "moved\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+    try {
+        Core\IO::removeDir($folder);
+        echo "deleted\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 8. Give itself the missing rights. Each call should return `false`.
+array<string> $keys = ['capabilities.fs.write', 'capabilities.process.exec', 'capabilities'];
+foreach ($keys as string $key) {
+    echo $key, ': ', Core\Config::set($key, '/') ? 'yes' : 'no', "\n";
+}
+
+// 9. Both files are still there and unchanged. This prints `96M` and `server started`.
+echo Core\Str::contains(Core\IO::read($config), 'memory = "96M"') ? "96M\n" : "changed\n";
+echo Core\IO::read($log);
+
+// 10. The log file is the one path it may write. This prints `writable`.
+echo Core\IO::isWritable($log) ? "writable\n" : "not writable\n";

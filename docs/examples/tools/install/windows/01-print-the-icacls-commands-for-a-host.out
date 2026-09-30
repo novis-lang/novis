@@ -1,0 +1,8 @@
+mkdir D:\srv\novis\config D:\srv\novis\cache D:\srv\novis\logs
+icacls D:\srv\novis /inheritance:d
+icacls D:\srv\novis /remove:g *S-1-5-11
+icacls D:\srv\novis\config /inheritance:d
+icacls D:\srv\novis\config /remove:g *S-1-5-32-545
+icacls D:\srv\novis\config /grant svc-novis:(OI)(CI)RX
+icacls D:\srv\novis\cache /grant svc-novis:(OI)(CI)M
+icacls D:\srv\novis\logs /grant svc-novis:(OI)(CI)M

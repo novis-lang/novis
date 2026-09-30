@@ -1,0 +1,39 @@
+<?nvs
+// Shows the Windows steps as a script that prints the `icacls` commands for one host.
+// The first line of the input is the binary folder. The second line is the account that runs `nvs`.
+
+class Setup {
+    // The SID of a group is the same on every Windows. Its name is translated.
+    public const string AUTHENTICATED_USERS = "*S-1-5-11";
+    public const string USERS = "*S-1-5-32-545";
+
+    public static function commands(tainted string $folder, tainted string $account): void {
+        tainted string $config = $folder . "\\config";
+        tainted string $cache = $folder . "\\cache";
+        tainted string $logs = $folder . "\\logs";
+
+        // Step 1 creates the folders.
+        echo "mkdir ", $config, " ", $cache, " ", $logs, "\n";
+
+        // Step 2 removes the right of `Authenticated Users` to change the binary folder.
+        // `/inheritance:d` comes first. Without it, `/remove:g` does not remove an inherited right.
+        echo "icacls ", $folder, " /inheritance:d\n";
+        echo "icacls ", $folder, " /remove:g ", self::AUTHENTICATED_USERS, "\n";
+
+        // Step 3 removes `Users` from `config`, so other accounts cannot read the configuration.
+        echo "icacls ", $config, " /inheritance:d\n";
+        echo "icacls ", $config, " /remove:g ", self::USERS, "\n";
+
+        // Step 4 gives the account its rights. `RX` is read and run. `M` is change.
+        // `(OI)(CI)` gives the same right for every file and folder inside.
+        echo "icacls ", $config, " /grant ", $account, ":(OI)(CI)RX\n";
+        echo "icacls ", $cache, " /grant ", $account, ":(OI)(CI)M\n";
+        echo "icacls ", $logs, " /grant ", $account, ":(OI)(CI)M\n";
+    }
+}
+
+// The input is the file `01-print-the-icacls-commands-for-a-host.in` beside this one.
+array<tainted string> $lines = Core\Str::lines(Core\IO::stdin());
+if (Core\Arr::count($lines) >= 2) {
+    Setup::commands($lines[0], $lines[1]);
+}
