@@ -1820,8 +1820,16 @@ fn a_refcount_one_array_member_mutates_in_place() {
     // short of the change of *kind* it exists to catch: the fast path being
     // lost puts the two within a small constant factor of each other, which
     // ten times the soft bound would not reach.
+    //
+    // The proof is counted, so it holds on any machine however loaded. A write
+    // to a key the solely-owned array already has replaces one value where it
+    // is, and makes no allocation. The same write through an aliased handle
+    // copies the entries first, and a copy allocates: that second count is
+    // what shows the first one can see a separation at all. The timing beside
+    // them is a sanity bound on the work that allocates nothing.
     const IN_PLACE_PER_SEPARATING: Bound = Bound::ratio_under(0.05, 0.5);
     const ENTRIES: i64 = 1_000;
+    const COUNTED: i64 = 1_000;
 
     let mut array = nvs_runtime::NvsArray::new();
     for index in 0..ENTRIES {
@@ -1831,6 +1839,35 @@ fn a_refcount_one_array_member_mutates_in_place() {
         );
     }
     let key = nvs_runtime::NvsStr::new(b"probe");
+
+    // This write adds the key. Every write after it replaces the key's value.
+    array.set(key.clone(), nvs_runtime::Value::int(0));
+    let in_place = allocations_during(|| {
+        for round in 0..COUNTED {
+            array.set(key.clone(), nvs_runtime::Value::int(round));
+        }
+    });
+    let separating = allocations_during(|| {
+        let mut aliased = array.clone();
+        aliased.set(key.clone(), nvs_runtime::Value::int(1));
+        black_box(aliased.count());
+    });
+    println!(
+        "{COUNTED} array writes in place: {in_place} allocations [exactly 0]; one separating \
+         write of {ENTRIES} entries: {separating} [more than 0]"
+    );
+    assert_eq!(
+        in_place, 0,
+        "{COUNTED} writes to a key of a solely-owned array made {in_place} allocations. A write \
+         in place replaces one value and allocates nothing; an allocation there is the \
+         `refcount == 1` fast path in `nvs_runtime::array` copying or growing the entries, and \
+         ADR 0063 R3's immutable `Core` API rests on it doing neither."
+    );
+    assert!(
+        separating > 0,
+        "a write through an aliased handle made no allocation, so this guard is no longer \
+         telling a write in place from one that copies the entries."
+    );
 
     judge(
         "array write in place, against a separating one",
