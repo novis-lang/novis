@@ -8,7 +8,11 @@
       "crates/nvs-runtime/src/ctx/hooks.rs",
       "crates/nvs-runtime/src/budget.rs",
       "crates/nvs-runtime/src/sequence.rs",
-      "crates/nvs-runtime/src/array.rs"
+      "crates/nvs-runtime/src/array.rs",
+      "crates/nvs-host/src/watchdog.rs",
+      "crates/nvs-host/src/isolate.rs",
+      "crates/nvs-runtime/src/ctx/limits.rs",
+      "crates/nvs-runtime/src/ctx/safepoint.rs"
     ],
     "rules": [
       "errors/on-limit",

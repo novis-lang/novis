@@ -1,31 +1,32 @@
 {
-  "state": "**Goal `limit-handler-reach` — every resource FATAL reaches the program's onLimit handler — has just started; nothing of it has landed yet.** Goal `the-description-is-owed`'s whole list is this goal's Stage 1 floor.\n\n`rule:errors/on-limit` already decides the behaviour: the handler fires for every resource-limit\n`FATAL`, and it runs on a reserve carved out of the request's budget at request start. Nothing about\nthat is a session's to re-decide. What is open is one seam: a breach raised by\n`crate::abi::affordable` **inside a member's own loop** stops the request and prints the ceiling\nwithout running the handler, while the same breach raised by an array append in compiled code runs\nit. `crates/nvs-runtime/src/sequence.rs`'s `# Known gaps` item 1 is the statement of the bug, and\n`tests/conformance/core/arr-from-over-a-sequence-with-no-end-is-stopped-by-the-memory-ceiling.nvst`\npins the stop while asserting nothing about the handler.",
+  "state": "**Goal `limit-handler-reach`, Stage 2 is on disk: a memory breach inside `Core\\Arr::from`'s drain runs the program's `Core\\Fatal::onLimit` handler.** Stage 3 is untouched. Goal `the-description-is-owed`'s whole list is this goal's Stage 1 floor.\n\nWhat Stage 2 turned out to be, and `crates/nvs-runtime/src/sequence.rs`'s module doc § *What it costs, and what bounds it* is its home: the breach was never raised by `crate::abi::affordable`. The drain asked for one element in front of a push whose `Vec` doubling took the request past its whole budget, reserve included; the entry poll of the next driven `advance` (`nvs_safepoint`) found it and did call the handler, which was stopped at its first member call. `drain` now prices the growth, so the refusal happens in front of it and `run_helper`'s failure arm runs the handler on an intact reserve. No edit to `crates/nvs-runtime/src/abi.rs` or `crates/nvs-runtime/src/ctx/hooks.rs` was needed.\n\nStage 0's catch-up is done with it: the module doc paragraph that stated the bug is gone.\n\nThe pack was missing `crates/nvs-runtime/src/ctx/limits.rs` and `crates/nvs-runtime/src/ctx/safepoint.rs` from `context.modules`; both are added, with `crates/nvs-host/src/watchdog.rs` and `crates/nvs-host/src/isolate.rs` for Stage 3.",
   "next": {
-    "stage": 2,
-    "title": "the handler runs",
+    "stage": 3,
+    "title": "a narrowed cpu_time is enforced",
     "files": [
-      "crates/nvs-runtime/src/abi.rs",
-      "crates/nvs-runtime/src/ctx/hooks.rs",
-      "crates/nvs-runtime/src/sequence.rs",
-      "tests/conformance/core/"
+      "crates/nvs-host/src/watchdog.rs",
+      "crates/nvs-host/src/isolate.rs",
+      "crates/nvs-runtime/src/ctx/limits.rs",
+      "tests/conformance/error/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Find where a breach raised inside a member body is reported** — `crates/nvs-runtime/src/abi.rs:507` is the arm that asks `ctx.memory_breach()` and answered `None` for this shape; say what reports the ceiling instead, and whether the safepoint flag the refusal raised is what does it."
+        "text": "**Find what the watchdog charges a request against after `Core\\Config::set('limits.cpu_time', …)`** — `crates/nvs-runtime/src/ctx/limits.rs:427` is `refresh_limits`, which moves `Ctx::cpu_limit`; `crates/nvs-host/src/isolate.rs:653` is the one `watch.publish` at request start; `crates/nvs-host/src/watchdog.rs:577` is `publish` and `crates/nvs-host/src/watchdog.rs:205` builds the record that carries the baseline. None of the three was read by the session that wrote this, so the anchors are pointers and not findings. Say how a narrowed ceiling can reach the published record, and what a request that started under no cap has published."
       },
       {
         "done": false,
-        "text": "**Make that path run the handler** — `crates/nvs-runtime/src/abi.rs:551`, the two lines `report_memory_breach` takes, are the shape to reach."
+        "text": "**Make the narrowed ceiling the one the sweep charges, keeping the charge's starting point** — `crates/nvs-host/src/watchdog.rs:232` is `baseline`; the goal's Stage 3 prose forbids a republish that takes a new one, and a child's narrowing must not move the root's."
       },
       {
         "done": false,
-        "text": "**Pin it** — `tests/conformance/core/arr-from-over-a-sequence-with-no-end-runs-the-on-limit-handler.nvst`, the case this goal's Stage 2 check names, registering `Core\\Fatal::onLimit` and driving `Core\\Arr::from` over a sequence with no end."
+        "text": "**Pin it** — `tests/conformance/error/a-cpu-time-narrowed-by-config-set-stops-a-loop-that-calls-nothing.nvst`, the case the Stage 3 check names: an `onLimit` handler, a `set` to a short `cpu_time` and a loop that calls nothing. `tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst:1` is the sibling whose shape it takes."
       }
     ]
   },
   "backlog": [
-    "Stage 0's catch-up is one deletion: `crates/nvs-runtime/src/sequence.rs`'s `# Known gaps` item 1, removed by the session that closes this goal.",
+    "A member whose own allocation is not priced in front of it can still overshoot the whole budget and enter the handler with no reserve; `crates/nvs-runtime/src/sequence.rs`'s module doc says why the growth is what has to be priced, and `crate::abi::affordable` is the seam a member found with that shape uses.",
+    "`bun nv playbook --retire` drops the playbook bullet that names goal `limit-handler-reach`'s Stage 3 as the fix once the case is green: `docs/agent/playbook/writing-a-test-case/an-example-or-attack-that-ends-on-the-cpu-limit-cannot.md`.",
     "When this goal's last check goes green the driver takes goal `plain-comments`."
   ]
 }

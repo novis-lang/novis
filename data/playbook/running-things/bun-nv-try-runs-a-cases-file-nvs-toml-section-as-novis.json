@@ -1,0 +1,12 @@
+{
+  "lead": "`bun nv try` runs a case's `--FILE nvs.toml--` section as Novis source, so a probe that needs a `[limits]` ceiling fails to compile.",
+  "body": "`tools/nv/cmd/try.ts` reads `--TEST--`, `--FILE--` and `--ORACLE--` and nothing else, and `nvs run` takes `./nvs.toml` from the working directory, never from beside the script. Write `main.nvs` and `nvs.toml` into one directory under `.agent-tmp/` and run the pipeline's `nvs` with that directory as the working directory.",
+  "files": [
+    "tools/nv/cmd/try.ts",
+    "nvs.toml"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/try.ts:Each argument is a file in the"
+  }
+}
