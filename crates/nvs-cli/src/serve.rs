@@ -3081,6 +3081,7 @@ mod tests {
     /// would get wrong, since a deployment listening on every interface still
     /// is one after it. And the two conflict at the command line, so there is
     /// never a set the two of them would have to be merged into.
+    // covers: tools:server/nvs-serve
     #[test]
     fn listen_and_port_flags_still_override_the_file_and_still_conflict() {
         use clap::Parser as _;
@@ -3168,6 +3169,7 @@ mod tests {
     /// the same sockets in the same order. The sockets outliving every worker
     /// is the other half — a row is a duplicate of the descriptor and not the
     /// only one, so a core that ends closes nothing for its neighbours.
+    // covers: tools:server/nvs-serve
     #[test]
     fn one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle() {
         let configured = vec![tcp("127.0.0.1:0"), tcp("127.0.0.1:0")];
@@ -4230,6 +4232,7 @@ mod tests {
     /// a disk that holds the implicit mount's `public/index.nvs`: nothing runs
     /// that neither the command line nor the configuration named. A `scan` that
     /// matched nothing is refused as a table of nothing.
+    // covers: tools:server/nvs-serve
     #[test]
     fn a_start_with_no_file_and_no_mounts_is_refused() {
         let toml = "[server]\nroot = {root}\n";

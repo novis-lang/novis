@@ -1,0 +1,8 @@
+--METHOD--
+POST
+--PATH--
+/orders/../../%00%2e%2e/orders
+--HEADERS--
+host: shop.example.com
+authorization: Bearer 0123456789abcdef0123456789abcdef
+x-forwarded-for: 127.0.0.1, 10.0.0.1, 127.0.0.1

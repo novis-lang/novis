@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a request tries to leave data for the next request in static variables.
+// Each request has its own memory, so the next request should find nothing.
+
+class Stolen
+{
+    public static ?tainted string $token = null;
+    public static uint $requests = 0;
+    public static array<string> $kept = [];
+
+    public static function deeper(uint $depth): uint
+    {
+        return Stolen::deeper($depth + 1) + 1;
+    }
+}
+
+// 1. Read what an earlier request left in the static variables. Both should be empty.
+echo 'token from an earlier request: ', Stolen::$token ?? 'none', "\n";
+echo 'requests counted before:       ', Stolen::$requests, "\n";
+
+// 2. Store the `authorization` header of this request for the next request to read.
+Stolen::$token = Core\Request::header('authorization');
+Stolen::$requests = Stolen::$requests + 1;
+echo 'token stored:                  ', Stolen::$token == null ? 'no' : 'yes', "\n";
+
+// 3. Call a function that calls itself without end, to stop the worker that runs this request.
+//    The error is caught, so step 4 still runs.
+try {
+    echo 'depth reached:                 ', Stolen::deeper(0), "\n";
+} catch (Throwable $error) {
+    echo 'endless calls:                 ', $error::class, "\n";
+}
+
+// 4. Store 100000 more values in a static variable, to keep this memory in use after the request.
+uint $i = 0;
+while ($i < 100000) {
+    Stolen::$kept[] = "kept value {$i}";
+    $i = $i + 1;
+}
+echo 'values stored:                 ', $i, "\n";

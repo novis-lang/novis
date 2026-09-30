@@ -1,0 +1,14 @@
+<?nvs
+// Attack: a request tries to use all the memory of the server.
+// Each request has its own memory limit, so the server should stop only this request.
+// hostile: ends-early
+// proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops
+
+// 1. Read the path of the request, and start with a string of 1024 copies of it.
+tainted string $block = Core\Str::repeat(Core\Request::path(), 1024);
+echo 'start length: ', Core\Str::length($block), "\n";
+
+// 2. Make the string two times longer in each round, until the memory limit stops the program.
+while (true) {
+    $block = $block . $block;
+}
