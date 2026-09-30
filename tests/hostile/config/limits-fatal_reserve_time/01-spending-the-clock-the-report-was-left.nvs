@@ -1,12 +1,9 @@
 <?nvs
-// Attack: the time half of the safety net, worked the way its memory half was
-// — every other name for the key, every value that would leave the handler no
-// clock at all, and the ceiling it is carved out of driven up and down
-// underneath it. The two halves are one net, so this finishes by asking for
-// both of them at once and then spending as much of the clock as a bounded loop
-// can: a reserve that moved when either half was written is a handler that gets
-// the time somebody else already spent.
+// Attack: a program tries to change `limits.fatal_reserve_time`, the CPU time kept
+// for the `Core\Fatal::onLimit` handler. Every attempt should fail. The program
+// then uses up its CPU time, and the handler should still run.
 // hostile: timeout-ms 30000
+// hostile: ends-early
 
 Core\Fatal::onLimit(fn (): void => {
     echo "the handler still had a clock to run on\n";
@@ -82,18 +79,14 @@ while ($round < 1000) {
     $round = $round + 1;
 }
 
-// 4. What is left standing, and then the clock itself. The loop is bounded
-//    rather than endless on purpose: a program stopped at its CPU ceiling and a
-//    program that simply finished are both passes here, and a loop with no end
-//    would make the difference between them a question about this machine.
+// 4. Print both reserves, lower the CPU limit to 20ms, and use it all up.
+//    This loop does not end, so the program stops with a fatal error.
 echo 'clock held back: ', Core\Config::get('limits.fatal_reserve_time') ?? '(nothing)', "\n";
 echo 'heap held back:  ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing)', "\n";
 echo 'my own ceiling:  ', Core\Config::set('limits.cpu_time', '20ms') ? 'lowered' : 'refused', "\n";
 
-uint $spin = 0;
-uint $acc = 0;
-while ($spin < 200000000) {
-    $acc = $acc + $spin;
+int $spin = 0;
+while ($spin >= 0) {
     $spin = $spin + 1;
 }
-echo 'the loop ran to its end: ', $acc, "\n";
+echo 'the loop ran to its end: ', $spin, "\n";
