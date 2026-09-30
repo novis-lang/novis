@@ -1,0 +1,25 @@
+<?nvs
+// Shows an order line class from a PHP program, written in Novis.
+
+final class OrderLine implements Stringable {
+    // `constructor` is the constructor. A parameter with `public` is also a property.
+    public function constructor(public string $product, public int $price, public int $quantity) {}
+
+    // A property with a `get` hook computes its value each time it is read.
+    public int $total {
+        get => $this->price * $this->quantity;
+    }
+
+    // A class that implements `Stringable` writes `toString`. Then `echo` can print the object.
+    public function toString(): string {
+        return $this->quantity . " x " . $this->product . " = " . $this->total;
+    }
+}
+
+OrderLine $line = new OrderLine("Tea", 350, 2);
+// This prints "2 x Tea = 700".
+echo $line, "\n";
+
+// `total` reads `quantity` again, so this prints "3 x Tea = 1050".
+$line->quantity = 3;
+echo $line, "\n";

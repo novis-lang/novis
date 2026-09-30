@@ -1,0 +1,94 @@
+<?nvs
+// Attack: classes written the Novis way call themselves without end, or copy one object many times.
+// Each step should end with an error or a clean result, and never a crash.
+// hostile: timeout-ms 30000
+
+interface Greets
+{
+    public function name(): string;
+    public function greet(): string
+    {
+        return 'Hello, ' . $this->name();
+    }
+}
+
+final class Person implements Greets
+{
+    public function constructor(public string $first)
+    {}
+    public function name(): string
+    {
+        return $this->first;
+    }
+}
+
+// `implements Greets by $inner` sends every call of `Greets` to the object in `$inner`.
+final class Wrapper implements Greets by $inner
+{
+    public function constructor(private Greets $inner)
+    {}
+}
+
+// Every write to a property calls `onPropertySet`. This one writes the property again.
+final class Counter implements PropertyObserver
+{
+    public int $n = 0;
+    public function onPropertyGet(string $name, mixed $value): void
+    {}
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        $this->n = $this->n + 1;
+    }
+}
+
+// A `get` hook that calls a method, and the method reads the hook again.
+final class Loop
+{
+    public int $value {
+        get => $this->read();
+    }
+    public function read(): int
+    {
+        return $this->value + 1;
+    }
+}
+
+// 1. One call passes through 500,000 wrappers before it reaches the person.
+Greets $chain = new Person('Ada');
+uint $i = 0;
+while ($i < 500000) {
+    $chain = new Wrapper($chain);
+    $i = $i + 1;
+}
+try {
+    echo $chain->greet(), "\n";
+} catch (Throwable $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 2. An observer writes the property it observes, so each write starts another write.
+Counter $counter = new Counter();
+try {
+    $counter->n = 1;
+    echo 'counter: ', $counter->n, "\n";
+} catch (Throwable $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 3. A `get` hook reads itself through a method.
+Loop $loop = new Loop();
+try {
+    echo $loop->value, "\n";
+} catch (Throwable $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 4. `clone` copies one person 1,000,000 times, and every copy is kept.
+array<Person> $copies = [];
+Person $original = new Person('Grace');
+$i = 0;
+while ($i < 1000000) {
+    $copies[] = clone $original;
+    $i = $i + 1;
+}
+echo Core\Arr::count($copies), "\n";

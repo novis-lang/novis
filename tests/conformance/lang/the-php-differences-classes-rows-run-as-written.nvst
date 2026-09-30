@@ -1,0 +1,106 @@
+--TEST--
+Every Novis spelling in the classes table of the PHP-differences chapter, and every construct the paragraph under it lists, compiles and runs — `rule:classes/delegation-by-field`, `rule:classes/property-observer-pipeline`
+--FILE--
+<?nvs
+// covers: tools:php-differences/classes
+// The rows that compile to an error are pinned under `tests/conformance/reject/`;
+// this case runs the replacement column of every other row.
+
+// An interface with a typed constant and a default method that reads it as
+// `static::NAME`, in place of a property inside the interface.
+interface Greets {
+    public const string GREETING = "Hello";
+    public function name(): string;
+    public function greet(): string {
+        return static::GREETING . ", " . $this->name();
+    }
+}
+
+// `constructor` with promotion, and `Stringable` in place of `__toString`.
+final class Person implements Greets, Stringable {
+    public function constructor(public string $first) {}
+    public function name(): string { return $this->first; }
+    public function toString(): string { return "Person " . $this->first; }
+}
+
+// `implements I by $field` in place of a trait carrying state; the override of
+// the constant is what `static::GREETING` reads.
+final class Loud implements Greets by $inner {
+    public const string GREETING = "HEY";
+    public function constructor(private Person $inner) {}
+}
+
+// A property hook in place of `__get` and `__set`.
+class Temperature {
+    private int $celsius = 0;
+    public int $fahrenheit {
+        get => $this->celsius + 32;
+        set (int $v) => $this->celsius = $v - 32;
+    }
+    public function celsius(): int { return $this->celsius; }
+}
+
+// `PropertyObserver` in place of `__set` when every write should be seen.
+final class Audited implements PropertyObserver {
+    public int $n = 0;
+    public function onPropertyGet(string $name, mixed $value): void {}
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "set ", $name, "\n";
+    }
+}
+
+// `abstract`, `final`, `static::`, `self::`, `parent::` and `A::class`.
+abstract class Shape {
+    abstract public function area(): int;
+    public function describe(): string { return static::class . " " . self::class; }
+}
+
+final class Square extends Shape {
+    public function area(): int { return 4; }
+    public function describe(): string { return "square " . parent::describe(); }
+}
+
+// A backed enum and a plain one, cases only.
+enum Level: int { LOW = 1, HIGH = 2 }
+enum Color { RED, GREEN }
+
+Person $p = new Person("Ada");
+echo $p->greet(), "\n";
+echo $p, "\n";
+
+Loud $l = new Loud($p);
+echo $l->greet(), "\n";
+
+// `new A` without parentheses.
+Temperature $t = new Temperature;
+$t->fahrenheit = 212;
+echo $t->fahrenheit, " ", $t->celsius(), "\n";
+
+Audited $a = new Audited();
+$a->n = 5;
+echo $a->n, "\n";
+
+Square $s = new Square();
+echo $s->describe(), " ", $s->area(), "\n";
+
+// `clone` copies; the copy is its own object.
+Person $q = clone $p;
+$q->first = "Grace";
+echo $p->first, " ", $q->first, " ", Person::class, "\n";
+
+// A closure in place of `__invoke`.
+callable $twice = fn(int $x): int => $x * 2;
+echo $twice(4), "\n";
+
+echo Level::HIGH == Level::LOW ? "same" : "different", " ", Color::RED == Color::RED ? "same" : "different", "\n";
+--EXPECT--
+Hello, Ada
+Person Ada
+HEY, Ada
+212 180
+set n
+5
+square Square Shape 4
+Ada Grace Person
+8
+different same
