@@ -774,6 +774,7 @@ fn mounted(root: &str, prefix: &str) -> String {
 /// reload the new prefix answers from the new root's file, and the old prefix
 /// answers `404`. The reload names both keys as applied and neither as
 /// ignored.
+// covers: tools:server/mounts-which-file-answers-a-request
 #[test]
 fn a_changed_mount_table_is_expanded_again() {
     let server = Server::start(

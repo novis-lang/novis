@@ -1,0 +1,88 @@
+<?nvs
+// Attack: a request names a file outside the folder of its mount, and the program
+// tries to change which file the server runs. Every attempt should fail. The path
+// and the prefix should stay the same in every step.
+
+// 1. Reads the path and the prefix. The path has `..` parts, plain and with `%` escapes.
+tainted string $path = Core\Request::path();
+string $prefix = Core\Request::mount()->prefix();
+echo 'path: ', $path, "\n";
+echo 'prefix: ', $prefix, "\n";
+
+// 2. Tries to change the settings that choose the file. Each call returns `false`.
+array<string> $keys = [
+    'server.root',
+    'server.dispatch',
+    'server.static',
+    'server.mount',
+    'server.mount.0',
+    'server.mount.0.entry',
+    'server.mount.0.scan',
+    'server.mount.0.prefix',
+    'server.mount.0.host',
+    'server.mount.999999.entry',
+    'SERVER.ROOT',
+    'server..root',
+    'app.0.server.root',
+];
+array<string> $values = [
+    '/',
+    'C:\\',
+    '..',
+    '../../..',
+    'path',
+    'true',
+    '*',
+    '*/*/*/*/*/*/*/*.nvs',
+    '/{1}{2}{3}',
+    '{999999999999}',
+    "/srv/www\u{0000}/",
+    "/shop\n[[server.mount]]\nentry = \"/etc/passwd\"",
+    '',
+    Core\Str::repeat('../', 100000),
+];
+uint $accepted = 0;
+foreach ($keys as string $key) {
+    foreach ($values as string $value) {
+        if (Core\Config::set($key, $value)) {
+            $accepted = $accepted + 1;
+        }
+    }
+}
+
+// 3. Tries the path of the request as the value. These calls return `false` too.
+foreach ($keys as string $key) {
+    if (Core\Config::set($key, $path)) {
+        $accepted = $accepted + 1;
+    }
+}
+echo 'accepted: ', $accepted, "\n";
+
+// 4. Repeats the attempt 100000 times and reads the path and the prefix each time.
+uint $changes = 0;
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('server.root', '/');
+    Core\Config::set('server.dispatch', 'path');
+    if (Core\Request::path() != $path || Core\Request::mount()->prefix() != $prefix) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+echo 'changes: ', $changes, "\n";
+
+// 5. Splits the path into its parts 20000 times and keeps every part.
+//    This step uses a lot of memory.
+array<tainted string> $parts = [];
+uint $j = 0;
+while ($j < 20000) {
+    foreach (Core\Str::split($path, '/') as tainted string $part) {
+        $parts[] = $part;
+    }
+    $j = $j + 1;
+}
+echo 'parts kept: ', Core\Arr::count($parts), "\n";
+
+// 6. Reads the path and the prefix again. This prints the same values as step 1.
+echo 'path: ', Core\Request::path(), "\n";
+echo 'prefix: ', Core\Request::mount()->prefix(), "\n";

@@ -1,0 +1,8 @@
+# The server serves files from this folder. The mount sends every URL
+# that starts with /shop to the example program.
+[server]
+root = "."
+
+[[server.mount]]
+prefix = "/shop"
+entry  = "01-one-file-for-every-path-under-a-prefix.nvs"

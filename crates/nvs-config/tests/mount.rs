@@ -146,6 +146,7 @@ fn checked(text: &str) -> Diagnostic {
 /// so a reading that expanded a `*` per request — or one that kept a candidate whose entry is not
 /// there — would satisfy every per-mount assertion below while leaving an extra entry in the
 /// table.
+// covers: tools:server/mounts-which-file-answers-a-request
 #[test]
 fn a_mount_globs_is_expanded_against_disk_at_boot() {
     let fs = Fake::with(&[
@@ -235,6 +236,7 @@ fn a_capture_reads_the_same_in_a_host_as_in_a_prefix() {
 /// § 3's override, asserted from both ends: an explicit `entry` replaces the scanned mount at its
 /// key whichever block was read first, and two explicit ones at a key is a boot error. A case
 /// asserting only the first order would pass against a reading that let the later block win.
+// covers: tools:server/mounts-which-file-answers-a-request
 #[test]
 fn an_explicit_entry_overrides_a_scanned_mount_at_the_same_key() {
     // `Backoffice` is the irregular module § 3's second block is for: its entry is not where the
