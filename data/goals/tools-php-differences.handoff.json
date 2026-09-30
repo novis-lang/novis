@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-php-differences`: 3 of the chapter's 12 features are done: `arrays-and-strings`, `classes` and `closures-and-callables`. `bun nv proofs --owed --group tools:php-differences` lists the 9 still owed.\nThe proofs corrected five rows of `docs/reference/tools/30-php-differences.md`. § *Classes*: a leading `_` is `E0112` on a property, and the `case` keyword is `E0239`. § *Closures and callables*: `fn($x) => $x` is `E0808`, `call_user_func` is `E0320`, and `A::f(...)` and `$o->m(...)` run.\n`tests/conformance/reject/a-php-closure-a-use-clause-and-an-untyped-parameter-are-refused.nvst` now pins `E0222`, `E0223` and `E0808`, which no case pinned before.\nEach feature here owes one example, one attack and one case carrying `// covers:`. It owes no `about.md` or bench. `the-short-list` and `the-tools-you-do-not-install` also owe help: their sections show no code block.\nGap `nvs-runtime/a-loop-that-only-concatenates-never-stops` still marks the arrays-and-strings attack.",
+  "state": "Goal `tools-php-differences`: 5 of the chapter's 12 features are done: `arrays-and-strings`, `classes`, `closures-and-callables`, `the-short-list` and `files-tags-and-names`. `bun nv proofs --owed --group tools:php-differences` lists the 7 still owed.\nSo far the proofs have corrected seven rows of `docs/reference/tools/30-php-differences.md`. This session fixed two of them: § *The short list* named \"around 450\" `Core` members when the registry has 873, and the row now gives no count. § *Files, tags and names* gave `E0306` for `use function`, and the first code is `E0252`.\nA second `namespace X;` in one file, or one after a root-namespace class, compiles without an error, although the row and `E0243`'s doc refuse it. Gap `nvs-syntax/a-second-namespace-statement-in-one-file-compiles` records it and names what the fix breaks.\nEach feature here owes one example, one attack and one case carrying `// covers:`. It owes no `about.md` or bench. `the-tools-you-do-not-install` also owes help: its section shows no code block.\nGap `nvs-runtime/a-loop-that-only-concatenates-never-stops` still marks the arrays-and-strings attack.",
   "next": {
     "stage": 1,
     "title": "one feature per slice, chapter order",
@@ -8,21 +8,20 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:php-differences/the-short-list`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). Help: the section needs a short code block, which `nvs agent show` prints. Before you write a proof, run every row through `bun nv try`. So far 7 of 23 checked rows in this chapter were wrong. `docs/reference/tools/30-php-differences.md:16`"
+        "text": "**`tools:php-differences/functions-constants-and-scope`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). Before you write a proof, run every row through `bun nv try`. So far 9 of 43 checked rows in this chapter were wrong. `docs/reference/tools/30-php-differences.md:90`"
       },
       {
         "done": false,
-        "text": "**`tools:php-differences/files-tags-and-names`** — owes examples, hostile, tests. The same row check. `docs/reference/tools/30-php-differences.md:48`"
+        "text": "**`tools:php-differences/types-and-conversions`** — owes examples, hostile, tests. The same row check. `docs/reference/tools/30-php-differences.md:110`"
       },
       {
         "done": false,
-        "text": "**`tools:php-differences/functions-constants-and-scope`** — owes examples, hostile, tests. The same row check. `docs/reference/tools/30-php-differences.md:64`"
+        "text": "**`tools:php-differences/operators`** — owes examples, hostile, tests. The same row check. The `$b = &$a` row names `E0237`, and `int $b = &$a;` reports `E0102` and `E0401`. Either the row or the parser is wrong. `docs/reference/tools/30-php-differences.md:141`"
       }
     ]
   },
   "backlog": [
-    "`types-and-conversions`, `operators` and `control-flow` (`docs/reference/tools/30-php-differences.md:84`, `:104`, `:122`) are the group after next.",
-    "`what-parses-but-behaves-differently`, `the-tools-you-do-not-install` (owes help) and `two-spellings-side-by-side` close the chapter (`docs/reference/tools/30-php-differences.md:196`).",
-    "On an `int`, `/` returns `int|float`. So an `int` hook or return type written with `/` does not compile. `Core\\Math::intDiv` is the replacement (docs/reference/lang/30-expressions.md)."
+    "`control-flow`, `what-parses-but-behaves-differently`, `the-tools-you-do-not-install` (also owes help) and `two-spellings-side-by-side` are still owed. `bun nv proofs --owed --group tools:php-differences` lists them.",
+    "Gap `nvs-syntax/a-second-namespace-statement-in-one-file-compiles`: the parser check plus the `nvs-hir` fixtures it breaks. It is owed to M10, and the record says what to move."
   ]
 }
