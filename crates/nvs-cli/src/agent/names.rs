@@ -15,7 +15,10 @@
 //!   hidden ones left out: `command: nvs serve` and `flag: nvs serve --port`,
 //!   carded by the same text `--help` prints. Positional arguments are not
 //!   flags and have no line.
-//! * a **code** from [`nvs_diagnostics::code::ALL`]: `code: E0621`.
+//! * a **code** from [`nvs_diagnostics::code::ALL`]: `code: E0621`, and after
+//!   two spaces the first sentence of its card once it carries one
+//!   (`rule:tooling/a-diagnostic-code-carries-its-card`). Its `show` card is
+//!   [`nvs_diagnostics::code::card`]'s text whole.
 //!
 //! These lines do not open with their symbol, as a member's does. The symbol is
 //! everything after the `config: `, `command: ` or `flag: `, and the code alone
@@ -148,8 +151,28 @@ fn walk(command: &clap::Command, path: &str, out: &mut Vec<Entry>) {
 pub(super) fn codes() -> Vec<Entry> {
     nvs_diagnostics::code::ALL
         .iter()
-        .map(|code| Entry::new(code.as_str().to_owned(), format!("code: {code}")))
+        .map(|&code| {
+            let card = nvs_diagnostics::code::card(code).unwrap_or_default();
+            let mut line = format!("code: {code}");
+            if !card.is_empty() {
+                line.push_str("  ");
+                line.push_str(first_sentence(card));
+            }
+            let mut entry = Entry::new(code.as_str().to_owned(), line);
+            entry.body = card.to_owned();
+            entry
+        })
         .collect()
+}
+
+/// `card` up to and including the first full stop that ends a sentence — one
+/// followed by whitespace or by nothing — so a `.` inside a name such as
+/// `nvs.toml` does not cut it short.
+fn first_sentence(card: &str) -> &str {
+    card.match_indices('.')
+        .map(|(at, _)| at + 1)
+        .find(|&end| card[end..].chars().next().is_none_or(char::is_whitespace))
+        .map_or(card, |end| &card[..end])
 }
 
 #[cfg(test)]
@@ -163,7 +186,8 @@ mod tests {
         let document = crate::meta::document();
         let printed: Vec<String> = entries(&document)
             .iter()
-            .filter_map(|entry| entry.line.strip_prefix(kind).map(str::to_owned))
+            .filter_map(|entry| entry.line.strip_prefix(kind))
+            .filter_map(|rest| rest.split("  ").next().map(str::to_owned))
             .collect();
         assert!(!table.is_empty(), "the {kind} table is populated");
         let missing: Vec<&String> = table
@@ -259,5 +283,35 @@ mod tests {
                     && entry.named(|name| name.contains("--port"))),
             "`find --port` lands on the flag"
         );
+    }
+
+    /// A code with a card has its first sentence on the index line and the
+    /// whole card under it on `show`; a code still owing one is its line alone
+    /// (`rule:tooling/a-diagnostic-code-carries-its-card`).
+    #[test]
+    fn a_codes_line_carries_its_cards_first_sentence_and_show_the_whole_card() {
+        let document = crate::meta::document();
+        let carded = nvs_diagnostics::code::E_BAD_DURATION_LITERAL;
+        let card = nvs_diagnostics::code::card(carded).expect("the lexer's codes carry cards");
+        let entry = show_target(&document, "E0007").expect("the code resolves");
+        assert_eq!(
+            entry.line,
+            "code: E0007  This duration is not written correctly, or it is too long to store."
+        );
+        assert_eq!(entry.body, card);
+
+        let owing = nvs_diagnostics::code::ALL
+            .iter()
+            .find(|&&code| nvs_diagnostics::code::card(code).is_none());
+        if let Some(owing) = owing {
+            let entry = show_target(&document, owing.as_str()).expect("the code resolves");
+            assert_eq!(entry.line, format!("code: {owing}"));
+            assert!(entry.body.is_empty());
+        }
+        assert_eq!(
+            super::first_sentence("Set `nvs.toml`. Then run."),
+            "Set `nvs.toml`."
+        );
+        assert_eq!(super::first_sentence("No full stop"), "No full stop");
     }
 }
