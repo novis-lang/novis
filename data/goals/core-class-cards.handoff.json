@@ -1,34 +1,30 @@
 {
-  "state": "**Goal `core-class-cards`: Stages 2 and 3 are done.** Every `Core` class carries its card, and\n`rule:tooling/the-index-names-every-key-command-and-code` is shipped: `nvs agent index` ends with a\n`config:`, `command:`, `flag:` and `code:` line per key, command, flag and diagnostic code, derived\nin `crates/nvs-cli/src/agent/names.rs` (its module doc says from which table, and what the symbol\nof such a line is). The guard `every_key_command_flag_and_code_is_an_index_entry` is a unit test in\nthat file, not in `crates/nvs-cli/tests/agent.rs`: the crate is a binary only, so only a unit test\nreaches `crate::Cli::command()`. `code::ALL` in `crates/nvs-diagnostics/src/lib.rs` is written by\nthe `codes!` macro that wraps the `code` module, so no list is kept by hand.\n\nA code's line is `code: E0621` alone and its `show` card is that line alone: the first sentence of\nits card joins the line in Stage 4. Stage 5 (`bun nv proofs` owes help) is not started.",
+  "state": "**Goal `core-class-cards`: Stages 2 and 3 are done, and Stage 4 is under way.** The `codes!` macro in\n`crates/nvs-diagnostics/src/lib.rs` reads an optional `.card(\"…\")` after each `Code::new(…)` and\nwrites `code::card(code) -> Option<&'static str>` beside `code::ALL`. The macro's doc says how a card\nis written. The ten lexer codes `E0001`–`E0010` carry cards. Every other code is in the test\nmodule's `CODES_STILL_OWING_A_CARD`, in declaration order, and `every_code_carries_its_card_or_is_listed`\nholds the two together both ways.\n\n`nvs agent index` prints a carded code as `code: E0007  <first sentence>`, and `show E0007` prints the\nline and then the whole card (`crates/nvs-cli/src/agent/names.rs`, `codes()` and `first_sentence`).\nThe acceptance check's second test, `no_code_still_owes_a_card`, does not exist yet. It lands in the\nsession that empties the list, because it fails until then. Stage 5 is not started.",
   "next": {
     "stage": 4,
     "title": "every diagnostic code carries its card",
     "files": [
       "crates/nvs-diagnostics/src/lib.rs",
       "crates/nvs-diagnostics/src/render.rs",
-      "crates/nvs-cli/src/agent/names.rs"
+      "crates/nvs-cli/src/main.rs",
+      "crates/nvs-test/src/expect.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The card field** — `rule:tooling/a-diagnostic-code-carries-its-card`; give the `codes!` macro at `crates/nvs-diagnostics/src/lib.rs:48` a card per code (a `card` beside each `Code::new`, the macro matching it), and list every code without one in `CODES_STILL_OWING_A_CARD`, with `every_code_carries_its_card_or_is_listed` holding the two together as the class-card test does. `code::ALL` at `crates/nvs-diagnostics/src/lib.rs:68` is where the list is derived."
+        "text": "**The terminal rendering names `nvs agent show <code>` once** — `rule:tooling/a-diagnostic-code-carries-its-card`; `Renderer::render_all` at `crates/nvs-diagnostics/src/render.rs:255` writes the closing summary, and its one caller is `crates/nvs-cli/src/main.rs:3400`. The trap: 466 `.nvst` cases end their `--EXPECTF-ERROR--` block with the literal `error: aborting due to N errors`, and `format_matches` at `crates/nvs-test/src/expect.rs:108` matches the whole output, so a new last line breaks every one of them. Decide first whether the conformance runner renders through `render_all`. If it does, give `Renderer` an opt-in for the line that only the CLI turns on. If it runs the binary, append the new literal line to those cases with one script. Pin the line in `summary_counts_errors_and_warnings` at `crates/nvs-diagnostics/src/render.rs:482`, and cover the warnings-only run at `crates/nvs-diagnostics/src/render.rs:502`."
       },
       {
         "done": false,
-        "text": "**`show <code>` prints the card, and the line carries its first sentence** — `rule:tooling/the-index-names-every-key-command-and-code`; `codes()` at `crates/nvs-cli/src/agent/names.rs:148` sets `Entry::body` to the card and appends the first sentence to the line."
+        "text": "**Drain the list, one band per session, in file order** — `rule:tooling/a-diagnostic-code-carries-its-card`; the parser band starts at `crates/nvs-diagnostics/src/lib.rs:192`. A card is one to three sentences for the person who met the error, in the voice of AGENTS.md § *Text an end user reads*. Read the `///` above the code and the site that raises it, never only the constant's name. Delete each code from `CODES_STILL_OWING_A_CARD` in the same commit. The first sentence becomes the index line, so it must read alone."
       },
       {
         "done": false,
-        "text": "**The terminal rendering names `nvs agent show <code>` once** — `rule:tooling/a-diagnostic-code-carries-its-card`; the closing summary in `crates/nvs-diagnostics/src/render.rs:276`."
-      },
-      {
-        "done": false,
-        "text": "**Drain the list, one band per session, in file order** — `crates/nvs-diagnostics/src/lib.rs:48`; cards are written for the person who met the error (goal § *Standing decisions*)."
+        "text": "**`no_code_still_owes_a_card`** — `rule:tooling/a-diagnostic-code-carries-its-card`; add it beside the list at `crates/nvs-diagnostics/src/lib.rs:4090` in the session that deletes the last entry from `CODES_STILL_OWING_A_CARD`, as an assertion that the list is empty."
       }
     ]
   },
   "backlog": [
-    "Stage 5: `bun nv proofs` owes Help for the whole roster, and `data/proofs/help-backlog.json` drains to empty — goal prose § *Stage 5*.",
-    "`[db.main]`, `[mail.default]` and `[storage.local]` keys are indexed under the file's example name, not `<name>`; `tools/nv/cmd/directives.ts` knows which segments are names — `crates/nvs-cli/src/agent/names.rs`."
+    "Stage 5, `bun nv proofs` owes help — `docs/agent/goals/core-class-cards.md`."
   ]
 }
