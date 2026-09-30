@@ -1,26 +1,23 @@
 {
-  "state": "This goal has just been installed. Nothing in tools:agents has been taken yet.",
+  "state": "Goal `tools-agents`, the proofs of `docs/reference/tools/50-agents.md`. One of its three features is\ndone: `tools:agents/a-worked-session` has its example, its two cases, a Rust test that replays the\nsection's transcript against the binary, and three attacks. Two features are left, below.\n\nWriting the attacks found two things. A call on a variable whose static type can never be a closure\ncompiled and died at run time; that is fixed, and is `E0420` now. A call on a `mixed` value that is\nnot a closure still ends the program with an internal error: gap\n`nvs-runtime/a-call-on-a-value-that-is-not-a-closure-is-an-internal-error`, whose marker is on\n`tests/hostile/tools/agents/a-worked-session/03-values-that-are-not-functions-are-called.nvs`.\n\nThe pack was missing `crates/nvs-cli/tests/agent.rs`, where every Rust proof of this chapter goes;\nit is in `context.modules` now.",
   "next": {
     "stage": null,
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "One slice is one feature with all its feature proofs (`rule:testing/feature-proofs`). One file set: `docs/reference/tools/50-agents.md`, `crates/nvs-cli/tests/agent.rs`, `crates/nvs-cli/src/agent.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`tools:agents/a-worked-session`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:114`"
+        "text": "**`tools:agents/nvs-agent`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:10`. Its line `docs/reference/tools/50-agents.md:53` says a diagnostic names the spelling this language wants. `E0320`'s help is one sentence for every name, at `crates/nvs-hir/src/members.rs:1083`: `count($xs)` is told `Core\\Str::length($s)`. The worked session's case pins it for `strlen`, where it is true. A proof of line 53 with another name fails, and `rule:testing/a-failing-proof-is-fixed-or-recorded` decides; the table of PHP names is `data/spec/php-migration.json`, and nothing in a crate reads it."
       },
       {
         "done": false,
-        "text": "**`tools:agents/nvs-agent`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:10`"
-      },
-      {
-        "done": false,
-        "text": "**`tools:agents/nvs-agent-init`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:73`"
+        "text": "**`tools:agents/nvs-agent-init`** — owes examples, hostile, tests. `docs/reference/tools/50-agents.md:73`. The `init` tests and their `tree`, `init`, `files` and `read` helpers start at `crates/nvs-cli/tests/agent.rs:683`; none carries a `covers:` marker yet."
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "`nvs agent index` prints `Core\\Bytes::join(array<bytes> $parts, bytes $separator = bytes())`, and `bytes()` is not an expression (`E0102`). Where the default is rendered is not checked; the member is in `crates/nvs-stdlib/src/bytes.rs`.",
+    "`E0320`'s help names `docs/spec/02-php-migration.md`, a path somebody holding only the binary cannot open. Whether `nvs agent show` reaches that table is not checked.",
+    "Gap `nvs-runtime/a-call-on-a-value-that-is-not-a-closure-is-an-internal-error`: what a call deferred to run time throws is not decided by `rule:types/callable-is-a-closure`."
   ]
 }
