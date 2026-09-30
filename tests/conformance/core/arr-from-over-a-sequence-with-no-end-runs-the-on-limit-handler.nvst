@@ -1,0 +1,56 @@
+--TEST--
+A memory breach inside `Core\Arr::from`'s own drain runs the program's `Core\Fatal::onLimit` handler, and the drain never held more than the ceiling on the way to it — `rule:errors/on-limit`, `rule:programs/memory-priority`
+--FILE--
+<?nvs
+// covers: lang:iteration/materialising-a-sequence-core-arr-from
+// `rule:errors/on-limit` fires the handler for every resource-limit `FATAL`,
+// and this one is raised where no compiled statement is running: the drive is
+// native, so the refusal is `crates/nvs-runtime/src/sequence.rs`'s own ask in
+// front of a push. The handler runs on the reserve, so it only has something
+// to run on if the drain stopped while the reserve was still there.
+class Endless {
+    // Bounded at four million for the reason the sibling ceiling case gives:
+    // sixty-four megabytes of elements is four times the ceiling, so the bound
+    // is unreachable in a run this case passes, and a red case fails rather
+    // than taking the suite's host with it.
+    public static function counter(): Iterator<int> {
+        int $i = 0;
+        while ($i < 4000000) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+    // The other side of the same bound. The list the drain builds doubles as it
+    // grows, and a doubling nobody asked about takes the request past its
+    // whole budget before anything reads the balance — which is a handler
+    // entered with no reserve left, and one that prints neither line. The mark
+    // is recorded as the allocator moves it, so a block taken and given back
+    // would still show here.
+    if (Core\Budget::memoryPeak() < 16777216) {
+        echo "the drain never held more than the ceiling\n";
+    } else {
+        echo "the drain held more than the ceiling and then reported\n";
+    }
+});
+
+// `--EXPECT--` is exact, so `kept` not being in it is what asserts the call
+// never came back with an array.
+echo "before\n";
+array<int> $everything = Core\Arr::from(Endless::counter());
+echo "kept ", Core\Arr::count($everything), "\n";
+--FILE nvs.toml--
+# The ceiling the drain above is refused at, and nothing else:
+# `fatal_reserve_memory` keeps its default so the message names the slice the
+# handler runs inside.
+[limits]
+memory = "16M"
+--EXPECT--
+before
+onLimit memory
+the drain never held more than the ceiling
+--EXPECTF-ERROR--
+FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler

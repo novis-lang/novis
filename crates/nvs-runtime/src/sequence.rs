@@ -36,7 +36,7 @@
 //! `{limit?: uint}` is that argument.
 //!
 //! **`[limits] memory` is what bounds a sequence that never ends**, and [`drain`]
-//! asks for it one element at a time through [`crate::abi::affordable`].
+//! asks for it in front of every push through [`crate::abi::affordable`].
 //! `counting_alloc` charges the `Vec` and every element to the request as they
 //! are taken, but a native loop passes no statement boundary and calls no
 //! member, so nothing between two pushes would otherwise read the balance:
@@ -44,19 +44,30 @@
 //! `rule:programs/memory-priority` does not permit whatever the caller passed
 //! for `limit`.
 //!
+//! **The ask is priced at what the push takes, which is the `Vec`'s growth and
+//! not the element**: nothing while there is room, and the whole block the
+//! `Vec` grows into where it is full. A `Vec` doubles, so the push that finds
+//! it full takes as much again as the loop has taken so far. An ask of one
+//! element is affordable right up to that push, and the push then carries the
+//! request past its whole budget, `rule:errors/on-limit`'s reserve included —
+//! the breach is found by the entry poll of the next `advance` the drive calls,
+//! with the `Vec` still held, and the program's `Core\Fatal::onLimit` handler
+//! is entered with nothing to run on: its first member call is stopped, so it
+//! says nothing. Refused in front of the growth, the drain gives back what it
+//! took and [`crate::run_helper`]'s failure arm runs the handler on a budget
+//! that still has its reserve — the same two lines an array append refused in
+//! compiled code reaches.
+//! `tests/conformance/core/arr-from-over-a-sequence-with-no-end-runs-the-on-limit-handler.nvst`
+//! pins the handler and the mark, beside
+//! `tests/conformance/core/arr-from-over-a-sequence-with-no-end-is-stopped-by-the-memory-ceiling.nvst`,
+//! which pins the stop.
+//!
 //! [`for_each`] is the entry for the member that *can* consume one element at
 //! a time, such as `Core\IO::writeStream` — a stream reaching disk
 //! (`rule:core-classes/io-write-stream`) must not hold the file it is writing. It is the same drive
 //! with the `Vec` taken out, and [`drain`] is written over it, so there is one
 //! cursor loop rather than a second one that could disagree about when
 //! `iterate()` is called or who owns an element.
-//!
-//! The refusal stops the request and the fatal names the ceiling, and the
-//! program's own `Core\Fatal::onLimit` handler does not run for it — the same
-//! breach raised by an array append inside compiled code does run it. Goal
-//! `limit-handler-reach` is where the two seams are made to agree, and
-//! `tests/conformance/core/arr-from-over-a-sequence-with-no-end-is-stopped-by-the-memory-ceiling.nvst`
-//! pins the stop while asserting nothing about the handler.
 
 use std::mem::ManuallyDrop;
 
@@ -111,7 +122,20 @@ pub fn drain(
         // gives: the balance already carries what this loop has taken, and this
         // is the only thing in the loop that reads it. A sequence with no end is
         // stopped here, at the ceiling, rather than where the host runs out.
-        if let Err(fault) = crate::abi::affordable(Some(size_of::<Value>()), what) {
+        //
+        // Priced at what the push takes. A full `Vec` takes the whole block it
+        // grows into, on top of the one it holds until the move is done, and
+        // the module doc owns why asking for one element in front of that push
+        // leaves the limit handler nothing to run on. One with room takes
+        // nothing, and the ask is made all the same: zero bytes is still a read
+        // of the balance, which is what stops a drive whose elements are what
+        // grew.
+        let grown = (out.len() == out.capacity()).then(|| grown_capacity(out.capacity()));
+        let ask = match grown {
+            Some(capacity) => capacity.checked_mul(size_of::<Value>()),
+            None => Some(0),
+        };
+        if let Err(fault) = crate::abi::affordable(ask, what) {
             #[expect(
                 unsafe_code,
                 reason = "`each` hands the sink an owned reference and releases \
@@ -122,6 +146,11 @@ pub fn drain(
                 value.release();
             }
             return Err(fault);
+        }
+        if let Some(capacity) = grown {
+            // The growth that was just priced, taken here so that the push
+            // below is never the one that chooses a size of its own.
+            out.reserve_exact(capacity.saturating_sub(out.len()));
         }
         out.push(value);
         Ok(())
@@ -145,6 +174,17 @@ pub fn drain(
             Err(fault)
         }
     }
+}
+
+/// How many elements [`drain`]'s `Vec` holds after growing from `capacity`.
+///
+/// Doubling, from the four a `Vec` of 16-byte elements starts at — the policy
+/// `Vec::push` would have chosen, stated here because [`drain`] has to price
+/// the growth before it happens and so cannot leave the choice to the push.
+/// Saturating: a count that cannot double is one whose byte size
+/// [`crate::abi::affordable`] refuses as unallocatable.
+fn grown_capacity(capacity: usize) -> usize {
+    capacity.saturating_mul(2).max(4)
 }
 
 /// Reads `sequence` — an `array<T>`, an `Iterable<T>` or an `Iterator<T>` —
