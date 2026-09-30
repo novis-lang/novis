@@ -1,32 +1,31 @@
 {
-  "state": "Goal `tools-server`: two of the chapter's eight features have their proofs,\n`tools:server/behind-a-proxy-trusted-proxies` and `tools:server/mounts-which-file-answers-a-request`.\n`bun nv proofs --owed --group tools:server` lists the six still owed. Nothing is blocked.\n\nThe mounts proofs found one bug on the real server, fixed in the same session: with `dispatch = \"path\"`\nor `static = true`, Windows opened a file for a URL that wrote its name with a dot or a space added, and\nevery platform opened one for a doubled or a trailing slash. `OnDisk::file` and `under` in\n`crates/nvs-server/src/mount.rs` now answer only for the name the disk holds, and the chapter's\n§ *How a request resolves* says so.\n\nA `.nvst` case cannot name a mount (`crates/nvs-test/src/request.rs:67`), so a case for a mount feature\npins what the root mount reads; a `.nvsr` file beside an example or an attack names one with `--MOUNT--`.\n`crates/nvs-server/src/mount.rs` and `crates/nvs-test/src/request.rs` are added to the pack's `modules`.",
+  "state": "Goal `tools-server`: three of the chapter's eight features have their proofs,\n`tools:server/behind-a-proxy-trusted-proxies`, `tools:server/mounts-which-file-answers-a-request` and\n`tools:server/what-a-program-reads-about-its-door`. `bun nv proofs --owed --group tools:server` lists\nthe five still owed. Nothing is blocked, and the last slice changed no Rust beyond a `covers:` marker.\n\nA `.nvst` case cannot name a mount (`crates/nvs-test/src/request.rs:67`), so a case for a mount feature\npins what the root mount reads; a `.nvsr` file beside an example or an attack names one with\n`--MOUNT--`, the prefix on its first line and one capture on each line after it.\n\nThe three features left in the group owe `help`: the check reports that `# nvs ctl` and `# nvs service`\nshow no code although each has an indented usage block (`docs/reference/tools/25-server.md:296`), and\nthe sections that pass show a fenced one. Whether a fence is the whole difference is not checked.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [
       "docs/reference/tools/25-server.md",
-      "crates/nvs-server/src/mount.rs",
       "crates/nvs-cli/tests/live_config.rs"
     ],
-    "note": "One slice is one feature with all its feature proofs. The first reads the mount rows this session left loaded:",
+    "note": "One slice is one feature with all its feature proofs:",
     "items": [
       {
         "done": false,
-        "text": "**`tools:server/what-a-program-reads-about-its-door`** — owes about, examples, hostile, tests. `rule:routing/a-request-reads-its-mount`. Two tests already pin it and want only the `covers:` marker: `crates/nvs-server/src/mount.rs:1092` and `tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst:5`. `docs/reference/tools/25-server.md:145`"
+        "text": "**`tools:server/nvs-ctl`** — owes about, examples, help, hostile, tests. `rule:config/a-reload-names-what-it-could-not-apply`. The `Server` harness already runs `nvs ctl` at `crates/nvs-cli/tests/live_config.rs:332`, so the Rust test is a `covers:` marker or one new case there. `docs/reference/tools/25-server.md:294`"
       },
       {
         "done": false,
-        "text": "**`tools:server/nvs-ctl`** — owes about, examples, help, hostile, tests. Its section shows no code yet, and the `Server` harness already calls `nvs ctl reload`. `docs/reference/tools/25-server.md:294`, `crates/nvs-cli/tests/live_config.rs:66`"
+        "text": "**`tools:server/stopping-and-reloading-the-drain`** — owes about, examples, help, hostile, tests. `rule:concurrency/a-drain-closes-a-connection-cleanly`. Its example is a program reading `Core\\Server::isDraining()`. `docs/reference/tools/25-server.md:283`"
       },
       {
         "done": false,
-        "text": "**`tools:server/stopping-and-reloading-the-drain`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:283`"
+        "text": "**`tools:server/nvs-service`** — owes about, examples, help, hostile, tests. `rule:packaging/a-service-is-one-stored-argv` and `rule:packaging/the-installer-is-a-sink`. `docs/reference/tools/25-server.md:310`"
       }
     ]
   },
   "backlog": [
-    "`tools:server/nvs-serve`, `tools:server/the-server-block` and `tools:server/nvs-service` still owe their proofs — `bun nv proofs --owed --group tools:server`.",
-    "In steps 3 and 4 a symbolic link's own name is still matched by the filesystem's rule, so a link named `theme.css` answers `THEME.CSS` on Windows — `crosses_a_link` in `crates/nvs-server/src/mount.rs`.",
-    "Whether `rule:programs/path-case`'s `require` accepts a name with a dot or a space added on Windows is not checked; `OnDisk::file` in `crates/nvs-server/src/mount.rs` is the comparison to copy if it does."
+    "`tools:server/nvs-serve` owes about, examples, hostile, tests — `docs/reference/tools/25-server.md:8`.",
+    "`tools:server/the-server-block` owes about, examples, hostile, tests — `docs/reference/tools/25-server.md:36`.",
+    "`Core\\Router::url` writes the mount prefix into a link exactly as the request carries it. The attack `tests/hostile/tools/server/what-a-program-reads-about-its-door/01-a-folder-name-that-looks-like-a-path.nvs` hands it the prefix `/%2e%2e` and prints links that begin with it, which a browser resolves out of the mount. Whether the boot expansion in `crates/nvs-config/src/mount.rs` can produce such a prefix from a folder name is not checked; `rule:routing/link-carries-the-mount-prefix` owns the answer."
   ]
 }
