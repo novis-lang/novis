@@ -37,14 +37,22 @@ pub use render::Renderer;
 pub use source::{MAX_SOURCE_LEN, PositionEncoding, SourceFile, SourceMap, canonical_key};
 pub use span::{BytePos, SourceId, Span, Spanned};
 
-/// Declares the [`code`] module and, from the same declarations, [`code::ALL`].
+/// Declares the [`code`] module and, from the same declarations, [`code::ALL`]
+/// and [`code::card`].
 ///
-/// The list is written by this macro and by nobody else, so a code that lands
-/// is on it at once and no hand-kept list can miss one — which is what
+/// A declaration is the constant and its `Code::new(…)`, followed by
+/// `.card("…")` once the code has its card
+/// (`rule:tooling/a-diagnostic-code-carries-its-card`). The `.card` is read by
+/// this macro and is not a method: the constant is the bare `Code`, and the
+/// text is what [`code::card`] returns for it. A code without one is named in
+/// the tests' list of codes still owing a card.
+///
+/// Both are written by this macro and by nobody else, so a code that lands is
+/// on the list at once and no hand-kept list can miss one — which is what
 /// `nvs agent index` needs to print one line per code
 /// (`rule:tooling/the-index-names-every-key-command-and-code`). It costs one
-/// static slice of two-word entries in the binary, per process and never per
-/// request.
+/// static slice of two-word entries and the cards' text in the binary, per
+/// process and never per request.
 macro_rules! codes {
     (
         $(#[$module_meta:meta])*
@@ -52,7 +60,7 @@ macro_rules! codes {
             use crate::diagnostic::Code;
             $(
                 $(#[$meta:meta])*
-                pub const $name:ident: Code = Code::new($code:literal);
+                pub const $name:ident: Code = Code::new($code:literal) $(.card($card:literal $(,)?))?;
             )*
         }
     ) => {
@@ -66,7 +74,25 @@ macro_rules! codes {
 
             /// Every code this module declares, in the order it declares them.
             pub const ALL: &[Code] = &[$($name),*];
+
+            /// The card `nvs agent show <code>` prints: what the error means and
+            /// how to fix it, written for the person who met it. `None` for a
+            /// code that still owes its card, and for a code this module does
+            /// not declare.
+            #[must_use]
+            pub fn card(code: Code) -> Option<&'static str> {
+                match code {
+                    $($name => codes!(@card $($card)?),)*
+                    _ => None,
+                }
+            }
         }
+    };
+    (@card) => {
+        None
+    };
+    (@card $card:literal) => {
+        Some($card)
     };
 }
 
@@ -98,39 +124,70 @@ pub mod code {
 
     // --- E00xx lexer -------------------------------------------------------
     /// A character that cannot begin any token.
-    pub const E_UNEXPECTED_CHAR: Code = Code::new("E0001");
+    pub const E_UNEXPECTED_CHAR: Code = Code::new("E0001").card(
+        "The file contains a character that is not part of Novis syntax. \
+         Delete it, or put it inside a string or a comment.",
+    );
     /// A string, comment or heredoc that runs to end of file.
-    pub const E_UNTERMINATED: Code = Code::new("E0002");
+    pub const E_UNTERMINATED: Code = Code::new("E0002").card(
+        "A string, comment or heredoc starts here and is never closed, so it runs to the end \
+         of the file. Add the closing quote, the `*/` or the heredoc's closing label.",
+    );
     /// A numeric literal the lexer cannot interpret.
-    pub const E_INVALID_NUMBER: Code = Code::new("E0003");
+    pub const E_INVALID_NUMBER: Code = Code::new("E0003").card(
+        "This number is not written correctly. Check that every digit is allowed in its base: \
+         a `0b` number uses only `0` and `1`, and a `0x` number needs at least one digit.",
+    );
     /// A backslash escape that is not defined.
-    pub const E_INVALID_ESCAPE: Code = Code::new("E0004");
+    pub const E_INVALID_ESCAPE: Code = Code::new("E0004").card(
+        "A backslash in this string is followed by a character that is not an escape sequence. \
+         Write `\\\\` for a backslash itself, or use an escape such as `\\n` or `\\t`.",
+    );
     /// A heredoc whose closing identifier is missing or misindented.
-    pub const E_BAD_HEREDOC: Code = Code::new("E0005");
+    pub const E_BAD_HEREDOC: Code = Code::new("E0005").card(
+        "The closing label of this heredoc is missing, or it is indented more than a line of \
+         the heredoc's text. Put the label on a line of its own, indented no further than the text.",
+    );
     /// Input that is not valid UTF-8.
-    pub const E_INVALID_UTF8: Code = Code::new("E0006");
+    pub const E_INVALID_UTF8: Code = Code::new("E0006").card(
+        "The file is not valid UTF-8 text. Save it again with the UTF-8 encoding.",
+    );
     /// A duration literal that does not follow
     /// `rule:types/duration-literal`'s grammar —
     /// out of order, a repeated unit, a fractional count, or longer than
     /// `Core\Time\Duration` can hold. A unit written in the wrong case is a
     /// spelling rather than a shape, and is `E_RESERVED_SPELLING_CASE`.
-    pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007");
+    pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007").card(
+        "This duration is not written correctly, or it is too long to store. Write a whole \
+         number before each unit, and write the units from the largest to the smallest, each \
+         unit once. For example, write `1h30m`, not `30m1h` or `1.5h`.",
+    );
     /// A bidirectional control that opens a directional scope and never closes
     /// it inside the source span that opened it, per
     /// `rule:security/bidi-boundaries`
     /// — a comment, a string literal or an inline-HTML run, and each line
     /// of a multi-line one. There is no suppression.
-    pub const E_UNBALANCED_BIDI: Code = Code::new("E0008");
+    pub const E_UNBALANCED_BIDI: Code = Code::new("E0008").card(
+        "A comment, string or HTML text contains a bidirectional control character that is \
+         never closed. This character changes the direction that text is shown in, so the code \
+         can look different from what runs. Delete it, or close it before the line ends.",
+    );
     /// An `<?nvs` open tag in a file that opens with `#!` and is therefore
     /// already in code mode, before any `?>` has left it, per
     /// `rule:tooling/shebang-opens-code-mode`
     /// . Reported by `nvs_syntax`'s lexer, which consumes the tag and keeps
     /// lexing code rather than leaving `<` `?` `nvs` for the parser.
-    pub const E_TAG_IN_SHEBANG_FILE: Code = Code::new("E0009");
+    pub const E_TAG_IN_SHEBANG_FILE: Code = Code::new("E0009").card(
+        "This file starts with `#!`, so it is Novis code from the first line. \
+         Delete this `<?nvs` tag.",
+    );
     /// A `<?nvs` open tag inside a markup literal, whose body is one expression
     /// and has no code mode to enter (`rule:core-classes/html-literal`); the
     /// output tag `<?= … ?>` is the hole a literal has.
-    pub const E_CODE_BLOCK_IN_MARKUP: Code = Code::new("E0010");
+    pub const E_CODE_BLOCK_IN_MARKUP: Code = Code::new("E0010").card(
+        "A markup literal cannot contain a `<?nvs` code block. \
+         Write `<?= … ?>` to put the value of one expression into the markup.",
+    );
 
     // --- E01xx parser ------------------------------------------------------
     /// A specific token was required here.
@@ -4023,6 +4080,87 @@ pub mod code {
 #[cfg(test)]
 mod tests {
     use super::{Code, code};
+
+    /// The codes that landed before a code carried a card, and still owe one,
+    /// in the order the `code` module declares them. A code is deleted from
+    /// here in the commit that gives it its `.card`, the test below says so by
+    /// name, and a code added after this list was written is never added to
+    /// it: it lands with its card. Goal `core-class-cards` is what empties the
+    /// list.
+    const CODES_STILL_OWING_A_CARD: &[&str] = &[
+        "E0101", "E0102", "E0103", "E0104", "E0105", "E0106", "E0107", "E0108", "E0109", "E0110",
+        "E0111", "E0112", "E0113", "E0114", "E0115", "E0116", "E0117", "E0118", "E0119", "E0120",
+        "E0121", "E0122", "E0123", "E0124", "E0125", "E0126", "E0127", "E0128", "E0129", "E0130",
+        "E0131", "E0132", "E0133", "E0134", "E0135", "E0201", "E0202", "E0203", "E0204", "E0205",
+        "E0206", "E0207", "E0208", "E0209", "E0210", "E0211", "E0212", "E0215", "E0216", "E0217",
+        "E0218", "E0219", "E0220", "E0221", "E0222", "E0223", "E0224", "E0225", "E0226", "E0227",
+        "E0228", "E0229", "E0230", "E0231", "E0232", "E0233", "E0234", "E0235", "E0236", "E0237",
+        "E0238", "E0239", "E0240", "E0241", "E0242", "E0243", "E0244", "E0245", "E0246", "E0247",
+        "E0253", "E0254", "E0248", "E0249", "E0250", "E0251", "E0252", "E0301", "E0302", "E0303",
+        "E0304", "E0305", "E0306", "E0307", "E0309", "E0310", "E0311", "E0312", "E0313", "E0314",
+        "E0315", "E0316", "E0317", "E0318", "E0319", "E0320", "E0321", "E0322", "E0323", "E0324",
+        "E0325", "E0326", "E0327", "E0401", "E0402", "E0403", "E0404", "E0405", "E0406", "E0407",
+        "E0408", "E0409", "E0410", "E0411", "E0412", "E0413", "E0414", "E0415", "E0416", "E0417",
+        "E0418", "E0419", "E0420", "E0421", "E0422", "E0423", "E0424", "E0425", "E0426", "E0427",
+        "E0428", "E0429", "E0430", "E0431", "E0432", "E0433", "E0434", "E0435", "E0436", "E0437",
+        "E0438", "E0439", "E0440", "E0441", "E0442", "E0443", "E0444", "E0445", "E0446", "E0447",
+        "E0448", "E0449", "E0450", "E0451", "E0452", "E0453", "E0454", "E0455", "E0456", "E0458",
+        "E0459", "E0460", "E0461", "E0462", "E0463", "E0464", "E0465", "E0466", "E0467", "E0468",
+        "E0469", "E0470", "E0471", "E0472", "E0473", "E0474", "E0475", "E0476", "E0477", "E0478",
+        "E0479", "E0480", "E0481", "E0482", "E0483", "E0484", "E0486", "E0487", "E0488", "E0489",
+        "E0490", "E0491", "E0492", "E0493", "E0494", "E0495", "E0496", "E0498", "E0499", "E0501",
+        "E0502", "E0601", "E0602", "E0603", "E0604", "E0605", "E0606", "E0607", "E0608", "E0609",
+        "E0610", "E0611", "E0612", "E0613", "E0614", "E0615", "E0616", "E0617", "E0618", "E0619",
+        "E0620", "E0621", "E0622", "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629",
+        "E0630", "E0631", "E0633", "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640",
+        "E0641", "E0642", "E0643", "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650",
+        "E0700", "E0701", "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709",
+        "E0710", "E0711", "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721",
+        "E0722", "E0723", "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731",
+        "E0732", "E0733", "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741",
+        "E0742", "E0743", "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751",
+        "E0752", "E0753", "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761",
+        "E0762", "E0763", "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771",
+        "E0772", "E0775", "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785",
+        "E0786", "E0787", "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795",
+        "E0796", "E0797", "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807",
+        "E0808", "E0809", "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818",
+        "E0819", "E0820", "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828",
+        "E0829", "E0830", "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003",
+        "W1004", "W1005", "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
+    ];
+
+    /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
+    /// card or is named in [`CODES_STILL_OWING_A_CARD`], and the two are held
+    /// together both ways: a listed code that has its card, or that is not
+    /// declared at all, fails as surely as an unlisted code without one. So
+    /// the list only shrinks, and a code lands with its card as a `Core`
+    /// member does.
+    #[test]
+    fn every_code_carries_its_card_or_is_listed() {
+        let mut wrong = Vec::new();
+        for &declared in code::ALL {
+            let listed = CODES_STILL_OWING_A_CARD.contains(&declared.as_str());
+            match (code::card(declared), listed) {
+                (Some(card), false) if card.trim().is_empty() => {
+                    wrong.push(format!("{declared}'s card is empty"));
+                }
+                (Some(_), true) => wrong.push(format!(
+                    "{declared} now carries its card — delete it from `CODES_STILL_OWING_A_CARD`"
+                )),
+                (None, false) => wrong.push(format!("{declared} has no card")),
+                (Some(_), false) | (None, true) => {}
+            }
+        }
+        for owed in CODES_STILL_OWING_A_CARD {
+            if !code::ALL.iter().any(|declared| declared.as_str() == *owed) {
+                wrong.push(format!(
+                    "{owed} is listed as owing a card but is not declared"
+                ));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
 
     /// Every `E01xx` number this file declares, read out of the registry's own
     /// source. The escaped quote in the pattern below is what keeps this
