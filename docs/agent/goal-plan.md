@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 182 goals. 172 are walked (120 of them retired), `tools-server` is live at 173 of 182, and 9 are ahead.
+The chain holds 182 goals. 173 are walked (120 of them retired), `the-description-is-owed` is live at 174 of 182, and 8 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -185,8 +185,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 170 | [`tools-php-differences`](goals/tools-php-differences.md) | tools:php-differences | walked |  | **2** the dossier |
 | 171 | [`tools-agents`](goals/tools-agents.md) | tools:agents | walked |  | **2** the dossier |
 | 172 | [`tools-install`](goals/tools-install.md) | tools:install | walked |  | **2** the dossier |
-| 173 | [`tools-server`](goals/tools-server.md) | tools:server | **live** |  | **2** the dossier |
-| 174 | [`the-description-is-owed`](goals/the-description-is-owed.md) | the description is owed | ahead |  | **2** the description is owed |
+| 173 | [`tools-server`](goals/tools-server.md) | tools:server | walked |  | **2** the dossier |
+| 174 | [`the-description-is-owed`](goals/the-description-is-owed.md) | the description is owed | **live** |  | **2** the description is owed |
 | 175 | [`limit-handler-reach`](goals/limit-handler-reach.md) | every resource FATAL reaches the program's onLimit handler | ahead |  | **2** the handler runs · **3** a narrowed cpu_time is enforced |
 | 176 | [`core-class-cards`](goals/core-class-cards.md) | every Core class and every diagnostic code carries its card, and the binary's help reaches every feature | ahead |  | **2** the cards · **3** the index entries · **4** the code cards · **5** help is owed |
 | 177 | [`plain-comments`](goals/plain-comments.md) | every landed comment reads plainly | ahead, pinned last |  | **2** the sweep · **3** the gate |
