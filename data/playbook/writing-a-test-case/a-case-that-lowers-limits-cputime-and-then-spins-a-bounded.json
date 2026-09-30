@@ -1,0 +1,11 @@
+{
+  "lead": "A case that lowers `limits.cpu_time` and then spins a *bounded* loop is flaky, not green.",
+  "body": "The watchdog samples a request's CPU clock once per `DEFAULT_INTERVAL` (500ms), so a loop that finishes in 300ms is stopped on one run and runs to its end on the next, and the hostile runner fails it either way round depending on whether the case declares `ends-early`. Make the loop unbounded (`while ($n >= 0)` over an `int`, so it is not proved endless), declare `ends-early`, and let the ceiling be the only thing that stops it.",
+  "files": [
+    "crates/nvs-host/src/watchdog.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-host/src/watchdog.rs:pub const DEFAULT_INTERVAL: Duration = Duration::from_millis(500);"
+  }
+}
