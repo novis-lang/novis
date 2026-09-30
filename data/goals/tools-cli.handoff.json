@@ -1,27 +1,13 @@
 {
-  "state": "Goal `tools-cli`: eleven features of `docs/reference/tools/10-cli.md` now have all their proofs. This\nsession finished `nvs-run` and `nvs-check`. Writing the `nvs run` test found that three documents\ndescribed an uncaught throw as `Uncaught Exception: <message>` plus `#n` frame lines. The binary\nwrites one log record to standard error instead, JSON by default and text under `[log] format =\n\"text\"` (`crates/nvs-runtime/src/floor.rs`, `rule:errors/renderings`). The CLI chapter, the errors\nchapter and `docs/examples/lang/statements/throw/about.md` now say that. `bun nv proofs --owed | grep\ntools:cli` lists the two features still owed: `nvs-test` and `one-binary`. Neither owes `help`.",
+  "state": "Goal `tools-cli` is met: all thirteen features of `docs/reference/tools/10-cli.md` have their\nproofs, and `bun nv proofs --verify --group tools:cli` is green. The floor check\n`dossier-lang-errors` is green again: its three perf figures were stale after the last session\nedited `docs/reference/lang/70-errors.md`, and `bun nv proofs --record-perf --group lang:errors`\nmeasured them again. `bun nv owners --closes tools-cli` and `bun nv playbook --closes tools-cli`\nname nothing, and `bun nv verify --doc` finds every link resolving.",
   "next": {
-    "stage": 1,
-    "title": "tool proofs, one chapter",
-    "files": [
-      "docs/reference/tools/10-cli.md",
-      "crates/nvs-cli/tests/",
-      "docs/examples/tools/cli/",
-      "tests/hostile/tools/cli/"
-    ],
-    "items": [
-      {
-        "done": false,
-        "text": "**`tools:cli/nvs-test`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:167`. `crates/nvs-cli/tests/check_command.rs:1` is the shape of a Rust test that drives a subcommand from a scratch directory of its own. The example is a program with `#[Test]` methods; check what `nvs run` prints for it before blessing."
-      },
-      {
-        "done": false,
-        "text": "**`tools:cli/one-binary`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:8`. Read the section first: what one test can pin is that every subcommand it names is reached through the one `nvs` binary."
-      }
-    ]
+    "stage": null,
+    "files": [],
+    "note": "None. The goal is met, and the next goal on the chain starts from its own handoff record.",
+    "items": []
   },
   "backlog": [
-    "`nvs check` lists a cascaded `E0401 expected int, found mixed` before the `E0108` nesting refusal it follows from, for parentheses nested past about 18 levels. Owner: the parser's recovery, `crates/nvs-syntax/src/parser/mod.rs:523`.",
-    "The `[log] format = \"text\"` rendering prints a message's line breaks as they are, so a message can contain a line that looks like a `#0` frame. JSON escapes it. Owner: `rule:errors/renderings`."
+    "`nvs test` prints a thrown message whole, so a test that throws a 5 MB message writes a 5 MB report line, while an assertion failure is cut short. Only a choice to make if someone asks for a bound (`docs/reference/tools/10-cli.md` § *nvs test*).",
+    "The `nvs test` sample output in `docs/reference/tools/10-cli.md` § *nvs test* shows a shorter report than the binary writes: no class heading, no timings, no `flaky` count. Line 213 has the real format."
   ]
 }
