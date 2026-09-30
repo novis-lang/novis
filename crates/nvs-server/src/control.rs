@@ -66,6 +66,10 @@ pub const VERSION_HEADER: &str = "nvs-control-version";
 /// do not.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The last line of a refused reload's answer. A reload publishes a whole tree or none of it, so
+/// after a refusal the process serves exactly what it served before.
+pub const UNCHANGED: &str = "note: the running configuration is unchanged\n";
+
 /// Whether an answer carrying `reported` came from a server this build may read.
 ///
 /// `nvs ctl` refuses when this is false, and it lives here rather than in the client so that the
@@ -234,19 +238,32 @@ impl Operation {
     }
 
     /// The operation performed, as the body an answer carries.
+    ///
+    /// A refused reload's body ends with [`UNCHANGED`], which is
+    /// `rule:config/a-reload-names-what-it-could-not-apply`'s second half: the refusal says why,
+    /// and the operator is also told what the process is serving after it.
     fn perform(self, host: &dyn Controlled) -> Result<String, String> {
         match self {
-            Self::Reload => host.reload().map(|report| {
-                let mut body = String::new();
-                for key in &report.applied {
-                    body.push_str(&format!("applied: {key}\n"));
-                }
-                for key in &report.ignored {
-                    body.push_str(&format!("ignored: {key}\n"));
-                }
-                body.push_str(&format!("invalidated: {}\n", report.invalidated));
-                body
-            }),
+            Self::Reload => host
+                .reload()
+                .map(|report| {
+                    let mut body = String::new();
+                    for key in &report.applied {
+                        body.push_str(&format!("applied: {key}\n"));
+                    }
+                    for key in &report.ignored {
+                        body.push_str(&format!("ignored: {key}\n"));
+                    }
+                    body.push_str(&format!("invalidated: {}\n", report.invalidated));
+                    body
+                })
+                .map_err(|mut refusal| {
+                    if !refusal.ends_with('\n') {
+                        refusal.push('\n');
+                    }
+                    refusal.push_str(UNCHANGED);
+                    refusal
+                }),
             // Always with the origin column, because the target is the operation's whole name and a
             // control operation takes no parameters: there is nowhere for a client to ask for less,
             // and the origin is what this read exists for — the offline `nvs config dump` is where
@@ -287,7 +304,7 @@ impl Operation {
 /// A reload the process refused is `409`, not `500` and not `400`. The request was well formed and
 /// this surface is working; what conflicts with it is the state of the tree on disk, which the
 /// operator changed out of band and is the thing they have to act on. The body is the rendered
-/// refusal, so `curl --unix-socket` shows what a `nvs ctl` would print.
+/// refusal followed by [`UNCHANGED`], so `curl --unix-socket` shows what a `nvs ctl` would print.
 #[must_use]
 pub fn answer(method: &str, target: &str, host: &dyn Controlled) -> Response<Answer> {
     match Operation::of(method, target) {
@@ -456,7 +473,8 @@ mod tests {
 
     use super::{
         Address, Answer, Checked, Controlled, Denied, Operation, Pending, Refusal, Report, SETTLE,
-        VERSION, VERSION_HEADER, answer, answer_connection, bind, boundary, reload, same_build,
+        UNCHANGED, VERSION, VERSION_HEADER, answer, answer_connection, bind, boundary, reload,
+        same_build,
     };
 
     /// A directory of this case's own, empty, beside the test binary under `target/`.
@@ -1030,7 +1048,11 @@ mod tests {
                 .get(VERSION_HEADER)
                 .and_then(|value| value.to_str().ok())
         ));
-        assert_eq!(body(refused), "error: the tree does not parse\n");
+        assert_eq!(
+            body(refused),
+            format!("error: the tree does not parse\n{UNCHANGED}"),
+            "a refused reload says why, and then that the running configuration is unchanged",
+        );
 
         assert!(
             !same_build(None) && !same_build(Some("0.0.0")),
