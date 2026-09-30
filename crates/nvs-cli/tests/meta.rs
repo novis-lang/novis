@@ -230,6 +230,7 @@ fn every_enum_and_constant_carries_a_doc_key() {
 
 /// `--json` is required: a `meta` that prints nothing would be a subcommand
 /// that succeeds having done nothing, exactly as `build` without `--openapi`.
+// covers: tools:cli/nvs-meta-json
 #[test]
 fn meta_without_json_is_refused() {
     let (_, ok) = meta(&[]);
@@ -278,6 +279,7 @@ fn declared(program: &serde_json::Value, roster: &str, name: &str) -> serde_json
 /// document that had been reshaped anywhere — a key renamed, a roster moved
 /// under the program, a field emitted only when a program is named — fails here
 /// while both halves still look right read on their own.
+// covers: tools:cli/nvs-meta-json
 #[test]
 fn meta_json_with_no_argument_is_byte_identical_to_the_registry_dump() {
     let (registry, ok) = meta(&["--json"]);
@@ -299,6 +301,7 @@ fn meta_json_with_no_argument_is_byte_identical_to_the_registry_dump() {
 /// program fills and in the shape the registry half already uses: a class with
 /// `members` and `constants`, an enum with `cases`, and a `type` alias with the
 /// type it stands for.
+// covers: tools:cli/nvs-meta-json
 #[test]
 fn meta_json_with_an_entry_emits_the_programs_declarations() {
     let program = program(&["--json", &fixture()]);
@@ -549,4 +552,45 @@ fn no_member_row_gained_a_capability_field() {
             );
         }
     }
+}
+
+/// The attack written against this command: doc comments holding quotes, a
+/// backslash, `?>`, a tab, a right-to-left mark and text shaped like JSON. The
+/// document is one valid JSON value, and each prose line comes back exactly as
+/// the `///` run wrote it.
+// covers: tools:cli/nvs-meta-json
+#[test]
+fn meta_json_carries_doc_comments_that_json_must_escape_unchanged() {
+    let attack = nvs_repo::path("tests")
+        .join("hostile")
+        .join("tools")
+        .join("cli")
+        .join("nvs-meta-json")
+        .join("01-doc-comments-that-are-hard-to-write-as-json.nvs");
+    let program = program(&["--json", &attack.display().to_string()]);
+
+    let hard = declared(&program, "classes", "Hard");
+    assert_eq!(
+        hard["doc"]["short"],
+        r#"1. Quotes "like this", a backslash \ and a closing tag ?> in the text."#
+    );
+    assert_eq!(hard["doc"]["see"], serde_json::json!(["Hard::quoted"]));
+    assert_eq!(
+        hard["members"][0]["doc"]["short"],
+        "2. Text that is not ASCII: café, 日本, 😀, and a right-to-left mark \u{200f} here."
+    );
+    assert_eq!(
+        hard["members"][1]["doc"]["short"],
+        r#"3. Text that looks like JSON: {"key": [1, 2]}, and `*/` that does not end anything."#
+    );
+    assert_eq!(
+        hard["members"][1]["signature"],
+        r#"quoted(string $text = "\"\\\n"): string"#
+    );
+
+    let mode = declared(&program, "enums", "Mode");
+    assert_eq!(
+        mode["cases"][0]["doc"]["short"],
+        "The first case.\tA tab is before this sentence."
+    );
 }

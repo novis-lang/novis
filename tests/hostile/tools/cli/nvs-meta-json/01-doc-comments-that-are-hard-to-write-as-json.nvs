@@ -1,0 +1,37 @@
+<?nvs
+// Attack: the doc comments below have text that JSON has to escape. `nvs meta --json`
+// should print one valid JSON document for this file, and the program should run.
+
+/// 1. Quotes "like this", a backslash \ and a closing tag ?> in the text.
+/// @see Hard::quoted
+class Hard
+{
+    /// 2. Text that is not ASCII: café, 日本, 😀, and a right-to-left mark ‏ here.
+    public string $label = 'é';
+
+    /// 3. Text that looks like JSON: {"key": [1, 2]}, and `*/` that does not end anything.
+    public static function quoted(string $text = "\"\\\n"): string
+    {
+        return $text;
+    }
+
+    /// 4. A very long line. aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    public static function empty(): string
+    {
+        return '';
+    }
+}
+
+/// 5. An enum whose cases have doc comments with tabs	and quotes "".
+enum Mode
+{
+    /// The first case.	A tab is before this sentence.
+    On,
+    /// @see Hard::quoted
+    Off,
+}
+
+// 6. The program itself uses each declaration once. This prints `é 3 0`.
+Hard $hard = new Hard();
+echo $hard->label, ' ', Core\Str::length(Hard::quoted()), ' ', Core\Str::length(Hard::empty()), "\n";
+Mode $mode = Mode::Off;
