@@ -116,7 +116,6 @@ licence text reproduced in full. That file is **generated** from the resolved de
 ```sh
 nvs info                # build and host facts, plus every component and its licence
 nvs info --licenses     # the same, plus every licence text in full
-nvs -i                  # the same command, under PHP's spelling
 
 bun nv gen-attribution           # regenerate after changing a dependency
 bun nv gen-attribution --check   # what CI runs; fails if the notice is stale

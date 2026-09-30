@@ -157,6 +157,7 @@ mod tests {
     /// The half of the agreement with `tools/nv/cmd/gen-attribution.ts` that lives
     /// on this side: if the generator renames a section, this fails rather
     /// than `nvs info` quietly printing the whole file as its summary.
+    // covers: tools:cli/nvs-info
     #[test]
     fn the_attribution_file_has_both_section_headings() {
         assert!(
@@ -180,6 +181,7 @@ mod tests {
     /// The notice is only worth embedding if it actually names things. A
     /// generator bug that produced an empty table would otherwise pass
     /// every other test here.
+    // covers: tools:cli/nvs-info
     #[test]
     fn the_component_table_is_populated() {
         let (components, _) = sections();
@@ -194,6 +196,7 @@ mod tests {
 
     /// Both halves of Novis's obligation reach the terminal: our own MIT text
     /// and the third-party texts, neither of which `nvs info` prints alone.
+    // covers: tools:cli/nvs-info
     #[test]
     fn licenses_adds_every_text_and_the_default_omits_them() {
         let brief = report(false);
@@ -233,6 +236,7 @@ mod tests {
 
     /// `build.rs` promises never to fail the build, which means every one of
     /// these is present — as a real value or as `unknown`.
+    // covers: tools:cli/nvs-info
     #[test]
     fn every_build_fact_is_reported() {
         let brief = report(false);
