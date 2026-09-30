@@ -28706,11 +28706,11 @@ kind of name it carries:
 config: [server] max_in_flight
 command: nvs serve
 flag: nvs serve --port
-code: E0621
+code: E0621  A `[[server.mount]]` block does not describe a valid mount.
 ```
 
 The symbol is the rest of the line after `config: `, `command: ` or `flag: `, and the code alone
-after `code: `. A key is also found by its dotted name, as `server.max_in_flight`. `show` prints a
+after `code: `. The text after a code is the first sentence of what `show` prints for it. A key is also found by its dotted name, as `server.max_in_flight`. `show` prints a
 key's comment from the shipped `nvs.toml` and the key's own line, and for a command or a flag it
 prints the text `--help` prints.
 

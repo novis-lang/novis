@@ -2064,7 +2064,11 @@ pub mod code {
     /// is sound — but a by-reference one also *writes*, and writing an
     /// `Animal` into an `array<Dog>` is not. The two directions meet only at
     /// the element type itself.
-    pub const E_FOREACH_INOUT_ELEMENT_TY: Code = Code::new("E0491");
+    pub const E_FOREACH_INOUT_ELEMENT_TY: Code = Code::new("E0491").card(
+        "With `inout`, the type in `foreach` must be exactly the element type of the array, \
+         because the loop also writes each element back. Write the element type, or remove \
+         `inout` to read the elements as a wider type.",
+    );
     /// A method whose body contains `yield` declaring an `inout $x` parameter.
     ///
     /// A by-reference parameter addresses a cell the *call site* stages for
@@ -2072,7 +2076,10 @@ pub mod code {
     /// it allocates the state object and returns (`rule:iteration/generators`) — so that cell
     /// is gone before the first `advance()`, and there is nothing sound for
     /// the suspended frame to keep addressing.
-    pub const E_GENERATOR_INOUT_PARAM: Code = Code::new("E0492");
+    pub const E_GENERATOR_INOUT_PARAM: Code = Code::new("E0492").card(
+        "A method that uses `yield` cannot have an `inout` parameter. Take the value as an \
+         ordinary parameter, and `yield` the values you compute from it.",
+    );
     /// A `fn` closure literal declaring an `inout $x` parameter.
     ///
     /// A by-reference parameter is a contract between a call site and a
@@ -2080,7 +2087,10 @@ pub mod code {
     /// opaque, carrying no parameter list at all, so no call site can know to
     /// stage a cell. The closure may also outlive every frame in scope where
     /// it was written.
-    pub const E_CLOSURE_INOUT_PARAM: Code = Code::new("E0493");
+    pub const E_CLOSURE_INOUT_PARAM: Code = Code::new("E0493").card(
+        "A closure written with `fn` cannot have an `inout` parameter. Take the value as an \
+         ordinary parameter and `return` the result, or pass an object and change its properties.",
+    );
     /// An `rule:types/object-literal` object literal writing one field name twice —
     /// `{a: 1, a: 2}`.
     ///
@@ -2092,7 +2102,10 @@ pub mod code {
     /// survives: the interned shape reads the first of the pair while a
     /// class carries one slot per name. Refusing where it is written is the
     /// only answer that keeps both readings out of the language.
-    pub const E_DUPLICATE_SHAPE_FIELD: Code = Code::new("E0494");
+    pub const E_DUPLICATE_SHAPE_FIELD: Code = Code::new("E0494").card(
+        "This object literal writes the same field name twice, as in `{a: 1, a: 2}`. Each field \
+         can appear only once, so remove one of them.",
+    );
     /// `->` on a receiver whose declared type can never hold an object —
     /// `int $i = 5; echo $i->name;` — or on one that names no single class,
     /// such as a union of two.
@@ -2103,7 +2116,11 @@ pub mod code {
     /// makes an absent thing read as a zero value. `mixed` is the one receiver
     /// that keeps PHP's *timing* — `rule:types/conversion`'s one unchecked position, so
     /// it defers to `rule:types/erased-member-access`'s name-keyed fetch and its catchable throw.
-    pub const E_RECEIVER_HAS_NO_PROPERTIES: Code = Code::new("E0495");
+    pub const E_RECEIVER_HAS_NO_PROPERTIES: Code = Code::new("E0495").card(
+        "`->` reads a property of an object, and the type of this value is not one class. \
+         Convert the value to the class you expect with `$x as Box`, or declare it `mixed` to \
+         check it only when the program runs.",
+    );
     /// A class named through a value the checker can resolve to no class at
     /// all, at any of `rule:types/class-reference-sites`' three sites:
     /// `new $name()`, `$name::f()` and `$x is $name`.
@@ -2120,7 +2137,11 @@ pub mod code {
     ///
     /// A written name that resolves to *nothing* is not here: that is the
     /// ordinary `E0303`, exactly as `new Undeclared()` already reports it.
-    pub const E_DYNAMIC_CLASS_NAME: Code = Code::new("E0496");
+    pub const E_DYNAMIC_CLASS_NAME: Code = Code::new("E0496").card(
+        "A class name must be written in the code, so `new $name()`, `$name::f()` and \
+         `$x is $name` need a class. Write the class name, or convert the value once with \
+         `$name as class<Base>` and use the result.",
+    );
     /// An `isset(...)` operand that names no storage — `isset(f())`,
     /// `isset($a + 1)`, `isset(Foo::BAR)`.
     ///
@@ -2133,7 +2154,10 @@ pub mod code {
     ///
     /// The accepted set is PHP's: a variable, a subscript, a property (`?->`
     /// included), a static property, and any of those in parentheses.
-    pub const E_ISSET_NOT_A_VARIABLE: Code = Code::new("E0498");
+    pub const E_ISSET_NOT_A_VARIABLE: Code = Code::new("E0498").card(
+        "`isset` works only on a variable, an array element or a property. For any other value, \
+         such as the result of a call, write `$value != null` instead.",
+    );
     /// `static::$prop` — late static binding on a *static property*, whose
     /// storage Novis resolves at compile time.
     ///
@@ -2152,37 +2176,67 @@ pub mod code {
     /// `E07xx`, and `E0500` is never issued, its own digits reading as the
     /// IR-and-codegen band. `docs/adr/README.md` § *Decisions taken at project
     /// start* is the one home for why.
-    pub const E_STATIC_PROPERTY_LATE_BOUND: Code = Code::new("E0499");
+    pub const E_STATIC_PROPERTY_LATE_BOUND: Code = Code::new("E0499").card(
+        "`static::$prop` is not allowed for a static property. Write `self::$prop` for the class \
+         this code is in, or write the name of the class whose property you mean.",
+    );
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an Novis bug.
-    pub const E_IR_INVALID: Code = Code::new("E0501");
+    pub const E_IR_INVALID: Code = Code::new("E0501").card(
+        "The compiler produced invalid code for this function. This is a bug in Novis, not in \
+         your program. Please report it with the code that causes it.",
+    );
     /// Cranelift could not compile a function.
-    pub const E_CODEGEN_FAILED: Code = Code::new("E0502");
+    pub const E_CODEGEN_FAILED: Code = Code::new("E0502").card(
+        "The compiler could not turn this function into machine code. This is a bug in Novis, \
+         not in your program. Please report it with the code that causes it.",
+    );
 
     // --- E06xx configuration and capabilities ------------------------------
     /// An `nvs.toml` directive that does not exist, or an invalid value.
-    pub const E_BAD_DIRECTIVE: Code = Code::new("E0601");
+    pub const E_BAD_DIRECTIVE: Code = Code::new("E0601").card(
+        "This setting in the configuration file does not exist, or its value has the wrong form. \
+         Check the name of the setting, and write the value in the form the message shows.",
+    );
     /// A `Core\Config::set` the directive's changeability class refuses: a `System`
     /// directive, widening a `RuntimeTighten` one, or exceeding a hard ceiling.
-    pub const E_CAPABILITY_DENIED: Code = Code::new("E0602");
+    pub const E_CAPABILITY_DENIED: Code = Code::new("E0602").card(
+        "`Core\\Config::set` cannot make this change. Some settings can only be set in the \
+         configuration file, some can only be made stricter, and no value can go above the \
+         server's hard limit.",
+    );
     /// A per-request limit was exceeded.
-    pub const E_LIMIT_EXCEEDED: Code = Code::new("E0603");
+    pub const E_LIMIT_EXCEEDED: Code = Code::new("E0603").card(
+        "The request used more than one of its limits allow, such as memory or time. Make the \
+         work smaller, or raise the limit in `nvs.toml`.",
+    );
     /// The same directive set twice in one configuration file. `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` refuses
     /// it so that no assignment in a root-owned file is ever silently shadowed;
     /// across an `[[include]]` the same key is an override instead (`rule:config/later-wins-and-every-override-is-recorded`).
-    pub const E_DUPLICATE_DIRECTIVE: Code = Code::new("E0604");
+    pub const E_DUPLICATE_DIRECTIVE: Code = Code::new("E0604").card(
+        "The same setting is written twice in one configuration file. Remove one of them. A \
+         file you load with `[[include]]` may set it again, and the server uses that value.",
+    );
     /// A file the configuration tree names cannot be read: a `--config` that does
     /// not exist, a non-`optional` `[[include]]` that does not, or an I/O failure
     /// on one that does. `rule:config/ownership-is-the-trust-boundary` makes every one of these a hard refusal —
     /// `optional` covers absence and nothing else, because otherwise a stray
     /// `chmod` silently drops half a configuration and the server comes up
     /// looking healthy.
-    pub const E_UNREADABLE_CONFIG: Code = Code::new("E0605");
+    pub const E_UNREADABLE_CONFIG: Code = Code::new("E0605").card(
+        "A configuration file cannot be read. It does not exist, or the server has no permission \
+         to read it. An `[[include]]` marked `optional` may be missing, but it must be readable \
+         when it exists.",
+    );
     /// An `[[include]]` reached a file already on the chain that pulled it in, or
     /// nested deeper than `rule:config/include-takes-a-path-or-a-dir`'s cap of eight. The refusal names the whole
     /// chain, because the cycle is a property of the path and not of its last file.
-    pub const E_INCLUDE_CYCLE: Code = Code::new("E0606");
+    pub const E_INCLUDE_CYCLE: Code = Code::new("E0606").card(
+        "The `[[include]]` files include each other in a loop, or they are nested more than eight \
+         levels deep. The message shows the chain of files. Remove the include that goes back to \
+         an earlier file.",
+    );
     /// A file the configuration tree names fails `rule:config/ownership-is-the-trust-boundary`'s trust boundary:
     /// it is owned by an account that is neither this one nor an administrative
     /// one, or an account outside those can write it — the file itself, or the
@@ -2190,7 +2244,11 @@ pub mod code {
     /// appear in. Whoever can write one file in the tree can grant themselves
     /// every capability it carries, so this is a refusal to start rather than a
     /// warning, and it is re-run on every `nvs ctl reload`.
-    pub const E_UNTRUSTED_CONFIG: Code = Code::new("E0607");
+    pub const E_UNTRUSTED_CONFIG: Code = Code::new("E0607").card(
+        "A configuration file is not safe to use. Another user owns it, or another user can change \
+         the file or its directory. Change the owner or the permissions so that only you or an \
+         administrator can write it.",
+    );
     /// A `_file` sibling of a secret directive — `[db.<name>] password_file` —
     /// names a file the configuration cannot take a value from: it is
     /// set alongside the directive it stands in for, or its content is empty,
@@ -2201,7 +2259,11 @@ pub mod code {
     /// the wrong thing. A secret file that fails the § 6 trust boundary is
     /// `E0607` like any other configuration input, and one that cannot be read
     /// at all is `E0605`.
-    pub const E_BAD_SECRET_FILE: Code = Code::new("E0608");
+    pub const E_BAD_SECRET_FILE: Code = Code::new("E0608").card(
+        "A `_file` setting such as `password_file` names the file that contains a secret. The file \
+         must be UTF-8 text, not empty, and at most 64 KiB. Set either `password` or \
+         `password_file`, never both.",
+    );
     /// An `[[app]]` block that cannot be keyed on an entry file path: it names
     /// both `root` and `entry`, or neither, or it resolves to a path another
     /// block already claimed. `rule:config/an-application-is-its-entry-file-path` makes an application *be* its entry
@@ -2212,7 +2274,10 @@ pub mod code {
     /// the layering, and equal paths have no order to decide with. A key naming
     /// something that cannot be examined at all is `E0605`, like any other
     /// configuration path.
-    pub const E_BAD_APP_BLOCK: Code = Code::new("E0609");
+    pub const E_BAD_APP_BLOCK: Code = Code::new("E0609").card(
+        "An `[[app]]` block needs exactly one of `root` or `entry`. Two blocks cannot name the same \
+         entry file, so merge them into one block.",
+    );
     /// An `[[app]]` block asking for more than the host allows: a value in
     /// `[app.limits]` above the global `[limits.hard]`, or an `[app.limits.hard]`
     /// raising its own ceiling above it. `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` lets a block widen
@@ -2223,7 +2288,10 @@ pub mod code {
     /// reduced: a clamp would leave a block reading as though it got what it
     /// asked for. A value that is not a quantity at all is `E0601`, from the one
     /// parser both this check and `Core\Config::set` share (`rule:config/ini-set-is-core-config-set`).
-    pub const E_APP_ABOVE_CEILING: Code = Code::new("E0610");
+    pub const E_APP_ABOVE_CEILING: Code = Code::new("E0610").card(
+        "An `[[app]]` block sets a limit above the server's `[limits.hard]` value. Lower the value \
+         in the block, or raise `[limits.hard]`.",
+    );
 
     /// A `[[schedule]]` entry the scheduler could not arm: no `name` or a
     /// duplicate one, no `scope`, a `cron` outside `rule:config/cron-is-five-fields-and-nothing-more`'s five-field
@@ -2235,7 +2303,11 @@ pub mod code {
     /// from the work that did not happen. A path outside the roots is this
     /// code and not `E0602` — nothing has been denied at a door yet, the
     /// configuration simply does not say the file may be run.
-    pub const E_BAD_SCHEDULE: Code = Code::new("E0611");
+    pub const E_BAD_SCHEDULE: Code = Code::new("E0611").card(
+        "A `[[schedule]]` entry cannot start. Each entry needs its own `name`, a `scope`, a `cron` \
+         with five fields, and a `script` the server is allowed to run. The message names the part \
+         that is wrong.",
+    );
 
     /// An `[http]` pair with no correct meaning: `rule:http-server/cors-is-closed-until-origins-are-named`'s `origins =
     /// ["*"]` with `credentials = true`, or § 3's `same_site = "None"` with
@@ -2248,7 +2320,11 @@ pub mod code {
     /// halves is written once in `nvs_config::http`. Each half of a pair is
     /// legitimate alone — a wildcard origin is an ordinary public API — so
     /// there is no refusal here for a single key.
-    pub const E_MEANINGLESS_HTTP_PAIR: Code = Code::new("E0612");
+    pub const E_MEANINGLESS_HTTP_PAIR: Code = Code::new("E0612").card(
+        "Browsers reject these two settings together, so they have no effect. With `origins = \
+         [\"*\"]` in `[http.cors]`, set `credentials = false`. With `same_site = \"None\"` in \
+         `[http.cookies]`, set `secure = true`.",
+    );
 
     /// A `[log] target` that is none of `rule:errors/engine-floor`'s destinations —
     /// `stderr`, `file:<path>` or `syslog` — including a `file:` with no path
@@ -2260,7 +2336,10 @@ pub mod code {
     /// refusal is `nvs_config::log::Target`, which is also what
     /// `nvs_runtime::Ctx::write_log_record` resolves a target through, so a
     /// spelling accepted here is a destination that opens.
-    pub const E_UNSPELLED_LOG_TARGET: Code = Code::new("E0613");
+    pub const E_UNSPELLED_LOG_TARGET: Code = Code::new("E0613").card(
+        "`[log] target` must be `stderr`, `syslog`, or `file:` followed by a path, such as \
+         `file:/var/log/app.log`.",
+    );
 
     /// A `[log] level` that is none of `rule:errors/log-level`'s levels — refused at the
     /// same boot and for the same reason as `E0613` beside it, but against the
@@ -2270,7 +2349,10 @@ pub mod code {
     /// raised it and did not, and no record they collect afterwards says so.
     /// The grammar is `nvs_render::Level::of`, which is also what
     /// `nvs_runtime::Ctx::write_log_record` resolves the floor through.
-    pub const E_UNSPELLED_LOG_LEVEL: Code = Code::new("E0614");
+    pub const E_UNSPELLED_LOG_LEVEL: Code = Code::new("E0614").card(
+        "`[log] level` must be one of `debug`, `info`, `warn`, `error` or `critical`. You can also \
+         write them with a capital letter, such as `Info`.",
+    );
 
     /// A `[log] format` that is neither of `rule:errors/renderings`'s two — the third
     /// refusal of the same block and for the third reason. An unspelled
@@ -2284,7 +2366,9 @@ pub mod code {
     /// HTML is a rendering the response sink selects and never a log target's.
     /// An operator who writes `format = "html"` has asked for something that
     /// exists, somewhere this is not.
-    pub const E_UNSPELLED_LOG_FORMAT: Code = Code::new("E0615");
+    pub const E_UNSPELLED_LOG_FORMAT: Code = Code::new("E0615").card(
+        "`[log] format` must be `json` or `text`. There is no `html` format for a log.",
+    );
 
     /// A written `Core\Cap::has("…")` naming something that is not a capability
     /// — `rule:security/capability-roster-is-closed`'s roster is closed, and § 6's whole point is that the
@@ -2298,7 +2382,11 @@ pub mod code {
     /// run time. In this band rather than the types one because what it checks
     /// is a capability name, which is `nvs_config::capability::Cap`'s roster and
     /// the same table a `[grants]` line is read against.
-    pub const E_NOT_A_CAPABILITY: Code = Code::new("E0616");
+    pub const E_NOT_A_CAPABILITY: Code = Code::new("E0616").card(
+        "`Core\\Cap::has` needs the name of a capability, and this name is not one. Check the \
+         spelling. A wrong name always gives `false`, so the code that depends on it would never \
+         run.",
+    );
 
     /// A `[queue]` block the runtime could not arm: no `connection`, one naming
     /// a `[db.<name>]` block the tree does not hold, a `max_attempts` of `0`,
@@ -2309,7 +2397,10 @@ pub mod code {
     /// `connection` naming nothing is this code and not `E0601`: the value is a
     /// well-formed name, and what is wrong with it is a fact about the rest of
     /// the tree rather than about the value.
-    pub const E_BAD_QUEUE: Code = Code::new("E0617");
+    pub const E_BAD_QUEUE: Code = Code::new("E0617").card(
+        "The `[queue]` block cannot start. Its `connection` must name a `[db.<name>]` block in the \
+         configuration, and `max_attempts` and `visibility` must be greater than `0`.",
+    );
 
     /// A **written** `Core\Db::open` host that the compiling machine's
     /// `db.open` grant does not cover — `rule:core-classes/db-literal-query-checking`'s second sentence, and
@@ -2323,7 +2414,11 @@ pub mod code {
     /// run with no configuration in front of it, says nothing and leaves the
     /// refusal to the door. In this band rather than the types one for
     /// `E0616`'s reason: what it reads is a grant, not a type.
-    pub const E_UNGRANTED_HOST: Code = Code::new("E0618");
+    pub const E_UNGRANTED_HOST: Code = Code::new("E0618").card(
+        "The configuration does not allow a connection to this database host. Add the host to \
+         `[capabilities] db.open` in `nvs.toml`, or name a `[db.<name>]` block and open it with \
+         `Core\\Db::connect`.",
+    );
 
     /// A `[server]` wait that would never end: `false`, or `0`. `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
     /// headline is that Novis never waits forever and `rule:http-server/the-server-block-is-boot-class` states its
@@ -2338,7 +2433,10 @@ pub mod code {
     /// `nvs_config::value`'s own words; this code is only for a well-formed
     /// duration whose *magnitude* is the problem.
     ///
-    pub const E_UNBOUNDED_WAIT: Code = Code::new("E0619");
+    pub const E_UNBOUNDED_WAIT: Code = Code::new("E0619").card(
+        "A `[server]` wait cannot be `false` or `0`. Write how long the server waits, such as \
+         `10s`, or remove the setting to use the default.",
+    );
 
     /// A `[server] listen` entry the server cannot bind, or a written array
     /// with nothing in it. `rule:http-server/the-server-block-is-boot-class`'s array is one flat list whose entries
@@ -2351,7 +2449,11 @@ pub mod code {
     /// is refused for the same reason `E0619` refuses `false` — it is a
     /// deployment that accepts nothing, and leaving the key out is how § 5's
     /// own default is kept.
-    pub const E_BAD_LISTEN: Code = Code::new("E0620");
+    pub const E_BAD_LISTEN: Code = Code::new("E0620").card(
+        "`[server] listen` needs at least one address, written as an IP address and a port, such as \
+         `127.0.0.1:8000` or `[::1]:8000`. A host name such as `localhost` is not allowed. An \
+         absolute path is a Unix socket.",
+    );
 
     /// A `[[server.mount]]` block that does not resolve to a mount. `rule:http-server/a-path-is-never-derived-from-a-url`
     /// makes the set of paths the server can execute something enumerated
@@ -2365,7 +2467,11 @@ pub mod code {
     /// refuses, and two mounts answering at one key. The first set is checked
     /// wherever the tree is, so `nvs config check` reports it on a machine that
     /// holds none of the files; the second needs the tree it mounts.
-    pub const E_BAD_MOUNT: Code = Code::new("E0621");
+    pub const E_BAD_MOUNT: Code = Code::new("E0621").card(
+        "A `[[server.mount]]` block does not describe a valid mount. It needs exactly one of `scan` \
+         or `entry`, and a `prefix` or a `host`. The message names the problem, such as an entry \
+         file that does not exist.",
+    );
 
     /// A `[server] max_in_flight` written as `0`. `rule:http-server/the-server-block-is-boot-class`'s ceiling is a
     /// safety valve, and that spelling asks for a process that accepts a
@@ -4747,26 +4853,23 @@ mod tests {
     /// it: it lands with its card. Goal `core-class-cards` is what empties the
     /// list.
     const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0491", "E0492", "E0493", "E0494", "E0495", "E0496", "E0498", "E0499", "E0501", "E0502",
-        "E0601", "E0602", "E0603", "E0604", "E0605", "E0606", "E0607", "E0608", "E0609", "E0610",
-        "E0611", "E0612", "E0613", "E0614", "E0615", "E0616", "E0617", "E0618", "E0619", "E0620",
-        "E0621", "E0622", "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629", "E0630",
-        "E0631", "E0633", "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640", "E0641",
-        "E0642", "E0643", "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650", "E0700",
-        "E0701", "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709", "E0710",
-        "E0711", "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721", "E0722",
-        "E0723", "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731", "E0732",
-        "E0733", "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741", "E0742",
-        "E0743", "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751", "E0752",
-        "E0753", "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761", "E0762",
-        "E0763", "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772",
-        "E0775", "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786",
-        "E0787", "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796",
-        "E0797", "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808",
-        "E0809", "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819",
-        "E0820", "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829",
-        "E0830", "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004",
-        "W1005", "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
+        "E0622", "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629", "E0630", "E0631",
+        "E0633", "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640", "E0641", "E0642",
+        "E0643", "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650", "E0700", "E0701",
+        "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709", "E0710", "E0711",
+        "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721", "E0722", "E0723",
+        "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731", "E0732", "E0733",
+        "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741", "E0742", "E0743",
+        "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751", "E0752", "E0753",
+        "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761", "E0762", "E0763",
+        "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772", "E0775",
+        "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786", "E0787",
+        "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796", "E0797",
+        "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808", "E0809",
+        "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819", "E0820",
+        "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829", "E0830",
+        "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004", "W1005",
+        "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
     ];
 
     /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
