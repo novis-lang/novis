@@ -31,6 +31,7 @@ echo "the setter now reads ", Core\Config::get('memory'), "\n";
 echo "the next request reads ", Core\Config::get('memory'), "\n";
 --FILE--
 <?nvs
+// covers: tools:config/reading-and-changing-it-from-a-program-core-config
 // `rule:config/the-config-is-an-immutable-snapshot`: a request clones the immutable snapshot at start and writes its
 // own overlay over that clone, so a `set` moves one request's view and reaches
 // no process-wide table — `Core\Config`'s module doc says there is none to

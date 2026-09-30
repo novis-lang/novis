@@ -100,6 +100,11 @@ impl Request {
     /// refused — the module doc lists what is refused, and none of it throws.
     pub fn set(&mut self, name: &str, value: &str) -> bool {
         let key = canonical(name);
+        // A name with an empty segment — `limits..memory` — is still governed by the `limits` row,
+        // but it is a key no reader ever asks for, so a set of it would change nothing and say `true`.
+        if key.split('.').any(str::is_empty) {
+            return false;
+        }
         let Some(row) = lookup(&key) else {
             return false;
         };

@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program sends `Core\Config::set` values it does not expect, and then sets and restores
+// the memory limit many times. The limit should never go above 128M, and the program should stop there.
+// hostile: ends-early
+
+// 1. Values that are not a size, or are far too large.
+// Each call should return `false`, or set a limit that is not above 128M.
+array<string> $values = [
+    '',
+    '-1M',
+    '0x100M',
+    '1e9M',
+    '99999999999999999999999999G',
+    '18446744073709551616',
+    "128M\0",
+    ' 128M',
+    '129M',
+    Core\Str::repeat('9', 100000),
+];
+foreach ($values as string $value) {
+    echo Core\Config::set('memory', $value) ? 'yes' : 'no', "\n";
+}
+
+// 2. Names that no setting has. Each call should return `false`.
+array<string> $names = ['', '.', 'memory.', 'limits..memory', "memory\0", Core\Str::repeat('a.', 100000)];
+foreach ($names as string $name) {
+    echo Core\Config::set($name, '1M') ? 'yes' : 'no', "\n";
+    Core\Config::restore($name);
+}
+
+// 3. Set and restore the limit many times. The list of values should not grow.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('memory', '128M');
+    Core\Config::restore('memory');
+    $i = $i + 1;
+}
+echo Core\Arr::count(Core\Config::all()), "\n";
+
+// 4. Raise the limit to the highest value, then restore it to 64M.
+// Then ask for 100M of text. The program should stop at its memory limit.
+Core\Config::set('memory', '128M');
+Core\Config::restore('memory');
+echo Core\Config::get('memory'), "\n";
+uint $size = 104857600;
+string $big = Core\Str::repeat('x', $size);
+echo Core\Str::length($big), "\n";

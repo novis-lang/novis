@@ -1,0 +1,22 @@
+--TEST--
+`Core\Config::set` of a name with an empty segment returns `false` and adds nothing to `all`, although the `[limits]` row governs its prefix — `rule:config/ini-set-is-core-config-set`
+--FILE--
+<?nvs
+// covers: tools:config/reading-and-changing-it-from-a-program-core-config
+// `limits..memory` starts with the `limits` block's name and a dot, so the directive lookup
+// finds a row for it. No reader ever asks for that key, so a set of it would change nothing.
+uint $before = Core\Arr::count(Core\Config::all());
+array<string> $names = ['limits..memory', '.memory', 'memory.', 'limits.memory.'];
+foreach ($names as string $name) {
+    echo $name, ': ', Core\Config::set($name, '1M') ? 'true' : 'false', "\n";
+}
+echo Core\Arr::count(Core\Config::all()) == $before ? 'nothing added' : 'added', "\n";
+// The dotted spelling without an empty segment is still accepted.
+echo 'limits.memory: ', Core\Config::set('limits.memory', '1M') ? 'true' : 'false', "\n";
+--EXPECT--
+limits..memory: false
+.memory: false
+memory.: false
+limits.memory.: false
+nothing added
+limits.memory: true

@@ -2,6 +2,7 @@
 Every `Core\Config::set` refusal answers `false` and leaves the value in force untouched — `rule:config/three-changeability-classes`, `rule:config/ini-set-is-core-config-set`
 --FILE--
 <?nvs
+// covers: tools:config/reading-and-changing-it-from-a-program-core-config
 // `rule:config/three-changeability-classes`: a set the changeability class or a ceiling refuses returns `false`
 // and leaves the value in place. Both halves are asserted here, because the
 // half a bare `false` does not prove is that nothing moved — a member that
