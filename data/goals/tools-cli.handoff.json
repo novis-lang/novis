@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-cli`: nine features of `docs/reference/tools/10-cli.md` now have all their proofs. This\nsession finished `nvs-build-compile` and `nvs-build-openapi`, and neither attack found a bug. A\nbundle gives its program every word of its command line, including `run`, `build --compile` and\n`--help`. `nvs build --openapi` escapes quotes, backslashes, tabs and JSON syntax in a doc comment.\n`bun nv proofs --owed | grep tools:cli` lists the four features still owed: `one-binary`,\n`nvs-run`, `nvs-check` and `nvs-test`. None of them owes `help`.",
+  "state": "Goal `tools-cli`: eleven features of `docs/reference/tools/10-cli.md` now have all their proofs. This\nsession finished `nvs-run` and `nvs-check`. Writing the `nvs run` test found that three documents\ndescribed an uncaught throw as `Uncaught Exception: <message>` plus `#n` frame lines. The binary\nwrites one log record to standard error instead, JSON by default and text under `[log] format =\n\"text\"` (`crates/nvs-runtime/src/floor.rs`, `rule:errors/renderings`). The CLI chapter, the errors\nchapter and `docs/examples/lang/statements/throw/about.md` now say that. `bun nv proofs --owed | grep\ntools:cli` lists the two features still owed: `nvs-test` and `one-binary`. Neither owes `help`.",
   "next": {
     "stage": 1,
     "title": "tool proofs, one chapter",
@@ -12,20 +12,16 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:cli/nvs-run`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:71`. Look for existing Rust tests that run `nvs run` through `CARGO_BIN_EXE_nvs` (for example `crates/nvs-cli/tests/bundle.rs:247`) that need only a `// covers:` marker."
+        "text": "**`tools:cli/nvs-test`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:167`. `crates/nvs-cli/tests/check_command.rs:1` is the shape of a Rust test that drives a subcommand from a scratch directory of its own. The example is a program with `#[Test]` methods; check what `nvs run` prints for it before blessing."
       },
       {
         "done": false,
-        "text": "**`tools:cli/nvs-check`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:121`. The example runs with `nvs run`, so the comment says what `nvs check` reports for the same file."
-      },
-      {
-        "done": false,
-        "text": "**`tools:cli/nvs-test`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:166`."
+        "text": "**`tools:cli/one-binary`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:8`. Read the section first: what one test can pin is that every subcommand it names is reached through the one `nvs` binary."
       }
     ]
   },
   "backlog": [
-    "`tools:cli/one-binary` owes examples, hostile, tests. `docs/reference/tools/10-cli.md:8`.",
-    "`tools:install/*`: four features owe examples, hostile, tests. `linux-and-macos` also owes help."
+    "`nvs check` lists a cascaded `E0401 expected int, found mixed` before the `E0108` nesting refusal it follows from, for parentheses nested past about 18 levels. Owner: the parser's recovery, `crates/nvs-syntax/src/parser/mod.rs:523`.",
+    "The `[log] format = \"text\"` rendering prints a message's line breaks as they are, so a message can contain a line that looks like a `#0` frame. JSON escapes it. Owner: `rule:errors/renderings`."
   ]
 }
