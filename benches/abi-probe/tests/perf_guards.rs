@@ -1130,6 +1130,25 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
     );
 }
 
+/// Runs `round_trips` spawn-to-result round trips one after another inside one
+/// task, and answers with how many tasks ran to their end and how many stacks
+/// the scheduler has pooled once the run queue is empty.
+///
+/// The round trip is [`isolate::spawn_to_result`], the one
+/// [`isolate::spawn_to_result_batch`] times. The scheduler is built here
+/// because the pool is read from it after the task has ended.
+fn stacks_pooled_after(round_trips: usize) -> (usize, usize) {
+    let mut sched = nvs_host::Scheduler::new();
+    let parent = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+    sched.spawn(parent, nvs_runtime::TaskRoot::Request, move |ctx| {
+        for _ in 0..round_trips {
+            black_box(isolate::spawn_to_result(ctx));
+        }
+    });
+    let report = sched.run();
+    (report.finished, sched.pooled_stacks())
+}
+
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
@@ -1140,12 +1159,43 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     // boundary itself — the argument's graph copy in, the child's own ownership
     // root and context, the child task, the answer's copy out, the release.
     //
+    // The count beside the timing is the part no machine moves: how many stacks
+    // the scheduler has pooled once a task of round trips has ended. A child's
+    // task ends before its parent is resumed, and the scheduler takes its stack
+    // back into the pool the next spawn takes one from. Round trips made one
+    // after another therefore leave two stacks pooled however many there were:
+    // the parent's own, and the one every child ran on in turn. A spawn that
+    // reserves a stack of its own leaves one for every child, a child that runs
+    // inline on its parent's stack leaves one, and a stack handed back to the OS
+    // leaves none.
+    //
     // The soft bound is M5's own number rather than a multiple of a baseline:
     // at ten microseconds "single-digit microseconds" stops being true, and the
     // run says so. The hard bound, a hundred microseconds, is a boundary that
     // has acquired a syscall or a child doing something a child should not.
     const PER_ROUND_TRIP: Bound = Bound::time_under(10_000.0, 100_000.0);
     const ITERS: u64 = 20_000;
+    const COUNTED: usize = 1_000;
+    const POOLED: usize = 2;
+
+    let (finished, pooled) = stacks_pooled_after(COUNTED);
+    assert_eq!(
+        finished,
+        COUNTED + 1,
+        "every counted round trip must have run a child task to its end, beside their parent"
+    );
+    println!(
+        "{COUNTED} spawn-to-result round trips: {pooled} stacks pooled afterwards [exactly \
+         {POOLED}, the parent's and the one every child reused]"
+    );
+    assert_eq!(
+        pooled, POOLED,
+        "{COUNTED} spawn-to-result round trips made one after another left {pooled} stacks in \
+         the scheduler's pool. A child's stack goes back to the pool when its task ends and the \
+         next spawn takes it from there (`nvs_host::stack`), so the pool ends with the parent's \
+         stack and one more; any other count is a spawn that reserved a stack instead of reusing \
+         one, or a child that did not run as a task."
+    );
 
     judge(
         "isolate spawn to result",

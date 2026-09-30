@@ -113,7 +113,16 @@ pub(crate) fn spawn_to_result_batch(iters: u64) -> Duration {
 /// an integer, so what crosses back owns no heap and the parent's ownership
 /// root has nothing to release when it is dropped. That matters over a long
 /// batch: a heap answer would make this a growth measurement.
-fn spawn_to_result(parent: &mut Ctx) -> Value {
+///
+/// Called from inside a task, which is where [`spawn_to_result_batch`] calls it
+/// and where the guard in `tests/perf_guards.rs` that counts the scheduler's
+/// pooled stacks does: with no task beneath the call the child runs inline on
+/// the caller's stack, which the module doc covers.
+///
+/// # Panics
+///
+/// If a null argument does not cross.
+pub(crate) fn spawn_to_result(parent: &mut Ctx) -> Value {
     // A fresh `Box` per round trip because a `Program` is `FnOnce` — and
     // because a real `spawn script` allocates exactly one here too, out of the
     // resolver's `program_over`.
