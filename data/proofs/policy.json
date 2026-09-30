@@ -1,13 +1,13 @@
 {
-  "owes": {
-    "all": {
-      "about": true
-    }
-  },
   "report": {
     "outlierFactor": 5,
     "ceiling": {
       "constant": 100
+    }
+  },
+  "owes": {
+    "all": {
+      "about": true
     }
   },
   "skip": {
