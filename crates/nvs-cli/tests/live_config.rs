@@ -697,6 +697,59 @@ fn the_ceiling_follows(case: &str, roomy: &str, tight: &str, applied: &str) {
     });
 }
 
+/// A program that answers whether its server is draining, after five seconds
+/// when the query says `hold=yes`.
+const PAUSING: &str = r#"<?nvs
+if (Core\Request::query("hold") == "yes") {
+    Core\Time::sleep(5s);
+}
+echo Core\Server::isDraining() ? "draining" : "serving";
+"#;
+
+/// A reload begins no drain. A request in flight when `nvs ctl reload`
+/// publishes a changed tree keeps its connection and is answered, and the
+/// reloaded health probe, `nvs ctl status` and `Core\Server::isDraining()` all
+/// report a server that is still accepting.
+// covers: tools:server/stopping-and-reloading-the-drain
+#[test]
+fn a_reload_closes_no_connection_and_begins_no_drain() {
+    let server = Server::start("reload-no-drain", "", &[("app.nvs", PAUSING)]);
+    server.awaits("/", "the boot's program", |answer| {
+        answer.status == 200 && answer.body == "serving"
+    });
+
+    thread::scope(|scope| {
+        let held = scope.spawn(|| server.get("/?hold=yes"));
+        let started = Instant::now();
+        while !server.ctl("status").contains("in_flight: 1\n") {
+            assert!(
+                started.elapsed() < BOUND,
+                "the held request was not in flight within {BOUND:?}"
+            );
+            thread::sleep(POLL);
+        }
+
+        // The probe's empty body is what tells it from the program, which
+        // answers every path until the reload names this one.
+        server.reload("[server]\nhealth_path = \"/up\"\n");
+        server.awaits("/up", "the reloaded health path", |answer| {
+            answer.status == 200 && answer.body.is_empty()
+        });
+        let status = server.ctl("status");
+        assert!(
+            status.contains("draining: false\n"),
+            "the reload began a drain: {status}"
+        );
+
+        let answer = held.join().expect("the held request's thread panicked");
+        assert_eq!(
+            (answer.status, answer.body.as_str()),
+            (200, "serving"),
+            "the request in flight across the reload was not answered: {answer:?}"
+        );
+    });
+}
+
 /// A program that says whether the client address it was given is the one a
 /// proxy forwarded.
 const ADDRESSED: &str =

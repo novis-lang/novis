@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a request tries to change how long its server keeps connections open after a stop.
+// Only the person who runs the server may set `drain_timeout`, so every attempt below should fail.
+
+// 1. Raise the time limit to 100000 hours.
+echo 'raise the limit:    ', Core\Config::set('server.drain_timeout', '100000h') ? 'accepted' : 'refused', "\n";
+
+// 2. Remove the time limit with `false`, and then with `0`.
+echo 'remove with false:  ', Core\Config::set('server.drain_timeout', 'false') ? 'accepted' : 'refused', "\n";
+echo 'remove with 0:      ', Core\Config::set('server.drain_timeout', '0') ? 'accepted' : 'refused', "\n";
+
+// 3. Give a value of one million characters.
+string $long = Core\Str::repeat('9', 1000000) . 's';
+echo 'a very long value:  ', Core\Config::set('server.drain_timeout', $long) ? 'accepted' : 'refused', "\n";
+
+// 4. Try 100000 different values.
+uint $accepted = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Config::set('server.drain_timeout', "{$i}h")) {
+        $accepted = $accepted + 1;
+    }
+    $i = $i + 1;
+}
+echo 'accepted changes:   ', $accepted, "\n";
+
+// 5. Read the state one million times. No server is stopping, so each call returns `false`.
+uint $stopping = 0;
+$i = 0;
+while ($i < 1000000) {
+    if (Core\Server::isDraining()) {
+        $stopping = $stopping + 1;
+    }
+    $i = $i + 1;
+}
+echo 'calls with true:    ', $stopping, "\n";
+
+// 6. The setting still has the value from `nvs.toml`.
+echo 'the limit is still: ', Core\Config::get('server.drain_timeout') ?? 'not set', "\n";

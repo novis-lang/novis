@@ -282,14 +282,45 @@ default for the jobs queued without it.
 
 # Stopping and reloading: the drain
 
-A stop — `Ctrl-C`, `nvs service stop`, the service manager — and a `nvs ctl reload` both drain.
-Nothing new is taken, and a request whose head, body or response is moving is given
-`drain_timeout` from the moment its connection sees the drain. Whatever is idle closes at once: a
-kept-alive connection between requests, a WebSocket waiting for its peer (closed with `going
-away`), an event stream with nothing to write. A program may read the same bit through
-`Core\Server::isDraining()`, which is `false` off the server.
+A stop makes the server drain. A stop is `Ctrl-C`, `nvs service stop` or a stop from the service
+manager. The server accepts no new connection, finishes the work it has, and then exits:
 
-<!-- src: `rule:concurrency/a-drain-closes-a-connection-cleanly` -->
+- A request that is running is answered in full, and then its connection closes.
+- A connection with no work closes at once. This is a kept-alive connection between two requests,
+  a WebSocket whose program waits for a message, and an event stream with nothing to write.
+- A WebSocket or an event stream whose program keeps writing is closed a short time later.
+
+A WebSocket is closed with the code `1001` (`going away`), so its client can connect again.
+
+`drain_timeout` is the longest time that a connection with no request stays open after it sees
+the drain. `false` and `0` are not allowed:
+
+```toml
+[server]
+drain_timeout = "30s"                 # default
+```
+
+While the server drains, `[server] health_path` answers `503`. A program reads the same state with
+`Core\Server::isDraining()`, which returns `false` in a program that no server runs. A long request
+can test it between two steps and end early:
+
+```nvs skip
+<?nvs
+array<string> $orders = ['A-1001', 'A-1002', 'A-1003'];
+foreach ($orders as string $order) {
+    // `true` after the server was told to stop. The loop ends, and the answer is still sent.
+    if (Core\Server::isDraining()) {
+        break;
+    }
+    echo 'invoice sent for ', $order, "\n";
+}
+```
+
+**A reload does not drain.** `nvs ctl reload` closes no connection. A request that is running
+finishes with the configuration it started with, and `nvs ctl status` still prints
+`draining: false`.
+
+<!-- src: `rule:concurrency/a-drain-closes-a-connection-cleanly`, `rule:config/the-config-is-an-immutable-snapshot`, `rule:http-server/health-path-is-off-and-checks-nothing` -->
 
 # nvs ctl
 

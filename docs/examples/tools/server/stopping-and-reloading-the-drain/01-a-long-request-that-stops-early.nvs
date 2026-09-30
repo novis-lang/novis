@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a long request ends early when its server stops.
+
+// `Core\Server::isDraining()` returns `true` after the server was told to stop.
+// No server runs this example, so this prints `no`.
+echo 'server is stopping: ', Core\Server::isDraining() ? 'yes' : 'no', "\n";
+
+// The loop tests the state before each order. When the result is `true`, the loop ends.
+// The server still sends the whole answer of this request to the client.
+array<string> $orders = ['A-1001', 'A-1002', 'A-1003'];
+uint $sent = 0;
+foreach ($orders as string $order) {
+    if (Core\Server::isDraining()) {
+        break;
+    }
+    echo 'invoice sent for ', $order, "\n";
+    $sent = $sent + 1;
+}
+
+// This prints `sent 3 of 3`.
+echo 'sent ', $sent, ' of ', Core\Arr::count($orders), "\n";

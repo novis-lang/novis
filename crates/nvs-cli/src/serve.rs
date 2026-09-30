@@ -4027,6 +4027,7 @@ mod tests {
     /// The close is asserted as *what the client's socket saw*, since that is
     /// the whole of the rule: end of stream after a response that was finished,
     /// never a reset, and nothing written after the head that was already sent.
+    // covers: tools:server/stopping-and-reloading-the-drain
     #[test]
     fn a_terminating_signal_drains_serve_and_every_connection_closes_cleanly() {
         let _in_turn = crate::stop::ONE_STOP_AT_A_TIME
