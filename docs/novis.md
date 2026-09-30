@@ -27766,7 +27766,8 @@ populates.
 | `$s[0]` on a string | `Core\Str::slice($s, 0, 1)` or `Core\Str::at`; `Core\Bytes::slice` for bytes | `E0482` |
 | `@expr` | none; failure is a `Throwable`, catch it | `E0236` |
 | `` `ls` `` | none; a backtick is not a token, and no member takes a shell string | `E0001` |
-| `&$x` in a parameter, a `foreach`, or `$b = &$a` | `inout int $x` at the declaration **and** `f(inout $n)` at the call; `&` is bitwise AND only | `E0237` |
+| `&$x` in a parameter or a `foreach` | `inout int $x` at the declaration **and** `f(inout $n)` at the call; `&` is bitwise AND only | `E0237` |
+| `$b = &$a`, `int $b = &$a;` | none; no two variables share one value, so assign a copy or pass an object | `E0701` |
 | `f(...$args)` into fixed parameters | only into a `...$rest` variadic; otherwise write the arguments out | `E0489` |
 | `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (`rule:expressions/one-equality-operator`) | `E0241` |
 | PHP's class-test operator, on every subject | `$x is A`, and `$x is $cls` for a class reference held in a binding — one type test for every type a value can inhabit, which answers rather than refuses when the declaration already settles it (`rule:php-migration/one-type-test`, `rule:types/type-test`) | `E0253` |
