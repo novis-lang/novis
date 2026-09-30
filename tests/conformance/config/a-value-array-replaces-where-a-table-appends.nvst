@@ -28,7 +28,7 @@ read = ["./var/cache"]
 [[extension]]
 path = "./ext/tracing.nvsx"
 --EXPECTF--
-capabilities.fs.read = ["./var/cache"]         %sconf.d%elocal.toml (overrides %snvs.toml)
-extension.0.path     = "./ext/metrics.nvsx"    %snvs.toml
-extension.1.path     = "./ext/tracing.nvsx"    %sconf.d%elocal.toml
+capabilities.fs.read = ["%sconf.d%svar%scache"] %sconf.d%elocal.toml (overrides %snvs.toml)
+extension.0.path     = "./ext/metrics.nvsx" %snvs.toml
+extension.1.path     = "./ext/tracing.nvsx" %sconf.d%elocal.toml
 include.0.path       = "conf.d/local.toml"     %snvs.toml

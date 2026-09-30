@@ -1276,9 +1276,10 @@ fn an_optional_include_below_an_absent_directory_checks_the_nearest_one_that_exi
 }
 
 /// A tree whose only variable is its `[[schedule]]` block: one granted root with a script under it,
-/// and a second script outside every root for the cases that need somewhere to point at.
+/// and a second script outside every root for the cases that need somewhere to point at. The root is
+/// `jobs` beside `etc/nvs.toml`, because a grant resolves against the file it is written in.
 fn scheduling(block: &str) -> Fake {
-    let root = format!("[capabilities]\nscript.spawn = [\"etc/jobs\"]\n\n{block}");
+    let root = format!("[capabilities]\nscript.spawn = [\"jobs\"]\n\n{block}");
     Fake::with(&[
         ("etc/nvs.toml", root.as_str()),
         ("etc/jobs/report.nvs", "<?nvs\n"),
@@ -1437,6 +1438,77 @@ fn a_scheduled_script_outside_the_spawn_roots_refuses_the_boot() {
             diagnostic.message,
         );
     }
+}
+
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` for a path-scoped
+/// grant: `data` in `etc/nvs.toml` is `etc/data`, and `uploads` in an `[[app]]` block of an
+/// included file is beside that file. A root of its own and an empty entry are left as written,
+/// because `""` resolved against a directory would grant the whole directory.
+///
+/// Read off the config and off the table both, because a snapshot is retyped from the table and a
+/// pass that rewrote only the config would never reach a running program.
+// covers: tools:config/capabilities
+#[test]
+fn a_relative_capability_grant_resolves_against_the_file_it_is_written_in() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[capabilities.fs]\nread = [\"data\", \"/srv/shared\", \"\"]\n\n\
+             [[include]]\npath = \"conf.d/app.toml\"\n",
+        ),
+        (
+            "etc/conf.d/app.toml",
+            "[[app]]\nroot = \"www\"\n\n[app.capabilities.fs]\nwrite = [\"uploads\"]\n",
+        ),
+        ("etc/conf.d/www/index.nvs", "<?nvs\n"),
+    ]);
+
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+
+    let data = p("etc/data").display().to_string();
+    let uploads = p("etc/conf.d/uploads").display().to_string();
+    let read = resolved
+        .config
+        .capabilities
+        .as_ref()
+        .and_then(|caps| caps.fs.as_ref())
+        .and_then(|fs| fs.read.clone());
+    assert_eq!(
+        read,
+        Some(Setting::List(vec![
+            data.clone(),
+            "/srv/shared".to_string(),
+            String::new(),
+        ])),
+    );
+    let write = resolved.config.app[0]
+        .capabilities
+        .as_ref()
+        .and_then(|caps| caps.fs.as_ref())
+        .and_then(|fs| fs.write.clone());
+    assert_eq!(write, Some(Setting::List(vec![uploads.clone()])));
+
+    let table = toml::Value::Table(resolved.table.clone());
+    assert_eq!(
+        table
+            .get("capabilities")
+            .and_then(|caps| caps.get("fs"))
+            .and_then(|fs| fs.get("read"))
+            .and_then(|read| read.get(0))
+            .and_then(toml::Value::as_str),
+        Some(data.as_str()),
+    );
+    assert_eq!(
+        table
+            .get("app")
+            .and_then(|app| app.get(0))
+            .and_then(|block| block.get("capabilities"))
+            .and_then(|caps| caps.get("fs"))
+            .and_then(|fs| fs.get("write"))
+            .and_then(|write| write.get(0))
+            .and_then(toml::Value::as_str),
+        Some(uploads.as_str()),
+    );
 }
 
 /// § 3: `fleet` fires once across the deployment under a lease in the shared store, and a tree with

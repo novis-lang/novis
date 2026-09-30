@@ -42,11 +42,12 @@
 //!   Registering that name is the cheapest attack there is against a suffix check.
 //!
 
+use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use crate::resolve::Files;
-use crate::tree::{Capabilities, Setting};
+use crate::resolve::{Files, Origin};
+use crate::tree::{Capabilities, Config, Setting};
 
 /// One capability, by the name `nvs.toml` grants it under.
 ///
@@ -816,6 +817,85 @@ impl Capabilities {
                 Setting::Bool(_) | Setting::Integer(_) | Setting::Float(_) => {}
             }
         }
+    }
+}
+
+/// Makes every relative path-scoped grant absolute against the directory of the file that wrote it
+/// (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), in the global
+/// `[capabilities]` block and in every `[[app]]` block's.
+///
+/// Runs over the merged tree for [`mod@crate::db`]'s reason: which file wrote a grant is a question
+/// only the merge has answered, and a later file may have replaced it. [`Capabilities::canonicalize`]
+/// then resolves a root that no longer depends on the directory the process was started in — without
+/// this, `read = ["data"]` in `/etc/nvs/nvs.toml` granted whichever `data` sat beside the server's
+/// working directory. The table is rewritten beside the config, because a snapshot is retyped from
+/// the table (`Snapshot::retype`'s § *The seam every `resolve()` pass is measured against*).
+///
+/// An entry with a root of its own is left alone, and so is an empty one: `""` resolved against a
+/// directory would grant that directory, where left as written it grants nothing.
+pub fn anchor(config: &mut Config, table: &mut toml::Table, origins: &BTreeMap<String, Origin>) {
+    anchor_block(
+        config.capabilities.as_mut(),
+        table.get_mut("capabilities"),
+        "capabilities",
+        origins,
+    );
+    let mut blocks = table.get_mut("app").and_then(toml::Value::as_array_mut);
+    for (index, app) in config.app.iter_mut().enumerate() {
+        let written = blocks
+            .as_deref_mut()
+            .and_then(|blocks| blocks.get_mut(index))
+            .and_then(toml::Value::as_table_mut)
+            .and_then(|block| block.get_mut("capabilities"));
+        anchor_block(
+            app.capabilities.as_mut(),
+            written,
+            &format!("app.{index}.capabilities"),
+            origins,
+        );
+    }
+}
+
+/// [`anchor`] for one `[capabilities]` block, `prefix` being the dotted key it was merged under.
+fn anchor_block(
+    mut caps: Option<&mut Capabilities>,
+    mut written: Option<&mut toml::Value>,
+    prefix: &str,
+    origins: &BTreeMap<String, Origin>,
+) {
+    for cap in Cap::ALL.iter().copied().filter(|cap| cap.is_path_scoped()) {
+        let base = crate::db::written_in(origins, &format!("{prefix}.{}", cap.name()));
+        match caps.as_deref_mut().and_then(|caps| cap.grant_mut(caps)) {
+            Some(Setting::Text(one)) => anchor_root(one, base),
+            Some(Setting::List(many)) => many.iter_mut().for_each(|one| anchor_root(one, base)),
+            _ => {}
+        }
+        let (family, key) = cap.name().split_once('.').unwrap_or((cap.name(), ""));
+        let value = written
+            .as_deref_mut()
+            .and_then(toml::Value::as_table_mut)
+            .and_then(|block| block.get_mut(family))
+            .and_then(toml::Value::as_table_mut)
+            .and_then(|family| family.get_mut(key));
+        match value {
+            Some(toml::Value::String(one)) => anchor_root(one, base),
+            Some(toml::Value::Array(many)) => {
+                for one in many.iter_mut() {
+                    if let toml::Value::String(one) = one {
+                        anchor_root(one, base);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn anchor_root(root: &mut String, base: &Path) {
+    if !root.is_empty() && !Path::new(root.as_str()).has_root() {
+        *root = crate::resolve::absolute(base, Path::new(root.as_str()))
+            .to_string_lossy()
+            .into_owned();
     }
 }
 

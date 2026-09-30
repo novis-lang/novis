@@ -366,6 +366,10 @@ pub fn resolve(
     // pass that resolved them anywhere but inside the trust boundary would be the one file in the
     // tree a stranger could rewrite.
     crate::http::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
+    // The path-scoped `[capabilities]` grants, by the same rule and for the same reason: a
+    // relative root means the directory of the file that wrote it, and only the merge knows which
+    // file that was. Before the `[[app]]` roster below, which keys `app.<n>` on the same indexes.
+    crate::capability::anchor(&mut resolved.config, &mut resolved.table, &origins);
     // `rule:security/db-pool-reset-is-a-boundary`'s pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;

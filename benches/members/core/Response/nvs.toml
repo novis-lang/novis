@@ -1,3 +1,3 @@
 # The `sendFile` bench sends the files in this folder. It may read them, and nothing else.
 [capabilities.fs]
-read = ["benches/members/core/Response"]
+read = ["."]

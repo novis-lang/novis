@@ -4,6 +4,7 @@
 root = "docs/examples/core/Storage/put/disk"
 
 # The program may read and write files in that folder, and nowhere else.
+# A path in `[capabilities]` is relative to this file.
 [capabilities.fs]
-read = ["docs/examples/core/Storage/put/disk"]
-write = ["docs/examples/core/Storage/put/disk"]
+read = ["disk"]
+write = ["disk"]

@@ -4,5 +4,6 @@
 root = "docs/examples/core/Storage/list/disk"
 
 # The program may read files in that folder, and nowhere else.
+# A path in `[capabilities]` is relative to this file.
 [capabilities.fs]
-read = ["docs/examples/core/Storage/list/disk"]
+read = ["disk"]

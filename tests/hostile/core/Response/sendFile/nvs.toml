@@ -1,3 +1,3 @@
 # The attack may read the files in this folder, and nothing else.
 [capabilities.fs]
-read = ["tests/hostile/core/Response/sendFile"]
+read = ["."]
