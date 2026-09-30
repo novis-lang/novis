@@ -1,19 +1,17 @@
-`&&` means "both", `||` means "either", and `!` means "not". Each one reads its operands as a
-condition and gives back `true` or `false`, so the answer is always a `bool` and never the value
-that decided it.
+`&&` means "both", `||` means "either" and `!` means "not". Each one tests its operands as
+conditions and returns `true` or `false`. The result is always a `bool`.
 
-Whether a value counts as true is PHP's own table. Everything is true except `false`, `null`, zero,
-empty text, the one character `"0"`, and an empty array. A `bytes` value is the one row Novis
-answers differently: it is false only when it is empty, so a single `0` byte counts as true. An
-object, a closure and an enum case are always true.
+Every value counts as true except these: `false`, `null`, zero, an empty string, the string `"0"`
+and an empty array. This is the same list as in PHP, with one difference. A `bytes` value is false
+only when it is empty, so a single `0` byte counts as true. An object, a closure and an enum case
+are always true.
 
-`&&` and `||` stop as soon as the answer is settled, so the right-hand side runs only when the left
-did not decide it. That is what makes `$count != 0 && $total / $count > 10.0` safe to write: the
-division only runs once the count is known not to be zero.
+`&&` and `||` stop when the result is known. The right side runs only when the left side did not
+decide the result. In `$count != 0 && $total / $count > 10.0`, the division runs only when `$count`
+is not zero.
 
-`and`, `or` and `xor` are not part of the language, and neither is a logical operator that returns
+**Good to know:** `and`, `or` and `xor` are not part of the language. No logical operator returns
 one of its operands.
 
-**The examples below** take these in turn: a guard that reads a value only once it is known to be
-there, the values that count as empty when a form field arrives, and the checks a request runs
-before it is allowed through.
+**The examples below** show a check that reads a value only when the value exists, the values of a
+form field that count as empty, and the checks a request must pass.

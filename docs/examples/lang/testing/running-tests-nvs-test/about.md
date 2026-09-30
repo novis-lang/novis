@@ -1,19 +1,17 @@
-`nvs test main.nvs` compiles a program and runs every method marked `#[Test]` in it. It prints one
-line per test and a count at the end.
+`nvs test main.nvs` compiles a program and runs every method that has the `#[Test]` attribute. It
+prints one line for each test and a count at the end.
 
-Tests live wherever a class lives. You can write them beside the code in one file, or put them in a
-file of their own that loads the code under test. The lines outside a class do not run under
-`nvs test`.
+You can write tests in the same file as the code, or in a separate file that loads the code. The
+statements outside a class do not run under `nvs test`.
 
-`nvs test tests/` runs every `.nvs` file under a directory as one program, so you do not list the
-files anywhere. Put one file in the directory that requires your application's bootstrap file. Every
-test file then sees the same classes that file loads.
+`nvs test tests/` runs every `.nvs` file in a directory as one program, so you do not need a list
+of files. Put one file in that directory that requires the bootstrap file of your application.
+Every test file can then use the classes it loads.
 
-`--filter <text>` runs only the tests whose name contains that text. A test's name is
-`Class::method`, so `--filter CartTest::` runs one class. `--list` prints which tests the program
-declares and where each one is written, without running any of them. `--format json` and
-`--format junit` print a machine-readable report instead, which is what a build server reads. The
-exit status is `1` when a test failed and `0` when none did.
+`--filter <text>` runs only the tests whose name contains that text. The name of a test is
+`Class::method`, so `--filter CartTest::` runs one class. `--list` prints the tests and where each
+one is written, and runs none of them. `--format json` and `--format junit` print a report for a
+build server. The exit status is `1` when a test failed and `0` when no test failed.
 
-**The examples below** show a program with two tests, a program with two test classes to filter
-between, and a program a build server runs.
+**The examples below** show a program with two tests, a program with two test classes and a filter,
+and a program that a build server runs.

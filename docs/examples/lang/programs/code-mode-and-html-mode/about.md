@@ -1,14 +1,13 @@
-A `.nvs` file can be a page as well as a program: text outside the tags is written out as it
-stands, and code between them runs.
+A `.nvs` file can be a page and a program at once. Text outside the tags is written to the output
+unchanged, and code between the tags runs.
 
-A file starts in **text mode**, where every byte goes straight to the output. `<?nvs` switches to
-**code mode**, and `?>` switches back. A file that opens with `<?nvs` and never closes it is simply
-a program with no page around it, which is what most files are. `<?= $name ?>` is the short form for
-writing one value where the tag stands, and it is what a template uses for nearly every hole in the
-page. The two modes may alternate as often as you like, and a `{ … }` block can begin in one and end
-in another, so a loop or an `if` can wrap plain HTML without any of it being written as text inside
-your code.
+A file starts in text mode, where every byte is written to the output. `<?nvs` starts code mode and
+`?>` ends it. Most files start with `<?nvs` and never close it, so the whole file is code.
 
-**Good to know:** a `?>` followed straight by a newline swallows that newline, so a line that ends
-with a closing tag leaves no blank line behind it. `<?php` is refused with a message pointing at
-`<?nvs`, and there is no short `<?` tag, so a `<?xml` line in your page stays text.
+`<?= $name ?>` writes one value at the place where the tag is. A template uses it for most values
+in a page. You can change mode as often as you like. A `{ … }` block can start in one code section
+and end in a later one, so a loop or an `if` can repeat or skip plain HTML.
+
+**Good to know:** a newline directly after `?>` is not written to the output, so a line that ends
+with a closing tag leaves no empty line. `<?php` does not compile, and the error message names
+`<?nvs`. There is no short `<?` tag, so a `<?xml` line in a page stays text.
