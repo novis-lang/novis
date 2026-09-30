@@ -114,7 +114,8 @@ use sha2::Digest as _;
 use subtle::ConstantTimeEq as _;
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
+    ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -302,10 +303,22 @@ const STRONG: &[CoreTy] = &[
 /// is an HMAC over the request's own body, which is `tainted`.
 const DATA: &[CoreTy] = &[CoreTy::Blob(Qual::Neutral), CoreTy::Text(Qual::Neutral)];
 
+/// `Core\Hash`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Computes hashes and HMAC signatures of text or bytes, and compares two of them \
+            safely. You choose the algorithm as an argument.",
+};
+
+/// `Core\Hash\Stream`'s class card — `rule:core-api/reference-card`.
+const STREAM_CARD: ClassDoc = ClassDoc {
+    short: "Computes a hash from data that arrives in pieces. You add each piece in order, and \
+            then read the hash once at the end.",
+};
+
 /// `Core\Hash`'s registry rows — § 11's `of`/`hmac`/`equals`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "of",
@@ -449,7 +462,7 @@ pub(crate) const STREAM_NAME: &str = r"Core\Hash\Stream";
 /// than a compression context, and what that spends.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
-    doc: None,
+    doc: Some(&STREAM_CARD),
     methods: &[],
     instance: &[
         CoreMethod {

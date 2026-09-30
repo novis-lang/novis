@@ -64,7 +64,9 @@ use nvs_runtime::{Ctx, Fault, NvsArray, ObjHeader, Tag, Value};
 
 use crate::identity_store as store;
 use crate::ordering::{compare_values, sign_of};
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\Heap";
@@ -98,6 +100,12 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     doc: Some(&CONSTRUCTOR_DOC),
 };
 
+/// `Core\Heap`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A priority queue. It always returns its smallest value first, and a comparison \
+            function you give can choose a different order.",
+};
+
 /// `Core\Heap<T>` — docs/spec/01-core-library.md § 9's third row.
 ///
 /// Five members, all of them instance members: a heap is reached through a
@@ -105,7 +113,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// member at all ([`crate::registry::CONSTRUCTORS`]).
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[],
     instance: &[
         CoreMethod {

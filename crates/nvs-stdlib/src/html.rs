@@ -150,14 +150,28 @@ use html5ever::tree_builder::{ElementFlags, NodeOrText, QuirksMode, TreeSink};
 use html5ever::{Attribute, QualName};
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 use crate::xml::{DEPTH_CEILING, Kind, Parsed};
+
+/// `Core\Html`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Makes HTML safe to put into a page. It escapes text, cleans untrusted HTML, and \
+            parses HTML documents.",
+};
+
+/// `Core\Html\Markup`'s class card — `rule:core-api/reference-card`.
+const MARKUP_CARD: ClassDoc = ClassDoc {
+    short: "HTML that is safe to put into a page. You get it from an ``html`…` `` literal or \
+            from `Core\\Html::escape`, never from a plain string.",
+};
 
 /// `rule:security/launderers-are-sink-named`'s launderer for the HTML sink, and `rule:core-classes/html-to-source`'s one way back
 /// out of the carrier it answers.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Html",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "escape",
@@ -252,7 +266,7 @@ pub const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
 /// anything.
 pub(crate) const MARKUP: CoreClass = CoreClass {
     name: MARKUP_NAME,
-    doc: None,
+    doc: Some(&MARKUP_CARD),
     methods: &[],
     instance: &[],
     slots: &["text"],

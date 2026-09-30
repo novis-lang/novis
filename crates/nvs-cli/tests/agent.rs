@@ -427,7 +427,10 @@ fn a_class_name_resolves_to_a_card_listing_its_members() {
 
     let (card, _, ok) = agent(&["show", r"Core\Html\Markup"]);
     assert!(ok, "a memberless class resolves too");
-    assert_eq!(card.trim_end(), r"Core\Html\Markup  class");
+    assert!(
+        card.starts_with("Core\\Html\\Markup  class\n"),
+        "a memberless class opens with its class line: {card}"
+    );
 }
 
 /// A class that carries a `ClassDoc` prints that prose between its line and its
