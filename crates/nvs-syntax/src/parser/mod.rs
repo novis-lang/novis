@@ -824,6 +824,25 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
     }
 
+    /// A declaration's initializer, after its `=`. `int $b = &$a;` is PHP's
+    /// reference assignment written as a declaration, so the `&` is reported
+    /// as [`by_reference_assignment`] and the value after it is kept, which
+    /// lets the declaration's type still be checked against it.
+    fn parse_decl_initializer(&mut self, name: Span) -> Expr {
+        if self.eat(TokenKind::Amp).is_none() {
+            return self.parse_expr();
+        }
+        let value = self.parse_expr();
+        let value_text = self
+            .file
+            .span_text(value.span)
+            .unwrap_or_default()
+            .to_owned();
+        self.diags
+            .report(by_reference_assignment(name.to(value.span), &value_text));
+        value
+    }
+
     /// The help `rule:statements/no-host-populated-variables` gives for a PHP superglobal, or `None` if `name`
     /// (the raw `$…` text) is not one.
     ///
@@ -928,6 +947,35 @@ fn doc_run_joins(text: &str, from: BytePos, to: BytePos) -> bool {
         return false;
     };
     gap.chars().all(char::is_whitespace) && gap.bytes().filter(|byte| *byte == b'\n').count() <= 1
+}
+
+/// `E0701` — a reference assignment, refused rather than lowered. `span` is the
+/// whole assignment and `value_text` the right-hand side after the `&`.
+///
+/// Novis has no references: `rule:types/implicit-capture` removed by-reference capture, so no
+/// binding aliases another, and `rule:classes/two-copy-depths` fixes what a copy means, so the
+/// right-hand side is a copy at the point the assignment runs. The `&` has no
+/// owner in either rule — the same reasoning the `[&$x]` refusal (`E0483`)
+/// already states, and the reason both are refusals rather than missing
+/// lowerings.
+///
+/// Two places report it, so it is built here once: the parser for a
+/// declaration's initializer (`int $b = &$a;`), whose AST keeps no `&`, and
+/// `nvs_types` for an assignment expression (`$b = &$a;`), whose AST does.
+/// `value_text` is quoted back because dropping one character is the whole fix.
+#[must_use]
+pub fn by_reference_assignment(span: Span, value_text: &str) -> Diagnostic {
+    Diagnostic::error(
+        code::E_ASSIGN_BY_REFERENCE,
+        "a binding cannot be assigned by reference",
+    )
+    .with_primary(span, format!("this would share `{value_text}`'s own slot"))
+    .with_help(
+        "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes \
+         this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), \
+         not a way to make two names one place, and to share one mutable cell you hold it in \
+         an object and assign that",
+    )
 }
 
 /// Parses a single expression from `file`, for tests and tools that want just

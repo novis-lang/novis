@@ -591,9 +591,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                 TokenKind::Equals,
                 "`=` — `var` infers its type from the initializer, so one is required",
             );
-            Some(self.parse_expr())
+            Some(self.parse_decl_initializer(name))
         } else {
-            self.eat(TokenKind::Equals).map(|_| self.parse_expr())
+            self.eat(TokenKind::Equals)
+                .map(|_| self.parse_decl_initializer(name))
         };
         let span = start.to(self.last_span);
         Stmt {
@@ -1055,7 +1056,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             return self.parse_expr_statement(start);
         }
         let name = self.bump().span;
-        let value = self.eat(TokenKind::Equals).map(|_| self.parse_expr());
+        let value = self
+            .eat(TokenKind::Equals)
+            .map(|_| self.parse_decl_initializer(name));
         self.expect(TokenKind::Semicolon, "`;`");
         let span = start.to(self.last_span);
         Stmt {
@@ -1084,7 +1087,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Equals,
             "`=` — `var` infers its type from the initializer, so one is required",
         );
-        let value = self.parse_expr();
+        let value = self.parse_decl_initializer(name);
         self.expect(TokenKind::Semicolon, "`;`");
         let span = start.to(self.last_span);
         Stmt {

@@ -1,0 +1,33 @@
+--TEST--
+A declaration whose initializer is `&$x` is `E0701`, like the assignment it spells, and never a parse error — `rule:types/implicit-capture`, `rule:classes/two-copy-depths`
+--FILE--
+<?nvs
+// A declaration's initializer is not an assignment expression, so the parser
+// reports the `&` itself, and the value after it is still type-checked: each
+// line below is exactly one error.
+int $a = 1;
+int $b = &$a;
+var $c = &$a;
+for (int $i = &$a; $i < 3; $i++) {
+    echo $i, "\n";
+}
+--EXPECTF-ERROR--
+error[E0701]: a binding cannot be assigned by reference
+  --> %s:6:5
+  |
+6 | int $b = &$a;
+  |     ^^^^^^^^ this would share `$a`'s own slot
+%A
+error[E0701]: a binding cannot be assigned by reference
+  --> %s:7:5
+  |
+7 | var $c = &$a;
+  |     ^^^^^^^^ this would share `$a`'s own slot
+%A
+error[E0701]: a binding cannot be assigned by reference
+  --> %s:8:10
+  |
+8 | for (int $i = &$a; $i < 3; $i++) {
+  |          ^^^^^^^^ this would share `$a`'s own slot
+%A
+error: aborting due to 3 errors

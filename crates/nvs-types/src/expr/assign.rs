@@ -509,31 +509,13 @@ pub(crate) fn check_return(
     }
 }
 
-/// `E0701` — `$a = &$b;`, refused rather than lowered.
-///
-/// Novis has no references: `rule:types/implicit-capture` removed by-reference capture, so no
-/// binding aliases another, and `rule:classes/two-copy-depths` fixes what a copy means, so the
-/// right-hand side is a copy at the point the assignment runs. The `&` has no
-/// owner in either rule — the same reasoning `literals`' `[&$x]` refusal
-/// (`E0483`) already states, and the reason both are refusals rather than
-/// missing lowerings.
-///
-/// `value` is quoted back because dropping one character is the whole fix.
+/// `E0701` — `$a = &$b;`, refused rather than lowered. The diagnostic is
+/// [`nvs_syntax::by_reference_assignment`], which the parser reports for the
+/// declaration spelling, `int $a = &$b;`.
 pub(crate) fn report_by_reference_assignment(span: Span, value: Span, env: &mut Env<'_>) {
     let value_text = span_text(env.src, value).to_owned();
-    env.diags.report(
-        Diagnostic::error(
-            code::E_ASSIGN_BY_REFERENCE,
-            "a binding cannot be assigned by reference",
-        )
-        .with_primary(span, format!("this would share `{value_text}`'s own slot"))
-        .with_help(
-            "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes \
-             this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), \
-             not a way to make two names one place, and to share one mutable cell you hold it in \
-             an object and assign that",
-        ),
-    );
+    env.diags
+        .report(nvs_syntax::by_reference_assignment(span, &value_text));
 }
 
 #[expect(
