@@ -1176,6 +1176,7 @@ fn two_files_setting_different_keys_of_one_block_both_survive() {
 /// `[[include]]` reads is asked the same question**, and it is asserted here beside the file
 /// because the two are one boundary: a check that held only for files would leave every `dir`
 /// include a slot, and it would still look right on the file half alone.
+// covers: tools:config/trust
 #[test]
 fn a_group_writable_file_or_directory_refuses_the_boot() {
     let fs = Fake::with(&[

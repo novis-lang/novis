@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program may write files in `data`, and it tries to use that right to change
+// its own configuration files. Every attempt should fail, and the settings should stay the same.
+
+string $dir = 'tests/hostile/tools/config/trust';
+
+// 1. Write `nvs.toml` and a new file in `conf.d` through paths that start in `data`.
+array<string> $paths = [
+    $dir . '/nvs.toml',
+    $dir . '/data/../nvs.toml',
+    $dir . '/data/./../conf.d/99-more.toml',
+    $dir . '/data\\..\\nvs.toml',
+    $dir . '/data/' . Core\Str::repeat('../', 64) . 'nvs.toml',
+    $dir . "/data/../nvs.toml\0.txt",
+    $dir . '/conf.d',
+];
+foreach ($paths as string $path) {
+    try {
+        Core\IO::write($path, "[capabilities.fs]\nwrite = [\"/\"]\n");
+        echo "written\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 2. Read the configuration files. Only `data` may be read, so each read should fail.
+array<string> $configs = [$dir . '/nvs.toml', $dir . '/data/../conf.d/10-limits.toml'];
+foreach ($configs as string $path) {
+    try {
+        echo Core\Str::length(Core\IO::read($path)), "\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 3. Give itself new rights or new files to read. Each call should return `false`.
+array<string> $keys = [
+    'capabilities.fs.write',
+    'capabilities.fs.read',
+    'capabilities',
+    'include',
+    'include.dir',
+    'limits.hard.memory',
+];
+foreach ($keys as string $key) {
+    echo $key, ': ', Core\Config::set($key, '/') ? 'yes' : 'no', "\n";
+}
+
+// 4. Raise the memory limit above the highest one. This should return `false`.
+echo 'memory 64G: ', Core\Config::set('memory', '64G') ? 'yes' : 'no', "\n";
+
+// 5. The value from `conf.d/10-limits.toml` is still the one in use. This prints `96M`.
+echo Core\Config::get('memory'), "\n";

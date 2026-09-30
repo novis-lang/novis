@@ -1,0 +1,22 @@
+<?nvs
+// Shows what a program can change in its own configuration, and what it cannot.
+
+string $dir = "docs/examples/tools/config/trust";
+
+// The program reads its settings from `nvs.toml`. This prints `128M`.
+echo Core\Config::get("memory"), "\n";
+
+// `Core\Config::set` changes a setting for this program only. The file stays the same.
+// This prints `yes` and then `64M`.
+echo Core\Config::set("memory", "64M") ? "yes" : "no", "\n";
+echo Core\Config::get("memory"), "\n";
+
+// A program cannot give itself a new right. This prints `no`.
+echo Core\Config::set("capabilities.fs.write", $dir) ? "yes" : "no", "\n";
+
+// Writing a file needs `fs.write`. It is not granted, so this throws a `RuntimeError`.
+try {
+    Core\IO::write($dir . "/nvs.toml", "[limits]\nmemory = \"64G\"\n");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

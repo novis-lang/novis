@@ -29,6 +29,7 @@ fn scratch(name: &str) -> PathBuf {
 /// § 6 accepts what an ordinary installation looks like — a file this account owns in a directory
 /// this account owns — and hands back the canonical path, which is the thing the resolver's cycle
 /// test and `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` matching are both built on.
+// covers: tools:config/trust
 #[test]
 fn a_file_this_account_owns_is_trusted_and_comes_back_canonical() {
     let dir = scratch("owned");

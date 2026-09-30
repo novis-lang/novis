@@ -1,0 +1,4 @@
+# This file gives the program its settings and its rights.
+# Only the account that runs the server may be able to change it.
+[limits]
+memory = "128M"
