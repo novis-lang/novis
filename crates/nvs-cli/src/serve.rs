@@ -324,46 +324,33 @@ pub(crate) fn run(
         Ok(mode) => mode,
         Err(diagnostic) => return report(diagnostic, &sources),
     };
-    // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s boot `Warn`: `production`, nothing bound but the loopback,
-    // and nobody trusted. That is the shape of a proxied deployment that forgot
-    // the directive — nothing off this machine can reach it except through a
-    // proxy, and it is about to answer that proxy's address as every client's.
+    // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s boot `Warn`, whose question is
+    // [`forgot_its_proxies`]'s. That is the shape of a proxied deployment that
+    // forgot the directive — nothing off this machine can reach it except
+    // through a proxy, and it is about to answer that proxy's address, or no
+    // address at all over a socket, as every client's.
     //
-    // A warning and not a refusal, because the same three facts also describe a
+    // A warning and not a refusal, because the same facts also describe a
     // correct single-machine deployment that has no proxy at all, and this
-    // server cannot tell those apart. It is asked of the addresses actually
-    // bound and of all of them, rather than of `[server] listen`, so a set with
-    // one entry reachable off this machine — `--listen 0.0.0.0:80`, or a second
-    // written line — is not warned at, and it is asked only
-    // of a tree that wrote a `[server]` block, because a directive can only be
-    // forgotten out of a block somebody wrote. `nvs serve app.nvs` with no
-    // configuration at all is § 1's *development* server and matches all three
-    // facts on the way to matching nothing, and a line every such run prints is
-    // a line every operator learns to skip.
-    //
-    // A set holding a Unix-domain entry does not match, and that is the rule
-    // rather than an accident of the predicate: a connection over one *is*
-    // trusted for the forwarded headers
-    // (`rule:http-server/a-unix-socket-listener`), so such a deployment has
-    // not forgotten the directive — it is using the transport the directive
-    // exists to make unnecessary.
+    // server cannot tell those apart. It is asked only of a tree that wrote a
+    // `[server]` block, because a directive can only be forgotten out of a
+    // block somebody wrote. `nvs serve app.nvs` with no configuration at all is
+    // § 1's *development* server and matches every other fact on the way to
+    // matching nothing, and a line every such run prints is a line every
+    // operator learns to skip.
     let started_in = snapshot
         .config
         .mode
         .as_ref()
         .and_then(|mode| mode.default.as_deref())
         .unwrap_or(nvs_config::mode::PRODUCTION);
-    if nobody_trusted
-        && snapshot.config.server.is_some()
-        && started_in == nvs_config::mode::PRODUCTION
-        && wanted
-            .iter()
-            .all(|entry| matches!(entry, Listen::Tcp(addr) if addr.ip().is_loopback()))
-    {
+    let wrote_a_server_block = snapshot.config.server.is_some();
+    if forgot_its_proxies(nobody_trusted, wrote_a_server_block, started_in, &wanted) {
         eprintln!(
             "warning: [server] trusted_proxies is empty and every address this server binds ({}) \
-             is loopback, so no forwarded header is read and the proxy's own address is what \
-             `Core\\Request::clientIp()` will answer; write the proxy's address or network there",
+             is loopback or a Unix socket, so no forwarded header is read and \
+             `Core\\Request::clientIp()` will answer the proxy's own address, or `null` over a \
+             socket; write the proxy's address or network there",
             wanted.iter().map(written_as).collect::<Vec<_>>().join(", ")
         );
     }
@@ -2077,6 +2064,33 @@ fn at_mount_origin(isolate: Isolate, mount: &Mounted) -> Isolate {
     }
 }
 
+/// Whether this boot has the shape of a proxied deployment that forgot
+/// `[server] trusted_proxies`: `production`, a `[server]` block somebody wrote,
+/// nobody trusted, and nothing bound that another machine can reach.
+///
+/// A Unix-domain entry counts beside a loopback one. An empty directive reads
+/// no forwarded header from any peer, a socket's included
+/// (`nvs_server::forwarded::walk`), so a proxy connecting over a socket leaves
+/// every request with no client address until the directive names something.
+///
+/// Asked of the addresses actually bound and of all of them, rather than of
+/// `[server] listen`, so a set with one entry reachable off this machine —
+/// `--listen 0.0.0.0:80`, or a second written line — does not match.
+fn forgot_its_proxies(
+    nobody_trusted: bool,
+    wrote_a_server_block: bool,
+    started_in: &str,
+    bound: &[Listen],
+) -> bool {
+    nobody_trusted
+        && wrote_a_server_block
+        && started_in == nvs_config::mode::PRODUCTION
+        && bound.iter().all(|entry| match entry {
+            Listen::Tcp(addr) => addr.ip().is_loopback(),
+            Listen::Unix(_) => true,
+        })
+}
+
 /// One resolved `listen` entry, as the operator wrote it.
 ///
 /// A function rather than a `Display` on [`Listen`]: what an address and a
@@ -2680,8 +2694,9 @@ mod tests {
     use super::{
         Address, Compiler, Ctx, Inbound, Isolate, Listen, Mounted, NoTable, Notify, Output,
         OutputSink, Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all,
-        bind_sockets, compiled_under, exporter_not_built, fall_back_to, handles_for, listening,
-        one_mount, scrape_socket, sweep_orphans, table_for, trace_collector, workers_for,
+        bind_sockets, compiled_under, exporter_not_built, fall_back_to, forgot_its_proxies,
+        handles_for, listening, one_mount, scrape_socket, sweep_orphans, table_for,
+        trace_collector, workers_for,
     };
     use std::cell::Cell;
     use std::collections::BTreeMap;
@@ -3292,6 +3307,54 @@ mod tests {
         serving
             .join()
             .expect("the serving core panicked, or never ended");
+    }
+
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+    /// boot `Warn` is for a production server with a written `[server]` block,
+    /// an empty `trusted_proxies` and no listener another machine can reach —
+    /// loopback, a Unix socket, or both — and any one of those facts being
+    /// otherwise turns it off.
+    // covers: tools:server/behind-a-proxy-trusted-proxies
+    #[test]
+    fn the_forgotten_proxies_warning_needs_every_one_of_its_four_facts() {
+        let production = nvs_config::mode::PRODUCTION;
+        let socket = Listen::Unix(PathBuf::from("/run/nvs.sock"));
+        let unreachable = [
+            vec![tcp("127.0.0.1:8000"), tcp("[::1]:8000")],
+            vec![socket.clone()],
+            vec![tcp("127.0.0.1:8000"), socket.clone()],
+        ];
+        for bound in &unreachable {
+            assert!(
+                forgot_its_proxies(true, true, production, bound),
+                "no warning over {bound:?}"
+            );
+            assert!(
+                !forgot_its_proxies(false, true, production, bound),
+                "a server that trusts a proxy was warned over {bound:?}"
+            );
+            assert!(
+                !forgot_its_proxies(true, false, production, bound),
+                "a tree with no `[server]` block was warned over {bound:?}"
+            );
+            assert!(
+                !forgot_its_proxies(true, true, nvs_config::mode::DEVELOPMENT, bound),
+                "a development server was warned over {bound:?}"
+            );
+        }
+
+        // One entry another machine can reach is a server that may have no
+        // proxy in front of it at all.
+        for bound in [
+            vec![tcp("0.0.0.0:80")],
+            vec![tcp("127.0.0.1:8000"), tcp("192.0.2.10:8000")],
+            vec![socket, tcp("[::]:80")],
+        ] {
+            assert!(
+                !forgot_its_proxies(true, true, production, &bound),
+                "a reachable server was warned over {bound:?}"
+            );
+        }
     }
 
     /// `rule:http-server/a-unix-socket-listener` from both of the ends it
