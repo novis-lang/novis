@@ -1,0 +1,7 @@
+<?nvs
+// Shows one configuration that is split over several files.
+// `nvs.toml` sets the memory limit to `128M` and includes the files in `conf.d`.
+
+// `conf.d` has two files. They are read in filename order, and the last value wins.
+// So this prints `512M`.
+echo Core\Config::get("memory"), "\n";

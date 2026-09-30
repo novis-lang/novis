@@ -1,0 +1,12 @@
+# The main file sets a memory limit, then reads every file in `conf.d`.
+# A setting in an included file replaces the same setting written here.
+[limits]
+memory = "128M"
+
+[[include]]
+dir = "conf.d"
+
+# This file does not exist. `optional = true` makes that allowed.
+[[include]]
+path = "local.toml"
+optional = true

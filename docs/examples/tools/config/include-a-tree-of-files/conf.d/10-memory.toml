@@ -1,0 +1,3 @@
+# Read first, because the files in `conf.d` are read in filename order.
+[limits]
+memory = "256M"

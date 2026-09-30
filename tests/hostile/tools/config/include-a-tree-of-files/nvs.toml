@@ -1,0 +1,14 @@
+# The attack runs under a configuration split over several files.
+# One file is included twice, and one optional include climbs out of this directory.
+[limits]
+memory = "64M"
+
+[[include]]
+dir = "conf.d"
+
+[[include]]
+path = "conf.d/../conf.d/10-limits.toml"
+
+[[include]]
+path = "missing/../../../../nowhere.toml"
+optional = true

@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a program tries to change which configuration files are read, or to add one.
+// Every attempt should fail, and the settings from the included file should stay the same.
+
+string $dir = 'tests/hostile/tools/config/include-a-tree-of-files';
+
+// 1. Change the list of included files at run time. Each call should return `false`.
+array<string> $keys = [
+    'include',
+    'include.path',
+    'include.dir',
+    'include.optional',
+    'include.0.path',
+    'app.include',
+];
+foreach ($keys as string $key) {
+    echo $key, ': ', Core\Config::set($key, '/etc/passwd') ? 'yes' : 'no', "\n";
+}
+
+// 2. Write a new file into the included directory. Writing files is not granted.
+try {
+    Core\IO::write($dir . '/conf.d/99-more.toml', "[limits]\nmemory = \"64G\"\n");
+    echo "written\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 3. Read settings with names that are empty, very long, or contain paths and zero bytes.
+array<string> $names = [
+    '',
+    'include',
+    'conf.d',
+    '../nvs.toml',
+    "memory\0",
+    Core\Str::repeat('memory.', 100000),
+];
+foreach ($names as string $name) {
+    try {
+        echo Core\Str::length(Core\Config::get($name) ?? ''), "\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 4. Raise the memory limit above the highest one the included file allows. This should return `false`.
+echo 'memory 64G: ', Core\Config::set('memory', '64G') ? 'yes' : 'no', "\n";
+
+// 5. The value from `conf.d/10-limits.toml` is still the one in use. This prints `96M`.
+echo Core\Config::get('memory'), "\n";

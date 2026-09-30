@@ -415,6 +415,7 @@ fn a_key_set_in_two_files_resolves_to_the_later_one_with_both_origins_reported()
 /// § 3: the stream is the root's own keys, *then* its includes depth-first in list order. Asserted
 /// on the file list rather than on a value, because a resolver that read the right files in the
 /// wrong order still answers plausibly for any single key.
+// covers: tools:config/include-a-tree-of-files
 #[test]
 fn includes_are_depth_first_in_list_order_after_the_files_own_keys() {
     let fs = Fake::with(&[
@@ -441,6 +442,7 @@ fn includes_are_depth_first_in_list_order_after_the_files_own_keys() {
 /// § 2: a `dir` include reads every `*.toml` **directly** inside, ascending by filename, without
 /// recursing and without touching anything that is not a `.toml`. The fake reader hands them back
 /// reversed on purpose.
+// covers: tools:config/include-a-tree-of-files
 #[test]
 fn a_dir_include_is_sorted_shallow_and_toml_only() {
     let fs = Fake::with(&[
@@ -944,6 +946,7 @@ fn resolve_proxy_writes_one_warn_at_every_boot() {
 
 /// § 2: a cycle is refused with the chain named. The chain and not merely the repeated file, because
 /// an operator shown only the file that repeated has to rediscover how it was reached.
+// covers: tools:config/include-a-tree-of-files
 #[test]
 fn an_include_cycle_is_refused_with_the_chain_named() {
     let fs = Fake::with(&[
