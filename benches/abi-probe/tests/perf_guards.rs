@@ -689,10 +689,41 @@ fn a_coroutine_round_trip_stays_cheap() {
 
     // A suspend and resume through JIT frames, which ADR 0003's preamble and
     // docs/adr/README.md price as the cost of "no async colouring".
+    //
+    // The proof is counted, so it holds on any machine however loaded. A
+    // suspend and the resume after it switch between two stacks that both
+    // exist already, so a round trip inside a running coroutine makes no
+    // allocation. The count is taken inside the coroutine and covers both
+    // sides of every switch, because the side that resumes runs on this thread
+    // too. The timing beside it is a sanity bound on the switch itself.
     const PER_TRIP: Bound = Bound::time_under(400.0, 4_000.0);
+    const COUNTED: u64 = 1_000;
 
     let mut probe = Probe::new();
     let chain = probe.compile_chain(2, Helper::Suspend);
+
+    let counted = nvs_abi_probe::in_coroutine(Ctx::new(), move |ctx| {
+        allocations_during(|| {
+            for _ in 0..COUNTED {
+                black_box(call(chain, ctx, Value::int(1)));
+            }
+        })
+    });
+    assert_eq!(
+        counted.suspends as u64, COUNTED,
+        "every counted call must have suspended"
+    );
+    println!(
+        "{COUNTED} coroutine round trips through 2 JIT frames: {} allocations [exactly 0]",
+        counted.value
+    );
+    assert_eq!(
+        counted.value, 0,
+        "{COUNTED} suspend and resume round trips made {} allocations. A round trip switches \
+         between two stacks that already exist and allocates nothing; one that allocates is no \
+         longer the cheap switch ADR 0003's \"no async colouring\" rests on.",
+        counted.value
+    );
 
     // One coroutine per batch, suspending `iters` times inside it, so creation
     // cost is amortised to nothing and the figure is the round trip itself.
