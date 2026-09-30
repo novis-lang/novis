@@ -970,46 +970,84 @@ pub mod code {
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
-    pub const E_UNDEFINED_VARIABLE: Code = Code::new("E0301");
+    pub const E_UNDEFINED_VARIABLE: Code = Code::new("E0301").card(
+        "A variable is used before it is declared, or before a value is assigned to it. Declare \
+         it with its type first, as in `int $count = 0;`.",
+    );
     /// A call to a function that does not exist.
-    pub const E_UNDEFINED_FUNCTION: Code = Code::new("E0302");
+    pub const E_UNDEFINED_FUNCTION: Code = Code::new("E0302").card(
+        "The code calls a function that does not exist. Every function in Novis is a method of \
+         a class, so check the class name and the method name for a typo.",
+    );
     /// A reference to a class, interface or enum that does not exist.
-    pub const E_UNDEFINED_CLASS: Code = Code::new("E0303");
+    pub const E_UNDEFINED_CLASS: Code = Code::new("E0303").card(
+        "This class, interface or enum is not declared anywhere the program can see. Check the \
+         name for a typo. Then import it with `use`, or `require` the file that declares it.",
+    );
     /// Two declarations with the same name in the same scope.
-    pub const E_DUPLICATE_DECLARATION: Code = Code::new("E0304");
+    pub const E_DUPLICATE_DECLARATION: Code = Code::new("E0304").card(
+        "Two declarations in the same scope have the same name. Rename one of them, or delete \
+         the one you do not need.",
+    );
     /// A class hierarchy (`extends`/`implements`) that forms a cycle.
-    pub const E_CIRCULAR_INHERITANCE: Code = Code::new("E0305");
+    pub const E_CIRCULAR_INHERITANCE: Code = Code::new("E0305").card(
+        "A class or interface inherits from itself through a chain of `extends` or `implements`. \
+         Remove one `extends` or `implements` so that the chain has an end.",
+    );
     /// A `use` statement that resolves to nothing.
-    pub const E_UNRESOLVED_IMPORT: Code = Code::new("E0306");
+    pub const E_UNRESOLVED_IMPORT: Code = Code::new("E0306").card(
+        "A `use` statement names a class, interface or enum that is not declared. Check the name \
+         for a typo, and check the namespace it is declared in.",
+    );
     /// A `type` alias whose expression is nothing but one bare class,
     /// interface or enum atom — `use … as …` in disguise; see
     /// `rule:types/alias-is-never-a-bare-class`.
-    pub const E_TYPE_ALIAS_ALIASES_CLASS: Code = Code::new("E0307");
+    pub const E_TYPE_ALIAS_ALIASES_CLASS: Code = Code::new("E0307").card(
+        "A `type` alias cannot be one class, interface or enum on its own. Use the class name \
+         directly. An alias is for a union, an intersection or an `array<...>` type.",
+    );
     /// A `Class::member` reference (a static call, a class constant, an
     /// enum case, or a static property) names nothing declared on that class
     /// or any of its `extends`/`implements` ancestors — `rule:classes/no-free-functions-or-constants`'s "every
     /// callable and constant is a class member" has no bare-name fallback to
     /// fall into instead.
-    pub const E_UNDEFINED_MEMBER: Code = Code::new("E0309");
+    pub const E_UNDEFINED_MEMBER: Code = Code::new("E0309").card(
+        "The class has no method, constant, enum case or static property with this name. Its \
+         parent classes and interfaces do not have one either. Check the name for a typo.",
+    );
     /// A `type` alias whose expansion, followed far enough, refers back to
     /// itself — `type A = B; type B = A;` or any longer cycle; see
     /// `rule:types/type-alias`.
-    pub const E_TYPE_ALIAS_CYCLE: Code = Code::new("E0310");
+    pub const E_TYPE_ALIAS_CYCLE: Code = Code::new("E0310").card(
+        "A `type` alias refers back to itself, directly or through other aliases, as in \
+         `type A = B; type B = A;`. Change one alias so that it ends in a real type, such as \
+         `int` or a class.",
+    );
     /// A `require` whose path is a literal, resolved statically per
     /// `rule:statements/require-is-the-only-inclusion-construct`, but does not name a file that can be loaded as source (it
     /// does not exist, or is not valid UTF-8).
-    pub const E_REQUIRE_TARGET_NOT_FOUND: Code = Code::new("E0311");
+    pub const E_REQUIRE_TARGET_NOT_FOUND: Code = Code::new("E0311").card(
+        "The file that `require` names cannot be loaded. It does not exist, or it is not valid \
+         UTF-8 text. Check the path.",
+    );
     /// A `require` chain whose statically-resolved literal paths lead back
     /// to a file already being resolved — `require`'s own semantics (same
     /// frame, runs every time reached) give this no other resolution than a
     /// diagnostic, the same way `crate::hierarchy`'s `extends`/trait-use
     /// cycle and `crate::aliases`'s `type` alias cycle are both handled.
-    pub const E_CIRCULAR_REQUIRE: Code = Code::new("E0312");
+    pub const E_CIRCULAR_REQUIRE: Code = Code::new("E0312").card(
+        "Two or more files `require` each other in a circle. Remove one of these `require` \
+         statements so that the chain has an end.",
+    );
     /// `$this->name` where `name` is not declared on the enclosing class or
     /// any `extends`/`implements`/trait-use ancestor — `rule:classes/no-dynamic-properties`'s "no
     /// `__get`/`__set` fallback" for the one receiver shape resolvable
     /// without a type checker.
-    pub const E_UNDEFINED_PROPERTY: Code = Code::new("E0313");
+    pub const E_UNDEFINED_PROPERTY: Code = Code::new("E0313").card(
+        "`$this->name` uses a property that this class and its parents do not declare. Novis \
+         does not add properties to an object while the program runs. Declare the property in \
+         the class, or fix the name.",
+    );
     /// A `require` whose literal path resolves on disk only because the
     /// filesystem is case-insensitive — `require 'mailer.nvs';` finding
     /// `Mailer.nvs`. Reported on Windows/macOS so the same source is not a
@@ -1017,49 +1055,77 @@ pub mod code {
     /// [ADR 0062](/docs/decisions/0062.md)
     /// § 3, which extends
     /// `rule:programs/autoload`'s exact-name rule from `autoload` to `require`.
-    pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314");
+    pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314").card(
+        "The file name in `require` uses different upper and lower case letters than the file on \
+         disk. This works on Windows and macOS but fails on Linux. Write the name exactly as it \
+         is on disk.",
+    );
     /// Two `autoload` declarations in one program claim the same namespace
     /// prefix — `rule:programs/autoload`'s "one prefix has one home". An explicit prefix deliberately does
     /// *not* collide with a `discover` glob that would produce the same one:
     /// there the glob skips the name, which is what makes a vendor override
     /// work.
-    pub const E_DUPLICATE_AUTOLOAD_PREFIX: Code = Code::new("E0315");
+    pub const E_DUPLICATE_AUTOLOAD_PREFIX: Code = Code::new("E0315").card(
+        "Two `autoload` declarations use the same namespace prefix. A prefix can load from only \
+         one place, so delete one of them.",
+    );
     /// An `autoload` declaration in a file that was itself reached through
     /// the autoload map — `rule:programs/autoload`, which honors a declaration only in a
     /// file reachable by `require` from the entry point, since otherwise the
     /// map would depend on itself.
-    pub const E_AUTOLOAD_IN_AUTOLOADED_FILE: Code = Code::new("E0316");
+    pub const E_AUTOLOAD_IN_AUTOLOADED_FILE: Code = Code::new("E0316").card(
+        "An `autoload` declaration is in a file that autoload itself loaded. Move it to a file \
+         that the program's entry point loads with `require`.",
+    );
     /// A file reached through an autoload root that does not hold exactly one
     /// top-level declaration named after it — `rule:programs/one-declaration-per-autoloaded-file`. Without the rule,
     /// whether a name exists in the program depends on what was resolved
     /// first, which makes the build non-reproducible and the cache unkeyable.
-    pub const E_AUTOLOAD_FILE_SHAPE: Code = Code::new("E0317");
+    pub const E_AUTOLOAD_FILE_SHAPE: Code = Code::new("E0317").card(
+        "A file that autoload loads must contain exactly one declaration, and its name must match \
+         the file name. Move each other declaration into a file of its own.",
+    );
     /// An `autoload discover` glob that is not one `*` occupying a whole path
     /// segment, or whose base directory does not exist — `rule:programs/autoload`. A
     /// *matched* directory with an unusable name is skipped in silence (a
     /// glob over a filesystem always sweeps `.git` and `vendor`); the glob
     /// itself is diagnosed, since one that silently discovers nothing is the
     /// worst outcome on offer.
-    pub const E_AUTOLOAD_GLOB_SHAPE: Code = Code::new("E0318");
+    pub const E_AUTOLOAD_GLOB_SHAPE: Code = Code::new("E0318").card(
+        "An `autoload discover` pattern needs exactly one `*`, and the `*` must be a whole \
+         directory name, as in `vendor/*`. The directory before the `*` must also exist.",
+    );
     /// A bare name used where a value is expected — `PHP_EOL`, `MY_LIMIT` —
     /// which in PHP would be a global constant fetch.
     /// [ADR 0011](/docs/decisions/0011.md)
     /// § 3 leaves no such storage row: a constant is always a class
     /// constant, so there is no name for this to resolve against and nothing
     /// below the resolver to lower it to.
-    pub const E_NO_GLOBAL_CONSTANT: Code = Code::new("E0319");
+    pub const E_NO_GLOBAL_CONSTANT: Code = Code::new("E0319").card(
+        "A bare name such as `MY_LIMIT` is not a constant, because Novis has no global constants. \
+         Every constant belongs to a class, so write `Class::NAME`. For a PHP constant, use its \
+         `Core` replacement, for example `Core\\Math::PI` for `M_PI`.",
+    );
     /// A bare name called as a function — `strlen($s)` — which in PHP would
     /// be a global function call. `rule:classes/no-free-functions-or-constants`: every callable is a method,
     /// with no exception for built-ins, which live under the reserved `Core`
     /// namespace. Split from [`E_NO_GLOBAL_CONSTANT`] because the two carry
     /// different replacements even though the callee is the same node.
-    pub const E_NO_FREE_FUNCTION: Code = Code::new("E0320");
+    pub const E_NO_FREE_FUNCTION: Code = Code::new("E0320").card(
+        "A bare function call such as `strlen($s)` is not allowed, because Novis has no global \
+         functions. Every function is a method of a class. The built-in functions are in the \
+         `Core` namespace, for example `Core\\Str::length($s)`.",
+    );
     /// `self`, `static` or `parent` written where a value is expected, rather
     /// than on the left of a `::`. Each of the three names a *class*, and a
     /// class is not a value in Novis — there is no class-object reflection
     /// handle (`rule:classes/no-free-functions-or-constants`
     /// puts every reflective question on `Core\Reflect` instead).
-    pub const E_CLASS_NAME_NOT_A_VALUE: Code = Code::new("E0321");
+    pub const E_CLASS_NAME_NOT_A_VALUE: Code = Code::new("E0321").card(
+        "`self`, `static` and `parent` name a class, and a class is not a value. Write `::` and \
+         a member after the name, as in `self::create()` or `static::NAME`. To inspect a class, \
+         use `Core\\Reflect`.",
+    );
     /// A qualified name that does not resolve, but which PHP's rule would have
     /// resolved relative to the enclosing namespace — `Models\User` written
     /// inside `namespace App;`, meaning `App\Models\User`. This is the one
@@ -1069,7 +1135,11 @@ pub mod code {
     /// spelling rather than the generic [`E_UNDEFINED_CLASS`] a reader would
     /// otherwise have to work backwards from. A qualified name that resolves
     /// neither way is that generic error, not this one.
-    pub const E_RELATIVE_QUALIFIED_NAME: Code = Code::new("E0322");
+    pub const E_RELATIVE_QUALIFIED_NAME: Code = Code::new("E0322").card(
+        "A name that contains a `\\` always starts from the top namespace. Inside \
+         `namespace App;`, the name `Models\\User` does not mean `App\\Models\\User`. Write the \
+         full name, or import it with `use App\\Models\\User;`.",
+    );
     /// A doc comment's `@see` naming something that does not resolve — a class
     /// nothing declares, a member no class in the chain has, or nothing at all
     /// after the tag. `rule:tooling/doc-comment-tags-are-see-and-example`
@@ -1078,43 +1148,68 @@ pub mod code {
     /// rot into a link to a member that has since been renamed. Resolution
     /// rather than the parser, because the question is what a name means, and
     /// the same one [`E_UNDEFINED_MEMBER`] asks of a `Class::member` in code.
-    pub const E_DOC_SEE_UNRESOLVED: Code = Code::new("E0323");
+    pub const E_DOC_SEE_UNRESOLVED: Code = Code::new("E0323").card(
+        "A `@see` tag in a doc comment names a class or member that does not exist. Fix the name, \
+         or delete the tag if the thing it named was removed.",
+    );
     /// A doc comment's `@example` naming a path that is in a directory the
     /// test corpus walks but holds no file. The other half of
     /// `rule:tooling/doc-comment-tags-are-see-and-example`'s check on the tag
     /// is [`E_DOC_EXAMPLE_NOT_WALKED`], split from this one because the two
     /// carry opposite repairs: write the file, or move it.
-    pub const E_DOC_EXAMPLE_NOT_FOUND: Code = Code::new("E0324");
+    pub const E_DOC_EXAMPLE_NOT_FOUND: Code = Code::new("E0324").card(
+        "An `@example` tag in a doc comment names a file that does not exist. The path is \
+         relative to the file that contains the comment. Create the file, or fix the path.",
+    );
     /// A doc comment's `@example` naming a path in no directory the test
     /// corpus walks. An example nothing compiles is one that rots in a page
     /// while the member it documents moves on, which is the whole reason
     /// `rule:tooling/doc-comment-tags-are-see-and-example` keeps the tag: a
     /// path outside `examples/` and `tests/` buys no check.
-    pub const E_DOC_EXAMPLE_NOT_WALKED: Code = Code::new("E0325");
+    pub const E_DOC_EXAMPLE_NOT_WALKED: Code = Code::new("E0325").card(
+        "An `@example` tag names a file that the tests never compile. Move the example under \
+         `examples/` or `tests/`, so that a change which breaks it is found.",
+    );
     /// A public member carrying no doc comment, reported only under
     /// `nvs check --strict-docs`. `rule:tooling/strict-docs` keeps it silent
     /// everywhere else and no autofix can satisfy it: with no `@param` and no
     /// `@return` to fill in, a generated `///` would be empty, so the only way
     /// to clear it is to write a sentence.
-    pub const E_DOC_MISSING: Code = Code::new("E0326");
+    pub const E_DOC_MISSING: Code = Code::new("E0326").card(
+        "A public member has no doc comment, and `nvs check --strict-docs` needs one. Write a \
+         `///` line above it, or make the member `private`.",
+    );
     /// An `autoload` prefix that no name can ever match: a segment that is
     /// not a `PascalCase` namespace segment, or a `{..}` directory segment
     /// whose directory name is not one — `rule:programs/autoload`. A PSR-4
     /// wildcard such as `'App\*'` is the usual way to reach it, and without
     /// this code it failed only later, as an `E0303` far from the declaration.
-    pub const E_AUTOLOAD_PREFIX_SHAPE: Code = Code::new("E0327");
+    pub const E_AUTOLOAD_PREFIX_SHAPE: Code = Code::new("E0327").card(
+        "Each part of an `autoload` prefix must be a `PascalCase` namespace name, or one `{..}` \
+         that names a directory. A wildcard such as `App\\*` is not allowed. To load many \
+         directories, use `autoload discover`.",
+    );
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.
-    pub const E_TYPE_MISMATCH: Code = Code::new("E0401");
+    pub const E_TYPE_MISMATCH: Code = Code::new("E0401").card(
+        "A value has a type that this place does not accept. Change the value, or convert it with \
+         `as` to the type that is needed.",
+    );
     /// Wrong number of arguments — including a **shape key** a member
     /// requires and a written literal does not carry. `rule:core-api/shape-flattens-at-the-abi` flattens
     /// each key of a shape parameter into one argument of its own, so an
     /// omitted required key is a call one argument short rather than a
     /// separate kind of mistake.
-    pub const E_ARITY_MISMATCH: Code = Code::new("E0402");
+    pub const E_ARITY_MISMATCH: Code = Code::new("E0402").card(
+        "A call passes the wrong number of arguments. Check the parameters of the method. A shape \
+         argument must also contain every key that the method needs.",
+    );
     /// A return type that no return statement can satisfy.
-    pub const E_BAD_RETURN_TYPE: Code = Code::new("E0403");
+    pub const E_BAD_RETURN_TYPE: Code = Code::new("E0403").card(
+        "A method returns a value of a different type than its declared return type. Change the \
+         return type, or change what the method returns.",
+    );
     /// An override whose signature is not compatible with the parent's.
     ///
     /// One incompatibility is reported under it: a member an ancestor declared
@@ -1122,37 +1217,65 @@ pub mod code {
     /// `nvs_types::conformance::reject_dropped_static_return` owns why that one
     /// is not an assignability question, and argument and return assignability
     /// across an override is a rule no decision has reached yet.
-    pub const E_INCOMPATIBLE_OVERRIDE: Code = Code::new("E0404");
+    pub const E_INCOMPATIBLE_OVERRIDE: Code = Code::new("E0404").card(
+        "A method that overrides a parent method has a signature that does not match the parent. \
+         If the parent method returns `static`, write `: static` on this method too.",
+    );
     /// A property or method access on a type that has no such member.
-    pub const E_UNKNOWN_MEMBER: Code = Code::new("E0405");
+    pub const E_UNKNOWN_MEMBER: Code = Code::new("E0405").card(
+        "The type of this value has no property or method with this name. Check the name for a \
+         typo, and check the type of the value.",
+    );
     /// A local variable declared a second time while its first declaration
     /// is still live — `rule:types/declaration`: "there is no shadowing."
-    pub const E_REDECLARED_LOCAL: Code = Code::new("E0406");
+    pub const E_REDECLARED_LOCAL: Code = Code::new("E0406").card(
+        "This variable is already declared, and Novis does not allow a second declaration of the \
+         same variable. Assign to the existing variable, or use a different name.",
+    );
     /// `int ⊕ uint` arithmetic — `rule:types/arithmetic`: there is no representable
     /// common type, so one side must be converted explicitly.
-    pub const E_INT_UINT_ARITHMETIC: Code = Code::new("E0407");
+    pub const E_INT_UINT_ARITHMETIC: Code = Code::new("E0407").card(
+        "Arithmetic between an `int` and a `uint` is not allowed, because no type can hold every \
+         result. Convert one side first with `as int` or `as uint`.",
+    );
     /// An `array<...>` type nests past `rule:types/arrays`'s depth-32 bound.
-    pub const E_ARRAY_TYPE_TOO_DEEP: Code = Code::new("E0408");
+    pub const E_ARRAY_TYPE_TOO_DEEP: Code = Code::new("E0408").card(
+        "An `array<...>` type is nested more than 32 levels deep, which is the limit. Use a class \
+         for some of the inner levels.",
+    );
     /// A non-nullable, no-default property a class declares (itself, or
     /// through a used trait) is not definitely assigned on some path out of
     /// its constructor — or the class has no constructor at all to assign
     /// it; see `rule:classes/definite-property-initialization`.
-    pub const E_UNINITIALIZED_PROPERTY: Code = Code::new("E0409");
+    pub const E_UNINITIALIZED_PROPERTY: Code = Code::new("E0409").card(
+        "A property with no default value and no `?` in its type is not assigned on every path \
+         through the constructor. Assign it on every path, or give it a default value.",
+    );
     /// A subclass constructor has a path that never calls
     /// `parent::constructor(...)`, so the properties it inherits are never
     /// discharged on that path; see `rule:classes/definite-property-initialization`.
-    pub const E_MISSING_PARENT_CONSTRUCTOR_CALL: Code = Code::new("E0410");
+    pub const E_MISSING_PARENT_CONSTRUCTOR_CALL: Code = Code::new("E0410").card(
+        "The constructor of a class that `extends` another class must call \
+         `parent::constructor(...)` on every path. Add the call where it is missing.",
+    );
     /// `<`/`>`/`<=`/`>=`/`<=>` between two objects whose static types are not
     /// both provably the same class implementing the reserved global
     /// `Comparable` interface — either one side doesn't implement it, or the
     /// two sides are different classes even though both do; see `rule:classes/comparable` and `rule:classes/comparable-is-same-class-only`. PHP's implicit property-walk fallback has no Novis equivalent.
-    pub const E_COMPARISON_REQUIRES_COMPARABLE: Code = Code::new("E0411");
+    pub const E_COMPARISON_REQUIRES_COMPARABLE: Code = Code::new("E0411").card(
+        "`<`, `>`, `<=`, `>=` and `<=>` compare two objects only when both have the same class, \
+         and that class implements `Comparable`. Implement `compareTo(self $other): int` on the \
+         class, or compare a property instead.",
+    );
     /// An object used at an implicit string-conversion site (interpolation,
     /// concatenation, `echo`/`print`, `as string`/`(string)`) whose static
     /// type does not provably implement the reserved global `Stringable`
     /// interface; see `rule:classes/stringable`. PHP's own fallback here is already a
     /// fatal error, so nothing permissive is being removed.
-    pub const E_STRINGABLE_REQUIRED: Code = Code::new("E0412");
+    pub const E_STRINGABLE_REQUIRED: Code = Code::new("E0412").card(
+        "An object is used as a string, but its class does not implement `Stringable`. Implement \
+         `toString(): string` on the class, or use a string property instead.",
+    );
     /// `unset()` on a declared property, static or instance, regardless of
     /// nullability — refused outright because `rule:classes/definite-property-initialization` already guarantees no
     /// declared property is ever anything but definitely initialized; see ADR
@@ -1160,76 +1283,131 @@ pub mod code {
     /// it takes the same code, named for the class that *declares* it. Every
     /// other operand `unset()` cannot remove an entry from is
     /// [`E_UNSET_TARGET_NOT_AN_ELEMENT`].
-    pub const E_UNSET_ON_PROPERTY: Code = Code::new("E0413");
+    pub const E_UNSET_ON_PROPERTY: Code = Code::new("E0413").card(
+        "`unset()` does not work on a declared property, because a property always has a value. \
+         If the type of the property is nullable, assign `null` instead.",
+    );
     /// `var $x = [...];` — a bare array literal has no target type to check
     /// against, the one initializer shape `var` cannot infer from; see
     /// `rule:types/var-inference`.
-    pub const E_VAR_ARRAY_LITERAL_NEEDS_TYPE: Code = Code::new("E0414");
+    pub const E_VAR_ARRAY_LITERAL_NEEDS_TYPE: Code = Code::new("E0414").card(
+        "`var` cannot find the type of an array literal. Write the type instead, as in \
+         `array<int> $ids = [1, 2];`.",
+    );
     /// An arithmetic or bitwise operator applied directly to an enum-typed
     /// operand — neither is defined on an enum type; convert to its
     /// underlying `int`/`uint` with `as` first. See `rule:types/conversion`.
-    pub const E_ENUM_ARITHMETIC_UNSUPPORTED: Code = Code::new("E0415");
+    pub const E_ENUM_ARITHMETIC_UNSUPPORTED: Code = Code::new("E0415").card(
+        "Arithmetic and bitwise operators do not work on an enum value. Convert it to its number \
+         first, as in `$level as int`.",
+    );
     /// `as` from one enum type to a *different* enum type, even when both
     /// share the same underlying integer type — rejected outright; an
     /// explicit `match` naming every case is the replacement. See `rule:types/conversion`.
-    pub const E_ENUM_CONVERSION_UNSUPPORTED: Code = Code::new("E0416");
+    pub const E_ENUM_CONVERSION_UNSUPPORTED: Code = Code::new("E0416").card(
+        "`as` cannot convert a value of one enum type to a different enum type. Write a `match` \
+         that gives a case of the new enum for every case of the old one.",
+    );
     /// `as Core\Html\Markup` on anything but a source-literal string — a
     /// runtime-computed or `tainted` value can never become trusted markup
     /// this way, closing "compute the escape-defeating payload at runtime,
     /// then cast it." See `rule:core-classes/html-auto-escape`.
-    pub const E_MARKUP_REQUIRES_LITERAL: Code = Code::new("E0417");
+    pub const E_MARKUP_REQUIRES_LITERAL: Code = Code::new("E0417").card(
+        "`as Core\\Html\\Markup` works only on a string written directly in the source code. A \
+         value computed while the program runs cannot become trusted HTML this way. Build the \
+         markup from literal parts, or escape the value with a `Core\\Html` method.",
+    );
     /// A string passed (or convertible without laundering) where `callable`
     /// is the declared type — PHP's bare-name/`"Class::method"` callable
     /// spellings are both rejected in favor of first-class callable syntax.
     /// See `rule:types/callable-is-a-closure`.
-    pub const E_CALLABLE_STRING_UNSUPPORTED: Code = Code::new("E0418");
+    pub const E_CALLABLE_STRING_UNSUPPORTED: Code = Code::new("E0418").card(
+        "A string cannot be called as a function, even if it contains the name of one. Write \
+         `Class::method(...)` or `$obj->method(...)` to get a callable.",
+    );
     /// A `[$obj, 'method']`-shaped array passed where `callable` is the
     /// declared type. See `rule:types/callable-is-a-closure`.
-    pub const E_CALLABLE_ARRAY_UNSUPPORTED: Code = Code::new("E0419");
+    pub const E_CALLABLE_ARRAY_UNSUPPORTED: Code = Code::new("E0419").card(
+        "An array such as `[$obj, 'method']` cannot be called as a function. Write \
+         `$obj->method(...)` to get a callable.",
+    );
     /// `$obj(...)` where `$obj`'s static type is not `callable` — Novis has no
     /// `__invoke`, so no class ever makes `()` mean anything else. See
     /// `rule:types/callable-is-a-closure`.
-    pub const E_NOT_CALLABLE: Code = Code::new("E0420");
+    pub const E_NOT_CALLABLE: Code = Code::new("E0420").card(
+        "Only a closure can be called with `(...)`, and this value is not one. Write an `fn` \
+         closure, or get a callable with `Class::method(...)` or `$obj->method(...)`. An object \
+         cannot be called, because Novis has no `__invoke`.",
+    );
     /// A `secret`-qualified value reaching a `Core\Html\Markup`-building
     /// conversion — refused even though the equivalent `tainted`-only value
     /// would (once `Core\Html` exists) be auto-escaped instead: escaping
     /// neutralizes injection risk, not confidentiality. See `rule:security/secret-sinks-refuse`.
-    pub const E_SECRET_MARKUP_UNSUPPORTED: Code = Code::new("E0421");
+    pub const E_SECRET_MARKUP_UNSUPPORTED: Code = Code::new("E0421").card(
+        "A `secret` value, such as a password or a key, cannot be converted to HTML markup. \
+         Escaping protects against injection, but it does not keep the value private. If you \
+         really want to show it, call `Core\\Secret::reveal(...)` first.",
+    );
     /// A `secret`-qualified value passed as a `Throwable`-shaped class's
     /// constructor message argument — closing the common leak of a
     /// credential ending up in a stack trace or an error page. See `rule:security/secret-sinks-refuse`
     /// .
-    pub const E_SECRET_THROWABLE_MESSAGE: Code = Code::new("E0422");
+    pub const E_SECRET_THROWABLE_MESSAGE: Code = Code::new("E0422").card(
+        "A `secret` value, such as a password or a key, cannot be the message of an exception. \
+         The message can appear in a stack trace or on an error page. If you really want to show \
+         it, call `Core\\Secret::reveal(...)` first.",
+    );
     /// The `parent` type atom (`parent $x`, a parameter/property/return
     /// position — distinct from `new parent(...)`, which silently falls back
     /// to `mixed` for the same shape) used in a class with no `extends`.
-    pub const E_NO_PARENT_CLASS: Code = Code::new("E0423");
+    pub const E_NO_PARENT_CLASS: Code = Code::new("E0423").card(
+        "The type `parent` is used in a class that does not extend another class. Write the name \
+         of the class you mean, or add `extends` to the class.",
+    );
     /// `lateinit` on a scalar-, enum-, or shape-typed property — only a
     /// class/interface (`object`-subtyped) property has no free real default
     /// for `lateinit` to defer past. See `rule:classes/lateinit-restrictions`.
-    pub const E_LATEINIT_NOT_OBJECT_TYPE: Code = Code::new("E0424");
+    pub const E_LATEINIT_NOT_OBJECT_TYPE: Code = Code::new("E0424").card(
+        "`lateinit` is allowed only on a property whose type is a class or an interface. Give \
+         this property a default value instead, such as `= 0`.",
+    );
     /// `lateinit` on a `?T` property — nullability already spells "may
     /// legitimately hold no value," so there is no second "not yet written"
     /// state left for `lateinit` to add. See `rule:classes/lateinit-restrictions`.
-    pub const E_LATEINIT_NULLABLE: Code = Code::new("E0425");
+    pub const E_LATEINIT_NULLABLE: Code = Code::new("E0425").card(
+        "`lateinit` cannot be used on a property with a `?` type, because `null` already means \
+         that no value is set. Remove `lateinit` or the `?`.",
+    );
     /// `lateinit` on a promoted constructor parameter — binding the
     /// parameter is already the assignment `rule:classes/definite-property-initialization` requires, so there is
     /// nothing left to defer. See `rule:classes/lateinit-restrictions`.
-    pub const E_LATEINIT_PROMOTED_PARAM: Code = Code::new("E0426");
+    pub const E_LATEINIT_PROMOTED_PARAM: Code = Code::new("E0426").card(
+        "`lateinit` cannot be used on a constructor parameter. The constructor already assigns \
+         the parameter, so there is nothing to set later. Remove `lateinit`.",
+    );
     /// `lateinit` combined with `readonly` on the same property — opposite
     /// promises about when the one allowed assignment happens. See `rule:classes/lateinit-restrictions`.
-    pub const E_LATEINIT_READONLY_CONFLICT: Code = Code::new("E0427");
+    pub const E_LATEINIT_READONLY_CONFLICT: Code = Code::new("E0427").card(
+        "`lateinit` and `readonly` cannot be used on the same property. A `readonly` property is \
+         set in the constructor, and a `lateinit` property is set after it. Choose one of them.",
+    );
     /// A `lateinit` property read inside a method body with no intervening
     /// write to it and no intervening call on that path since the method's
     /// entry — the one intraprocedural, false-positive-free case `rule:classes/lateinit-read-before-write` proves at compile time; every other case relies entirely on the
     /// § 2 runtime throw.
-    pub const E_LATEINIT_READ_BEFORE_WRITE_LOCAL: Code = Code::new("E0428");
+    pub const E_LATEINIT_READ_BEFORE_WRITE_LOCAL: Code = Code::new("E0428").card(
+        "A method reads a `lateinit` property before anything in the method assigns it. Assign \
+         the property before this line, or read it after the call that sets it.",
+    );
     /// An integer literal whose magnitude doesn't fit the width it's being
     /// checked against — too large for `int`/`uint` outright, or exactly the
     /// one magnitude `uint` can never represent regardless of width: a
     /// negative value, since an integer literal's digits are never signed and
     /// the sign comes from a wrapping unary `-`. See `rule:types/arithmetic`.
-    pub const E_INT_LITERAL_OUT_OF_RANGE: Code = Code::new("E0429");
+    pub const E_INT_LITERAL_OUT_OF_RANGE: Code = Code::new("E0429").card(
+        "This integer is too large for its type, or it is negative where a `uint` is needed. A \
+         value too large for `int` is allowed only where a `uint` is expected.",
+    );
     /// A `\u{...}` escape inside a double-quoted string literal (or an
     /// interpolated-heredoc text run) names a value outside Unicode's valid
     /// scalar range (`> 0x10FFFF`) or inside the UTF-16 surrogate range
@@ -1239,7 +1417,10 @@ pub mod code {
     /// `\u{...}` that is syntactically malformed (no hex digits, or no
     /// closing `}`) — this fires only once the digits are syntactically fine
     /// but numerically out of range.
-    pub const E_INVALID_UNICODE_ESCAPE: Code = Code::new("E0430");
+    pub const E_INVALID_UNICODE_ESCAPE: Code = Code::new("E0430").card(
+        "A `\\u{...}` escape in a string names a number that is not a valid Unicode character. \
+         The number must be at most `10FFFF`, and it must not be between `D800` and `DFFF`.",
+    );
     /// A double-quoted string literal's (or interpolated-heredoc text run's)
     /// `\xHH`/octal byte escapes assembled into a sequence that is not valid
     /// UTF-8 — `string` is guaranteed-valid UTF-8 (`rule:types/bytes`), so a byte
@@ -4374,38 +4555,32 @@ mod tests {
     /// it: it lands with its card. Goal `core-class-cards` is what empties the
     /// list.
     const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0301", "E0302", "E0303", "E0304", "E0305", "E0306", "E0307", "E0309", "E0310", "E0311",
-        "E0312", "E0313", "E0314", "E0315", "E0316", "E0317", "E0318", "E0319", "E0320", "E0321",
-        "E0322", "E0323", "E0324", "E0325", "E0326", "E0327", "E0401", "E0402", "E0403", "E0404",
-        "E0405", "E0406", "E0407", "E0408", "E0409", "E0410", "E0411", "E0412", "E0413", "E0414",
-        "E0415", "E0416", "E0417", "E0418", "E0419", "E0420", "E0421", "E0422", "E0423", "E0424",
-        "E0425", "E0426", "E0427", "E0428", "E0429", "E0430", "E0431", "E0432", "E0433", "E0434",
-        "E0435", "E0436", "E0437", "E0438", "E0439", "E0440", "E0441", "E0442", "E0443", "E0444",
-        "E0445", "E0446", "E0447", "E0448", "E0449", "E0450", "E0451", "E0452", "E0453", "E0454",
-        "E0455", "E0456", "E0458", "E0459", "E0460", "E0461", "E0462", "E0463", "E0464", "E0465",
-        "E0466", "E0467", "E0468", "E0469", "E0470", "E0471", "E0472", "E0473", "E0474", "E0475",
-        "E0476", "E0477", "E0478", "E0479", "E0480", "E0481", "E0482", "E0483", "E0484", "E0486",
-        "E0487", "E0488", "E0489", "E0490", "E0491", "E0492", "E0493", "E0494", "E0495", "E0496",
-        "E0498", "E0499", "E0501", "E0502", "E0601", "E0602", "E0603", "E0604", "E0605", "E0606",
-        "E0607", "E0608", "E0609", "E0610", "E0611", "E0612", "E0613", "E0614", "E0615", "E0616",
-        "E0617", "E0618", "E0619", "E0620", "E0621", "E0622", "E0623", "E0624", "E0625", "E0626",
-        "E0627", "E0628", "E0629", "E0630", "E0631", "E0633", "E0634", "E0635", "E0636", "E0637",
-        "E0638", "E0639", "E0640", "E0641", "E0642", "E0643", "E0644", "E0645", "E0646", "E0647",
-        "E0648", "E0649", "E0650", "E0700", "E0701", "E0713", "E0714", "E0702", "E0705", "E0706",
-        "E0707", "E0708", "E0709", "E0710", "E0711", "E0712", "E0715", "E0716", "E0717", "E0718",
-        "E0719", "E0720", "E0721", "E0722", "E0723", "E0724", "E0725", "E0726", "E0727", "E0728",
-        "E0729", "E0730", "E0731", "E0732", "E0733", "E0734", "E0735", "E0736", "E0737", "E0738",
-        "E0739", "E0740", "E0741", "E0742", "E0743", "E0744", "E0745", "E0746", "E0747", "E0748",
-        "E0749", "E0750", "E0751", "E0752", "E0753", "E0754", "E0755", "E0756", "E0757", "E0758",
-        "E0759", "E0760", "E0761", "E0762", "E0763", "E0764", "E0765", "E0766", "E0767", "E0768",
-        "E0769", "E0770", "E0771", "E0772", "E0775", "E0778", "E0779", "E0780", "E0781", "E0782",
-        "E0783", "E0784", "E0785", "E0786", "E0787", "E0788", "E0789", "E0790", "E0791", "E0792",
-        "E0793", "E0794", "E0795", "E0796", "E0797", "E0798", "E0799", "E0800", "E0801", "E0802",
-        "E0805", "E0806", "E0807", "E0808", "E0809", "E0810", "E0811", "E0813", "E0814", "E0815",
-        "E0816", "E0817", "E0818", "E0819", "E0820", "E0821", "E0822", "E0823", "E0824", "E0825",
-        "E0826", "E0827", "E0828", "E0829", "E0830", "E0831", "E0832", "E0833", "E0834", "E0901",
-        "W1001", "W1002", "W1003", "W1004", "W1005", "W1006", "W1007", "W1008", "W1009", "W1010",
-        "W1011", "W1012",
+        "E0431", "E0432", "E0433", "E0434", "E0435", "E0436", "E0437", "E0438", "E0439", "E0440",
+        "E0441", "E0442", "E0443", "E0444", "E0445", "E0446", "E0447", "E0448", "E0449", "E0450",
+        "E0451", "E0452", "E0453", "E0454", "E0455", "E0456", "E0458", "E0459", "E0460", "E0461",
+        "E0462", "E0463", "E0464", "E0465", "E0466", "E0467", "E0468", "E0469", "E0470", "E0471",
+        "E0472", "E0473", "E0474", "E0475", "E0476", "E0477", "E0478", "E0479", "E0480", "E0481",
+        "E0482", "E0483", "E0484", "E0486", "E0487", "E0488", "E0489", "E0490", "E0491", "E0492",
+        "E0493", "E0494", "E0495", "E0496", "E0498", "E0499", "E0501", "E0502", "E0601", "E0602",
+        "E0603", "E0604", "E0605", "E0606", "E0607", "E0608", "E0609", "E0610", "E0611", "E0612",
+        "E0613", "E0614", "E0615", "E0616", "E0617", "E0618", "E0619", "E0620", "E0621", "E0622",
+        "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629", "E0630", "E0631", "E0633",
+        "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640", "E0641", "E0642", "E0643",
+        "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650", "E0700", "E0701", "E0713",
+        "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709", "E0710", "E0711", "E0712",
+        "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721", "E0722", "E0723", "E0724",
+        "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731", "E0732", "E0733", "E0734",
+        "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741", "E0742", "E0743", "E0744",
+        "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751", "E0752", "E0753", "E0754",
+        "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761", "E0762", "E0763", "E0764",
+        "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772", "E0775", "E0778",
+        "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786", "E0787", "E0788",
+        "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796", "E0797", "E0798",
+        "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808", "E0809", "E0810",
+        "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819", "E0820", "E0821",
+        "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829", "E0830", "E0831",
+        "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004", "W1005", "W1006",
+        "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
     ];
 
     /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
