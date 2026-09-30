@@ -129,7 +129,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::aliases::AliasResolver;
 use crate::autoload::{self, AutoloadMap, Site};
 use crate::hierarchy::{CoreRoster, HierarchyResolver};
-use crate::members::MemberResolver;
+use crate::members::{MemberResolver, PhpFunctions};
 use crate::qname::QName;
 use crate::resolve::{Module, Resolver};
 
@@ -201,6 +201,9 @@ pub struct Loaded {
 /// A caller holding the stdlib passes [`CoreRoster::Names`] and a link naming
 /// something outside it is refused; one with no stdlib in hand passes
 /// [`CoreRoster::Trusted`].
+///
+/// This entry point passes no [`PhpFunctions`] lookup, so a call to a PHP
+/// function gets `E0320`'s general help. The two below take one.
 #[must_use]
 pub fn resolve_program(
     entry_id: SourceId,
@@ -209,7 +212,8 @@ pub fn resolve_program(
     core: CoreRoster<'_>,
     diags: &mut Diagnostics,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
-    resolve_program_linted(entry_id, entry_stmts, map, core, diags, false)
+    let stdlib = Stdlib { core, php: None };
+    walk(entry_id, entry_stmts, map, stdlib, diags, false, &[])
 }
 
 /// [`resolve_program`] with `rule:tooling/strict-docs`'s lint in front of it —
@@ -220,16 +224,21 @@ pub fn resolve_program(
 /// question: one entry point per caller that asks, rather than a flag every
 /// caller of the plain one has to pass. It reaches every file the walk loaded,
 /// not the entry point alone — the program is what a package publishes.
+///
+/// `php` is what PHP's built-in functions became, which `E0320`'s help names
+/// the replacement from.
 #[must_use]
 pub fn resolve_program_linted(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
     map: &mut SourceMap,
     core: CoreRoster<'_>,
+    php: PhpFunctions,
     diags: &mut Diagnostics,
     strict_docs: bool,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
-    walk(entry_id, entry_stmts, map, core, diags, strict_docs, &[])
+    let stdlib = Stdlib { core, php };
+    walk(entry_id, entry_stmts, map, stdlib, diags, strict_docs, &[])
 }
 
 /// [`resolve_program`] for an entry that is not where its program starts —
@@ -250,10 +259,20 @@ pub fn resolve_program_borrowing(
     entry_stmts: Vec<Stmt>,
     map: &mut SourceMap,
     core: CoreRoster<'_>,
+    php: PhpFunctions,
     diags: &mut Diagnostics,
     borrowed: &[Site],
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
-    walk(entry_id, entry_stmts, map, core, diags, false, borrowed)
+    let stdlib = Stdlib { core, php };
+    walk(entry_id, entry_stmts, map, stdlib, diags, false, borrowed)
+}
+
+/// What a front end tells the walk about the stdlib, which this crate does not
+/// depend on: the names `Core` declares, and what PHP's functions became.
+#[derive(Clone, Copy)]
+struct Stdlib<'a> {
+    core: CoreRoster<'a>,
+    php: PhpFunctions,
 }
 
 /// The walk behind every `resolve_program` entry point.
@@ -261,14 +280,15 @@ fn walk(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
     map: &mut SourceMap,
-    core: CoreRoster<'_>,
+    stdlib: Stdlib<'_>,
     diags: &mut Diagnostics,
     strict_docs: bool,
     borrowed: &[Site],
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
+    let Stdlib { core, php } = stdlib;
     let mut resolver = Resolver::new();
     let mut hierarchy = HierarchyResolver::new(core);
-    let mut members = MemberResolver::with_core(core);
+    let mut members = MemberResolver::with_core(core).with_php(php);
     let mut aliases = AliasResolver::new();
 
     let mut loaded: Vec<Loaded> = Vec::new();

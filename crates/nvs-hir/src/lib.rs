@@ -74,7 +74,7 @@ pub use hierarchy::{
     undeclared_name_at,
 };
 pub use imports::{ImportSite, candidates, import_site};
-pub use members::{ClassMembers, MemberResolver, MemberTable};
+pub use members::{ClassMembers, MemberResolver, MemberTable, PhpFunctions};
 pub use qname::QName;
 pub use requires::{Loaded, resolve_program, resolve_program_borrowing, resolve_program_linted};
 pub use resolve::{Import, Module, Resolver, resolve_file};

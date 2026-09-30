@@ -670,6 +670,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         stmts,
         &mut map,
         nvs_hir::CoreRoster::Names(&core),
+        Some(nvs_stdlib::php_names::became),
         &mut diags,
         lender.map_or(&[], |lender| lender.map.sites()),
     );

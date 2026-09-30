@@ -183,7 +183,24 @@ pub struct MemberResolver<'a> {
     /// import — [`crate::hierarchy::undeclared_name`]'s `core`. A resolver
     /// built with [`Self::new`] holds [`CoreRoster::Trusted`] and offers none.
     core: CoreRoster<'a>,
+    /// What PHP's built-in functions became — [`Self::with_php`]. A resolver
+    /// built any other way holds `None`.
+    php: PhpFunctions,
 }
+
+/// What PHP's built-in functions became, as a front end holding the stdlib
+/// tells this crate.
+///
+/// The lookup is given the name a program called as a free function, and
+/// returns the clause that finishes "PHP's `name` …", which for `count` is
+/// "is `Core\Arr::count` here". It returns `None` for a name PHP does not have
+/// and for one the migration table gives no single spelling for. `nvs_stdlib::php_names::became`
+/// is that lookup. It arrives from the caller for [`CoreRoster`]'s reason: the
+/// table is compiled into the stdlib, which this crate does not depend on.
+///
+/// `None` is a caller with no stdlib in hand, and every `E0320` then carries
+/// its general help.
+pub type PhpFunctions = Option<fn(&str) -> Option<String>>;
 
 impl Default for MemberResolver<'_> {
     /// A resolver holding only [`crate::errors`]' members.
@@ -205,6 +222,7 @@ impl Default for MemberResolver<'_> {
         Self {
             table,
             core: CoreRoster::Trusted,
+            php: None,
         }
     }
 }
@@ -225,6 +243,13 @@ impl<'a> MemberResolver<'a> {
             core,
             ..Self::default()
         }
+    }
+
+    /// This resolver, holding the lookup `E0320`'s help names a PHP
+    /// function's replacement from.
+    #[must_use]
+    pub fn with_php(self, php: PhpFunctions) -> Self {
+        Self { php, ..self }
     }
 
     /// Consumes the resolver, returning the [`MemberTable`] it collected.
@@ -342,6 +367,7 @@ impl<'a> MemberResolver<'a> {
             table: &self.table,
             stmts,
             core: self.core.names(),
+            php: self.php,
             refused_toplevel: refused_toplevel_names(stmts, src),
             fn_self: None,
             strict_docs,
@@ -372,6 +398,8 @@ struct Env<'a> {
     stmts: &'a [Stmt],
     /// The `Core` types such a fix may offer — [`MemberResolver::with_core`].
     core: &'a [&'a str],
+    /// What a PHP function's name became — [`MemberResolver::with_php`].
+    php: PhpFunctions,
     /// Every name this file declared as a top-level `function` or `const` —
     /// both already refused by the parser (`E0215`/`E0216`). Calling or
     /// reading one is the same mistake seen from its use site, so `E0320` and
@@ -1074,19 +1102,31 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                         return;
                     }
                     if !env.refused_toplevel.contains(text) {
+                        // A name the migration table has one answer for is told
+                        // that answer. Any other name gets the general help,
+                        // whose `Core\Str::length` is an example of the shape.
+                        let help = match env.php.and_then(|became| became(text)) {
+                            Some(became) => format!(
+                                "PHP's `{}` {became}. `rule:classes/no-free-functions-or-constants`: \
+                                 every callable is a method, so there is no free function to \
+                                 call, and `docs/spec/02-php-migration.md` has the row of each \
+                                 PHP built-in, with its reason and any rewrite",
+                                text.trim_start_matches('\\'),
+                            ),
+                            None => "`rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins \
+                                     live under the reserved `Core` namespace — \
+                                     `Core\\Str::length($s)`, or `use Core\\Str;` and then \
+                                     `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's \
+                                     own name to its `Core` member"
+                                .to_owned(),
+                        };
                         env.diags.report(
                             Diagnostic::error(
                                 code::E_NO_FREE_FUNCTION,
                                 format!("`{text}` is not a function that exists"),
                             )
                             .with_primary(callee.span, "no free function has this name")
-                            .with_help(
-                                "`rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins \
-                                 live under the reserved `Core` namespace — \
-                                 `Core\\Str::length($s)`, or `use Core\\Str;` and then \
-                                 `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's \
-                                 own name to its `Core` member",
-                            ),
+                            .with_help(help),
                         );
                     }
                 }
@@ -1832,6 +1872,72 @@ mod tests {
                 .any(|d| d.code == Some(code::E_DOC_EXAMPLE_NOT_WALKED)),
             "{diags:?}"
         );
+    }
+
+    /// The help of every `E0320` in `src`, from a resolver told `php`.
+    ///
+    /// The check reports into a sink of its own: `resolve_file` runs a member
+    /// check too, with a resolver told nothing, and its copy of each `E0320`
+    /// is not the one under test.
+    fn free_function_helps(src: &str, php: PhpFunctions) -> Vec<String> {
+        let mut map = SourceMap::new();
+        let file = map.add("t.nvs", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = resolve_file(&stmts, map.file(file), &mut diags);
+        let mut members = MemberResolver::new().with_php(php);
+        members.collect_members(&stmts, map.file(file));
+        let mut checked = Diagnostics::new();
+        members.check(
+            &stmts,
+            map.file(file),
+            &module.symbols,
+            &module.graph,
+            false,
+            &mut checked,
+        );
+        checked
+            .iter()
+            .filter(|d| d.code == Some(code::E_NO_FREE_FUNCTION))
+            .map(|d| d.notes.join("\n"))
+            .collect()
+    }
+
+    /// A resolver told what PHP's functions became says so for the name that
+    /// was called, and says nothing of it for a name the lookup does not know.
+    /// A resolver told nothing gives every name the general help.
+    #[test]
+    fn a_free_function_call_is_told_what_the_lookup_says_its_name_became() {
+        fn became(name: &str) -> Option<String> {
+            (name == "count").then(|| "is `Core\\Arr::count` here".to_owned())
+        }
+        let counted = "<?nvs\necho count([1, 2]);\n";
+        let tallied = "<?nvs\necho tally([1, 2]);\n";
+        let general = "the built-ins live under the reserved `Core` namespace";
+
+        let told = free_function_helps(counted, Some(became));
+        assert!(!told.is_empty(), "the call is `E0320`");
+        assert!(
+            told.iter().all(|help| help
+                .starts_with("help: PHP's `count` is `Core\\Arr::count` here. ")
+                && !help.contains(general)),
+            "{told:?}"
+        );
+
+        for (src, php) in [
+            (tallied, Some(became as fn(&str) -> Option<String>)),
+            (counted, None),
+        ] {
+            let helps = free_function_helps(src, php);
+            assert!(!helps.is_empty(), "the call is `E0320`");
+            assert!(
+                helps
+                    .iter()
+                    .all(|help| help.contains(general) && !help.contains("PHP's `")),
+                "{helps:?}"
+            );
+        }
     }
 
     #[test]

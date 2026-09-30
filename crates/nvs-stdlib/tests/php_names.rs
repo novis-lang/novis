@@ -7,8 +7,8 @@
 //! `nv verify`, which stops at the first failing step, a red
 //! `cargo test -p nvs-stdlib` is a build that does not finish.
 //!
-//! Three claims, one per test, and they are the three halves of
-//! `rule:php-migration/every-php-builtin-is-a-completion-candidate` and
+//! Three claims about the table, one per test, and they are the three halves
+//! of `rule:php-migration/every-php-builtin-is-a-completion-candidate` and
 //! `rule:ide/three-of-four-item-shapes-insert-nothing`:
 //!
 //! - the candidate list is the oracle inventory **whole**, so coverage of the
@@ -18,6 +18,10 @@
 //!   developer as a suggestion that does not resolve;
 //! - three of the four item shapes insert nothing, asserted as the absence of
 //!   an edit rather than as an empty string.
+//!
+//! A fourth test holds the table's second reader, `php_names::became`, which
+//! is what a diagnostic says of a PHP function: it names a spelling only where
+//! the row opens on one.
 //!
 //! # What the second one can and cannot see
 //!
@@ -39,7 +43,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-use nvs_stdlib::php_names::{CANDIDATES, Candidate, Destination, Item, Kind, Outcome};
+use nvs_stdlib::php_names::{
+    CANDIDATES, Candidate, Destination, Item, Kind, Outcome, became, function,
+};
 use nvs_stdlib::registry;
 
 /// One path under the workspace root, read.
@@ -294,4 +300,91 @@ fn three_of_the_four_item_shapes_insert_nothing() {
              vacuously"
         );
     }
+}
+
+/// What a diagnostic says of a PHP function is read off that function's own
+/// row: the code span the cell opens on for a `member` or a `language` row, and
+/// that nothing does the job for a `dropped` one.
+///
+/// The sweep is the claim a handful of names cannot make. No answer is a
+/// spelling the row does not open on, and a row that opens on prose — "the
+/// same pair" — answers nothing, because its words mean something only under
+/// the row above it.
+#[test]
+fn a_php_function_is_told_the_spelling_its_row_opens_on() {
+    assert_eq!(
+        became("count").as_deref(),
+        Some("is `Core\\Arr::count` here")
+    );
+    assert_eq!(became("intval").as_deref(), Some("is `$x as int` here"));
+    assert_eq!(
+        became("addslashes").as_deref(),
+        Some("has no counterpart here")
+    );
+
+    // PHP resolves a function without regard to case, and a fully-qualified
+    // call writes one leading `\`.
+    assert_eq!(became("\\COUNT"), became("count"));
+    // A name PHP does not have, and a PHP name under a namespace, are nobody's
+    // built-in.
+    assert_eq!(became("tally"), None);
+    assert_eq!(became("Core\\count"), None);
+    // A type is not called, so its name is no function's.
+    let ty = CANDIDATES
+        .iter()
+        .find(|candidate| candidate.kind == Kind::Type)
+        .expect("the inventory lists types");
+    assert!(function(ty.php).is_none_or(|found| found.kind == Kind::Function));
+
+    let mut spelled = 0usize;
+    let mut silent = 0usize;
+    let functions = CANDIDATES
+        .iter()
+        .filter(|candidate| candidate.kind == Kind::Function);
+    for candidate in functions {
+        let answer = became(candidate.php);
+        match candidate.outcome {
+            Outcome::Member | Outcome::Language => {
+                let Some(clause) = answer else {
+                    silent += 1;
+                    continue;
+                };
+                let written = clause
+                    .strip_prefix("is `")
+                    .and_then(|rest| rest.strip_suffix("` here"))
+                    .unwrap_or_else(|| panic!("`{}` answers `{clause}`", candidate.php));
+                assert!(
+                    !written.is_empty()
+                        && candidate
+                            .cell
+                            .trim_start()
+                            .starts_with(&format!("`{written}`")),
+                    "`{}` is told `{written}`, which its row does not open on: {}",
+                    candidate.php,
+                    candidate.cell
+                );
+                assert!(
+                    candidate
+                        .destinations
+                        .iter()
+                        .all(Destination::is_registered),
+                    "`{}` is told a row naming a member the registry does not hold",
+                    candidate.php
+                );
+                spelled += 1;
+            }
+            Outcome::Dropped => assert_eq!(
+                answer.as_deref(),
+                Some("has no counterpart here"),
+                "`{}` is a dropped row",
+                candidate.php
+            ),
+            Outcome::Open => assert_eq!(answer, None, "`{}` is undecided", candidate.php),
+        }
+    }
+    assert!(
+        spelled > 0 && silent > 0,
+        "{spelled} row(s) named a spelling and {silent} named none — one half of the sweep \
+         passed vacuously"
+    );
 }

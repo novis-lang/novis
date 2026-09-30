@@ -225,4 +225,55 @@ pub fn starting_with(prefix: &str) -> &'static [Candidate] {
     &rest[..end]
 }
 
+/// The candidate for the PHP function a program called as `name`.
+///
+/// Matched the way PHP resolves a call: without regard to ASCII case, and with
+/// the one leading `\` a fully-qualified call writes. A name under a namespace
+/// is nobody's built-in function and has no candidate.
+#[must_use]
+pub fn function(name: &str) -> Option<&'static Candidate> {
+    let name = name.strip_prefix('\\').unwrap_or(name).to_ascii_lowercase();
+    starting_with(&name)
+        .iter()
+        .find(|candidate| candidate.php == name && candidate.kind == Kind::Function)
+}
+
+/// What a diagnostic says became of the PHP function a program called as
+/// `name`: the clause that finishes the sentence "PHP's `name` …".
+///
+/// This is `nvs_hir::PhpFunctions`' lookup, which is how `E0320`'s help names
+/// the spelling the language wants for the name that was written.
+///
+/// A `member` or `language` row answers with the code span its cell opens on,
+/// which is the spelling the row is about. The cell's prose is not repeated: a
+/// row is written to be read under the row above it, and a cell that opens on
+/// prose ("the same pair") names no spelling a reader could use on its own, so
+/// such a row answers `None` and the diagnostic keeps its general help. So does
+/// a row naming a destination the registry does not hold, for
+/// `rule:php-migration/an-item-inserts-only-a-registered-member`'s reason: a
+/// suggestion that does not resolve is worse than none.
+///
+/// A `dropped` row answers that nothing does the job, and leaves the reason
+/// and the rewrite to the table.
+#[must_use]
+pub fn became(name: &str) -> Option<String> {
+    let candidate = function(name)?;
+    match candidate.outcome {
+        Outcome::Member | Outcome::Language => {
+            let (written, _) = candidate
+                .cell
+                .trim_start()
+                .strip_prefix('`')?
+                .split_once('`')?;
+            candidate
+                .destinations
+                .iter()
+                .all(Destination::is_registered)
+                .then(|| format!("is `{written}` here"))
+        }
+        Outcome::Dropped => Some("has no counterpart here".to_owned()),
+        Outcome::Open => None,
+    }
+}
+
 include!(concat!(env!("OUT_DIR"), "/php-names.rs"));

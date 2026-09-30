@@ -1919,6 +1919,7 @@ fn front_end_in(
         stmts,
         &mut map,
         nvs_hir::CoreRoster::Names(&core),
+        Some(nvs_stdlib::php_names::became),
         &mut diags,
         strict_docs,
     );
