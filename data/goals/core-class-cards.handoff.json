@@ -1,32 +1,34 @@
 {
-  "state": "**Goal `core-class-cards`, Stage 2 (the cards), is under way: 51 of 64 listed classes carry their card.**\n`Core\\Arr` through `Core\\Html\\Markup` in the list's order are carded and struck from\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`; `bun nv class-cards` prints\nthe 13 left, starting at `Core\\Http`. Goal `limit-handler-reach`'s whole list is Stage 1's floor.\n\nADR 0203 holds the design and nothing about it is a session's to re-decide. The voice is AGENTS.md\n§ *Text an end user reads*; the goal's standing decisions say what a card is and is not. The shape\nevery card so far uses: a `/// \\`Core\\X\\`'s class card — \\`rule:core-api/reference-card\\`.` const\nnamed `CARD` (or `<CLASS>_CARD` for a second class in the module), all of a module's cards in one\nblock directly above the first class's doc comment, never between a doc comment and its item,\n`ClassDoc` added to the module's `use crate::registry::{…}`, and `doc: Some(&…)` on the row. One\n`bun nv splice --patch` per module set does all of it. Carding a class can move a pinned stub line\nor `nvs agent show` output: the playbook's *Tooling* bullet on carding says where to look.",
+  "state": "**Goal `core-class-cards`: Stage 2 (the cards) is done — every `Core` class carries its card.**\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs` is kept as an empty list, not\ndeleted: `bun nv class-cards --check` parses it and prints \"every Core class carries its card\", and\n`tools/data/select-mutations.json` mutates it. Its two playbook bullets (`[until: gone …]` on that\nlist) therefore stay live, and they are still true for a class added later.\n\nStages 3, 4 and 5 are not started: `every_key_command_flag_and_code_is_an_index_entry` and\n`every_code_carries_its_card_or_is_listed` do not exist yet, and `bun nv proofs` still owes help.\nThe goal prose's § *Stage 3* and § *Stage 4* are the specification; ADR 0216 is the design.",
   "next": {
-    "stage": 2,
-    "title": "the cards",
-    "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/registry.rs` and `crates/nvs-stdlib/src/http.rs`, which holds the whole `Core\\Http` family.",
+    "stage": 3,
+    "title": "every key, command, flag and code is an index entry",
+    "files": [
+      "crates/nvs-cli/src/agent.rs",
+      "crates/nvs-cli/tests/agent.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Card the five `Core\\Http` classes in one module** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/http.rs:148` (`Core\\Http`), `:204` Target, `:253` Identity, `:1136` Part, `:1547` Client; delete each from `crates/nvs-stdlib/src/registry.rs:5283` in the same commit."
+        "text": "**Configuration keys as index lines** — `rule:tooling/the-index-names-every-key-command-and-code`; derive one line per key from the configuration schema in `crates/nvs-cli/src/agent.rs:198` (`entries`), reached by exact name through `crates/nvs-cli/src/agent.rs:597` (`find`) and `crates/nvs-cli/src/agent.rs:619` (`show`)."
       },
       {
         "done": false,
-        "text": "**Card `Core\\IO\\Lines` and `Core\\IO\\Walk`** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/io.rs:1715`, `:1789`."
+        "text": "**Commands, subcommands and flags as index lines** — `rule:tooling/the-index-names-every-key-command-and-code`; from `Cli::command()`, in the same `crates/nvs-cli/src/agent.rs:198`."
       },
       {
         "done": false,
-        "text": "**Card the three `Core\\Request` classes** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/request.rs:1102` BodyStream, `:1151` Files, `:1501` PartContent."
+        "text": "**Diagnostic codes as index lines** — `rule:tooling/the-index-names-every-key-command-and-code`; from the diagnostics table in `crates/nvs-diagnostics/src/lib.rs`, added in `crates/nvs-cli/src/agent.rs:198`."
       },
       {
         "done": false,
-        "text": "**Then the last three, one module each** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/regex.rs:480` Pattern, `crates/nvs-stdlib/src/script.rs:123` Handle, `crates/nvs-stdlib/src/channel.rs:117` Task\\Channel. When the list is empty, delete `CLASSES_STILL_OWING_A_CARD` and its uses in `crates/nvs-stdlib/src/registry.rs:5283`, and `bun nv class-cards --check` turns stage 2 green."
+        "text": "**The guard** — `every_key_command_flag_and_code_is_an_index_entry` in `crates/nvs-cli/tests/agent.rs:45` (beside `index()`): name for name against each table, never a count. Then set the rule's `status` to `shipped` and add the test to its `guardedBy`."
       }
     ]
   },
   "backlog": [
-    "Stage 3, the index entries — `every_key_command_flag_and_code_is_an_index_entry`, owned by `docs/agent/goals/core-class-cards.md`.",
-    "Stage 4, the code cards — `every_code_carries_its_card_or_is_listed`, same owner.",
-    "Stage 5, help is owed — `bun nv proofs` with an empty `data/proofs/help-backlog.json`, same owner."
+    "Stage 4: a card beside each `Code::new` and `CODES_STILL_OWING_A_CARD` — goal prose § *Stage 4*, `rule:tooling/a-diagnostic-code-carries-its-card`.",
+    "Stage 5: drain `data/proofs/help-backlog.json` and owe help for the three kinds still off — goal prose § *Stage 5*.",
+    "The pack for Stage 3 may need a `[context]` overlay naming `crates/nvs-cli/src/agent.rs`, `crates/nvs-cli/tests/agent.rs` and the `tooling/the-index-names-every-key-command-and-code` rule — not checked whether the record has one."
   ]
 }
