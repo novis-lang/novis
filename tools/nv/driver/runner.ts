@@ -123,6 +123,16 @@ export function sweepTestFilters(names: Iterable<string>, graph: Graph | null, f
   return targetFilters(every.filter((n) => want.has(n)));
 }
 
+/**
+ * Whether a test binary is green for the sweep that judges it. `mine` is the verdict of the sweep's own
+ * run of it, and decides when the sweep made one. `stored` is the store's verdict, and decides for a
+ * binary the sweep did not run. The store is shared with every `bun nv verify` in this tree, and one of
+ * them that ends between the run and the judging marks the binary owed without running it.
+ */
+export function binaryGreen(mine: AtomVerdict | undefined, stored: AtomVerdict | undefined): boolean {
+  return (mine ?? stored) === "green";
+}
+
 export interface OpenOptions {
   /** Pick every atom of every check, whatever changed. */
   full: boolean;
@@ -155,6 +165,8 @@ export class PlanSweep {
   private readonly toolRuns = new Map<string, Promise<ToolRun>>();
   private readonly casesDone = new Set<string>();
   private readonly exeShown = new Map<string, string>();
+  /** The verdict of each test binary this sweep ran, by name. */
+  private readonly exeVerdict = new Map<string, AtomVerdict>();
   private caseOut = "";
   private proofs: { batch: ProofBatch; run?: Promise<{ o: Outcome; keys: Keyed; parts: Map<string, Keyed> }> } | null = null;
   private runs = 0;
@@ -618,6 +630,7 @@ export class PlanSweep {
         const verdict: AtomVerdict = o.code === 0 && ext ? "green" : "red";
         this.store.recordRun(id, { def: "", verdict, keys: testKeys(ext, name) });
         putTestGreen(this.store, name, verdict, o.out);
+        this.exeVerdict.set(name, verdict);
         if (verdict === "red") {
           const failed = o.out.split(/\r?\n/).filter((l) => l.startsWith("test ") && l.trimEnd().endsWith("FAILED")).map((l) => l.split(/\s+/)[1]);
           this.exeShown.set(name, failed.length > 0 ? `${failed.length} test(s) failed: ${failed.join(", ")}` : `exit ${o.code} -- ${firstErrLine(o)}`);
@@ -645,12 +658,13 @@ export class PlanSweep {
     return this.judgeTestCheck(c, g, label);
   }
 
-  /** A test check's verdict: every binary it names green, and each test it names among the lines the
-   * binaries printed, this sweep's run or the last green one the store keeps. */
+  /** A test check's verdict: every binary it names green, on this sweep's own run of it or else in the
+   * store (`binaryGreen`), and each test it names among the lines the binaries printed, this sweep's run
+   * or the last green one the store keeps. */
   private judgeTestCheck(c: Check, g: Grouped, label = this.labelOf(c)): Verdict {
     const names = g.tests ?? [];
     for (const n of names) {
-      if (this.store.atom(`test:${n}`)?.verdict === "green") continue;
+      if (binaryGreen(this.exeVerdict.get(n), this.store.atom(`test:${n}`)?.verdict)) continue;
       return none(`${label}: ${n} failed${this.failedTests(n)}`);
     }
     const tests = c.tests ?? [];
