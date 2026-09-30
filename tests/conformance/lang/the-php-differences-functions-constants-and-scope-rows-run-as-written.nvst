@@ -1,0 +1,52 @@
+--TEST--
+Every Novis spelling in the functions, constants and scope table of the PHP-differences chapter compiles and runs — `rule:classes/no-free-functions-or-constants`, `rule:statements/no-function-static-and-no-global`
+--FILE--
+<?nvs
+// covers: tools:php-differences/functions-constants-and-scope
+// The PHP column of every row is pinned under `tests/conformance/reject/`;
+// this case runs the replacement column.
+class Counter {
+    // A top-level `const` and a `define` both become a class constant.
+    public const int START = 10;
+    // A function-scope `static $n` becomes a private static property.
+    private static int $calls = 0;
+
+    // A top-level function becomes a static method.
+    public static function next(): int {
+        self::$calls = self::$calls + 1;
+        return self::START + self::$calls;
+    }
+
+    // A `global $x` becomes a parameter.
+    public static function add(int $x, int $by): int {
+        return $x + $by;
+    }
+
+    // A closure with no `static` in front, which does not use `$this`.
+    public function scaler(int $by): callable {
+        return fn(int $x): int => $x * $by;
+    }
+}
+
+echo Counter::next(), " ", Counter::next(), " ", Counter::START, "\n";
+echo Counter::add(Counter::START, 5), "\n";
+Counter $c = new Counter();
+callable $triple = $c->scaler(3);
+echo $triple(4), "\n";
+
+// Variable variables become the keys of an array.
+array<int> $vars = [];
+string $name = "total";
+$vars[$name] = 5;
+echo $vars["total"], "\n";
+
+// `extract` becomes a destructuring assignment.
+array<int> $pair = [7, 8];
+[int $a, int $b] = $pair;
+echo $a + $b, "\n";
+--EXPECT--
+11 12 10
+15
+12
+5
+15

@@ -1,0 +1,30 @@
+<?nvs
+// Shows a counter, a limit and a helper function, written in Novis.
+
+class Visits {
+    // A constant belongs to a class.
+    public const int LIMIT = 3;
+
+    // A private static property keeps its value between calls.
+    private static int $count = 0;
+
+    // A function is a static method of a class.
+    public static function record(string $page): string {
+        self::$count = self::$count + 1;
+        if (self::$count > self::LIMIT) {
+            return $page . ": limit reached";
+        }
+        return $page . ": visit " . self::$count;
+    }
+}
+
+// This prints visits 1 to 3, and then "limit reached".
+array<string> $pages = ["home", "shop", "cart", "checkout"];
+foreach ($pages as string $page) {
+    echo Visits::record($page), "\n";
+}
+
+// The values of an array are copied into variables by their position.
+array<int> $totals = [12, 30];
+[int $orders, int $items] = $totals;
+echo "Orders: ", $orders, ", items: ", $items, "\n";
