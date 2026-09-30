@@ -1,0 +1,42 @@
+<?nvs
+// Attack: arrays and strings written the Novis way are pushed to their limits.
+// Every step below should end with an error or a clean result, and never a crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+// proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops
+
+// 1. An array nested 200,000 levels deep is printed with `Core\Debug::dump`.
+array<mixed> $deep = [];
+uint $i = 0;
+while ($i < 200000) {
+    array<mixed> $next = [$deep];
+    $deep = $next;
+    $i = $i + 1;
+}
+Core\Debug::dump($deep);
+
+// 2. An array with one million entries is printed with `Core\Debug::dump`.
+array<uint> $wide = [];
+$i = 0;
+while ($i < 1000000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+Core\Debug::dump($wide);
+
+// 3. Keyed destructuring reads a key that the array does not have.
+array<int> $prices = ['tea' => 3];
+try {
+    ['tea' => int $tea, 'cake' => int $cake] = $prices;
+    echo $tea + $cake, "\n";
+} catch (Throwable $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 4. A heredoc interpolates a very long string into itself again and again.
+string $text = 'ab';
+while (true) {
+    $text = <<<EOT
+{$text}{$text}
+EOT;
+}

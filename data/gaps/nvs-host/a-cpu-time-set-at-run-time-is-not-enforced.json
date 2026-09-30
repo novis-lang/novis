@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-host/src/watchdog.rs",
+  "title": "`Core\\Config::set(\"cpu_time\", …)` answers `true` and the request is still stopped at the ceiling it started with.",
+  "text": "Under `nvs run --config` with `[limits] cpu_time = \"10s\"`, a program that calls `Core\\Config::set(\"cpu_time\", \"2s\")` gets `true` and then spins until the `FATAL` at 10s; with no `cpu_time` in the configuration the same call answers `true` and a `while (true)` loop is never stopped. `docs/reference/tools/20-config.md` § *`cpu_time` and `wall_time`* promises the other thing: a request raises its own limit with that call, up to `[limits.hard]`. [`nvs_runtime::ctx::Ctx::fatal_reserve_time`]'s doc says why: the watchdog charges against the ceiling that stood when the request was published and is told of no later edit. In both runs the request is held to the ceiling it started with, so no request escapes its configured limit this way. A raise past the starting value is not checked, and would stop a request that raised its limit for a large report early.",
+  "milestone": "M10"
+}

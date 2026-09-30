@@ -1,0 +1,56 @@
+--TEST--
+Every Novis spelling in the arrays-and-strings table of the PHP-differences chapter compiles and runs —`rule:types/grammar`.3, `rule:expressions/bracket-destructuring`
+--FILE--
+<?nvs
+// covers: tools:php-differences/arrays-and-strings
+// The rows that compile to an error are pinned under `tests/conformance/reject/`;
+// this case runs the replacement column of every other row.
+class Point {
+    public int $x = 3;
+}
+
+// A literal bound to a declared type, then iterated through that local.
+array<int> $a = [1, 2];
+foreach ($a as int $n) {
+    echo $n, " ";
+}
+echo "\n";
+
+// `array(...)` is accepted and builds the same array as `[...]`.
+array<int> $b = array(1, 2);
+echo $a == $b ? "same" : "different", "\n";
+
+// Keyed destructuring with a declared type on each leaf, and the indexed read
+// it replaces agree.
+array<int> $arr = ["a" => 7, "b" => 8];
+["b" => int $y, "a" => int $x] = $arr;
+int $direct = $arr["a"];
+echo $x, " ", $y, " ", $direct, "\n";
+
+// Every interpolation form the row lists.
+string $name = "Ada";
+Point $o = new Point();
+echo "$name|$a[0]|{$a[1]}|$o->x|{$o->x}\n";
+
+// A heredoc interpolates; a nowdoc does not.
+echo <<<EOT
+heredoc $name {$a[0]}
+EOT;
+echo "\n";
+echo <<<'EOT'
+nowdoc $name {$a[0]}
+EOT;
+echo "\n";
+
+// `Core\Debug::dump` writes to standard error, so nothing of it reaches the
+// output this case compares.
+Core\Debug::dump($arr);
+echo "end\n";
+--EXPECT--
+1 2
+same
+7 8 7
+Ada|1|2|3|3
+heredoc Ada 1
+nowdoc $name {$a[0]}
+end
