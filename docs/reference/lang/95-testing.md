@@ -2,10 +2,14 @@
 id: testing
 title: Testing
 summary: `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats
-keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst
+keywords: test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, phpt
 ---
 
 # A test is a method marked `#[Test]`
+
+**To test your own code, write `#[Test]` methods.** `nvs test` also runs `.nvst` case files, which
+compare the text a whole program prints with an expected text. *Which kind of test to write*, under
+*Running tests* below, says when a `.nvst` case is the right one.
 
 Testing is part of the language: `#[Test]` on a method marks it, the compiler collects every
 `#[Test]` in the program into a table while checking it, and `nvs test file.nvs` runs that table.
@@ -380,6 +384,26 @@ A directory holding both kinds is refused, and the two kinds never run in one in
   method's name is `Class::method` (`Class::method#0` for a data-provider row), so `--filter Class::`
   is a whole-class selector. A class no filtered test belongs to is not announced and its
   `#[Fixture]`s are not built. The same containment rule selects a `.nvst` case by its path (above).
+
+## Which kind of test to write
+
+Write `#[Test]` methods to test your own code. Every other section of this chapter is about them.
+
+| | `#[Test]` method | `.nvst` case file |
+|---|---|---|
+| What it tests | a function, a method or a class of your program | one whole program |
+| What it checks | any value, with the `Core\Test` assertions | the text the program prints |
+| What it reports | one line per test, or `--format json` and `--format junit` | one line with the counts |
+
+Write a `.nvst` case only when the printed output of a whole program is the thing to check:
+
+- a command-line script whose output must match an expected text exactly;
+- a program moved from PHP. The case holds the PHP version under `--ORACLE--`, and both versions
+  must print the same text.
+
+A `.nvst` case cannot check a return value, and `--format`, `--list` and `--update` do not work
+with one. If you are not sure, write a `#[Test]` method. The `nvs test` section of
+[the nvs command](#tools-cli) describes the `.nvst` format.
 
 ## A directory of test files is one program
 

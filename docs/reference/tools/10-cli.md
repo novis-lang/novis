@@ -184,7 +184,8 @@ One subcommand runs two kinds of test, and which one is meant is read off the pa
   program in a file not named `.nvs` is read as a case tree here and fails to parse as one.
 
 The two are not mixed in one invocation. The exit status is non-zero if any test or case failed;
-a skipped one is not a failure.
+a skipped one is not a failure. *Which kind of test to write*, in [testing](#lang-testing), says
+when to use each.
 
 ```nvs test
 <?nvs
