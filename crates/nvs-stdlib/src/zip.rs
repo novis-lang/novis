@@ -1987,4 +1987,86 @@ mod tests {
         );
         std::fs::remove_dir_all(&root).ok();
     }
+
+    /// What `extract` returns for `raw` written under `destination` with the
+    /// bound `(bytes, ratio)`, called the way a program calls it: the number of
+    /// files written, or the message of what it threw.
+    fn extract_into(
+        ctx: &mut Ctx,
+        raw: &[u8],
+        destination: &Path,
+        bytes: u64,
+        ratio: u64,
+    ) -> Result<u64, String> {
+        let args = [
+            Value::bytes(NvsStr::new(raw)),
+            Value::str(NvsStr::new(destination.to_string_lossy().as_bytes())),
+            Value::uint(bytes),
+            Value::uint(ratio),
+        ];
+        let answer = match nvs_runtime::call(nvs_core_zip_extract, ctx, &args) {
+            Ok(answer) => Ok(answer.as_uint().expect("`extract` returns a uint")),
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("the refusal is a throw a program can catch")
+                .into_owned()),
+        };
+        for arg in args {
+            #[expect(
+                unsafe_code,
+                reason = "the case owns each argument's one reference, and the member only borrowed it"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
+        answer
+    }
+
+    /// The member writes every file under the destination and counts files
+    /// rather than directories, and its one bound across the archive holds on
+    /// both sides: the archive's whole size extracts, one octet less refuses
+    /// the entry that crosses it and leaves the one before it written. A name
+    /// already taken refuses rather than being replaced.
+    // covers: Core\Zip::extract
+    #[test]
+    fn the_member_extracts_under_one_bound_held_on_both_sides_across_the_archive() {
+        let root = temp_root("extract");
+        std::fs::create_dir_all(&root).expect("the scratch root is this test's to create");
+        let mut ctx = granting(&root);
+        let raw = archive(&[
+            Written::plain("notes/", ""),
+            Written::plain("notes/one.txt", "first"),
+            Written::plain("notes/two.txt", "second"),
+        ]);
+        let big = u64::MAX;
+
+        // Eleven octets is the whole archive: two files, and the directory
+        // entry is created without being counted.
+        let fits = root.join("fits");
+        assert_eq!(extract_into(&mut ctx, &raw, &fits, 11, big), Ok(2));
+        assert_eq!(
+            std::fs::read(fits.join("notes").join("two.txt")).expect("the second file is written"),
+            b"second"
+        );
+
+        // Ten is one short across the archive, though each entry fits it alone.
+        let spent = root.join("spent");
+        let message = extract_into(&mut ctx, &raw, &spent, 10, big)
+            .expect_err("ten octets is one short of the archive");
+        assert!(message.contains("\"notes/two.txt\""), "{message}");
+        assert_eq!(
+            std::fs::read(spent.join("notes").join("one.txt")).expect("the first file stays"),
+            b"first"
+        );
+        assert!(!spent.join("notes").join("two.txt").exists());
+
+        // The same archive over `fits` again: the first name is taken.
+        assert!(extract_into(&mut ctx, &raw, &fits, big, big).is_err());
+        assert_eq!(
+            std::fs::read(fits.join("notes").join("one.txt")).expect("the first file stays"),
+            b"first"
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
 }

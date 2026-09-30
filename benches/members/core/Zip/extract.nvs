@@ -1,0 +1,22 @@
+<?nvs
+// Writes a small archive of two compressed files into a new folder, as a program does to unpack an upload.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The folder `notes/` with `notes/one.txt` (29 bytes) and `notes/two.txt` (12 bytes).
+        bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVoAAAAAAAAAAAAAAAAGAAAAbm90ZXMvUEsDBBQAAAAIAAAAIVoQuxC+HAAAAB0AAAANAAAAbm90ZXMvb25lLnR4dEvLLCouUcjJzEtVyE9TKMlIVUgDi+Tll6RyAQBQSwMEFAAAAAgAAAAhWlcZXOMOAAAADAAAAA0AAABub3Rlcy90d28udHh0K05Nzs9LUcjLL0nlAgBQSwECFAAUAAAAAAAAACFaAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAA7UEAAAAAbm90ZXMvUEsBAhQAFAAAAAgAAAAhWhC7EL4cAAAAHQAAAA0AAAAAAAAAAAAAAKSBJAAAAG5vdGVzL29uZS50eHRQSwECFAAUAAAACAAAACFaVxlc4w4AAAAMAAAADQAAAAAAAAAAAAAApIFrAAAAbm90ZXMvdHdvLnR4dFBLBQYAAAAAAwADAKoAAACkAAAAAAA=");
+        string $folder = Core\IO::temporaryDir();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: each round's folder name depends on the last round's total.
+            string $into = Core\Path::join($folder, 'r' . $i . '-' . $total);
+            $total = $total + Core\Zip::extract($archive, $into);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

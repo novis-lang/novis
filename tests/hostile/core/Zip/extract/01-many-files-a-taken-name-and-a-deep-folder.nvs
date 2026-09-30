@@ -1,0 +1,125 @@
+<?nvs
+// Attack: archives are written to disk that are too large only when all files are
+// added up. Others use a name that already exists, or nest thousands of folders.
+// Each extract should write the files or throw an error. The runtime must not hang.
+// hostile: timeout-ms 30000
+// proof: gap nvs-stdlib/extract-resolves-every-folder-level-from-the-root
+
+class Archive
+{
+    // An archive with one file for each name in `$names`. Every file contains
+    // `$data`, compressed with deflate. A name that ends with `/` is a folder.
+    public static function many(array<string> $names, bytes $data): bytes
+    {
+        bytes $crc = Archive::crc($data);
+        bytes $packed = Core\Compress::compress($data, Core\Codec::Deflate);
+        uint $size = Core\Bytes::length($data);
+        uint $length = Core\Bytes::length($packed);
+        array<bytes> $locals = [];
+        array<bytes> $records = [];
+        uint $offset = 0;
+        foreach ($names as string $name) {
+            bytes $spelled = $name as bytes;
+            uint $nameLength = Core\Bytes::length($spelled);
+            bytes $local = Core\Bytes::join([
+                Core\Bytes::pack('Vvvvvv', 0x04034b50, 20, 0, 8, 0, 0),
+                $crc,
+                Core\Bytes::pack('VVvv', $length, $size, $nameLength, 0),
+                $spelled,
+                $packed,
+            ]);
+            $records[] = Core\Bytes::join([
+                Core\Bytes::pack('Vvvvvvv', 0x02014b50, 20, 20, 0, 8, 0, 0),
+                $crc,
+                Core\Bytes::pack('VVvvvvvVV', $length, $size, $nameLength, 0, 0, 0, 0, 0, $offset),
+                $spelled,
+            ]);
+            $locals[] = $local;
+            $offset = $offset + Core\Bytes::length($local);
+        }
+        bytes $directory = Core\Bytes::join($records);
+        uint $count = Core\Arr::count($names);
+        return Core\Bytes::join([
+            Core\Bytes::join($locals),
+            $directory,
+            Core\Bytes::pack('VvvvvVVv', 0x06054b50, 0, 0, $count, $count, Core\Bytes::length($directory), $offset, 0),
+        ]);
+    }
+
+    // The CRC-32 checksum of `$data`, low byte first, as a zip archive stores it.
+    public static function crc(bytes $data): bytes
+    {
+        bytes $high = Core\Hash::of($data, Core\Digest::Crc32);
+        return Core\Bytes::join([
+            Core\Bytes::slice($high, 3, 1),
+            Core\Bytes::slice($high, 2, 1),
+            Core\Bytes::slice($high, 1, 1),
+            Core\Bytes::slice($high, 0, 1),
+        ]);
+    }
+
+    // Extracts an archive into `$folder` and prints the number of files, or the
+    // error it threw.
+    public static function tryExtract(string $step, bytes $archive, string $folder, uint $maxBytes): void
+    {
+        try {
+            uint $files = Core\Zip::extract($archive, $folder, $maxBytes);
+            echo $step, ': ', $files, " files\n";
+        } catch (ParseError $refused) {
+            echo $step, ": ParseError\n";
+        } catch (IOError $failed) {
+            echo $step, ": IOError\n";
+        } catch (RuntimeError $other) {
+            echo $step, ": RuntimeError\n";
+        }
+    }
+}
+
+uint $largest = 0xFFFFFFFFFFFFFFFF;
+bytes $block = Core\Bytes::fill(65536, 0);
+
+// 1. 1000 files of 64 KiB each. Each file is far below the limit of 4 MiB, but
+// all of them together are 62.5 MiB. The 65th file throws.
+array<string> $names = [];
+uint $i = 0;
+while ($i < 1000) {
+    $names[] = 'part-' . $i . '.bin';
+    $i = $i + 1;
+}
+bytes $spread = Archive::many($names, $block);
+string $first = Core\IO::temporaryDir();
+Archive::tryExtract('step 1', $spread, $first, 4194304);
+echo 'step 1: ', Core\Arr::count(Core\IO::list($first)), " files on the disk\n";
+
+// 2. The same archive, asking for the largest possible limit. The server allows
+// 4 MiB, so this throws at the same file.
+Archive::tryExtract('step 2', $spread, Core\IO::temporaryDir(), $largest);
+
+// 3. The same archive into the folder of step 1. `part-0.bin` already exists, so
+// the first file throws and nothing is replaced.
+Archive::tryExtract('step 3', $spread, $first, $largest);
+
+// 4. The folder is a file that already exists.
+string $taken = Core\Path::join($first, 'part-0.bin');
+Archive::tryExtract('step 4', Archive::many(['note.txt'], 'hello' as bytes), $taken, $largest);
+
+// 5. One archive has the file `notes`. The next one needs a folder `notes`.
+string $clash = Core\IO::temporaryDir();
+Archive::tryExtract('step 5a', Archive::many(['notes'], 'hello' as bytes), $clash, $largest);
+Archive::tryExtract('step 5b', Archive::many(['notes/one.txt'], 'hello' as bytes), $clash, $largest);
+
+// 6. A file inside 1000 nested folders, and one inside 20000. Both names fit in
+// a zip archive. The operating system may not allow paths that long.
+Archive::tryExtract('step 6a', Archive::many([Core\Str::repeat('d/', 1000) . 'f.txt'], 'deep' as bytes), Core\IO::temporaryDir(), $largest);
+Archive::tryExtract('step 6b', Archive::many([Core\Str::repeat('d/', 20000) . 'f.txt'], 'deep' as bytes), Core\IO::temporaryDir(), $largest);
+
+// 7. 5000 folders and no file. Folders are not counted, so this prints 0 files.
+array<string> $folders = [];
+$i = 0;
+while ($i < 5000) {
+    $folders[] = 'empty-' . $i . '/';
+    $i = $i + 1;
+}
+Archive::tryExtract('step 7', Archive::many($folders, '' as bytes), Core\IO::temporaryDir(), $largest);
+
+echo "the runtime is still standing\n";

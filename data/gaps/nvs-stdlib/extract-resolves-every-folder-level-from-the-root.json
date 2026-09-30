@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/zip.rs",
+  "title": "`Core\\Zip::extract` spends time quadratic in an entry's folder depth, so one entry name nesting a few thousand folders holds the call for many seconds.",
+  "text": "`place` creates and then canonicalizes every level of an entry's path by its full path from the destination, so level k costs the kernel a walk of k components and an entry k folders deep costs O(k²). Nothing bounds k but the zip name field (up to 65535 bytes, about 32000 levels), the budget charges only decompressed octets, and the work is repeated for every entry even when its folders were resolved for the entry before it. In a debug build 500 levels take about 0.4 s and 4000 levels about 28 s, so a small upload holds a request far past any reasonable time. The fix changes how extraction walks the disk: resolve each level relative to the handle of the level above (`openat`/`mkdirat` with `O_NOFOLLOW` on Unix, a `RootDirectory` handle on Windows), which is linear and also closes the window between the last resolution and the file's creation, or bound the folder depth an archive may name and state that bound in `rule:core-classes/decompression-bound`'s neighbourhood. `tests/hostile/core/Zip/extract/01-many-files-a-taken-name-and-a-deep-folder.nvs` step 6 is the proof that finds it.",
+  "milestone": "M12"
+}
