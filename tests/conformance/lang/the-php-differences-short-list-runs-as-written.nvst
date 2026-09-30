@@ -1,0 +1,60 @@
+--TEST--
+Every claim in the short list of the PHP-differences chapter that a program can show compiles and runs as the list says — `rule:expressions/one-equality-operator`, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: tools:php-differences/the-short-list
+// The PHP spellings the list names (`function` at the top level, `$_GET`,
+// `===`, `eval`, `__construct`) are pinned under
+// `tests/conformance/reject/`; this case runs the Novis side of each claim.
+class Stock {
+    public const string UNIT = "pcs";
+
+    public function constructor(public int $count) {}
+
+    public static function take(inout int $count, int $n): void {
+        $count = $count - $n;
+    }
+}
+
+// Every variable declares its type once; `mixed` is for when you mean it.
+mixed $any = 3;
+$any = "three";
+echo $any, "\n";
+
+// Every function is a method and every constant is a class constant.
+int $left = 10;
+Stock::take(inout $left, 4);
+Stock $s = new Stock($left);
+echo $s->count, " ", Stock::UNIT, "\n";
+
+// One equality: `==` never converts, so two numeric strings differ.
+echo "1" == "01" ? "eq" : "ne", " ", 2 == 2 ? "eq" : "ne", "\n";
+
+// `string` counts graphemes; `bytes` counts bytes.
+string $word = "Café 👍🏽";
+bytes $raw = $word as bytes;
+echo Core\Str::length($word), " ", Core\Bytes::length($raw), "\n";
+
+// An array's keys are strings, it keeps insertion order, and a copy is a copy.
+array<int> $a = [10, 20];
+$a["k"] = 30;
+array<int> $b = $a;
+$b["0"] = 99;
+foreach ($a as string $key => int $v) {
+    echo $key, "=", $v, " ";
+}
+echo $b[0], "\n";
+
+// Concurrency is built in.
+var $r = Core\Task::all({
+    one: fn(): int => 1 + 1,
+    two: fn(): int => 2 + 2,
+});
+echo $r->one, " ", $r->two, "\n";
+--EXPECT--
+three
+6 pcs
+ne eq
+6 14
+0=10 1=20 k=30 99
+2 4

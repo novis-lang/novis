@@ -21,8 +21,9 @@ Ten changes carry most of the distance between the two languages:
   value ever changes type. `mixed` exists for when you mean it.
 - **Every function is a method and every constant is a class constant**, built-ins included. There
   is no global scope and nothing the host populates — no `$_GET`, no `$GLOBALS`, no `global`.
-- **Around 450 `Core` members replace PHP's ~1,900 built-ins**, all with one argument order, named
-  arguments, and one failure story: a `Throwable`, never `false`.
+- **The methods of the `Core` classes replace PHP's built-in functions.** They all use one
+  argument order and accept named arguments. A failure throws a `Throwable` and never returns
+  `false`.
 - **One equality.** `==` never converts, `===` does not parse, and comparing two disjoint types
   does not compile.
 - **`string` is UTF-8 and counts graphemes**; binary data is the separate `bytes` type. The whole
@@ -37,6 +38,31 @@ Ten changes carry most of the distance between the two languages:
   `net.connect`), and `tainted`/`secret` are type qualifiers the checker enforces.
 - **Testing is a language feature**: `#[Test]` methods and `nvs test`, with no framework to
   install — see `the tools you do not install` below.
+
+This short program uses several of them. The function is a static method, the constant belongs
+to the class, and `==` compares two strings without converting them to numbers:
+
+```nvs
+<?nvs
+class Stock {
+    public const string UNIT = "pcs";
+
+    public static function total(array<int> $counts): int {
+        int $sum = 0;
+        foreach ($counts as int $count) {
+            $sum += $count;
+        }
+        return $sum;
+    }
+}
+
+echo Stock::total(["apples" => 12, "pears" => 5]), " ", Stock::UNIT, "\n";
+echo "12" == "012" ? "equal" : "different", " ", Core\Str::length("Café"), "\n";
+```
+```output
+17 pcs
+different 4
+```
 
 Everything below is the same list at full resolution. Two rules explain most of the refusal
 tables. **Every binding declares a type once** — a parameter, a property, a local, a closure
@@ -54,7 +80,7 @@ populates.
 | `namespace A;` then `use A\B as C;` | `use A\B;` — an import cannot be renamed; use the short name or the full path | `E0212` |
 | `use A\{B, C};` | one `use` per name | `E0238` |
 | `namespace A { … }` (the braced form), two namespaces in one file | `namespace A;` once, before any declaration — one file is one namespace | `E0243` |
-| `use function …;`, `use const …;` | nothing to import: functions and constants are class members | `E0306` |
+| `use function …;`, `use const …;` | nothing to import: functions and constants are class members | `E0252` |
 | `\Core\Str::length($s)` (leading `\`) | `Core\Str::length($s)` — a name with a `\` in it is already absolute | `E0240` |
 | `$obj->{$name}`, `$obj->$name` | write the member; hold run-time keys in an `array<T>`, whose keys are `string` | `E0235` |
 | `new $className()`, `$className::f()`, `$x is $className` over a `string` | a written class name, or a class reference: `class<T> $cls = $className as class<T>;` then the same three spellings. The `as` is where a name that is not a `T` throws, so every site downstream of it holds a class that already passed | `E0496` at all three |

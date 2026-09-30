@@ -1,0 +1,29 @@
+<?nvs
+// Shows a short program as a PHP developer would write it in Novis.
+
+// A function is a static method, and a constant belongs to a class.
+class Stock {
+    public const string UNIT = "pcs";
+
+    public static function total(array<int> $counts): int {
+        int $sum = 0;
+        foreach ($counts as int $count) {
+            $sum += $count;
+        }
+        return $sum;
+    }
+}
+
+// Every variable has a type. This prints `17 pcs`.
+array<int> $counts = ["apples" => 12, "pears" => 5];
+echo Stock::total($counts), " ", Stock::UNIT, "\n";
+
+// `==` does not convert its values. "12" and "012" are different strings, so this prints `no`.
+echo "12" == "012" ? "yes" : "no", "\n";
+
+// `as int` converts the string to a number first. Now both sides are 12, so this prints `yes`.
+string $input = "012";
+echo ($input as int) == $counts["apples"] ? "yes" : "no", "\n";
+
+// A string counts characters the way a person sees them. This prints `4`.
+echo Core\Str::length("Café"), "\n";
