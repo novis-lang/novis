@@ -850,10 +850,58 @@ fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
     // sides are differences of two sub-nanosecond timings, so a burst of load
     // on one batch moves a side by a whole nanosecond, and that is what the
     // re-measuring in `judge` absorbs.
+    //
+    // The count beside the timing is the part no machine moves: where the
+    // polls are. The body expires the deadline at each position in turn, and
+    // the loop has to stop at the next multiple of `DEADLINE_POLL_BATCH`. A
+    // loop that stops sooner reads the flag more than once in a batch, which is
+    // a poll that is not amortised. A loop that stops later has left a batch
+    // with no poll in it.
     const POLL_PER_CHECK: Bound = Bound::ratio_under(1.0, 10.0);
     const DEPTH: usize = 8;
     const STMTS_PER_FRAME: usize = 16;
     const ITEMS: usize = nvs_runtime::DEADLINE_POLL_BATCH * 64;
+    const BATCH: usize = nvs_runtime::DEADLINE_POLL_BATCH;
+    const COUNTED_BATCHES: usize = 3;
+
+    let mut stops = std::collections::BTreeSet::new();
+    for expires_at in 1..COUNTED_BATCHES * BATCH {
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        let mut ran = 0usize;
+        let stopped = nvs_runtime::bounded_loop(
+            &mut ctx,
+            "Core\\Probe::sweep",
+            0..(COUNTED_BATCHES + 1) * BATCH,
+            |ctx, _item| {
+                ran += 1;
+                if ran == expires_at {
+                    ctx.expire_deadline();
+                }
+                Ok(())
+            },
+        );
+        assert!(
+            stopped.is_err(),
+            "a deadline expired at iteration {expires_at} never stopped the loop"
+        );
+        // The poll at a boundary runs before that iteration's body.
+        let boundary = (expires_at / BATCH + 1) * BATCH;
+        assert_eq!(
+            ran,
+            boundary - 1,
+            "a deadline expired at iteration {expires_at} stopped the loop after {ran} \
+             iterations. The only poll after it is at iteration {boundary}, because \
+             `bounded_loop` reads the flag once in every {BATCH} iterations; ADR 0106 § 5 rests \
+             on that batch."
+        );
+        stops.insert(ran);
+    }
+    // Every stop above was at a boundary, so the distinct stops are the polls.
+    println!(
+        "deadline polls in {COUNTED_BATCHES} batches of {BATCH} iterations: {} [exactly \
+         {COUNTED_BATCHES}, one at each batch boundary]",
+        stops.len()
+    );
 
     let mut probe = Probe::new();
     let plain_chain = probe.compile_probe_chain(DEPTH, Helper::Double, STMTS_PER_FRAME, false);
