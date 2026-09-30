@@ -591,6 +591,93 @@ fn every_syntactic_form_is_reachable_through_a_heading() {
     assert!(missing.is_empty(), "forms with no heading: {missing:?}");
 }
 
+/// Every `$ nvs agent …` command the chapter's worked session shows, as the
+/// arguments after `agent` and the lines the chapter prints under the command.
+/// A lone `$` is the prompt coming back and ends the command above it.
+fn worked_session() -> Vec<(Vec<String>, Vec<String>)> {
+    let text = chapter("tools/50-agents.md");
+    let mut steps: Vec<(Vec<String>, Vec<String>)> = Vec::new();
+    let mut in_section = false;
+    let mut in_fence = false;
+    let mut in_transcript = false;
+    let mut open = false;
+    for line in text.lines() {
+        if line.starts_with("```") {
+            in_transcript = !in_fence && line == "```text";
+            in_fence = !in_fence;
+            open = false;
+        } else if !in_fence && line.starts_with("# ") {
+            in_section = line == "# A worked session";
+        } else if in_section && in_transcript {
+            if let Some(command) = line.strip_prefix("$ nvs agent ") {
+                let args = command
+                    .split_whitespace()
+                    .map(|word| word.trim_matches('\'').to_owned())
+                    .collect();
+                steps.push((args, Vec::new()));
+                open = true;
+            } else if line == "$" {
+                open = false;
+            } else if open {
+                let (_, printed) = steps.last_mut().expect("a command is open");
+                printed.push(line.to_owned());
+            }
+        }
+    }
+    steps
+}
+
+/// The session is a transcript, and a transcript in a chapter is a copy of what
+/// the binary printed the day it was written. Replaying each command holds the
+/// copy to the binary: what `find` lists, the card `show` prints, and the
+/// status each call exits with. A block that closes on `…` is an excerpt, so it
+/// is matched as the opening of the output.
+// covers: tools:agents/a-worked-session
+#[test]
+fn the_worked_session_of_the_chapter_is_what_the_binary_prints() {
+    let steps = worked_session();
+    let commands: Vec<&str> = steps.iter().map(|(args, _)| args[0].as_str()).collect();
+    assert_eq!(
+        commands,
+        ["find", "find", "show", "find", "show"],
+        "the session is a miss, a hit and its card, then a keyword and its section"
+    );
+
+    for (args, printed) in &steps {
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let (out, _, ok) = agent(&args);
+        assert!(ok, "`nvs agent {}` succeeds", args.join(" "));
+        let lines: Vec<&str> = out.lines().collect();
+
+        match printed.last().and_then(|last| last.strip_suffix('…')) {
+            Some(opening) => {
+                let whole = printed.len() - 1;
+                assert!(
+                    lines.len() > whole,
+                    "`nvs agent {}` prints past the excerpt: {out}",
+                    args.join(" ")
+                );
+                assert_eq!(
+                    lines[..whole],
+                    printed[..whole],
+                    "the excerpt's whole lines"
+                );
+                assert!(
+                    lines[whole].starts_with(opening.trim_end()),
+                    "the excerpt stops inside this line: {}",
+                    lines[whole]
+                );
+            }
+            None => assert_eq!(
+                lines,
+                *printed,
+                "`nvs agent {}` prints what the chapter shows",
+                args.join(" ")
+            ),
+        }
+    }
+}
+
 /// A fresh empty directory named for the test that owns it, so two tests never
 /// share a working directory.
 fn tree(name: &str) -> PathBuf {

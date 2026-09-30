@@ -1,0 +1,37 @@
+<?nvs
+// Attack: the program tries to call PHP's `strlen` in every way PHP allows.
+// No line below should compile. Each one should give an error, and the compiler must not crash.
+// hostile: expect-refusal
+
+string $name = "Zoë";
+
+// 1. The PHP name, then the same name with a leading `\` and in capital letters.
+echo strlen($name), "\n";
+echo \strlen($name), "\n";
+echo STRLEN($name), "\n";
+
+// 2. The PHP function for text with more than one byte per character.
+echo mb_strlen($name, 'UTF-8'), "\n";
+
+// 3. The PHP name inside the `Core` namespace, and inside the class `Core\Str`.
+echo Core\strlen($name), "\n";
+echo Core\Str::strlen($name), "\n";
+
+// 4. The right function with an encoding as a second argument, and with no argument.
+echo Core\Str::length($name, 'UTF-8'), "\n";
+echo Core\Str::length(), "\n";
+
+// 5. The length as a method of the string.
+echo $name->length(), "\n";
+
+// 6. The PHP name as a string that is used as a function.
+echo call_user_func('strlen', $name), "\n";
+callable $byName = 'strlen';
+string $function = 'strlen';
+echo $function($name), "\n";
+
+// 7. A reference to the PHP function.
+callable $reference = strlen(...);
+
+// 8. The PHP name called on its own result eight times.
+echo strlen(strlen(strlen(strlen(strlen(strlen(strlen(strlen($name)))))))), "\n";

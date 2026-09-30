@@ -1,0 +1,12 @@
+--TEST--
+The program the worked session of the agents chapter arrives at compiles and prints what the section says — `rule:tooling/an-agent-asks-the-binary`, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: tools:agents/a-worked-session
+// The program is the section's own block, line for line. The PHP spelling the
+// session starts from is pinned under `tests/conformance/reject/`.
+
+string $name = "Zoë";
+echo Core\Str::length($name), "\n";
+--EXPECT--
+3

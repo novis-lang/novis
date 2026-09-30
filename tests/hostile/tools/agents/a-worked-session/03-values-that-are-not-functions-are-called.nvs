@@ -1,0 +1,36 @@
+<?nvs
+// Attack: values that are not functions are called as functions. Each value is `mixed`,
+// so the file compiles. Each call should throw an error that `catch` receives.
+// proof: gap nvs-runtime/a-call-on-a-value-that-is-not-a-closure-is-an-internal-error
+
+class Box
+{
+    public function length(string $s): uint
+    {
+        return Core\Str::length($s);
+    }
+}
+
+string $name = 'Zoë';
+
+// 1. Two strings with a function name, a number, `null`, an array and an object are called.
+array<mixed> $callees = ['strlen', 'Core\Str::length', 7, 1.5, true, null, ['Core\Str', 'length'], new Box()];
+foreach ($callees as mixed $callee) {
+    try {
+        echo $callee($name), "\n";
+    } catch (Throwable $notCallable) {
+        echo 'caught: ', $notCallable->message, "\n";
+    }
+}
+
+// 2. A variable that may contain a function is `null` when it is called.
+?callable $none = null;
+try {
+    echo $none($name), "\n";
+} catch (Throwable $notCallable) {
+    echo 'caught: ', $notCallable->message, "\n";
+}
+
+// 3. A real function is called last. This prints `3` when the program reaches its end.
+callable $length = Core\Str::length(...);
+echo $length($name), "\n";

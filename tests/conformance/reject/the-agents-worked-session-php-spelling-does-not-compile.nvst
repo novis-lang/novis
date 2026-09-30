@@ -1,0 +1,19 @@
+--TEST--
+The PHP spelling the worked session of the agents chapter starts from does not compile, and the help names the member the session arrives at — `rule:tooling/an-agent-asks-the-binary`, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: tools:agents/a-worked-session
+// The program is the section's own `nvs error` block. The section says the
+// check answers what `find` and `show` answered, so the help is pinned whole.
+
+string $name = "Zoë";
+echo strlen($name), "\n";
+--EXPECTF-ERROR--
+error[E0320]: `strlen` is not a function that exists
+  --> case.nvs:7:6
+  |
+7 | echo strlen($name), "\n";
+  |      ^^^^^^ no free function has this name
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's own name to its `Core` member
+
+error: aborting due to 1 error
