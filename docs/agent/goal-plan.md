@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 181 goals. 169 are walked (120 of them retired), `tools-php-differences` is live at 170 of 181, and 11 are ahead.
+The chain holds 181 goals. 170 are walked (120 of them retired), `tools-agents` is live at 171 of 181, and 10 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -182,8 +182,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 167 | [`core-zip`](goals/core-zip.md) | Core\Zip | walked |  | **2** the dossier |
 | 168 | [`tools-cli`](goals/tools-cli.md) | tools:cli | walked |  | **2** the dossier |
 | 169 | [`tools-config`](goals/tools-config.md) | tools:config | walked |  | **2** the dossier |
-| 170 | [`tools-php-differences`](goals/tools-php-differences.md) | tools:php-differences | **live** |  | **2** the dossier |
-| 171 | [`tools-agents`](goals/tools-agents.md) | tools:agents | ahead |  | **2** the dossier |
+| 170 | [`tools-php-differences`](goals/tools-php-differences.md) | tools:php-differences | walked |  | **2** the dossier |
+| 171 | [`tools-agents`](goals/tools-agents.md) | tools:agents | **live** |  | **2** the dossier |
 | 172 | [`the-description-is-owed`](goals/the-description-is-owed.md) | the description is owed | ahead |  | **2** the description is owed |
 | 173 | [`limit-handler-reach`](goals/limit-handler-reach.md) | every resource FATAL reaches the program's onLimit handler | ahead |  | **2** the handler runs · **3** a narrowed cpu_time is enforced |
 | 174 | [`core-class-cards`](goals/core-class-cards.md) | every Core class and every diagnostic code carries its card, and the binary's help reaches every feature | ahead |  | **2** the cards · **3** the index entries · **4** the code cards · **5** help is owed |
