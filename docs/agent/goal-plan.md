@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 181 goals. 168 are walked (120 of them retired), `tools-config` is live at 169 of 181, and 12 are ahead.
+The chain holds 181 goals. 169 are walked (120 of them retired), `tools-php-differences` is live at 170 of 181, and 11 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -181,8 +181,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 166 | [`core-xml-writer`](goals/core-xml-writer.md) | Core\Xml\Writer | walked |  | **2** the dossier |
 | 167 | [`core-zip`](goals/core-zip.md) | Core\Zip | walked |  | **2** the dossier |
 | 168 | [`tools-cli`](goals/tools-cli.md) | tools:cli | walked |  | **2** the dossier |
-| 169 | [`tools-config`](goals/tools-config.md) | tools:config | **live** |  | **2** the dossier |
-| 170 | [`tools-php-differences`](goals/tools-php-differences.md) | tools:php-differences | ahead |  | **2** the dossier |
+| 169 | [`tools-config`](goals/tools-config.md) | tools:config | walked |  | **2** the dossier |
+| 170 | [`tools-php-differences`](goals/tools-php-differences.md) | tools:php-differences | **live** |  | **2** the dossier |
 | 171 | [`tools-agents`](goals/tools-agents.md) | tools:agents | ahead |  | **2** the dossier |
 | 172 | [`the-description-is-owed`](goals/the-description-is-owed.md) | the description is owed | ahead |  | **2** the description is owed |
 | 173 | [`limit-handler-reach`](goals/limit-handler-reach.md) | every resource FATAL reaches the program's onLimit handler | ahead |  | **2** the handler runs · **3** a narrowed cpu_time is enforced |

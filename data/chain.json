@@ -1,5 +1,5 @@
 {
-  "live": "tools-config",
+  "live": "tools-php-differences",
   "goals": [
     "core-depth",
     "concurrency",
