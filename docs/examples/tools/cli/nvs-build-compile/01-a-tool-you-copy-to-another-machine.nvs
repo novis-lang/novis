@@ -1,0 +1,17 @@
+<?nvs
+// Shows a small tool that you give to a colleague as one file.
+// `nvs build --compile 01-a-tool-you-copy-to-another-machine.nvs -o disk-report` writes the program `disk-report`.
+// Your colleague runs `disk-report` directly. They do not need to install `nvs`.
+
+array<string> $folders = ["uploads", "logs", "backups"];
+array<uint> $megabytes = [420, 35, 1800];
+
+uint $total = 0;
+uint $i = 0;
+foreach ($folders as string $folder) {
+    echo $folder, ": ", $megabytes[$i], " MB\n";
+    $total = $total + $megabytes[$i];
+    $i = $i + 1;
+}
+// This prints `total: 2255 MB`. The program prints the same lines with `nvs run` and as a built file.
+echo "total: ", $total, " MB\n";

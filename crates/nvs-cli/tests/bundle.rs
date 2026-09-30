@@ -124,6 +124,7 @@ fn payload(exe: &Path) -> Vec<(String, String)> {
 /// bundler that embedded the entry alone still produces a file whose footer
 /// parses, and the `require`d half is the half that would then fail on the
 /// user's machine instead of at build time.
+// covers: tools:cli/nvs-build-compile
 #[test]
 fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
     let files = payload(&bundle("graph"));
@@ -243,6 +244,7 @@ fn a_bundled_class_is_reached_and_enumerated_through_an_autoload_root() {
 /// Identically means all three of stdout, stderr and exit status — a bundle
 /// that printed the right answer while also complaining about a payload it
 /// could not read would pass on stdout alone.
+// covers: tools:cli/nvs-build-compile
 #[test]
 fn a_bundled_executable_runs_identically_to_nvs_run() {
     let exe = bundle("identical");
@@ -275,4 +277,61 @@ fn a_bundled_executable_runs_identically_to_nvs_run() {
         String::from_utf8_lossy(&bundled.stdout).contains("greeting from the require graph"),
         "a positive control: both sides ran the program rather than both failing the same way"
     );
+}
+
+/// The attack written against the bundle: a program whose own commands are
+/// `run` and `build`, bundled and started with the words `nvs` would act on.
+/// Each reaches the program's command, and `-o out` writes no file, because
+/// a bundle's whole command line belongs to the program.
+// covers: tools:cli/nvs-build-compile
+#[test]
+fn a_bundle_hands_every_word_of_its_command_line_to_the_program() {
+    let program = nvs_repo::path("tests")
+        .join("hostile")
+        .join("tools")
+        .join("cli")
+        .join("nvs-build-compile")
+        .join("01-a-tool-whose-commands-are-named-like-nvs.nvs");
+    let exe = bundle_of(
+        program.to_str().expect("the repository path is UTF-8"),
+        "argv",
+    );
+    // The directory `bundle_of` wrote the executable into.
+    let dir = &std::env::temp_dir().join("nvs-bundle-argv");
+    let started = |words: &[&str]| {
+        // Run from the bundle's own directory, which has no `nvs.toml` to read.
+        let out = nvs_repo::spawn(&exe, &[])
+            .args(words)
+            .current_dir(dir)
+            .output()
+            .expect("the bundle is an executable this host can run");
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+
+    let run = started(&["run", "report.nvs"]);
+    assert!(
+        run.lines().any(|line| line == "tool run report.nvs"),
+        "`run` reached the program's own command: {run:?}"
+    );
+    assert!(run.contains("status 0"), "and it succeeded: {run:?}");
+
+    let build = started(&["build", "--compile", "x.nvs", "-o", "out"]);
+    assert!(
+        build
+            .lines()
+            .any(|line| line == "tool build x.nvs compile yes output out"),
+        "`build --compile` reached the program with every option: {build:?}"
+    );
+    assert!(
+        !dir.join("out").exists() && !dir.join("out.exe").exists(),
+        "and nothing was built"
+    );
+
+    let help = started(&["--help"]);
+    assert!(
+        help.contains("status 2"),
+        "`--help` is a word the program has no command for, so it prints its usage: {help:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(dir);
 }
