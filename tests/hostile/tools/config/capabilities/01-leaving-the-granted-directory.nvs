@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program may read one directory, and it tries to read and write files outside it.
+// Every attempt should throw an error, and the one granted file should still be readable.
+
+string $dir = 'tests/hostile/tools/config/capabilities';
+
+// 1. Read files outside `data` with `..`, with a name that starts with `data`, and with other separators.
+array<string> $outside = [
+    $dir . '/nvs.toml',
+    $dir . '/data/../nvs.toml',
+    $dir . '/data/./../data/../nvs.toml',
+    $dir . '/data/../../../../../../../../../../../../etc/passwd',
+    $dir . '/data2/allowed.txt',
+    $dir . '/data.bak/allowed.txt',
+    $dir . "/data\\..\\nvs.toml",
+    $dir . "/data/allowed.txt\0/../../nvs.toml",
+    '/etc/passwd',
+    "C:\\Windows\\win.ini",
+    '',
+];
+foreach ($outside as string $path) {
+    try {
+        echo Core\Str::length(Core\IO::read($path)), " bytes read\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 2. Read through a very long path that climbs in and out of `data` many times.
+string $long = $dir . '/data';
+uint $round = 0;
+while ($round < 20000) {
+    $long = $long . '/x/..';
+    $round = $round + 1;
+}
+try {
+    echo Core\Str::length(Core\IO::read($long . '/../nvs.toml')), " bytes read\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 3. Write inside `data`. Only reading is granted.
+try {
+    Core\IO::write($dir . '/data/allowed.txt', "changed\n");
+    echo "written\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 4. Grant itself more at run time. Each call should return `false`.
+array<string> $keys = [
+    'capabilities.fs.read',
+    'capabilities.fs.write',
+    'capabilities.script.spawn',
+    'capabilities',
+    'app.capabilities.fs.write',
+];
+foreach ($keys as string $key) {
+    echo $key, ': ', Core\Config::set($key, 'true') ? 'yes' : 'no', "\n";
+}
+
+// 5. The granted file is still readable, and nothing above changed it.
+echo Core\Str::trim(Core\IO::read($dir . '/data/allowed.txt')), "\n";

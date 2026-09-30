@@ -1,0 +1,29 @@
+<?nvs
+// Shows a program that may read one directory and nothing else.
+// `nvs.toml` grants `fs.read` for `data`, and every other file access fails.
+
+string $dir = "docs/examples/tools/config/capabilities";
+
+// The file is inside `data`, so this works. This prints `coffee 3.20`.
+echo Core\Str::trim(Core\IO::read($dir . "/data/prices.txt")), "\n";
+
+// `nvs.toml` is not inside `data`, so this throws a `RuntimeError`.
+try {
+    echo Core\IO::read($dir . "/nvs.toml");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}
+
+// The path is checked after `..` is removed. It points to `nvs.toml` again, so it also fails.
+try {
+    echo Core\IO::read($dir . "/data/../nvs.toml");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}
+
+// Writing needs `fs.write`. It is not granted, not even for `data`.
+try {
+    Core\IO::write($dir . "/data/prices.txt", "coffee 9.90\n");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

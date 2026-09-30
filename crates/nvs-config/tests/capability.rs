@@ -147,6 +147,7 @@ fn granting(text: &str, disk: &Disk) -> Capabilities {
 ///
 /// The granted case is asserted first so that every `false` below is the absence of the grant and
 /// not the harness answering `false` to everything.
+// covers: tools:config/capabilities
 #[test]
 fn spawn_script_without_the_capability_fails() {
     let disk = Disk::of(&[
@@ -216,6 +217,7 @@ fn spawn_script_without_the_capability_fails() {
 /// tree that granted the directory they are in. The two halves are asserted together because a
 /// grant that resolves a relative name has to place it, not merely accept it: the last row climbs
 /// out of the grant and is still refused.
+// covers: tools:config/capabilities
 #[test]
 fn a_bare_relative_path_resolves_against_its_grant() {
     let disk = Disk::of(&[

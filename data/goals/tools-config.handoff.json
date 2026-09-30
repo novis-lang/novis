@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-config`. Two of the configuration chapter's features have all their proofs:\n`tools:config/app-per-application-blocks` and `tools:config/auditing-a-tree`.\nA tool feature owes one example, one attack and one test (Rust with a `covers:` marker counts);\n`bun nv proofs --id '<feature>'` says so, and adds `help` when its reference section shows no code.\nA feature whose example needs settings puts its own `nvs.toml` in the feature directory\n(`docs/examples/README.md` § *A grant the examples need*); both landed features do.\nNothing is blocked.",
+  "state": "Goal `tools-config`. Three of the configuration chapter's features have all their proofs:\n`tools:config/app-per-application-blocks`, `tools:config/auditing-a-tree` and `tools:config/capabilities`.\nA tool feature owes one example, one attack and one test (Rust with a `covers:` marker counts);\n`bun nv proofs --id '<feature>'` says so, and adds `help` when its reference section shows no code.\nA feature whose example needs settings puts its own `nvs.toml` in the feature directory\n(`docs/examples/README.md` § *A grant the examples need*). A path-scoped grant in it is relative to\nthat file (`crate::capability::anchor`, run from `resolve`); a `[storage.*] root` is not yet.\nNothing is blocked.",
   "next": {
     "stage": 1,
     "title": "proofs, file order",
@@ -8,20 +8,16 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:config/capabilities`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:184`"
+        "text": "**`tools:config/network-grants-the-addresses-and-endpoints-they-reach`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:258`. The `net.connect` tests in `crates/nvs-config/tests/capability.rs:280` and `:337` may take the `covers:` marker; an example binds and connects on `127.0.0.1` only, as `docs/examples/core/Net/connect/nvs.toml` does."
       },
       {
         "done": false,
-        "text": "**`tools:config/network-grants-the-addresses-and-endpoints-they-reach`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:258`"
-      },
-      {
-        "done": false,
-        "text": "**`tools:config/include-a-tree-of-files`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:355`"
+        "text": "**`tools:config/include-a-tree-of-files`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:355`. `crates/nvs-config/tests/resolve.rs:392` already resolves an `[[include]]`; the example's `nvs.toml` includes a second file beside it."
       }
     ]
   },
   "backlog": [
-    "The rest of `tools:config/*` in `bun nv proofs --owed`: the file, the blocks, values and units, limits, mode, trust (also owes help), secrets, `Core\\Config`.",
-    "`crates/nvs-config/tests/app.rs` already pins the `[[app]]` rules; a `covers:` marker on an existing test is the whole test edit when one fits."
+    "`[storage.<disk>] root` resolves against the working directory, and `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` says every path-valued directive resolves against its file; not checked where the storage root is read. Moving it rewrites the `Storage` proofs' `nvs.toml` roots as this session did their grants.",
+    "The rest of the stage 2 dossier: `tools:config/trust`, `tools:config/secrets-from-files`, `tools:config/reading-and-changing-it-from-a-program-core-config` (`bun nv proofs --verify --group tools:config`)."
   ]
 }

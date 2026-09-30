@@ -222,6 +222,7 @@ fn a_typoed_block_header_is_refused_and_claims_no_block() {
 /// `rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`: a capability's name is dotted, and a dotted TOML key *is* table nesting, so the two
 /// spellings are the same input. Asserted as agreement rather than as two separate answers — a tree
 /// that grew a second path for one of them fails here while both still look right alone.
+// covers: tools:config/capabilities
 #[test]
 fn the_two_spellings_of_a_dotted_capability_agree() {
     let dotted = tree("[capabilities]\nscript.spawn = [\"/srv/www/jobs\"]\n");
