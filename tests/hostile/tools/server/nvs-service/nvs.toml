@@ -1,0 +1,7 @@
+# The configuration of a server that runs as a service.
+# The program gets no grant to start another program or to write a file.
+[log]
+target = "file:/srv/shop/logs/novis.log"
+
+[control]
+socket = "/run/nvs/shop.sock"

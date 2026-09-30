@@ -257,9 +257,8 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
             "a bundled executable may not install itself as a service".to_owned(),
         )
         .with_note(
-            "`rule:programs/bundle-trust-domain` makes a bundle one trust domain because the person who runs it is the \
-             only principal involved; a service adds a privileged account running the same \
-             payload at every boot"
+            "a bundle is trusted because the only person involved is the one who runs it; a \
+             service adds a privileged account that runs the same program at every boot"
                 .to_owned(),
         )
         .with_help(
@@ -346,9 +345,8 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
             "the stored argv names no `--config`".to_owned(),
         )
         .with_note(
-            "without one the service would fall back to `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s `./nvs.toml`, making its \
-             configuration a property of whatever directory the service manager happened to start \
-             it in"
+            "without one the service reads `./nvs.toml` in the directory the service manager \
+             starts it in, so its configuration would depend on that directory"
                 .to_owned(),
         )
         .with_help("name the configuration file absolutely, as `--config <path>`".to_owned()));
@@ -362,9 +360,8 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
             format!("`{option}` is relative: `{written}`"),
         )
         .with_note(
-            "a service starts under a working directory and an environment that are not this \
-             shell's, so a relative path is a guaranteed first-boot failure reported as an opaque \
-             service-manager error"
+            "a service does not start in the directory of this terminal, so a relative path \
+             names another file there and the service fails at its first start"
                 .to_owned(),
         )
         .with_help("write the path absolutely".to_owned()));
@@ -3379,7 +3376,7 @@ fn describe_host(
                 code::E_SERVICE_PATH_NOT_ABSOLUTE,
                 format!("could not locate this executable: {error}"),
             )
-            .with_note("§ 3 stores an absolute path and nothing else".to_owned())
+            .with_note("a service is stored with the absolute path of its executable".to_owned())
         })?
         .clone();
 
@@ -3551,6 +3548,7 @@ mod tests {
 
     /// `rule:packaging/the-installer-is-a-sink`, row 1 and row 2 — one code, because the reason is one:
     /// what the argv names has to keep running and must carry no testing hook.
+    // covers: tools:server/nvs-service
     #[test]
     fn the_installer_refuses_a_subcommand_outside_the_serve_and_run_allowlist() {
         for subcommand in [
@@ -3582,6 +3580,7 @@ mod tests {
 
     /// `rule:packaging/the-installer-is-a-sink`, row 3 and the `--config` row — the same first-boot
     /// failure, one of them one step less visible.
+    // covers: tools:server/nvs-service
     #[test]
     fn the_installer_refuses_a_relative_path() {
         // In the argv's `--config`, in both spellings.
@@ -3821,6 +3820,7 @@ mod tests {
     /// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`: `nvs service unit` writes the unit to stdout and touches
     /// nothing, and installing it is the explicit request rather than the
     /// default.
+    // covers: tools:server/nvs-service
     #[test]
     fn a_systemd_unit_is_printed_and_written_only_on_install() {
         let plan = Plan {
@@ -4186,6 +4186,7 @@ mod tests {
     /// § 5's change-management artifact, as the thing that is actually
     /// performed rather than a second rendering of it: a dry run describes
     /// every action and reaches the manager with none of them.
+    // covers: tools:server/nvs-service
     #[test]
     fn service_install_dry_run_prints_the_actions_and_touches_nothing() {
         let argv = argv();
@@ -4351,6 +4352,7 @@ mod tests {
     /// which is `rule:core-classes/process-is-argv-only` — the service's name
     /// is one element and never a word inside a command line somebody has to
     /// quote.
+    // covers: tools:server/nvs-service
     #[test]
     fn service_start_stop_and_status_reach_the_manager_by_argv_with_no_shell() {
         let root = unit_root("control");

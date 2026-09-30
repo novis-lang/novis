@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a request tries to install a program as a service that starts at every boot.
+// Only an administrator may install a service, so every attempt below should fail.
+
+// The command that the service should run. Neither file exists.
+array<string> $command = ['run', '/tmp/attacker.nvs', '--config', '/tmp/attacker.toml'];
+
+// 1. Start the installer at its Linux path and at its Windows path.
+//    The program has no `process.exec` grant, so each call throws an error.
+array<string> $installers = ['/usr/local/bin/nvs', 'C:\\Program Files\\nvs\\nvs.exe'];
+foreach ($installers as string $installer) {
+    try {
+        Core\Process::run($installer, ['service', 'install', 'attacker', '--', ...$command]);
+        echo 'installer:       started', "\n";
+    } catch (Throwable $error) {
+        echo 'installer:       ', $error::class, "\n";
+    }
+}
+
+// 2. Start the service manager of each platform directly.
+try {
+    Core\Process::run('/usr/bin/systemctl', ['enable', '--now', 'attacker.service']);
+    echo 'systemctl:       started', "\n";
+} catch (Throwable $error) {
+    echo 'systemctl:       ', $error::class, "\n";
+}
+try {
+    Core\Process::run('C:\\Windows\\System32\\sc.exe', ['create', 'attacker', 'binPath=', 'nvs run /tmp/attacker.nvs']);
+    echo 'sc.exe:          started', "\n";
+} catch (Throwable $error) {
+    echo 'sc.exe:          ', $error::class, "\n";
+}
+
+// 3. Write a service definition into the folder that systemd reads.
+//    The program has no `fs.write` grant, so the write throws an error.
+string $unit = "[Service]\nExecStart=/usr/local/bin/nvs run /tmp/attacker.nvs\n\n[Install]\nWantedBy=multi-user.target\n";
+try {
+    Core\IO::write('/etc/systemd/system/attacker.service', $unit);
+    echo 'unit file:       written', "\n";
+} catch (Throwable $error) {
+    echo 'unit file:       ', $error::class, "\n";
+}
+
+// 4. Give the installer service names that contain a second command, and one very long name.
+array<string> $names = ['shop; reboot', 'shop" & reboot & "', '$(reboot)', Core\Str::repeat('a', 1000000)];
+foreach ($names as string $name) {
+    try {
+        Core\Process::run('/usr/local/bin/nvs', ['service', 'install', $name, '--', ...$command]);
+        echo 'service name:    started', "\n";
+    } catch (Throwable $error) {
+        echo 'service name:    ', $error::class, "\n";
+    }
+}
+
+// 5. Change the two settings that an installed service reads.
+echo 'move the log:    ', Core\Config::set('log.target', 'file:/tmp/attacker.log') ? 'accepted' : 'refused', "\n";
+echo 'move the socket: ', Core\Config::set('control.socket', '/tmp/attacker.sock') ? 'accepted' : 'refused', "\n";
+
+// 6. Start the installer 10000 times, under a different service name each time.
+uint $started = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        Core\Process::run('/usr/local/bin/nvs', ['service', 'install', "attacker-{$i}", '--', ...$command]);
+        $started = $started + 1;
+    } catch (Throwable $error) {
+    }
+    $i = $i + 1;
+}
+echo 'installers started: ', $started, "\n";
+
+// 7. The two settings still have the values from `nvs.toml`.
+echo 'the log is still:    ', Core\Config::get('log.target') ?? 'not set', "\n";
+echo 'the socket is still: ', Core\Config::get('control.socket') ?? 'none', "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows the two settings in the `nvs.toml` beside this file that a server uses as a service.
+
+// A service has no terminal. `[log] target` is the file that gets the log of the server.
+?string $log = Core\Config::get('log.target');
+echo 'log target:             ', $log ?? 'not set', "\n";
+
+// `nvs service status` connects to `[control] socket`.
+// It then prints the number of requests that are running.
+?string $socket = Core\Config::get('control.socket');
+echo 'control socket:         ', $socket ?? 'none', "\n";
+
+// A program can read these settings, but it cannot change them.
+// `Core\Config::set` returns `false` here.
+echo 'changed by the program: ', Core\Config::set('log.target', 'file:/tmp/other.log') ? 'yes' : 'no', "\n";

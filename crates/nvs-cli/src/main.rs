@@ -1083,8 +1083,9 @@ enum CtlCommand {
 /// [`service`]'s module doc owns why `run` is not here yet.
 #[derive(Subcommand)]
 enum ServiceCommand {
-    /// Store this argv with the platform's service manager, and grant the
-    /// account it runs as what § 4's closed list allows.
+    /// Store this command with the platform's service manager, and give the
+    /// account it runs as access to its configuration, its log folder and its
+    /// cache folder.
     #[command(after_help = SERVICE_INSTALL_EXAMPLE)]
     Install(ServiceInstall),
     /// Take the registration away, leaving no key, no event-log source, no
