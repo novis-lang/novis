@@ -4,7 +4,9 @@
   "files": [],
   "context": {
     "modules": [
-      "docs/reference/tools/15-install.md"
+      "docs/reference/tools/15-install.md",
+      "crates/nvs-config/src/trust.rs",
+      "crates/nvs-config/tests/trust.rs"
     ],
     "rules": [
       "testing/feature-proofs",
