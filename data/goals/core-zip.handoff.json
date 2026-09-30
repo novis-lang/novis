@@ -1,23 +1,20 @@
 {
-  "state": "Goal `core-zip`: `Core\\Zip::entries` and `Core\\Zip::read` are complete (`bun nv proofs --id 'Core\\Zip::read'` owes nothing once its perf figure is recorded, which this session did for both). `Core\\Zip` has its class card.\nThe attack on `read` found a panic: `frame` added a zip64 compressed size to the entry's start unchecked, so a claim near `u64::MAX` overflowed. The sum is now checked, pinned by `tests/conformance/core/zip-refuses-an-entry-whose-zip64-size-runs-past-the-address-space.nvst` and by the Rust test `the_member_reads_one_entry_under_a_bound_held_on_both_sides`.\n`extract` still owes about, examples, hostile, perf and a Rust test with a `covers:` marker. Its `.nvst` cases already exist. It is the last thing `dossier-core-zip` is red on.",
+  "state": "Goal `core-zip` is reached: `bun nv proofs --verify --group 'Core\\Zip'` owes nothing, and `entries`, `read` and `extract` each have about, examples, attack, bench, help and a Rust `covers:` test.\nThe attack on `extract` found a denial of service: `place` resolves each folder level by its full path, so one entry nested a few thousand folders deep costs time quadratic in its depth (4000 levels took about 28 s in a debug build). It is recorded as gap `nvs-stdlib/extract-resolves-every-folder-level-from-the-root` (milestone M12), and step 6 of `tests/hostile/core/Zip/extract/01-many-files-a-taken-name-and-a-deep-folder.nvs` carries its `proof: gap` marker, so the sweep counts that case as a known gap.\nThe examples, the attack and the bench of `extract` get their `fs` grants from an `nvs.toml` in their own directory, the way `Core\\Request\\Part::saveTo`'s do. The attack's also sets `[limits] max_decompressed = \"4M\"`.",
   "next": {
     "stage": 2,
-    "title": "feature proofs for the rest of `Core\\Zip`",
+    "title": "the depth finding in `Core\\Zip::extract`",
     "files": [
       "crates/nvs-stdlib/src/zip.rs",
-      "docs/examples/core/Zip/",
-      "tests/hostile/core/Zip/",
-      "benches/members/core/Zip/"
+      "tests/hostile/core/Zip/extract/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Zip::extract`** — owes about, examples, hostile, perf, a Rust `// covers:` test (`rule:testing/feature-proofs`). Registry row `crates/nvs-stdlib/src/zip.rs:167`, member body `crates/nvs-stdlib/src/zip.rs:1042`, placement `crates/nvs-stdlib/src/zip.rs:787`. Drive the member the way `read_from` does at `crates/nvs-stdlib/src/zip.rs:1335`, with a destination under a scratch directory the test removes. Every example and the attack need an `fs.write` and `fs.read` grant for the destination; how an example is granted one is not checked yet (see `docs/examples/README.md` and the playbook bullet on `--SKIPIF--` and `[[app]]` grants). The attack should target the across-the-archive half of the bound (many entries each under `maxBytes`, whose total is over), a destination that already holds a file with an entry's name, and a deep folder chain. After it lands, run `bun nv proofs --record-perf --group 'Core\\Zip'`, because a change to `zip.rs` makes every member's figure stale."
+        "text": "**Make `extract` linear in folder depth** — resolve each level relative to the level above's handle, or bound the depth an archive may name; then take the `proof: gap` marker off the attack (`rule:testing/a-failing-proof-is-fixed-or-recorded`, gap `nvs-stdlib/extract-resolves-every-folder-level-from-the-root`). `place` at `crates/nvs-stdlib/src/zip.rs:796`, its caller at `crates/nvs-stdlib/src/zip.rs:1068`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Zip::read` allocates about 77 KB per call for a 244-byte entry (`docs/perf/members.ndjson`): each call builds a fresh deflate decoder and its window. Reusing the state is a latency question, not a bug — owner `crates/nvs-stdlib/src/zip.rs` module doc if it is ever taken.",
-    "`read` walks the whole central directory on every call, so reading every entry of an archive with many entries is quadratic in the entry count. Not a hang at the sizes the attacks use; worth a `# Known gaps` line if a proof ever measures it."
+    "The depth gap is a security finding (a small upload holds a request for seconds) filed under M12 because no open milestone owns `Core\\Zip`; the user may want it earlier — `data/gaps/nvs-stdlib/extract-resolves-every-folder-level-from-the-root.json`."
   ]
 }
