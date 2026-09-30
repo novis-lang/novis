@@ -1,0 +1,20 @@
+--TEST--
+A PHP `function (…) use (…) { … }` literal and an `fn` parameter with no type and no parameter to take one from are refused, each with its own code — `rule:types/callable-is-a-closure`
+--FILE--
+<?nvs
+// covers: tools:php-differences/closures-and-callables
+// The values are discarded so each error is the refusal itself: a binding would
+// carry a second one about the type the expression has instead.
+int $k = 3;
+function (int $x) use ($k) { return $x + $k; };
+fn($x) => $x;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0222]: anonymous `function` literals are not supported
+%A
+error[E0223]: closures have no `use` clause
+%A
+error[E0808]: this parameter has no type, and no position to take one from
+%A
+error: aborting due to 3 errors

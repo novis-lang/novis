@@ -1,0 +1,50 @@
+--TEST--
+Every Novis spelling in the closures-and-callables table of the PHP-differences chapter compiles and runs — `rule:types/callable-is-a-closure`
+--FILE--
+<?nvs
+// covers: tools:php-differences/closures-and-callables
+// The rows that compile to an error are pinned under `tests/conformance/reject/`;
+// this case runs the replacement column of every row.
+class Price {
+    public static function withTax(int $cents): int { return $cents + 20; }
+    public function constructor(private int $discount) {}
+    public function apply(int $cents): int { return $cents - $this->discount; }
+}
+
+// Every outer variable a closure reads is captured by value, when the closure
+// is created: the later write to `$k` does not reach it.
+int $k = 3;
+callable $add = fn(int $x): int => $x + $k;
+$k = 100;
+
+// The block-body form.
+callable $block = fn(int $x): int => {
+    int $y = $x * 2;
+    return $y + 1;
+};
+
+// A parameter with a type and no return type.
+callable $plain = fn(int $x) => $x;
+
+// A closure in place of `strlen(...)`.
+callable $len = fn(string $s): uint => Core\Str::length($s);
+
+// A call through `callable` returns `mixed`, so the result is converted.
+int $r = $add(1) as int;
+echo $r, " ", $block(5), " ", $plain(7), " ", $len("héllo"), "\n";
+
+// A closure passed straight to a parameter that gives its type needs none.
+array<int> $a = [100, 200];
+array<int> $doubled = Core\Arr::map($a, fn($x) => $x * 2);
+echo $doubled[0], " ", $doubled[1], "\n";
+
+// `A::f(...)` and `$o->m(...)` name a method as a value.
+callable $tax = Price::withTax(...);
+Price $sale = new Price(50);
+callable $off = $sale->apply(...);
+array<int> $taxed = Core\Arr::map($a, Price::withTax(...));
+echo $tax(1) as int, " ", $off(200) as int, " ", $taxed[1], "\n";
+--EXPECT--
+4 11 7 5
+200 400
+21 150 220
