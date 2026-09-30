@@ -168,11 +168,13 @@ Two things about accounts:
 
 Here the check reads the owner and the mode. Replace `novis` with the account that runs `nvs`.
 
-    sudo install -d -o root  -g root  -m 0755 /opt/novis
-    sudo install    -o root  -g root  -m 0755 nvs /opt/novis/nvs
-    sudo install -d -o root  -g novis -m 0750 /opt/novis/config
-    sudo install -d -o novis -g novis -m 0755 /opt/novis/cache
-    sudo install -d -o novis -g novis -m 0755 /opt/novis/logs
+```text
+sudo install -d -o root  -g root  -m 0755 /opt/novis
+sudo install    -o root  -g root  -m 0755 nvs /opt/novis/nvs
+sudo install -d -o root  -g novis -m 0750 /opt/novis/config
+sudo install -d -o novis -g novis -m 0755 /opt/novis/cache
+sudo install -d -o novis -g novis -m 0755 /opt/novis/logs
+```
 
 `/opt/novis/config` is owned by `root`. The group `novis` can read it and cannot write to it, and
 other accounts cannot open it. Give `nvs.toml` the mode `0640` and the same owner and group.

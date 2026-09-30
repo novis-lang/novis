@@ -1,0 +1,119 @@
+<?nvs
+// Attack: a program may write only in `logs`, and it tries to change the configuration,
+// the binary and the folder permissions. Every attempt should fail, and the files should stay the same.
+
+string $dir = 'tests/hostile/tools/install/linux-and-macos';
+string $log = $dir . '/logs/nvs.log';
+string $config = $dir . '/config/limits.toml';
+
+// 1. Test which folders of the installation it could write. Each test needs a right it does not have.
+array<string> $folders = ['/opt/novis', '/opt/novis/nvs', '/opt/novis/config', '/', $dir, $dir . '/config', $config];
+foreach ($folders as string $path) {
+    try {
+        echo Core\IO::isWritable($path) ? "writable\n" : "not writable\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 2. Write the configuration and the binary. Most paths start in `logs` and leave it with `..`.
+array<string> $targets = [
+    $config,
+    $dir . '/logs/../config/limits.toml',
+    $dir . '/logs/./../config/new.toml',
+    $dir . '/logs\\..\\config\\limits.toml',
+    $dir . '/logs/' . Core\Str::repeat('../', 64) . 'opt/novis/config/nvs.toml',
+    $dir . "/logs/../config/limits.toml\0.log",
+    $dir . '/logs/../nvs.toml',
+    '/opt/novis/config/nvs.toml',
+    '/opt/novis/nvs',
+];
+foreach ($targets as string $path) {
+    try {
+        Core\IO::write($path, "[capabilities.fs]\nwrite = [\"/\"]\n");
+        echo "written\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+    try {
+        Core\IO::append($path, "[capabilities.fs]\nwrite = [\"/\"]\n");
+        echo "appended\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 3. Copy and move its own log file to the place of the configuration file.
+try {
+    Core\IO::copy($log, $config);
+    echo "copied\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+try {
+    Core\IO::move($log, $config);
+    echo "moved\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 4. Move the configuration into `logs`, where it may write. Then delete the configuration.
+try {
+    Core\IO::move($config, $dir . '/logs/limits.toml');
+    echo "moved\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+try {
+    Core\IO::move($dir . '/config', $dir . '/logs/config');
+    echo "moved\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+try {
+    Core\IO::remove($config);
+    echo "deleted\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+try {
+    Core\IO::removeDir($dir . '/config');
+    echo "deleted\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 5. Create a new folder in `config`, and two new folders beside it.
+array<string> $created = [$dir . '/config/conf.d', $dir . '/cache', $dir . '/logs/../config.d'];
+foreach ($created as string $path) {
+    try {
+        Core\IO::makeDir($path);
+        echo "created\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 6. Start `chmod` to add the write bits for the group and for others. No program may be started.
+array<string> $programs = ['/bin/chmod', '/usr/bin/chmod', 'chmod', "C:\\Windows\\System32\\icacls.exe"];
+foreach ($programs as string $program) {
+    try {
+        Core\Process::run($program, ['-R', 'go+w', '/opt/novis']);
+        echo "started\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 7. Give itself the missing rights. Each call should return `false`.
+array<string> $keys = ['capabilities.fs.write', 'capabilities.process.exec', 'capabilities'];
+foreach ($keys as string $key) {
+    echo $key, ': ', Core\Config::set($key, '/') ? 'yes' : 'no', "\n";
+}
+
+// 8. Both files are still there and unchanged. This prints `96M` and `server started`.
+echo Core\Str::contains(Core\IO::read($config), 'memory = "96M"') ? "96M\n" : "changed\n";
+echo Core\IO::read($log);
+
+// 9. The log file is the one path it may write. This prints `writable`.
+echo Core\IO::isWritable($log) ? "writable\n" : "not writable\n";

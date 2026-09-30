@@ -1,0 +1,5 @@
+/opt/novis: passes
+/opt/novis/nvs: passes
+/opt/novis/config: fails. The owner is deploy.
+/opt/novis/cache: fails. Run `chmod go-w /opt/novis/cache`.
+/opt/novis/logs: passes

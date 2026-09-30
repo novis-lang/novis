@@ -118,6 +118,72 @@ fn a_file_in_a_world_writable_directory_is_a_breach_too() {
     drop(fs::remove_dir_all(&dir));
 }
 
+/// The installation chapter's Linux layout, asked of the check mode by mode. Every mode its
+/// `install` commands set passes, on the directory and on `nvs.toml` alike; each mode it names as
+/// failing is a breach that quotes the mode back; and `chmod go-w`, the repair it prescribes, is
+/// the whole repair.
+#[cfg(unix)]
+// covers: tools:install/linux-and-macos
+#[test]
+fn the_installed_modes_pass_and_a_write_bit_for_the_group_or_for_others_does_not() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = scratch("installed-layout");
+    let file = dir.join("nvs.toml");
+    fs::write(&file, "").expect("a configuration file");
+    let chmod = |path: &std::path::Path, mode: u32| {
+        fs::set_permissions(path, fs::Permissions::from_mode(mode))
+            .expect("this account owns the path");
+    };
+    let named = fs::canonicalize(&dir).expect("the directory, as the check will name it");
+
+    for (folder, config) in [(0o755, 0o640), (0o750, 0o640), (0o755, 0o755)] {
+        chmod(&dir, folder);
+        chmod(&file, config);
+        let passed = check(&file);
+        assert!(
+            passed.is_ok(),
+            "a {folder:04o} directory holding a {config:04o} file is what the chapter installs: \
+             {passed:?}",
+        );
+    }
+
+    for mode in [0o775, 0o777, 0o664] {
+        chmod(&dir, mode | 0o700);
+        chmod(&file, 0o640);
+        let why = check(&file).expect_err("the directory can be written by more than its owner");
+        assert!(
+            matches!(why, Untrusted::Breach(_))
+                && why
+                    .message()
+                    .contains(&format!("mode {:04o}", mode | 0o700))
+                && why.message().contains(&named.display().to_string()),
+            "a directory with {mode:04o}'s write bits is refused by name and by mode: {}",
+            why.message(),
+        );
+
+        chmod(&dir, 0o755);
+        chmod(&file, mode);
+        let why = check(&file).expect_err("the file can be written by more than its owner");
+        assert!(
+            matches!(why, Untrusted::Breach(_))
+                && why.message().contains(&format!("mode {mode:04o}"))
+                && why.message().contains("nvs.toml"),
+            "a {mode:04o} file is refused by name and by mode: {}",
+            why.message(),
+        );
+
+        chmod(&file, mode & !0o022);
+        let repaired = check(&file);
+        assert!(
+            repaired.is_ok(),
+            "`chmod go-w` on a {mode:04o} file is the whole repair: {repaired:?}",
+        );
+    }
+
+    drop(fs::remove_dir_all(&dir));
+}
+
 /// One `icacls` edit, by SID because an account name is localized and a rename does not move it.
 ///
 /// `/inheritance:d` first, on every edit, because a scratch directory under the temporary
