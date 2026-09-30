@@ -1,0 +1,21 @@
+<?nvs
+// Shows a page template that picks a class by its name, written in Novis.
+
+class Report {
+    public static function title(): string { return "Daily report"; }
+}
+
+class ShortReport extends Report {
+    public static function title(): string { return "Short report"; }
+}
+
+// `as class<Report>` converts the name to a class. A name that is not a `Report` throws an error.
+string $chosen = "ShortReport";
+class<Report> $report = $chosen as class<Report>;
+string $title = $report::title();
+array<int> $counts = ["orders" => 12, "returns" => 1];
+
+// `?>` ends the code. Each `<?= ... ?>` below prints one value into the HTML.
+?>
+<h1><?= $title ?></h1>
+<p>Orders: <?= $counts["orders"] ?>, returns: <?= $counts["returns"] ?></p>

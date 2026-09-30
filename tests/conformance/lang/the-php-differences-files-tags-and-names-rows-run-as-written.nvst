@@ -1,0 +1,66 @@
+--TEST--
+Every Novis spelling in the files, tags and names table of the PHP-differences chapter compiles and runs — `rule:statements/nvs-is-the-only-open-tag`, `rule:types/class-reference-sites`
+--FILE--
+Report <? not code ?> end
+<?nvs
+// covers: tools:php-differences/files-tags-and-names
+// The PHP column of every row is pinned under `tests/conformance/reject/`;
+// this case runs the replacement column. The text above is HTML mode, and the
+// `<?` short tag in it is copied to the output.
+namespace Shop;
+
+// A short name never falls back to the root namespace, so the error classes
+// are imported too.
+use Core\Str;
+use RuntimeError;
+use Throwable;
+
+class Shape {
+    public function constructor() {}
+    public static function kind(): string { return "shape"; }
+    public function name(): string { return "a shape"; }
+}
+
+class Circle extends Shape {
+    public static function kind(): string { return "circle"; }
+    public function name(): string { return "a circle"; }
+}
+
+// An import is used by its short name; a name with a `\` in it is absolute.
+echo Str::length("Café"), " ", Core\Str::length("Café"), "\n";
+
+// Run-time keys live in an `array<T>`, whose keys are strings.
+array<int> $totals = [];
+string $field = "total";
+$totals[$field] = 3;
+echo $totals["total"], "\n";
+
+// A class named by a string is converted once, and then used in all three places.
+string $className = "Shop\\Circle";
+class<Shape> $cls = $className as class<Shape>;
+Shape $made = new $cls();
+mixed $any = $made;
+echo $made->name(), " ", $cls::kind(), " ", $any is $cls ? "yes" : "no", "\n";
+try {
+    class<Shape> $bad = "Shop\\Nothing" as class<Shape>;
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+
+// No magic constants: a throwable carries its file and line.
+try {
+    throw new RuntimeError("here");
+} catch (Throwable $e) {
+    echo $e->location, "\n";
+}
+int $count = 2;
+?>
+Count: <?= $count ?> items
+--EXPECT--
+Report <? not code ?> end
+4 4
+3
+a circle circle yes
+caught: cannot convert to `class<Shop\Shape>`: the value does not denote a class that is a `Shop\Shape`
+case.nvs:49
+Count: 2 items

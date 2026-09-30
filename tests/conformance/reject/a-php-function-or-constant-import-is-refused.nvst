@@ -1,0 +1,23 @@
+--TEST--
+`use function` and `use const` import a kind of name Novis does not have — `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: tools:php-differences/files-tags-and-names
+namespace Shop;
+
+// A function is a method and a constant is a class constant, so there is no
+// free function or constant to import: `E0252`, then `E0306` for the path.
+use function Shop\total;
+use const Shop\LIMIT;
+
+class Order {}
+--EXPECTF-ERROR--
+error[E0252]: `use function` imports a kind of name this language does not have
+%A
+error[E0306]: `Shop\total` does not resolve to any declaration
+%A
+error[E0252]: `use const` imports a kind of name this language does not have
+%A
+error[E0306]: `Shop\LIMIT` does not resolve to any declaration
+%A
+error: aborting due to 4 errors
