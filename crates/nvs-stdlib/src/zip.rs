@@ -53,6 +53,13 @@
 //! overwriting, because what is already there may be a link somebody else wrote
 //! and following it is the escape this paragraph exists to stop.
 //!
+//! **That order costs time quadratic in a folder's depth, so the depth is
+//! bounded.** Resolving a level walks every level above it, and a walk relative
+//! to the handle of the level above is not something the capability layer can
+//! check. So the reader refuses a name nesting more than [`MAX_FOLDERS`]
+//! folders, which makes one entry's cost a constant and an archive's linear in
+//! its size.
+//!
 //! **An extraction that refuses part way leaves what it had already written**,
 //! and says so rather than pretending to unwind. The refusals that are about
 //! the archive all happen in [`directory`] before a directory is created, so
@@ -204,9 +211,9 @@ const ENTRIES_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "ParseError",
         desc: "`$archive` is not a well-formed zip archive, or it carries an entry naming an \
-               absolute path, traversing out of the archive with a `..` component, repeating a \
-               name, or marked as a symlink. Never an `IOError`: a hostile archive and a failing \
-               disk are different questions.",
+               absolute path, traversing out of the archive with a `..` component, nesting more \
+               than 64 folders, repeating a name, or marked as a symlink. Never an `IOError`: a \
+               hostile archive and a failing disk are different questions.",
     }],
 };
 
@@ -378,6 +385,17 @@ const MODE_KIND: u32 = 0xF000;
 
 /// `S_IFLNK`.
 const MODE_SYMLINK: u32 = 0xA000;
+
+/// The most folders one entry's name may nest.
+///
+/// Extraction creates and resolves one level at a time, and resolving a level
+/// is a walk of every level above it, so an entry costs time quadratic in its
+/// depth. Without a bound that depth is whatever the name field holds — about
+/// 32000 levels in 65535 octets — and one small entry holds a request for
+/// minutes. This bound makes each entry's cost a constant and an archive's cost
+/// linear in its size. It is well past what a real tree nests; a path this deep
+/// is past what most hosts will open by name anyway.
+const MAX_FOLDERS: usize = 64;
 
 /// One central-directory record, as much of it as this class reads.
 ///
@@ -610,7 +628,7 @@ pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
     Ok(out)
 }
 
-/// The four things an entry is refused for, applied to every entry before any
+/// The five things an entry is refused for, applied to every entry before any
 /// of them is visible.
 ///
 /// The order is the order the refusals are cheapest in and carries no other
@@ -636,6 +654,31 @@ fn refuse_hostile<'a>(
         return Err(refuses_path(
             "it traverses out of the archive with a `..` component",
             name,
+        ));
+    }
+    // Judged here rather than in `extract`, which is the only member it costs,
+    // for the reason every refusal is: a name is judged in one place, and an
+    // archive the reader accepts is one every member can act on.
+    let folders = parts
+        .components
+        .len()
+        .saturating_sub(usize::from(!name.ends_with('/')));
+    if folders > MAX_FOLDERS {
+        // The name can be 65535 octets, so the message carries its start.
+        let shown = name
+            .char_indices()
+            .nth(60)
+            .map_or(name, |(at, _)| &name[..at]);
+        return Err(refuses_entry(
+            &format!(
+                "it nests {folders} folders and an archive may nest at most {MAX_FOLDERS}, because \
+                 extracting a folder costs a walk of every folder above it"
+            ),
+            &if shown.len() < name.len() {
+                format!("{shown}…")
+            } else {
+                shown.to_owned()
+            },
         ));
     }
     // The Unix mode an archive records in the high half of its external
@@ -1718,6 +1761,48 @@ mod tests {
             directory(&raw).expect("an ordinary entry reads")[0].name,
             "notes/two.txt"
         );
+    }
+
+    /// The folder bound on both sides: 64 folders read, whether the entry is a
+    /// file or a folder, and 65 are refused. A name that is only long is not
+    /// deep, so a long file name under one folder reads too.
+    // covers: Core\Zip::extract
+    #[test]
+    fn an_entry_nesting_more_than_sixty_four_folders_is_refused() {
+        let deepest_file = format!("{}f.txt", "d/".repeat(MAX_FOLDERS));
+        let deepest_folder = "d/".repeat(MAX_FOLDERS);
+        let long = format!("d/{}.txt", "n".repeat(1000));
+        let raw = archive(&[
+            Written::plain(&deepest_file, "x"),
+            Written::plain(&deepest_folder, ""),
+            Written::plain(&long, "x"),
+        ]);
+        assert_eq!(directory(&raw).expect("64 folders read").len(), 3);
+
+        let too_deep_file = format!("{}f.txt", "d/".repeat(MAX_FOLDERS + 1));
+        let message = refused(&[Written::plain(&too_deep_file, "x")]);
+        assert!(
+            message.contains("it nests 65 folders and an archive may nest at most 64"),
+            "{message}"
+        );
+        // The message carries the start of the name and not all of it.
+        assert!(message.len() < too_deep_file.len() + 250, "{message}");
+        let too_deep_folder = "d/".repeat(MAX_FOLDERS + 1);
+        assert!(refused(&[Written::plain(&too_deep_folder, "")]).contains("it nests 65 folders"));
+
+        // Extraction reaches the deepest name the reader accepts, one level at
+        // a time, and writes the file at the bottom of it.
+        let root = temp_root("deepest");
+        std::fs::create_dir_all(&root).expect("the scratch root is this test's to create");
+        let mut ctx = granting(&root);
+        let raw = archive(&[Written::plain(&deepest_file, "x")]);
+        let into = root.join("out");
+        assert_eq!(
+            extract_into(&mut ctx, &raw, &into, u64::MAX, u64::MAX),
+            Ok(1)
+        );
+        assert!(into.join(&deepest_file).is_file());
+        std::fs::remove_dir_all(&root).ok();
     }
 
     /// An archive naming one entry twice is refused, because a reader that

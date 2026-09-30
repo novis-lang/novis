@@ -21837,7 +21837,7 @@ The names an archive carries, in the order its central directory lists them — 
 
 **Returns** `array<tainted string>` — One `tainted string` per entry. A name is tainted whatever the archive's own type was, for the reason a claim out of a verified token is: the name was written by whoever built the archive, and a literal archive in a test is no safer than a downloaded one.
 
-**Throws** `ParseError` — `$archive` is not a well-formed zip archive, or it carries an entry naming an absolute path, traversing out of the archive with a `..` component, repeating a name, or marked as a symlink. Never an `IOError`: a hostile archive and a failing disk are different questions.
+**Throws** `ParseError` — `$archive` is not a well-formed zip archive, or it carries an entry naming an absolute path, traversing out of the archive with a `..` component, nesting more than 64 folders, repeating a name, or marked as a symlink. Never an `IOError`: a hostile archive and a failing disk are different questions.
 
 <a id="core-core-zip-read"></a>
 #### `Core\Zip::read`

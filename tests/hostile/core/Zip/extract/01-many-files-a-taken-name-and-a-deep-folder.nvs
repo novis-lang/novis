@@ -3,7 +3,6 @@
 // added up. Others use a name that already exists, or nest thousands of folders.
 // Each extract should write the files or throw an error. The runtime must not hang.
 // hostile: timeout-ms 30000
-// proof: gap nvs-stdlib/extract-resolves-every-folder-level-from-the-root
 
 class Archive
 {
@@ -108,10 +107,20 @@ string $clash = Core\IO::temporaryDir();
 Archive::tryExtract('step 5a', Archive::many(['notes'], 'hello' as bytes), $clash, $largest);
 Archive::tryExtract('step 5b', Archive::many(['notes/one.txt'], 'hello' as bytes), $clash, $largest);
 
-// 6. A file inside 1000 nested folders, and one inside 20000. Both names fit in
-// a zip archive. The operating system may not allow paths that long.
+// 6. A file inside 1000 nested folders, and one inside 20000. An archive may
+// nest at most 64 folders, so both throw a `ParseError`.
 Archive::tryExtract('step 6a', Archive::many([Core\Str::repeat('d/', 1000) . 'f.txt'], 'deep' as bytes), Core\IO::temporaryDir(), $largest);
 Archive::tryExtract('step 6b', Archive::many([Core\Str::repeat('d/', 20000) . 'f.txt'], 'deep' as bytes), Core\IO::temporaryDir(), $largest);
+
+// 6c. 300 files, each inside its own 64 nested folders. That is the deepest
+// allowed name, so every file is written, and no folder is shared.
+array<string> $deepNames = [];
+$i = 0;
+while ($i < 300) {
+    $deepNames[] = 'top-' . $i . '/' . Core\Str::repeat('d/', 63) . 'f.txt';
+    $i = $i + 1;
+}
+Archive::tryExtract('step 6c', Archive::many($deepNames, 'deep' as bytes), Core\IO::temporaryDir(), $largest);
 
 // 7. 5000 folders and no file. Folders are not counted, so this prints 0 files.
 array<string> $folders = [];

@@ -1,0 +1,71 @@
+--TEST--
+`Core\Zip` reads and extracts an entry 64 folders deep and refuses one 65 deep before anything is written, because each level of an extraction costs a walk of every level above it — `rule:security/path-scope-canonicalise-then-prefix`
+--FILE--
+<?nvs
+// covers: Core\Zip::extract
+class Archive
+{
+    // An archive with one empty file, stored uncompressed. An empty file has
+    // the checksum 0, so every field is known without computing one.
+    public static function one(string $name): bytes
+    {
+        bytes $spelled = $name as bytes;
+        uint $length = Core\Bytes::length($spelled);
+        bytes $local = Core\Bytes::join([
+            Core\Bytes::pack('VvvvvvVVVvv', 0x04034b50, 20, 0, 0, 0, 0, 0, 0, 0, $length, 0),
+            $spelled,
+        ]);
+        bytes $record = Core\Bytes::join([
+            Core\Bytes::pack('VvvvvvvVVVvvvvvVV', 0x02014b50, 20, 20, 0, 0, 0, 0, 0, 0, 0, $length, 0, 0, 0, 0, 0, 0),
+            $spelled,
+        ]);
+        return Core\Bytes::join([
+            $local,
+            $record,
+            Core\Bytes::pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, Core\Bytes::length($record), Core\Bytes::length($local), 0),
+        ]);
+    }
+}
+
+// The bound includes 64: a file under 64 folders is listed and extracted.
+string $deepest = Core\Str::repeat("d/", 64) . "f.txt";
+echo Core\Arr::count(Core\Zip::entries(Archive::one($deepest))), "\n";
+echo Core\Zip::extract(Archive::one($deepest), "out"), "\n";
+echo Core\IO::exists(Core\Path::join("out", $deepest)) ? "written\n" : "missing\n";
+
+// One folder more is refused when the archive is read, so every member refuses
+// it. The message shows only the start of the name.
+string $tooDeep = Core\Str::repeat("d/", 65) . "f.txt";
+try {
+    Core\Zip::entries(Archive::one($tooDeep));
+    echo "listed\n";
+} catch (ParseError $refused) {
+    echo $refused->message, "\n";
+}
+try {
+    Core\Zip::extract(Archive::one($tooDeep), "never");
+    echo "extracted\n";
+} catch (ParseError $refused) {
+    echo "extract: ParseError\n";
+}
+echo Core\IO::isDir("never") ? "never: created\n" : "never: not created\n";
+
+// A folder entry counts its own level, so 65 folders is refused as well.
+try {
+    Core\Zip::entries(Archive::one(Core\Str::repeat("d/", 65)));
+    echo "listed\n";
+} catch (ParseError $refused) {
+    echo "folder: ParseError\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+1
+1
+written
+Core\Zip will not read an entry: it nests 65 folders and an archive may nest at most 64, because extracting a folder costs a walk of every folder above it: "d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/…".
+extract: ParseError
+never: not created
+folder: ParseError

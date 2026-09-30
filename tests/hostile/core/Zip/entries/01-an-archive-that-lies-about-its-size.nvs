@@ -92,21 +92,30 @@ try {
     echo "step 6: ParseError\n";
 }
 
-// 7. One entry whose name is 20,000 folders deep. The name is allowed, so the
-// list has one entry.
+// 7. One entry whose name is 20,000 folders deep. An archive may nest at most
+// 64 folders, so the list throws a `ParseError`.
 bytes $deep = Core\Bytes::join([Core\Bytes::repeat('a/' as bytes, 20000), 'x' as bytes]);
 bytes $deepRecord = Archive::record($deep);
 bytes $nested = Core\Bytes::join([$deepRecord, Archive::end(1, Core\Bytes::length($deepRecord), 0)]);
-echo 'step 7: ', Core\Arr::count(Core\Zip::entries($nested)), " entry\n";
+try {
+    Core\Zip::entries($nested);
+    echo "step 7: a name 20,000 folders deep was listed\n";
+} catch (ParseError $error) {
+    echo "step 7: ParseError\n";
+}
 
-// 8. Twenty thousand small archives are listed one after another. Nothing may
-// be kept between the calls.
-uint $total = 0;
+// 8. The archive of step 7 is listed twenty thousand times. Each call reads the
+// whole long name and throws. Nothing may be kept between the calls.
+uint $refused = 0;
 uint $round = 0;
 while ($round < 20000) {
-    $total = $total + Core\Arr::count(Core\Zip::entries($nested));
+    try {
+        Core\Zip::entries($nested);
+    } catch (ParseError $error) {
+        $refused = $refused + 1;
+    }
     $round = $round + 1;
 }
-echo 'step 8: ', $total, " entries in all\n";
+echo 'step 8: ', $refused, " lists threw\n";
 
 echo "the runtime is still standing\n";

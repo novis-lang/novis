@@ -4,7 +4,8 @@ folder the archive names inside it. The program needs the `fs.read` and `fs.writ
 the folder.
 
 The whole archive is checked before anything is written. An archive with one unsafe name, such as
-`../config.php`, throws a `ParseError` and writes no file at all. `extract` never replaces a file:
+`../config.php` or a file inside more than 64 folders, throws a `ParseError` and writes no file at
+all. `extract` never replaces a file:
 a name that already exists throws an `IOError`.
 
 A small archive can decompress to gigabytes. This is called a zip bomb. So `extract` has the same
