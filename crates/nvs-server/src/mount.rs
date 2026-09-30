@@ -106,14 +106,34 @@ impl Existing for OnDisk {
     /// because a mount's own root was canonicalized by that function and a
     /// Windows verbatim `\\?\` prefix on one side of a `starts_with` is a
     /// containment check that answers `false` for every path in the tree.
+    ///
+    /// **The name asked for is the name the disk holds.** Windows opens
+    /// `style.css` for `style.css.`, for `style.css ` and for its short
+    /// `STYLE~1.CSS` name, and a disk that folds case opens it for any case. The
+    /// canonical path is the file's own spelling, so a path that differs from it
+    /// names a file that is not there — what a disk that folds nothing already
+    /// says, and `rule:http-server/a-request-resolves-in-five-steps` takes no
+    /// name rule from the filesystem. A link is the one other reason the two
+    /// differ, and a path that crosses one is answered: where it leads is
+    /// [`under`]'s containment check.
     fn file(&self, path: &Path) -> Option<PathBuf> {
         // Recorded when `NVS_FOOTPRINT_LOG` names a log: whether a file is there decides the route.
         nvs_footprint::exists(path);
         if !std::fs::metadata(path).is_ok_and(|meta| meta.is_file()) {
             return None;
         }
-        nvs_config::trust::canonical(path).ok()
+        let held = nvs_config::trust::canonical(path).ok()?;
+        (held == path || crosses_a_link(path)).then_some(held)
     }
+}
+
+/// Whether `path`, or a directory on the way to it, is a symbolic link.
+///
+/// Asked only of a path whose canonical form is not the path itself, so a
+/// request that names a file the way the disk holds it never pays for it.
+fn crosses_a_link(path: &Path) -> bool {
+    path.ancestors()
+        .any(|at| std::fs::symlink_metadata(at).is_ok_and(|meta| meta.is_symlink()))
 }
 
 /// The mount table a running server selects from, with the two `[server]`
@@ -411,19 +431,16 @@ fn strip<'a>(prefix: &str, path: &'a str) -> &'a str {
 /// are already in hand.
 fn under(root: &Path, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
     let mut path = root.to_path_buf();
-    let mut segments = 0_usize;
-    for segment in remainder.split('/').filter(|segment| !segment.is_empty()) {
+    // A remainder of `/` alone is the mount's own root, which names a directory
+    // and never a file: its one segment is empty, so steps 3 and 4 both decline
+    // and step 5 answers. An empty segment anywhere else declines the same way,
+    // so `/style.css/` and `//style.css` are not other names for `/style.css`.
+    for segment in remainder.strip_prefix('/').unwrap_or(remainder).split('/') {
         let name = decode(segment)?;
         if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', ':', '\0']) {
             return None;
         }
         path.push(name);
-        segments += 1;
-    }
-    if segments == 0 {
-        // The remainder is the mount's own root, which names a directory and
-        // never a file. Steps 3 and 4 both decline, and step 5 answers.
-        return None;
     }
     let file = disk.file(&path)?;
     (file.starts_with(root) && !differs_only_in_case(&file, &path)).then_some(file)
@@ -552,10 +569,40 @@ mod tests {
         PathBuf::from(path.replace('/', std::path::MAIN_SEPARATOR_STR))
     }
 
+    /// The test binary itself, which is certainly there, under the name the disk holds it by.
+    fn this_binary() -> PathBuf {
+        let started = std::env::current_exe().expect("the test binary's path");
+        nvs_config::trust::canonical(&started).expect("the test binary is a file")
+    }
+
+    /// [`OnDisk`] answers for the name a file is held under and for no other
+    /// spelling of it. Each of the three is a name Windows opens the same file
+    /// for, the last one on macOS too, and a disk that folds nothing finds none
+    /// of them.
+    // covers: tools:server/mounts-which-file-answers-a-request
+    #[test]
+    fn the_disk_answers_only_for_the_name_it_holds() {
+        let held = this_binary();
+        let name = held
+            .file_name()
+            .expect("a file has a name")
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(OnDisk.file(&held), Some(held.clone()));
+        for other in [format!("{name}."), format!("{name} "), name.to_uppercase()] {
+            assert_ne!(other, name, "the spelling has to differ");
+            assert_eq!(
+                OnDisk.file(&held.with_file_name(&other)),
+                None,
+                "for {other:?}"
+            );
+        }
+    }
+
     #[test]
     fn the_disk_records_each_path_it_tests() {
-        // The test binary itself, which is certainly there, and a name beside it that is not.
-        let manifest = std::env::current_exe().expect("the test binary's path");
+        // The test binary itself, and a name beside it that is not there.
+        let manifest = this_binary();
         let missing = manifest.with_extension("no-such-file");
         let (found, lines) =
             nvs_footprint::capture(|| (OnDisk.file(&manifest), OnDisk.file(&missing)));
@@ -692,6 +739,7 @@ mod tests {
     /// before step 3 serves `style.css` by running it, and one that skipped
     /// straight to step 5 answers all five lines identically while still looking
     /// right on any single one.
+    // covers: tools:server/mounts-which-file-answers-a-request
     #[test]
     fn a_request_resolves_through_the_five_steps_in_order() {
         let fs = Fake::with(&[
@@ -730,6 +778,20 @@ mod tests {
         assert_eq!(what("/missing.css"), What::Run(p("/www/public/index.nvs")));
         // And the mount root itself, which names a directory: never a listing.
         assert_eq!(what("/"), What::Run(p("/www/public/index.nvs")));
+        // An empty segment is no part of a name, so neither a doubled slash nor
+        // a trailing one is another way to write a file that is there.
+        for padded in [
+            "/style.css/",
+            "//style.css",
+            "/assets//logo.png",
+            "/admin.nvs/",
+        ] {
+            assert_eq!(
+                what(padded),
+                What::Run(p("/www/public/index.nvs")),
+                "for {padded:?}"
+            );
+        }
 
         // Nothing a peer can spell reaches a path outside the mount root: the
         // lexical refusal and the canonical one are asserted together, because
@@ -767,6 +829,7 @@ mod tests {
     /// spelling selects it. Every other one is step 5, as it is on a disk that
     /// never found the file at all — so a URL cannot work on a developer's
     /// machine and be a `404` on the server.
+    // covers: tools:server/mounts-which-file-answers-a-request
     #[test]
     fn a_remainder_in_another_case_is_a_file_that_is_not_there() {
         // A folded lookup is a link from the asked spelling to the entry's own,
@@ -809,6 +872,7 @@ mod tests {
 
     /// Step 2, and what it buys: the same module answers the same remainders
     /// wherever it is mounted, and a host mount outranks a host-less one.
+    // covers: tools:server/mounts-which-file-answers-a-request
     #[test]
     fn a_prefix_is_stripped_and_the_module_is_relocatable() {
         let fs = Fake::with(&[
