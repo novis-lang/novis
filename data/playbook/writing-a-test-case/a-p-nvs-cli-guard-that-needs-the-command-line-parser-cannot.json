@@ -1,0 +1,12 @@
+{
+  "lead": "A `-p nvs-cli` guard that needs the command-line parser cannot live under `crates/nvs-cli/tests/`.",
+  "body": "The crate is a binary only, so an integration test has no path to `crate::Cli` and would have to parse `--help` text back into names. Put the test in the module's own `#[cfg(test)]` block, where `crate::Cli::command()` is reachable and `cargo test -p nvs-cli` still runs it, as `crates/nvs-cli/src/agent/names.rs` does.",
+  "files": [
+    "crates/nvs-cli/tests/",
+    "crates/nvs-cli/src/agent/names.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/agent/names.rs:crate::Cli::command()"
+  }
+}

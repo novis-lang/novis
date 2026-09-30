@@ -1,34 +1,34 @@
 {
-  "state": "**Goal `core-class-cards`: Stage 2 (the cards) is done — every `Core` class carries its card.**\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs` is kept as an empty list, not\ndeleted: `bun nv class-cards --check` parses it and prints \"every Core class carries its card\", and\n`tools/data/select-mutations.json` mutates it. Its two playbook bullets (`[until: gone …]` on that\nlist) therefore stay live, and they are still true for a class added later.\n\nStages 3, 4 and 5 are not started: `every_key_command_flag_and_code_is_an_index_entry` and\n`every_code_carries_its_card_or_is_listed` do not exist yet, and `bun nv proofs` still owes help.\nThe goal prose's § *Stage 3* and § *Stage 4* are the specification; ADR 0216 is the design.",
+  "state": "**Goal `core-class-cards`: Stages 2 and 3 are done.** Every `Core` class carries its card, and\n`rule:tooling/the-index-names-every-key-command-and-code` is shipped: `nvs agent index` ends with a\n`config:`, `command:`, `flag:` and `code:` line per key, command, flag and diagnostic code, derived\nin `crates/nvs-cli/src/agent/names.rs` (its module doc says from which table, and what the symbol\nof such a line is). The guard `every_key_command_flag_and_code_is_an_index_entry` is a unit test in\nthat file, not in `crates/nvs-cli/tests/agent.rs`: the crate is a binary only, so only a unit test\nreaches `crate::Cli::command()`. `code::ALL` in `crates/nvs-diagnostics/src/lib.rs` is written by\nthe `codes!` macro that wraps the `code` module, so no list is kept by hand.\n\nA code's line is `code: E0621` alone and its `show` card is that line alone: the first sentence of\nits card joins the line in Stage 4. Stage 5 (`bun nv proofs` owes help) is not started.",
   "next": {
-    "stage": 3,
-    "title": "every key, command, flag and code is an index entry",
+    "stage": 4,
+    "title": "every diagnostic code carries its card",
     "files": [
-      "crates/nvs-cli/src/agent.rs",
-      "crates/nvs-cli/tests/agent.rs"
+      "crates/nvs-diagnostics/src/lib.rs",
+      "crates/nvs-diagnostics/src/render.rs",
+      "crates/nvs-cli/src/agent/names.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Configuration keys as index lines** — `rule:tooling/the-index-names-every-key-command-and-code`; derive one line per key from the configuration schema in `crates/nvs-cli/src/agent.rs:198` (`entries`), reached by exact name through `crates/nvs-cli/src/agent.rs:597` (`find`) and `crates/nvs-cli/src/agent.rs:619` (`show`)."
+        "text": "**The card field** — `rule:tooling/a-diagnostic-code-carries-its-card`; give the `codes!` macro at `crates/nvs-diagnostics/src/lib.rs:48` a card per code (a `card` beside each `Code::new`, the macro matching it), and list every code without one in `CODES_STILL_OWING_A_CARD`, with `every_code_carries_its_card_or_is_listed` holding the two together as the class-card test does. `code::ALL` at `crates/nvs-diagnostics/src/lib.rs:68` is where the list is derived."
       },
       {
         "done": false,
-        "text": "**Commands, subcommands and flags as index lines** — `rule:tooling/the-index-names-every-key-command-and-code`; from `Cli::command()`, in the same `crates/nvs-cli/src/agent.rs:198`."
+        "text": "**`show <code>` prints the card, and the line carries its first sentence** — `rule:tooling/the-index-names-every-key-command-and-code`; `codes()` at `crates/nvs-cli/src/agent/names.rs:148` sets `Entry::body` to the card and appends the first sentence to the line."
       },
       {
         "done": false,
-        "text": "**Diagnostic codes as index lines** — `rule:tooling/the-index-names-every-key-command-and-code`; from the diagnostics table in `crates/nvs-diagnostics/src/lib.rs`, added in `crates/nvs-cli/src/agent.rs:198`."
+        "text": "**The terminal rendering names `nvs agent show <code>` once** — `rule:tooling/a-diagnostic-code-carries-its-card`; the closing summary in `crates/nvs-diagnostics/src/render.rs:276`."
       },
       {
         "done": false,
-        "text": "**The guard** — `every_key_command_flag_and_code_is_an_index_entry` in `crates/nvs-cli/tests/agent.rs:45` (beside `index()`): name for name against each table, never a count. Then set the rule's `status` to `shipped` and add the test to its `guardedBy`."
+        "text": "**Drain the list, one band per session, in file order** — `crates/nvs-diagnostics/src/lib.rs:48`; cards are written for the person who met the error (goal § *Standing decisions*)."
       }
     ]
   },
   "backlog": [
-    "Stage 4: a card beside each `Code::new` and `CODES_STILL_OWING_A_CARD` — goal prose § *Stage 4*, `rule:tooling/a-diagnostic-code-carries-its-card`.",
-    "Stage 5: drain `data/proofs/help-backlog.json` and owe help for the three kinds still off — goal prose § *Stage 5*.",
-    "The pack for Stage 3 may need a `[context]` overlay naming `crates/nvs-cli/src/agent.rs`, `crates/nvs-cli/tests/agent.rs` and the `tooling/the-index-names-every-key-command-and-code` rule — not checked whether the record has one."
+    "Stage 5: `bun nv proofs` owes Help for the whole roster, and `data/proofs/help-backlog.json` drains to empty — goal prose § *Stage 5*.",
+    "`[db.main]`, `[mail.default]` and `[storage.local]` keys are indexed under the file's example name, not `<name>`; `tools/nv/cmd/directives.ts` knows which segments are names — `crates/nvs-cli/src/agent/names.rs`."
   ]
 }

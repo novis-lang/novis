@@ -12,7 +12,8 @@
       "crates/nvs-diagnostics/src/lib.rs",
       "tools/nv/cmd/proofs.ts",
       "data/proofs/policy.json",
-      "data/proofs/help-backlog.json"
+      "data/proofs/help-backlog.json",
+      "crates/nvs-cli/src/agent/names.rs"
     ],
     "rules": [
       "core-api/reference-card",
