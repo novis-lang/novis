@@ -1,13 +1,35 @@
-//! Order-of-magnitude regression guards on the costs the ADRs quote.
+//! Regression guards on the costs the ADRs quote: timings with two bounds each,
+//! and counts with one.
 //!
-//! The criterion benches in `benches/` track these numbers precisely but cannot
-//! fail a build. These tests can, so their thresholds are deliberately loose —
-//! roughly 10× the measured baseline. They are not here to detect a 20%
-//! regression; they are here to catch the kind of change that turns 0.85 ns into
-//! 500 ns, such as a dependency starting to allocate or syscall per call, or the
-//! pooling allocator silently not being used.
+//! The criterion benches in `benches/` track these costs precisely but cannot
+//! fail a build. These tests can, and a timing that fails a build has to hold on
+//! every machine it runs on. A timing figure is comparable only with another
+//! taken on the same machine, and even there load moves it: a shared CI runner,
+//! or a developer's box building something else, reads the same code as several
+//! times slower than an idle one does.
 //!
-//! Every test is skipped unless built with optimisations, because the baselines
+//! So every timing guard has two bounds, and [`judge`] applies both:
+//!
+//! - The **soft bound** is where the figure stays on an ordinary machine.
+//!   Missing it fails nothing: it prints a warning that reaches the CI log and
+//!   the step summary although the test passes.
+//! - The **hard bound** sits an order of magnitude past the soft one, or just
+//!   short of the figure a change of kind reaches where ten times would hide it.
+//!   It is not there to catch a 20% drift. It catches a dependency starting to
+//!   allocate or to make a syscall per call, or the pooling allocator silently
+//!   not being used. A figure past it is measured again, up to [`ATTEMPTS`]
+//!   times, and only the last attempt fails the test.
+//!
+//! Each attempt runs between two readings of a fixed [`Yardstick`] loop. When
+//! the two differ by more than [`LOAD_TOLERANCE`], the machine was busy during
+//! the attempt and its printed figure says `noisy`. Every printed time also
+//! gives its ratio to the yardstick, written `yd`.
+//!
+//! The counts are the durable signal: allocations, emitted calls, cache blocks,
+//! an order of events. A count reads the same on any machine however loaded, so
+//! it has a single bound and fails the moment it is missed.
+//!
+//! Every test is skipped unless built with optimisations, because the bounds
 //! are release-mode figures. Run them with:
 //!
 //! ```text
@@ -16,10 +38,10 @@
 
 #![expect(
     clippy::print_stdout,
-    reason = "the measured figure is this guard's output. A threshold test that passed silently \
-              would report only that a cost is under 10x its baseline, which is the one thing a \
-              reader already knows when it is green; the printed nanoseconds are what makes a \
-              CI log answer how far under, and `docs/perf/` quotes them"
+    reason = "the measured figure is this guard's output. A timing guard that passed silently \
+              would report only that a cost is inside its hard bound, which is the one thing a \
+              reader already knows when it is green; the printed figures are what makes a CI log \
+              answer how far inside, and `docs/perf/` quotes them"
 )]
 
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -88,24 +110,285 @@ fn every_guard_in_this_binary_takes_the_lock() {
     );
 }
 
-/// How far a measurement sits from the threshold it must stay under, as the
-/// phrase every guard with a numeric bound prints beside its own figure.
+/// How many times a timing guard measures before its hard bound fails it.
 ///
-/// **This changes no threshold and fails nothing.** It exists because a guard
-/// that prints `2.07 ns` against a ceiling of `15.0` reads exactly like a guard
-/// with no room at all, and the module docs above say the ceilings are
-/// deliberately ~10x the baseline — so the number that says whether that is
-/// still true is the *ratio*. Logs of it from several platforms are what a
-/// later pass sets a tighter ceiling from; a ceiling tightened from one
-/// developer's box is a flaky gate, not a stricter one.
-fn under(measured: f64, ceiling: f64) -> String {
-    format!(" [ceiling {ceiling}, {:.1}x headroom]", ceiling / measured)
+/// A figure past the hard bound is measured again, and only the last attempt is
+/// judged. A burst of load that lands on one attempt passes on the next one; a
+/// change of kind is past the bound on every attempt, so it still fails.
+const ATTEMPTS: usize = 3;
+
+/// How far the two [`Yardstick`] readings around one attempt may differ before
+/// that attempt is labelled noisy, as a fraction of the faster reading.
+const LOAD_TOLERANCE: f64 = 0.25;
+
+/// A fixed scalar loop, timed before and after every attempt of every timing
+/// guard, in nanoseconds per run of the loop.
+///
+/// The loop does the same work on every run, so its two readings differ only
+/// when the machine does: another process on the core, or a clock that dropped
+/// under heat. It is timed with [`ns_per_op`], like every figure here, so load
+/// that moves a figure moves the yardstick the same way. A time divided by it
+/// is what two runs on one machine can compare when a bare nanosecond count
+/// has moved with the load.
+#[derive(Clone, Copy)]
+struct Yardstick(f64);
+
+impl Yardstick {
+    /// The dependent steps in one run of the loop.
+    const STEPS: u32 = 256;
+
+    fn measure() -> Self {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        Self(ns_per_op(2_000, 5, || {
+            for _ in 0..Self::STEPS {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state = black_box(state);
+            }
+        }))
+    }
+
+    /// `ns` as a time, with its ratio to this reading.
+    fn time(self, ns: f64) -> String {
+        format!("{} = {} yd", duration(ns), sig(ns / self.0))
+    }
 }
 
-/// [`under`]'s twin for a guard whose bound is a *floor* — a ratio that must
-/// stay large rather than small.
-fn over(measured: f64, floor: f64) -> String {
-    format!(" [floor {floor}, {:.1}x headroom]", measured / floor)
+/// `value` to three significant figures.
+fn sig(value: f64) -> String {
+    if !value.is_normal() {
+        return format!("{value}");
+    }
+    let decimals = (2 - value.abs().log10().floor() as i32).clamp(0, 6) as usize;
+    format!("{value:.decimals$}")
+}
+
+/// `ns` nanoseconds in the unit that keeps the figure short.
+fn duration(ns: f64) -> String {
+    match ns.abs() {
+        magnitude if magnitude >= 1e6 => format!("{} ms", sig(ns / 1e6)),
+        magnitude if magnitude >= 1e3 => format!("{} us", sig(ns / 1e3)),
+        _ => format!("{} ns", sig(ns)),
+    }
+}
+
+/// Which side of its bounds a figure stays on.
+#[derive(Clone, Copy)]
+enum Side {
+    Under,
+    Over,
+}
+
+/// What a figure measures: nanoseconds, or a ratio of two timings.
+#[derive(Clone, Copy)]
+enum Unit {
+    Time,
+    Ratio,
+}
+
+/// A timing guard's two bounds, as the module doc describes them.
+#[derive(Clone, Copy)]
+struct Bound {
+    side: Side,
+    unit: Unit,
+    soft: f64,
+    hard: f64,
+}
+
+impl Bound {
+    /// A time in nanoseconds that stays under `soft`, and fails over `hard`.
+    const fn time_under(soft: f64, hard: f64) -> Self {
+        Self {
+            side: Side::Under,
+            unit: Unit::Time,
+            soft,
+            hard,
+        }
+    }
+
+    /// A ratio that stays under `soft`, and fails over `hard`.
+    const fn ratio_under(soft: f64, hard: f64) -> Self {
+        Self {
+            side: Side::Under,
+            unit: Unit::Ratio,
+            soft,
+            hard,
+        }
+    }
+
+    /// A ratio that stays over `soft`, and fails under `hard`.
+    const fn ratio_over(soft: f64, hard: f64) -> Self {
+        Self {
+            side: Side::Over,
+            unit: Unit::Ratio,
+            soft,
+            hard,
+        }
+    }
+
+    /// Whether `value` is on the right side of `limit`. A NaN is on neither.
+    fn inside(self, value: f64, limit: f64) -> bool {
+        match self.side {
+            Side::Under => value < limit,
+            Side::Over => value > limit,
+        }
+    }
+
+    fn show(self, value: f64) -> String {
+        match self.unit {
+            Unit::Time => duration(value),
+            Unit::Ratio => format!("{}x", sig(value)),
+        }
+    }
+
+    /// How many times over the figure could move before it reaches `soft`.
+    fn headroom(self, value: f64) -> f64 {
+        match self.side {
+            Side::Under => self.soft / value,
+            Side::Over => value / self.soft,
+        }
+    }
+}
+
+/// One attempt's figure, and the words printed after it.
+struct Reading {
+    value: f64,
+    detail: String,
+}
+
+/// Measures a timing guard's figure and judges it against `bound`, as the
+/// module doc describes: the soft bound warns, the hard bound fails, and a hard
+/// miss is measured again up to [`ATTEMPTS`] times before the last one fails.
+///
+/// `measure` is one attempt. It gets the [`Yardstick`] reading taken just
+/// before it, for the times it prints in its detail, and returns its figure.
+/// `why` is the sentence a hard failure adds after the figure: what the change
+/// of kind means, and which decision it reopens. Returns the judged figure.
+fn judge(
+    what: &str,
+    bound: Bound,
+    why: &str,
+    mut measure: impl FnMut(Yardstick) -> Reading,
+) -> f64 {
+    judge_where_measurable(what, bound, why, |yard| Ok(measure(yard)))
+        .expect("an attempt that always returns a figure is always judged")
+}
+
+/// [`judge`] for a figure this machine may be unable to give at all.
+///
+/// `measure` returns `Err` with the reason when it cannot give the figure, and
+/// that attempt counts as a failed one. Returns `None` when the last attempt
+/// was one of those, and the guard reports itself not measured.
+fn judge_where_measurable(
+    what: &str,
+    bound: Bound,
+    why: &str,
+    mut measure: impl FnMut(Yardstick) -> Result<Reading, String>,
+) -> Option<f64> {
+    let soft = bound.show(bound.soft);
+    let hard = bound.show(bound.hard);
+    for attempt in 1..=ATTEMPTS {
+        let before = Yardstick::measure();
+        let reading = measure(before);
+        let after = Yardstick::measure();
+        let drift = before.0.max(after.0) / before.0.min(after.0) - 1.0;
+        let load = if drift > LOAD_TOLERANCE {
+            "noisy"
+        } else {
+            "steady"
+        };
+        let marker = format!(
+            "attempt {attempt} of {ATTEMPTS}, {load}: yardstick {} then {}",
+            duration(before.0),
+            duration(after.0)
+        );
+        let reading = match reading {
+            Ok(reading) => reading,
+            Err(reason) => {
+                println!("{what}: not measured, {reason} [{marker}]");
+                continue;
+            }
+        };
+        let figure = match bound.unit {
+            Unit::Time => before.time(reading.value),
+            Unit::Ratio => bound.show(reading.value),
+        };
+        println!(
+            "{what}: {figure}{} [soft {soft}, hard {hard}, {:.1}x headroom to soft; {marker}]",
+            reading.detail,
+            bound.headroom(reading.value)
+        );
+        if bound.inside(reading.value, bound.hard) {
+            if !bound.inside(reading.value, bound.soft) {
+                warn(
+                    what,
+                    &format!(
+                        "{figure} is past the soft bound of {soft} on a {load} run. The hard \
+                         bound of {hard} holds, so the test passes."
+                    ),
+                );
+            }
+            return Some(reading.value);
+        }
+        assert!(
+            attempt < ATTEMPTS,
+            "{what}: {figure} on the last of {ATTEMPTS} attempts, a {load} run, is past the hard \
+             bound of {hard}. {why}"
+        );
+    }
+    None
+}
+
+/// Reports a soft-bound miss where a reader of the run sees it, although the
+/// test passes.
+///
+/// libtest captures what a passing test prints through `println!`, and only
+/// that: the process's standard output handle, written directly, reaches the
+/// console and the CI log. On GitHub Actions the line is a `::warning`
+/// workflow command, which lists it among the run's annotations, and a line is
+/// appended to the step summary too. Elsewhere it is a plain line.
+fn warn(what: &str, message: &str) {
+    use std::io::Write as _;
+
+    let line = if std::env::var_os("GITHUB_ACTIONS").is_some() {
+        let title = format!("perf guard: {what}");
+        format!(
+            "::warning title={}::{}",
+            workflow_escape(&title, true),
+            workflow_escape(message, false)
+        )
+    } else {
+        format!("warning: perf guard: {what}: {message}")
+    };
+    // Its own line: libtest may have printed a test's name without a newline.
+    // A warning that cannot be written must not fail a guard that passed.
+    let mut out = std::io::stdout().lock();
+    let _ = writeln!(out, "\n{line}").and_then(|()| out.flush());
+    if let Some(summary) = std::env::var_os("GITHUB_STEP_SUMMARY") {
+        let _ = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(summary)
+            .and_then(|mut file| writeln!(file, "- **perf guard: {what}**: {message}"));
+    }
+}
+
+/// `text` escaped for a GitHub Actions workflow command: its message, or one
+/// of its `key=value` properties, which also escape `:` and `,`.
+fn workflow_escape(text: &str, property: bool) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '%' => escaped.push_str("%25"),
+            '\r' => escaped.push_str("%0D"),
+            '\n' => escaped.push_str("%0A"),
+            ':' if property => escaped.push_str("%3A"),
+            ',' if property => escaped.push_str("%2C"),
+            _ => escaped.push(c),
+        }
+    }
+    escaped
 }
 
 /// Times `op` and returns nanoseconds per iteration.
@@ -149,9 +432,9 @@ fn under_frames(depth: u32, op: &mut dyn FnMut()) {
 fn a_checked_return_frame_stays_cheap() {
     let _quiet = serialised();
 
-    // Baseline: ~0.85 ns per frame (ADR 0002). Derived from the slope between
-    // two depths so that harness call-out overhead cancels out.
-    const MAX_NS_PER_FRAME: f64 = 15.0;
+    // The cost of one frame, taken as the slope between two depths so that the
+    // harness's own call-out cancels.
+    const PER_FRAME: Bound = Bound::time_under(15.0, 150.0);
 
     let mut probe = Probe::new();
     let shallow = probe.compile_chain(2, Helper::Double);
@@ -159,24 +442,27 @@ fn a_checked_return_frame_stays_cheap() {
     let mut ctx = Ctx::new();
     let arg = Value::int(3);
 
-    let t_shallow = ns_per_op(200_000, 5, || {
-        black_box(call(shallow, &mut ctx, arg));
-    });
-    let t_deep = ns_per_op(200_000, 5, || {
-        black_box(call(deep, &mut ctx, arg));
-    });
-
-    let per_frame = (t_deep - t_shallow) / 16.0;
-    println!(
-        "checked-return frame: {per_frame:.2} ns (2 frames {t_shallow:.1} ns, 18 frames {t_deep:.1} ns){}",
-        under(per_frame, MAX_NS_PER_FRAME)
-    );
-
-    assert!(
-        per_frame < MAX_NS_PER_FRAME,
-        "a frame now costs {per_frame:.2} ns, over the {MAX_NS_PER_FRAME} ns guard. \
-         ADR 0002 justifies the checked-return convention on a ~0.85 ns baseline; \
-         if this is a real regression that argument needs revisiting."
+    judge(
+        "checked-return frame",
+        PER_FRAME,
+        "ADR 0002 justifies the checked-return convention on a frame costing about a \
+         nanosecond; at this cost that argument needs revisiting.",
+        |yard| {
+            let t_shallow = ns_per_op(200_000, 5, || {
+                black_box(call(shallow, &mut ctx, arg));
+            });
+            let t_deep = ns_per_op(200_000, 5, || {
+                black_box(call(deep, &mut ctx, arg));
+            });
+            Reading {
+                value: (t_deep - t_shallow) / 16.0,
+                detail: format!(
+                    " per frame (2 frames {}, 18 frames {})",
+                    yard.time(t_shallow),
+                    yard.time(t_deep)
+                ),
+            }
+        },
     );
 }
 
@@ -196,31 +482,35 @@ fn throwing_costs_about_the_same_as_returning() {
     // is rendered anywhere. `rule:errors/throw-is-not-slower`'s other half — the
     // label a raise carrying a site renders once for its own frame — is
     // `a_raise_renders_one_frame_label_and_nothing_larger` below.
-    const MAX_RATIO: f64 = 2.0;
+    const THROW_PER_RETURN: Bound = Bound::ratio_under(2.0, 20.0);
 
     let mut probe = Probe::new();
     let chain = probe.compile_chain(8, Helper::Double);
     let mut ctx = Ctx::new();
 
-    let ok = ns_per_op(200_000, 5, || {
-        black_box(call(chain, &mut ctx, Value::int(3)));
-    });
-    // 42 makes the innermost helper throw, which then climbs all 8 frames.
-    let thrown = ns_per_op(200_000, 5, || {
-        black_box(call(chain, &mut ctx, Value::int(42)));
-        ctx.pending = None;
-    });
-
-    let ratio = thrown / ok;
-    println!(
-        "throw/return ratio at depth 8: {ratio:.2} ({thrown:.1} ns vs {ok:.1} ns){}",
-        under(ratio, MAX_RATIO)
-    );
-
-    assert!(
-        ratio < MAX_RATIO,
-        "a throw now costs {ratio:.1}x a normal return ({thrown:.1} ns vs {ok:.1} ns), \
-         over the {MAX_RATIO}x guard"
+    judge(
+        "throw/return ratio at depth 8",
+        THROW_PER_RETURN,
+        "The error path has acquired real work, which ADR 0002's claim that a throw costs \
+         about what a return does rules out.",
+        |yard| {
+            let ok = ns_per_op(200_000, 5, || {
+                black_box(call(chain, &mut ctx, Value::int(3)));
+            });
+            // 42 makes the innermost helper throw, which then climbs all 8 frames.
+            let thrown = ns_per_op(200_000, 5, || {
+                black_box(call(chain, &mut ctx, Value::int(42)));
+                ctx.pending = None;
+            });
+            Reading {
+                value: thrown / ok,
+                detail: format!(
+                    " ({} thrown vs {} returned)",
+                    yard.time(thrown),
+                    yard.time(ok)
+                ),
+            }
+        },
     );
 }
 
@@ -252,11 +542,12 @@ fn a_raise_renders_one_frame_label_and_nothing_larger() {
     // on macOS every allocation's counter update is a call through the
     // thread-local descriptor, and the same allocations cost more there. The
     // bound is therefore relative to a raise without a site, which pays for
-    // allocations on the same path: a label costs less than ten raises.
+    // allocations on the same path: a label costs less than ten raises, and a
+    // hundred is a label doing work that allocates nothing.
     const DEEP: u32 = 64;
     const MAX_ALLOCATIONS: usize = 16;
     const MAX_BYTES: usize = 1024;
-    const MAX_RATIO: f64 = 10.0;
+    const LABEL_PER_RAISE: Bound = Bound::ratio_under(10.0, 100.0);
 
     let mut table = nvs_runtime::ClassTable::new();
     let slots = ["message", "previous", "backtrace", "location"];
@@ -322,22 +613,25 @@ fn a_raise_renders_one_frame_label_and_nothing_larger() {
          grows with the stack is a walk of it, which a throw is never meant to pay for."
     );
 
-    let bare = ns_per_op(100_000, 5, || raise(std::ptr::null()));
-    let sited = ns_per_op(100_000, 5, || raise(blob.as_ptr()));
-
-    let rendering = sited - bare;
-    let ratio = rendering / bare;
-    println!(
-        "a raise's own frame label: {rendering:.1} ns ({sited:.1} ns sited vs {bare:.1} ns bare), \
-         {ratio:.2}x a raise without a site{}",
-        under(ratio, MAX_RATIO)
-    );
-
-    assert!(
-        ratio < MAX_RATIO,
-        "rendering a raise's own frame now costs {rendering:.1} ns, {ratio:.1}x a raise without \
-         a site ({bare:.1} ns), over the {MAX_RATIO}x guard. The allocation counts above are in \
-         bounds, so the time is going into work that allocates nothing."
+    judge(
+        "a raise's own frame label, against a raise without a site",
+        LABEL_PER_RAISE,
+        "The allocation counts above are in bounds, so the time is going into work that \
+         allocates nothing.",
+        |yard| {
+            let bare = ns_per_op(100_000, 5, || raise(std::ptr::null()));
+            let sited = ns_per_op(100_000, 5, || raise(blob.as_ptr()));
+            let rendering = sited - bare;
+            Reading {
+                value: rendering / bare,
+                detail: format!(
+                    " ({} rendering: {} sited vs {} bare)",
+                    yard.time(rendering),
+                    yard.time(sited),
+                    yard.time(bare)
+                ),
+            }
+        },
     );
 }
 
@@ -346,16 +640,16 @@ fn a_raise_renders_one_frame_label_and_nothing_larger() {
 fn a_coroutine_round_trip_stays_cheap() {
     let _quiet = serialised();
 
-    // Baseline: ~25 ns per suspend/resume through JIT frames (ADR 0003 preamble
-    // / docs/adr/README.md). This is the price of "no async colouring".
-    const MAX_NS: f64 = 400.0;
+    // A suspend and resume through JIT frames, which ADR 0003's preamble and
+    // docs/adr/README.md price as the cost of "no async colouring".
+    const PER_TRIP: Bound = Bound::time_under(400.0, 4_000.0);
 
     let mut probe = Probe::new();
     let chain = probe.compile_chain(2, Helper::Suspend);
 
     // One coroutine per batch, suspending `iters` times inside it, so creation
     // cost is amortised to nothing and the figure is the round trip itself.
-    let measure = |iters: u64| -> Duration {
+    let batch = |iters: u64| -> Duration {
         let start = Instant::now();
         let run = nvs_abi_probe::in_coroutine(Ctx::new(), move |ctx| {
             for _ in 0..iters {
@@ -367,21 +661,23 @@ fn a_coroutine_round_trip_stays_cheap() {
         elapsed
     };
 
-    measure(10_000); // warm up
-    let iters = 200_000u64;
-    let mut best = Duration::MAX;
-    for _ in 0..5 {
-        best = best.min(measure(iters));
-    }
-    let per_trip = best.as_secs_f64() * 1e9 / iters as f64;
-    println!(
-        "coroutine suspend/resume through 2 JIT frames: {per_trip:.1} ns{}",
-        under(per_trip, MAX_NS)
-    );
-
-    assert!(
-        per_trip < MAX_NS,
-        "a suspend/resume round trip now costs {per_trip:.1} ns, over the {MAX_NS} ns guard"
+    judge(
+        "coroutine suspend/resume through 2 JIT frames",
+        PER_TRIP,
+        "A round trip in this class is no longer the cheap switch ADR 0003's \"no async \
+         colouring\" rests on.",
+        |_yard| {
+            batch(10_000); // warm up
+            let iters = 200_000u64;
+            let mut best = Duration::MAX;
+            for _ in 0..5 {
+                best = best.min(batch(iters));
+            }
+            Reading {
+                value: best.as_secs_f64() * 1e9 / iters as f64,
+                detail: String::new(),
+            }
+        },
     );
 }
 
@@ -399,11 +695,11 @@ fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
     // section says the fix is coarsening the probe site to one per basic
     // block, not loosening this number.
     //
-    // The threshold is stated against `a_checked_return_frame_stays_cheap`'s
-    // own guard: a probe site does strictly less than a frame (no call, no
-    // 16-byte result copy, no status check), so anything at or above a
-    // frame's guarded cost means the check has acquired real work.
-    const MAX_NS_PER_PROBE: f64 = 5.0;
+    // The soft bound sits well under `a_checked_return_frame_stays_cheap`'s own:
+    // a probe site does strictly less than a frame (no call, no 16-byte result
+    // copy, no status check), so a site that costs what a frame may cost has
+    // acquired real work.
+    const PER_SITE: Bound = Bound::time_under(5.0, 50.0);
     const DEPTH: usize = 8;
     const STMTS_PER_FRAME: usize = 16;
 
@@ -415,35 +711,36 @@ fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
     let probed = probe.compile_probe_chain(DEPTH, Helper::Double, STMTS_PER_FRAME, true);
     let mut ctx = Ctx::new();
     let arg = Value::int(3);
+    let sites = DEPTH * STMTS_PER_FRAME;
 
-    let t_plain = ns_per_op(200_000, 5, || {
-        black_box(call(plain, &mut ctx, arg));
-    });
-    let t_probed = ns_per_op(200_000, 5, || {
-        black_box(call(probed, &mut ctx, arg));
-    });
+    judge(
+        "all-bits-off debug probe",
+        PER_SITE,
+        "That check is emitted at every statement boundary of every compiled unit; if this is \
+         real, ADR 0018 § Revisiting says to coarsen the probe site, not to raise this bound.",
+        |yard| {
+            let t_plain = ns_per_op(200_000, 5, || {
+                black_box(call(plain, &mut ctx, arg));
+            });
+            let t_probed = ns_per_op(200_000, 5, || {
+                black_box(call(probed, &mut ctx, arg));
+            });
+            Reading {
+                value: (t_probed - t_plain) / sites as f64,
+                detail: format!(
+                    " per site ({sites} sites, {} probed vs {} plain)",
+                    yard.time(t_probed),
+                    yard.time(t_plain)
+                ),
+            }
+        },
+    );
 
     // Nothing set a bit, so no site may have reached its slow path.
     assert_eq!(
         ctx.probe_hits, 0,
         "a probe fired with every debug flag off, which would make the \
          measurement meaningless"
-    );
-
-    let sites = (DEPTH * STMTS_PER_FRAME) as f64;
-    let per_probe = (t_probed - t_plain) / sites;
-    println!(
-        "all-bits-off debug probe: {per_probe:.3} ns per site \
-         ({sites} sites, {t_probed:.1} ns vs {t_plain:.1} ns){}",
-        under(per_probe, MAX_NS_PER_PROBE)
-    );
-
-    assert!(
-        per_probe < MAX_NS_PER_PROBE,
-        "an all-bits-off ADR 0018 probe site now costs {per_probe:.3} ns, over \
-         the {MAX_NS_PER_PROBE} ns guard. That check is emitted at every \
-         statement boundary of every compiled unit; if this is real, ADR 0018 \
-         § Revisiting says to coarsen the probe site, not to raise this bound."
     );
 }
 
@@ -468,6 +765,14 @@ fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
     // safepoint poll uses (`nvs-runtime`'s `ctx` module doc). Measuring the
     // emitted check itself would need the probe JIT to grow a stack-check site;
     // measuring its cost class needs nothing new and answers the same question.
+    //
+    // The figure is the poll's cost as a multiple of the check's. The soft
+    // bound is the ADR's own, a poll cheaper than the check; the hard one is a
+    // poll ten checks dear, which is a batch that stopped amortising. Both
+    // sides are differences of two sub-nanosecond timings, so a burst of load
+    // on one batch moves a side by a whole nanosecond, and that is what the
+    // re-measuring in `judge` absorbs.
+    const POLL_PER_CHECK: Bound = Bound::ratio_under(1.0, 10.0);
     const DEPTH: usize = 8;
     const STMTS_PER_FRAME: usize = 16;
     const ITEMS: usize = nvs_runtime::DEADLINE_POLL_BATCH * 64;
@@ -485,62 +790,56 @@ fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
     let mut rt = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
     let mut sum = 0usize;
 
-    // Both sides are differences of two sub-nanosecond timings, so a burst of
-    // load on a shared runner that lands on one of the four batches moves a side
-    // by a whole nanosecond. A measurement over the bound is taken again, up to
-    // `ATTEMPTS` times, and the last one is judged, as the fan-out guard does. A
-    // poll that really got dearer is over the bound on every attempt.
-    const ATTEMPTS: usize = 3;
-    let mut measure = || {
-        let t_plain_chain = ns_per_op(200_000, 5, || {
-            black_box(call(plain_chain, &mut probe_ctx, arg));
-        });
-        let t_checked_chain = ns_per_op(200_000, 5, || {
-            black_box(call(checked_chain, &mut probe_ctx, arg));
-        });
-        let per_check = (t_checked_chain - t_plain_chain) / (DEPTH * STMTS_PER_FRAME) as f64;
+    judge(
+        "amortised deadline poll, against a hot-line check",
+        POLL_PER_CHECK,
+        "ADR 0106 § 5 bounds the poll by the check, and the fix is the batch in \
+         `nvs_runtime::DEADLINE_POLL_BATCH` or the shape of `bounded_loop`'s countdown — not \
+         this comparison, which is what the ADR says.",
+        |yard| {
+            let t_plain_chain = ns_per_op(200_000, 5, || {
+                black_box(call(plain_chain, &mut probe_ctx, arg));
+            });
+            let t_checked_chain = ns_per_op(200_000, 5, || {
+                black_box(call(checked_chain, &mut probe_ctx, arg));
+            });
+            let per_check = (t_checked_chain - t_plain_chain) / (DEPTH * STMTS_PER_FRAME) as f64;
 
-        let t_plain_loop = ns_per_op(2_000, 5, || {
-            for item in 0..ITEMS {
-                sum = black_box(sum.wrapping_add(item));
+            let t_plain_loop = ns_per_op(2_000, 5, || {
+                for item in 0..ITEMS {
+                    sum = black_box(sum.wrapping_add(item));
+                }
+            });
+            let t_polled_loop = ns_per_op(2_000, 5, || {
+                nvs_runtime::bounded_loop(&mut rt, "Core\\Probe::sweep", 0..ITEMS, |_ctx, item| {
+                    sum = black_box(sum.wrapping_add(item));
+                    Ok(())
+                })
+                .expect("nothing set a deadline on this context");
+            });
+            let per_poll = (t_polled_loop - t_plain_loop) / ITEMS as f64;
+            // A check that measured as free leaves no ratio to take, and that
+            // attempt is a miss the next one measures again.
+            let value = if per_check > 0.0 {
+                per_poll / per_check
+            } else {
+                f64::INFINITY
+            };
+            Reading {
+                value,
+                detail: format!(
+                    " ({} per iteration over {ITEMS} iterations in batches of {}, polled loop {} \
+                     vs plain {}; {} per check)",
+                    yard.time(per_poll),
+                    nvs_runtime::DEADLINE_POLL_BATCH,
+                    yard.time(t_polled_loop),
+                    yard.time(t_plain_loop),
+                    yard.time(per_check)
+                ),
             }
-        });
-        let t_polled_loop = ns_per_op(2_000, 5, || {
-            nvs_runtime::bounded_loop(&mut rt, "Core\\Probe::sweep", 0..ITEMS, |_ctx, item| {
-                sum = black_box(sum.wrapping_add(item));
-                Ok(())
-            })
-            .expect("nothing set a deadline on this context");
-        });
-        let per_poll = (t_polled_loop - t_plain_loop) / ITEMS as f64;
-        (per_poll, per_check, t_polled_loop, t_plain_loop)
-    };
-    let mut figures = measure();
-    for _ in 1..ATTEMPTS {
-        if figures.0 < figures.1 {
-            break;
-        }
-        figures = measure();
-    }
+        },
+    );
     black_box(sum);
-    let (per_poll, per_check, t_polled_loop, t_plain_loop) = figures;
-
-    println!(
-        "amortised deadline poll: {per_poll:.4} ns per iteration \
-         ({ITEMS} iterations, batch {}, {t_polled_loop:.0} ns vs {t_plain_loop:.0} ns) \
-         against a hot-line check at {per_check:.4} ns{}",
-        nvs_runtime::DEADLINE_POLL_BATCH,
-        under(per_poll.max(f64::MIN_POSITIVE), per_check)
-    );
-
-    assert!(
-        per_poll < per_check,
-        "an amortised deadline poll now costs {per_poll:.4} ns per iteration, \
-         over the {per_check:.4} ns a hot-line check costs. That is ADR 0106 \
-         § 5's own bound, and the fix is the batch in \
-         `nvs_runtime::DEADLINE_POLL_BATCH` or the shape of `bounded_loop`'s \
-         countdown — not this comparison, which is what the ADR says."
-    );
 }
 
 #[test]
@@ -572,7 +871,7 @@ fn a_probe_that_is_switched_on_mid_flight_actually_fires() {
 
 #[cfg(feature = "wasm-probe")]
 mod wasm_guards {
-    use super::{Instant, black_box, ns_per_op, under};
+    use super::{Bound, Instant, Reading, black_box, judge, ns_per_op};
     use nvs_abi_probe::wasm::WasmProbe;
 
     const NO_DEADLINE: u64 = u64::MAX;
@@ -580,9 +879,10 @@ mod wasm_guards {
     #[test]
     #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
     fn a_host_to_guest_call_stays_cheap() {
-        // Baseline: 11.5 ns (ADR 0003). The whole tier argument rests on this
-        // being roughly 10 ns rather than roughly 1 µs.
-        const MAX_NS: f64 = 200.0;
+        // ADR 0003's whole tier argument rests on this call costing tens of
+        // nanoseconds rather than a microsecond, which is where the hard bound
+        // sits.
+        const PER_CALL: Bound = Bound::time_under(200.0, 2_000.0);
 
         let probe = WasmProbe::new().expect("wasm probe");
         let (mut store, instance) = probe.instantiate(0, NO_DEADLINE).expect("instantiate");
@@ -590,26 +890,27 @@ mod wasm_guards {
             .get_typed_func::<(i64, i64), i64>(&mut store, "add")
             .expect("add export");
 
-        let ns = ns_per_op(200_000, 5, || {
-            black_box(add.call(&mut store, (1, 2)).expect("call"));
-        });
-        println!("wasm host->guest call: {ns:.1} ns{}", under(ns, MAX_NS));
-
-        assert!(
-            ns < MAX_NS,
-            "a host->guest call now costs {ns:.1} ns, over the {MAX_NS} ns guard. \
-             ADR 0003's tier argument assumes ~11.5 ns."
+        judge(
+            "wasm host->guest call",
+            PER_CALL,
+            "ADR 0003's tier argument assumes a call in the tens of nanoseconds.",
+            |_yard| Reading {
+                value: ns_per_op(200_000, 5, || {
+                    black_box(add.call(&mut store, (1, 2)).expect("call"));
+                }),
+                detail: String::new(),
+            },
         );
     }
 
     #[test]
     #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
     fn per_request_instantiation_stays_affordable() {
-        // Baseline: 7.57 µs pooled (ADR 0003). This is what makes a fresh
-        // instance per request — and therefore per-request isolation for
-        // extensions — affordable. A large regression here most likely means the
-        // pooling allocator is no longer being used.
-        const MAX_US: f64 = 100.0;
+        // What makes a fresh instance per request — and therefore per-request
+        // isolation for extensions — affordable (ADR 0003). A figure past the
+        // hard bound most likely means the pooling allocator is no longer in
+        // use.
+        const PER_INSTANCE: Bound = Bound::time_under(100_000.0, 1_000_000.0);
 
         let probe = WasmProbe::pooled(1000).expect("pooled probe");
 
@@ -621,27 +922,28 @@ mod wasm_guards {
             black_box(add.call(&mut store, (1, 2)).expect("call"));
         };
 
-        for _ in 0..1_000 {
-            run();
-        }
-        let iters = 20_000u64;
-        let mut best = f64::MAX;
-        for _ in 0..3 {
-            let start = Instant::now();
-            for _ in 0..iters {
-                run();
-            }
-            best = best.min(start.elapsed().as_secs_f64() * 1e6 / iters as f64);
-        }
-        println!(
-            "wasm pooled instantiate + 1 call: {best:.2} us{}",
-            under(best, MAX_US)
-        );
-
-        assert!(
-            best < MAX_US,
-            "per-request instantiation now costs {best:.2} us, over the {MAX_US} us guard. \
-             Check that the pooling allocator is still in use."
+        judge(
+            "wasm pooled instantiate + 1 call",
+            PER_INSTANCE,
+            "Check that the pooling allocator is still in use.",
+            |_yard| {
+                for _ in 0..1_000 {
+                    run();
+                }
+                let iters = 20_000u64;
+                let mut best = f64::MAX;
+                for _ in 0..3 {
+                    let start = Instant::now();
+                    for _ in 0..iters {
+                        run();
+                    }
+                    best = best.min(start.elapsed().as_secs_f64() * 1e9 / iters as f64);
+                }
+                Reading {
+                    value: best,
+                    detail: String::new(),
+                }
+            },
         );
     }
 }
@@ -663,42 +965,42 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
     // the platform can start (a real child would also boot an interpreter, and
     // the PHP binary on this machine takes several times the floor just to
     // start and exit), and the task side is a bare coroutine (an isolate also
-    // builds an arena and a set of globals). Measured on
-    // x86_64-pc-windows-msvc: 5.95 ms vs 4.29 us, a ratio of ~1390x.
-    // `CreateProcess` is dearer than `fork`+`exec`, so a
-    // Linux runner will report a smaller ratio; the 20x guard is set low enough
-    // to hold everywhere and fires only on a change of kind — a task acquiring a
-    // syscall, or committing its stack eagerly.
-    const MIN_RATIO: f64 = 20.0;
+    // builds an arena and a set of globals). `CreateProcess` is dearer than
+    // `fork`+`exec`, so the ratio differs by platform. The soft bound of 20x
+    // holds everywhere; the hard bound of 2x is a task that costs what a process
+    // does, the change of kind — a task acquiring a syscall, or committing its
+    // stack eagerly.
+    const PROCESS_PER_TASK: Bound = Bound::ratio_over(20.0, 2.0);
 
-    let task_ns = ns_per_op(50_000, 5, || {
-        let run = nvs_abi_probe::in_coroutine(Ctx::new(), |_ctx| black_box(7i64));
-        black_box(run.value);
-    });
+    judge(
+        "isolation boundary, an os process against a task",
+        PROCESS_PER_TASK,
+        "ADR 0006 justifies in-process script isolates on that gap; if the gap has really \
+         closed, the ADR needs revisiting.",
+        |yard| {
+            let task_ns = ns_per_op(50_000, 5, || {
+                let run = nvs_abi_probe::in_coroutine(Ctx::new(), |_ctx| black_box(7i64));
+                black_box(run.value);
+            });
 
-    // A spawn is milliseconds, so batches of one, and the minimum across them.
-    let mut best_process = Duration::MAX;
-    nvs_abi_probe::process::spawn_noop(); // warm the image cache
-    for _ in 0..25 {
-        let start = Instant::now();
-        nvs_abi_probe::process::spawn_noop();
-        best_process = best_process.min(start.elapsed());
-    }
-    let process_ns = best_process.as_secs_f64() * 1e9;
-
-    let ratio = process_ns / task_ns;
-    println!(
-        "isolation boundary: os process {:.0} us vs task {task_ns:.2} us, ratio {ratio:.0}x{}",
-        process_ns / 1000.0,
-        over(ratio, MIN_RATIO),
-        task_ns = task_ns / 1000.0
-    );
-
-    assert!(
-        ratio > MIN_RATIO,
-        "an OS process now costs only {ratio:.1}x a task ({process_ns:.0} ns vs {task_ns:.0} ns), \
-         under the {MIN_RATIO}x guard. ADR 0006 justifies in-process script isolates on that gap; \
-         if the gap has really closed, the ADR needs revisiting."
+            // A spawn is milliseconds, so batches of one, and the minimum across them.
+            let mut best_process = Duration::MAX;
+            nvs_abi_probe::process::spawn_noop(); // warm the image cache
+            for _ in 0..25 {
+                let start = Instant::now();
+                nvs_abi_probe::process::spawn_noop();
+                best_process = best_process.min(start.elapsed());
+            }
+            let process_ns = best_process.as_secs_f64() * 1e9;
+            Reading {
+                value: process_ns / task_ns,
+                detail: format!(
+                    " (os process {} vs task {})",
+                    yard.time(process_ns),
+                    yard.time(task_ns)
+                ),
+            }
+        },
     );
 }
 
@@ -712,33 +1014,32 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     // boundary itself — the argument's graph copy in, the child's own ownership
     // root and context, the child task, the answer's copy out, the release.
     //
-    // The ceiling is M5's own number rather than a multiple of the baseline: at
-    // ten microseconds the guard fails exactly when "single-digit microseconds"
-    // stops being true, which is the claim worth a red build. Measured on
-    // x86_64-pc-windows-msvc: 0.44 us, so there is ~23x of headroom — more than
-    // the module doc's usual ~10x, and deliberately, because a ceiling tightened
-    // from one developer's box is a flaky gate rather than a stricter one. The
-    // measured figure is printed either way, so drift inside the class is
-    // visible without being fatal.
-    const MAX_US: f64 = 10.0;
+    // The soft bound is M5's own number rather than a multiple of a baseline:
+    // at ten microseconds "single-digit microseconds" stops being true, and the
+    // run says so. The hard bound, a hundred microseconds, is a boundary that
+    // has acquired a syscall or a child doing something a child should not.
+    const PER_ROUND_TRIP: Bound = Bound::time_under(10_000.0, 100_000.0);
     const ITERS: u64 = 20_000;
 
-    // Each batch builds its own scheduler and task and warms inside them; the
-    // shared module owns why the loop cannot simply live here.
-    let mut best = f64::MAX;
-    for _ in 0..5 {
-        let took = isolate::spawn_to_result_batch(ITERS);
-        best = best.min(took.as_secs_f64() * 1e9 / ITERS as f64);
-    }
-    let us = best / 1000.0;
-    println!("isolate spawn to result: {us:.2} us{}", under(us, MAX_US));
-
-    assert!(
-        us < MAX_US,
-        "spawn-to-result now costs {us:.2} us, over the {MAX_US} us guard. ADR 0006 replaces a \
-         child process with this boundary and M5's acceptance puts it in the single-digit \
-         microseconds; at this figure the child is doing something a child should not, or the \
-         boundary has acquired a syscall."
+    judge(
+        "isolate spawn to result",
+        PER_ROUND_TRIP,
+        "ADR 0006 replaces a child process with this boundary and M5's acceptance puts it in \
+         the single-digit microseconds; at this figure the child is doing something a child \
+         should not, or the boundary has acquired a syscall.",
+        |_yard| {
+            // Each batch builds its own scheduler and task and warms inside
+            // them; the shared module owns why the loop cannot simply live here.
+            let mut best = f64::MAX;
+            for _ in 0..5 {
+                let took = isolate::spawn_to_result_batch(ITERS);
+                best = best.min(took.as_secs_f64() * 1e9 / ITERS as f64);
+            }
+            Reading {
+                value: best,
+                detail: String::new(),
+            }
+        },
     );
 }
 
@@ -917,14 +1218,14 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
     // `rule:concurrency/on-worker-runs-the-child-on-another-core` is where that
     // is decided, and the shared module owns what the two batches include.
     //
-    // The floor is the margin this test's name promises, and it is well under
-    // the ideal 4x deliberately. A ratio is bounded by whatever else the machine
-    // is running, and the failure worth a red build is a fan-out that stopped
-    // fanning out — a refused placement, a picker handing every child to one
-    // core, a join that serialises the children — all of which land at or under
-    // 1x. Halving the ideal leaves room for a busy machine and still cannot be
-    // reached without three of the four children running somewhere else.
-    const MIN_SPEEDUP: f64 = 2.0;
+    // The soft floor is the margin this test's name promises, and it is well
+    // under the ideal 4x deliberately: a ratio is bounded by whatever else the
+    // machine is running. The hard floor sits just over 1x, because the
+    // failure worth a red build is a fan-out that stopped fanning out — a
+    // refused placement, a picker handing every child to one core, a join that
+    // serialises the children — all of which land at or under 1x. Ten times
+    // under the soft floor would be under that line and catch none of them.
+    const SPEEDUP: Bound = Bound::ratio_over(2.0, 1.2);
     const ITERS: u64 = 5;
     const ROUNDS: usize = 5;
 
@@ -943,69 +1244,56 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
     // `ns_per_op` above gives. The third batch is the machine's own ceiling, and
     // it is interleaved with them for that same reason.
     //
-    // A measurement under the floor is taken again, up to `ATTEMPTS` times, and
-    // the last one is judged. A burst of load that lands on the placed batches
-    // and misses the thread batches reads as a fan-out that stopped fanning
-    // out, and it passes on the next attempt. A fan-out that really stopped
-    // lands at or under 1x on every attempt, so the floor still catches it.
-    const ATTEMPTS: usize = 3;
-    let measure = || {
-        let mut placed = f64::MAX;
-        let mut one_core = f64::MAX;
-        let mut threads = f64::MAX;
-        for _ in 0..ROUNDS {
-            placed = placed.min(isolate::worker_fan_out_batch(ITERS).as_secs_f64());
-            one_core = one_core.min(isolate::one_core_batch(ITERS).as_secs_f64());
-            threads = threads.min(plain_thread_fan_out(ITERS).as_secs_f64());
-        }
-        (placed, one_core, threads)
-    };
-    let mut figures = measure();
-    for _ in 1..ATTEMPTS {
-        if figures.1 / figures.0 > MIN_SPEEDUP {
-            break;
-        }
-        figures = measure();
-    }
-    let (placed, one_core, threads) = figures;
-    let speedup = one_core / placed;
-    let available = one_core / threads;
-
     // The CPU count above answers a machine too small to fan out at all. It
     // cannot answer a machine whose four cores are all busy with something else,
     // and that machine reads exactly like a picker handing every child to one
-    // core: both land under the floor. This is what tells the two apart, because
-    // threads pinned to the CPUs the cores run on are held to the same floor, and
-    // load on those CPUs fails it too. Under it, the ratio was never there to be measured,
-    // so the guard says so rather than reporting the machine as the tree — the
-    // same answer the CPU count gets, for the same reason.
-    if available <= MIN_SPEEDUP {
-        println!(
-            "fan-out across worker cores: not measured — {} plain threads reach only \
-             {available:.2}x on this machine, under the {MIN_SPEEDUP}x floor, so the \
-             {speedup:.2}x the placement reached is a figure about the machine",
-            isolate::WIDTH
-        );
-        return;
+    // core: both land under the floor. The third batch tells the two apart,
+    // because threads pinned to the CPUs the cores run on are held to the same
+    // hard floor, and load on those CPUs fails it too. Under it, the ratio was
+    // never there to be measured, so that attempt reports the machine rather
+    // than the tree, and the guard reports itself not measured when the last
+    // attempt does — the same answer the CPU count gets, for the same reason.
+    let measured = judge_where_measurable(
+        "fan-out across worker cores",
+        SPEEDUP,
+        "M5's acceptance claims near-linear speedup across cores for exactly this shape of work; \
+         at this ratio the children are sharing a core rather than spreading over them.",
+        |yard| {
+            let mut placed = f64::MAX;
+            let mut one_core = f64::MAX;
+            let mut threads = f64::MAX;
+            for _ in 0..ROUNDS {
+                placed = placed.min(isolate::worker_fan_out_batch(ITERS).as_secs_f64());
+                one_core = one_core.min(isolate::one_core_batch(ITERS).as_secs_f64());
+                threads = threads.min(plain_thread_fan_out(ITERS).as_secs_f64());
+            }
+            let speedup = one_core / placed;
+            let available = one_core / threads;
+            if !SPEEDUP.inside(available, SPEEDUP.hard) {
+                return Err(format!(
+                    "{} plain threads reach only {available:.2}x on this machine, under the \
+                     {}x hard floor, so the {speedup:.2}x the placement reached is a figure \
+                     about the machine",
+                    isolate::WIDTH,
+                    SPEEDUP.hard
+                ));
+            }
+            let per_batch = |seconds: f64| yard.time(seconds * 1e9 / ITERS as f64);
+            Ok(Reading {
+                value: speedup,
+                detail: format!(
+                    " ({} children in {} placed vs {} on one core, of the {available:.2}x plain \
+                     threads reach here)",
+                    isolate::WIDTH,
+                    per_batch(placed),
+                    per_batch(one_core)
+                ),
+            })
+        },
+    );
+    if measured.is_none() {
+        println!("fan-out across worker cores: skipped, the last attempt was not measured");
     }
-
-    println!(
-        "fan-out across worker cores: {} children in {:.1} ms placed vs {:.1} ms on one core, \
-         {speedup:.2}x of the {available:.2}x plain threads reach here{}",
-        isolate::WIDTH,
-        placed * 1e3 / ITERS as f64,
-        one_core * 1e3 / ITERS as f64,
-        over(speedup, MIN_SPEEDUP)
-    );
-
-    assert!(
-        speedup > MIN_SPEEDUP,
-        "{} CPU-bound children placed on worker cores now run only {speedup:.2}x faster than the \
-         same children one after another, under the {MIN_SPEEDUP}x guard. M5's acceptance claims \
-         near-linear speedup across cores for exactly this shape of work; at this ratio the \
-         children are sharing a core rather than spreading over them.",
-        isolate::WIDTH
-    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1031,34 +1319,36 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
 fn a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in() {
     let _quiet = serialised();
 
-    // Roughly 10x the measured baseline, like every ceiling in this file. A
-    // regression past it is a row that began to allocate or to convert before
-    // it has matched, which is what would make the table's length start to
-    // show in a request.
-    const MAX_NS_PER_ROW: f64 = 30.0;
+    // A figure past the hard bound is a row that began to allocate or to
+    // convert before it has matched, which is what would make the table's
+    // length start to show in a request.
+    const PER_ROW: Bound = Bound::time_under(30.0, 300.0);
 
     let (method, path) = routes::REQUEST;
     let small = routes::table(8);
     let large = routes::table(512);
 
-    let t_small = ns_per_op(200_000, 5, || {
-        black_box(small.match_request(black_box(method), black_box(path)));
-    });
-    let t_large = ns_per_op(20_000, 5, || {
-        black_box(large.match_request(black_box(method), black_box(path)));
-    });
-
-    let per_row = (t_large - t_small) / 504.0;
-    println!(
-        "route walk: {per_row:.2} ns per row (8 rows {t_small:.1} ns, 512 rows {t_large:.1} ns){}",
-        under(per_row, MAX_NS_PER_ROW)
-    );
-
-    assert!(
-        per_row < MAX_NS_PER_ROW,
-        "a route table row now costs {per_row:.2} ns to walk past, over the {MAX_NS_PER_ROW} ns \
-         guard. The linear walk is kept in place because the table's length does not show in a \
-         request; if this is a real regression, that argument is the one to revisit."
+    judge(
+        "route walk",
+        PER_ROW,
+        "The linear walk is kept in place because the table's length does not show in a \
+         request; if this is a real regression, that argument is the one to revisit.",
+        |yard| {
+            let t_small = ns_per_op(200_000, 5, || {
+                black_box(small.match_request(black_box(method), black_box(path)));
+            });
+            let t_large = ns_per_op(20_000, 5, || {
+                black_box(large.match_request(black_box(method), black_box(path)));
+            });
+            Reading {
+                value: (t_large - t_small) / 504.0,
+                detail: format!(
+                    " per row (8 rows {}, 512 rows {})",
+                    yard.time(t_small),
+                    yard.time(t_large)
+                ),
+            }
+        },
     );
 }
 
@@ -1225,17 +1515,14 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     // checked-return frame cost this file already measures on *this* machine,
     // never an absolute figure quoted from another one.
     //
-    // Measured on x86_64-pc-windows-msvc: 1.13-1.28 ns per loop iteration
-    // against 1.38-1.89 ns per checked-return frame, a ratio of 0.7-0.8x
-    // across runs. An iteration does a compare, three arithmetic operations, a
-    // safepoint poll and six ADR 0018 probe checks — and still costs less than
-    // one cross-frame call, which is the whole of ADR 0007's claim.
-    //
-    // The guard is set well above that, because what it exists to catch is a
-    // change of *kind*: arithmetic going through a runtime helper instead of a
-    // native instruction would put four calls in each iteration and move the
-    // ratio into the tens.
-    const MAX_RATIO: f64 = 6.0;
+    // An iteration does a compare, three arithmetic operations, a safepoint
+    // poll and six ADR 0018 probe checks — and still costs less than one
+    // cross-frame call, which is the whole of ADR 0007's claim. The soft bound
+    // is set well above that. Arithmetic going through a runtime helper instead
+    // of a native instruction puts four calls in each iteration, and
+    // `a_typed_arithmetic_loop_contains_no_call` above is what fails on it,
+    // by count; this timing holds the cost class around it.
+    const ITERATION_PER_FRAME: Bound = Bound::ratio_under(6.0, 60.0);
     const ITERATIONS: i64 = 1_000;
 
     let mut probe = Probe::new();
@@ -1243,13 +1530,6 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     let deep = probe.compile_chain(18, Helper::Double);
     let mut probe_ctx = Ctx::new();
     let arg = Value::int(3);
-    let t_shallow = ns_per_op(200_000, 5, || {
-        black_box(call(shallow, &mut probe_ctx, arg));
-    });
-    let t_deep = ns_per_op(200_000, 5, || {
-        black_box(call(deep, &mut probe_ctx, arg));
-    });
-    let per_frame = (t_deep - t_shallow) / 16.0;
 
     let (_program, unit) = compile_arith();
     // `raw_function` and not `Unit::call_static`, which is the entry point a
@@ -1269,25 +1549,32 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
         nvs_runtime::Value::null(),
         nvs_runtime::Value::int(ITERATIONS),
     ];
-    let per_call = ns_per_op(2_000, 5, || {
-        black_box(nvs_runtime::call(sum, &mut ctx, &args)).expect("the loop ran");
-    });
-    let per_iteration = per_call / ITERATIONS as f64;
-
-    let ratio = per_iteration / per_frame;
-    println!(
-        "typed arithmetic loop: {per_iteration:.2} ns/iteration against \
-         {per_frame:.2} ns/frame, ratio {ratio:.1}x{}",
-        under(ratio, MAX_RATIO)
-    );
-
-    assert!(
-        ratio < MAX_RATIO,
-        "a loop iteration now costs {ratio:.1}x a checked-return frame \
-         ({per_iteration:.2} ns vs {per_frame:.2} ns), over the {MAX_RATIO}x guard. \
-         ADR 0007 justifies mandatory types on typed arithmetic staying in the \
-         native cost class; if this is a real regression that argument needs \
-         revisiting."
+    judge(
+        "typed arithmetic loop iteration, against a checked-return frame",
+        ITERATION_PER_FRAME,
+        "ADR 0007 justifies mandatory types on typed arithmetic staying in the native cost \
+         class; if this is a real regression that argument needs revisiting.",
+        |yard| {
+            let t_shallow = ns_per_op(200_000, 5, || {
+                black_box(call(shallow, &mut probe_ctx, arg));
+            });
+            let t_deep = ns_per_op(200_000, 5, || {
+                black_box(call(deep, &mut probe_ctx, arg));
+            });
+            let per_frame = (t_deep - t_shallow) / 16.0;
+            let per_call = ns_per_op(2_000, 5, || {
+                black_box(nvs_runtime::call(sum, &mut ctx, &args)).expect("the loop ran");
+            });
+            let per_iteration = per_call / ITERATIONS as f64;
+            Reading {
+                value: per_iteration / per_frame,
+                detail: format!(
+                    " ({} per iteration, {} per frame)",
+                    yard.time(per_iteration),
+                    yard.time(per_frame)
+                ),
+            }
+        },
     );
 }
 
@@ -1326,21 +1613,17 @@ fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
     // An iteration is three `decimal` operations — a multiply, an add and a
     // subtract — plus the `int` compare and increment the `int` loop above pays
     // too. Each of the three is an out-of-line helper call over a 96-bit
-    // mantissa, so this loop sits tens of frames up rather than under one:
-    // measured on x86_64-pc-windows-msvc, 61 ns per iteration against 1.55 ns
-    // per checked-return frame, a ratio of 39x steady across runs.
+    // mantissa, so this loop sits tens of frames up rather than under one.
     //
-    // The ceiling is about three times that rather than this file's usual ~10x,
-    // and the tighter bound is the point. What it exists to catch is a change
-    // of *kind* — a `decimal` that starts allocating, or an operator that falls
+    // The soft bound sits a few times over that, closer than the usual ten,
+    // and the closeness is the point. What it warns about is a change of
+    // *kind* — a `decimal` that starts allocating, or an operator that falls
     // back to an arbitrary-precision path, against
     // `crates/nvs-runtime/src/decimal.rs`'s "nothing is allocated and nothing
-    // is refcounted" — and that costs tens of nanoseconds per operator, which a
-    // ceiling ten times a ratio already in the tens would sail straight past.
-    // A ratio of two figures measured in the same run is also the portable
-    // half of ADR 0026's finding, so it carries less machine-to-machine slack
-    // than an absolute figure needs.
-    const MAX_RATIO: f64 = 120.0;
+    // is refcounted" — and that costs tens of nanoseconds per operator, which
+    // can stay inside the hard bound, ten times the soft one. A warning from
+    // this guard is therefore worth reading even though the test passed.
+    const ITERATION_PER_FRAME: Bound = Bound::ratio_under(120.0, 1_200.0);
     const ITERATIONS: i64 = 1_000;
 
     let mut probe = Probe::new();
@@ -1348,13 +1631,6 @@ fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
     let deep = probe.compile_chain(18, Helper::Double);
     let mut probe_ctx = Ctx::new();
     let arg = Value::int(3);
-    let t_shallow = ns_per_op(200_000, 5, || {
-        black_box(call(shallow, &mut probe_ctx, arg));
-    });
-    let t_deep = ns_per_op(200_000, 5, || {
-        black_box(call(deep, &mut probe_ctx, arg));
-    });
-    let per_frame = (t_deep - t_shallow) / 16.0;
 
     let unit = compile_decimal_arith();
     // `raw_function` rather than `Unit::call_static`, and argument slot 0 the
@@ -1368,24 +1644,32 @@ fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
         nvs_runtime::Value::null(),
         nvs_runtime::Value::int(ITERATIONS),
     ];
-    let per_call = ns_per_op(2_000, 5, || {
-        black_box(nvs_runtime::call(run, &mut ctx, &args)).expect("the loop ran");
-    });
-    let per_iteration = per_call / ITERATIONS as f64;
-
-    let ratio = per_iteration / per_frame;
-    println!(
-        "typed decimal arithmetic loop: {per_iteration:.2} ns/iteration against \
-         {per_frame:.2} ns/frame, ratio {ratio:.1}x{}",
-        under(ratio, MAX_RATIO)
-    );
-
-    assert!(
-        ratio < MAX_RATIO,
-        "a decimal loop iteration now costs {ratio:.1}x a checked-return frame \
-         ({per_iteration:.2} ns vs {per_frame:.2} ns), over the {MAX_RATIO}x \
-         guard. ADR 0054 § *Consequences* claims a helper call per operator and \
-         no allocation; at this ratio one of those two has stopped being true."
+    judge(
+        "typed decimal arithmetic loop iteration, against a checked-return frame",
+        ITERATION_PER_FRAME,
+        "ADR 0054 § *Consequences* claims a helper call per operator and no allocation; at \
+         this ratio one of those two has stopped being true.",
+        |yard| {
+            let t_shallow = ns_per_op(200_000, 5, || {
+                black_box(call(shallow, &mut probe_ctx, arg));
+            });
+            let t_deep = ns_per_op(200_000, 5, || {
+                black_box(call(deep, &mut probe_ctx, arg));
+            });
+            let per_frame = (t_deep - t_shallow) / 16.0;
+            let per_call = ns_per_op(2_000, 5, || {
+                black_box(nvs_runtime::call(run, &mut ctx, &args)).expect("the loop ran");
+            });
+            let per_iteration = per_call / ITERATIONS as f64;
+            Reading {
+                value: per_iteration / per_frame,
+                detail: format!(
+                    " ({} per iteration, {} per frame)",
+                    yard.time(per_iteration),
+                    yard.time(per_frame)
+                ),
+            }
+        },
     );
 }
 
@@ -1405,12 +1689,12 @@ fn a_refcount_one_array_member_mutates_in_place() {
     // into a solely-owned thousand-entry array against the same write into an
     // aliased one, which has to separate first and is therefore O(entries).
     //
-    // Measured on x86_64-pc-windows-msvc: ~25 ns for the in-place write
-    // against ~34 us for the separating one, a ratio around 0.0007x. The
-    // guard sits two orders of magnitude above that, because what it exists to
-    // catch is a change of *kind* — the fast path being lost, which would put
-    // the two within a small constant factor of each other.
-    const MAX_RATIO: f64 = 0.05;
+    // The in-place write is orders of magnitude cheaper, and the soft bound
+    // sits far above it. The hard bound sits at half a separating write, just
+    // short of the change of *kind* it exists to catch: the fast path being
+    // lost puts the two within a small constant factor of each other, which
+    // ten times the soft bound would not reach.
+    const IN_PLACE_PER_SEPARATING: Bound = Bound::ratio_under(0.05, 0.5);
     const ENTRIES: i64 = 1_000;
 
     let mut array = nvs_runtime::NvsArray::new();
@@ -1422,31 +1706,31 @@ fn a_refcount_one_array_member_mutates_in_place() {
     }
     let key = nvs_runtime::NvsStr::new(b"probe");
 
-    let in_place = ns_per_op(200_000, 5, || {
-        array.set(key.clone(), nvs_runtime::Value::int(1));
-    });
-    assert_eq!(array.refcount(), 1, "the in-place write never separated");
+    judge(
+        "array write in place, against a separating one",
+        IN_PLACE_PER_SEPARATING,
+        "ADR 0063 R3's immutable `Core` API rests on that write being in place; if this is a \
+         real regression that argument needs revisiting.",
+        |yard| {
+            let in_place = ns_per_op(200_000, 5, || {
+                array.set(key.clone(), nvs_runtime::Value::int(1));
+            });
+            assert_eq!(array.refcount(), 1, "the in-place write never separated");
 
-    let separating = ns_per_op(300, 5, || {
-        let mut aliased = array.clone();
-        aliased.set(key.clone(), nvs_runtime::Value::int(1));
-        black_box(aliased.count());
-    });
-
-    let ratio = in_place / separating;
-    println!(
-        "array write: {in_place:.0} ns in place against {separating:.0} ns \
-         separating {ENTRIES} entries, ratio {ratio:.4}x{}",
-        under(ratio, MAX_RATIO)
-    );
-
-    assert!(
-        ratio < MAX_RATIO,
-        "a write into a solely-owned array now costs {ratio:.4}x one that has \
-         to separate ({in_place:.0} ns vs {separating:.0} ns), over the \
-         {MAX_RATIO}x guard. ADR 0063 R3's immutable `Core` API rests on that \
-         write being in place; if this is a real regression that argument \
-         needs revisiting."
+            let separating = ns_per_op(300, 5, || {
+                let mut aliased = array.clone();
+                aliased.set(key.clone(), nvs_runtime::Value::int(1));
+                black_box(aliased.count());
+            });
+            Reading {
+                value: in_place / separating,
+                detail: format!(
+                    " ({} in place vs {} separating {ENTRIES} entries)",
+                    yard.time(in_place),
+                    yard.time(separating)
+                ),
+            }
+        },
     );
 }
 
@@ -1460,21 +1744,20 @@ fn a_refcount_one_array_member_mutates_in_place() {
 /// is free; a corpus that is *all* emoji would report the opposite. The
 /// decision needs the common case and the bad case side by side, so this guard
 /// prints and bounds both.
-/// Each corpus with the bound its grapheme count must stay under, in UTF-8
-/// validations of the same buffer.
 ///
-/// The baselines behind the bounds: 3.0 validations for `ascii`, 24.7 for
-/// `mixed`. Each bound is this file's usual order of magnitude above its own
-/// baseline, which is loose enough not to track a machine and tight enough to
-/// catch what actually matters — without `one_byte_per_cluster`'s fast path
-/// the `ascii` leg climbs into the hundreds.
-fn corpora() -> [(&'static str, String, f64); 2] {
+/// Each corpus comes with the bounds on its grapheme count, in UTF-8
+/// validations of the same buffer. Each soft bound is an order of magnitude
+/// above that corpus's usual figure. The `mixed` hard bound is ten times its
+/// soft one. The `ascii` hard bound is closer, because the change of kind it
+/// exists to catch is `one_byte_per_cluster`'s fast path being lost, which
+/// puts the `ascii` leg in the hundreds.
+fn corpora() -> [(&'static str, String, Bound); 2] {
     let repeat = |unit: &str| unit.repeat(64);
     [
         (
             "ascii",
             repeat("the quick brown fox jumps over the lazy dog, "),
-            30.0,
+            Bound::ratio_under(30.0, 100.0),
         ),
         (
             "mixed",
@@ -1484,7 +1767,7 @@ fn corpora() -> [(&'static str, String, f64); 2] {
                 "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467} \u{1f1e6}\u{1f1f9} ",
                 "\u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f} ",
             )),
-            250.0,
+            Bound::ratio_under(250.0, 2_500.0),
         ),
     ]
 }
@@ -1504,56 +1787,82 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
     // which is why the bound travels with the corpus rather than being one
     // constant here. The name is the finding on text that is not plain ASCII:
     // a grapheme index is the dearer of the two seams, by orders of magnitude.
+    //
+    // Off the fast path a grapheme count also costs more than a code-point
+    // count. The soft floor is that claim exactly. The hard floor is a grapheme
+    // count at half a code-point count's cost, which a segmenter that still
+    // segments cannot reach; ten times under the soft floor would pass one that
+    // had become free.
+    const GRAPHEME_PER_CODE_POINT: Bound = Bound::ratio_over(1.0, 0.5);
 
-    for (name, text, max_validations) in corpora() {
+    for (name, text, per_validation) in corpora() {
         let bytes = text.as_bytes();
         let graphemes = nvs_stdlib::granularity::Unit::Grapheme.length(&text);
         let code_points = nvs_stdlib::granularity::Unit::CodePoint.length(&text);
 
         // Per byte, so the three legs are comparable and the corpus size is
-        // not baked into the threshold.
-        let per_byte = |ns: f64| ns / bytes.len() as f64;
+        // not baked into the bounds: UTF-8 validation, a code-point count and
+        // a grapheme count, in that order.
+        let legs = || {
+            let per_byte = |ns: f64| ns / bytes.len() as f64;
+            (
+                per_byte(ns_per_op(2_000, 5, || {
+                    black_box(std::str::from_utf8(black_box(bytes)).is_ok());
+                })),
+                per_byte(ns_per_op(2_000, 5, || {
+                    black_box(nvs_stdlib::granularity::Unit::CodePoint.length(black_box(&text)));
+                })),
+                per_byte(ns_per_op(2_000, 5, || {
+                    black_box(nvs_stdlib::granularity::Unit::Grapheme.length(black_box(&text)));
+                })),
+            )
+        };
+        let detail = |yard: Yardstick, (validate, code_point, grapheme): (f64, f64, f64)| {
+            format!(
+                " ({} bytes, {graphemes} graphemes, {code_points} code points; per byte: \
+                 validate {}, code point {}, grapheme {})",
+                bytes.len(),
+                yard.time(validate),
+                yard.time(code_point),
+                yard.time(grapheme)
+            )
+        };
 
-        let validate = per_byte(ns_per_op(2_000, 5, || {
-            black_box(std::str::from_utf8(black_box(bytes)).is_ok());
-        }));
-        let code_point = per_byte(ns_per_op(2_000, 5, || {
-            black_box(nvs_stdlib::granularity::Unit::CodePoint.length(black_box(&text)));
-        }));
-        let grapheme = per_byte(ns_per_op(2_000, 5, || {
-            black_box(nvs_stdlib::granularity::Unit::Grapheme.length(black_box(&text)));
-        }));
-
-        let validations = grapheme / validate;
-        println!(
-            "{name}: {} bytes, {graphemes} graphemes, {code_points} code points — \
-             validate {validate:.3} ns/byte, code point {code_point:.3} ns/byte, \
-             grapheme {grapheme:.3} ns/byte; a grapheme count is {validations:.1} UTF-8 \
-             validations and {:.1}x a code-point count",
-            bytes.len(),
-            grapheme / code_point
+        judge(
+            &format!("{name}: a grapheme count, in UTF-8 validations of the same buffer"),
+            per_validation,
+            "ADR 0009 § 2 makes grapheme clusters `string`'s default unit on the strength of a \
+             measured figure well under that; if this is a real regression, that decision needs \
+             revisiting rather than this bound.",
+            |yard| {
+                let figures = legs();
+                Reading {
+                    value: figures.2 / figures.0,
+                    detail: detail(yard, figures),
+                }
+            },
         );
 
         // Only off the fast path. On plain ASCII a grapheme count *is* the
         // byte length behind one vectorized scan, so it is legitimately in the
         // same class as a code-point count there and the comparison says
-        // nothing; asserting it on both legs would be a coin flip.
-        assert!(
-            text.is_ascii() || grapheme >= code_point,
-            "over {name}, a grapheme count now costs {grapheme:.3} ns/byte against a \
-             code-point count's {code_point:.3} ns/byte. The two are meant to be distinct \
-             seams over the same buffer; if segmentation has become free, \
-             `nvs_stdlib::granularity` is no longer measuring what it claims to."
-        );
-
-        assert!(
-            validations < max_validations,
-            "over {name}, a grapheme count now costs {validations:.1} UTF-8 validations of \
-             the same buffer ({grapheme:.3} ns/byte against {validate:.3} ns/byte), over \
-             the {max_validations} guard. ADR 0009 § 2 makes grapheme clusters `string`'s \
-             default unit on the strength of a measured figure well under that; if this is \
-             a real regression, that decision needs revisiting rather than this threshold."
-        );
+        // nothing; judging it on both legs would be a coin flip.
+        if !text.is_ascii() {
+            judge(
+                &format!("{name}: a grapheme count, against a code-point count"),
+                GRAPHEME_PER_CODE_POINT,
+                "The two are meant to be distinct seams over the same buffer; if segmentation \
+                 has become free, `nvs_stdlib::granularity` is no longer measuring what it \
+                 claims to.",
+                |yard| {
+                    let figures = legs();
+                    Reading {
+                        value: figures.2 / figures.1,
+                        detail: detail(yard, figures),
+                    }
+                },
+            );
+        }
     }
 }
 
@@ -1637,15 +1946,14 @@ fn the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus() {
     // machine. Neither pattern matches anywhere in the corpus, so each leg is
     // a full scan of the same bytes rather than a race to an early hit.
     //
-    // The bound is a floor of 1.0 — the linear tier must simply be the faster
-    // of the two — because that is the claim exactly, and nothing more than it
-    // is safe to fix: a developer who cannot choose a tier is not being handed
-    // the slower one. Measured on x86_64-pc-windows-msvc the margin is three
-    // orders of magnitude, since the literal `@` gives the linear engine a
-    // prefilter that rejects the whole corpus in one pass and the lookahead
-    // denies the backtracker the same trick; the printed figure is where a
-    // later pass would tighten this from, across several machines.
-    const MIN_SPEEDUP: f64 = 1.0;
+    // The soft floor is 1.0 — the linear tier must simply be the faster of the
+    // two — because that is the claim exactly: a developer who cannot choose a
+    // tier is not being handed the slower one. The margin is usually orders of
+    // magnitude, since the literal `@` gives the linear engine a prefilter that
+    // rejects the whole corpus in one pass and the lookahead denies the
+    // backtracker the same trick. The hard floor is a linear tier ten times the
+    // slower, which no timing noise explains.
+    const SPEEDUP: Bound = Bound::ratio_over(1.0, 0.1);
     const ROUNDS: i64 = 50;
 
     assert_eq!(
@@ -1676,24 +1984,24 @@ fn the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus() {
         });
         per_call / ROUNDS as f64 / bytes
     };
-    let linear = per_byte("Bench::linear");
-    let backtracking = per_byte("Bench::backtracking");
-
-    let speedup = backtracking / linear;
-    println!(
-        "regex tiers over {bytes:.0} bytes: linear {linear:.3} ns/byte against \
-         backtracking {backtracking:.3} ns/byte, {speedup:.1}x{}",
-        over(speedup, MIN_SPEEDUP)
-    );
-
-    assert!(
-        speedup > MIN_SPEEDUP,
-        "the linear tier now runs at {speedup:.2}x the backtracking tier over the \
-         same corpus ({linear:.3} ns/byte against {backtracking:.3} ns/byte), under \
-         the {MIN_SPEEDUP}x floor. `rule:core-classes/regex-two-tiers` gives a \
-         developer no way to ask for the second tier, which rests on the first not \
-         being the slower one; if this is a real regression that argument needs \
-         revisiting."
+    judge(
+        "regex tiers, the linear tier's speedup over the backtracking one",
+        SPEEDUP,
+        "`rule:core-classes/regex-two-tiers` gives a developer no way to ask for the second \
+         tier, which rests on the first not being the slower one; if this is a real regression \
+         that argument needs revisiting.",
+        |yard| {
+            let linear = per_byte("Bench::linear");
+            let backtracking = per_byte("Bench::backtracking");
+            Reading {
+                value: backtracking / linear,
+                detail: format!(
+                    " over {bytes:.0} bytes (per byte: linear {}, backtracking {})",
+                    yard.time(linear),
+                    yard.time(backtracking)
+                ),
+            }
+        },
     );
 }
 
@@ -1919,14 +2227,12 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // Self-relative, per ADR 0026: both legs are measured on this machine, in
     // the same run, over the same class.
     //
-    // Measured on x86_64-pc-windows-msvc: 0.29 ns for the unhooked read+write
-    // against 14.5 ns for the hooked one, a ratio of 0.02x, and three more
-    // unhooked accesses emit 0 machine-code calls against the hooked pair's
-    // 36. The guard sits this file's usual order of magnitude above that,
-    // which is still far below the ~1x an unhooked access would reach the
-    // moment it acquired a dispatch of its own — the change of kind this
-    // exists to catch.
-    const MAX_RATIO: f64 = 0.2;
+    // The unhooked pair costs a small fraction of the hooked one, and the soft
+    // bound sits an order of magnitude above that fraction. The hard bound sits
+    // just short of the ~1x an unhooked access would reach the moment it
+    // acquired a dispatch of its own — the change of kind this exists to
+    // catch, and one that ten times the soft bound would pass.
+    const PLAIN_PER_HOOKED: Bound = Bound::ratio_under(0.2, 0.8);
     const ROUNDS: i64 = 1_000;
 
     let (program, unit) = compile_source("observer.nvs", OBSERVER_FIXTURE);
@@ -2069,24 +2375,23 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
         });
         (t_four - t_one) / (3.0 * ROUNDS as f64)
     };
-    let plain = per_pair("Cell::plainOne", "Cell::plainFour");
-    let hooked = per_pair("Cell::hookedOne", "Cell::hookedFour");
-
-    let ratio = plain / hooked;
-    println!(
-        "property read+write: {plain:.2} ns unhooked against {hooked:.2} ns \
-         through a pass-through hook pair, ratio {ratio:.3}x{}",
-        under(ratio, MAX_RATIO)
-    );
-
-    assert!(
-        ratio < MAX_RATIO,
-        "a read+write of an unhooked property on an observer-free class now \
-         costs {ratio:.3}x the same pair behind a hook ({plain:.2} ns vs \
-         {hooked:.2} ns), over the {MAX_RATIO}x guard. ADR 0014 § 4 rests on \
-         the unhooked access paying nothing for a mechanism it never asked \
-         for; if this is real, that claim needs revisiting rather than this \
-         threshold."
+    judge(
+        "property read+write unhooked, against a pass-through hook pair",
+        PLAIN_PER_HOOKED,
+        "ADR 0014 § 4 rests on the unhooked access paying nothing for a mechanism it never \
+         asked for; if this is real, that claim needs revisiting rather than this bound.",
+        |yard| {
+            let plain = per_pair("Cell::plainOne", "Cell::plainFour");
+            let hooked = per_pair("Cell::hookedOne", "Cell::hookedFour");
+            Reading {
+                value: plain / hooked,
+                detail: format!(
+                    " ({} unhooked vs {} hooked)",
+                    yard.time(plain),
+                    yard.time(hooked)
+                ),
+            }
+        },
     );
 }
 
@@ -2171,12 +2476,14 @@ fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
     // come is a property of the platform: every round trip here also keeps
     // `nvs_runtime::budget`'s per-thread counters, each its own thread-local
     // cell, and on macOS each access to one is a call through the thread-local
-    // descriptor where Linux and Windows read one register. The
-    // bound is the one line no platform moves: a round trip through the cache
-    // has to cost less than the platform heap it sits in front of, or the
-    // cache is spending time and saving none.
+    // descriptor where Linux and Windows read one register. The soft bound is
+    // the one line no platform moves: a round trip through the cache costs
+    // less than the platform heap it sits in front of, or the cache is
+    // spending time and saving none. The hard bound is a cache twice the
+    // heap's cost, just past that line, because ten times the heap would hide
+    // a cache that had become pure overhead.
     const BLOCKS: u32 = 16;
-    const MAX_RATIO: f64 = 1.0;
+    const POOLED_PER_PLATFORM: Bound = Bound::ratio_under(1.0, 2.0);
 
     // 32 bytes with 8-byte alignment: `NvsStr`'s header plus a short string,
     // and squarely inside the second size class.
@@ -2197,22 +2504,24 @@ fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
          docs/perf/userland-gap.md § A is the measurement that made Novis own its allocator."
     );
 
-    let pooled = ns_per_op(500_000, 5, || global_round_trip(layout));
-    let platform = ns_per_op(500_000, 5, || platform_round_trip(layout));
-
-    let ratio = pooled / platform;
-    println!(
-        "32-byte allocation round trip: {pooled:.2} ns through the registered \
-         allocator against {platform:.2} ns through the platform heap, ratio \
-         {ratio:.3}x{}",
-        under(ratio, MAX_RATIO)
-    );
-
-    assert!(
-        ratio < MAX_RATIO,
-        "a 32-byte round trip through the cache now costs {ratio:.3}x the platform heap's own \
-         ({pooled:.2} ns vs {platform:.2} ns), so the cache is no faster than the heap it \
-         fronts. The cache count above says it is serving the request, so what grew is the \
-         work around it: `nvs_runtime::budget`'s counters or the free list itself."
+    judge(
+        "32-byte allocation round trip through the registered allocator, against the platform \
+         heap",
+        POOLED_PER_PLATFORM,
+        "The cache is no faster than the heap it fronts. The cache count above says it is \
+         serving the request, so what grew is the work around it: `nvs_runtime::budget`'s \
+         counters or the free list itself.",
+        |yard| {
+            let pooled = ns_per_op(500_000, 5, || global_round_trip(layout));
+            let platform = ns_per_op(500_000, 5, || platform_round_trip(layout));
+            Reading {
+                value: pooled / platform,
+                detail: format!(
+                    " ({} pooled vs {} platform)",
+                    yard.time(pooled),
+                    yard.time(platform)
+                ),
+            }
+        },
     );
 }

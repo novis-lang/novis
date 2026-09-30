@@ -61,9 +61,12 @@ about what a `Core` member costs is a number with no guard test.
 Two performance measurements exist and they are never one.
 
 The **per-PR regression guards** are self-relative wall-clock ratios and slopes — a deep chain
-against a shallow one, a throw against a return — with loose order-of-magnitude thresholds. They run
-on every platform, and on a push when the diff touched a crate whose cost they measure. Each
-comparison happens on one machine in one run, so it needs no cross-machine comparability at all.
+against a shallow one, a throw against a return — and the counts beside them. They run on every
+platform, and on a push when the diff touched a crate whose cost they measure. Each comparison
+happens on one machine in one run, so it needs no cross-machine comparability, but load on that
+machine still moves it. So a timing has two bounds: missing the **soft** one prints a warning into
+the CI log and fails nothing, and only the **hard** one, an order of magnitude further or just short
+of the change of kind it guards, fails, after re-measuring. A count has one bound and fails at once.
 They answer "did this commit regress".
 
 The **historical dashboard** compiles a fixed workload on a dedicated, non-shared Linux or WSL
