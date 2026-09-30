@@ -28,12 +28,13 @@ string $wide = Core\Str::repeat('é', 8) . '-' . Core\Str::repeat('é', 4) . '-'
     . Core\Str::repeat('é', 4) . '-' . Core\Str::repeat('é', 4) . '-' . Core\Str::repeat('é', 12);
 echo Core\Uuid::tryParse($wide) == null ? 'null' : 'uuid', "\n";
 
-// 5. One million checks of a valid text and of an invalid one. Every result is freed.
-// This prints 1000000.
+// 5. One million checks of a valid text and of a text with one more character.
+// Every result is freed. This prints 1000000.
+string $long = $good . '0';
 int $found = 0;
 int $i = 0;
 while ($i < 1000000) {
-    if (Core\Uuid::tryParse($good) != null && Core\Uuid::tryParse($huge) == null) {
+    if (Core\Uuid::tryParse($good) != null && Core\Uuid::tryParse($long) == null) {
         $found = $found + 1;
     }
     $i = $i + 1;
