@@ -1,0 +1,35 @@
+<?nvs
+// Shows the Novis syntax for four PHP operators, in code that prepares a page for a visitor.
+
+class Page {
+    // `inout` lets this method change the caller's variable.
+    // You write `inout` here and again at the call.
+    public static function countView(inout int $views): void {
+        $views = $views + 1;
+    }
+}
+
+// `Core\Arr::underlay` merges two arrays, like `+` on arrays in PHP.
+// A key in the first array keeps its own value.
+array<string> $defaults = ["theme" => "light", "language" => "en"];
+array<string> $chosen = ["theme" => "dark"];
+array<string> $settings = Core\Arr::underlay($chosen, $defaults);
+// This prints "dark en".
+echo $settings["theme"], " ", $settings["language"], "\n";
+
+// `Core\Str::at` returns one character of a string. This prints "É".
+string $name = "Élise";
+echo Core\Str::at($name, 0), "\n";
+
+// `==` compares two values of the same type and never converts them.
+// `&&` and `||` replace `and` and `or`. This prints "welcome back".
+bool $loggedIn = true;
+string $role = "editor";
+if ($loggedIn && ($role == "editor" || $role == "admin")) {
+    echo "welcome back\n";
+}
+
+int $views = 41;
+Page::countView(inout $views);
+// This prints 42.
+echo $views, "\n";

@@ -1,0 +1,111 @@
+--TEST--
+Every Novis spelling in the operators table of the PHP-differences chapter compiles and runs — `rule:expressions/one-equality-operator`, `rule:types/array-combination`, `rule:statements/inout-is-the-by-reference-spelling`
+--FILE--
+<?nvs
+// covers: tools:php-differences/operators
+// The PHP column of every row is pinned under `tests/conformance/reject/` and
+// `tests/conformance/lang/`; this case runs the replacement column.
+class Ops {
+    // `inout` at the declaration, and again at the call.
+    public static function bump(inout int $n): void {
+        $n = $n + 1;
+    }
+
+    // A spread lands in a `...$rest` variadic.
+    public static function total(int ...$rest): int {
+        int $t = 0;
+        foreach ($rest as int $x) {
+            $t = $t + $x;
+        }
+        return $t;
+    }
+}
+
+class Node {
+    public ?Node $next = null;
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+// `&&` and `||` replace `and` and `or`.
+bool $a = true;
+bool $b = false;
+echo $a && $b ? "y" : "n", $a || $b ? "y" : "n", "\n";
+
+// Both spellings of `xor` agree on every pair.
+array<bool> $bools = [true, false];
+int $agree = 0;
+foreach ($bools as bool $p) {
+    foreach ($bools as bool $q) {
+        if (($p != $q) == (($p || $q) && !($p && $q))) {
+            $agree = $agree + 1;
+        }
+    }
+}
+echo $agree, "\n";
+
+// `==` and `!=` never convert.
+echo 1 == 1 ? "y" : "n", "a" != "b" ? "y" : "n", "\n";
+
+// `Core\Arr::underlay` is PHP's array `+`: the left side wins.
+array<int> $left = [1, 2];
+array<int> $right = [7, 8, 9];
+array<int> $merged = Core\Arr::underlay($left, $right);
+echo Core\Arr::count($merged), " ", $merged[0], " ", $merged[2], "\n";
+
+// A character of a string, and a byte of a buffer.
+string $s = "héllo";
+echo Core\Str::slice($s, 1, 1), Core\Str::at($s, 1), Core\Str::at($s, -1), "\n";
+echo Core\Bytes::length(Core\Bytes::slice($s as bytes, 1, 2)), "\n";
+
+// A failure is caught, not suppressed.
+try {
+    echo "x" as int, "\n";
+} catch (Throwable $e) {
+    echo "caught\n";
+}
+
+// `&` is bitwise AND.
+echo 6 & 3, "\n";
+
+int $n = 1;
+Ops::bump(inout $n);
+echo $n, "\n";
+
+array<int> $args = [1, 2, 3];
+echo Ops::total(...$args), "\n";
+
+// `is` is the one type test.
+Node $head = new Node("head");
+echo $head is Node ? "y" : "n", "\n";
+
+// The operators that work as in PHP.
+echo 1 <=> 2, " ", 2 ** 10, "\n";
+?int $none = null;
+echo $none ?? 5, " ", 0 ?: 9, "\n";
+$none ??= 4;
+echo $none, "\n";
+echo $head->next?->name ?? "no next", "\n";
+string $line = "a";
+$line .= "b";
+echo $line, "\n";
+--EXPECT--
+ny
+4
+yy
+3 1 9
+ééo
+2
+caught
+2
+2
+6
+y
+-1 1024
+5 9
+4
+no next
+ab
