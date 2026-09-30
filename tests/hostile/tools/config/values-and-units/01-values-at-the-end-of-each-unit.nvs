@@ -1,0 +1,45 @@
+<?nvs
+// Attack: `nvs.toml` gives the limits values that are far too large or in the wrong unit.
+// Then the program sets more of them. Novis should run the program, and nothing should crash.
+
+// 1. Read each value from the file. Each one prints as it is written in the file.
+array<string> $keys = [
+    'wall_time',
+    'cpu_time',
+    'max_tasks',
+    'max_output',
+    'max_regex_steps',
+    'max_decompression_ratio',
+    'limits.hard.wall_time',
+    'limits.hard.max_tasks',
+];
+foreach ($keys as string $key) {
+    echo $key, '=', Core\Config::get($key) ?? 'null', "\n";
+}
+
+// 2. Set times at the far end of the range, and times that are not written correctly.
+array<string> $times = [
+    '18446744073709551616ns',
+    '9999999999999999999d',
+    '0s',
+    '-1s',
+    '1.5m',
+    '1m30s',
+    '5 s',
+    'm',
+    '',
+    Core\Str::repeat('9', 100000) . 's',
+];
+foreach ($times as string $time) {
+    echo Core\Config::set('wall_time', $time) ? 'yes' : 'no', "\n";
+}
+
+// 3. Set counts that are too large, negative or not whole numbers.
+array<string> $counts = ['18446744073709551616', '0', '-1', '8x', '0x10', '1.5', '1e3'];
+foreach ($counts as string $count) {
+    echo Core\Config::set('max_tasks', $count) ? 'yes' : 'no', "\n";
+}
+
+// 4. The memory limit is still in force. This prints `64M` and then `1048576`.
+echo Core\Config::get('memory'), "\n";
+echo Core\Str::length(Core\Str::repeat('x', 1048576)), "\n";

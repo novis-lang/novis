@@ -24,6 +24,7 @@ fn refusal(unit: Unit, value: &Setting) -> Invalid {
 /// A size is held in bytes, so every suffix in the table reads as the same quantity written a
 /// different way. Asserted by counting: one row that dropped its multiplier still equals `1G` on
 /// its own line only if the multiplier was right.
+// covers: tools:config/values-and-units
 #[test]
 fn every_size_suffix_names_the_same_binary_multiple() {
     let a_gigabyte = [
@@ -52,6 +53,7 @@ fn every_size_suffix_names_the_same_binary_multiple() {
 
 /// The same, for durations — and `m` is minutes here where it was mega above, which is the whole
 /// reason the parse is directed by the unit rather than by the spelling.
+// covers: tools:config/values-and-units
 #[test]
 fn every_duration_suffix_names_the_same_span_of_nanoseconds() {
     let a_minute = [
@@ -79,6 +81,7 @@ fn every_duration_suffix_names_the_same_span_of_nanoseconds() {
 
 /// `false` is "no ceiling" in both spellings — the boolean a file writes and the string every
 /// `Core\Config::set` writes (§ 5 crosses values as strings in both directions).
+// covers: tools:config/limits-and-limits-hard
 #[test]
 fn false_removes_a_ceiling_however_it_arrives() {
     assert_eq!(
@@ -95,6 +98,7 @@ fn false_removes_a_ceiling_however_it_arrives() {
 }
 
 /// The ceiling check on both sides of its bound, and under a removed ceiling.
+// covers: tools:config/limits-and-limits-hard
 #[test]
 fn a_value_is_within_a_ceiling_up_to_and_including_it() {
     let ceiling = Quantity::Bytes(512 * 1024 * 1024);
@@ -230,6 +234,7 @@ fn a_value_that_is_not_a_quantity_is_refused_naming_the_unit() {
 }
 
 /// A count takes no suffix and a ratio is a fraction of one, both bounded on the refused side.
+// covers: tools:config/values-and-units
 #[test]
 fn a_count_and_a_ratio_accept_only_their_own_shapes() {
     assert_eq!(quantity(Unit::Count, "64"), Quantity::Count(64));

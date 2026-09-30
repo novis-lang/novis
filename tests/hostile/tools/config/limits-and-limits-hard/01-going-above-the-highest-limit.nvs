@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a program tries every way to get more memory than `[limits.hard]` allows.
+// Each attempt should fail, and the program should stop at its memory limit.
+// hostile: ends-early
+
+// 1. Remove or raise the highest limit itself. Each call should return `false`.
+array<string> $ceilings = ['false', '1G', '0', ''];
+foreach ($ceilings as string $value) {
+    echo Core\Config::set('limits.hard.memory', $value) ? 'yes' : 'no', "\n";
+}
+echo Core\Config::set('limits.hard', 'false') ? 'yes' : 'no', "\n";
+
+// 2. Raise the limits that cannot be raised. Each call should return `false`.
+echo Core\Config::set('max_script_depth', '1000000') ? 'yes' : 'no', "\n";
+echo Core\Config::set('max_decompressed', 'false') ? 'yes' : 'no', "\n";
+echo Core\Config::set('max_decompressed', '1G') ? 'yes' : 'no', "\n";
+echo Core\Config::set('fatal_reserve_memory', '31M') ? 'yes' : 'no', "\n";
+
+// 3. Set the memory limit to the highest limit, then to one byte more.
+// The first call returns `true`. The other two should return `false`.
+echo Core\Config::set('memory', '48M') ? 'yes' : 'no', "\n";
+echo Core\Config::set('memory', '50331649') ? 'yes' : 'no', "\n";
+echo Core\Config::set('memory', '0.05G') ? 'yes' : 'no', "\n";
+echo Core\Config::get('memory'), "\n";
+
+// 4. Build 64M of text. The program should stop at its 48M limit.
+string $large = Core\Str::repeat('x', 67108864);
+echo Core\Str::length($large), "\n";

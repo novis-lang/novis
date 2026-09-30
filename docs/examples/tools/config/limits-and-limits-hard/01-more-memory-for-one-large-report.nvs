@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a program raises its own memory limit for one large job, up to the highest limit.
+
+// 128M is the highest limit in `[limits.hard]`. So this prints `yes`.
+echo Core\Config::set("memory", "128M") ? "yes" : "no", "\n";
+
+// 129M is above the highest limit. The call returns `false`, so this prints `no`.
+echo Core\Config::set("memory", "129M") ? "yes" : "no", "\n";
+echo Core\Config::get("memory"), "\n";
+
+// The report needs 64M of text. That is more than 32M, and it now works. This prints `67108864`.
+string $report = Core\Str::repeat("x", 67108864);
+echo Core\Str::length($report), "\n";
+
+// `max_tasks` has no highest limit in `[limits.hard]`, so the program may set any number.
+// This prints `yes`.
+echo Core\Config::set("max_tasks", "1000") ? "yes" : "no", "\n";

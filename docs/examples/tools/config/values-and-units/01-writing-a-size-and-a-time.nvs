@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to write a size and a time for a limit.
+
+// A size is a whole number and a letter: `K`, `M`, `G` or `T`. Upper or lower case both work.
+// This prints `yes` and then `512m`.
+echo Core\Config::set("memory", "512m") ? "yes" : "no", "\n";
+echo Core\Config::get("memory"), "\n";
+
+// For a time, `m` means minutes. So `2m` is two minutes, and this prints `yes`.
+echo Core\Config::set("wall_time", "2m") ? "yes" : "no", "\n";
+
+// A time with no letter is in seconds. So `90` is 90 seconds, and this prints `yes`.
+echo Core\Config::set("wall_time", "90") ? "yes" : "no", "\n";
+
+// A value has one number and one letter. `1m30s` has two, so this prints `no`.
+// The time stays at `90`.
+echo Core\Config::set("wall_time", "1m30s") ? "yes" : "no", "\n";
+echo Core\Config::get("wall_time"), "\n";

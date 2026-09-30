@@ -1,0 +1,9 @@
+# A request starts with 32M of memory, and may raise it to 48M and no higher.
+# `max_script_depth` and `max_decompressed` cannot be raised at all.
+[limits]
+memory = "32M"
+max_script_depth = 4
+max_decompressed = "1M"
+
+[limits.hard]
+memory = "48M"

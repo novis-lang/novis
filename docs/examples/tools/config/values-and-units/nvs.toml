@@ -1,0 +1,5 @@
+# `memory` is a size, so `256M` is 256 megabytes.
+# `wall_time` is a time, so `30s` is 30 seconds.
+[limits]
+memory = "256M"
+wall_time = "30s"
