@@ -1,0 +1,72 @@
+<?nvs
+// Attack: the worked program of `nvs agent primer` gets input that its author did not expect.
+// Each step should throw an error or finish, and the program must not crash.
+
+// 1. Strings that look like numbers and are not whole numbers.
+array<string> $amounts = [
+    '', ' ', ' 7', '7 ', '7.0', '1e3', '0x1F', '0b11', '1_000', '+', '-', '--7', '+-7',
+    '٣', '７', "7\u{0}", "\u{0}7", 'NaN', 'INF', '9223372036854775808', '-9223372036854775809',
+];
+int $thrown = 0;
+foreach ($amounts as string $each) {
+    try {
+        int $value = $each as int;
+        echo '1: ', $value, "\n";
+    } catch (Throwable $error) {
+        $thrown = $thrown + 1;
+    }
+}
+echo '1: ', $thrown, ' of ', Core\Arr::count($amounts), " threw an error\n";
+
+// 2. A number of five million digits.
+try {
+    int $huge = Core\Str::repeat('9', 5000000) as int;
+    echo '2: ', $huge, "\n";
+} catch (Throwable $error) {
+    echo '2: ', Core\Str::length($error->message), "\n";
+}
+
+// 3. A total that is larger than the largest `int`.
+array<string> $large = ['9223372036854775807', '9223372036854775807', '-9223372036854775808'];
+int $total = 0;
+try {
+    foreach ($large as string $each) {
+        $total = $total + ($each as int);
+    }
+    echo '3: ', $total, "\n";
+} catch (Throwable $error) {
+    echo '3: ', $error->message, "\n";
+}
+
+// 4. A list of 300,000 strings, sorted in both orders and written as JSON.
+array<string> $many = [];
+int $i = 0;
+while ($i < 300000) {
+    $many[] = (($i * 7919) % 100003) as string;
+    $i = $i + 1;
+}
+try {
+    array<string> $up = Core\Arr::sort($many, { order: Core\Order::Asc });
+    array<string> $down = Core\Arr::sort($up, { order: Core\Order::Desc });
+    echo '4: ', Core\Str::length(Core\Json::encode($down)), "\n";
+} catch (Throwable $error) {
+    echo '4: ', $error->message, "\n";
+}
+
+// 5. An empty list, a list of one empty string, and an empty set of options.
+array<string> $none = [];
+try {
+    echo '5: ', Core\Json::encode(Core\Arr::sort($none, {})), "\n";
+    echo '5: ', Core\Json::encode(Core\Arr::sort([''], { order: Core\Order::Desc })), "\n";
+} catch (Throwable $error) {
+    echo '5: ', $error->message, "\n";
+}
+
+// 6. Strings that JSON writes with an escape: a NUL character, quotes and 100,000 backslashes.
+array<string> $odd = ["\u{0}", "\"\"\"", Core\Str::repeat("\\", 100000), "\u{FFFF}", "\u{10FFFF}"];
+try {
+    array<string> $ordered = Core\Arr::sort($odd, { order: Core\Order::Asc });
+    echo '6: ', Core\Str::length(Core\Json::encode($ordered)), "\n";
+} catch (Throwable $error) {
+    echo '6: ', $error->message, "\n";
+}

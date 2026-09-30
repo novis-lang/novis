@@ -1,0 +1,43 @@
+--TEST--
+Each thing the comments of the worked program `nvs agent primer` prints say this language does not have is refused when written: a named argument for an option, a cast, a free function, and a binding assigned another type — `rule:tooling/a-primer-claim-is-executed`, `rule:types/conversion`, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: tools:agents/nvs-agent-primer
+// One line per comment of the primer's worked program that says what this
+// language does not have, each written the way the comment says not to.
+
+array<string> $amounts = ["3", "11", "7"];
+array<string> $ordered = Core\Arr::sort($amounts, order: Core\Order::Asc);
+echo (int)$amounts[0], "\n";
+echo json_encode($ordered), "\n";
+$amounts = 3;
+--EXPECTF-ERROR--
+error[E0486]: no parameter of this call can be filled by the name `order`
+  --> %s:7:51
+  |
+7 | array<string> $ordered = Core\Arr::sort($amounts, order: Core\Order::Asc);
+  |                                                   ^^^^^ no such parameter
+  = help: the parameters are: `a:`, `options:`
+
+error[E0225]: `(int)expr` is not supported
+  --> %s:8:6
+  |
+8 | echo (int)$amounts[0], "\n";
+  |      ^^^^^^^^^^^^^^^^ Novis keeps exactly one conversion spelling
+  = help: use `expr as int` — it throws instead of silently truncating
+  = suggestion (review): rewrite as `$amounts[0] as int`: `$amounts[0] as int`
+
+error[E0320]: `json_encode` is not a function that exists
+  --> %s:9:6
+  |
+9 | echo json_encode($ordered), "\n";
+  |      ^^^^^^^^^^^ no free function has this name
+  = help: PHP's `json_encode` is `Core\Json::encode` here. `rule:classes/no-free-functions-or-constants`: every callable is a method, so there is no free function to call, and `docs/spec/02-php-migration.md` has the row of each PHP built-in, with its reason and any rewrite
+
+error[E0401]: expected `array<string>`, found `int`
+   --> %s:10:12
+   |
+10 | $amounts = 3;
+   |            ^ this is `int`
+
+error: aborting due to 4 errors

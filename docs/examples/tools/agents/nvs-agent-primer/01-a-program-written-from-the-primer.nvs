@@ -1,0 +1,25 @@
+<?nvs
+// Shows a program that uses each syntax the worked program of `nvs agent primer` explains.
+// Each comment names the syntax and says what the step prints.
+
+// A variable has its type before its name. The type never changes.
+array<string> $fields = ["12", "7", "n/a", "30"];
+
+// A `foreach` loop gives its variable a type too.
+array<int> $quantities = [];
+foreach ($fields as string $field) {
+    // `as ?int` converts a string to a whole number. "n/a" is not a number,
+    // so the result is `null` and the loop skips it.
+    ?int $quantity = $field as ?int;
+    if ($quantity != null) {
+        $quantities[] = $quantity;
+    }
+}
+
+// Options are written as `{key: value}` after the last argument.
+// This prints `[30,12,7]`.
+array<int> $ordered = Core\Arr::sort($quantities, {order: Core\Order::Desc});
+echo Core\Json::encode($ordered), "\n";
+
+// Every built-in function is a method of a `Core` class. This prints `49`.
+echo Core\Arr::sum($quantities), "\n";

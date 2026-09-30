@@ -1,0 +1,44 @@
+--TEST--
+The shapes of the worked program `nvs agent primer` prints answer what its comments say: the options bag orders the strings, and a string that is not an integer throws a `RuntimeError` at `as int` that a `catch` sees, where `as ?int` answers `null` — `rule:tooling/a-primer-claim-is-executed`, `rule:types/conversion`, `rule:expressions/nullable-conversion`
+--FILE--
+<?nvs
+// covers: tools:agents/nvs-agent-primer
+// The shapes of the primer's worked program, then the claims its comments make
+// that the output the primer prints beside it does not show.
+
+array<string> $amounts = ["3", "11", "7"];
+array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+
+int $total = 0;
+foreach ($ordered as string $each) {
+    $total = $total + ($each as int);
+}
+echo Core\Json::encode($ordered), " ", $total, "\n";
+
+// The bag is what orders the strings: the other case reverses them.
+echo Core\Json::encode(Core\Arr::sort($amounts, {order: Core\Order::Desc})), "\n";
+
+// "a string that is not an integer throws", once per string, and a `catch`
+// sees each one. `as ?int` is the conversion that answers `null` instead.
+array<string> $refused = ["seven", "7.0", " 7", ""];
+foreach ($refused as string $text) {
+    try {
+        int $value = $text as int;
+        echo $value, "\n";
+    } catch (RuntimeError $thrown) {
+        echo $thrown->message, "\n";
+    }
+    ?int $maybe = $text as ?int;
+    echo $maybe == null ? "null" : "an int", "\n";
+}
+--EXPECT--
+["11","3","7"] 21
+["7","3","11"]
+cannot convert string "seven" to `int`
+null
+cannot convert string "7.0" to `int`
+null
+cannot convert string " 7" to `int`
+null
+cannot convert string "" to `int`
+null
