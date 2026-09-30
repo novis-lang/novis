@@ -371,6 +371,7 @@ fn api_diff(old: &std::path::Path, new: &std::path::Path) -> (String, String, bo
 
 /// § 4's first breaking change, and the *Verification* section's "removing an
 /// operation … exits non-zero from `nvs api diff`".
+// covers: tools:cli/nvs-api-diff
 #[test]
 fn an_api_diff_classifies_a_removed_route_as_breaking() {
     let (before, after) = (document("base"), document("removed"));
@@ -439,6 +440,38 @@ fn an_api_diff_of_an_unreadable_document_is_a_failure() {
     assert!(!ok, "an unreadable document is a failure:\n{report}{err}");
     assert!(
         err.contains("cannot read") && err.contains("no-such-document.json"),
+        "and says which file:\n{err}"
+    );
+    assert!(
+        !report.contains("no change"),
+        "and never reports the resting state:\n{report}"
+    );
+}
+
+/// A document nested far past what the JSON reader accepts is refused as a
+/// document, with the file named, and never reaches the schema walk, which
+/// recurses once per level. A pipeline can hand the gate any file, so this is
+/// the depth an attacker picks.
+// covers: tools:cli/nvs-api-diff
+#[test]
+fn an_api_diff_of_a_document_nested_past_the_reader_limit_is_a_failure() {
+    let mut schema = String::from(r#"{"type":"string"}"#);
+    for _ in 0..5000 {
+        schema = format!(r#"{{"type":"object","properties":{{"x":{schema}}}}}"#);
+    }
+    let deep = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("nested-5000-levels.json");
+    std::fs::write(
+        &deep,
+        format!(r#"{{"openapi":"3.1.0","paths":{{"/p":{{"post":{{"requestBody":{{"content":{{"application/json":{{"schema":{schema}}}}}}},"responses":{{}}}}}}}}}}"#),
+    )
+    .expect("the target directory is writable");
+    let (report, err, ok) = api_diff(&document("base"), &deep);
+    assert!(
+        !ok,
+        "a document too deep to read is a failure:\n{report}{err}"
+    );
+    assert!(
+        err.contains("nested-5000-levels.json") && err.contains("not an OpenAPI document"),
         "and says which file:\n{err}"
     );
     assert!(

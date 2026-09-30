@@ -1,0 +1,42 @@
+<?nvs
+// Attack: the routes below have paths that are hard to write into an API document.
+// `nvs build --openapi` and `nvs api diff` should still read them, and the program should run.
+
+class Odd
+{
+    // 1. A path with dots. The report of `nvs api diff` also uses dots between its parts.
+    #[Core\Route(path: "/v1.2/items.json", method: Core\Http\Method::Get, name: "Odd::dotted")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function dotted(): string
+    {
+        return 'dotted';
+    }
+
+    // 2. A path with quotes and a backslash. JSON has to escape both.
+    #[Core\Route(path: "/say/\"hi\"/back\\slash", method: Core\Http\Method::Post, name: "Odd::quoted")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function quoted(): string
+    {
+        return 'quoted';
+    }
+
+    // 3. A path with eight captures, and a query parameter with a default.
+    #[Core\Route(path: "/a/{a}/b/{b}/c/{c}/d/{d}/e/{e}/f/{f}/g/{g}/h/{h}", method: Core\Http\Method::Get, name: "Odd::captures")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function captures(uint $a, uint $b, uint $c, uint $d, uint $e, uint $f, uint $g, uint $h, #[Core\Query] string $sort = 'a'): string
+    {
+        return $sort;
+    }
+
+    // 4. A path of text that is not ASCII.
+    #[Core\Route(path: "/café/größe/日本", method: Core\Http\Method::Get, name: "Odd::unicode")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function unicode(): string
+    {
+        return 'unicode';
+    }
+}
+
+// 5. The program itself calls each method once. This prints four words.
+Odd $odd = new Odd();
+echo $odd->dotted(), ' ', $odd->quoted(), ' ', $odd->captures(1, 2, 3, 4, 5, 6, 7, 8), ' ', $odd->unicode(), "\n";
