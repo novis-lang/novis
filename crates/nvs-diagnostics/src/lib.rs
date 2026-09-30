@@ -1425,20 +1425,30 @@ pub mod code {
     /// `\xHH`/octal byte escapes assembled into a sequence that is not valid
     /// UTF-8 — `string` is guaranteed-valid UTF-8 (`rule:types/bytes`), so a byte
     /// escape's raw output has to actually decode, not just fit in a byte.
-    pub const E_STRING_LITERAL_INVALID_UTF8: Code = Code::new("E0431");
+    pub const E_STRING_LITERAL_INVALID_UTF8: Code = Code::new("E0431").card(
+        "The `\\x..` or octal escapes in this string make bytes that are not valid UTF-8 text. A \
+         `string` must always be valid UTF-8. Write the character itself, or use a `\\u{...}` \
+         escape.",
+    );
     /// A heredoc/nowdoc's closing marker is indented with a mix of spaces and
     /// tabs — PHP 7.3's "flexible heredoc" rule (which this qualifier
     /// mirrors) requires the marker's own indentation to be one or the
     /// other, never both, since a body line's leading whitespace must match
     /// it byte-for-byte to be stripped. See
     /// `nvs_types::string_lit::heredoc_shape`.
-    pub const E_HEREDOC_MIXED_INDENT: Code = Code::new("E0432");
+    pub const E_HEREDOC_MIXED_INDENT: Code = Code::new("E0432").card(
+        "The closing marker of this heredoc is indented with both spaces and tabs. Indent it with \
+         only spaces or only tabs.",
+    );
     /// A non-blank heredoc/nowdoc body line has less leading whitespace than
     /// its own closing marker — PHP 7.3's "flexible heredoc" rule requires
     /// every body line to start with at least the marker's own indentation
     /// so it can be stripped uniformly. A line that is entirely empty is
     /// exempt from this check. See `nvs_types::string_lit::dedent_heredoc_run`.
-    pub const E_HEREDOC_INSUFFICIENT_INDENT: Code = Code::new("E0433");
+    pub const E_HEREDOC_INSUFFICIENT_INDENT: Code = Code::new("E0433").card(
+        "This line of a heredoc has less indentation than the closing marker. Indent every line \
+         at least as far as the closing marker, or move the marker to the left.",
+    );
     /// A `float`, `bool`, `null` or enum array key, at each site that writes
     /// one: an explicit `key =>` in an array literal, an `$a[...]`
     /// subscript, and an `$a[...] = v` target. PHP silently truncates a float,
@@ -1449,25 +1459,41 @@ pub mod code {
     /// backing value two enums can share. An `int`/`uint`/`string` key is
     /// fine — an `int`/`uint` key normalizes to its own decimal string, which
     /// needs no `as` and is not a value conversion.
-    pub const E_ARRAY_KEY_INVALID_TYPE: Code = Code::new("E0434");
+    pub const E_ARRAY_KEY_INVALID_TYPE: Code = Code::new("E0434").card(
+        "An array key must be an `int`, a `uint` or a `string`. A `float`, a `bool`, `null` or an \
+         enum case is not allowed as a key. Convert the key with `as`, for example `$case as int`.",
+    );
     /// A `private` interface method (`rule:classes/interface-private-methods`) called from anywhere other
     /// than its own declaring interface's method bodies — it is an internal
     /// helper, never part of the interface's contract, so an implementing
     /// class (or any other interface) cannot see it at all, not even via
     /// `InterfaceName::method()`.
-    pub const E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE: Code = Code::new("E0435");
+    pub const E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE: Code = Code::new("E0435").card(
+        "This `private` method of an interface can be called only from the methods of that \
+         interface. A class that implements the interface cannot call it.",
+    );
     /// An `enum` case whose explicit `= expr` value is not an integer literal
     /// (or a negated one). `rule:enums/declaration` makes a case a compile-time integer
     /// constant, not a general constant-expression position.
-    pub const E_ENUM_CASE_VALUE_NOT_LITERAL: Code = Code::new("E0436");
+    pub const E_ENUM_CASE_VALUE_NOT_LITERAL: Code = Code::new("E0436").card(
+        "The value of an `enum` case must be an integer literal, such as `3` or `-1`. Write the \
+         number itself.",
+    );
     /// An `enum` case whose value — written, or reached by `rule:enums/declaration`'s
     /// auto-increment — does not fit the enum's backing type.
-    pub const E_ENUM_CASE_VALUE_OUT_OF_RANGE: Code = Code::new("E0437");
+    pub const E_ENUM_CASE_VALUE_OUT_OF_RANGE: Code = Code::new("E0437").card(
+        "The value of this `enum` case does not fit the enum's type, `int` or `uint`. A `uint` \
+         enum cannot have a negative value. If the next automatic number is too large, give this \
+         case its own value.",
+    );
     /// `enum Name: T` where `T` is neither `int` nor `uint` — `rule:enums/one-backing-type`
     /// gives every enum exactly one underlying *integer* type. The `string`
     /// spelling has its own, earlier diagnostic
     /// ([`E_ENUM_STRING_BACKING_UNSUPPORTED`]); this covers the rest.
-    pub const E_ENUM_BACKING_NOT_INTEGER: Code = Code::new("E0438");
+    pub const E_ENUM_BACKING_NOT_INTEGER: Code = Code::new("E0438").card(
+        "The type of an `enum` must be `int` or `uint`. Write `enum Name: int` or \
+         `enum Name: uint`, or leave out the `: type` part.",
+    );
     /// An argument passed to an `inout $x` parameter that is not a *writable place*
     /// — a bare local or a compile-time-known property. A literal, an
     /// arithmetic result or a call's own result has no storage for the callee
@@ -1476,14 +1502,22 @@ pub mod code {
     /// copy-on-write leaves it no address that survives the call
     /// (`nvs_types::expr::args::check_inout_arg` owns why the call-site copy
     /// that would fake one is not offered).
-    pub const E_INOUT_ARG_NOT_A_PLACE: Code = Code::new("E0439");
+    pub const E_INOUT_ARG_NOT_A_PLACE: Code = Code::new("E0439").card(
+        "Only a variable or a property can be passed to an `inout` parameter. A literal, a \
+         calculation, an array element or a property with hooks is not allowed. Copy the value \
+         into a variable, pass the variable, and then assign it back.",
+    );
     /// An argument passed to an `inout $x` parameter whose type is not *exactly*
     /// the parameter's. `rule:types/declaration` leaves no room for a conversion here:
     /// the callee writes back through the reference at the declared type, so
     /// anything the caller's storage would have to be converted from on the
     /// way in would have to be converted back on the way out — silently, and
     /// lossily.
-    pub const E_INOUT_ARG_TYPE_NOT_EXACT: Code = Code::new("E0440");
+    pub const E_INOUT_ARG_TYPE_NOT_EXACT: Code = Code::new("E0440").card(
+        "The variable passed to an `inout` parameter must have exactly the parameter's type. The \
+         function writes a value of that type back into it. Declare the variable with the same \
+         type as the parameter.",
+    );
     /// A `<...>` type-argument list written after a name that takes no type
     /// parameters. `rule:types/declaration` parks user-declared generics, and two doors
     /// open in that wall — `rule:iteration/concrete-generic-implements`'s compiler-owned generic interfaces,
@@ -1493,51 +1527,82 @@ pub mod code {
     /// here: a `type` alias (`rule:statements/nothing-gets-a-second-name` gives one no parameters of its own), a
     /// user-declared method, and a `Core` member that infers its variables
     /// from its arguments instead.
-    pub const E_TYPE_ARGS_NOT_GENERIC: Code = Code::new("E0441");
+    pub const E_TYPE_ARGS_NOT_GENERIC: Code = Code::new("E0441").card(
+        "This name does not take type arguments, so `<...>` is not allowed after it. Remove the \
+         `<...>` part. Only some built-in types, such as `Iterator<T>`, take type arguments.",
+    );
     /// A name or member written with the wrong number of type arguments,
     /// including none at all: `Iterator` on its own is as much a mistake as
     /// `Iterator<int, string>`, since the element type is the whole reason the
     /// parameter exists and `rule:types/declaration` leaves no position untyped. A call site
     /// that omits a member's required list reaches the same rule.
-    pub const E_TYPE_ARG_COUNT: Code = Code::new("E0442");
+    pub const E_TYPE_ARG_COUNT: Code = Code::new("E0442").card(
+        "This type or function needs a different number of type arguments in `<...>`. Write one \
+         type for each type parameter, for example `Iterator<int>`, not `Iterator`.",
+    );
     /// A `foreach` subject that is none of `rule:iteration/foreach-subjects`'s accepted
     /// shapes — an `array<T>`, an `Iterable<T>` or an `Iterator<T>`. A class
     /// reaching neither interface lands here, which is what keeps `foreach`
     /// from being another implicit-dispatch site.
-    pub const E_FOREACH_SUBJECT_NOT_ITERABLE: Code = Code::new("E0443");
+    pub const E_FOREACH_SUBJECT_NOT_ITERABLE: Code = Code::new("E0443").card(
+        "`foreach` can loop over an `array`, an `Iterable` or an `Iterator`, and this value is \
+         none of them. Loop over an array, or make the class implement `Iterable` or `Iterator`.",
+    );
     /// A `foreach ($x as $k => $v)` key binding over an `Iterable`/`Iterator`
     /// subject. `rule:iteration/two-interfaces` gives a cursor exactly `advance()` and
     /// `current()`; there is no key, and inventing a position counter would
     /// be a second thing `foreach` means.
-    pub const E_FOREACH_KEY_ON_CURSOR: Code = Code::new("E0444");
+    pub const E_FOREACH_KEY_ON_CURSOR: Code = Code::new("E0444").card(
+        "A `foreach` over an `Iterable` or an `Iterator` has no keys, so `$k =>` is not allowed. \
+         Write `foreach ($items as string $v)`, or loop over an array.",
+    );
     /// A `yield` in a body that is not a generator's own — at file scope, or
     /// inside an `rule:types/closure-literal` closure. `rule:iteration/generators` confines `yield` lexically to
     /// the generator's own body, which is the stated price of lowering to a
     /// state machine rather than to a coroutine.
-    pub const E_YIELD_OUTSIDE_GENERATOR: Code = Code::new("E0445");
+    pub const E_YIELD_OUTSIDE_GENERATOR: Code = Code::new("E0445").card(
+        "`yield` is allowed only directly in the body of a function or a method. It cannot be \
+         used at the top level of a file or inside a closure.",
+    );
     /// A generator — a function whose body contains `yield` — declaring a
     /// return type other than `Iterator<T>`. `rule:iteration/generators`: calling one runs
     /// no user code and returns the state object, which implements exactly
     /// that interface.
-    pub const E_GENERATOR_RETURN_TYPE: Code = Code::new("E0446");
+    pub const E_GENERATOR_RETURN_TYPE: Code = Code::new("E0446").card(
+        "A function that uses `yield` must declare its return type as `Iterator<T>`. `T` is the \
+         type of the values it yields, for example `Iterator<int>`.",
+    );
     /// A `return expr;` inside a generator. `rule:iteration/one-way-only` makes a generator a
     /// lazy sequence and nothing more — there is no generator return value to
     /// retrieve, so a bare `return;` (stop here) is the only form.
-    pub const E_GENERATOR_RETURNS_A_VALUE: Code = Code::new("E0447");
+    pub const E_GENERATOR_RETURNS_A_VALUE: Code = Code::new("E0447").card(
+        "A function that uses `yield` cannot return a value. Write `return;` to stop, or `yield` \
+         the value instead.",
+    );
     /// `yield from`, or a `yield` with a `key =>` half. `rule:iteration/one-way-only` rejects
     /// the first as the second spelling of an explicit re-yield loop; § 1
     /// gives `Iterator<T>` no key for the second to produce.
-    pub const E_YIELD_FORM_UNSUPPORTED: Code = Code::new("E0448");
+    pub const E_YIELD_FORM_UNSUPPORTED: Code = Code::new("E0448").card(
+        "This form of `yield` is not supported. Write `yield $value;` as a statement of its own, \
+         without a key and without `from`. To yield the values of another sequence, write \
+         `foreach ($inner as int $v) { yield $v; }`.",
+    );
     /// A concrete class that reaches an interface method nothing gives a
     /// body — a dispatch to nothing. ADR 0053 § 1's `Iterator<T>` is the
     /// shape that reaches it, its members being bodiless by design.
-    pub const E_INTERFACE_METHOD_MISSING: Code = Code::new("E0449");
+    pub const E_INTERFACE_METHOD_MISSING: Code = Code::new("E0449").card(
+        "This class does not have a method that one of its interfaces requires. Add the method to \
+         the class, or give the method a default body in the interface.",
+    );
     /// A block-bodied `fn` closure literal (`rule:types/closure-literal`) with no declared
     /// return type. An expression body *is* its own answer, so it needs no
     /// annotation; a block body would need whole-body return-type inference,
     /// which `rule:types/declaration`'s "nothing is untyped, and no type ever changes by
     /// itself" does not ask the compiler to grow.
-    pub const E_CLOSURE_RETURN_TYPE_REQUIRED: Code = Code::new("E0450");
+    pub const E_CLOSURE_RETURN_TYPE_REQUIRED: Code = Code::new("E0450").card(
+        "A closure with a `{ ... }` body must declare its return type. Write \
+         `fn (int $x): int => { ... }`, or use a single expression as the body.",
+    );
     /// A parameter default (`function f(int $n = ...)`) that is not a literal
     /// of the parameter's own declared type, optionally negated. Novis evaluates
     /// a default once, at signature collection, and materializes it at the
@@ -1545,12 +1610,18 @@ pub mod code {
     /// can emit, not PHP's general constant *expression*. See
     /// `nvs_types::defaults`, which owns the accepted set and the shapes
     /// (`null`, an enum case) it is expected to grow next.
-    pub const E_PARAM_DEFAULT_NOT_LITERAL: Code = Code::new("E0451");
+    pub const E_PARAM_DEFAULT_NOT_LITERAL: Code = Code::new("E0451").card(
+        "The default value of a parameter must be a constant of the parameter's type. Write a \
+         literal such as `0`, `-1` or `'text'`, an enum case, or a `const` of another class.",
+    );
     /// A parameter with no default declared *after* one that has a default.
     /// Every call supplies arguments positionally, so a required parameter
     /// behind an optional one could never be reached — PHP diagnoses the same
     /// shape.
-    pub const E_PARAM_DEFAULT_ORDER: Code = Code::new("E0452");
+    pub const E_PARAM_DEFAULT_ORDER: Code = Code::new("E0452").card(
+        "A parameter without a default value cannot come after a parameter with one. Move it \
+         before the parameters that have defaults, or give it a default too.",
+    );
     /// Something other than an `rule:types/object-top` object literal written at a `Core`
     /// member's trailing options-bag parameter (`rule:core-api/shape-rules` R2). The bag has no
     /// runtime representation — it flattens into one argument per declared
@@ -1559,7 +1630,10 @@ pub mod code {
     /// **shape key** parameter is refused here on the same terms and for the
     /// same reason — one flatten, one rule — and the message says "options"
     /// for either, the bag being the all-optional case of the shape.
-    pub const E_OPTIONS_NOT_A_LITERAL: Code = Code::new("E0453");
+    pub const E_OPTIONS_NOT_A_LITERAL: Code = Code::new("E0453").card(
+        "The options of this function must be written in the call itself, such as \
+         `{default: false}`. A variable that contains the options cannot be passed.",
+    );
     /// A field name in an options bag that the member does not declare —
     /// usually a typo. Unlike `rule:types/shape-type`'s width subtyping, which accepts an
     /// extra field on purpose, an options bag refuses one: a misspelled option
@@ -1571,15 +1645,25 @@ pub mod code {
     /// outside the selected one is still not a key of this call. The two read
     /// differently and are one code on purpose: a second code would ask the
     /// reader to know which arm they were in before they could look it up.
-    pub const E_UNKNOWN_OPTION: Code = Code::new("E0454");
+    pub const E_UNKNOWN_OPTION: Code = Code::new("E0454").card(
+        "This name is not one of the options that are allowed here. The error message lists the \
+         options you can use, so check the spelling against that list.",
+    );
     /// `decimal ⊕ float` arithmetic, or `**` with a `decimal` base — `rule:types/arithmetic`. The same rule and the same reason as [`E_INT_UINT_ARITHMETIC`]:
     /// there is no type that represents both operands' values, so one side
     /// must be converted explicitly.
-    pub const E_DECIMAL_FLOAT_ARITHMETIC: Code = Code::new("E0455");
+    pub const E_DECIMAL_FLOAT_ARITHMETIC: Code = Code::new("E0455").card(
+        "A `decimal` and a `float` cannot be used together in arithmetic. Convert one side with \
+         `as decimal` or `as float`. `**` does not accept a `decimal`, so use \
+         `Core\\Decimal::pow` instead.",
+    );
     /// A numeric literal placed at `decimal` whose mantissa exceeds 96 bits or
     /// whose scale exceeds 28 — `rule:types/decimal`'s layout. `Core\BigDecimal` (§ 6)
     /// is the type for a value beyond it.
-    pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456");
+    pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456").card(
+        "This number does not fit in a `decimal`. A `decimal` has at most 28 digits after the \
+         decimal point, and about 28 digits in total. Use `Core\\BigDecimal` for a larger value.",
+    );
     // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
     // `rule:types/literal-types`'s
     // atoms intern as real types (`nvs_types::lower::lower_atom`), so there
@@ -1590,7 +1674,10 @@ pub mod code {
     /// place two could otherwise reach the same helper: an instance member's
     /// receiver is argument slot 0 at the ABI, so the static spelling would
     /// pass the arity check with the receiver written as an ordinary argument.
-    pub const E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY: Code = Code::new("E0458");
+    pub const E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY: Code = Code::new("E0458").card(
+        "This `Core` method is called on an object, so it cannot be called with `::`. Write \
+         `$m->text()`, not `Core\\Regex\\Match::text($m)`.",
+    );
     /// A plain `->` on a receiver whose type includes `null` — `?->`, or a
     /// `!= null` test around it, is how a member of one is reached. PHP
     /// throws for this at run time; Novis refuses it while compiling, because
@@ -1599,12 +1686,18 @@ pub mod code {
     /// (`nvs_types::locals`' narrowing) this does not fire at all — until
     /// something in that block assigns the local again, which takes the
     /// narrowing back off.
-    pub const E_NULLABLE_RECEIVER: Code = Code::new("E0459");
+    pub const E_NULLABLE_RECEIVER: Code = Code::new("E0459").card(
+        "This value can be `null`, so `->` cannot be used on it. Use `?->`, which gives `null` \
+         when the value is `null`. Or check the value first with `if ($x != null) { ... }`.",
+    );
     /// A `#[Json\Derive]` field that is not a same-named constructor parameter.
     /// `rule:core-classes/derive-field-list` makes a decode an ordinary `new`, so every field the codec
     /// reads has to have a parameter to arrive through; `#[Json\Field(skip:
     /// true)]` is the stated way out.
-    pub const E_DERIVE_FIELD_NOT_A_PARAMETER: Code = Code::new("E0460");
+    pub const E_DERIVE_FIELD_NOT_A_PARAMETER: Code = Code::new("E0460").card(
+        "Each field of a class with `#[Json\\Derive]` needs a constructor parameter with the same \
+         name. Add the parameter, or mark the field with `#[Json\\Field(skip: true)]`.",
+    );
     /// A `#[Json\Derive]` field whose constructor parameter is declared with a
     /// different type than the property. `rule:core-classes/derive-field-list`: the two lists are one
     /// declaration for a promoted parameter, so a divergence is always written
@@ -4555,32 +4648,29 @@ mod tests {
     /// it: it lands with its card. Goal `core-class-cards` is what empties the
     /// list.
     const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0431", "E0432", "E0433", "E0434", "E0435", "E0436", "E0437", "E0438", "E0439", "E0440",
-        "E0441", "E0442", "E0443", "E0444", "E0445", "E0446", "E0447", "E0448", "E0449", "E0450",
-        "E0451", "E0452", "E0453", "E0454", "E0455", "E0456", "E0458", "E0459", "E0460", "E0461",
-        "E0462", "E0463", "E0464", "E0465", "E0466", "E0467", "E0468", "E0469", "E0470", "E0471",
-        "E0472", "E0473", "E0474", "E0475", "E0476", "E0477", "E0478", "E0479", "E0480", "E0481",
-        "E0482", "E0483", "E0484", "E0486", "E0487", "E0488", "E0489", "E0490", "E0491", "E0492",
-        "E0493", "E0494", "E0495", "E0496", "E0498", "E0499", "E0501", "E0502", "E0601", "E0602",
-        "E0603", "E0604", "E0605", "E0606", "E0607", "E0608", "E0609", "E0610", "E0611", "E0612",
-        "E0613", "E0614", "E0615", "E0616", "E0617", "E0618", "E0619", "E0620", "E0621", "E0622",
-        "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629", "E0630", "E0631", "E0633",
-        "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640", "E0641", "E0642", "E0643",
-        "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650", "E0700", "E0701", "E0713",
-        "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709", "E0710", "E0711", "E0712",
-        "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721", "E0722", "E0723", "E0724",
-        "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731", "E0732", "E0733", "E0734",
-        "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741", "E0742", "E0743", "E0744",
-        "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751", "E0752", "E0753", "E0754",
-        "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761", "E0762", "E0763", "E0764",
-        "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772", "E0775", "E0778",
-        "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786", "E0787", "E0788",
-        "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796", "E0797", "E0798",
-        "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808", "E0809", "E0810",
-        "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819", "E0820", "E0821",
-        "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829", "E0830", "E0831",
-        "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004", "W1005", "W1006",
-        "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
+        "E0461", "E0462", "E0463", "E0464", "E0465", "E0466", "E0467", "E0468", "E0469", "E0470",
+        "E0471", "E0472", "E0473", "E0474", "E0475", "E0476", "E0477", "E0478", "E0479", "E0480",
+        "E0481", "E0482", "E0483", "E0484", "E0486", "E0487", "E0488", "E0489", "E0490", "E0491",
+        "E0492", "E0493", "E0494", "E0495", "E0496", "E0498", "E0499", "E0501", "E0502", "E0601",
+        "E0602", "E0603", "E0604", "E0605", "E0606", "E0607", "E0608", "E0609", "E0610", "E0611",
+        "E0612", "E0613", "E0614", "E0615", "E0616", "E0617", "E0618", "E0619", "E0620", "E0621",
+        "E0622", "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629", "E0630", "E0631",
+        "E0633", "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640", "E0641", "E0642",
+        "E0643", "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650", "E0700", "E0701",
+        "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709", "E0710", "E0711",
+        "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721", "E0722", "E0723",
+        "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731", "E0732", "E0733",
+        "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741", "E0742", "E0743",
+        "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751", "E0752", "E0753",
+        "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761", "E0762", "E0763",
+        "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772", "E0775",
+        "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786", "E0787",
+        "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796", "E0797",
+        "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808", "E0809",
+        "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819", "E0820",
+        "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829", "E0830",
+        "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004", "W1005",
+        "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
     ];
 
     /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
