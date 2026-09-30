@@ -1,26 +1,32 @@
 {
-  "state": "This goal has just been installed. Nothing in tools:cli has been taken yet.",
+  "state": "Goal `tools-cli`: two features of `docs/reference/tools/10-cli.md` now have all their proofs.\n`tools:cli/files-extensions-and-tags` has a conformance case, one example and one attack, and the\nchapter's `#!` bullet now says what the binary does (`rule:tooling/shebang-opens-code-mode`).\n`tools:cli/nvs-api-diff` has `covers:` markers in `crates/nvs-cli/tests/openapi.rs`, a new test for a\ndocument nested past the JSON reader's limit, one example and one attack. Neither proof found a bug in\nthe binary. `bun nv proofs --owed | grep tools:cli` lists the eleven features still owed; four of them\nalso owe `help`.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "stage": 1,
+    "title": "tool proofs, one chapter",
+    "files": [
+      "docs/reference/tools/10-cli.md",
+      "crates/nvs-cli/tests/",
+      "docs/examples/tools/cli/",
+      "tests/hostile/tools/cli/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`tools:cli/files-extensions-and-tags`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:50`"
+        "text": "**`tools:cli/nvs-ast`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:367`. It also owes `help`: check what `nvs agent find ast` returns before you write anything."
       },
       {
         "done": false,
-        "text": "**`tools:cli/nvs-api-diff`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:289`"
+        "text": "**`tools:cli/nvs-meta-json`** — owes examples, help, hostile, tests (`rule:tooling/meta-json`). `docs/reference/tools/10-cli.md:345`"
       },
       {
         "done": false,
-        "text": "**`tools:cli/nvs-ast`** — owes examples, hostile, tests. `docs/reference/tools/10-cli.md:365`"
+        "text": "**`tools:cli/nvs-info`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:334`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "A tool's example and attack are programs run by `nvs run`. When the feature is a command, run the command on that program by hand and write the result in a comment. The `nvs-api-diff` example shows the shape (`docs/examples/tools/cli/nvs-api-diff/`).",
+    "`?>` inside a `//` comment does not leave code mode. PHP leaves code mode there. No case pins this, and the reference chapter does not mention it (`rule:statements/nvs-is-the-only-open-tag`).",
+    "The remaining owed features, in chapter order: `one-binary`, `nvs-run`, `nvs-check`, `nvs-test`, `nvs-build-compile`, `nvs-build-openapi`, `nvs-config-check-and-nvs-config-dump`, `the-compile-cache` (`bun nv proofs --owed`)."
   ]
 }
