@@ -1,0 +1,12 @@
+# Each setting is inside a block, such as `[limits]` or `[log]`.
+# A block or a key that Novis does not know stops the program before it starts.
+[limits]
+memory = "128M"
+
+[log]
+level = "info"
+
+[mail.orders]
+host = "smtp.example.com"
+port = 587
+from = "shop@example.com"

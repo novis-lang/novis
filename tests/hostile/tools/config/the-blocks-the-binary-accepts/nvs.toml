@@ -1,0 +1,4 @@
+# The name `memroy` has a typo. Without the check, the program would run with no memory limit.
+# Novis does not know this key, so it should stop before the program starts.
+[limits]
+memroy = "16M"

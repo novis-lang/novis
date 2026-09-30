@@ -172,6 +172,7 @@ fn a_mount_carries_no_policy_of_its_own() {
 /// `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`: an unknown key is refused, under the same code a bad value gets, and the refusal
 /// says which **block** it was found in — `unknown field \`memory\`` is unreadable until you know it
 /// was written under `[metrics]`.
+// covers: tools:config/the-blocks-the-binary-accepts
 #[test]
 fn an_unknown_key_is_refused_naming_the_block_that_has_no_such_directive() {
     let diagnostic = refusal("[metrics]\nexporter = false\nmemory = \"256M\"\n");
@@ -199,6 +200,7 @@ fn an_unknown_key_is_refused_naming_the_block_that_has_no_such_directive() {
 /// The typo § 3 names by name. It is refused at the root table, where there is no enclosing block,
 /// so the note is absent rather than wrong — a refusal claiming a block it did not find would be
 /// worse than one that stays quiet.
+// covers: tools:config/the-blocks-the-binary-accepts
 #[test]
 fn a_typoed_block_header_is_refused_and_claims_no_block() {
     let diagnostic = refusal("[capabilties]\nscript.spawn = [\"/srv\"]\n");
