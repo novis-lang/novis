@@ -1,0 +1,47 @@
+<?nvs
+// Shows a small invoice script from PHP written in Novis, with the Novis syntax for each part.
+
+// The constructor is named `constructor`. `public` on a parameter also declares a property.
+class Line {
+    public function constructor(public string $product, public int $quantity, public int $price) {}
+
+    public function total(): int {
+        return $this->quantity * $this->price;
+    }
+}
+
+// A function is always a method of a class. A constant is always a constant of a class.
+class Invoice {
+    public const int FREE_SHIPPING = 100;
+
+    // `array<Line>` is an array that contains only `Line` objects.
+    public static function total(array<Line> $lines): int {
+        int $sum = 0;
+        foreach ($lines as Line $line) {
+            $sum += $line->total();
+        }
+        return $sum;
+    }
+}
+
+// `as int` converts a text to a whole number. The text is "3", so `$quantity` is 3.
+string $typed = "3";
+int $quantity = $typed as int;
+
+array<Line> $lines = [new Line("pen", $quantity, 20), new Line("notebook", 1, 45)];
+int $total = Invoice::total($lines);
+
+// `&&` is the only way to write "and". This prints "105 free shipping".
+echo $total, " ", ($total >= Invoice::FREE_SHIPPING && $quantity > 0) ? "free shipping" : "plus shipping", "\n";
+
+// `$paid` is a text, so `as int` converts it before `==` compares it with `$total`. This prints "paid".
+string $paid = "105";
+echo $paid as int == $total ? "paid" : "open", "\n";
+
+// `as int` throws an error for a text that is not a number. This prints "not a number".
+string $wrong = "three";
+try {
+    echo $wrong as int, "\n";
+} catch (Throwable $notANumber) {
+    echo "not a number\n";
+}

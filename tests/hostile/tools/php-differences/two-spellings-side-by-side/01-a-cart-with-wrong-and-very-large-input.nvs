@@ -1,0 +1,139 @@
+<?nvs
+// Attack: a small cart program gets input that is not a number, prices that are too large and lists that are too short.
+// Each step should end with an error or a result. The program must not crash.
+// hostile: timeout-ms 30000
+
+class Cart
+{
+    public const int FREE_SHIPPING = 50;
+
+    public static function total(array<int> $prices): int
+    {
+        int $sum = 0;
+        foreach ($prices as int $p) {
+            $sum += $p;
+        }
+        return $sum;
+    }
+}
+
+// 1. Texts that are not whole numbers, or are too large, are converted with `as int`.
+array<string> $inputs = [
+    '',
+    ' 7',
+    '7 ',
+    '7abc',
+    '0x10',
+    '1e3',
+    '7.0',
+    '+7',
+    '--7',
+    "\u{0667}",
+    '9223372036854775808',
+    '-9223372036854775809',
+    Core\Str::repeat('9', 1000000),
+    "7\u{0000}8",
+];
+foreach ($inputs as string $input) {
+    try {
+        int $qty = $input as int;
+        echo 'quantity: ', $qty, "\n";
+    } catch (Throwable $notANumber) {
+        echo 'input: ', Core\Str::slice($notANumber->message, 0, 60), "\n";
+    }
+}
+
+// 2. One million prices add up to more than the largest `int`.
+array<int> $prices = [];
+int $i = 0;
+while ($i < 1000000) {
+    $prices[] = 9223372036854775;
+    $i = $i + 1;
+}
+try {
+    echo Cart::total($prices), "\n";
+} catch (ArithmeticError $tooLarge) {
+    echo 'total: ', $tooLarge->message, "\n";
+}
+
+// 3. A list with one element is unpacked into two variables.
+array<int> $short = [20];
+try {
+    [int $first, int $second] = $short;
+    echo $first, ' ', $second, "\n";
+} catch (Throwable $missing) {
+    echo 'unpack: ', $missing->message, "\n";
+}
+
+// 4. A closure doubles a number until the number is too large for an `int`.
+var $double = fn(int $n): int => $n * 2;
+int $value = 1;
+int $rounds = 0;
+try {
+    while ($rounds < 1000) {
+        $value = $double($value) as int;
+        $rounds = $rounds + 1;
+    }
+    echo $value, "\n";
+} catch (ArithmeticError $doubled) {
+    echo 'double: stopped after ', $rounds, " rounds\n";
+}
+
+// 5. `Core\Str::slice` gets offsets and lengths at both ends of the `int` range.
+int $min = -9223372036854775807 - 1;
+int $max = 9223372036854775807;
+string $word = Core\Str::repeat('Novis', 200000);
+array<int> $ends = [$min, -1, 0, 1, $max];
+foreach ($ends as int $offset) {
+    foreach ($ends as int $length) {
+        try {
+            echo Core\Str::length(Core\Str::slice($word, $offset, $length)), ' ';
+        } catch (Throwable $outOfRange) {
+            echo 'slice: ', Core\Str::slice($outOfRange->message, 0, 40), ' ';
+        }
+    }
+}
+echo "\n";
+
+// 6. `<=>` and `==` compare numbers at both ends of the `int` range with `float` values.
+float $huge = 1.0e308;
+echo $min <=> $max, ' ', $max <=> $min, ' ', $max <=> $max, "\n";
+echo $max == 9223372036854775807.0 ? 'eq' : 'ne', ' ', 9007199254740993 == 9007199254740992.0 ? 'eq' : 'ne', "\n";
+echo $max <=> $huge * 10.0, ' ', $min <=> -$huge * 10.0, "\n";
+
+// 7. One hundred thousand errors are thrown. Each error has the error before it as its `previous`.
+?Throwable $last = null;
+$i = 0;
+while ($i < 100000) {
+    try {
+        throw new RuntimeError('stock', { previous: $last });
+    } catch (RuntimeError $e) {
+        $last = $e;
+    }
+    $i = $i + 1;
+}
+int $depth = 0;
+?Throwable $walk = $last;
+while ($walk != null) {
+    $depth = $depth + 1;
+    $walk = $walk?->previous;
+}
+echo $depth, "\n";
+$last = null;
+
+// 8. A `finally` block throws an error while another error is not caught yet, ten thousand times.
+int $replaced = 0;
+$i = 0;
+while ($i < 10000) {
+    try {
+        try {
+            throw new RuntimeError('first');
+        } finally {
+            throw new LogicError('second');
+        }
+    } catch (LogicError $later) {
+        $replaced = $replaced + 1;
+    }
+    $i = $i + 1;
+}
+echo $replaced, "\n";

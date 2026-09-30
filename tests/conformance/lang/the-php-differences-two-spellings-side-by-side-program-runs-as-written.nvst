@@ -1,0 +1,41 @@
+--TEST--
+The Novis program the side-by-side section of the PHP-differences chapter shows compiles and prints what the section says — `rule:classes/no-free-functions-or-constants`, `rule:statements/no-host-populated-variables`
+--FILE--
+<?nvs
+// covers: tools:php-differences/two-spellings-side-by-side
+// The program is the section's own block, line for line. The PHP spellings
+// beside it are pinned under `tests/conformance/reject/`.
+class Cart {
+    public const int FREE_SHIPPING = 50;
+
+    public static function total(array<int> $prices): int {
+        int $sum = 0;
+        foreach ($prices as int $p) {
+            $sum += $p;
+        }
+        return $sum;
+    }
+}
+
+array<int> $prices = [20, 35];
+int $total = Cart::total($prices);
+string $input = "7";
+int $qty = $input as int;
+
+echo $total, " ", ($total >= Cart::FREE_SHIPPING && $qty > 0) ? "ships free" : "pays", "\n";
+echo Core\Str::slice("Novis", 0, 1), " ", 7 <=> 3, " ", 1 == 1.0 ? "eq" : "ne", "\n";
+
+[int $first, int $second] = $prices;
+var $double = fn(int $n): int => $n * 2;
+echo $first, " ", $second, " ", $double($qty) as int, "\n";
+
+try {
+    throw new RuntimeError("stock");
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+55 ships free
+N 1 eq
+20 35 14
+stock
