@@ -813,6 +813,12 @@
           "headline": "A response body can be written over time, one chunk in flight at a time",
           "body": "A response is either a whole body with an exact length, as before, or a stream the handler writes to while the connection sends it. Only the stream is chunked. The writer hands over one chunk and waits until the connection has taken it before it may write the next, so a slow client cannot make the server buffer an unbounded body. The stream ends with its request; a stream that outlives the request is a separate door and is not this one.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0176.md"
+        },
+        {
+          "adr": "0230",
+          "headline": "An idle queue costs almost nothing",
+          "body": "A queue worker with no job used to check the database a hundred times per second. It now checks once per second. A job that the same process adds still starts at once, because `Core\\Queue::push` wakes the workers when the job is saved. Inside a transaction, the workers are woken when the transaction commits. A job that another process adds, a job with a `runAt` time and a job that runs again after an error can start up to one second late.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0230.md"
         }
       ]
     },

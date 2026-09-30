@@ -1,0 +1,17 @@
+{
+  "title": "an idle queue worker asks its queue once a second, and a push in the same process wakes it once the job is committed",
+  "status": "accepted",
+  "scope": "how long a `[queue]` worker waits after it finds no due job, and what ends that wait\nearly. It does not change the claim, the write-back, the retry ladder or the visibility window of\n[0084](0084.md), it does not change which process runs a job ([0154](0154.md)), and it adds no\n`[queue]` key.",
+  "dependsOn": [
+    "0084",
+    "0154",
+    "0229"
+  ],
+  "dependsOnText": "[0084](0084.md) (a job is a row, and a push commits with its caller's transaction),\n[0154](0154.md) (the workers run inside `nvs serve`, and the drain stops them), [0229](0229.md) (a\ntask may take a wake handle for one wait and let it go).",
+  "validatedBy": "the cases under *Verification* in `crates/nvs-cli/src/worker.rs`,\n`crates/nvs-stdlib/src/db/transaction.rs`, `crates/nvs-stdlib/src/queue/bell.rs` and\n`crates/nvs-runtime/src/ctx/held.rs`, and the measurement there.",
+  "summary": {
+    "group": "core",
+    "headline": "An idle queue costs almost nothing",
+    "body": "A queue worker with no job used to check the database a hundred times per second. It now\nchecks once per second. A job that the same process adds still starts at once, because\n`Core\\Queue::push` wakes the workers when the job is saved. Inside a transaction, the workers are\nwoken when the transaction commits. A job that another process adds, a job with a `runAt` time\nand a job that runs again after an error can start up to one second late."
+  }
+}

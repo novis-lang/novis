@@ -1,0 +1,21 @@
+{
+  "title": "An idle queue worker asks its queue once a second, and a push in the same process wakes it once the job is committed",
+  "status": "shipped",
+  "because": [
+    "0230"
+  ],
+  "seeAlso": [
+    "concurrency/enqueue-commits-with-your-write",
+    "concurrency/foreign-connection-enqueue-is-counted",
+    "concurrency/one-process-serves-requests-schedules-and-jobs",
+    "concurrency/who-runs-a-job-is-configuration",
+    "concurrency/a-handle-given-up-by-its-task-wakes-nothing",
+    "concurrency/no-broker-and-no-driver-interface"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/worker.rs",
+    "crates/nvs-stdlib/src/db/transaction.rs",
+    "crates/nvs-stdlib/src/queue/bell.rs",
+    "crates/nvs-runtime/src/ctx/held.rs"
+  ]
+}

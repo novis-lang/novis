@@ -222,6 +222,20 @@ pub(super) fn transacting<'a>(
     }
 }
 
+/// How many of § 7's levels are open on the connection filed under `key` — 0
+/// outside a transaction.
+///
+/// For a member that is not one of § 7's own and has to know whether the
+/// statement it just ran is committed yet: `Core\Queue::push`, which announces
+/// a job only once it is durable.
+///
+/// # Errors
+///
+/// As [`transacting`].
+pub(crate) fn open_levels(ctx: &mut nvs_runtime::Ctx, key: u64, named: &str) -> Result<u32, Fault> {
+    Ok(transacting(ctx, key, named)?.depth())
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::query(string $sql, array<mixed> $params): Db\Rows`
     /// — `rule:core-classes/db-statement-members`'s buffered statement, and the first member of

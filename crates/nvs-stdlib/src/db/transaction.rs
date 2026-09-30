@@ -397,7 +397,12 @@ pub(super) fn transacted(
         // the `BEGIN` is the only thing that says which this call is —
         // re-running a nested closure would re-run it inside an outer
         // transaction the conflict has already aborted.
-        let outermost = attempts.depth(ctx)? == 0;
+        let open = attempts.depth(ctx)?;
+        let outermost = open == 0;
+        // The level this attempt's `BEGIN` opens, counted from 1 for the
+        // outermost, which is how `crate::queue::level_closed` is told which
+        // level ended.
+        let level = open + 1;
         // § 11's event covers § 7's own commands as well as the statements
         // inside them: a trace that showed the closure's writes but not the
         // `BEGIN` and the `COMMIT` around them would put the transaction's
@@ -457,6 +462,8 @@ pub(super) fn transacted(
                 if let Some(span) = undone {
                     file_span(ctx, watch, &block, span);
                 }
+                // A job the closure enqueued at this level went with it.
+                crate::queue::level_closed(ctx, call.key, level, false);
                 if !retry {
                     return Err(fault);
                 }
@@ -490,6 +497,11 @@ pub(super) fn transacted(
                 return Err(fault);
             }
         };
+        // A job enqueued at this level is durable from here, handed to the
+        // level around this one, or gone, and `rule:concurrency/a-push-wakes-an-idle-worker`
+        // announces it only in the first case. A commit the server refused
+        // leaves nothing committed, so it is judged as a rollback.
+        crate::queue::level_closed(ctx, call.key, level, abandoned.is_none() && closed.is_ok());
 
         // On two of the three paths the closure's answer is not this call's,
         // and this frame owns the only reference to it.
@@ -996,25 +1008,58 @@ mod tests {
                 if ATTEMPTS.with(|entered| entered.replace(entered.get() + 1)) > 0 {
                     return Ok(Value::int(2));
                 }
-                let block = Value::str(NvsStr::new(b"main"));
-                let deadlocked = statement_failure(
-                    TRANSACTION_MEMBER,
-                    &block,
-                    None,
-                    &std::io::Error::other(nvs_db::ServerError {
-                        kind: nvs_db::DbErrorKind::Deadlock,
-                        sql_state: String::from("40P01"),
-                        severity: String::from("ERROR"),
-                        message: String::from("deadlock detected"),
-                        constraint: None,
-                        driver_code: None,
-                        backend: "postgresql",
-                    }),
-                );
-                discard(block);
-                Err(deadlocked)
+                Err(deadlocked())
             })
         }
+    }
+
+    /// What a statement on `[db.main]` throws when PostgreSQL reports a deadlock.
+    fn deadlocked() -> Fault {
+        let block = Value::str(NvsStr::new(b"main"));
+        let deadlocked = statement_failure(
+            TRANSACTION_MEMBER,
+            &block,
+            None,
+            &std::io::Error::other(nvs_db::ServerError {
+                kind: nvs_db::DbErrorKind::Deadlock,
+                sql_state: String::from("40P01"),
+                severity: String::from("ERROR"),
+                message: String::from("deadlock detected"),
+                constraint: None,
+                driver_code: None,
+                backend: "postgresql",
+            }),
+        );
+        discard(block);
+        deadlocked
+    }
+
+    /// Spec § 10's root shape and § 8's `Core\Db\DbError` under it, arriving the one way a
+    /// context takes a table — the playbook's `Ctx::class_desc` bullet.
+    ///
+    /// § 8's class has to be *resolvable* for a throw of it to be read back:
+    /// `pending_slot` answers `None` for a context with no exception class
+    /// installed.
+    fn db_error_class() -> nvs_runtime::ErrorClass {
+        const THROWABLE: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut classes = nvs_runtime::ClassTable::new();
+        let root = classes.define("RuntimeError", &THROWABLE, &[]);
+        classes.define(
+            ThrownClass::DbError.name(),
+            &[
+                "message",
+                "previous",
+                "backtrace",
+                "location",
+                "kind",
+                "sqlState",
+                "driverCode",
+                "constraint",
+                "sql",
+            ],
+            &[root],
+        );
+        nvs_runtime::ErrorClass::new(std::sync::Arc::new(classes), root)
     }
 
     /// A `callable` whose `invoke` is `invoke` and which declares one
@@ -1104,36 +1149,11 @@ mod tests {
         };
 
         // § 8's class has to be *resolvable* or the retry cannot happen at
-        // all: `pending_slot` answers `None` for a context with no exception
-        // class installed, so a loop reading the kind off the throw would see
-        // no conflict and re-raise. Spec § 10's root shape and the one
-        // subclass this case throws, arriving the one way a context takes a
-        // table — the playbook's `Ctx::class_desc` bullet.
-        const THROWABLE: [&str; 4] = ["message", "previous", "backtrace", "location"];
-        let mut classes = nvs_runtime::ClassTable::new();
-        let root = classes.define("RuntimeError", &THROWABLE, &[]);
-        classes.define(
-            ThrownClass::DbError.name(),
-            &[
-                "message",
-                "previous",
-                "backtrace",
-                "location",
-                "kind",
-                "sqlState",
-                "driverCode",
-                "constraint",
-                "sql",
-            ],
-            &[root],
-        );
-
+        // all: a loop reading the kind off the throw would see no conflict
+        // and re-raise.
         ATTEMPTS.with(|entered| entered.set(0));
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(nvs_runtime::ErrorClass::new(
-            std::sync::Arc::new(classes),
-            root,
-        ));
+        ctx.set_runtime_error_class(db_error_class());
         let mut recovered = Scripted { asked: Vec::new() };
         let answered = transacted(&mut ctx, &mut recovered, &attempted(1))
             .expect("§ 7 re-runs a deadlocked closure, and the second attempt commits");
@@ -1183,6 +1203,192 @@ mod tests {
         drop(ctx.take_thrown());
         discard(closure);
         discard(block);
+    }
+
+    /// What [`enqueues`] does when § 7 calls it.
+    #[derive(Clone, Copy)]
+    struct Enqueue {
+        /// The connection the job is announced on.
+        key: u64,
+        /// How many transactions to open inside this one before the enqueue.
+        nested: u32,
+        /// Whether a job is announced at all.
+        announces: bool,
+        /// Whether the closure throws after it, which rolls its transaction back.
+        throws: bool,
+    }
+
+    thread_local! {
+        /// What [`enqueues`] does on this thread. A thread local for [`ATTEMPTS`]'s reason.
+        static ENQUEUE: std::cell::Cell<Enqueue> = const {
+            std::cell::Cell::new(Enqueue { key: 0, nested: 0, announces: false, throws: false })
+        };
+
+        /// The process bell's count as [`enqueues`] last read it, inside the outermost
+        /// transaction and after everything it ran there.
+        static RINGS_INSIDE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+
+    /// § 7's closure as a request that enqueues a job writes it: what `Core\Queue::push` does
+    /// once its insert has run, which is [`crate::queue::announce`], inside as many nested
+    /// transactions as [`ENQUEUE`] names.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes exactly these two live values, each \
+                  retained for this callee to release, and `run_helper` \
+                  discharges the rest of the helper ABI's pointer contract"
+    )]
+    unsafe extern "C" fn enqueues(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        unsafe {
+            nvs_runtime::run_helper(ctx, args, 2, out, |ctx, args| {
+                for slot in args {
+                    discard(*slot);
+                }
+                let plan = ENQUEUE.with(std::cell::Cell::get);
+                if plan.nested > 0 {
+                    ENQUEUE.with(|held| {
+                        held.set(Enqueue {
+                            nested: plan.nested - 1,
+                            ..plan
+                        });
+                    });
+                    let answered = transacted_on(ctx, plan.key);
+                    RINGS_INSIDE.with(|read| read.set(crate::queue::Bell::process().rings()));
+                    return answered;
+                }
+                if plan.announces {
+                    crate::queue::announce(ctx, plan.key)?;
+                }
+                RINGS_INSIDE.with(|read| read.set(crate::queue::Bell::process().rings()));
+                if plan.throws {
+                    return Err(deadlocked());
+                }
+                Ok(Value::int(1))
+            })
+        }
+    }
+
+    /// One `transaction` on the connection filed under `key`, running [`enqueues`].
+    fn transacted_on(ctx: &mut Ctx, key: u64) -> Result<Value, Fault> {
+        let block = Value::str(NvsStr::new(b"main"));
+        let closure = closure_of(enqueues);
+        let answered = transacted(
+            ctx,
+            &mut Filed { key },
+            &Attempted {
+                key,
+                block,
+                closure,
+                isolation: None,
+                read_only: false,
+                retries: 0,
+            },
+        );
+        discard(closure);
+        discard(block);
+        answered
+    }
+
+    /// `rule:concurrency/a-push-wakes-an-idle-worker`'s order: the bell rings once the job is
+    /// committed, and a job that was rolled back rings nothing.
+    ///
+    /// **A real connection and § 7's own loop**, because what decides the ring is the depth the
+    /// connection reports and the level `transacted` closes. SQLite is the backend that needs no
+    /// server. The enqueue is [`crate::queue::announce`], the call `Core\Queue::push` makes once
+    /// its insert has run, so the statement itself is not what is under test here.
+    ///
+    /// **Counted, and counted alone.** Each step reads how far [`crate::queue::Bell::process`]'s
+    /// count moved, inside the transaction and after it, under the lock that keeps another case
+    /// from ringing it meanwhile.
+    // covers: Core\Queue::push
+    #[test]
+    fn a_push_rings_after_the_commit_and_a_rollback_rings_nothing() {
+        let _alone = crate::queue::bell::tests::process_bell_alone();
+        let bell = crate::queue::Bell::process();
+
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(db_error_class());
+        let key = ctx.hold_open_connection(None, None, Box::new(nvs_db::Connection::Sqlite(conn)));
+
+        // How far the count moved by the end of the outermost closure, and by the end of the call.
+        let moved = |ctx: &mut Ctx, plan: Enqueue| {
+            let before = bell.rings();
+            ENQUEUE.with(|held| held.set(plan));
+            let answered = transacted_on(ctx, plan.key);
+            let inside = RINGS_INSIDE.with(std::cell::Cell::get) - before;
+            (answered.is_ok(), inside, bell.rings() - before)
+        };
+        let plan = Enqueue {
+            key,
+            nested: 0,
+            announces: true,
+            throws: false,
+        };
+
+        let before = bell.rings();
+        crate::queue::announce(&mut ctx, key).expect("the connection is filed");
+        assert_eq!(
+            bell.rings() - before,
+            1,
+            "a push outside a transaction is its own committed statement, and it did not ring"
+        );
+
+        assert_eq!(
+            moved(&mut ctx, plan),
+            (true, 0, 1),
+            "a push inside a transaction rings once, and only after that transaction commits"
+        );
+
+        assert_eq!(
+            moved(
+                &mut ctx,
+                Enqueue {
+                    throws: true,
+                    ..plan
+                }
+            ),
+            (false, 0, 0),
+            "a push whose transaction rolled back rang for a job that does not exist"
+        );
+        drop(ctx.take_thrown());
+        assert_eq!(
+            moved(
+                &mut ctx,
+                Enqueue {
+                    announces: false,
+                    ..plan
+                }
+            ),
+            (true, 0, 0),
+            "the commit after a rollback rang for the job that rollback undid"
+        );
+
+        assert_eq!(
+            moved(&mut ctx, Enqueue { nested: 2, ..plan }),
+            (true, 0, 1),
+            "a push inside nested transactions rings once, at the outermost commit"
+        );
+
+        assert_eq!(
+            moved(
+                &mut ctx,
+                Enqueue {
+                    nested: 1,
+                    throws: true,
+                    ..plan
+                }
+            ),
+            (false, 0, 0),
+            "a push a nested transaction rolled back rang anyway"
+        );
+        drop(ctx.take_thrown());
     }
 
     /// `rule:core-classes/db-transactions`'s backoff, asserted as bounds over the whole ladder rather

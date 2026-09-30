@@ -261,6 +261,10 @@ pub(super) struct OpenConnection {
     /// can tell a `Core\Db\Connection::close`d handle from a key this request
     /// never filed, which are a `LogicError` and a paste error respectively.
     pub(super) connection: Option<Box<dyn HeldConnection>>,
+    /// The shallowest transaction level a job was enqueued under on this
+    /// connection and is still undecided at, or `None` while no enqueue waits
+    /// on a commit. [`Ctx::note_enqueued_under`] owns the reading.
+    enqueued_under: Option<u32>,
 }
 
 impl Ctx {
@@ -552,6 +556,7 @@ impl Ctx {
             memo,
             lease,
             connection: Some(connection),
+            enqueued_under: None,
         });
         // The index, one-based, so that a handle slot never holds a key a
         // zeroed value could be mistaken for.
@@ -640,6 +645,62 @@ impl Ctx {
             .map(|index| index as u64 + 1)
     }
 
+    /// Records that a job was enqueued on connection `key` while `open`
+    /// transaction levels were open on it, counted from 1 for the outermost.
+    ///
+    /// The job is durable only when the outermost level commits, and whoever
+    /// announces new work has to wait for that: a worker told earlier would
+    /// look for a row no other connection can see yet.
+    /// [`Ctx::transaction_level_closed`] is where each level's ending is
+    /// judged.
+    ///
+    /// **One number per connection, however many jobs a transaction
+    /// enqueues**, and the shallowest level is the one kept. A rollback undoes
+    /// every enqueue made at its own level or inside it, so an enqueue at a
+    /// shallower level survives whatever a deeper one does, and it is the one
+    /// the outermost commit is owed for.
+    ///
+    /// A key this request never filed records nothing.
+    ///
+    /// **What it spends:** one word per connection a request has open.
+    pub fn note_enqueued_under(&mut self, key: u64, open: u32) {
+        if let Some(held) = self.open_connection_entry(key) {
+            held.enqueued_under = Some(held.enqueued_under.map_or(open, |had| had.min(open)));
+        }
+    }
+
+    /// Judges what [`Ctx::note_enqueued_under`] recorded against transaction
+    /// `level` of connection `key` closing, and answers whether an enqueue has
+    /// just become durable.
+    ///
+    /// `level` is counted as that method counts it, so the outermost
+    /// transaction is 1. A commit of a nested level hands what was recorded
+    /// inside it to the level around it, a commit of the outermost one answers
+    /// `true` and clears the record, and a rollback clears whatever was
+    /// recorded at its level or deeper and answers `false`. An enqueue recorded
+    /// under a shallower level than the one closing is left as it is.
+    pub fn transaction_level_closed(&mut self, key: u64, level: u32, committed: bool) -> bool {
+        let Some(held) = self.open_connection_entry(key) else {
+            return false;
+        };
+        let Some(under) = held.enqueued_under else {
+            return false;
+        };
+        if under < level {
+            return false;
+        }
+        let around = level.saturating_sub(1);
+        held.enqueued_under = (committed && around > 0).then_some(around);
+        committed && around == 0
+    }
+
+    /// The entry `key` names, open or closed, or `None` for a key this request
+    /// never filed.
+    fn open_connection_entry(&mut self, key: u64) -> Option<&mut OpenConnection> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_connections.get_mut(index)
+    }
+
     /// Records a directory `Core\IO::temporaryDir` has just created for this
     /// script — `rule:core-classes/temporary-dir-sweep`'s per-script list, written by
     /// [`crate::capability::temp_dir`](crate::capability::temp_dir) and by
@@ -685,5 +746,130 @@ impl Ctx {
     #[must_use]
     pub fn take_temporary_dirs(&mut self) -> Vec<std::path::PathBuf> {
         std::mem::take(&mut self.temporary_dirs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Ctx, HeldConnection};
+
+    /// A connection that is nothing but an entry in the table: what is under
+    /// test is what the request records beside it.
+    #[derive(Debug)]
+    struct Filed;
+
+    impl HeldConnection for Filed {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+
+        fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
+            self
+        }
+    }
+
+    /// A request holding one connection, and that connection's key.
+    fn holding_one() -> (Ctx, u64) {
+        let mut ctx = Ctx::stdout();
+        let key = ctx.hold_open_connection(None, None, Box::new(Filed));
+        (ctx, key)
+    }
+
+    /// The outermost commit is the one that makes an enqueue durable, and it
+    /// says so once.
+    #[test]
+    fn the_outermost_commit_answers_for_an_enqueue_made_under_it() {
+        let (mut ctx, key) = holding_one();
+        ctx.note_enqueued_under(key, 1);
+        assert!(
+            ctx.transaction_level_closed(key, 1, true),
+            "the commit of the level a job was enqueued under did not answer for it"
+        );
+        assert!(
+            !ctx.transaction_level_closed(key, 1, true),
+            "a later transaction's commit answered for an enqueue the one before it had settled"
+        );
+    }
+
+    /// A rollback undoes the enqueue, so nothing is owed for it afterwards.
+    #[test]
+    fn a_rollback_answers_nothing_and_leaves_nothing_owed() {
+        let (mut ctx, key) = holding_one();
+        ctx.note_enqueued_under(key, 1);
+        assert!(
+            !ctx.transaction_level_closed(key, 1, false),
+            "a rollback answered for the job it undid"
+        );
+        assert!(
+            !ctx.transaction_level_closed(key, 1, true),
+            "a job a rollback undid was answered for by the next transaction's commit"
+        );
+    }
+
+    /// A nested level's commit hands its enqueue to the level around it, which
+    /// is the one whose commit answers.
+    #[test]
+    fn a_nested_commit_hands_its_enqueue_to_the_level_around_it() {
+        let (mut ctx, key) = holding_one();
+        ctx.note_enqueued_under(key, 2);
+        assert!(
+            !ctx.transaction_level_closed(key, 2, true),
+            "a nested level's commit answered while the outermost one was still open"
+        );
+        assert!(
+            ctx.transaction_level_closed(key, 1, true),
+            "the outermost commit did not answer for a job a nested level handed it"
+        );
+    }
+
+    /// A nested rollback takes its own enqueue with it and leaves the outer
+    /// level's alone.
+    #[test]
+    fn a_nested_rollback_undoes_its_own_enqueue_and_no_other() {
+        let (mut ctx, key) = holding_one();
+        ctx.note_enqueued_under(key, 2);
+        assert!(!ctx.transaction_level_closed(key, 2, false));
+        assert!(
+            !ctx.transaction_level_closed(key, 1, true),
+            "the outermost commit answered for a job its nested level had rolled back"
+        );
+
+        ctx.note_enqueued_under(key, 1);
+        ctx.note_enqueued_under(key, 2);
+        assert!(!ctx.transaction_level_closed(key, 2, false));
+        assert!(
+            ctx.transaction_level_closed(key, 1, true),
+            "a nested rollback took the outer level's own enqueue with it"
+        );
+    }
+
+    /// An outer rollback undoes what a nested level had already committed into
+    /// it.
+    #[test]
+    fn an_outer_rollback_undoes_what_a_nested_commit_handed_it() {
+        let (mut ctx, key) = holding_one();
+        ctx.note_enqueued_under(key, 2);
+        assert!(!ctx.transaction_level_closed(key, 2, true));
+        assert!(
+            !ctx.transaction_level_closed(key, 1, false),
+            "an outer rollback answered for a job it undid"
+        );
+        assert!(!ctx.transaction_level_closed(key, 1, true));
+    }
+
+    /// What one connection recorded is not another's, and a key nothing was
+    /// filed under records nothing at all.
+    #[test]
+    fn an_enqueue_is_recorded_against_its_own_connection() {
+        let (mut ctx, key) = holding_one();
+        let other = ctx.hold_open_connection(None, None, Box::new(Filed));
+        ctx.note_enqueued_under(key, 1);
+        ctx.note_enqueued_under(other + 1, 1);
+        assert!(
+            !ctx.transaction_level_closed(other, 1, true),
+            "one connection's commit answered for a job enqueued on another"
+        );
+        assert!(!ctx.transaction_level_closed(other + 1, 1, true));
+        assert!(ctx.transaction_level_closed(key, 1, true));
     }
 }

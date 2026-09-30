@@ -54,6 +54,7 @@
     "concurrency/one-process-serves-requests-schedules-and-jobs",
     "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers",
     "concurrency/foreign-connection-enqueue-is-counted",
+    "concurrency/a-push-wakes-an-idle-worker",
     "concurrency/queued-work-is-not-scheduled-work",
     "concurrency/no-broker-and-no-driver-interface",
     "concurrency/one-future-per-connection",

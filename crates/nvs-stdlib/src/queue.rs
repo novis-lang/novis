@@ -74,6 +74,10 @@ use crate::registry::{
     ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
+pub(crate) mod bell;
+
+pub use bell::{Bell, BellWake};
+
 /// `Core\Queue`'s fully-qualified name.
 pub(crate) const NAME: &str = r"Core\Queue";
 
@@ -3444,10 +3448,49 @@ nvs_runtime::nvs_helper! {
             }
         };
         spans.file(ctx);
+        announce(ctx, handle)?;
         Ok(crate::instance::build(
             &ID,
             [Value::uint(id), Value::str(NvsStr::new(queue.as_bytes()))],
         ))
+    }
+}
+
+/// Tells this process's idle workers about the job `push` has just written on the connection
+/// filed under `key`, now or at the commit that makes it durable
+/// (`rule:concurrency/a-push-wakes-an-idle-worker`).
+///
+/// **The connection's own depth is the whole question.** With no level open the insert is its own
+/// committed statement, so the bell rings here. That covers a push while a transaction is open on
+/// some *other* connection too: the queue's connection is not in it, so the job is committed
+/// already (`rule:concurrency/foreign-connection-enqueue-is-counted`). With a level open the job is
+/// the caller's transaction's, and a worker told now would ask for a row no other connection can
+/// see, find nothing, and go back to waiting. So the level is recorded on the context instead and
+/// [`level_closed`] rings when the outermost one commits.
+///
+/// Asked after the statements rather than before them, so a transaction this member opened for
+/// its own pair has closed by now and the depth read is the caller's alone.
+///
+/// # Errors
+///
+/// As [`crate::db::open_levels`].
+pub(crate) fn announce(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<(), Fault> {
+    match crate::db::open_levels(ctx, key, PUSH)? {
+        0 => Bell::process().ring(),
+        open => ctx.note_enqueued_under(key, open),
+    }
+    Ok(())
+}
+
+/// [`announce`]'s other half: transaction `level` of the connection filed under `key` has closed,
+/// and the bell rings if that made a job this request enqueued durable.
+///
+/// Called by `Core\Db\Connection::transaction` for every level it closes, committed or not.
+/// [`nvs_runtime::Ctx::transaction_level_closed`] is where a nested level and a rollback are told
+/// apart from the outermost commit, so a rollback rings nothing.
+pub(crate) fn level_closed(ctx: &mut nvs_runtime::Ctx, key: u64, level: u32, committed: bool) {
+    if ctx.transaction_level_closed(key, level, committed) {
+        Bell::process().ring();
     }
 }
 

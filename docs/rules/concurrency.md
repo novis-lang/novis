@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*11 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -1367,10 +1367,11 @@ boot-time read and no task at all when it is not configured.
 **The drain is what stops a worker, and it is not merely tidy.** A drain means *stop taking new work*,
 and claiming a job is taking new work — so a claimed job runs to completion exactly as an accepted
 request and an in-flight fire do, and nothing new is claimed after it begins. It is also what keeps
-the process able to end: the server's loop runs while anything is parked and a worker polling for work
+the process able to end: the server's loop runs while anything is parked and a worker waiting for work
 is always parked, so a worker that ignored the drain would be a server nothing but killing the process
 could stop — which is the graceful shutdown a terminating signal, a control socket and a test harness
-each ask of one.
+each ask of one. The drain wakes a worker out of that wait, so a shutdown does not wait for it to run
+out ([`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker)).
 
 **The queue needs no lease and a `fleet` schedule does.** A worker asks the database for a row and
 gets one or does not ([`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement)), so a fleet of instances each
@@ -1378,7 +1379,7 @@ running their own workers is the intended deployment rather than a hazard; a sch
 ask whether another host is already firing it. The queue is the subsystem that needed no coordinator,
 and one process is where that pays.
 
-<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field). Decided in [0154](../decisions/0154.md).</sub>
+<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field). Decided in [0154](../decisions/0154.md), [0230](../decisions/0230.md).</sub>
 
 <a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
 
@@ -1416,6 +1417,46 @@ the program never writes it, so the checker has no way to compare the two. The r
 the property can find out by reading a counter rather than by losing a job.
 
 <sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
+
+<a id="concurrency-a-push-wakes-an-idle-worker"></a>
+
+## An idle queue worker asks its queue once a second, and a push in the same process wakes it once the job is committed
+
+`rule:concurrency/a-push-wakes-an-idle-worker`
+
+A queue worker that finds no due job waits one second before it asks the database again, and a
+`Core\Queue::push` in the same process wakes it as soon as the job is committed. A worker asks the
+moment it starts and again the moment a job is written back, so the wait is only ever taken by a
+worker with nothing to do. It is one fixed interval with no backoff and no `[queue]` key, and it is
+the whole of what a `[queue]` with nothing in it costs: one statement per worker per second.
+
+**The wake follows the commit, never the statement.** A worker woken before the job is committed asks
+for a row no other connection can see, finds nothing and goes back to waiting, so:
+
+- a push outside a transaction is its own committed statement, and the wake follows it
+  ([`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write));
+- a push inside a `transaction` on the queue's own connection wakes when that transaction commits, at
+  the outermost commit when transactions nest, and a rollback wakes nobody;
+- a push while a transaction is open on a different connection commits on its own, so the wake follows
+  the statement ([`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted)).
+
+**A stop wakes a waiting worker too**, under `nvs run` and under `nvs serve`. The script's exit, a
+reload that takes a worker away and the drain each end the wait at once, so neither a run's exit nor a
+shutdown waits out the second ([`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs)).
+
+**Only work this process announced is woken for.** A job pushed by another process, a delayed job
+coming due, a retry after its backoff and a job reclaimed after its worker died are found by the next
+ask, so each may start up to one second late. A transaction a program opens in its own statement text
+is one the runtime does not see end, so a push inside one is found the same way.
+
+**The mechanism is the process's own, and it is the same on every driver.** The wake is a call this
+process makes after its own statement or its own commit, carried to the core the workers run on by the
+runtime's cross-thread wake ([`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing) is what
+lets a worker take one per wait). It is never a message a database sends: there is no `LISTEN` and
+`NOTIFY` and no other backend's notification channel, so a backend that has none behaves exactly as
+one that has, and there is one path to test ([`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface)).
+
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface). Decided in [0230](../decisions/0230.md).</sub>
 
 <a id="concurrency-queued-work-is-not-scheduled-work"></a>
 

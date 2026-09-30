@@ -1,7 +1,7 @@
 {
   "totals": {
-    "total": 1017,
-    "shipped": 780,
+    "total": 1018,
+    "shipped": 781,
     "designed": 237,
     "diverging": 589
   },
@@ -5076,8 +5076,8 @@
       "url": "/docs/rules/concurrency/",
       "single": false,
       "counts": {
-        "total": 67,
-        "shipped": 56,
+        "total": 68,
+        "shipped": 57,
         "designed": 11,
         "diverging": 50
       },
@@ -5504,8 +5504,8 @@
           "blurb": "A job is a root isolate on a recorded budget. Which process runs it is configuration, and there is no pluggable driver.",
           "url": "/docs/rules/concurrency/running-a-job/",
           "counts": {
-            "total": 9,
-            "shipped": 4,
+            "total": 10,
+            "shipped": 5,
             "designed": 5,
             "diverging": 9
           },
@@ -5565,6 +5565,14 @@
               "status": "designed",
               "href": "/docs/rules/concurrency/running-a-job/#foreign-connection-enqueue-is-counted",
               "diverges": "losing atomicity between a write and its job is a measured deployment fact rather than an unstated one"
+            },
+            {
+              "id": "concurrency/a-push-wakes-an-idle-worker",
+              "slug": "a-push-wakes-an-idle-worker",
+              "title": "An idle queue worker asks its queue once a second, and a push in the same process wakes it once the job is committed",
+              "status": "shipped",
+              "href": "/docs/rules/concurrency/running-a-job/#a-push-wakes-an-idle-worker",
+              "diverges": null
             },
             {
               "id": "concurrency/queued-work-is-not-scheduled-work",

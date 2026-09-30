@@ -807,9 +807,23 @@ pub fn is_installed() -> bool {
 /// therefore costs the core no poke, and a task may register afresh for every
 /// wait.
 pub fn wake_at_drain(drain: &Drain) -> Option<DrainWake> {
-    let id = crate::scheduler::current_task()?;
-    let wake = with_current(|reactor| reactor.remote_wake(id))?;
+    let wake = wake_this_task()?;
     drain.wake_at_drain(move || drop(wake.wake()))
+}
+
+/// A one-shot handle that wakes the task this call is on from any thread, for
+/// a wait that is about to park on state another task or another core changes.
+///
+/// [`Reactor::remote_wake`] against the running task, taken before the park as
+/// that method asks. The caller hands it to whoever changes the state and then
+/// waits, and [`RemoteWake`] owns the rest: a wake is a hint, and a handle the
+/// task lets go itself when its wait ends is collected without one. `None` is
+/// a call with no task or no reactor beneath it, which has nothing a wake
+/// could resume.
+#[must_use]
+pub fn wake_this_task() -> Option<RemoteWake> {
+    let id = crate::scheduler::current_task()?;
+    with_current(|reactor| reactor.remote_wake(id))
 }
 
 /// Runs `sched` under this thread's reactor until neither has anything left to

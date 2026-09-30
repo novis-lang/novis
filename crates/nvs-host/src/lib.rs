@@ -150,7 +150,9 @@ pub use net::{
 };
 #[cfg(unix)]
 pub use net::{NvsUnix, NvsUnixListener};
-pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle, wake_at_drain};
+pub use reactor::{
+    Installed, Interest, Reactor, RemoteWake, run_until_idle, wake_at_drain, wake_this_task,
+};
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, children_still_running,
     current_task, detach_current, spawn_child, suspend, suspend_current,

@@ -8,6 +8,11 @@ machines.
 **In plain words:** `0` means "I add the work, somebody else does it". To turn the queue off, leave
 out the `[queue]` block.
 
+A worker with no job checks the queue once every second. A job that this instance adds starts at
+once, because `Core\Queue::push` wakes the workers when the job is saved. A job that another
+instance adds can start up to one second late. The same is true for a job with a `runAt` time and
+for a job that runs again after an error.
+
 A program cannot change this setting. The server applies a new value while it runs, and starts or
 stops workers. A worker that stops first puts its current job back in the queue.
 

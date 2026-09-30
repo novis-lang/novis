@@ -24,23 +24,44 @@
 //!
 //! ## Why it is stopped rather than left running, and which end stops it
 //!
-//! [`nvs_host::run_until_idle`] returns when nothing is runnable, and a worker polling for work is
-//! always runnable — so a run with one would never end. [`Workers`] is the switch that ends it, and
-//! which end holds that switch is the whole of the difference between the two binaries: under
-//! `nvs run` the script's own task sets [`Workers::stop`] on its way out, and under `nvs serve`
-//! there is no script to exit, so the same predicate reads the drain that command's shutdown begins
-//! (`rule:concurrency/one-process-serves-requests-schedules-and-jobs`). A served worker that
-//! ignored it would leave `run_until_idle` a task that is always parked, which is a process nothing
-//! but a kill could stop.
+//! [`nvs_host::run_until_idle`] returns when no task is left that could run again, and a worker
+//! waiting for work always could — so a run with one would never end. [`Workers`] is the switch
+//! that ends it, and which end holds it is the whole of the difference between the two binaries:
+//! under `nvs run` the script's own task sets [`Workers::stop`] on its way out, and under
+//! `nvs serve` there is no script to exit, so the same predicate reads the drain that command's
+//! shutdown begins (`rule:concurrency/one-process-serves-requests-schedules-and-jobs`). A served
+//! worker that ignored it would leave `run_until_idle` a task that is always parked, which is a
+//! process nothing but a kill could stop.
 //!
 //! **Read at the top of a turn and nowhere inside one**, which is the semantics rather than an
 //! economy: a drain means stop taking *new* work, and claiming a job is taking new work, so a job
 //! already claimed is run and written back exactly as a request already accepted is answered. A
-//! flag and a bit rather than a cancellation because every wait here is bounded and short: the tail
-//! a stop pays is one [`IDLE_TURN`] in the ordinary case, one statement's round trip while a claim
+//! flag and a bit rather than a cancellation because every wait a stop can land in is either ended
+//! by the stop or bounded and short. A worker waiting for work is woken by it (§ *What an idle
+//! worker waits on*). The tail a stop pays otherwise is one statement's round trip while a claim
 //! is in flight, and at worst one [`CONNECT_DEADLINE`] for a worker still shaking hands with a
 //! server that is not answering — or one [`STATEMENT_DEADLINE`] for one that stopped answering
 //! mid-statement, which is the only wait here a peer rather than this process decides the length of.
+//!
+//! ## What an idle worker waits on
+//!
+//! A worker asks for work the moment it starts and again the moment a job is written back, and
+//! one that was answered with nothing waits before it asks again
+//! (`rule:concurrency/a-push-wakes-an-idle-worker`). That wait is the whole cost of a `[queue]`
+//! with nothing in it, so it is long: one [`IDLE_WAIT`], with no backoff and no key to set. Three
+//! things end it early, and each is a wake and not a shorter poll:
+//!
+//! - **A push in this process.** `Core\Queue::push` rings [`Bell::process`] once the job is
+//!   committed, from whichever core the request ran on, and every idle worker asks at once.
+//! - **A stop.** [`Workers::stop`] rings the bell after it sets the flag, which is the script's
+//!   exit under `nvs run` and a reload taking a worker away under `nvs serve`.
+//! - **The drain**, which a served worker registers on for the length of the wait
+//!   ([`nvs_host::wake_at_drain`]).
+//!
+//! Work nothing in this process announced is found by the bound alone, so it may start up to one
+//! [`IDLE_WAIT`] late: a job another process pushed, a delayed job coming due, a retry, and a job
+//! whose worker died before writing it back. One path serves every driver, because a ring is a
+//! call this process makes after its own statement and never a message a database sends.
 //!
 //! ## What a job's grants are
 //!
@@ -64,8 +85,10 @@
 //! ## What it spends
 //!
 //! One connection per worker in whichever driver `[db.<name>]` names, opened once and held for the
-//! run, plus the roster statement each idle turn and nothing beyond it, since a roster with no due
-//! work claims nothing. A turn that *does* claim costs a transaction's worth of round trips on
+//! run, plus one roster statement each time an idle worker asks and nothing beyond it, since a
+//! roster with no due work claims nothing. An idle worker asks once per [`IDLE_WAIT`] and once
+//! per ring, and holds a wake registration on the bell, and one on the drain under `nvs serve`,
+//! for as long as it waits. A turn that *does* claim costs a transaction's worth of round trips on
 //! MySQL, MariaDB and SQLite where it costs a single statement on PostgreSQL, which is
 //! [`nvs_stdlib::queue::Split`]'s trade and not this module's: the claim's `select` and its
 //! `update` are one moment or they are nothing, and a backend without the construct that makes them
@@ -117,6 +140,7 @@ use std::time::{Duration, Instant};
 use nvs_config::queue::QueueBounds;
 use nvs_config::tree::Database;
 use nvs_runtime::host::{Woken, with_current};
+use nvs_stdlib::queue::Bell;
 
 /// How long a worker's own handshake may take.
 ///
@@ -126,11 +150,18 @@ use nvs_runtime::host::{Woken, with_current};
 /// then stops costing it anything.
 const CONNECT_DEADLINE: Duration = Duration::from_secs(2);
 
-/// How long a worker waits after a turn that found no due work.
+/// How long a worker that found no due work waits before it asks again, when nothing wakes it.
 ///
-/// Short because the wait is what the program's own polling is waiting on, and cheap because it is
-/// a park rather than a spin — the core runs the script while a worker holds this.
-const IDLE_TURN: Duration = Duration::from_millis(10);
+/// The bound on how late work may start that nothing in this process announced, and the module
+/// doc's *What an idle worker waits on* section lists what that is. It is also what an idle
+/// `[queue]` costs: one roster statement per worker per wait. One fixed interval, so there is no
+/// backoff whose current rung a job's delay would depend on and no `[queue]` key for it.
+const IDLE_WAIT: Duration = Duration::from_secs(1);
+
+/// How often [`Crew::keep`] looks for its last workers to have returned, once the drain has begun.
+///
+/// Short, because it is the tail of a shutdown and runs only during one.
+const RETURN_POLL: Duration = Duration::from_millis(10);
 
 /// How long one of a worker's exchanges with its server may take.
 ///
@@ -184,6 +215,11 @@ pub(crate) struct Workers {
     /// whichever handle the caller holds, which is the process's under `nvs serve` and a detached
     /// one under a test.
     draining: Option<nvs_server::Draining>,
+    /// The bell a worker with nothing to claim waits on. Both constructors take the process's,
+    /// which is the one `Core\Queue::push` rings, and [`Workers::stop`] rings whichever this is.
+    bell: Bell,
+    /// How long that worker waits when nothing wakes it: [`IDLE_WAIT`] from both constructors.
+    idle: Duration,
 }
 
 impl Workers {
@@ -192,20 +228,25 @@ impl Workers {
         Self {
             stop: Rc::new(Cell::new(false)),
             draining: None,
+            bell: Bell::process(),
+            idle: IDLE_WAIT,
         }
     }
 
     /// The same switch with a drain beside it, for a binary whose shutdown is a drain.
     pub(crate) fn draining(draining: nvs_server::Draining) -> Self {
         Self {
-            stop: Rc::new(Cell::new(false)),
             draining: Some(draining),
+            ..Self::new()
         }
     }
 
-    /// Tells every worker this run started to finish its turn and return.
+    /// Tells every worker this run started to finish its turn and return, and wakes the ones
+    /// waiting for work so that none of them waits out [`IDLE_WAIT`] first.
     pub(crate) fn stop(&self) {
+        // The flag first: a worker the ring wakes reads it at the top of its next turn.
         self.stop.set(true);
+        self.bell.ring();
     }
 
     /// Whether a worker reading this may open another turn.
@@ -218,6 +259,35 @@ impl Workers {
                 .draining
                 .as_ref()
                 .is_some_and(nvs_server::Draining::is_draining)
+    }
+
+    /// Waits for work after a turn that found none, reporting how the wait ended.
+    ///
+    /// `heard` is [`Bell::rings`] as the caller read it before that turn. A ring since then is a
+    /// stop, or a job the turn may have asked too early to see, so the wait is not entered at all.
+    /// Otherwise the task parks until the bell rings, the drain this switch reads begins, or
+    /// [`Workers::idle`] has passed. Whichever of them ends it, the caller reads
+    /// [`Workers::stopping`] and asks the database again: a wake is a hint and says nothing about
+    /// what the next turn will find.
+    ///
+    /// Both registrations are taken for this one wait and let go when it ends, which costs the
+    /// core no wake (`rule:concurrency/a-handle-given-up-by-its-task-wakes-nothing`).
+    fn wait_for_work(&self, heard: u64) -> Woken {
+        let Some(wake) = nvs_host::wake_this_task() else {
+            // No task beneath the call, so nothing could deliver a wake and the clock is the only
+            // thing this wait can end on.
+            return pause(self.idle);
+        };
+        let Some(_rung) = self.bell.wake_at_ring(heard, move || drop(wake.wake())) else {
+            return Woken::Elapsed;
+        };
+        // A drain that has already begun fires its wake here, and that ends the wait below at
+        // once.
+        let _drained = self
+            .draining
+            .as_ref()
+            .and_then(|draining| nvs_host::wake_at_drain(draining.bit()));
+        nvs_host::timer::wait_until(Instant::now() + self.idle)
     }
 }
 
@@ -414,7 +484,7 @@ impl Crew {
     /// [`Crew::follow`] over what `wanted` resolves from it.
     ///
     /// A drain is read once per `every`, which bounds what it adds to a stop, as the schedule
-    /// ticker's poll does. It then stops following and waits, one [`IDLE_TURN`] at a time, until
+    /// ticker's poll does. It then stops following and waits, one [`RETURN_POLL`] at a time, until
     /// every worker it ever started has returned. A worker it started is its child, and a child
     /// ends when its parent does, which would cut a job off in the middle.
     pub(crate) fn keep(
@@ -435,7 +505,7 @@ impl Crew {
             self.follow(wanted(&seen.config));
         }
         while Rc::strong_count(&self.alive) > 1 {
-            if matches!(nap(), Woken::Cancelled) {
+            if matches!(pause(RETURN_POLL), Woken::Cancelled) {
                 return;
             }
         }
@@ -476,8 +546,9 @@ fn claim_until_stopped(
     }
 }
 
-/// The loop itself: a turn while [`Workers`] admits one, a nap after a turn that found nothing, and
-/// an end after a turn that failed, answering with what that turn refused with.
+/// The loop itself: a turn while [`Workers`] admits one, [`Workers::wait_for_work`] after a turn
+/// that found nothing, and an end after a turn that failed, answering with what that turn refused
+/// with.
 ///
 /// Split from the connection above it because *when* the stop condition is read is the property
 /// this has to keep — a drain arriving mid-claim must not cut the write-back short — and a turn a
@@ -486,21 +557,26 @@ fn claim_until_stopped(
 /// rather than reported here for the same reason: this function is what a case drives, and a case
 /// asserting that a refusal is not swallowed must be able to read it.
 fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) -> io::Result<()> {
-    while !workers.stopping() {
+    loop {
+        // Read before the switch and before the claim, so a stop or a push that lands after
+        // either has moved the count by the time this turn's wait is registered against it.
+        let heard = workers.bell.rings();
+        if workers.stopping() {
+            return Ok(());
+        }
         match turn() {
             // Something was claimed, so the roster may still hold more: turn again without
             // waiting, and the queue that answered drops out of the next roster by itself, because
             // a row this turn claimed is inside its visibility window.
             Ok(true) => {}
             Ok(false) => {
-                if nap() == Woken::Cancelled {
+                if workers.wait_for_work(heard) == Woken::Cancelled {
                     return Ok(());
                 }
             }
             Err(refused) => return Err(refused),
         }
     }
-    Ok(())
 }
 
 /// One turn: which queues have due work, then one claim against each.
@@ -1721,11 +1797,6 @@ fn millis(at: i64) -> Vec<u8> {
     at.to_string().into_bytes()
 }
 
-/// Parks this task for [`IDLE_TURN`], reporting how the wait ended.
-fn nap() -> Woken {
-    pause(IDLE_TURN)
-}
-
 /// Parks this task for `length`, reporting how the wait ended.
 ///
 /// With no host on the thread there is nothing to hand the core back to, so the wait is a blocking
@@ -2028,6 +2099,8 @@ mod tests {
     use std::rc::Rc;
     use std::sync::Arc;
     use std::time::{Duration, Instant};
+
+    use nvs_stdlib::queue::Bell;
 
     /// The column list a split claim reads its row with.
     ///
@@ -2708,9 +2781,8 @@ mod tests {
                 while state(&watching, id).is_some_and(|read| until.contains(&read))
                     && Instant::now() < deadline
                 {
-                    // The same park a worker's own idle turn takes, so this task holds the core for
-                    // no longer than one of them between reads.
-                    super::nap();
+                    // A park and not a spin, so the core runs the workers between two reads.
+                    super::pause(LOOKING_EVERY);
                 }
                 began.set(Some(Instant::now()));
                 drain.begin();
@@ -2782,16 +2854,16 @@ mod tests {
     /// proves the workers were live — a run whose connection never opened ends promptly for a
     /// reason that has nothing to do with the drain — and the second worker is what makes the end
     /// *every* worker's rather than one's. The drain arrives while the claim is in flight, so the
-    /// tail measured is § 6's write-back finishing plus the other worker's idle turn, which is what
-    /// `[queue] workers`'s shutdown actually costs a deployment.
+    /// tail measured is § 6's write-back finishing plus the drain waking the other worker out of
+    /// its idle wait, which is what `[queue] workers`'s shutdown actually costs a deployment.
     #[test]
     fn a_served_process_with_workers_exits_within_its_deadline_once_the_drain_begins() {
         // Long enough that a slow machine never reaches it, and finite so a worker ignoring the
         // drain is reported instead of waited on.
         const ARRIVES_WITHIN: Duration = Duration::from_secs(60);
-        // What the shutdown is allowed to cost once the drain has begun: one claim written back and
-        // one `IDLE_TURN`, with room for a loaded machine. A worker waiting out its visibility
-        // window or its connect deadline instead lands well outside it.
+        // What the shutdown is allowed to cost once the drain has begun: one claim written back,
+        // with room for a loaded machine. A worker waiting out its visibility window or its
+        // connect deadline instead lands well outside it.
         const TAIL: Duration = Duration::from_secs(2);
 
         let (reached, arrived) = std::sync::mpsc::channel();
@@ -2837,7 +2909,307 @@ mod tests {
         assert!(
             tail < TAIL,
             "the instance took {tail:?} to end after the drain began, where what it owes is one \
-             write-back and one idle turn"
+             write-back"
+        );
+    }
+
+    /// How often a case's own task looks at the state it is waiting on.
+    const LOOKING_EVERY: Duration = Duration::from_millis(2);
+
+    /// An idle wait no case waits out. A worker holding it asks its queue again only when something
+    /// wakes it, so what a case then reads is what the wake did and never what the clock did.
+    const NEVER: Duration = Duration::from_secs(60 * 60);
+
+    /// What the worker under one of the cases below has asked of its queue.
+    #[derive(Default)]
+    struct Asked {
+        /// Turns begun. Each one is a roster statement, and a claim per queue the roster named.
+        turns: Cell<u32>,
+        /// Turns that found nothing, after each of which the worker waits for work.
+        empty: Cell<u32>,
+        /// Which turn first claimed a job, counted from 1.
+        claimed_on: Cell<Option<u32>>,
+    }
+
+    /// A switch over a bell of its own, and that bell.
+    ///
+    /// The process's bell is rung by every switch in this binary that stops, so a case counting
+    /// what one worker asked takes a bell nothing else holds.
+    fn switch(draining: Option<nvs_server::Draining>, idle: Duration) -> (super::Workers, Bell) {
+        let bell = Bell::detached();
+        let workers = super::Workers {
+            stop: Rc::new(Cell::new(false)),
+            draining,
+            bell: bell.clone(),
+            idle,
+        };
+        (workers, bell)
+    }
+
+    /// The snapshot a worker's jobs run under in these cases, which grants `script.spawn`.
+    fn granting() -> Arc<nvs_config::Current> {
+        Arc::new(nvs_config::Current::new(Arc::new(
+            crate::script::granting_snapshot(),
+        )))
+    }
+
+    /// One worker over `block` on `sched`, with every turn it takes counted in `asked`.
+    ///
+    /// [`super::claim_until_stopped`]'s own body with the count taken around [`super::turn`], so
+    /// what is counted is the turn both binaries run.
+    fn counted_worker(
+        sched: &mut nvs_host::Scheduler,
+        workers: &super::Workers,
+        block: &nvs_config::tree::Database,
+        asked: &Rc<Asked>,
+    ) {
+        let workers = workers.clone();
+        let block = block.clone();
+        let asked = Rc::clone(asked);
+        let current = granting();
+        let mut ctx = nvs_runtime::Ctx::stdout();
+        ctx.set_config(current.load());
+        sched.spawn(ctx, super::ROOT, move |ctx| {
+            let mut conn = super::open(QUEUE, &block).expect("the queue's file opens for a worker");
+            super::take_turns(&workers, || {
+                let turn = asked.turns.get() + 1;
+                asked.turns.set(turn);
+                let claimed = super::turn(ctx, &mut conn, &current, bounds(1).visibility)?;
+                if !claimed {
+                    asked.empty.set(asked.empty.get() + 1);
+                } else if asked.claimed_on.get().is_none() {
+                    asked.claimed_on.set(Some(turn));
+                }
+                Ok(claimed)
+            })
+            .expect("every statement a turn sends is answered");
+        });
+    }
+
+    /// Parks the calling task until `done` answers `true`, or [`WATCHING_FOR`] has passed.
+    fn until(mut done: impl FnMut() -> bool) {
+        let deadline = Instant::now() + WATCHING_FOR;
+        while !done() && Instant::now() < deadline {
+            super::pause(LOOKING_EVERY);
+        }
+    }
+
+    /// Runs `case` on a thread of its own and answers with what it returned.
+    ///
+    /// A worker nothing wakes is a run that never ends, so the run cannot be driven on the thread
+    /// that asserts: the wait for its answer is what is bounded here, and a run past the bound
+    /// fails naming the wake that never came.
+    fn run_to_its_end<T: Send + 'static>(case: impl FnOnce() -> T + Send + 'static) -> T {
+        let (reached, arrived) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = reached.send(case());
+        });
+        arrived.recv_timeout(Duration::from_secs(60)).expect(
+            "a run holding an idle queue worker did not end, so nothing woke that worker out of \
+             its idle wait",
+        )
+    }
+
+    /// An idle worker asks its queue once when it starts and then once per [`super::IDLE_WAIT`],
+    /// which is the whole of what a `[queue]` with nothing in it costs.
+    ///
+    /// **The bound is counted from the time the run really took**, so a slow machine moves the
+    /// bound with it: a second turn needs one whole idle wait to have passed since the first
+    /// found nothing, whatever else the machine was doing.
+    #[test]
+    fn an_idle_worker_asks_once_and_then_once_per_idle_wait() {
+        // Many times the wait a worker that polled would take between two asks, and a fraction of
+        // the one it takes.
+        const WINDOW: Duration = Duration::from_millis(300);
+
+        let (turns, watched) = run_to_its_end(|| {
+            let (block, path) = a_queue_file("an-idle-worker-asks-once");
+            let seeded = converged(&block);
+            let (workers, _bell) = switch(None, super::IDLE_WAIT);
+            let asked = Rc::new(Asked::default());
+            let mut sched = nvs_host::Scheduler::new();
+            let started = Instant::now();
+            counted_worker(&mut sched, &workers, &block, &asked);
+            let watched = Rc::new(Cell::new(Duration::ZERO));
+            {
+                let (asked, watched) = (Rc::clone(&asked), Rc::clone(&watched));
+                sched.spawn(
+                    nvs_runtime::Ctx::stdout(),
+                    nvs_runtime::TaskRoot::Request,
+                    move |_| {
+                        until(|| asked.empty.get() > 0);
+                        super::pause(WINDOW);
+                        watched.set(started.elapsed());
+                        workers.stop();
+                    },
+                );
+            }
+            served(&mut sched);
+            drop(seeded);
+            let _ = std::fs::remove_file(&path);
+            (asked.turns.get(), watched.get())
+        });
+
+        assert_eq!(
+            super::IDLE_WAIT,
+            Duration::from_secs(1),
+            "`rule:concurrency/a-push-wakes-an-idle-worker` gives the idle wait as one second"
+        );
+        let waits = watched.as_millis() / super::IDLE_WAIT.as_millis();
+        let allowed = 1 + u32::try_from(waits).unwrap_or(u32::MAX);
+        assert!(
+            (1..=allowed).contains(&turns),
+            "an idle worker asked its queue {turns} times in {watched:?}, where one ask at the \
+             start and one per idle wait is at most {allowed}"
+        );
+    }
+
+    /// The turns one idle worker took in a run that was stopped while the worker waited for work,
+    /// under an idle wait no case could wait out.
+    ///
+    /// `served_instance` picks which end says stop: the drain `nvs serve` begins, or the switch
+    /// `nvs run`'s script throws on its way out.
+    fn turns_when_stopped_mid_wait(served_instance: bool) -> u32 {
+        run_to_its_end(move || {
+            let (block, path) = a_queue_file(if served_instance {
+                "a-drain-wakes-an-idle-worker"
+            } else {
+                "a-stop-wakes-an-idle-worker"
+            });
+            let seeded = converged(&block);
+            let drain = served_instance.then(nvs_server::Draining::detached);
+            let (workers, _bell) = switch(drain.clone(), NEVER);
+            let asked = Rc::new(Asked::default());
+            let mut sched = nvs_host::Scheduler::new();
+            counted_worker(&mut sched, &workers, &block, &asked);
+            {
+                let asked = Rc::clone(&asked);
+                sched.spawn(
+                    nvs_runtime::Ctx::stdout(),
+                    nvs_runtime::TaskRoot::Request,
+                    move |_| {
+                        until(|| asked.empty.get() > 0);
+                        match drain {
+                            Some(drain) => drain.begin(),
+                            None => workers.stop(),
+                        }
+                    },
+                );
+            }
+            served(&mut sched);
+            drop(seeded);
+            let _ = std::fs::remove_file(&path);
+            asked.turns.get()
+        })
+    }
+
+    /// A script's exit does not wait out an idle worker's wait: the switch it throws wakes the
+    /// worker, which reads the flag and returns without asking its queue again.
+    #[test]
+    fn a_runs_exit_wakes_an_idle_worker_and_it_returns_without_asking_again() {
+        assert_eq!(
+            turns_when_stopped_mid_wait(false),
+            1,
+            "a worker stopped while it waited for work asked its queue again before it returned"
+        );
+    }
+
+    /// The same for `nvs serve`: the drain wakes a worker out of its idle wait, and the worker
+    /// returns without asking its queue again.
+    #[test]
+    fn a_drain_wakes_an_idle_worker_and_it_returns_without_asking_again() {
+        assert_eq!(
+            turns_when_stopped_mid_wait(true),
+            1,
+            "a worker drained while it waited for work asked its queue again before it returned"
+        );
+    }
+
+    /// One job enqueued while a worker waits for work, and what became of it.
+    ///
+    /// The job is written through a second connection once the worker's first turn has found
+    /// nothing. `ring` says whether the bell is then rung, which is what `Core\Queue::push` does
+    /// in this process and what a push from another process cannot do. The run is drained once the
+    /// job has left the states a worker holds it in. The answer is the job's state and the turn
+    /// that claimed it.
+    fn enqueued_mid_wait(
+        case: &'static str,
+        idle: Duration,
+        ring: bool,
+    ) -> (Option<i64>, Option<u32>) {
+        run_to_its_end(move || {
+            let (block, path) = a_queue_file(case);
+            let seeded = converged(&block);
+            let drain = nvs_server::Draining::detached();
+            let (workers, bell) = switch(Some(drain.clone()), idle);
+            let asked = Rc::new(Asked::default());
+            let mut sched = nvs_host::Scheduler::new();
+            counted_worker(&mut sched, &workers, &block, &asked);
+            let job = Rc::new(Cell::new(None));
+            {
+                let (asked, job) = (Rc::clone(&asked), Rc::clone(&job));
+                let pushing = opened(&block);
+                sched.spawn(
+                    nvs_runtime::Ctx::stdout(),
+                    nvs_runtime::TaskRoot::Request,
+                    move |_| {
+                        until(|| asked.empty.get() > 0);
+                        let id = pushed(&pushing, &from_root("examples/isolate/hello.nvs"));
+                        job.set(Some(id));
+                        if ring {
+                            bell.ring();
+                        }
+                        until(|| !matches!(state(&pushing, id), Some(PENDING | CLAIMED)));
+                        drain.begin();
+                    },
+                );
+            }
+            let compiler = crate::script::Compiler::default();
+            nvs_runtime::script::scoped(&compiler, || served(&mut sched));
+            let landed = job.get().and_then(|id| state(&seeded, id));
+            drop(seeded);
+            let _ = std::fs::remove_file(&path);
+            (landed, asked.claimed_on.get())
+        })
+    }
+
+    /// A ring ends an idle worker's wait, and the job it announced runs.
+    ///
+    /// The worker's idle wait is one no case waits out, so a job that reached `succeeded` was
+    /// claimed because of the ring and for no other reason. This is the worker's half of
+    /// `rule:concurrency/a-push-wakes-an-idle-worker`; `Core\Queue::push` ringing after the commit
+    /// is asserted beside `Core\Db`'s transaction in `nvs-stdlib`.
+    #[test]
+    fn a_ring_ends_an_idle_workers_wait_and_the_job_it_announced_runs() {
+        let (landed, claimed_on) = enqueued_mid_wait("a-ring-wakes-an-idle-worker", NEVER, true);
+        assert_eq!(
+            (landed, claimed_on),
+            (Some(SUCCEEDED), Some(2)),
+            "a job enqueued and announced while a worker waited for work was not claimed by that \
+             worker's next turn"
+        );
+    }
+
+    /// A job nothing rang for is claimed when the idle wait ends, which is what a push from
+    /// another process is to this one.
+    ///
+    /// The worker waits [`super::IDLE_WAIT`] here, as it does in both binaries, and nothing rings.
+    /// The turn after the wait claims the job. It is the third turn and not the second only when
+    /// the enqueue itself took longer than one idle wait to land.
+    #[test]
+    fn a_job_nothing_announced_is_claimed_when_the_idle_wait_ends() {
+        let (landed, claimed_on) =
+            enqueued_mid_wait("an-unannounced-job-is-claimed", super::IDLE_WAIT, false);
+        assert_eq!(
+            landed,
+            Some(SUCCEEDED),
+            "a job enqueued without a ring was never claimed, so a push from another process \
+             would wait for a wake that process cannot send"
+        );
+        assert!(
+            claimed_on.is_some_and(|turn| turn <= 3),
+            "a job enqueued without a ring was claimed on turn {claimed_on:?}, where the turn \
+             after one idle wait is the one that finds it"
         );
     }
 }

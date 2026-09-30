@@ -1182,6 +1182,14 @@ until the connection has taken it before it may write the next, so a slow client
 server buffer an unbounded body. The stream ends with its request; a stream that outlives the
 request is a separate door and is not this one.
 
+**An idle queue costs almost nothing**
+
+A queue worker with no job used to check the database a hundred times per second. It now checks once
+per second. A job that the same process adds still starts at once, because `Core\Queue::push` wakes
+the workers when the job is saved. Inside a transaction, the workers are woken when the transaction
+commits. A job that another process adds, a job with a `runAt` time and a job that runs again after
+an error can start up to one second late.
+
 ## Tools, editors and shipping
 
 Everything around the language: the command-line tool, the editor experience, formatting, packaging, deployment, and what the tools may and may not do for you.
