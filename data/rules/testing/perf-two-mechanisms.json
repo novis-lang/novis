@@ -3,7 +3,8 @@
   "status": "shipped",
   "because": [
     "0026",
-    "0143"
+    "0143",
+    "0228"
   ],
   "seeAlso": [
     "testing/perf-secondary-figures",

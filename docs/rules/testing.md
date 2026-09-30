@@ -1089,7 +1089,7 @@ from one.
 
 Benchmarking an Novis **program's** own code is neither of these — that is [`testing/bench-counters`](testing.md#testing-bench-counters).
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0026](../decisions/0026.md), [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0026](../decisions/0026.md), [0143](../decisions/0143.md), [0228](../decisions/0228.md).</sub>
 
 <a id="testing-perf-secondary-figures"></a>
 

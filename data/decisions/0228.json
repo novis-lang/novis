@@ -1,0 +1,11 @@
+{
+  "title": "a timing check warns at a soft bound and fails only at a hard bound an order of magnitude further, and a count is the check that fails at once",
+  "status": "accepted",
+  "scope": "how a test that asserts a wall-clock figure is judged: the guards in\n`benches/abi-probe/tests/perf_guards.rs` and the latency check in `crates/nvs-lsp/tests/latency.rs`. It\ndoes not reopen [0026](0026.md)'s two mechanisms, it moves no job between [0143](0143.md)'s lanes, and\nthe historical dashboard and the member perf ledger stay as they are.",
+  "dependsOn": [
+    "0026",
+    "0191"
+  ],
+  "dependsOnText": "[0026](0026.md) (a wall clock is not comparable across machines), [0191](0191.md)\n(counts that read the same on any machine are the headline of the member perf ledger).",
+  "validatedBy": "`judge` in `benches/abi-probe/tests/perf_guards.rs` and `judge` in\n`crates/nvs-lsp/tests/latency.rs`, and the runs under *Verification*."
+}
