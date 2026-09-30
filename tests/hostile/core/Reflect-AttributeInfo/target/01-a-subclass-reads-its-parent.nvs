@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a subclass tries to get the attributes written on its parent class and on the methods it inherits.
+// The list for the subclass should only have the attributes written in the subclass itself.
+
+#[{table: "users"}]
+class User
+{
+    #[{column: "user_name"}]
+    public string $name = '';
+
+    #[{secret: true}]
+    public function passwordHash(): string
+    {
+        return '';
+    }
+}
+
+class Admin extends User
+{
+    // This method replaces the parent method, and has no attribute of its own.
+    public function passwordHash(): string
+    {
+        return 'x';
+    }
+}
+
+#[{audit: true}]
+class Auditor extends User
+{
+}
+
+// 1. `Admin` writes no attribute, so its list is empty.
+echo Core\Arr::count(Core\Reflect::forObject(new Admin())->attributes()), "\n";
+
+// 2. The same class, by its name.
+var $byName = Core\Reflect::forClass('Admin');
+if ($byName != null) {
+    echo Core\Arr::count($byName->attributes()), "\n";
+}
+
+// 3. `Auditor` writes one attribute on the class. The parent's three are not in its list.
+foreach (Core\Reflect::forObject(new Auditor())->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    echo '[', $attribute->target(), '] ', Core\Str::join($attribute->fields(), ','), "\n";
+}
+
+// 4. Describe both subclasses 100000 times. Each description is freed before the next one.
+uint $seen = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $seen = $seen + Core\Arr::count(Core\Reflect::forObject(new Admin())->attributes()) as uint;
+    $seen = $seen + Core\Arr::count(Core\Reflect::forObject(new Auditor())->attributes()) as uint;
+    $i = $i + 1;
+}
+echo $seen, "\n";

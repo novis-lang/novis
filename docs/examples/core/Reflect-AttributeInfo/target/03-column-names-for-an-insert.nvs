@@ -1,0 +1,40 @@
+<?nvs
+// Shows how to build an SQL `INSERT` statement from the column attributes on the properties of a class.
+
+type Column = {name: string};
+
+class Customer {
+    #[Column(name: "full_name")]
+    public string $fullName = "";
+
+    #[Column(name: "email_address")]
+    public string $email = "";
+
+    // This property has no `Column` attribute, so it is not saved.
+    public bool $isLoggedIn = false;
+}
+
+class Insert {
+    public static function sql(string $table, string $className): string {
+        array<string> $columns = [];
+        array<string> $placeholders = [];
+        var $info = Core\Reflect::forClass($className);
+        if ($info == null) {
+            return "";
+        }
+        foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+            // `target` is the property the attribute is written on.
+            // The class declaration itself has an empty `target`, so it is skipped.
+            if ($attribute->name() != "Column" || $attribute->target() == "") {
+                continue;
+            }
+            $columns[] = $attribute->field("name") as string;
+            $placeholders[] = ":" . $attribute->target();
+        }
+        return "INSERT INTO " . $table . " (" . Core\Str::join($columns, ", ") . ") VALUES ("
+            . Core\Str::join($placeholders, ", ") . ")";
+    }
+}
+
+// This prints `INSERT INTO customers (full_name, email_address) VALUES (:fullName, :email)`.
+echo Insert::sql("customers", "Customer"), "\n";

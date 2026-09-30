@@ -1,0 +1,1 @@
+INSERT INTO customers (full_name, email_address) VALUES (:fullName, :email)

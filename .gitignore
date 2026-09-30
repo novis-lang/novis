@@ -1,6 +1,9 @@
 # Rust build output
 /target
 **/target
+# A feature named `target` has a proof directory of that name, and it is source
+!/docs/examples/**/target
+!/tests/hostile/**/target
 *.pdb
 
 # Cargo

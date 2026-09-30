@@ -1,0 +1,22 @@
+<?nvs
+// Shows which part of a class each attribute is written on.
+
+#[{table: "products"}]
+class Product {
+    #[{column: "product_name"}]
+    public string $name = "";
+
+    #[{cache: 300}]
+    public function price(): int {
+        return 0;
+    }
+}
+
+var $info = Core\Reflect::forObject(new Product());
+
+// `target` returns the property or method name. A property name has no `$`.
+// For the class itself, `target` returns an empty string.
+// This prints `<class>`, then `name`, then `price`.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    echo $attribute->target() == "" ? "<class>" : $attribute->target(), "\n";
+}
