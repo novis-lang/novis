@@ -37,6 +37,40 @@ pub use render::Renderer;
 pub use source::{MAX_SOURCE_LEN, PositionEncoding, SourceFile, SourceMap, canonical_key};
 pub use span::{BytePos, SourceId, Span, Spanned};
 
+/// Declares the [`code`] module and, from the same declarations, [`code::ALL`].
+///
+/// The list is written by this macro and by nobody else, so a code that lands
+/// is on it at once and no hand-kept list can miss one — which is what
+/// `nvs agent index` needs to print one line per code
+/// (`rule:tooling/the-index-names-every-key-command-and-code`). It costs one
+/// static slice of two-word entries in the binary, per process and never per
+/// request.
+macro_rules! codes {
+    (
+        $(#[$module_meta:meta])*
+        pub mod code {
+            use crate::diagnostic::Code;
+            $(
+                $(#[$meta:meta])*
+                pub const $name:ident: Code = Code::new($code:literal);
+            )*
+        }
+    ) => {
+        $(#[$module_meta])*
+        pub mod code {
+            use crate::diagnostic::Code;
+            $(
+                $(#[$meta])*
+                pub const $name: Code = Code::new($code);
+            )*
+
+            /// Every code this module declares, in the order it declares them.
+            pub const ALL: &[Code] = &[$($name),*];
+        }
+    };
+}
+
+codes! {
 /// Stable diagnostic codes.
 ///
 /// A code is a promise: once released, its meaning never changes. Retire a code
@@ -3983,6 +4017,7 @@ pub mod code {
     /// the help names `<?= Page::TITLE ?>`, the hole that takes the
     /// expression, and `\{` for a literal brace that wants to stay.
     pub const W_MARKUP_BRACE_BEFORE_A_CLASS_PATH: Code = Code::new("W1012");
+}
 }
 
 #[cfg(test)]
