@@ -28516,6 +28516,19 @@ grants a file read, the refusal tables — the PHP spellings this language does 
 the code it is refused under — and a map of the chapters of this reference. It is printed on
 standard output, and like every other verb here it writes nothing and caches nothing.
 
+Each part has a heading. These are the headings, in the order the primer prints them. The `…`
+replaces the other tables of PHP syntax, which have one heading each:
+
+```text
+### Novis, for a coding agent
+#### nvs agent
+#### A complete program, annotated
+#### `[capabilities]`
+#### Files, tags and names
+…
+#### The chapters
+```
+
 No sentence of it is written for it. Each part is a section of a chapter of this reference, lifted
 whole from the copy of that chapter this binary carries, and the counts printed beside the chapter
 map are the registry's own, read at the call. So the primer describes the language this binary
@@ -28562,6 +28575,18 @@ stanza or adapter holding anything else is refused — the message names the fil
 delete the block and run the command again, the exit status is non-zero, and nothing on disk
 changes. An upgrade and an edit somebody made on purpose look identical from the file, so both take
 the same answer, which is the one that cannot destroy the reader's own sentence.
+
+These are three runs in a project that has no `AGENTS.md` and no `.claude/` directory. The second
+run creates nothing. The third run has `--all`, so it creates the Claude Code skill:
+
+```text
+$ nvs agent init
+wrote AGENTS.md
+$ nvs agent init
+up to date
+$ nvs agent init --all
+wrote .claude/skills/novis/SKILL.md
+```
 
 ### A worked session
 

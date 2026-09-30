@@ -1,24 +1,14 @@
 {
-  "state": "Goal `tools-agents`, the proofs of `docs/reference/tools/50-agents.md`. The chapter has four\nfeatures. Two are done: `tools:agents/a-worked-session` and `tools:agents/nvs-agent`. Two are left,\nbelow, and `bun nv proofs --verify --group tools:agents` stays red until both land.\n\nWriting the proofs of `nvs agent` found two things, and both are fixed. `E0320`'s help gave every\nname the same sentence; it now names what the migration table writes for the PHP function that was\ncalled, through `nvs_stdlib::php_names::became`, whose doc comment owns when it answers nothing. The\nsection's sample of index lines had two stale lines; it is a fenced block now, and\n`every_index_line_the_chapter_shows_is_a_line_of_the_index` holds each line to the index.\n\nThe pack was missing `crates/nvs-cli/src/agent.rs`; it is in `context.modules` now. It also lacks\nthe judge of the help proof, `tools/nv/proofs/roster.ts:156`: a section passes only with a fenced\nblock or a table row holding code, and an indented block does not count. `context.modules` takes\ncrate modules, so that one is stated in the items below instead.",
+  "state": "Goal `tools-agents`, the proofs of `docs/reference/tools/50-agents.md`, is reached. The chapter has\nfour features and each has every proof it owes: `bun nv proofs --verify --group tools:agents` says\nnothing owed, with no failed example and no failed attack. One attack is a known gap,\n`nvs-runtime/a-call-on-a-value-that-is-not-a-closure-is-an-internal-error`, which has its record\nand its owner.\n\n`tools:agents/nvs-agent-init` carries no example and no attack as a program: both are `skip`\nentries in `data/proofs/policy.json` with the reason as the value, and the files that can attack\nthe command are pinned in `crates/nvs-cli/tests/agent.rs`.\n\nWriting those tests found one bug, and it is fixed: `nvs agent init` wrote `AGENTS.md` and then\nrefused an adapter it did not write, so a refusal changed the tree. `init` in\n`crates/nvs-cli/src/agent.rs` now judges every file before it writes one.\n\nThe pack was complete for this group. The judge of the help proof is `tools/nv/proofs/roster.ts`,\nand what each kind owes is the table at `tools/nv/proofs/collect.ts:48`: a Rust test with a\n`covers:` marker counts as a case there.",
   "next": {
-    "stage": 2,
-    "title": "the dossier",
+    "stage": null,
     "files": [],
-    "note": "one slice is one feature with all its feature proofs (`rule:testing/feature-proofs`). One file set: `docs/reference/tools/50-agents.md`, `crates/nvs-cli/tests/agent.rs`, `crates/nvs-cli/src/agent.rs`.",
-    "items": [
-      {
-        "done": false,
-        "text": "**`tools:agents/nvs-agent-primer`** — owes examples, help, hostile, tests. `docs/reference/tools/50-agents.md:73`. The help proof wants a fenced block in the section: the usage line is indented, which the judge does not count. The primer tests at `crates/nvs-cli/tests/agent.rs:69` carry no `covers:` marker yet, and the renderer is `crates/nvs-cli/src/agent.rs:426`. The `.nvst` case is owed as well as the markers."
-      },
-      {
-        "done": false,
-        "text": "**`tools:agents/nvs-agent-init`** — owes examples, help, hostile, tests. `docs/reference/tools/50-agents.md:88`. The stanza sample is indented, so the help proof is owed for the same reason. The `init` tests start at `crates/nvs-cli/tests/agent.rs:858`, and their `tree` helper at `crates/nvs-cli/tests/agent.rs:805` writes under the system temp directory, which `AGENTS.md` rule 10 forbids: move it under `CARGO_TARGET_TMPDIR` and have each test remove its directory, as `the_member_a_diagnostic_names_for_a_php_function_is_one_show_resolves` does. The command is `crates/nvs-cli/src/agent.rs:909`."
-      }
-    ]
+    "note": "None. The chain's next goal starts from its own handoff record.",
+    "items": []
   },
   "backlog": [
-    "A `member` or `language` row of the migration table whose cell opens on prose (\"the same pair\") gets `E0320`'s general help, whose `Core\\Str::length($s)` is an example of the shape and not the answer for that name. Naming a spelling there needs the cell rewritten to open on one: `docs/spec/02-php-migration.md`, read by `crates/nvs-stdlib/src/php_names.rs`.",
-    "`E0319`'s help tells every bare constant that `M_PI` is `Core\\Math::PI`. The inventory lists functions and types and no constants, so the lookup `E0320` has cannot answer for one: `crates/nvs-hir/src/members.rs`.",
-    "A call on a `mixed` value that is not a closure ends the program with an internal error: gap `nvs-runtime/a-call-on-a-value-that-is-not-a-closure-is-an-internal-error`."
+    "`nvs agent init` reads the first stanza of an `AGENTS.md` and nothing under it, so a second, edited stanza below an intact one is `up to date`. Not recorded as a gap: the chapter promises nothing about a second stanza. Owner if it becomes one: `crates/nvs-cli/src/agent.rs`.",
+    "A cast in arithmetic, `$total + (int)$each`, reports `E0225` and also an `E0401` for the `mixed` the refused cast left behind. One mistake, two diagnostics. Owner: the module doc of `nvs-types`.",
+    "`bun nv try` leaves a `try-<name>.nvs` copy of every snippet under `.agent-tmp/`, and many sessions' worth are there. Owner: `docs/agent/commands.md`."
   ]
 }
