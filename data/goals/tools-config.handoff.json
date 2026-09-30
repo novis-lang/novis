@@ -1,19 +1,16 @@
 {
-  "state": "Goal `tools-config`. Twelve of the configuration chapter's thirteen features have all their proofs. The one\nleft is `tools:config/mode`, and `bun nv proofs --verify --group tools:config` names only it. A tool feature\nowes one example, one attack and one test (a Rust test or a `.nvst` case with a `covers:` marker counts).\nA feature whose proof needs settings puts its own `nvs.toml` in the feature directory, and the runner hands\nit over as `--config`, so run such a proof with `bun nv proofs --run --show --id '<feature>'`. A hostile case\nwith `// hostile: expect-refusal` passes on *any* diagnostic, a type error included, so check that the\nrefusal it prints is the one it attacks. Nothing is blocked.",
+  "state": "Goal `tools-config` is met. All thirteen features of the configuration chapter have their proofs, and\n`bun nv proofs --verify --group tools:config` prints `nothing owed` with every example and attack green.\n`bun nv owners --closes tools-config` and `bun nv playbook --closes tools-config` name nothing. The driver\nmoves the chain to the next goal, which starts from its own handoff record. Nothing is blocked.",
   "next": {
-    "stage": 2,
-    "title": "the dossier, file order",
+    "stage": null,
     "files": [],
-    "note": "one file set: `docs/reference/tools/20-config.md` and the `docs/examples/tools/config/`, `tests/hostile/tools/config/` trees, each with its own `nvs.toml`.",
     "items": [
       {
-        "done": false,
-        "text": "**`tools:config/mode`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:169`. A `covers:` marker on an existing `nvs-config` test of `[mode] default` and `ceiling` is the test. When the group check passes, close the goal: `bun nv verify --doc`, `bun nv owners --closes tools-config`, `bun nv playbook --closes tools-config`, then `DONE`."
+        "done": true,
+        "text": "**`tools:config/mode`** — example, attack and a `covers:` marker landed; `docs/reference/tools/20-config.md:169`."
       }
     ]
   },
   "backlog": [
-    "`spawn script` of a file in a granted spawn directory that is not a program prints the file's text (PHP's inline-text rule). So `script.spawn` can read any file under its roots without `fs.read`. It is not checked whether this is intended. `rule:security/capability-declaration-is-one-table` owns capabilities.",
-    "A `[limits.hard]` value that does not parse makes every `Core\\Config::set` of that key return `false`, even a value below the limit. This is safe, and pinned in `crates/nvs-config/tests/value.rs` (`an_incomparable_pair_exceeds`). `docs/reference/tools/20-config.md` § *Values and units* does not say so."
+    "None owed by this goal."
   ]
 }

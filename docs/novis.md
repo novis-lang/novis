@@ -26921,7 +26921,9 @@ ceiling = "development"    # the most permissive mode any code may select; unset
 ```
 
 Both keys are stored and readable: `Core\Config::get("mode.default")` answers what the file set,
-and `Core\Config::set("mode.default", "development")` is accepted for the request. Nothing under
+and `Core\Config::set("mode.default", "development")` is accepted for the request when `ceiling`
+allows `development`, and returns `false` otherwise. `set("mode.ceiling", …)` always returns
+`false`: only the file sets it. Nothing under
 `nvs run` behaves differently between the two values in this build — the mode selects defaults for
 the logger and the HTTP error pages, and neither is in this binary. `Core\Config::get("mode")`
 (without `.default`) answers `null`, and `set("mode", …)` returns `false`.
