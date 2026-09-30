@@ -287,3 +287,166 @@ fn the_simplest_layout_is_written_by_init_and_one_run_from_elsewhere_uses_cache_
     drop(std::fs::remove_dir_all(&base));
     drop(std::fs::remove_dir_all(&elsewhere));
 }
+
+/// Gives every account on the host the right to write in `dir`, or takes it back: the one state
+/// `rule:config/ownership-is-the-trust-boundary` refuses, in each platform's own terms.
+///
+/// On Windows that is a grant to `BUILTIN\Users`, named by its SID because a group's name is
+/// localized, and carrying no inheritance flags so a folder inside `dir` does not take it. On Unix
+/// it is the write bit for others.
+fn writable_by_others(dir: &Path, open: bool) {
+    #[cfg(windows)]
+    {
+        const USERS: &str = "*S-1-5-32-545";
+        let grant = format!("{USERS}:(WD)");
+        let edit: [&str; 2] = if open {
+            ["/grant:r", &grant]
+        } else {
+            ["/remove:g", USERS]
+        };
+        // `icacls` edits the scratch directory it is given and opens nothing in the repository.
+        let ran = nvs_repo::spawn("icacls", &[])
+            .arg(dir)
+            .args(edit)
+            .output()
+            .expect("`icacls` ships with Windows");
+        assert!(
+            ran.status.success(),
+            "icacls {edit:?} on `{}`: {}",
+            dir.display(),
+            String::from_utf8_lossy(&ran.stdout)
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = if open { 0o757 } else { 0o755 };
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(mode))
+            .expect("a scratch directory's mode is this process's to change");
+    }
+}
+
+/// The install chapter's table of what each command checks, for the two rows that look one level
+/// up: `nvs init` checks the folder it writes into and the folder that contains that folder, and
+/// a command that compiles checks the cache folder the same way.
+///
+/// A folder every account may write fails `nvs init` whichever of the two it is: exit status `1`,
+/// an `error:` naming the folder that failed — the outer one when that is the one to change — and
+/// no file. Taking the right back is the whole repair.
+///
+/// The same outer folder fails the cache folder inside it, and that is a `warning:` and a program
+/// that still runs with nothing stored. `nvs run` reads its configuration out of a folder every
+/// account may write without a word, because only `nvs serve` and `nvs ctl reload` check the
+/// configuration files.
+// covers: tools:install/what-novis-checks
+#[test]
+fn nvs_init_and_the_cache_are_checked_one_folder_up_and_nvs_run_does_not_check_the_config() {
+    let outer = scratch("one-level-up");
+    let elsewhere = scratch("one-level-up-cwd");
+    let inner = outer.join("config");
+    let cache = outer.join("cache");
+    for folder in [&inner, &cache] {
+        std::fs::create_dir(folder).expect("a folder of the layout is creatable");
+    }
+    let target = inner.join("nvs.toml");
+    let nvs = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        // A recorded run of this test binary sets the switch, and half of this case is the cache.
+        command
+            .current_dir(&elsewhere)
+            .env_remove("NOVIS_NO_FILE_CACHE")
+            .arg("--config")
+            .arg(&target);
+        command
+    };
+    // A message names the folder it is about between backticks, which the path of the file to be
+    // written — the same folder and more — never matches.
+    let named = |folder: &Path| {
+        let canonical = nvs_config::trust::canonical(folder).expect("the folder exists");
+        format!("`{}` ", canonical.display())
+    };
+
+    for failing in [&outer, &inner] {
+        writable_by_others(failing, true);
+        let refused = nvs()
+            .arg("init")
+            .output()
+            .expect("the binary under test runs");
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert_eq!(
+            refused.status.code(),
+            Some(1),
+            "a folder every account may write is a refusal: {stderr}"
+        );
+        assert!(!target.exists(), "and nothing is written");
+        assert!(
+            stderr.starts_with("error:") && stderr.contains(&named(failing)),
+            "the message names the folder to change, `{}`: {stderr}",
+            failing.display()
+        );
+        assert!(
+            stderr.contains("the directory that contains it"),
+            "and says that two folders were checked: {stderr}"
+        );
+        writable_by_others(failing, false);
+    }
+
+    let written = nvs()
+        .arg("init")
+        .output()
+        .expect("the binary under test runs");
+    assert!(
+        written.status.success() && target.exists(),
+        "with the right taken back from both, the file is written: {}",
+        String::from_utf8_lossy(&written.stderr)
+    );
+
+    let slashed = cache.display().to_string().replace('\\', "/");
+    std::fs::write(
+        &target,
+        format!("[opcache]\nfile_cache_dir = \"{slashed}\"\n"),
+    )
+    .expect("the configuration is editable");
+    let program = elsewhere.join("index.nvs");
+    std::fs::write(&program, "<?nvs\necho \"served\\n\";\n").expect("the program is written");
+    let stored = || {
+        files_under(&cache)
+            .iter()
+            .any(|path| path.extension().is_some_and(|ext| ext == "nvsc"))
+    };
+
+    writable_by_others(&inner, true);
+    writable_by_others(&outer, true);
+    let warned = nvs()
+        .arg("run")
+        .arg(&program)
+        .output()
+        .expect("the binary under test runs");
+    let stderr = String::from_utf8_lossy(&warned.stderr);
+    assert!(
+        warned.status.success() && String::from_utf8_lossy(&warned.stdout) == "served\n",
+        "the program runs, its configuration read from a folder every account may write: {stderr}"
+    );
+    assert!(
+        stderr.starts_with("warning:") && stderr.contains(&named(&outer)),
+        "the cache folder is refused for the folder that contains it, `{}`: {stderr}",
+        outer.display()
+    );
+    assert!(!stored(), "and a refused cache folder stores nothing");
+
+    writable_by_others(&outer, false);
+    let quiet = nvs()
+        .arg("run")
+        .arg(&program)
+        .output()
+        .expect("the binary under test runs");
+    let stderr = String::from_utf8_lossy(&quiet.stderr);
+    assert!(
+        quiet.status.success() && stderr.is_empty(),
+        "with the right taken back from the outer folder there is nothing to say: {stderr}"
+    );
+    assert!(stored(), "and the compiled program is stored");
+
+    drop(std::fs::remove_dir_all(&outer));
+    drop(std::fs::remove_dir_all(&elsewhere));
+}

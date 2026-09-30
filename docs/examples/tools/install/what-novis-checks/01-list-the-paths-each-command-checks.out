@@ -1,0 +1,9 @@
+nvs serve, nvs ctl reload:
+  D:/srv/novis/config/nvs.toml
+  D:/srv/novis/config
+nvs init:
+  D:/srv/novis/config
+  D:/srv/novis
+every command that compiles a program:
+  D:/srv/novis/cache
+  D:/srv/novis

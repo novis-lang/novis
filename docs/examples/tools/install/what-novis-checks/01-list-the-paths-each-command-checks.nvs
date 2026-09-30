@@ -1,0 +1,33 @@
+<?nvs
+// Shows which paths each command checks on one host. The first line of the input
+// is the path of `nvs.toml`. The second line is the path of the cache folder.
+
+class Checks {
+    // Returns the folder that contains `$path`. `Core\Path::dirname` writes the folder
+    // with `\` on Windows, so every `\` is replaced with `/`.
+    public static function folderOf(tainted string $path): tainted string {
+        return Core\Str::replace(Core\Path::dirname($path), "\\", "/");
+    }
+
+    public static function show(tainted string $file, tainted string $cache): void {
+        tainted string $config = self::folderOf($file);
+
+        // `nvs serve` and `nvs ctl reload` check the file and the folder that contains it.
+        echo "nvs serve, nvs ctl reload:\n";
+        echo "  ", $file, "\n  ", $config, "\n";
+
+        // `nvs init` checks the folder it writes the file into, and the folder one level up.
+        echo "nvs init:\n";
+        echo "  ", $config, "\n  ", self::folderOf($config), "\n";
+
+        // A command that compiles a program checks the cache folder in the same way.
+        echo "every command that compiles a program:\n";
+        echo "  ", $cache, "\n  ", self::folderOf($cache), "\n";
+    }
+}
+
+// The input is the file `01-list-the-paths-each-command-checks.in` beside this one.
+array<tainted string> $lines = Core\Str::lines(Core\IO::stdin());
+if (Core\Arr::count($lines) >= 2) {
+    Checks::show($lines[0], $lines[1]);
+}

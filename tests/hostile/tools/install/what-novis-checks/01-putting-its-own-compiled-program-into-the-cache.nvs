@@ -1,0 +1,131 @@
+<?nvs
+// Attack: a program may write only in `uploads`. It tries to put its own compiled program
+// into the cache folder and to replace the configuration. Every attempt should fail.
+
+string $dir = 'tests/hostile/tools/install/what-novis-checks';
+string $cached = $dir . '/cache/app.nvsc';
+string $config = $dir . '/config/limits.toml';
+string $own = $dir . '/uploads/app.nvsc';
+
+// 1. Write into the cache folder. Most paths start in `uploads` and leave it with `..`.
+array<string> $targets = [
+    $cached,
+    $dir . '/cache/new.nvsc',
+    $dir . '/uploads/../cache/app.nvsc',
+    $dir . '/uploads/./../cache/./app.nvsc',
+    $dir . '/uploads\\..\\cache\\app.nvsc',
+    $dir . "/uploads/../cache/app.nvsc\0.txt",
+    $dir . '/uploads/' . Core\Str::repeat('../', 64) . 'opt/novis/cache/app.nvsc',
+    $dir . '/cache/' . Core\Str::repeat('a/', 4000) . 'app.nvsc',
+    '/opt/novis/cache/app.nvsc',
+    "D:\\srv\\novis\\cache\\app.nvsc",
+];
+string $forged = Core\Str::repeat("\0", 1000000);
+foreach ($targets as string $path) {
+    try {
+        Core\IO::write($path, $forged);
+        echo "written\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+    try {
+        Core\IO::append($path, $forged);
+        echo "appended\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 2. Copy and move its own file from `uploads` to the place of the cached program.
+try {
+    Core\IO::copy($own, $cached);
+    echo "copied\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+try {
+    Core\IO::move($own, $cached);
+    echo "moved\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}
+
+// 3. Replace a whole folder. This needs the right to write in the folder one level up.
+array<string> $folders = [$dir . '/cache', $dir . '/config'];
+foreach ($folders as string $folder) {
+    try {
+        Core\IO::move($folder, $dir . '/uploads/old');
+        echo "moved\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+    try {
+        Core\IO::move($dir . '/uploads', $folder);
+        echo "moved\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+    try {
+        Core\IO::removeDir($folder);
+        echo "deleted\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 4. Delete the cached program and the configuration file, and create new folders beside them.
+array<string> $files = [$cached, $config, $dir . '/nvs.toml'];
+foreach ($files as string $path) {
+    try {
+        Core\IO::remove($path);
+        echo "deleted\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+array<string> $created = [$dir . '/cache/sub', $dir . '/config/conf.d', $dir . '/cache2'];
+foreach ($created as string $path) {
+    try {
+        Core\IO::makeDir($path);
+        echo "created\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 5. Make `uploads` the cache folder, and give itself the missing rights.
+// Each call should return `false`.
+array<string> $keys = [
+    'opcache.file_cache_dir',
+    'OPCACHE.FILE_CACHE_DIR',
+    'opcache.file_cache_dir ',
+    "opcache.file_cache_dir\0",
+    'opcache',
+    'capabilities.fs.write',
+    'capabilities.process.exec',
+];
+foreach ($keys as string $key) {
+    try {
+        echo Core\Config::set($key, $dir . '/uploads') ? "changed\n" : "not changed\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 6. Start a program that lets every account write in the cache folder. No program may be started.
+array<string> $programs = ['/bin/chmod', 'chmod', "C:\\Windows\\System32\\icacls.exe", 'icacls'];
+foreach ($programs as string $program) {
+    try {
+        Core\Process::run($program, ['-R', 'go+w', $dir . '/cache']);
+        echo "started\n";
+    } catch (Throwable $denied) {
+        echo "denied\n";
+    }
+}
+
+// 7. Both files are unchanged. This prints `the compiled program of the installation` and `96M`.
+echo Core\IO::read($cached);
+echo Core\Str::contains(Core\IO::read($config), 'memory = "96M"') ? "96M\n" : "changed\n";
+
+// 8. Its own file in `uploads` is the one path it may write. This prints `writable`.
+echo Core\IO::isWritable($own) ? "writable\n" : "not writable\n";
