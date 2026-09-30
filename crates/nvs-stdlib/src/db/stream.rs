@@ -63,6 +63,12 @@ pub(super) const STREAM_MEMBER: &str = r"Core\Db\Connection::stream";
 /// whichever member opened it.
 pub(super) const STREAM_AS_MEMBER: &str = r"Core\Db\Connection::streamAs";
 
+/// `Core\Db\Stream`'s class card — `rule:core-api/reference-card`.
+const STREAM_CARD: ClassDoc = ClassDoc {
+    short: "The rows of a query, read from the database one at a time while a `foreach` loop \
+            runs. Use it for a result too big to keep in memory.",
+};
+
 /// Spec § 18's `Iterable<Db\Row>` and `Iterable<T>`, as a class a return type
 /// can name.
 ///
@@ -74,7 +80,7 @@ pub(super) const STREAM_AS_MEMBER: &str = r"Core\Db\Connection::streamAs";
 /// `foreach` reaches.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
-    doc: None,
+    doc: Some(&STREAM_CARD),
     methods: &[],
     instance: &[],
     slots: &[

@@ -1,9 +1,9 @@
-//! What `Core\Db` declares: eight of its nine classes, five enums, and a
-//! reference card for every member of them.
+//! What `Core\Db` declares: all but one of its classes, its enums, and a
+//! reference card for each of them and for every member.
 //!
-//! The ninth is `Core\Db\Stream`, which is declared beside its own walk in
-//! [`mod@super::stream`] rather than here: it carries no member and no card, and
-//! what there is to say about it is the walk.
+//! The one left out is `Core\Db\Stream`, which is declared beside its own walk
+//! in [`mod@super::stream`] rather than here: it carries no member, and what
+//! there is to say about it is the walk.
 //!
 //! Rows, not behaviour. Every symbol named here is defined by a sibling, and
 //! the join between the two is checked when the crate links rather than by
@@ -128,11 +128,77 @@ pub(super) const SETTINGS: &[&[CoreField]] = &[
     ],
 ];
 
+/// `Core\Db`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Opens a connection to a database. The name of a connection in the server's \
+            configuration is enough, or the program can give the settings itself.",
+};
+
+/// `Core\Db\Connection`'s class card — `rule:core-api/reference-card`.
+const CONNECTION_CARD: ClassDoc = ClassDoc {
+    short: "An open connection to one database. It runs SQL queries and statements, and it \
+            starts transactions.",
+};
+
+/// `Core\Db\Transaction`'s class card — `rule:core-api/reference-card`.
+const TRANSACTION_CARD: ClassDoc = ClassDoc {
+    short: "Runs SQL statements inside one transaction. Either all of their changes are saved, \
+            or none of them are.",
+};
+
+/// `Core\Db\Rows`'s class card — `rule:core-api/reference-card`.
+const ROWS_CARD: ClassDoc = ClassDoc {
+    short: "The whole result of a query, read into memory at once. A `foreach` loop gives its \
+            rows one by one.",
+};
+
+/// `Core\Db\Row`'s class card — `rule:core-api/reference-card`.
+const ROW_CARD: ClassDoc = ClassDoc {
+    short: "One row of a query result. Its methods read a column by name and return it as a \
+            given type.",
+};
+
+/// `Core\Db\Write`'s class card — `rule:core-api/reference-card`.
+const WRITE_CARD: ClassDoc = ClassDoc {
+    short: "The result of a statement that changes data: how many rows it changed, and the id \
+            of an inserted row.",
+};
+
+/// `Core\Db\Column`'s class card — `rule:core-api/reference-card`.
+const COLUMN_CARD: ClassDoc = ClassDoc {
+    short: "Describes one column of a query result: its name, its type, and whether it can \
+            contain `null`.",
+};
+
+/// `Core\Db\InList`'s class card — `rule:core-api/reference-card`.
+const IN_LIST_CARD: ClassDoc = ClassDoc {
+    short: "A list of values for a SQL `IN (...)` condition. You can use it only as a bound \
+            parameter of a query.",
+};
+
+/// `Core\Db\Schema`'s class card — `rule:core-api/reference-card`.
+const SCHEMA_CARD: ClassDoc = ClassDoc {
+    short: "Describes the tables a database should have. You can compare it with a real \
+            database and apply the changes that make them match.",
+};
+
+/// `Core\Db\Plan`'s class card — `rule:core-api/reference-card`.
+const PLAN_CARD: ClassDoc = ClassDoc {
+    short: "Every difference between a schema and a database, as a list of steps. A program \
+            can read the steps before any of them runs.",
+};
+
+/// `Core\Db\Plan\Step`'s class card — `rule:core-api/reference-card`.
+const STEP_CARD: ClassDoc = ClassDoc {
+    short: "One difference in a plan: how risky the change is, the reason for that grade, and \
+            the SQL that makes the change.",
+};
+
 /// Spec § 18's `Core\Db` — `connect`, `open`, and the two connectionless entry
 /// points, in the spec's own order.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "connect",
@@ -253,7 +319,7 @@ const STATEMENT_OPTIONS: &[CoreOption] = &[CoreOption {
 
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
-    doc: None,
+    doc: Some(&CONNECTION_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -614,7 +680,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 /// a connection that has moved on.
 pub(crate) const TRANSACTION: CoreClass = CoreClass {
     name: TRANSACTION_NAME,
-    doc: None,
+    doc: Some(&TRANSACTION_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1210,7 +1276,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// fit, and it is the one that holds the connection.
 pub(crate) const ROWS: CoreClass = CoreClass {
     name: ROWS_NAME,
-    doc: None,
+    doc: Some(&ROWS_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1323,7 +1389,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// out.
 pub(crate) const ROW: CoreClass = CoreClass {
     name: ROW_NAME,
-    doc: None,
+    doc: Some(&ROW_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1486,7 +1552,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
 /// arrived.
 pub(crate) const WRITE: CoreClass = CoreClass {
     name: WRITE_NAME,
-    doc: None,
+    doc: Some(&WRITE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1546,7 +1612,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
 /// R11 removes.
 pub(crate) const COLUMN: CoreClass = CoreClass {
     name: COLUMN_NAME,
-    doc: None,
+    doc: Some(&COLUMN_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -1594,7 +1660,7 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
 /// bound parameter".
 pub(crate) const IN_LIST: CoreClass = CoreClass {
     name: IN_LIST_NAME,
-    doc: None,
+    doc: Some(&IN_LIST_CARD),
     methods: &[],
     instance: &[],
     slots: &[VALUES_SLOT],
@@ -1613,7 +1679,7 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
 /// need a connection and this class needs none.
 pub(crate) const SCHEMA: CoreClass = CoreClass {
     name: SCHEMA_NAME,
-    doc: None,
+    doc: Some(&SCHEMA_CARD),
     methods: &[CoreMethod {
         name: "fromArray",
         names: &["array"],
@@ -1787,7 +1853,7 @@ const SCHEMA_APPLY_RISKY_DOC: MethodDoc = MethodDoc {
 /// out rather than computed on demand.
 pub(crate) const PLAN: CoreClass = CoreClass {
     name: PLAN_NAME,
-    doc: None,
+    doc: Some(&PLAN_CARD),
     methods: &[],
     instance: &[CoreMethod {
         name: "steps",
@@ -1821,7 +1887,7 @@ const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
 /// does with a step is read its grade, print its reason, or run its SQL.
 pub(crate) const STEP: CoreClass = CoreClass {
     name: STEP_NAME,
-    doc: None,
+    doc: Some(&STEP_CARD),
     methods: &[],
     instance: &[
         CoreMethod {

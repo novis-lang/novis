@@ -292,8 +292,8 @@ use rand::RngExt as _;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreField, CoreMethod, CoreOption, CoreTy, EnumDoc,
-    ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreField, CoreMethod, CoreOption, CoreTy,
+    EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
 };
 
 mod bind;
