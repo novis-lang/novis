@@ -27777,19 +27777,107 @@ old one closes.
 
 ### nvs service
 
-    nvs service install | uninstall | start | stop | status | run | unit [--config <path>]...
+    nvs service install <name> [options] -- <nvs arguments>
+    nvs service unit <name> [options] -- <nvs arguments>
+    nvs service start | stop | status | run | uninstall <name>
 
-`nvs service install` stores this binary and its arguments with the platform's service manager —
-systemd on Linux, the Service Control Manager on Windows — and grants the account it runs as what
-it needs, and no more. `uninstall` removes every trace. `start`, `stop` and `status` speak to the
-manager; `stop` is answered with a drain, and `status` adds what `nvs ctl status` would say.
-`unit` prints the definition that `install` would store, and stores nothing. `run` runs the stored
-arguments in the foreground, the way the manager would have started them.
+`nvs service` installs a server as a service of the operating system. The service manager starts a
+service at every boot, and starts it again after a failure. The service manager is systemd on Linux
+and the Service Control Manager on Windows.
 
-`serve` with no file is accepted by `install` only where the named configuration mounts at least
-one entry on disk (`E0630`), because a server with nothing to serve exits at once, and a manager
-reports that as a crash loop. The installation chapter has where the binary, the configuration and
-the logs go and which folder permissions are checked.
+**`install`** stores one `nvs` command under a name that you choose. Everything before `--` is an
+option of the installer. Everything after `--` is the command that the service runs. Run `install`
+as root on Linux, and in a terminal started as administrator on Windows:
+
+```text
+$ nvs service install shop -- serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
+installed service `shop`; `nvs service start shop` starts it
+```
+
+The installer checks the command first. When a check fails, it prints an error and changes nothing:
+
+| The check | Error |
+|---|---|
+| The command is `serve` or `run`. No other command keeps running. | `E0630` |
+| `serve` with no file needs a configuration with a `[[server.mount]]` entry that is on disk. | `E0630` |
+| Every path is a full path. This includes `[log] target` and `[opcache] file_cache_dir` in the configuration. | `E0631` |
+| `--config` names the configuration file. | `E0631` |
+| The command line has no `--password`. Other users of the machine can read a command line. | `E0633` |
+| A bundled executable does not install itself. Install the `nvs` binary. | `E0634` |
+
+The error names what failed the check:
+
+```text
+$ nvs service install shop -- serve index.nvs --config /srv/shop/nvs.toml
+error[E0631]: `the entry file` is relative: `index.nvs`
+  = note: a service does not start in the directory of this terminal, so a relative path names another file there and the service fails at its first start
+  = help: write the path absolutely
+
+error: aborting due to 1 error
+```
+
+The options of the installer:
+
+| Option | What it sets |
+|---|---|
+| `--account <account>` | The account that the service runs as. The default is the local system account. |
+| `--start automatic`, `delayed` or `manual` | When the service starts after a boot. The default is `automatic`. |
+| `--restart on-failure` or `never` | What happens after a failure. The default is `on-failure`. |
+| `--depends-on <service>` | A service that must start first, such as a database. You can repeat it. |
+| `--description <text>` | The text that an administrator sees beside the name. |
+| `--dry-run` | Prints every step and changes nothing. |
+
+A service has no terminal. Set `[log] target` to a file, so that the log of the server is written
+to that file. `nvs service install --help` prints one whole command line for each platform.
+
+**`unit`** prints what `install` would store, and changes nothing. It makes the same checks, and it
+needs no administrator. On Linux it prints a systemd unit. On Windows it prints a `New-Service`
+command:
+
+```text
+$ nvs service unit shop -- serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
+[Unit]
+Description=Novis service shop
+After=network.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/nvs serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
+ExecReload=/usr/local/bin/nvs ctl reload --socket /run/nvs/control.sock
+WatchdogSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The `ExecReload` line is printed when the configuration sets `[control] socket`. On Linux,
+`install` writes this unit to `/etc/systemd/system/shop.service` and enables it.
+
+**`start`** and **`stop`** send the request to the service manager. After a stop the server drains
+(§ *Stopping and reloading: the drain*). **`status`** prints the state that the service manager
+reports, and then the lines of `nvs ctl status`:
+
+```text
+$ nvs service status shop
+active
+in_flight: 3
+draining: false
+config_check: 412 passes, 412 stats, 1 paths
+```
+
+On Windows the first line is a state such as `running` or `stopped`. **`run`** runs the stored command in your
+terminal, so you can read what the server prints when it does not start as a service.
+**`uninstall`** removes the service and everything that `install` added.
+
+The installation chapter has where the binary, the configuration and the logs go and which folder
+permissions are checked.
 
 <a id="tools-php-differences"></a>
 ## C.5 Coming from PHP: every difference, and what to write instead

@@ -1,29 +1,14 @@
 {
-  "state": "Goal `tools-server`: `tools:server/the-server-block` has its proofs. Two features of the group\nstill owe, and `bun nv proofs --owed --group tools:server` lists what each owes:\n`tools:server/nvs-service` and `tools:server/nvs-serve`. Nothing is blocked. The two floor checks\nthe last sweep read red are closed: the `queue.workers` description is inside its length, and the\n`Core\\Queue` and `Core\\Queue\\Stats` figures are measured against `crates/nvs-stdlib/src/queue.rs`\nas it stands.\n\nThe drain section says what the binary does, and the binary differs from\n`rule:concurrency/a-drain-closes-a-connection-cleanly` in two places, each a gap record: a reload\nbegins no drain (`data/gaps/nvs-cli/a-reload-closes-no-connection.json`), and `drain_timeout` bounds\nonly the wait between two requests, never a request that is running\n(`data/gaps/nvs-server/drain-period-does-not-end-a-running-request.json`). A description written\nfor `nvs service stop` says the same, not what the rule says.\n\nA section passes `help` when it shows a fenced block or a table row holding code; an indented usage\nblock does not count (`tools/nv/proofs/roster.ts:160`). A fenced `nvs` block in this chapter is\nwritten `nvs skip`. A `.nvst` case cannot name a mount (`crates/nvs-test/src/request.rs:67`), and a\nfeature of this chapter is credited by a `// covers:` marker above a Rust `#[test]` alone; one\nmarker names several features, separated by commas. An example or an attack that needs a\nconfiguration key reads the `nvs.toml` in its own directory.\n\n`crates/nvs-cli/tests/live_config.rs`'s `Server` ends its process with `kill`, so a case there\ncannot observe a graceful stop, and what a stop does is pinned inside the crates\n(`crates/nvs-cli/src/serve.rs:4031`). A figure in `docs/perf/members.ndjson` goes stale when its\nimplementing file changes, and `bun nv proofs --record-perf --group '<class>'` measures it again.",
+  "state": "Goal `tools-server` is reached: every feature of the group `tools:server` has its proofs, and\n`bun nv proofs --owed --group tools:server` lists none. `bun nv owners --closes tools-server` and\n`bun nv playbook --closes tools-server` name nothing.\n\nThe floor check `nvs queue migrate creates both tables` was red because the Docker daemon had\nrestarted without the test servers, not because of the tree. `docker compose -f\ntests/db/compose.yaml up -d --wait postgres redis mariadb mysql mssql` brought them back, and the\ncheck's command prints both `applied` lines again. The playbook bullet *a floor check that passed\nfor sessions can go red because* owns the trap.\n\nOne proof of the group is a known gap: `tests/hostile/tools/server/nvs-serve/02-a-request-that-takes-all-the-memory.nvs`\ncarries the marker of `data/gaps/nvs-runtime/a-loop-that-only-concatenates-never-stops.json`.\n\nThe pack did not print the playbook bullet *an attack whose last step doubles a string in an\nendless loop*, which this goal's `context` field `playbook` does not name.",
   "next": {
     "stage": 2,
     "title": "the dossier",
-    "files": [
-      "docs/reference/tools/25-server.md",
-      "crates/nvs-cli/src/service.rs",
-      "crates/nvs-cli/tests/live_config.rs"
-    ],
-    "note": "One slice is one feature with all its feature proofs:",
-    "items": [
-      {
-        "done": false,
-        "text": "**`tools:server/nvs-service`** — owes about, examples, help, hostile, tests. `rule:packaging/a-service-is-one-stored-argv` and `rule:packaging/the-installer-is-a-sink`. The section is `docs/reference/tools/25-server.md:406` and needs a fenced block; `crates/nvs-cli/src/service.rs:4355` is a case a marker fits."
-      },
-      {
-        "done": false,
-        "text": "**`tools:server/nvs-serve`** — owes about, examples, hostile, tests. `rule:security/isolate-shares-nothing`. The section is `docs/reference/tools/25-server.md:8`, and `crates/nvs-cli/tests/live_config.rs:86` starts the built `nvs serve` over a program, which a from-outside case needs."
-      }
-    ]
+    "files": [],
+    "note": "nothing is open. The goal's one check, `bun nv proofs --verify --group tools:server`, has nothing owed.",
+    "items": []
   },
   "backlog": [
-    "A reload closes no connection, against `rule:concurrency/a-drain-closes-a-connection-cleanly` and ADR 0083 § 7 — gap record `data/gaps/nvs-cli/a-reload-closes-no-connection.json`.",
-    "The drain period does not end a running HTTP request, against the same rule — gap record `data/gaps/nvs-server/drain-period-does-not-end-a-running-request.json`; `crates/nvs-config/src/server.rs:25`, `crates/nvs-config/src/server.rs:128` and the `drain_timeout` comment in `crates/nvs-config/src/default.toml:471` describe the rule's reading.",
-    "`docs/examples/config/queue-workers/01-how-much-of-the-queue-this-instance-works.nvs` misses three bounds of `bun nv proofs --comments` — goal `plain-comments`.",
-    "`crates/nvs-cli/src/ctl.rs` is still outside `context.modules` — `data/goals/tools-server.json`."
+    "`nvs run` with no `[limits] memory` in any configuration file stopped a string-doubling loop only when the allocator failed, at tens of gigabytes, with `memory allocation of … bytes failed`. Whether a command-line run is meant to have no ceiling was not checked; `crates/nvs-runtime/src/lib.rs`'s module doc owns the answer.",
+    "The summaries `nvs service --help` prints for `uninstall`, `status` and `unit`, and the long help of `--config`, are still written in the dense voice; `crates/nvs-cli/src/main.rs:1085` holds them, and goal `plain-comments` is where that sweep belongs."
   ]
 }
