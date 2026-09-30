@@ -1,0 +1,34 @@
+<?nvs
+// Shows a file of tests for a price rule. `nvs test 01-test-a-price-rule.nvs` runs
+// every method that has `#[Test]` and prints one line for each test.
+// `nvs run` runs only the code outside the classes, so it prints `4500`.
+use Core\Test;
+
+class Coupon
+{
+    public static function apply(int $price, int $amountOff): int
+    {
+        if ($amountOff > $price) {
+            return 0;
+        }
+        return $price - $amountOff;
+    }
+}
+
+final class CouponTest
+{
+    #[Test]
+    public function takesTheAmountOffThePrice(): void
+    {
+        Test::assertSame(Coupon::apply(5000, 500), 4500);
+    }
+
+    // A coupon worth more than the price gives a price of 0, not a negative price.
+    #[Test]
+    public function neverGoesBelowZero(): void
+    {
+        Test::assertSame(Coupon::apply(300, 500), 0);
+    }
+}
+
+echo Coupon::apply(5000, 500), "\n";

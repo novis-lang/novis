@@ -1,0 +1,60 @@
+<?nvs
+// Attack: tests fail with very large values, with very deep recursion and with a huge error message.
+// `nvs test` should report each failure and then run the next test. It must not crash.
+use Core\Test;
+
+final class LargeFailureTest
+{
+    // Two texts of 2.6 million characters differ only in the last character.
+    #[Test]
+    public function comparesTwoLongTexts(): void
+    {
+        string $text = Core\Str::repeat("line of text\n", 200000);
+        Test::assertSame($text . 'x', $text . 'y');
+    }
+
+    // The test calls itself one million times, which is more than the call stack allows.
+    #[Test]
+    public function recursesTooDeeply(): void
+    {
+        Test::assertSame(self::depth(1000000), 0);
+    }
+
+    // The test throws an error whose message is 5 million characters long.
+    #[Test]
+    public function throwsAHugeMessage(): void
+    {
+        throw new RuntimeError(Core\Str::repeat('x', 5000000));
+    }
+
+    private static function depth(int $n): int
+    {
+        if ($n == 0) {
+            return 0;
+        }
+        return self::depth($n - 1);
+    }
+}
+
+LargeFailureTest $tests = new LargeFailureTest();
+
+// 1. The failed comparison throws an error. Its message is short.
+try {
+    $tests->comparesTwoLongTexts();
+} catch (Throwable $e) {
+    echo '1: ', Core\Str::length($e->message), "\n";
+}
+
+// 2. The recursion stops with an error when the call stack is full.
+try {
+    $tests->recursesTooDeeply();
+} catch (Throwable $e) {
+    echo '2: ', $e->message, "\n";
+}
+
+// 3. The huge error is caught like any other error.
+try {
+    $tests->throwsAHugeMessage();
+} catch (Throwable $e) {
+    echo '3: ', Core\Str::length($e->message), "\n";
+}
