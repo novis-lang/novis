@@ -5256,9 +5256,10 @@ first rethrown at main.nvs:7
 ### An uncaught throw
 
 A throw that no `catch` handles ends the program with exit status 1. Standard output keeps
-everything written before it; standard error gets `Uncaught Exception: ` followed by the message,
-then one `#N Class::method() at file:line` line per frame, innermost first, ending with the
-top-level frame `<script>()`. There is no `set_exception_handler` and no `set_error_handler`:
+everything written before it; standard error gets one log record holding the message, the error's
+class and one entry per frame, innermost first, ending with the top-level frame `<script>()`.
+`[log] format` picks how that record is written: one JSON line by default, readable text under
+`format = "text"`. There is no `set_exception_handler` and no `set_error_handler`:
 catch it, or let it end the program.
 
 ```nvs exit=1
@@ -5277,10 +5278,16 @@ echo "not reached\n";
 before
 ```
 
-What standard error carries for the program above:
+What standard error carries for the program above, first by default and then under `[log] format =
+"text"`:
 
 ```text
-Uncaught Exception: no row 7
+{"level":"error","msg":"no row 7","fields":{"class":"RuntimeError"},"nodes":[{"function":"Repo::get","file":"main.nvs","line":4},{"function":"<script>","file":"main.nvs","line":9}]}
+```
+
+```text
+[error] no row 7
+  class => string(12) "RuntimeError"
 #0 Repo::get() at main.nvs:4
 #1 <script>() at main.nvs:9
 ```
@@ -26157,9 +26164,10 @@ code. Both are for reading the compiler's output, not the program's.
 | `1` | a diagnostic stopped the check, an uncaught throwable ended the program, or a resource limit was breached (`FATAL: …` on standard error) |
 | `2` | the command line itself was wrong (an unknown subcommand or flag) |
 
-`exit("message")` prints the message and exits `0`. An uncaught throwable prints `Uncaught
-Exception: <message>` and a backtrace, one `#n Class::method() at file:line` frame per line, to
-standard error; nothing about it reaches standard output.
+`exit("message")` prints the message and exits `0`. An uncaught throwable writes one log record to
+standard error: its message, its class and one entry per frame. `[log] format` picks how the record
+is written — one JSON line by default, and readable text with one `#n Class::method() at file:line`
+line per frame under `format = "text"`. Nothing about it reaches standard output.
 
 ```nvs exit=3
 <?nvs

@@ -96,9 +96,10 @@ code. Both are for reading the compiler's output, not the program's.
 | `1` | a diagnostic stopped the check, an uncaught throwable ended the program, or a resource limit was breached (`FATAL: …` on standard error) |
 | `2` | the command line itself was wrong (an unknown subcommand or flag) |
 
-`exit("message")` prints the message and exits `0`. An uncaught throwable prints `Uncaught
-Exception: <message>` and a backtrace, one `#n Class::method() at file:line` frame per line, to
-standard error; nothing about it reaches standard output.
+`exit("message")` prints the message and exits `0`. An uncaught throwable writes one log record to
+standard error: its message, its class and one entry per frame. `[log] format` picks how the record
+is written — one JSON line by default, and readable text with one `#n Class::method() at file:line`
+line per frame under `format = "text"`. Nothing about it reaches standard output.
 
 ```nvs exit=3
 <?nvs

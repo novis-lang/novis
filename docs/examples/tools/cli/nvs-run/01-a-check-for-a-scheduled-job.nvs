@@ -1,0 +1,24 @@
+<?nvs
+// Shows a check that a scheduled job runs with `nvs run 01-a-check-for-a-scheduled-job.nvs`.
+// The check ends with `exit(1)` when a folder is too full. The job sees status 1 and can send an alert.
+// proof: exit 1
+
+array<string> $folders = ["uploads", "logs", "backups"];
+array<uint> $percentFull = [42, 97, 60];
+
+uint $problems = 0;
+uint $i = 0;
+foreach ($folders as string $folder) {
+    if ($percentFull[$i] > 90) {
+        echo $folder, " is ", $percentFull[$i], "% full\n";
+        $problems = $problems + 1;
+    }
+    $i = $i + 1;
+}
+
+// This prints `problems: 1`. Then `exit(1)` ends the program with status 1.
+if ($problems > 0) {
+    echo "problems: ", $problems, "\n";
+    exit(1);
+}
+echo "all folders are fine\n";

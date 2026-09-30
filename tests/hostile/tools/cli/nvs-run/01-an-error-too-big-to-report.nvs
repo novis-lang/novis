@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a program ends with an error that has a very long message and a very deep call stack.
+// `nvs run` should write the error to standard error and stop with status 1. It must not crash.
+// hostile: ends-early
+
+class Deep
+{
+    public static function down(uint $depth, string $message): void
+    {
+        if ($depth == 0) {
+            throw new RuntimeError($message);
+        }
+        Deep::down($depth - 1, $message);
+    }
+}
+
+// 1. The message is more than one million characters. It has quotes, line breaks and a `#0` frame line in it.
+string $message = Core\Str::repeat("say \"no\"\n#0 <script>() at fake.nvs:1\n", 30000);
+
+// 2. The error is thrown 1000 calls deep and caught. The program continues.
+try {
+    Deep::down(1000, $message);
+} catch (RuntimeError $e) {
+    echo 'caught ', Core\Str::length($e->message), "\n";
+}
+
+// 3. The same error is not caught. It ends the program with status 1.
+Deep::down(1000, $message);
