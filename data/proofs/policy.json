@@ -62,6 +62,10 @@
     "lang:programs/ending-a-program": {
       "perf": "A program ends once, so nothing can be iterated: a bench here would measure startup, not `exit`."
     },
+    "tools:agents/nvs-agent-init": {
+      "examples": "`nvs agent init` reads no program and writes pointer files that state no language fact, so an example program would show nothing about the command; the fenced transcript in its section is what a reader learns from.",
+      "hostile": "`nvs agent init` reads no program, so no program can attack it; what can is an `AGENTS.md` or an adapter it did not write, and those files are pinned by `crates/nvs-cli/tests/agent.rs`."
+    },
     "tools:cli/nvs-info": {
       "examples": "`nvs info` reads no program and prints the same report whatever program sits beside it, so an example program would show nothing about the command; the fenced output in its section is what a reader learns from.",
       "hostile": "`nvs info` reads no program and takes one flag, so no program can attack it; the argument spellings that must not reach it are pinned by `crates/nvs-cli/tests/info.rs`."

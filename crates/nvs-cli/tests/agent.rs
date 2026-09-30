@@ -65,6 +65,7 @@ fn chapter(relative: &str) -> String {
 
 /// The five parts `rule:tooling/a-primer-claim-is-executed` fixes, each
 /// recognized by something only the section that carries it says.
+// covers: tools:agents/nvs-agent-primer
 #[test]
 fn the_primer_carries_the_lookup_protocol_the_worked_program_and_the_refusal_table() {
     let primer = primer();
@@ -89,6 +90,7 @@ fn the_primer_carries_the_lookup_protocol_the_worked_program_and_the_refusal_tab
 
 /// The three shapes the investigation behind `docs/decisions/0167.md` caught an
 /// agent guessing wrong, all in one program that runs.
+// covers: tools:agents/nvs-agent-primer
 #[test]
 fn the_worked_program_shows_a_typed_local_a_foreach_binding_and_an_options_bag() {
     let primer = primer();
@@ -108,6 +110,7 @@ fn the_worked_program_shows_a_typed_local_a_foreach_binding_and_an_options_bag()
 
 /// A program that reads a file does not run without a grant, and the primer is
 /// where an agent that has read nothing else learns it.
+// covers: tools:agents/nvs-agent-primer
 #[test]
 fn the_primer_names_the_capability_model_and_the_smallest_grant() {
     let primer = primer();
@@ -127,6 +130,7 @@ fn the_primer_names_the_capability_model_and_the_smallest_grant() {
 /// A section is in the primer because it is marked and for no other reason, so
 /// the chapter that carries the capability model contributes that section and
 /// none of its neighbours.
+// covers: tools:agents/nvs-agent-primer
 #[test]
 fn an_unmarked_chapter_section_is_not_lifted_into_the_primer() {
     let primer = primer();
@@ -596,9 +600,9 @@ fn every_syntactic_form_is_reachable_through_a_heading() {
     assert!(missing.is_empty(), "forms with no heading: {missing:?}");
 }
 
-/// The lines the chapter's `# nvs agent` section shows as lines of the index:
-/// its one `text` block.
-fn shown_index_lines() -> Vec<String> {
+/// The lines one section of the agents chapter shows as lines the binary
+/// prints: what its `text` blocks hold. `section` is the heading line.
+fn shown(section: &str) -> Vec<String> {
     let text = chapter("tools/50-agents.md");
     let mut lines = Vec::new();
     let mut in_section = false;
@@ -609,12 +613,60 @@ fn shown_index_lines() -> Vec<String> {
             in_sample = !in_fence && line == "```text";
             in_fence = !in_fence;
         } else if !in_fence && line.starts_with("# ") {
-            in_section = line == "# nvs agent";
+            in_section = line == section;
         } else if in_section && in_sample {
             lines.push(line.to_owned());
         }
     }
     lines
+}
+
+/// The section's list of headings is a copy of what the primer printed the day
+/// it was written, and a copy goes stale the day a section is marked or a
+/// chapter retitles one. Each heading shown is a heading of the primer, in the
+/// primer's order, from its title to its chapter map, and only a `…` line passes
+/// over headings.
+// covers: tools:agents/nvs-agent-primer
+#[test]
+fn every_heading_the_chapter_shows_is_a_heading_of_the_primer_in_that_order() {
+    let shown = shown("# nvs agent primer");
+    assert!(shown.len() > 2, "the section shows the headings: {shown:?}");
+
+    let primer = primer();
+    let mut in_fence = false;
+    let mut headings = Vec::new();
+    for line in primer.lines() {
+        if line.starts_with("```") {
+            in_fence = !in_fence;
+        } else if !in_fence && line.starts_with('#') {
+            headings.push(line);
+        }
+    }
+
+    let mut next = 0;
+    let mut passing = false;
+    for line in &shown {
+        if line == "…" {
+            passing = true;
+            continue;
+        }
+        let ahead = headings[next..]
+            .iter()
+            .position(|heading| heading == line)
+            .unwrap_or_else(|| panic!("the primer prints no heading `{line}` at that place"));
+        assert!(
+            passing || ahead == 0,
+            "the chapter passes over `{}` with no `…`",
+            headings[next]
+        );
+        next += ahead + 1;
+        passing = false;
+    }
+    assert!(
+        !passing && next == headings.len(),
+        "the list closes on the primer's last heading, `{}`",
+        headings[headings.len() - 1]
+    );
 }
 
 /// The section's sample is a copy of lines the index printed the day it was
@@ -625,7 +677,7 @@ fn shown_index_lines() -> Vec<String> {
 // covers: tools:agents/nvs-agent
 #[test]
 fn every_index_line_the_chapter_shows_is_a_line_of_the_index() {
-    let shown = shown_index_lines();
+    let shown = shown("# nvs agent");
     let index = index();
     for line in &shown {
         assert!(
@@ -713,10 +765,11 @@ fn the_member_a_diagnostic_names_for_a_php_function_is_one_show_resolves() {
     }
 }
 
-/// Every `$ nvs agent …` command the chapter's worked session shows, as the
-/// arguments after `agent` and the lines the chapter prints under the command.
-/// A lone `$` is the prompt coming back and ends the command above it.
-fn worked_session() -> Vec<(Vec<String>, Vec<String>)> {
+/// Every `$ nvs agent …` command one section of the agents chapter shows, as
+/// the arguments after `agent` and the lines the chapter prints under the
+/// command. `section` is the heading line. A lone `$` is the prompt coming back
+/// and ends the command above it.
+fn transcript(section: &str) -> Vec<(Vec<String>, Vec<String>)> {
     let text = chapter("tools/50-agents.md");
     let mut steps: Vec<(Vec<String>, Vec<String>)> = Vec::new();
     let mut in_section = false;
@@ -729,7 +782,7 @@ fn worked_session() -> Vec<(Vec<String>, Vec<String>)> {
             in_fence = !in_fence;
             open = false;
         } else if !in_fence && line.starts_with("# ") {
-            in_section = line == "# A worked session";
+            in_section = line == section;
         } else if in_section && in_transcript {
             if let Some(command) = line.strip_prefix("$ nvs agent ") {
                 let args = command
@@ -757,7 +810,7 @@ fn worked_session() -> Vec<(Vec<String>, Vec<String>)> {
 // covers: tools:agents/a-worked-session
 #[test]
 fn the_worked_session_of_the_chapter_is_what_the_binary_prints() {
-    let steps = worked_session();
+    let steps = transcript("# A worked session");
     let commands: Vec<&str> = steps.iter().map(|(args, _)| args[0].as_str()).collect();
     assert_eq!(
         commands,
@@ -803,9 +856,9 @@ fn the_worked_session_of_the_chapter_is_what_the_binary_prints() {
 /// A fresh empty directory named for the test that owns it, so two tests never
 /// share a working directory.
 fn tree(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nvs-agent-init-{name}"));
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("nvs-agent-init-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
+    std::fs::create_dir_all(&dir).expect("a private directory under the target directory");
     dir
 }
 
@@ -854,6 +907,7 @@ fn read(dir: &Path, relative: &str) -> String {
 /// A tree with no harness in it gets the harness-neutral pointer and nothing
 /// else, because an adapter is written for a harness that is present and this
 /// tree shows none.
+// covers: tools:agents/nvs-agent-init
 #[test]
 fn init_in_an_empty_tree_writes_the_agents_stanza_and_nothing_else() {
     let dir = tree("empty");
@@ -880,6 +934,7 @@ fn init_in_an_empty_tree_writes_the_agents_stanza_and_nothing_else() {
 /// The stanza is a region of a file the project owns, so a second run finds its
 /// own markers and leaves everything between them — and everything outside
 /// them — exactly as it was.
+// covers: tools:agents/nvs-agent-init
 #[test]
 fn init_run_twice_changes_nothing_the_first_run_wrote() {
     let dir = tree("twice");
@@ -903,6 +958,7 @@ fn init_run_twice_changes_nothing_the_first_run_wrote() {
 /// A checkout that turned every line ending into CRLF, as Git's `core.autocrlf`
 /// does on Windows, holds the same stanza and the same pointer, so a second run
 /// is `up to date` and leaves the converted files as they are.
+// covers: tools:agents/nvs-agent-init
 #[test]
 fn init_reads_a_crlf_checkout_of_what_it_wrote_as_up_to_date() {
     let dir = tree("crlf");
@@ -937,6 +993,7 @@ fn init_reads_a_crlf_checkout_of_what_it_wrote_as_up_to_date() {
 /// Whether a changed stanza is an edit or an upgrade is not something this can
 /// see, so it refuses both — overwriting a reader's own sentence is the worse of
 /// the two mistakes, and the refusal names the file and the way out.
+// covers: tools:agents/nvs-agent-init
 #[test]
 fn init_refuses_to_overwrite_a_stanza_that_has_been_edited() {
     let dir = tree("edited");
@@ -960,6 +1017,7 @@ fn init_refuses_to_overwrite_a_stanza_that_has_been_edited() {
 /// A harness is detected by the directory it already keeps in the project, so a
 /// tree with `.claude/` in it gets the skill beside the neutral stanza and a
 /// tree without one does not — which is the whole of the detection.
+// covers: tools:agents/nvs-agent-init
 #[test]
 fn init_writes_the_claude_skill_when_that_harness_is_present() {
     let dir = tree("claude");
@@ -1014,6 +1072,7 @@ fn pointers(name: &str) -> Vec<(String, String)> {
 /// A pointer says where to ask and how to check the answer, and that is the
 /// entire reason it exists — so each one names all four commands and the check
 /// loop, in whatever shape its harness reads.
+// covers: tools:agents/nvs-agent-init
 #[test]
 fn every_adapter_names_the_agent_commands_and_the_check_loop() {
     for (path, text) in pointers("names-the-commands") {
@@ -1033,6 +1092,7 @@ fn every_adapter_names_the_agent_commands_and_the_check_loop() {
 /// that fails when it is broken: a signature, a type name or a refusal copied
 /// into a pointer is a copy that goes stale the day the member changes, and the
 /// agent reading it has no way to know it is old.
+// covers: tools:agents/nvs-agent-init
 #[test]
 fn no_adapter_contains_a_member_signature_a_type_name_or_a_refusal() {
     for (path, text) in pointers("no-language-content") {
@@ -1056,6 +1116,7 @@ fn no_adapter_contains_a_member_signature_a_type_name_or_a_refusal() {
 /// The skill is found and summarised by its front matter, so a missing key makes
 /// it invisible to the harness rather than wrong — which is a failure nothing
 /// else in this suite would see.
+// covers: tools:agents/nvs-agent-init
 #[test]
 fn the_claude_skill_carries_a_name_and_a_description_in_its_front_matter() {
     let dir = tree("front-matter");
@@ -1086,4 +1147,125 @@ fn the_claude_skill_carries_a_name_and_a_description_in_its_front_matter() {
         front.contains(&"name: novis"),
         "the skill is named for the language: {front:?}"
     );
+}
+
+/// The section's transcript is a copy of what three runs printed the day it was
+/// written. Replaying the runs in one empty tree, in the order the chapter has
+/// them, holds each line to the binary.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_init_transcript_of_the_chapter_is_what_the_binary_prints() {
+    let steps = transcript("# nvs agent init");
+    assert!(
+        steps.len() > 1,
+        "the section shows a first run and a second"
+    );
+
+    let dir = tree("transcript");
+    for (args, printed) in &steps {
+        assert_eq!(args[0], "init", "the section's transcript runs `init` only");
+        let flags: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+        let (out, err, ok) = init(&dir, &flags);
+        assert!(ok, "`nvs agent {}` succeeds: {err}", args.join(" "));
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(
+            lines,
+            *printed,
+            "`nvs agent {}` prints what the chapter shows",
+            args.join(" ")
+        );
+    }
+}
+
+/// Every file under `dir` with its bytes, which is what a refusal is held to
+/// having left alone.
+fn snapshot(dir: &Path) -> Vec<(String, Vec<u8>)> {
+    files(dir)
+        .into_iter()
+        .map(|path| {
+            let bytes = std::fs::read(dir.join(&path)).expect("the fixture file is readable");
+            (path, bytes)
+        })
+        .collect()
+}
+
+/// An `AGENTS.md` written to break the install: a stanza that opens and never
+/// closes, one whose markers are out of order or nested, one that is empty, text
+/// that is not UTF-8, and a directory where the file belongs. Each is refused by
+/// a message naming the file, with a failing status and no panic, and the tree
+/// is byte for byte what it was — the adapter the `.claude/` directory would
+/// have earned included.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_refuses_an_agents_file_it_cannot_read_as_its_own_and_changes_nothing() {
+    let open = "<!-- nvs agent: written by `nvs agent init` -->";
+    let close = "<!-- /nvs agent -->";
+    let hostile: [(&str, Vec<u8>); 6] = [
+        (
+            "unclosed",
+            format!("# Ours\n\n{open}\n\n## Novis\n").into_bytes(),
+        ),
+        ("closed-first", format!("{close}\n{open}\n").into_bytes()),
+        ("empty", format!("{open}{close}").into_bytes()),
+        (
+            "nested",
+            format!("{open}\n{open}\n{close}\n{close}\n").into_bytes(),
+        ),
+        (
+            "long",
+            format!("{open}\n{}\n{close}\n", "x".repeat(4_000_000)).into_bytes(),
+        ),
+        ("not-utf8", vec![0xff, 0xfe, b'#', b' ', 0x80, b'\n']),
+    ];
+    for (name, bytes) in hostile {
+        let dir = tree(&format!("hostile-{name}"));
+        std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
+        std::fs::write(dir.join("AGENTS.md"), &bytes).expect("the hostile file is written");
+        let before = snapshot(&dir);
+
+        let (out, err, ok) = init(&dir, &[]);
+        assert!(!ok, "`{name}` is a refusal: {out}");
+        assert!(
+            err.contains("AGENTS.md"),
+            "`{name}`: the refusal names the file: {err}"
+        );
+        assert!(!err.contains("panicked"), "`{name}`: {err}");
+        assert_eq!(snapshot(&dir), before, "`{name}`: and it changed nothing");
+    }
+
+    let dir = tree("hostile-directory");
+    std::fs::create_dir_all(dir.join("AGENTS.md")).expect("a directory where the file belongs");
+    std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
+    let (out, err, ok) = init(&dir, &[]);
+    assert!(!ok, "a directory named `AGENTS.md` is a refusal: {out}");
+    assert!(
+        err.contains("AGENTS.md"),
+        "the refusal names the file: {err}"
+    );
+    assert!(!err.contains("panicked"), "{err}");
+    assert!(files(&dir).is_empty(), "and it wrote nothing");
+}
+
+/// A refusal is about the whole run, whichever file it names. The stanza is
+/// judged first and the adapter second, so a tree whose adapter is somebody's
+/// own file is the one where a run could write the stanza and then refuse; it
+/// writes neither, and says `wrote` about nothing.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn a_refused_adapter_leaves_the_stanza_unwritten() {
+    let dir = tree("refused-adapter");
+    let skill = dir.join(".claude/skills/novis/SKILL.md");
+    std::fs::create_dir_all(skill.parent().expect("the skill has a directory"))
+        .expect("the harness's own directory");
+    std::fs::write(&skill, "our own skill\n").expect("the project's own file is written");
+    let before = snapshot(&dir);
+
+    let (out, err, ok) = init(&dir, &[]);
+    assert!(!ok, "somebody's own adapter is a refusal: {out}");
+    assert!(
+        err.contains(".claude/skills/novis/SKILL.md"),
+        "the refusal names the file: {err}"
+    );
+    assert!(!out.contains("wrote"), "it wrote nothing: {out}");
+    assert_eq!(snapshot(&dir), before, "and `AGENTS.md` does not exist");
 }

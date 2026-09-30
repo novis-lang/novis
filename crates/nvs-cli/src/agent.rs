@@ -905,7 +905,8 @@ fn stanza() -> String {
 /// adapter for each harness the tree shows — every one of them when `all`.
 ///
 /// Each is written into a tree that has none and left alone in a tree that
-/// already carries it.
+/// already carries it. Every file is read and judged before any is written, so
+/// a refusal about one of them leaves all of them as they were.
 pub(crate) fn init(all: bool) -> ExitCode {
     let root = match std::env::current_dir() {
         Ok(root) => root,
@@ -915,10 +916,10 @@ pub(crate) fn init(all: bool) -> ExitCode {
         }
     };
 
-    let mut written: Vec<&'static str> = Vec::new();
-    match install_stanza(&root.join("AGENTS.md")) {
-        Ok(true) => written.push("AGENTS.md"),
-        Ok(false) => {}
+    let mut owed: Vec<(&'static str, String)> = Vec::new();
+    match stanza_owed(&root.join("AGENTS.md")) {
+        Ok(Some(text)) => owed.push(("AGENTS.md", text)),
+        Ok(None) => {}
         Err(error) => {
             eprintln!("error: {error}");
             return ExitCode::FAILURE;
@@ -929,9 +930,9 @@ pub(crate) fn init(all: bool) -> ExitCode {
         if !all && !root.join(adapter.present).exists() {
             continue;
         }
-        match install_adapter(&root, adapter) {
-            Ok(true) => written.push(adapter.path),
-            Ok(false) => {}
+        match adapter_owed(&root, adapter) {
+            Ok(Some(text)) => owed.push((adapter.path, text)),
+            Ok(None) => {}
             Err(error) => {
                 eprintln!("error: {error}");
                 return ExitCode::FAILURE;
@@ -939,26 +940,31 @@ pub(crate) fn init(all: bool) -> ExitCode {
         }
     }
 
-    if written.is_empty() {
+    if owed.is_empty() {
         println!("up to date");
     }
-    for path in written {
+    for (path, text) in owed {
+        if let Err(error) = write_file(&root.join(path), &text) {
+            eprintln!("error: {error}");
+            return ExitCode::FAILURE;
+        }
         println!("wrote {path}");
     }
     ExitCode::SUCCESS
 }
 
-/// Put the stanza in `AGENTS.md`, and say whether that changed the file.
+/// What `AGENTS.md` has to read as to carry the stanza, or `None` when it
+/// already does.
 ///
 /// A file with no stanza gains one at its foot, so a project's own instructions
 /// keep the opening of their own document. A file whose stanza already reads as
 /// [`stanza`] is untouched. Anything else is refused rather than rewritten.
-fn install_stanza(path: &Path) -> Result<bool, String> {
+fn stanza_owed(path: &Path) -> Result<Option<String>, String> {
     let block = stanza();
     let existing = match std::fs::read_to_string(path) {
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return write_file(path, &format!("{block}\n")).map(|()| true);
+            return Ok(Some(format!("{block}\n")));
         }
         Err(error) => return Err(format!("AGENTS.md cannot be read: {error}")),
     };
@@ -973,7 +979,7 @@ fn install_stanza(path: &Path) -> Result<bool, String> {
         }
         out.push_str(&block);
         out.push('\n');
-        return write_file(path, &out).map(|()| true);
+        return Ok(Some(out));
     };
 
     let Some(close) = existing[open..].find(STANZA_CLOSE) else {
@@ -985,7 +991,7 @@ fn install_stanza(path: &Path) -> Result<bool, String> {
 
     let end = open + close + STANZA_CLOSE.len();
     if reads_as(&existing[open..end], &block) {
-        return Ok(false);
+        return Ok(None);
     }
     Err(format!(
         "AGENTS.md's `nvs agent` stanza is not the one this binary writes, so it is left alone; \
@@ -995,31 +1001,28 @@ fn install_stanza(path: &Path) -> Result<bool, String> {
 
 /// Whether text read from disk is the text this binary writes, with every
 /// `\r\n` read as `\n`. A Windows checkout under Git's `core.autocrlf` holds
-/// what [`install_stanza`] wrote with CRLF line endings, and that is the same
-/// text, so it is up to date and not refused.
+/// what [`init`] wrote with CRLF line endings, and that is the same text, so it
+/// is up to date and not refused.
 fn reads_as(on_disk: &str, written: &str) -> bool {
     on_disk.replace("\r\n", "\n") == written.replace("\r\n", "\n")
 }
 
-/// Put one harness's pointer where it belongs, and say whether that changed the
-/// tree.
+/// What one harness's pointer has to read as, or `None` when the file already
+/// does.
 ///
 /// A file that already reads as [`Adapter::body`] is untouched; one that reads
-/// as anything else is refused, for the reason [`install_stanza`] refuses a
+/// as anything else is refused, for the reason [`stanza_owed`] refuses a
 /// changed stanza.
-fn install_adapter(root: &Path, adapter: &Adapter) -> Result<bool, String> {
-    let path = root.join(adapter.path);
+fn adapter_owed(root: &Path, adapter: &Adapter) -> Result<Option<String>, String> {
     let body = adapter.body();
-    match std::fs::read_to_string(&path) {
-        Ok(text) if reads_as(&text, &body) => Ok(false),
+    match std::fs::read_to_string(root.join(adapter.path)) {
+        Ok(text) if reads_as(&text, &body) => Ok(None),
         Ok(_) => Err(format!(
             "{} is not the pointer this binary writes, so it is left alone; \
              delete it and run this again",
             adapter.path
         )),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            write_file(&path, &body).map(|()| true)
-        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Some(body)),
         Err(error) => Err(format!("{} cannot be read: {error}", adapter.path)),
     }
 }
