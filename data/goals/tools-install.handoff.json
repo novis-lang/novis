@@ -1,25 +1,26 @@
 {
-  "state": "Goal `tools-install`: the five sections of `docs/reference/tools/15-install.md` each owe their\nfeature proofs (`rule:testing/feature-proofs`), and one of the five is complete:\n`tools:install/linux-and-macos`. `bun nv proofs --owed --group tools:install` lists the other four,\neach owing about, examples, hostile and tests. None owes help or perf.\n\nNothing is blocked. No proof found a bug: every attempt in the landed attack is refused by the\ncapability check, `Core\\IO::move` on a source outside the write grant included.\n\nThe pack did not print the check the chapter describes or its tests, so `context.modules` now names\n`crates/nvs-config/src/trust.rs` and `crates/nvs-config/tests/trust.rs`. It prints neither\n`docs/examples/README.md` nor `tests/hostile/README.md` either; both were read for the shape of\n`about.md`, the `.in` file and a feature directory's own `nvs.toml`.\n\nA `#[cfg(unix)]` test is not compiled on this host, so the one this session added was run by hand in\nWSL over `/mnt`, with `cargo test --test trust` and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`. The\nplaybook's *Running things* bullet on a crate's `cfg(unix)` half owns the trap.",
+  "state": "Goal `tools-install`: the five sections of `docs/reference/tools/15-install.md` each owe their\nfeature proofs (`rule:testing/feature-proofs`), and two of the five are complete:\n`tools:install/linux-and-macos` and `tools:install/the-layout`. `bun nv proofs --owed --group\ntools:install` lists the other three, each owing about, examples, hostile and tests. None owes help\nor perf.\n\nNothing is blocked. One proof found a wrong answer and it is recorded, not fixed:\n`data/gaps/nvs-config/a-set-of-a-name-that-is-not-a-key-answers-true.json`, owned by M10. The\nattack that found it passes, because the runtime survives every step, so it carries no marker.\n\nA section about a command has its Rust proof where that command is driven through the binary:\n`tools:install/the-layout`'s is in `crates/nvs-cli/tests/init.rs`, and `context.modules` now names\nthat file, `docs/examples/README.md` and `tests/hostile/README.md`, which the pack printed none of.\n\nA `#[cfg(unix)]` test is not compiled on this host and is run by hand in WSL; the playbook's\n*Running things* bullet on a crate's `cfg(unix)` half owns the trap. A `#[cfg(windows)]` one runs\nhere.",
   "next": {
     "stage": null,
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, and all three share `docs/reference/tools/15-install.md` and `crates/nvs-config/tests/trust.rs`:",
+    "note": "One slice is one feature with all its feature proofs. Take them in file order.\n\n**Stage 2: the dossier** — one file set: `docs/reference/tools/15-install.md`, `crates/nvs-config/tests/trust.rs`, `crates/nvs-cli/tests/init.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`tools:install/the-layout`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:9`"
+        "text": "**`tools:install/what-novis-checks`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:72`. Its table of what each command checks names `nvs init`'s check of the folder one level up, which no test asks about yet: `crates/nvs-cli/tests/init.rs:95` is the test it sits beside."
       },
       {
         "done": false,
-        "text": "**`tools:install/what-novis-checks`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:72`. The check on the containing folder is already pinned on both platforms and carries no marker for this feature: `crates/nvs-config/tests/trust.rs:100`, `crates/nvs-config/tests/trust.rs:215`"
+        "text": "**`tools:install/windows`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:107`. The `icacls` fixtures it needs are already at `crates/nvs-config/tests/trust.rs:215`."
       },
       {
         "done": false,
-        "text": "**`tools:install/windows`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:107`. Its deny-entry case is `crates/nvs-config/tests/trust.rs:239`"
+        "text": "**`tools:install/when-something-is-refused`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:186`."
       }
     ]
   },
   "backlog": [
-    "`tools:install/when-something-is-refused` owes about, examples, hostile, tests, and is the last of the chapter: `docs/reference/tools/15-install.md:186`."
+    "`Core\\Config::set` answers `true` for a name under a request-settable block that no key has — `data/gaps/nvs-config/a-set-of-a-name-that-is-not-a-key-answers-true.json`, owner M10.",
+    "The chapter's paragraph on the notes `nvs init` writes names three of them, and two `[server]` keys in the file end `# default; restart required` — `docs/reference/tools/15-install.md:55` owns the sentence that would say so."
   ]
 }

@@ -6,7 +6,10 @@
     "modules": [
       "docs/reference/tools/15-install.md",
       "crates/nvs-config/src/trust.rs",
-      "crates/nvs-config/tests/trust.rs"
+      "crates/nvs-config/tests/trust.rs",
+      "docs/examples/README.md",
+      "tests/hostile/README.md",
+      "crates/nvs-cli/tests/init.rs"
     ],
     "rules": [
       "testing/feature-proofs",
