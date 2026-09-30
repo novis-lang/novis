@@ -1,5 +1,5 @@
 {
-  "live": "tools-install",
+  "live": "tools-server",
   "goals": [
     "core-depth",
     "concurrency",
