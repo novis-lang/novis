@@ -43,6 +43,7 @@ fn ast(args: &[&str], name: &str) -> (String, bool) {
 /// `rule:ide/ast-json-schema-is-frozen`'s default, from both sides: the
 /// fixture ends in `$u->`, so the parser reports an error on it and recovers,
 /// and the question is which half of the pair prints a tree for it.
+// covers: tools:cli/nvs-ast
 #[test]
 fn ast_resilient_is_the_default_and_strict_is_opt_in() {
     let (default, ok) = ast(&["--json"], "recovered.nvs");
@@ -82,6 +83,7 @@ fn ast_resilient_is_the_default_and_strict_is_opt_in() {
 /// The two layers the grammar drops, which are the two
 /// `rule:ide/ast-json-schema-is-frozen` puts back: the comments a formatter
 /// reads, and the node the parser invented where the source stopped.
+// covers: tools:cli/nvs-ast
 #[test]
 fn ast_json_includes_trivia_and_recovery_nodes() {
     let text = std::fs::read_to_string(fixture("recovered.nvs")).expect("the fixture is on disk");
@@ -144,6 +146,7 @@ fn ast_json_includes_trivia_and_recovery_nodes() {
 /// The panel's whole reason for existing: the file that does not compile
 /// still gets a document, and the diagnostics do not land in it
 /// (`rule:ide/ast-json-schema-is-frozen`, `rule:ide/the-ast-panel-shells-out-to-the-cli`).
+// covers: tools:cli/nvs-ast
 #[test]
 fn ast_json_renders_a_file_that_does_not_compile() {
     let text = std::fs::read_to_string(fixture("recovered.nvs")).expect("the fixture is on disk");
@@ -176,6 +179,7 @@ fn ast_json_renders_a_file_that_does_not_compile() {
 /// names: every node of every example is `kind`, `span`, `children` and
 /// nothing but the scalars in [`SCALARS`], and one example's whole document
 /// is frozen byte for byte so a reshaping that keeps the key set still fails.
+// covers: tools:cli/nvs-ast
 #[test]
 fn ast_json_matches_its_frozen_schema() {
     let examples = examples();
@@ -215,6 +219,49 @@ fn ast_json_matches_its_frozen_schema() {
         hello.trim_end(),
         r#"{"children":[{"children":[],"kind":"Whitespace","span":[5,6]},{"children":[{"children":[],"kind":"Whitespace","span":[10,11]},{"children":[],"kind":"Str","span":[11,26]}],"kind":"Echo","span":[6,27]},{"children":[],"kind":"Whitespace","span":[27,28]}],"kind":"File","span":[0,28]}"#,
         "the frozen document for `examples/hello.nvs`"
+    );
+}
+
+/// Both notations over the attack written against this command: a sixty-link
+/// chain, comments inside one expression, text that is not ASCII. The debug
+/// notation writes a span as `file-index:start..end`, the document's root
+/// covers every byte and the schema holds under it, and `--resilient` with
+/// `--strict` is refused before the file is read.
+// covers: tools:cli/nvs-ast
+#[test]
+fn ast_prints_both_notations_for_a_file_that_is_hard_to_print() {
+    let path = nvs_repo::path("tests")
+        .join("hostile")
+        .join("tools")
+        .join("cli")
+        .join("nvs-ast")
+        .join("01-a-file-that-is-hard-to-print.nvs");
+    let text = std::fs::read_to_string(&path).expect("the attack is on disk");
+
+    let (debug, err, ok) = run_ast(&[], &path);
+    assert!(ok, "the attack parses without an error: {err}");
+    assert!(
+        debug.contains("span: 0:"),
+        "a span is `file-index:start..end`: {debug}"
+    );
+
+    let (out, err, ok) = run_ast(&["--json"], &path);
+    assert!(ok, "the attack parses without an error: {err}");
+    let tree: Value = serde_json::from_str(&out).expect("standard output is one document");
+    let root = [0, text.len()];
+    assert_eq!(span_of(&tree), root, "the root covers every byte: {out}");
+    check_schema(&tree, root, &path, true);
+    for kind in ["BlockComment", "LineComment", "DocComment", "Paren"] {
+        assert!(
+            subtree(&tree).iter().any(|node| node["kind"] == kind),
+            "the attack's `{kind}` is in the tree: {out}"
+        );
+    }
+
+    let (out, err, ok) = run_ast(&["--resilient", "--strict"], &path);
+    assert!(
+        !ok && out.is_empty() && err.contains("cannot be used with"),
+        "the two modes are refused together: {out}{err}"
     );
 }
 

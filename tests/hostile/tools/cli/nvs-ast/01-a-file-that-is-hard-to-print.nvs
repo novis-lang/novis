@@ -1,0 +1,39 @@
+<?nvs
+// Attack: this file is hard to turn into a syntax tree. `nvs ast` and `nvs ast --json`
+// should print a tree for it that covers every byte, and the program should run.
+
+// 1. A chain of sixty `.` operators. Each one adds a level to the tree.
+string $long = 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a'
+    . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a'
+    . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a'
+    . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a'
+    . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a'
+    . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a' . 'a';
+echo Core\Str::length($long), "\n";
+
+// 2. Ten levels of parentheses.
+echo ((((((((((1 + 2)))))))))) * 3, "\n";
+
+// 3. Comments between the parts of one expression. Each comment is a node in the tree.
+int $sum = 1 /* one */ + /* two */ 2 // three
+    + 3;
+echo $sum, "\n";
+
+// 4. Text that is not ASCII. A span in the tree counts bytes, and most of these characters are more than one byte.
+string $text = 'café 日本 😀';
+echo Core\Str::length($text), "\n";
+
+// 5. Text that looks like a closing tag or a comment, inside strings.
+echo '?> is text here', "\n";
+echo '/* not a comment */ // not a comment either', "\n";
+
+// 6. A doc comment on a method with a default value and a nullable parameter.
+class Label
+{
+    /// Returns the name and the count, joined by `:`.
+    public static function of(?string $name = null, int $count = 0): string
+    {
+        return ($name ?? 'none') . ':' . $count;
+    }
+}
+echo Label::of(), ' ', Label::of('x', 2), "\n";

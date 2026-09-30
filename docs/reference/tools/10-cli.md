@@ -343,7 +343,7 @@ an unknown argument, and clap's error names `nvs info`.
 
 # nvs meta --json
 
-    nvs meta --json
+    nvs meta --json [entry.nvs]
 
 Prints the `Core` registry as one JSON object — the same data Part B of this reference is
 generated from. `--json` is required. Its seven top-level keys:
@@ -363,13 +363,30 @@ generated from. `--json` is required. Its seven top-level keys:
   roster of its own rather than a field on a member, so a renderer that wants a capability beside a
   card joins the two on `(class, member)`; a member absent from it is ungated.
 
+Given an entry point, the command also parses and resolves that program, and adds an eighth key,
+`program`, holding its own `classes`, `enums` and `types` (its `type` aliases) in the same shape. A declaration's `doc` is the
+`///` comment above it: its prose as `short`, and its `@see` and `@example` tags as lists. The
+seven registry keys are byte for byte the same as without the entry point. For a file declaring
+one documented class:
+
+```text
+$ nvs meta --json cart.nvs
+…,"program":{"classes":[{"doc":{"short":"A shopping cart."},"members":[{"doc":{"short":"Adds items to the cart."},"kind":"instance","name":"add","signature":"add(uint $count = 1): uint","visibility":"public"}],"name":"Cart"}]}}
+```
+
 # nvs ast
 
     nvs ast [--json] [--resilient | --strict] <file>
 
-Parses one file and prints its syntax tree in a debug notation, one node per line, with spans as
-`file-index:start..end` byte offsets. It parses only — names are not resolved and nothing is
-type-checked, so a file `nvs check` refuses may still print a tree.
+Parses one file and prints its syntax tree in a debug notation, indented one level per node, with
+spans as `file-index:start..end` byte offsets. It parses only — names are not resolved and nothing
+is type-checked, so a file `nvs check` refuses may still print a tree. For a file holding
+`<?nvs echo -x;`:
+
+```text
+$ nvs ast --json neg.nvs
+{"children":[{"children":[],"kind":"Whitespace","span":[5,6]},{"children":[{"children":[],"kind":"Whitespace","span":[10,11]},{"children":[{"children":[],"kind":"ConstFetch","span":[12,13]}],"kind":"Unary","op":"Neg","span":[11,13]}],"kind":"Echo","span":[6,14]},{"children":[],"kind":"Whitespace","span":[14,15]}],"kind":"File","span":[0,15]}
+```
 
 `--json` prints a frozen document instead of that notation, for a tool rather than a person: one
 object per node, carrying `kind`, `span` as `[start, end]` byte offsets, that production's own
