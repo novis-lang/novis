@@ -80,7 +80,7 @@ lands the behaviour and not before:
   ("shared with `??`'s own left operand"), `Env::coalesce_guarded`'s in `crates/nvs-types/src/lib.rs`,
   and `AssignOp::binary_op`'s in `crates/nvs-syntax/src/ast.rs` ("for every variant here", and its
   count of rows).
-- `data/gaps/nvs-ir/throws-on-an-array-key-that.json` — owned by this goal, and deleted by the
+- `data/gaps/nvs-ir/throws-on-an-array-key-that.json` — built by this goal, and deleted by the
   session that closes it. `docs/examples/lang/expressions/and-the-ternary/03-settings-with-their-gaps-filled-in.nvs`
   loses its `// proof: gap` line in the same commit, and its `.out` is then what the program prints.
 - `docs/examples/lang/expressions/and-the-ternary/about.md` and
