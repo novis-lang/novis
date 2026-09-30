@@ -244,6 +244,7 @@ fn every_index_line_resolves_through_show() {
 /// The capability is joined from the document's own roster at render time, so a
 /// gated member wears it and an ungated one wears nothing — an empty bracket
 /// would read as a gate whose name went missing.
+// covers: tools:agents/nvs-agent
 #[test]
 fn a_gated_member_renders_its_capability_and_an_ungated_one_renders_none() {
     let lines = index();
@@ -301,6 +302,7 @@ fn the_index_names_every_enum_exception_and_attribute_beside_the_members() {
 /// The query is written as the language spells it, backslash and all. This is
 /// the whole reason `find` is a command: `grep 'Core\IO'` loses the backslash to
 /// the shell, and the empty result reads as "no such class".
+// covers: tools:agents/nvs-agent
 #[test]
 fn find_matches_a_backslashed_class_name_written_literally() {
     let (out, _, ok) = agent(&["find", r"Core\IO::read"]);
@@ -339,6 +341,7 @@ fn find_is_case_insensitive_over_the_class_and_member_name() {
 /// `show` was asked for one specific thing, so it fails rather than printing
 /// nothing — and a wrong guess is usually a near miss, which is what makes the
 /// nearest matches the useful half of the refusal.
+// covers: tools:agents/nvs-agent
 #[test]
 fn show_on_an_unknown_symbol_exits_non_zero_naming_the_nearest_matches() {
     let (out, err, ok) = agent(&["show", r"Core\Str::lenght"]);
@@ -358,6 +361,7 @@ fn show_on_an_unknown_symbol_exits_non_zero_naming_the_nearest_matches() {
 /// it. The heading that documents it is on the index instead, and the symbol its
 /// line opens with is what `show` prints the section from — the same two calls
 /// that reach a member.
+// covers: tools:agents/nvs-agent
 #[test]
 fn a_keyword_no_member_is_named_for_is_found_by_its_heading_and_shown_as_its_section() {
     let (out, _, ok) = agent(&["find", "autoload"]);
@@ -535,6 +539,7 @@ fn no_two_index_lines_open_with_the_same_symbol() {
 
 /// Nothing on standard output is still the answer, so a consumer reading the
 /// output sees what it always saw. What the silence covers is said beside it.
+// covers: tools:agents/nvs-agent
 #[test]
 fn find_with_no_match_prints_nothing_and_says_what_was_searched() {
     let (out, err, ok) = agent(&["find", "strlen"]);
@@ -589,6 +594,123 @@ fn every_syntactic_form_is_reachable_through_a_heading() {
         }
     }
     assert!(missing.is_empty(), "forms with no heading: {missing:?}");
+}
+
+/// The lines the chapter's `# nvs agent` section shows as lines of the index:
+/// its one `text` block.
+fn shown_index_lines() -> Vec<String> {
+    let text = chapter("tools/50-agents.md");
+    let mut lines = Vec::new();
+    let mut in_section = false;
+    let mut in_fence = false;
+    let mut in_sample = false;
+    for line in text.lines() {
+        if line.starts_with("```") {
+            in_sample = !in_fence && line == "```text";
+            in_fence = !in_fence;
+        } else if !in_fence && line.starts_with("# ") {
+            in_section = line == "# nvs agent";
+        } else if in_section && in_sample {
+            lines.push(line.to_owned());
+        }
+    }
+    lines
+}
+
+/// The section's sample is a copy of lines the index printed the day it was
+/// written, and a copy goes stale the day a signature gains a parameter or an
+/// exception moves in its tree. Each line shown is a whole line of the index,
+/// its symbol resolves through `show`, and the sample has one line of every
+/// kind the section then describes.
+// covers: tools:agents/nvs-agent
+#[test]
+fn every_index_line_the_chapter_shows_is_a_line_of_the_index() {
+    let shown = shown_index_lines();
+    let index = index();
+    for line in &shown {
+        assert!(
+            index.contains(line),
+            "the chapter shows a line the index does not print: {line}"
+        );
+        let (_, _, ok) = agent(&["show", symbol_of(line)]);
+        assert!(ok, "`show` resolves the symbol `{}`", symbol_of(line));
+    }
+    for (kind, mark) in [
+        ("a gated member", "  ["),
+        ("a generic member", "<T>("),
+        ("an enum", "  enum "),
+        ("an exception", "  exception "),
+        ("a chapter", "  chapter: "),
+        ("a section", "  section: "),
+    ] {
+        assert!(
+            shown.iter().any(|line| line.contains(mark)),
+            "the sample shows no line for {kind}: {shown:?}"
+        );
+    }
+}
+
+/// The check that closes the loop. A program written from the PHP name is
+/// refused, and the help names what the language writes for that name — as a
+/// spelling `show` resolves, so the diagnostic leads back into the same two
+/// calls instead of out of them. A name that has no single replacement gets no
+/// such sentence, because a guess there would be a spelling that does not
+/// resolve.
+// covers: tools:agents/nvs-agent
+#[test]
+fn the_member_a_diagnostic_names_for_a_php_function_is_one_show_resolves() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("agent-check-loop");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("a private directory under the target directory");
+    let calls = [
+        ("count", "count($sizes)"),
+        ("implode", "implode(\", \", $names)"),
+        ("in_array", "in_array(3, $sizes)"),
+        ("strlen", "strlen($names[0])"),
+        ("tally", "tally($sizes)"),
+    ];
+    let mut program = String::from(
+        "<?nvs\narray<int> $sizes = [3, 1, 2];\narray<string> $names = [\"Ada\", \"Grace\"];\n",
+    );
+    for (_, call) in calls {
+        program.push_str("echo ");
+        program.push_str(call);
+        program.push_str(", \"\\n\";\n");
+    }
+    std::fs::write(dir.join("main.nvs"), program).expect("the program is written");
+
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["check", "main.nvs"])
+        .current_dir(&dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(!out.status.success(), "a free function does not compile");
+    let err = String::from_utf8(out.stderr).expect("the output is UTF-8");
+
+    for (name, _) in calls {
+        assert!(
+            err.contains(&format!("`{name}` is not a function that exists")),
+            "`{name}` is refused by name: {err}"
+        );
+        let opening = format!("help: PHP's `{name}` is `");
+        let named = err
+            .lines()
+            .find_map(|line| line.trim_start().strip_prefix("= ")?.strip_prefix(&opening))
+            .and_then(|rest| rest.split_once("` here"))
+            .map(|(member, _)| member);
+        if name == "tally" {
+            assert_eq!(named, None, "a name PHP does not have is told no member");
+            continue;
+        }
+        let member = named.unwrap_or_else(|| panic!("the help names a member for `{name}`: {err}"));
+        let (card, _, ok) = agent(&["show", member]);
+        assert!(ok, "`show` resolves `{member}`, which the help named");
+        assert!(
+            card.starts_with(member),
+            "the card is that member's own: {card}"
+        );
+    }
 }
 
 /// Every `$ nvs agent …` command the chapter's worked session shows, as the

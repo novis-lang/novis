@@ -1,0 +1,45 @@
+--TEST--
+A call to a PHP built-in is `E0320` with a help naming what this language writes for that name — a member, an operator, or nothing — and a name PHP does not have keeps the general help — `rule:tooling/an-agent-asks-the-binary`, `rule:classes/no-free-functions-or-constants`, `rule:php-migration/the-php-name-layer-is-joined-at-build-time`
+--FILE--
+<?nvs
+// covers: tools:agents/nvs-agent
+// The chapter says a diagnostic names the spelling this language wants. The
+// first three calls are the three answers the migration table has: a member,
+// an operator, and nothing. The last name is not PHP's, so its help is the
+// general one.
+
+array<int> $sizes = [3, 1, 2];
+echo count($sizes), "\n";
+echo intval("42"), "\n";
+echo addslashes("it's"), "\n";
+echo tally($sizes), "\n";
+--EXPECTF-ERROR--
+error[E0320]: `count` is not a function that exists
+  --> %s:9:6
+  |
+9 | echo count($sizes), "\n";
+  |      ^^^^^ no free function has this name
+  = help: PHP's `count` is `Core\Arr::count` here. `rule:classes/no-free-functions-or-constants`: every callable is a method, so there is no free function to call, and `docs/spec/02-php-migration.md` has the row of each PHP built-in, with its reason and any rewrite
+
+error[E0320]: `intval` is not a function that exists
+   --> %s:10:6
+   |
+10 | echo intval("42"), "\n";
+   |      ^^^^^^ no free function has this name
+   = help: PHP's `intval` is `$x as int` here. `rule:classes/no-free-functions-or-constants`: every callable is a method, so there is no free function to call, and `docs/spec/02-php-migration.md` has the row of each PHP built-in, with its reason and any rewrite
+
+error[E0320]: `addslashes` is not a function that exists
+   --> %s:11:6
+   |
+11 | echo addslashes("it's"), "\n";
+   |      ^^^^^^^^^^ no free function has this name
+   = help: PHP's `addslashes` has no counterpart here. `rule:classes/no-free-functions-or-constants`: every callable is a method, so there is no free function to call, and `docs/spec/02-php-migration.md` has the row of each PHP built-in, with its reason and any rewrite
+
+error[E0320]: `tally` is not a function that exists
+   --> %s:12:6
+   |
+12 | echo tally($sizes), "\n";
+   |      ^^^^^ no free function has this name
+   = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's own name to its `Core` member
+
+error: aborting due to 4 errors

@@ -1,0 +1,35 @@
+<?nvs
+// Attack: the program calls PHP function names in forms the compiler may not expect.
+// No call below should compile. Each one should give an error, and the compiler must not crash.
+// hostile: expect-refusal
+
+array<int> $sizes = [3, 1, 2];
+
+// 1. A PHP name in capital letters, in mixed case, and with a leading `\`.
+echo COUNT($sizes), Count($sizes), cOuNt($sizes), \count($sizes), "\n";
+
+// 2. Names that differ from a PHP name by one character.
+echo coun($sizes), countt($sizes), _count($sizes), count_($sizes), count1($sizes), "\n";
+
+// 3. A PHP function that has no replacement, and two PHP class names used as functions.
+echo addslashes("it's"), ArrayObject($sizes), stdClass(), "\n";
+
+// 4. A PHP name inside a namespace, and inside the `Core` namespace.
+echo Shop\count($sizes), Core\count($sizes), Core\Arr\count($sizes), "\n";
+
+// 5. A PHP name with every kind of argument list: none, spread, named, and a reference.
+echo count(), count(...$sizes), count(value: $sizes), "\n";
+callable $reference = count(...);
+
+// 6. A name of 600 characters that starts with a PHP name.
+echo countcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcountcount($sizes), "\n";
+
+// 7. A PHP name called on its own result 12 times.
+echo count(count(count(count(count(count(count(count(count(count(count(count($sizes)))))))))))), "\n";
+
+// 8. A PHP name called inside a class that has a method with the same name.
+class Basket {
+    public function count(): uint {
+        return count($this);
+    }
+}
