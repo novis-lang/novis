@@ -26399,8 +26399,36 @@ Prints what this binary is: the version, commit, build profile, target triple, R
 versions under **Build**; the operating system, architecture, CPU parallelism and executable path
 under **Host**; and under **Licensing** the `nvs` license (MIT) followed by every third-party
 component with its version and the license Novis takes it under. `--licenses` appends every
-license text in full. It answers what `php -i` answers, but there is no `nvs -i`: that spelling is
-an unknown argument, and clap's error names `nvs info`.
+license text in full. It answers what `php -i` answers, but there is no `nvs -i`: that is an
+unknown argument, and `nvs` exits with status 2. The output below is trimmed at each `...`.
+
+```text
+Novis 0.0.1
+==============================================================================
+
+Build
+  version             0.0.1
+  commit              932147445
+  profile             debug
+  target              x86_64-pc-windows-msvc
+  compiler            rustc 1.97.1 (8bab26f4f 2026-07-14)
+  code generator      Cranelift 0.135.3
+  ...
+
+Host
+  operating system    windows
+  architecture        x86_64
+  cpu parallelism     16
+  ...
+
+Licensing
+  nvs                 MIT
+  third-party         listed below
+  license texts       run `nvs info --licenses`
+
+COMPONENTS (339)
+...
+```
 
 ### nvs meta --json
 
@@ -26474,6 +26502,12 @@ read and write it.
 off. With no directory named it is `novis\opcache` under `%LOCALAPPDATA%` on Windows, and
 `novis/opcache` under `$XDG_CACHE_HOME` or `~/.cache` elsewhere. `[cache] dir` is not a key: it is
 refused with `E0601`.
+
+```toml
+[opcache]
+file_cache_dir = "/var/cache/novis"   # where compiled programs are stored
+### file_cache = false                  # compile on every start instead
+```
 
 The directory must be owned by the account running `nvs` and writable by no other ordinary account,
 and so must the directory containing it. A named directory that fails prints one `warning:` line

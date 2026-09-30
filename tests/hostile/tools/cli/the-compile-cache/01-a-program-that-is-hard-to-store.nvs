@@ -1,0 +1,72 @@
+<?nvs
+// Attack: this program is hard to store in the compile cache and read back.
+// A second run loads the compiled program from the cache and should print the same lines.
+
+// 1. Text that starts with `NVSC`, the four letters every cache file starts with.
+string $fake = 'NVSC' . Core\Str::repeat('0', 78) . 'NVSC';
+echo Core\Str::length($fake), "\n";
+
+// 2. Twenty methods, each calling the next. Each call is an address the cache must fix when it loads.
+class Chain
+{
+    public static function a(int $n): int
+    { return Chain::b($n + 1); }
+    public static function b(int $n): int
+    { return Chain::c($n + 1); }
+    public static function c(int $n): int
+    { return Chain::d($n + 1); }
+    public static function d(int $n): int
+    { return Chain::e($n + 1); }
+    public static function e(int $n): int
+    { return Chain::f($n + 1); }
+    public static function f(int $n): int
+    { return Chain::g($n + 1); }
+    public static function g(int $n): int
+    { return Chain::h($n + 1); }
+    public static function h(int $n): int
+    { return Chain::i($n + 1); }
+    public static function i(int $n): int
+    { return Chain::j($n + 1); }
+    public static function j(int $n): int
+    { return Chain::k($n + 1); }
+    public static function k(int $n): int
+    { return Chain::l($n + 1); }
+    public static function l(int $n): int
+    { return Chain::m($n + 1); }
+    public static function m(int $n): int
+    { return Chain::n($n + 1); }
+    public static function n(int $n): int
+    { return Chain::o($n + 1); }
+    public static function o(int $n): int
+    { return Chain::p($n + 1); }
+    public static function p(int $n): int
+    { return Chain::q($n + 1); }
+    public static function q(int $n): int
+    { return Chain::r($n + 1); }
+    public static function r(int $n): int
+    { return Chain::s($n + 1); }
+    public static function s(int $n): int
+    { return Chain::t($n + 1); }
+    public static function t(int $n): int
+    { return $n; }
+}
+echo Chain::a(0), "\n";
+
+// 3. Values at the far end of their range, and text that is not ASCII. The cache stores each one as bytes.
+echo 9223372036854775807, ' ', -9223372036854775807 - 1, "\n";
+echo 1.7976931348623157e308, ' ', 5e-324, "\n";
+echo 'café 日本 😀', "\n";
+
+// 4. A long text built from many parts. Each part is a separate value in the compiled program.
+string $parts = 'a' . 'b' . 'c' . 'd' . 'e' . 'f' . 'g' . 'h' . 'i' . 'j' . 'k' . 'l' . 'm'
+    . 'n' . 'o' . 'p' . 'q' . 'r' . 's' . 't' . 'u' . 'v' . 'w' . 'x' . 'y' . 'z';
+echo $parts, "\n";
+
+// 5. A loop that calls library functions many times from the loaded code.
+uint $total = 0;
+uint $round = 0;
+while ($round < 100000) {
+    $total = $total + Core\Str::length($parts);
+    $round = $round + 1;
+}
+echo $total, "\n";

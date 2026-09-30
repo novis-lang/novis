@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-cli`: four features of `docs/reference/tools/10-cli.md` now have all their proofs:\n`files-extensions-and-tags`, `nvs-api-diff`, `nvs-ast` and `nvs-meta-json`. The `nvs ast` and\n`nvs meta --json` sections now each show a fenced example, and the meta section now documents the\n`[entry.nvs]` form and its `program` key (`rule:tooling/meta-json-takes-a-program`). Neither proof\nfound a bug in the binary. `bun nv proofs --owed | grep tools:cli` lists the nine features still\nowed. Four of them also owe `help`, because their section has no fenced block: `nvs-build-compile`,\n`nvs-build-openapi`, `nvs-info` and `the-compile-cache`.",
+  "state": "Goal `tools-cli`: six features of `docs/reference/tools/10-cli.md` now have all their proofs. This\nsession finished `nvs-info` and `the-compile-cache`. `nvs-info` reads no program, so its example\nand attack are entries in `data/proofs/policy.json`'s `skip` table, each with its reason. Its\nsection said `nvs -i` gets an error naming `nvs info`. That was false, and the section now says what\nthe binary does. `bun nv proofs --owed | grep tools:cli` lists the seven features still owed. Two of\nthem also owe `help`: `nvs-build-compile` and `nvs-build-openapi`.",
   "next": {
     "stage": 1,
     "title": "tool proofs, one chapter",
@@ -12,22 +12,21 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:cli/nvs-info`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:333`. For help, add a fenced `text` block with real `nvs info` output, trimmed. Before writing a new test, look for an existing `nvs info` test in `crates/nvs-cli/tests/` that only needs a `// covers: tools:cli/nvs-info` marker."
+        "text": "**`tools:cli/nvs-config-check-and-nvs-config-dump`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:304`. This is the first feature the driver's check names. Look for existing `nvs config check` or `nvs config dump` tests in `crates/nvs-cli/tests/` that need only a `// covers:` marker. The example is a program. Its comment says which `nvs config` command to run beside it."
       },
       {
         "done": false,
-        "text": "**`tools:cli/the-compile-cache`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:406`. For help, add a fenced `toml` or `text` block showing `[opcache] file_cache_dir`."
+        "text": "**`tools:cli/nvs-build-compile`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:259`. For help, add a fenced block showing the command and what it writes."
       },
       {
         "done": false,
-        "text": "**`tools:cli/nvs-build-compile`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:259`."
+        "text": "**`tools:cli/nvs-build-openapi`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:280`. The attack for `nvs-api-diff` already builds routes that are hard to write into an API document. Reuse it only if the test for this feature needs different assertions."
       }
     ]
   },
   "backlog": [
-    "`tools:cli/nvs-build-openapi` owes help as well — `docs/reference/tools/10-cli.md:280`.",
-    "`tools:cli/one-binary`, `nvs-run`, `nvs-check`, `nvs-test` and `nvs-config-check-and-nvs-config-dump` owe examples, hostile and tests only. Most already have Rust tests that need only a `covers:` marker.",
-    "A flat chain of about 91 `.` or `+` operators is refused with `E0108`. The bound is deliberate (`crates/nvs-syntax/src/parser/expr.rs:81` `parse_left_assoc`'s doc comment). PHP accepts any length, so a long generated concatenation will fail to compile.",
-    "The meta attack drops `@example`: a tag naming a file under `tests/hostile/` gets `E0325` even though the file is under `tests/`. Not checked whether that is intended."
+    "`tools:cli/one-binary`, `nvs-run`, `nvs-check` and `nvs-test` each owe examples, hostile and tests (`docs/reference/tools/10-cli.md`).",
+    "`nvs info | head -1` in PowerShell exited 255, which may be a panic on a closed pipe (`crates/nvs-cli/src/info.rs:53`). *not checked* under a POSIX shell.",
+    "A compile cache directory under `target/tmp` is refused on Windows, because the check reaches its grandparent (playbook bullet). Whether that is intended belongs to `rule:config/ownership-is-the-trust-boundary`."
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "lead": "A `-p nvs-cli` test that names an `[opcache] file_cache_dir` under `CARGO_TARGET_TMPDIR` gets a `warning:` and no cache, even after the scratch directory is made private.",
+  "body": "A cache directory that does not exist yet is checked at its nearest existing ancestor, *and that ancestor's parent*, and `target/tmp` grants `Authenticated Users` write access on Windows. Make the scratch private (`icacls /inheritance:r`, the shape of `private` in `crates/nvs-cli/tests/live_config.rs`), then create the cache directory inside it before the run, as `crates/nvs-cli/tests/compile_cache.rs` does.",
+  "files": [
+    "crates/nvs-cli/tests/live_config.rs",
+    "crates/nvs-cli/tests/compile_cache.rs",
+    "crates/nvs-cli/src/cache.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/cache.rs:fn existing_root"
+  }
+}

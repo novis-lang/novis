@@ -1945,6 +1945,7 @@ mod tests {
     /// account can write is refused once, at construction, rather than entry by entry — that
     /// principal can compute a valid header and checksum over bytes of their own choosing, so
     /// there is nothing per entry that could catch them.
+    // covers: tools:cli/the-compile-cache
     #[test]
     fn a_world_writable_cache_directory_is_refused() {
         let root = scratch("trust");
@@ -1996,10 +1997,6 @@ mod tests {
         nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", text).1
     }
 
-    /// `docs/decisions/0175.md` § 2: `opcache.file_cache_dir` is where the artifact cache lives and
-    /// [`from_config`] reads that key alone. The path arrives through the parser rather than a
-    /// struct literal so the case covers the whole chain — the text an operator writes, the field
-    /// the tree documents, and the root [`Cache::dir`] hands back.
     /// `NOVIS_NO_FILE_CACHE` turns off a cache the configuration places, and its absence leaves
     /// that cache where the configuration put it.
     #[test]
@@ -2022,6 +2019,11 @@ mod tests {
         drop(fs::remove_dir_all(&root));
     }
 
+    /// `docs/decisions/0175.md` § 2: `opcache.file_cache_dir` is where the artifact cache lives and
+    /// [`from_config`] reads that key alone. The path arrives through the parser rather than a
+    /// struct literal so the case covers the whole chain — the text an operator writes, the field
+    /// the tree documents, and the root [`Cache::dir`] hands back.
+    // covers: tools:cli/the-compile-cache
     #[test]
     fn the_configured_cache_directory_is_read_from_the_key_the_tree_documents() {
         let root = scratch("configured");
@@ -2045,6 +2047,7 @@ mod tests {
     /// a file still carrying it is refused as a directive that does not exist rather than parsed
     /// and ignored. Silence is the defect the record is about — an operator who moved the cache and
     /// restarted was served by a process still writing where it always had.
+    // covers: tools:cli/the-compile-cache
     #[test]
     fn a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored() {
         let refusal = parsed("[cache]\ndir = '/srv/novis/artifacts'\n")
@@ -2074,6 +2077,7 @@ mod tests {
 
     /// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` and `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`: the address is the content, the layout is a two-character fan-out, and a
     /// published file is never rewritten in place.
+    // covers: tools:cli/the-compile-cache
     #[test]
     fn the_cache_is_a_fan_out_of_immutable_content_addressed_files() {
         let dir = scratch("fanout");
