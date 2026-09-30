@@ -414,6 +414,17 @@ fn ns_per_op(iters: u64, batches: u32, mut op: impl FnMut()) -> f64 {
     best.as_secs_f64() * 1e9 / iters as f64
 }
 
+/// How many allocation requests this thread makes while `op` runs.
+///
+/// Read from the count the registered allocator keeps for every thread
+/// (`nvs_runtime::budget::allocations`), so a guard adds nothing to the code it
+/// counts. A request that is freed again before `op` returns is still counted.
+fn allocations_during(op: impl FnOnce()) -> usize {
+    let before = nvs_runtime::budget::allocations();
+    op();
+    nvs_runtime::budget::allocations() - before
+}
+
 /// Runs `op` with `depth` more frames of this thread's own stack above the
 /// caller, each one a real call: the work after the inner call keeps the
 /// optimizer from turning the recursion into a loop.
@@ -482,11 +493,48 @@ fn throwing_costs_about_the_same_as_returning() {
     // is rendered anywhere. `rule:errors/throw-is-not-slower`'s other half — the
     // label a raise carrying a site renders once for its own frame — is
     // `a_raise_renders_one_frame_label_and_nothing_larger` below.
+    //
+    // The proof is counted, so it holds on any machine however loaded. The
+    // helper's message is borrowed, and a status climbing the frames builds
+    // nothing, so a throw makes no allocation at all. A return makes none
+    // either, which is what leaves the two the same cost. The timing beside the
+    // count is a sanity bound on the work that allocates nothing.
     const THROW_PER_RETURN: Bound = Bound::ratio_under(2.0, 20.0);
+    const COUNTED: usize = 1_000;
 
     let mut probe = Probe::new();
     let chain = probe.compile_chain(8, Helper::Double);
     let mut ctx = Ctx::new();
+
+    let returned = allocations_during(|| {
+        for _ in 0..COUNTED {
+            let (status, _) = call(chain, &mut ctx, Value::int(3));
+            assert_eq!(status, nvs_abi_probe::OK, "3 is an argument that returns");
+        }
+    });
+    // 42 makes the innermost helper throw, which then climbs all 8 frames.
+    let thrown = allocations_during(|| {
+        for _ in 0..COUNTED {
+            let (status, _) = call(chain, &mut ctx, Value::int(42));
+            assert_eq!(
+                status,
+                nvs_abi_probe::THROWN,
+                "42 is the argument that throws"
+            );
+            ctx.pending = None;
+        }
+    });
+    println!(
+        "{COUNTED} throws through 8 frames: {thrown} allocations, and {returned} in {COUNTED} \
+         returns [both exactly 0]"
+    );
+    assert_eq!(
+        (thrown, returned),
+        (0, 0),
+        "{COUNTED} throws through 8 frames made {thrown} allocations and {COUNTED} returns made \
+         {returned}. A throw that costs about what a return does allocates nothing, which is \
+         ADR 0002's claim and the reason `Ctx::pending` borrows its message."
+    );
 
     judge(
         "throw/return ratio at depth 8",
@@ -497,7 +545,6 @@ fn throwing_costs_about_the_same_as_returning() {
             let ok = ns_per_op(200_000, 5, || {
                 black_box(call(chain, &mut ctx, Value::int(3)));
             });
-            // 42 makes the innermost helper throw, which then climbs all 8 frames.
             let thrown = ns_per_op(200_000, 5, || {
                 black_box(call(chain, &mut ctx, Value::int(42)));
                 ctx.pending = None;
