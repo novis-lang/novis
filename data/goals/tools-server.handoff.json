@@ -1,19 +1,15 @@
 {
-  "state": "Goal `tools-server`: `tools:server/stopping-and-reloading-the-drain` has its proofs. Three features\nof the group still owe, and `bun nv proofs --owed --group tools:server` lists what each owes:\n`tools:server/the-server-block`, `tools:server/nvs-service` and `tools:server/nvs-serve`. Nothing is\nblocked.\n\nThe drain section says what the binary does, and the binary differs from\n`rule:concurrency/a-drain-closes-a-connection-cleanly` in two places, each a gap record: a reload\nbegins no drain (`data/gaps/nvs-cli/a-reload-closes-no-connection.json`), and `drain_timeout` bounds\nonly the wait between two requests, never a request that is running\n(`data/gaps/nvs-server/drain-period-does-not-end-a-running-request.json`). A description written\nfor the `[server]` block or for `nvs service stop` says the same, not what the rule says.\n\nA section passes `help` when it shows a fenced block or a table row holding code; an indented usage\nblock does not count (`tools/nv/proofs/roster.ts:160`). A fenced `nvs` block in this chapter is\nwritten `nvs skip`. A `.nvst` case cannot name a mount (`crates/nvs-test/src/request.rs:67`), and a\nfeature of this chapter is credited by a `// covers:` marker above a Rust `#[test]` alone. An\nexample or an attack that needs a configuration key reads the `nvs.toml` in its own directory.\n\n`crates/nvs-cli/tests/live_config.rs`'s `Server` ends its process with `kill`, so a case there\ncannot observe a graceful stop, and what a stop does is pinned inside the crates\n(`crates/nvs-cli/src/serve.rs:4031`). The goal's context gained `crates/nvs-config/src/server.rs`;\nthe pack printed neither `crates/nvs-cli/src/stop.rs` nor `crates/nvs-server/src/io.rs`, which the\ndrain slice read and the three left do not need.",
+  "state": "Goal `tools-server`: `tools:server/the-server-block` has its proofs. Two features of the group\nstill owe, and `bun nv proofs --owed --group tools:server` lists what each owes:\n`tools:server/nvs-service` and `tools:server/nvs-serve`. Nothing is blocked. The two floor checks\nthe last sweep read red are closed: the `queue.workers` description is inside its length, and the\n`Core\\Queue` and `Core\\Queue\\Stats` figures are measured against `crates/nvs-stdlib/src/queue.rs`\nas it stands.\n\nThe drain section says what the binary does, and the binary differs from\n`rule:concurrency/a-drain-closes-a-connection-cleanly` in two places, each a gap record: a reload\nbegins no drain (`data/gaps/nvs-cli/a-reload-closes-no-connection.json`), and `drain_timeout` bounds\nonly the wait between two requests, never a request that is running\n(`data/gaps/nvs-server/drain-period-does-not-end-a-running-request.json`). A description written\nfor `nvs service stop` says the same, not what the rule says.\n\nA section passes `help` when it shows a fenced block or a table row holding code; an indented usage\nblock does not count (`tools/nv/proofs/roster.ts:160`). A fenced `nvs` block in this chapter is\nwritten `nvs skip`. A `.nvst` case cannot name a mount (`crates/nvs-test/src/request.rs:67`), and a\nfeature of this chapter is credited by a `// covers:` marker above a Rust `#[test]` alone; one\nmarker names several features, separated by commas. An example or an attack that needs a\nconfiguration key reads the `nvs.toml` in its own directory.\n\n`crates/nvs-cli/tests/live_config.rs`'s `Server` ends its process with `kill`, so a case there\ncannot observe a graceful stop, and what a stop does is pinned inside the crates\n(`crates/nvs-cli/src/serve.rs:4031`). A figure in `docs/perf/members.ndjson` goes stale when its\nimplementing file changes, and `bun nv proofs --record-perf --group '<class>'` measures it again.",
   "next": {
     "stage": 2,
     "title": "the dossier",
     "files": [
       "docs/reference/tools/25-server.md",
-      "crates/nvs-cli/tests/live_config.rs",
-      "crates/nvs-config/src/server.rs"
+      "crates/nvs-cli/src/service.rs",
+      "crates/nvs-cli/tests/live_config.rs"
     ],
     "note": "One slice is one feature with all its feature proofs:",
     "items": [
-      {
-        "done": false,
-        "text": "**`tools:server/the-server-block`** — owes about, examples, hostile, tests. `rule:http-server/the-server-block-is-boot-class`. The section is `docs/reference/tools/25-server.md:36`, and its line `docs/reference/tools/25-server.md:53` still gives `drain_timeout` the rule's meaning: correct it to what `# Stopping and reloading: the drain` says. `crates/nvs-config/src/server.rs:219` resolves the waits, `crates/nvs-config/src/server.rs:1076` is a case a `// covers:` marker fits, and `crates/nvs-cli/tests/live_config.rs:769` reloads the block's switches from outside."
-      },
       {
         "done": false,
         "text": "**`tools:server/nvs-service`** — owes about, examples, help, hostile, tests. `rule:packaging/a-service-is-one-stored-argv` and `rule:packaging/the-installer-is-a-sink`. The section is `docs/reference/tools/25-server.md:406` and needs a fenced block; `crates/nvs-cli/src/service.rs:4355` is a case a marker fits."
@@ -26,7 +22,8 @@
   },
   "backlog": [
     "A reload closes no connection, against `rule:concurrency/a-drain-closes-a-connection-cleanly` and ADR 0083 § 7 — gap record `data/gaps/nvs-cli/a-reload-closes-no-connection.json`.",
-    "The drain period does not end a running HTTP request, against the same rule — gap record `data/gaps/nvs-server/drain-period-does-not-end-a-running-request.json`; `crates/nvs-config/src/server.rs:128` and the `drain_timeout` comment in `crates/nvs-config/src/default.toml:471` describe the rule's reading.",
+    "The drain period does not end a running HTTP request, against the same rule — gap record `data/gaps/nvs-server/drain-period-does-not-end-a-running-request.json`; `crates/nvs-config/src/server.rs:25`, `crates/nvs-config/src/server.rs:128` and the `drain_timeout` comment in `crates/nvs-config/src/default.toml:471` describe the rule's reading.",
+    "`docs/examples/config/queue-workers/01-how-much-of-the-queue-this-instance-works.nvs` misses three bounds of `bun nv proofs --comments` — goal `plain-comments`.",
     "`crates/nvs-cli/src/ctl.rs` is still outside `context.modules` — `data/goals/tools-server.json`."
   ]
 }
