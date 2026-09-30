@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-server`: three of the chapter's eight features have their proofs,\n`tools:server/behind-a-proxy-trusted-proxies`, `tools:server/mounts-which-file-answers-a-request` and\n`tools:server/what-a-program-reads-about-its-door`. `bun nv proofs --owed --group tools:server` lists\nthe five still owed. Nothing is blocked, and the last slice changed no Rust beyond a `covers:` marker.\n\nA `.nvst` case cannot name a mount (`crates/nvs-test/src/request.rs:67`), so a case for a mount feature\npins what the root mount reads; a `.nvsr` file beside an example or an attack names one with\n`--MOUNT--`, the prefix on its first line and one capture on each line after it.\n\nThe three features left in the group owe `help`: the check reports that `# nvs ctl` and `# nvs service`\nshow no code although each has an indented usage block (`docs/reference/tools/25-server.md:296`), and\nthe sections that pass show a fenced one. Whether a fence is the whole difference is not checked.",
+  "state": "Goal `tools-server`: `tools:server/nvs-ctl` has its proofs, and the driver's last sweep named two\nmore features of the group as owing, `tools:server/stopping-and-reloading-the-drain` and\n`tools:server/nvs-service`. `bun nv proofs --owed --group tools:server` lists what each still owes.\nNothing is blocked.\n\nA section passes `help` when it shows a fenced block or a table row holding code; an indented usage\nblock does not count (`tools/nv/proofs/roster.ts:160`). `# nvs ctl` keeps its indented usage block\nand passes on the fenced `toml` and `text` transcripts under it, which is the shape for the two\nsections left.\n\nA `.nvst` case cannot name a mount (`crates/nvs-test/src/request.rs:67`), and a feature of this\nchapter is credited by a `// covers:` marker above a Rust `#[test]` alone. An example or an attack\nthat needs a configuration key reads the `nvs.toml` in its own directory.\n\nA refused `nvs ctl reload` now ends with `note: the running configuration is unchanged`\n(`UNCHANGED` in `crates/nvs-server/src/control.rs`). The goal's context gained\n`crates/nvs-server/src/control.rs` and `crates/nvs-cli/src/service.rs`; the pack did not print\neither, and `crates/nvs-cli/src/ctl.rs` is still outside `context.modules`.",
   "next": {
     "stage": 2,
     "title": "the dossier",
@@ -11,21 +11,18 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:server/nvs-ctl`** — owes about, examples, help, hostile, tests. `rule:config/a-reload-names-what-it-could-not-apply`. The `Server` harness already runs `nvs ctl` at `crates/nvs-cli/tests/live_config.rs:332`, so the Rust test is a `covers:` marker or one new case there. `docs/reference/tools/25-server.md:294`"
+        "text": "**`tools:server/stopping-and-reloading-the-drain`** — owes about, examples, help, hostile, tests. `rule:concurrency/a-drain-closes-a-connection-cleanly`. The section at `docs/reference/tools/25-server.md:283` says a `nvs ctl reload` drains, which is not checked against the rule or the binary: check it before writing the description. A program reads the drain with `Core\\Server::isDraining()`, `nvs ctl status` prints `draining:` from `crates/nvs-server/src/control.rs:245`, and `crates/nvs-cli/tests/live_config.rs:617` is a program that keeps a request open, which a from-outside case needs."
       },
       {
         "done": false,
-        "text": "**`tools:server/stopping-and-reloading-the-drain`** — owes about, examples, help, hostile, tests. `rule:concurrency/a-drain-closes-a-connection-cleanly`. Its example is a program reading `Core\\Server::isDraining()`. `docs/reference/tools/25-server.md:283`"
-      },
-      {
-        "done": false,
-        "text": "**`tools:server/nvs-service`** — owes about, examples, help, hostile, tests. `rule:packaging/a-service-is-one-stored-argv` and `rule:packaging/the-installer-is-a-sink`. `docs/reference/tools/25-server.md:310`"
+        "text": "**`tools:server/nvs-service`** — owes about, examples, help, hostile, tests. `rule:packaging/a-service-is-one-stored-argv` and `rule:packaging/the-installer-is-a-sink`. The section is `docs/reference/tools/25-server.md:375`; `unit` prints and stores nothing (`crates/nvs-cli/src/service.rs:593`, `crates/nvs-cli/src/service.rs:3065`), so its output is the fenced transcript and the from-outside case. `tools:cli/nvs-info` in `data/proofs/policy.json` is the precedent if no program can show or attack the command: decide that from what `install` reads, and say so in the commit."
       }
     ]
   },
   "backlog": [
-    "`tools:server/nvs-serve` owes about, examples, hostile, tests — `docs/reference/tools/25-server.md:8`.",
-    "`tools:server/the-server-block` owes about, examples, hostile, tests — `docs/reference/tools/25-server.md:36`.",
-    "`Core\\Router::url` writes the mount prefix into a link exactly as the request carries it. The attack `tests/hostile/tools/server/what-a-program-reads-about-its-door/01-a-folder-name-that-looks-like-a-path.nvs` hands it the prefix `/%2e%2e` and prints links that begin with it, which a browser resolves out of the mount. Whether the boot expansion in `crates/nvs-config/src/mount.rs` can produce such a prefix from a folder name is not checked; `rule:routing/link-carries-the-mount-prefix` owns the answer."
+    "`nvs agent find \"nvs ctl\"` matches nothing, as `nvs agent find \"nvs serve\"` does; `nvs agent find ctl` reaches `server#nvs-ctl`. `rule:testing/feature-proofs` says `find` reaches a feature under the name its user types. Owner: `docs/reference/tools/50-agents.md` and `crates/nvs-cli/src/agent.rs`.",
+    "A reload refused for a value (`E0601`, `limits.memory = \"a lot\"`) names the key and the file and no line, while `rule:config/a-reload-names-what-it-could-not-apply` says the offending line; a syntax error does print `file:line:column`. Owner: `nvs-config`'s diagnostics.",
+    "The queue-storage refusal already ends `so the running configuration is unchanged` (`crates/nvs-cli/src/serve.rs:1444`), so where that text is a reload's refusal the sentence is now printed twice; whether it reaches `Controlled::reload` is not checked. Owner: `crates/nvs-cli/src/serve.rs`.",
+    "`nvs ctl reload` run within the server's own two-second check of its files can print no `applied:` line for a key that check already applied; the cases in `crates/nvs-cli/tests/live_config.rs` that assert an `applied:` line right after a write depend on winning that race. Not seen failing."
   ]
 }

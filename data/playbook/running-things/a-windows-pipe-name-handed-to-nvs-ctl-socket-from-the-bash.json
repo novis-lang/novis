@@ -1,0 +1,11 @@
+{
+  "lead": "A Windows pipe name handed to `nvs ctl --socket` from the Bash tool loses a backslash.",
+  "body": "MSYS rewrites an argument that begins `\\\\`, so the client dials `\\.\\pipe\\…` and prints `no control endpoint answered`, which reads as a server that is not running. Run that one call from the PowerShell tool, which passes the name as written.",
+  "files": [
+    "crates/nvs-cli/src/ctl.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/ctl.rs:fn address"
+  }
+}

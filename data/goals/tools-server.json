@@ -8,7 +8,9 @@
       "crates/nvs-cli/src/serve.rs",
       "crates/nvs-cli/tests/live_config.rs",
       "crates/nvs-server/src/mount.rs",
-      "crates/nvs-test/src/request.rs"
+      "crates/nvs-test/src/request.rs",
+      "crates/nvs-server/src/control.rs",
+      "crates/nvs-cli/src/service.rs"
     ],
     "rules": [
       "testing/feature-proofs",
