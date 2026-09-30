@@ -1332,6 +1332,62 @@ fn plain_thread_fan_out(iters: u64) -> Duration {
     start.elapsed()
 }
 
+/// Where an overlapping fan-out ran: for each of [`isolate::WIDTH`] children
+/// posted from one task, the thread it ran on and whether it saw all of them
+/// running at once.
+///
+/// Each child keeps its core until every child has started, or until
+/// `patience` runs out. `nvs_host::worker` gives a placement a core that has no
+/// other placement on it, and starts another core while the CPU count allows
+/// one, so no two of these children share a core. A child that was queued
+/// behind another on one core starts only after that one stopped waiting, and
+/// the one that stopped waiting answers that it did not see them all.
+fn overlapping_fan_out(patience: Duration) -> Vec<(thread::ThreadId, bool)> {
+    let mut sched = nvs_host::Scheduler::new();
+    let answers: Rc<Cell<Vec<(thread::ThreadId, bool)>>> = Rc::new(Cell::new(Vec::new()));
+    let collected = Rc::clone(&answers);
+    let running: Arc<(Mutex<usize>, Condvar)> = Arc::new((Mutex::new(0), Condvar::new()));
+
+    let parent = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+    sched.spawn(parent, nvs_runtime::TaskRoot::Request, move |_ctx| {
+        // Every child is posted before any is collected, as
+        // `isolate::worker_fan_out_batch` posts them.
+        let posted: Vec<_> = (0..isolate::WIDTH)
+            .map(|child| {
+                let running = Arc::clone(&running);
+                nvs_host::worker::post(move || {
+                    let (started, changed) = &*running;
+                    let mut started = started.lock().unwrap_or_else(PoisonError::into_inner);
+                    *started += 1;
+                    changed.notify_all();
+                    let (started, _) = changed
+                        .wait_timeout_while(started, patience, |started| {
+                            *started < isolate::WIDTH
+                        })
+                        .unwrap_or_else(PoisonError::into_inner);
+                    (thread::current().id(), *started >= isolate::WIDTH)
+                })
+                .unwrap_or_else(|_| panic!("a core takes child {child}"))
+            })
+            .collect();
+        collected.set(
+            posted
+                .into_iter()
+                .map(|child| match child.collect() {
+                    nvs_host::worker::Answer::Value(answer) => answer,
+                    other => panic!("a child came back as {other:?} rather than with its answer"),
+                })
+                .collect(),
+        );
+    });
+    // A placed child answers through a wake from another thread, so the parent
+    // parks on a reactor, and a post with no reactor installed is refused.
+    let installed = nvs_host::reactor::install(nvs_host::Reactor::new().expect("a reactor starts"));
+    nvs_host::run_until_idle(&mut sched).expect("the scheduler finishes");
+    drop(installed);
+    answers.take()
+}
+
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names() {
@@ -1351,9 +1407,19 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
     // refused placement, a picker handing every child to one core, a join that
     // serialises the children — all of which land at or under 1x. Ten times
     // under the soft floor would be under that line and catch none of them.
+    //
+    // The count beside the speedup is the part no machine moves: how many
+    // cores the children ran on. `isolate::WIDTH` children are posted that each
+    // keep their core until all of them are running, so they overlap however
+    // loaded the machine is. They have to run on `isolate::WIDTH` different
+    // threads, and none of those is the thread that posted them. A picker that
+    // gives two children one core fails that count, and so does a placement
+    // that runs a child where it was posted.
     const SPEEDUP: Bound = Bound::ratio_over(2.0, 1.2);
     const ITERS: u64 = 5;
     const ROUNDS: usize = 5;
+    // Only the failing run ever waits this long.
+    const PATIENCE: Duration = Duration::from_secs(20);
 
     let cpus = nvs_host::cpus().len();
     if cpus < isolate::WIDTH {
@@ -1364,6 +1430,31 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
         );
         return;
     }
+
+    let placing = thread::current().id();
+    let ran = overlapping_fan_out(PATIENCE);
+    let together = ran.iter().filter(|(_, together)| *together).count();
+    let threads: std::collections::HashSet<_> = ran.iter().map(|(thread, _)| *thread).collect();
+    let on_the_placing_thread = usize::from(threads.contains(&placing));
+    println!(
+        "{} overlapping children: {together} running at once, on {} threads, \
+         {on_the_placing_thread} of them the placing thread [exactly {}, {} and 0]",
+        isolate::WIDTH,
+        threads.len(),
+        isolate::WIDTH,
+        isolate::WIDTH
+    );
+    assert_eq!(
+        (together, threads.len(), on_the_placing_thread),
+        (isolate::WIDTH, isolate::WIDTH, 0),
+        "of {} children posted together, {together} saw all of them running at once, and they \
+         ran on {} threads, {on_the_placing_thread} of them the thread that posted them. A \
+         fan-out runs each child on a core of its own that is not its parent's \
+         (`rule:concurrency/on-worker-runs-the-child-on-another-core`); fewer threads than \
+         children is `nvs_host::worker`'s picker giving two children one core.",
+        isolate::WIDTH,
+        threads.len()
+    );
 
     // Interleaved, so that a machine warming up or throttling mid-test moves
     // both halves rather than one; the minimum of each, for the reason
