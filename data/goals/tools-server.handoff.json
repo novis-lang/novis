@@ -1,28 +1,32 @@
 {
-  "state": "Goal `tools-server`: one of the chapter's eight features has its proofs,\n`tools:server/behind-a-proxy-trusted-proxies`. `bun nv proofs --owed --group tools:server` lists the\nseven still owed. Nothing is blocked.\n\nIts proofs found one bug, fixed in the same slice: `nvs serve` skipped the empty-`trusted_proxies`\nboot warning for any listen set holding a Unix socket, against\n`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`. The question is now\n`forgot_its_proxies` in `crates/nvs-cli/src/serve.rs`, with a test.\n\nThe pack's `modules` named only the chapter. `crates/nvs-cli/src/serve.rs` and\n`crates/nvs-cli/tests/live_config.rs` are added to it: the first is where `nvs serve` boots, the\nsecond holds the `Server` harness that starts a real server and reads its standard error.",
+  "state": "Goal `tools-server`: two of the chapter's eight features have their proofs,\n`tools:server/behind-a-proxy-trusted-proxies` and `tools:server/mounts-which-file-answers-a-request`.\n`bun nv proofs --owed --group tools:server` lists the six still owed. Nothing is blocked.\n\nThe mounts proofs found one bug on the real server, fixed in the same session: with `dispatch = \"path\"`\nor `static = true`, Windows opened a file for a URL that wrote its name with a dot or a space added, and\nevery platform opened one for a doubled or a trailing slash. `OnDisk::file` and `under` in\n`crates/nvs-server/src/mount.rs` now answer only for the name the disk holds, and the chapter's\n§ *How a request resolves* says so.\n\nA `.nvst` case cannot name a mount (`crates/nvs-test/src/request.rs:67`), so a case for a mount feature\npins what the root mount reads; a `.nvsr` file beside an example or an attack names one with `--MOUNT--`.\n`crates/nvs-server/src/mount.rs` and `crates/nvs-test/src/request.rs` are added to the pack's `modules`.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the first two read the same mount rows, so the second costs a fraction of the first:",
+    "stage": 2,
+    "title": "the dossier",
+    "files": [
+      "docs/reference/tools/25-server.md",
+      "crates/nvs-server/src/mount.rs",
+      "crates/nvs-cli/tests/live_config.rs"
+    ],
+    "note": "One slice is one feature with all its feature proofs. The first reads the mount rows this session left loaded:",
     "items": [
       {
         "done": false,
-        "text": "**`tools:server/mounts-which-file-answers-a-request`** — owes about, examples, hostile, tests. `rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/a-request-resolves-in-five-steps`. `docs/reference/tools/25-server.md:74`"
+        "text": "**`tools:server/what-a-program-reads-about-its-door`** — owes about, examples, hostile, tests. `rule:routing/a-request-reads-its-mount`. Two tests already pin it and want only the `covers:` marker: `crates/nvs-server/src/mount.rs:1092` and `tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst:5`. `docs/reference/tools/25-server.md:145`"
       },
       {
         "done": false,
-        "text": "**`tools:server/what-a-program-reads-about-its-door`** — owes about, examples, hostile, tests. `rule:routing/a-request-reads-its-mount`. A `.nvsr` file's `--MOUNT--` section gives a program its mount. `docs/reference/tools/25-server.md:145`"
+        "text": "**`tools:server/nvs-ctl`** — owes about, examples, help, hostile, tests. Its section shows no code yet, and the `Server` harness already calls `nvs ctl reload`. `docs/reference/tools/25-server.md:294`, `crates/nvs-cli/tests/live_config.rs:66`"
       },
       {
         "done": false,
-        "text": "**`tools:server/nvs-ctl`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:294`"
+        "text": "**`tools:server/stopping-and-reloading-the-drain`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:283`"
       }
     ]
   },
   "backlog": [
-    "`tools:server/nvs-serve`, `tools:server/the-server-block`, `tools:server/stopping-and-reloading-the-drain` and `tools:server/nvs-service` are owed after the group above — `bun nv proofs --owed --group tools:server`.",
-    "A question for the user, not decided here: a server that listens only on a Unix socket has to write some `trusted_proxies` entry before its proxy's headers are read, and no entry names a socket. `crates/nvs-server/src/forwarded.rs:335` returns before it asks whether the peer is a socket. `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` owns the answer.",
-    "The warning for a trusted proxy that sends `X-Real-IP` and no `X-Forwarded-For` is computed and logged nowhere: `crates/nvs-server/src/serve.rs:1209`. The chapter does not promise it. Not checked: whether a gap record already names it.",
-    "`nvs agent find trusted_proxies` finds nothing, and `find proxy` or `find trusted` reaches the section: `find` matches a heading's symbol, which writes `-` for `_`. `rule:tooling/the-index-names-every-key-command-and-code` is designed, not shipped, and gives every key its own line; this goal does not change `find`. The same holds for `nvs ctl` typed with its space."
+    "`tools:server/nvs-serve`, `tools:server/the-server-block` and `tools:server/nvs-service` still owe their proofs — `bun nv proofs --owed --group tools:server`.",
+    "In steps 3 and 4 a symbolic link's own name is still matched by the filesystem's rule, so a link named `theme.css` answers `THEME.CSS` on Windows — `crosses_a_link` in `crates/nvs-server/src/mount.rs`.",
+    "Whether `rule:programs/path-case`'s `require` accepts a name with a dot or a space added on Windows is not checked; `OnDisk::file` in `crates/nvs-server/src/mount.rs` is the comparison to copy if it does."
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "lead": "A `.nvs` proof cannot reach the steps that choose which file answers a request: `nvs run --request` takes the mount from the `.nvsr` file and resolves nothing.",
+  "body": "What those steps do with a hostile URL shows only on a real server, whose first start can take twenty seconds to print `listening on`. Start `nvs serve --config <file> --listen 127.0.0.1:<port>` over a tree under `.agent-tmp/`, send raw request lines over a socket with the paths read from a file, and pin what you find in `crates/nvs-server/src/mount.rs`'s tests.",
+  "files": [
+    "crates/nvs-server/src/mount.rs",
+    "crates/nvs-test/src/request.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-test/src/request.rs:a case describes a request no mount table selected"
+  }
+}
