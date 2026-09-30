@@ -1,5 +1,5 @@
 {
-  "state": "Goal `core-zip` is reached: `bun nv proofs --verify --group 'Core\\Zip'` owes nothing, and `entries`, `read` and `extract` each have about, examples, attack, bench, help and a Rust `covers:` test.\nThe attack on `extract` found a denial of service: `place` resolves each folder level by its full path, so one entry nested a few thousand folders deep costs time quadratic in its depth (4000 levels took about 28 s in a debug build). It is recorded as gap `nvs-stdlib/extract-resolves-every-folder-level-from-the-root` (milestone M12), and step 6 of `tests/hostile/core/Zip/extract/01-many-files-a-taken-name-and-a-deep-folder.nvs` carries its `proof: gap` marker, so the sweep counts that case as a known gap.\nThe examples, the attack and the bench of `extract` get their `fs` grants from an `nvs.toml` in their own directory, the way `Core\\Request\\Part::saveTo`'s do. The attack's also sets `[limits] max_decompressed = \"4M\"`.",
+  "state": "Goal `core-zip` is reached: `bun nv proofs --verify --group 'Core\\Zip'` owes nothing and every attack passes with no `proof: gap` marker.\nThe depth finding is fixed rather than recorded: the reader refuses an entry nesting more than `MAX_FOLDERS` (64) folders, so every member refuses it and one entry's extraction cost is a constant (`crates/nvs-stdlib/src/zip.rs`'s module doc, *That order costs time quadratic*). The gap record is deleted, and `bun nv owners --deferrals` is green again.\nThe bound is pinned by `tests/conformance/core/zip-refuses-an-entry-nesting-more-than-sixty-four-folders.nvst` and the Rust test `an_entry_nesting_more_than_sixty_four_folders_is_refused`.",
   "next": {
     "stage": 2,
     "title": "the depth finding in `Core\\Zip::extract`",
@@ -9,12 +9,12 @@
     ],
     "items": [
       {
-        "done": false,
-        "text": "**Make `extract` linear in folder depth** — resolve each level relative to the level above's handle, or bound the depth an archive may name; then take the `proof: gap` marker off the attack (`rule:testing/a-failing-proof-is-fixed-or-recorded`, gap `nvs-stdlib/extract-resolves-every-folder-level-from-the-root`). `place` at `crates/nvs-stdlib/src/zip.rs:796`, its caller at `crates/nvs-stdlib/src/zip.rs:1068`."
+        "done": true,
+        "text": "**Make `extract` linear in folder depth** — the reader bounds the folders a name may nest, at `crates/nvs-stdlib/src/zip.rs:398`, judged in `refuse_hostile` at `crates/nvs-stdlib/src/zip.rs:637` (`rule:testing/a-failing-proof-is-fixed-or-recorded`)."
       }
     ]
   },
   "backlog": [
-    "The depth gap is a security finding (a small upload holds a request for seconds) filed under M12 because no open milestone owns `Core\\Zip`; the user may want it earlier — `data/gaps/nvs-stdlib/extract-resolves-every-folder-level-from-the-root.json`."
+    "A walk relative to each level's directory handle (`openat`/`mkdirat`, a `RootDirectory` handle on Windows) would also close the window between the last resolution and the file's creation; the capability layer checks paths only, so it needs a design first (`crates/nvs-stdlib/src/zip.rs` module doc)."
   ]
 }
