@@ -1088,6 +1088,7 @@ mod tests {
     /// `rule:http-server/a-mount-table-expands-at-boot` bought and what § 7 exists to give back: an application
     /// written against its own root sees `/orders/17` under both mounts, and the
     /// only thing telling it which tenant it is serving is the capture.
+    // covers: tools:server/what-a-program-reads-about-its-door
     #[test]
     fn a_mounts_captures_reach_the_request_the_handler_answers() {
         let fs = Fake::with(&["/srv/acme/index.nvs", "/srv/globex/index.nvs"]);

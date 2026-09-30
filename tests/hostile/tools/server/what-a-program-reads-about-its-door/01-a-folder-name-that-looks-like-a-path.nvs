@@ -1,0 +1,114 @@
+<?nvs
+// Attack: a customer gives a folder a name that looks like a path and like a pattern.
+// The mount serves that folder, so the name is a capture of the request. The program
+// should read each name as plain text. Every link should still start with the prefix.
+
+class Files
+{
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name): string
+    { return 'one file'; }
+}
+
+// 1. Reads the path, the prefix and the captures. The path has `..` parts and `%` escapes.
+tainted string $path = Core\Request::path();
+Core\Request\Mount $mount = Core\Request::mount();
+string $prefix = $mount->prefix();
+array<tainted string> $captures = $mount->captures();
+uint $count = Core\Arr::count($captures);
+echo 'path: ', $path, "\n";
+echo 'prefix: ', $prefix, "\n";
+echo 'captures: ', $count, "\n";
+
+// 2. Reads a capture after the last one, and one at the index -1.
+//    Each read throws an error, and the program catches it.
+array<int> $indexes = [6, 1000000, -1];
+uint $thrown = 0;
+foreach ($indexes as int $index) {
+    try {
+        tainted string $missing = $captures[$index];
+        echo 'capture ', $index, ': ', $missing, "\n";
+    } catch (Throwable $error) {
+        $thrown = $thrown + 1;
+    }
+}
+echo 'missing captures: ', $thrown, "\n";
+
+// 3. Uses each capture as the key of a table of customers.
+//    The table has none of these keys, so `??` gives "" each time.
+array<string> $databases = ['Acme' => 'shop_acme', 'Globex' => 'shop_globex'];
+uint $known = 0;
+foreach ($captures as tainted string $capture) {
+    if (($databases[$capture] ?? '') != '') {
+        $known = $known + 1;
+    }
+}
+echo 'known customers: ', $known, "\n";
+
+// 4. Builds a link from each capture and from the path, and catches each error.
+//    `Core\Router::url` throws an error for `..`. Every other link starts with the prefix.
+array<tainted string> $values = $captures;
+$values[] = $path;
+uint $wrong = 0;
+uint $refused = 0;
+foreach ($values as tainted string $value) {
+    try {
+        tainted string $link = Core\Router::url('Files::show', ['name' => $value]);
+        echo 'link: ', $link, "\n";
+        if (!Core\Str::startsWith($link, $prefix . '/files/')) {
+            $wrong = $wrong + 1;
+        }
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo 'wrong links: ', $wrong, ', errors: ', $refused, "\n";
+
+// 5. Tries to change the prefix of the mount to each capture. Each call returns `false`.
+uint $accepted = 0;
+foreach ($values as tainted string $value) {
+    if (Core\Config::set('server.mount.0.prefix', $value)) {
+        $accepted = $accepted + 1;
+    }
+    if (Core\Config::set('server.mount.0.scan', $value)) {
+        $accepted = $accepted + 1;
+    }
+}
+echo 'accepted: ', $accepted, "\n";
+
+// 6. Reads the mount 100000 times and changes its own copy of the captures each time.
+//    Every read returns the same prefix and the same captures.
+uint $changes = 0;
+uint $i = 0;
+while ($i < 100000) {
+    array<tainted string> $copy = Core\Request::mount()->captures();
+    $copy[0] = 'Acme';
+    $copy[] = $path;
+    Core\Request\Mount $again = Core\Request::mount();
+    if ($again->prefix() != $prefix || $again->captures() != $captures || Core\Request::path() != $path) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+echo 'changes: ', $changes, "\n";
+
+// 7. Builds 50000 links from the captures and keeps every link.
+//    This step uses a lot of memory.
+array<tainted string> $links = [];
+uint $j = 0;
+while ($j < 50000) {
+    try {
+        $links[] = Core\Router::url('Files::show', ['name' => $captures[$j % $count]]);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $j = $j + 1;
+}
+echo 'links kept: ', Core\Arr::count($links), "\n";
+
+// 8. Reads the path, the prefix and the captures again.
+//    This prints the same values as step 1.
+echo 'path: ', Core\Request::path(), "\n";
+echo 'prefix: ', Core\Request::mount()->prefix(), "\n";
+echo 'captures: ', Core\Arr::count(Core\Request::mount()->captures()), "\n";
