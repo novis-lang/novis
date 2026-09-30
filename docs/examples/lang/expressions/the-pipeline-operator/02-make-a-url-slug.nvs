@@ -1,7 +1,7 @@
 <?nvs
-// Turning an article title into the slug that goes in its URL.
-// Written as a nest this reads inside out; as a pipeline it reads in the order
-// the steps happen, and each step is one line.
+// Shows how to make the slug for a URL from the title of an article, in five steps.
+// Each step is on a line of its own, and the steps run from the top to the bottom.
+// The first title prints as hello-world.
 
 array<string> $titles = ["Hello World", "  Novis Ships 1.0  ", "Web  Servers, Fast"];
 

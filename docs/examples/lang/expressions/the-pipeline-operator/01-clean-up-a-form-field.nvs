@@ -1,8 +1,8 @@
 <?nvs
-// Normalising the email address somebody typed into a signup form, so two
-// people cannot register the same one twice.
-// `|>` reads left to right, in the order the steps happen. `$_` marks where
-// the value from the step before goes.
+// Shows how to clean up an email address from a signup form in two steps.
+// `|>` gives the value on its left to the step on its right. `$_` marks where
+// the value goes. The steps run from left to right.
+// The first address prints as ada@example.com.
 
 array<string> $submitted = ["  Ada@Example.COM ", "BOB@example.com", " carol@Example.Com  "];
 

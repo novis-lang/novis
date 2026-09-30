@@ -1,9 +1,6 @@
 <?nvs
-// Cleaning up the comma-separated tag field of a form before it is stored:
-// split it, trim each tag, drop the duplicates, sort what is left, and put it
-// back together.
-// The tidied list is an ordinary local afterwards, so the last two lines each
-// start from it rather than repeating the work.
+// Shows how to tidy the tags that a person typed into one form field, separated by commas.
+// The steps split the text, trim each tag, delete the duplicates and sort the tags.
 
 string $field = "web, cli , web,  jit ,security";
 
@@ -13,5 +10,7 @@ array<string> $tags = $field
     |> Core\Arr::unique($_)
     |> Core\Arr::sort($_);
 
+// `$tags` is a normal variable, so a new pipeline can start from it.
+// This prints cli,jit,security,web and then 4 tags.
 echo $tags |> Core\Str::join($_, ","), "\n";
 echo $tags |> Core\Arr::count($_), " tags\n";
