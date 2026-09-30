@@ -5,7 +5,8 @@
   "context": {
     "modules": [
       "docs/reference/tools/50-agents.md",
-      "crates/nvs-cli/tests/agent.rs"
+      "crates/nvs-cli/tests/agent.rs",
+      "crates/nvs-cli/src/agent.rs"
     ],
     "rules": [
       "testing/feature-proofs",

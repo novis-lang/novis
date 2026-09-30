@@ -1,0 +1,11 @@
+{
+  "lead": "A `-p nvs-hir` fixture that tests a *configured* `MemberResolver` sees each diagnostic twice, and the first copy is not from the resolver under test.",
+  "body": "`resolve_file` runs a member check of its own with `MemberResolver::new()`, into the same `Diagnostics` the fixture then hands to `check`, so an assertion over every `E0320` fails on the copy that resolver reported. Give `check` a fresh `Diagnostics` and assert over that one, as `free_function_helps` does.",
+  "files": [
+    "crates/nvs-hir/src/members.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-hir/src/members.rs:free_function_helps"
+  }
+}

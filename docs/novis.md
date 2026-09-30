@@ -28457,12 +28457,14 @@ never describe a version that is not installed.
 
 An index line opens with the symbol `show` resolves and continues with that member's signature:
 
-    Core\IO::read(string $path): string  [fs.read]
-    Core\Json::decodeAs<T>(string $json): T
-    Core\Order  enum {Asc, Desc}
-    RuntimeError  exception extends Error
-    programs  chapter: Programs, files and names
-    programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
+```text
+Core\IO::read(string $path): string  [fs.read]
+Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T
+Core\Order  enum {Asc, Desc}
+RuntimeError  exception extends Throwable
+programs  chapter: Programs, files and names
+programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
+```
 
 The symbol is the line up to its first `(`, `<` or space, so nothing has to parse a line to get
 from it back to `show` — which also accepts that leading token with a generic's `<T>` still on it.
@@ -28488,7 +28490,21 @@ symbol it exits non-zero and prints the nearest names it does have.
 
 So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
 `nvs check` it. A diagnostic names the spelling this language wants at the place the program got it
-wrong, which makes the check part of reading the language rather than an alternative to it.
+wrong, which makes the check part of reading the language rather than an alternative to it. A call
+to a PHP function is the common case. The help names what replaces that function: a `Core` member,
+an operator, or nothing.
+
+```nvs error
+<?nvs
+
+array<int> $sizes = [3, 1, 2];
+echo count($sizes), "\n";
+```
+```output
+PHP's `count` is `Core\Arr::count` here
+```
+
+A name the help has no single answer for gets the general sentence, and `find` is the next call.
 
 ### nvs agent primer
 
@@ -28591,7 +28607,7 @@ string $name = "Zoë";
 echo strlen($name), "\n";
 ```
 ```output
-`strlen` is not a function that exists
+PHP's `strlen` is `Core\Str::length` here
 ```
 
 Either way it arrives at one program, and `nvs check` accepts it:
