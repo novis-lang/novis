@@ -168,15 +168,53 @@ mounted nowhere: the prefix is empty and nothing else changes.
 
 # Behind a proxy: `trusted_proxies`
 
-With `trusted_proxies` empty — the default — no forwarding header is believed:
-`Core\Request::clientIp()` is the socket peer, and `X-Forwarded-For` is only readable through
-`Core\Request::header`, `tainted`. Listing the proxy's addresses turns the walk on: `clientIp()`
-is the rightmost `X-Forwarded-For` entry that is not itself trusted, and a trusted
-`X-Forwarded-Proto` sets the scheme the program sees and whether HSTS is sent. `clientIp()` is
-`?tainted string`: a hop that withheld the address gives `null`, never a placeholder. A Unix-socket
-listener is trusted without being listed, since the operating system decides who may connect to
-it. A production server whose every listener is loopback or a socket and whose
-`trusted_proxies` is empty logs one warning at start.
+```toml
+[server]
+listen          = ["127.0.0.1:8000"]
+trusted_proxies = ["10.0.0.5", "10.1.0.0/16"]   # one address, and one block of addresses
+```
+
+`trusted_proxies` lists the proxies whose forwarding headers the server reads. An entry is one
+address or one block of addresses, IPv4 or IPv6. The server prints a note at start for an entry
+that is neither, and does not use that entry. A change to the list applies to the next request,
+without a restart.
+
+**The list is empty.** This is the default, and the server reads no forwarding header.
+`Core\Request::clientIp()` returns the address that connected, and `Core\Request::scheme()` returns
+`http`. A program can still read `X-Forwarded-For` with `Core\Request::header`, as a `tainted`
+string.
+
+**The list has the address that connected.** `clientIp()` returns the last address in
+`X-Forwarded-For` that is not in the list. A client can send its own `X-Forwarded-For`, and the
+proxy adds the real address after it, so the server does not use the addresses the client wrote.
+`scheme()` returns `https` when the last value in `X-Forwarded-Proto` is `https`, and only the
+response to such a request has the HSTS header. `X-Forwarded-For` is the only address header the
+server reads.
+
+```nvs skip
+<?nvs
+// The proxy at 10.0.0.5 sent `X-Forwarded-For: 192.0.2.99, 203.0.113.7`
+// and `X-Forwarded-Proto: https`.
+?tainted string $client = Core\Request::clientIp();   // "203.0.113.7"
+tainted string $scheme = Core\Request::scheme();      // "https"
+```
+
+`clientIp()` returns `null` when the proxy wrote `unknown` in place of the address. A port after
+the address is not part of the result. When the address the server would use is not an IP address,
+the server answers `400` and runs no program.
+
+**The address that connected is not in the list.** The server reads no forwarding header of that
+request, the same as with an empty list.
+
+**A Unix socket.** When the list is not empty, the server also reads the forwarding headers of a
+request that arrives over a Unix socket. The operating system decides who may connect to the
+socket, so it needs no entry of its own. With an empty list, `clientIp()` returns `null` for such a
+request.
+
+A production server whose configuration has a `[server]` block prints one warning at start when
+`trusted_proxies` is empty and every address it listens on is a loopback address or a Unix socket.
+A server like this is usually behind a proxy, and without the list every request has the address of
+the proxy, or none.
 
 <!-- src: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` -->
 

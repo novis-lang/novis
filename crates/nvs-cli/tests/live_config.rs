@@ -711,6 +711,7 @@ const SWITCHES_ON: &str = "[server]\ndispatch = \"path\"\nstatic = true\nhealth_
 /// reloaded value in the next request: `dispatch` runs the file the path names,
 /// `static` sends a stylesheet, `health_path` answers the probe, and
 /// `trusted_proxies` believes the proxy's `X-Forwarded-For`.
+// covers: tools:server/behind-a-proxy-trusted-proxies
 #[test]
 fn a_changed_server_block_reaches_the_next_request() {
     let server = Server::start(

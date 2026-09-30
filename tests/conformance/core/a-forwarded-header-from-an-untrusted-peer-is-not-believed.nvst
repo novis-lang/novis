@@ -8,6 +8,7 @@ X-Forwarded-Proto: https
 Host: example.test
 --FILE--
 <?nvs
+// covers: tools:server/behind-a-proxy-trusted-proxies
 // `[server] trusted_proxies` defaults to empty, and empty means these two lines
 // were never read: the request below states what the walk settled on, which is
 // the peer's own address over the connection's own scheme. A member that

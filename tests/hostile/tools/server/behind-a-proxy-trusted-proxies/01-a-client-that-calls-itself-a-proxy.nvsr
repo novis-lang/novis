@@ -1,0 +1,17 @@
+--METHOD--
+GET
+--PATH--
+/admin
+--CLIENT_IP--
+198.51.100.23
+--SCHEME--
+http
+--HEADERS--
+host: example.com
+x-forwarded-for: 127.0.0.1
+x-forwarded-for: 10.0.0.1, ::1, [::1]:443, 127.0.0.1:99999, unknown, _hidden, not-an-address
+x-forwarded-for: ,,, 999.999.999.999, ::ffff:127.0.0.1, 0.0.0.0, 198.51.100.23, 127.0.0.1
+x-forwarded-proto: https
+x-forwarded-proto: HTTPS, https, ftp, https
+x-real-ip: 127.0.0.1
+forwarded: for=127.0.0.1;proto=https

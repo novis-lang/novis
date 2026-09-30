@@ -1,0 +1,12 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--CLIENT_IP--
+203.0.113.7
+--SCHEME--
+https
+--HEADERS--
+host: shop.example.com
+x-forwarded-for: 192.0.2.99, 203.0.113.7
+x-forwarded-proto: https

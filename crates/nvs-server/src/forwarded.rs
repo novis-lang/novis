@@ -514,6 +514,7 @@ mod tests {
     /// as one example: for every combination of a written `trusted_proxies` and
     /// a peer, the client address and the effective scheme are the peer's own
     /// **unless** the peer is trusted — and then they are what it asserted.
+    // covers: tools:server/behind-a-proxy-trusted-proxies
     #[test]
     fn client_ip_and_scheme_come_from_the_peer_unless_a_trusted_proxy_asserted() {
         let asserting = head(&[
@@ -536,6 +537,19 @@ mod tests {
                 "an empty trusted_proxies read a header from {peer}"
             );
         }
+
+        // A Unix-domain peer is no exception to empty: nothing is read, and
+        // with no address of its own the client is nobody.
+        let unread = walk(Arrival::Unix, &Trusted::none(), &asserting).expect("no refusal");
+        assert_eq!(
+            unread,
+            Origin {
+                client: None,
+                scheme: Scheme::Http,
+                ignored_address_header: false,
+            },
+            "an empty trusted_proxies read a header from a socket"
+        );
 
         let trusted = proxies(&["10.0.0.0/8", "2001:db8::/32"]);
 
@@ -639,6 +653,7 @@ mod tests {
     /// A `trusted_proxies` entry is an address or a CIDR block, a v4-mapped v6
     /// peer is the v4 address it maps, and an entry that names no network is
     /// handed back rather than silently widening or narrowing the set.
+    // covers: tools:server/behind-a-proxy-trusted-proxies
     #[test]
     fn a_trusted_proxies_entry_is_an_address_or_a_block() {
         let written: Vec<String> = [
