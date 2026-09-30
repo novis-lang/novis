@@ -1,18 +1,24 @@
 {
-  "state": "Goal `tools-install`: the five sections of `docs/reference/tools/15-install.md` each owe their\nfeature proofs (`rule:testing/feature-proofs`), and four of the five are complete:\n`tools:install/linux-and-macos`, `tools:install/the-layout`, `tools:install/what-novis-checks` and\n`tools:install/windows`. `bun nv proofs --owed --group tools:install` lists the last one, which\nowes about, examples, hostile and tests, and neither help nor perf.\n\nNothing is blocked. One proof found a wrong answer and it is recorded, not fixed:\n`data/gaps/nvs-config/a-set-of-a-name-that-is-not-a-key-answers-true.json`, owned by M10. The\nattack that found it passes, because the runtime survives every step, so it carries no marker.\n\nA section about a command has its Rust proof where that command is driven through the binary,\n`crates/nvs-cli/tests/init.rs`. Its `writable_by_others` opens a scratch folder to every account\nand closes it again on both platforms, and its `icacls` is one edit by SID for a `cfg(windows)`\ncase. A case that is not `cfg(windows)` also runs on Linux, by hand in WSL: `cargo test --test init`\nunder the WSL target directory, and the playbook's *Running things* bullet on a crate's `cfg(unix)`\nhalf owns the call.\n\nThe item below is the goal's last. The session that lands it runs the gates a goal meets only at\nits end before it writes `DONE`.",
+  "state": "Goal `tools-install` is met: all five sections of `docs/reference/tools/15-install.md` have their\nfeature proofs (`rule:testing/feature-proofs`), and `bun nv proofs --verify --group tools:install`\nprints nothing owed and no failure. `bun nv owners --closes tools-install` and\n`bun nv playbook --closes tools-install` name nothing.\n\nTwo proofs found a wrong answer, and both are recorded and not fixed, each owned by M10:\n`data/gaps/nvs-config/a-set-of-a-name-that-is-not-a-key-answers-true.json`, whose attack passes\nand carries no marker, and `data/gaps/nvs-config/a-path-of-many-missing-folders-is-slow-to-refuse.json`,\nwhose attack is\n`tests/hostile/tools/install/when-something-is-refused/02-a-path-two-million-folders-deep.nvs`. That\ncase carries the record's marker and counts as `known-gap`, because it is still running when its\ntimeout expires. The marker comes off with the fix.\n\nA section about a command has its Rust proof where that command is driven through the binary,\n`crates/nvs-cli/tests/init.rs`. The one row of the chapter's table of messages that a test cannot\nreach through the binary, a path another account owns, is proved in `crates/nvs-config/tests/trust.rs`\nagainst the Windows system directory, which the check only reads. A case that is not\n`cfg(windows)` also runs on Linux, by hand in WSL: `cargo test --test init` under the WSL target\ndirectory, and the playbook's *Running things* bullet on a crate's `cfg(unix)` half owns the call.",
   "next": {
-    "stage": null,
-    "files": [],
-    "note": "One slice is one feature with all its feature proofs.\n\n**Stage 2: the dossier** — one file set: `docs/reference/tools/15-install.md`, `crates/nvs-cli/tests/init.rs`, `crates/nvs-cli/src/config.rs`, `crates/nvs-cli/src/cache.rs`.",
+    "stage": 2,
+    "title": "the dossier",
+    "files": [
+      "docs/reference/tools/15-install.md",
+      "crates/nvs-cli/tests/init.rs",
+      "crates/nvs-config/tests/trust.rs"
+    ],
     "items": [
       {
-        "done": false,
-        "text": "**`tools:install/when-something-is-refused`** — owes about, examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:186`. Each row of its table quotes a message: `nvs init`'s are written at `crates/nvs-cli/src/config.rs:217`, the cache warning at `crates/nvs-cli/src/cache.rs:1714`, and two cases already read them off `stderr`, `crates/nvs-cli/tests/init.rs:348` and the Windows one at `crates/nvs-cli/tests/init.rs:476`."
+        "done": true,
+        "text": "**`tools:install/when-something-is-refused`** — about, one example, two attacks and two Rust cases (`rule:testing/feature-proofs`). `docs/reference/tools/15-install.md:186`, `crates/nvs-cli/tests/init.rs:652`, `crates/nvs-config/tests/trust.rs:261`."
       }
-    ]
+    ],
+    "after": "Nothing is open in this goal."
   },
   "backlog": [
-    "`Core\\Config::set` of a name no key has returns `true`: `data/gaps/nvs-config/a-set-of-a-name-that-is-not-a-key-answers-true.json`, owner M10.",
-    "Step 5 of the chapter's Windows steps, what `icacls <folder>` prints, is pinned by no test, because `icacls` prints group names in the installed language: `docs/reference/tools/15-install.md:150`."
+    "`resolved` asks the canonicalizer about every missing ancestor of a path, so the capability check costs quadratic time in the depth; bounding the walk is a new refusal and a decision. Owner: `data/gaps/nvs-config/a-path-of-many-missing-folders-is-slow-to-refuse.json`, M10, at `crates/nvs-config/src/capability.rs:932`.",
+    "`Core\\Config::set` answers `true` for a name under a request-settable block that is not a key. Owner: `data/gaps/nvs-config/a-set-of-a-name-that-is-not-a-key-answers-true.json`, M10.",
+    "The owner row of the chapter's table of messages has no Unix proof: a path another ordinary account owns takes `root` to make. Owner: `crates/nvs-config/tests/trust.rs`."
   ]
 }
