@@ -1702,32 +1702,57 @@ pub mod code {
     /// different type than the property. `rule:core-classes/derive-field-list`: the two lists are one
     /// declaration for a promoted parameter, so a divergence is always written
     /// by hand and always a mistake.
-    pub const E_DERIVE_FIELD_TYPE_MISMATCH: Code = Code::new("E0461");
+    pub const E_DERIVE_FIELD_TYPE_MISMATCH: Code = Code::new("E0461").card(
+        "The type of a field in a class with `#[Json\\Derive]` or `#[Db\\Derive]` must match its \
+         constructor parameter. Give the property and the parameter the same type.",
+    );
     /// A `secret` property on a class carrying `#[Json\Derive]`. `rule:security/derived-codec-qualifiers`
     /// moves `rule:security/secret-qualifier`'s refusal from wherever the value reached the encoder to
     /// the declaration that put it on the wire contract.
-    pub const E_DERIVE_SECRET_FIELD: Code = Code::new("E0462");
+    pub const E_DERIVE_SECRET_FIELD: Code = Code::new("E0462").card(
+        "A class with `#[Json\\Derive]` or `#[Db\\Derive]` cannot have a `secret` field, because \
+         a secret value is never written out. Add `skip: true` to the field's \
+         `#[Json\\Field(...)]` or `#[Db\\Field(...)]` attribute to leave it out.",
+    );
     /// A `lateinit` property on a class carrying `#[Json\Derive]`. `rule:core-classes/derive-field-list`: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
     /// so it can never be a field.
-    pub const E_DERIVE_LATEINIT_FIELD: Code = Code::new("E0463");
+    pub const E_DERIVE_LATEINIT_FIELD: Code = Code::new("E0463").card(
+        "A class with `#[Json\\Derive]` or `#[Db\\Derive]` cannot have a `lateinit` field, \
+         because every field needs a constructor parameter. Add `skip: true` to the field's \
+         `#[Json\\Field(...)]` or `#[Db\\Field(...)]` attribute to leave it out.",
+    );
     /// A `#[Json\Field(...)]` argument that is not one of `rule:core-classes/derive-field-list`'s
     /// options, or whose value is not a literal of that option's type.
-    pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464");
+    pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464").card(
+        "`#[Json\\Field(...)]` and `#[Db\\Field(...)]` accept only the options `name` and `skip`, \
+         and each value must be a literal. For example, write `#[Json\\Field(name: 'user_id')]` \
+         or `#[Json\\Field(skip: true)]`.",
+    );
     /// A type argument written where the member needs a *class* rather than
     /// any type — `Core\Json::decodeAs<int>`. The members that do are
     /// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`, and each of them reaches
     /// the written class's runtime descriptor from native code, which only a
     /// class has.
-    pub const E_TYPE_ARG_NOT_A_CLASS: Code = Code::new("E0465");
+    pub const E_TYPE_ARG_NOT_A_CLASS: Code = Code::new("E0465").card(
+        "This function needs a class or a shape as its type argument, not a type such as `int`. \
+         Write a class such as `User`, a shape such as `{id: uint, name: string}`, or \
+         `array<User>` for a list.",
+    );
     /// An `==`/`!=` — or a `switch` label, or a `match` arm — whose two static
     /// types are **disjoint**: no single value inhabits both, so the compiler
     /// already knows the answer. `rule:expressions/disjoint-comparison-refused`'s table, and § 6 for the
     /// comparison forms that are not written with the operator.
-    pub const E_DISJOINT_EQUALITY: Code = Code::new("E0466");
+    pub const E_DISJOINT_EQUALITY: Code = Code::new("E0466").card(
+        "This comparison is always false, because no value can have both types. Check that you \
+         compare the right values. If a variable can be `null`, declare its type as `?T`.",
+    );
     /// `+` or `+=` with an array operand. `rule:types/array-combination` removes PHP's array
     /// union operator rather than migrating it — the diagnostic names
     /// `Core\Arr::underlay`, which is what it always meant.
-    pub const E_ARRAY_PLUS_UNSUPPORTED: Code = Code::new("E0467");
+    pub const E_ARRAY_PLUS_UNSUPPORTED: Code = Code::new("E0467").card(
+        "`+` does not combine arrays. Use `Core\\Arr::underlay($a, $b)`. It returns `$a` with \
+         the keys of `$b` that `$a` does not have.",
+    );
     /// `Foo::BAR` in *type* position where `Foo::BAR` is declared but is not a
     /// `string`/`int` compile-time constant — `rule:types/constant-in-type-position`. A class constant is
     /// sugar that folds to its own literal type, so it folds only when the
@@ -1735,7 +1760,10 @@ pub mod code {
     /// `array`, an object, or an expression that is not a literal at all has
     /// none. A name nothing declares is [`E_UNKNOWN_MEMBER`] instead — that is
     /// a different mistake with a different fix.
-    pub const E_LITERAL_TYPE_NOT_CONST: Code = Code::new("E0468");
+    pub const E_LITERAL_TYPE_NOT_CONST: Code = Code::new("E0468").card(
+        "A class constant used as a type must have a `string` or `int` value. This constant has \
+         another kind of value, so write its base type instead.",
+    );
     /// `"z" as "a"|"b"` — `rule:types/literal-types`: a checked conversion into a closed set
     /// of literals whose operand already names a value the set does not
     /// contain, so it would compile and then throw on every execution. The
@@ -1743,12 +1771,18 @@ pub mod code {
     /// written per site. A conversion the operand does not settle — `$s as
     /// "a"|"b"` over a plain `string` — is § 4's ordinary checked row and
     /// compiles.
-    pub const E_LITERAL_TYPE_MISMATCH: Code = Code::new("E0469");
+    pub const E_LITERAL_TYPE_MISMATCH: Code = Code::new("E0469").card(
+        "This value is not one of the values the target type allows, so the conversion always \
+         fails. Write one of the values the message lists, or add this value to the target type.",
+    );
     /// `Mode::Admin as Mode::Read|Mode::Write` — § 3's case-subset half of
     /// [`E_LITERAL_TYPE_MISMATCH`], on the same terms. Its own code because
     /// the set it names is a set of *cases* rather than of literal values,
     /// which is the distinction § 3 exists to keep.
-    pub const E_ENUM_CASE_SUBSET_MISMATCH: Code = Code::new("E0470");
+    pub const E_ENUM_CASE_SUBSET_MISMATCH: Code = Code::new("E0470").card(
+        "This enum case is not one of the cases the target type allows, so the conversion always \
+         fails. Write one of the cases the message lists, or add this case to the target type.",
+    );
     /// `$obj->secret` where `secret` is declared `private` outside the class
     /// the access is written in, or `protected` outside that class and its
     /// subclasses — `rule:core-api/written-visibility`'s levels, enforced. The test is
@@ -1756,7 +1790,11 @@ pub mod code {
     /// type: `$other->secret` is legal inside `Secret`'s own body and the
     /// identical line is not at file scope. A name nothing declares anywhere
     /// in the chain is [`E_UNKNOWN_MEMBER`] instead.
-    pub const E_MEMBER_NOT_VISIBLE: Code = Code::new("E0471");
+    pub const E_MEMBER_NOT_VISIBLE: Code = Code::new("E0471").card(
+        "This property or method is `private` or `protected`, so this code cannot use it. A \
+         `private` one works only inside its class, and a `protected` one also in its subclasses. \
+         Make it `public`, or use a public method of the class.",
+    );
     /// `public int $n = "no";` — a property's inline default is evaluated once,
     /// at signature collection, into the constant every fresh instance's slot
     /// is written with (`nvs_types::defaults`), so it has to be a compile-time
@@ -1765,7 +1803,11 @@ pub mod code {
     /// a property may be defaulted to `[]`, to an enum case or to another
     /// class's `const` — `rule:attributes/payload-is-a-compile-time-constant`'s whole set — and a parameter to a
     /// literal only.
-    pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472");
+    pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472").card(
+        "The default value of a property must be a constant of the property's type. Write a \
+         literal, `[]`, an enum case or a `const` of another class. Set any other value in the \
+         constructor.",
+    );
     /// `$obj as ?SomeClass` — `rule:expressions/nullable-conversion-availability`'s class row: `instanceof` plus
     /// `rule:types/unions-and-mixed`'s narrowing already answers class membership, so the
     /// conversion would be R17's second spelling of a question the language
@@ -1777,7 +1819,11 @@ pub mod code {
     /// § 3a's `Core\Uri::tryParse` is the member that answers a parse instead
     /// — which the help names for a class in
     /// `nvs_stdlib::registry::TRY_PARSE_CLASSES`.
-    pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473");
+    pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473").card(
+        "`as ?ClassName` is not allowed, because a class is not a conversion target. To test the \
+         class of a value, write `if ($x is ClassName) { ... }`. To read an object from text, use \
+         a method of the class, such as `Core\\Uri::tryParse($s)`.",
+    );
     /// `++`/`--` on a binding that is not one of `rule:types/arithmetic`'s numeric
     /// types.
     ///
@@ -1787,7 +1833,10 @@ pub mod code {
     /// produces `"b"` from a `string` and a `1`, so there is no arithmetic
     /// here to lower. `nvs_types::expr::operators`' module doc is that
     /// decision's home.
-    pub const E_INCREMENT_NOT_NUMERIC: Code = Code::new("E0474");
+    pub const E_INCREMENT_NOT_NUMERIC: Code = Code::new("E0474").card(
+        "`++` and `--` work only on the number types `int`, `uint`, `float` and `decimal`. This \
+         variable has another type. A string cannot be incremented.",
+    );
     /// A `break`/`continue` whose level names no target it can jump to: a
     /// level computed at run time, a `0`, or more enclosing loops than there
     /// are — including the bare `break;` written outside every loop.
@@ -1796,7 +1845,11 @@ pub mod code {
     /// `break N` resolves to a *statically known* enclosing statement, so a
     /// level that names none has nothing to lower to.
     /// `nvs_types::locals` is where the enclosing depth is counted.
-    pub const E_BREAK_LEVEL: Code = Code::new("E0475");
+    pub const E_BREAK_LEVEL: Code = Code::new("E0475").card(
+        "`break` must be inside a loop or `switch`, and `continue` must be inside a loop. A level \
+         such as `break 2;` must be a fixed number from 1 to the number of loops or `switch` \
+         statements around it.",
+    );
     /// A `match` written with no arms at all.
     ///
     /// PHP parses one and throws `UnhandledMatchError` on every evaluation,
@@ -1805,7 +1858,10 @@ pub mod code {
     /// whose every path throws has nothing for the position it sits in to
     /// bind, pass or return. Nothing that worked is lost — a written arm, or
     /// a `throw` expression, says the same thing and says it on purpose.
-    pub const E_MATCH_NO_ARMS: Code = Code::new("E0476");
+    pub const E_MATCH_NO_ARMS: Code = Code::new("E0476").card(
+        "A `match` needs at least one arm. Add the arms you meant. If every value is an error, \
+         write `default => throw new LogicError('...')`.",
+    );
     /// A method called on a receiver whose type names no class: a plain
     /// `object` (`rule:types/grammar`'s opaque top of every class type), an `rule:types/object-top`
     /// shape, a union naming no single class, or a type that can hold no
@@ -1825,7 +1881,10 @@ pub mod code {
     /// The help follows the receiver: narrow one that can hold an object
     /// (`instanceof` proves the class, `as ClassName` converts to it), and
     /// convert or declare `mixed` for one that cannot.
-    pub const E_METHOD_ON_ERASED_RECEIVER: Code = Code::new("E0477");
+    pub const E_METHOD_ON_ERASED_RECEIVER: Code = Code::new("E0477").card(
+        "You can call a method only on an object of a known class. Test the class first with \
+         `if ($x is ClassName) { ... }`, or convert the value with `$x as ClassName`.",
+    );
     /// An array element written through an `rule:classes/property-hooks` hooked property:
     /// `$obj->hooked[0] = v`, or any deeper subscript over the same base.
     ///
@@ -1837,7 +1896,10 @@ pub mod code {
     /// Refusing where it is written is therefore the PHP-compatible answer as
     /// well as the honest one. Read the array into a local, write the
     /// element, and assign the local back through the property.
-    pub const E_ELEMENT_WRITE_THROUGH_HOOK: Code = Code::new("E0478");
+    pub const E_ELEMENT_WRITE_THROUGH_HOOK: Code = Code::new("E0478").card(
+        "You cannot change an element of a property that has hooks. Copy the property into a \
+         variable, change the element, and assign the variable back to the property.",
+    );
     /// A nullsafe access used as an assignment target: `$a?->b = v`.
     ///
     /// `?->` means "or `null`", and `null` is not a place: PHP refuses the
@@ -1845,7 +1907,10 @@ pub mod code {
     /// because the alternative is an assignment that silently does nothing
     /// on the null path. Test the receiver instead — `if ($a !== null) {
     /// $a->b = v; }` says which of the two outcomes was meant.
-    pub const E_NULLSAFE_WRITE_TARGET: Code = Code::new("E0479");
+    pub const E_NULLSAFE_WRITE_TARGET: Code = Code::new("E0479").card(
+        "You cannot assign a value through `?->`. Test for `null` first: \
+         `if ($a !== null) { $a->b = $value; }`.",
+    );
     /// An array element written through a property whose receiver erased:
     /// an `rule:types/object-top` shape, or `rule:types/grammar`'s plain `object`.
     ///
@@ -1859,7 +1924,11 @@ pub mod code {
     /// (`instanceof`, or `as ClassName`), or read the property into a typed
     /// local, write the element there, and assign it back. This is the
     /// element-write twin of [`E_METHOD_ON_ERASED_RECEIVER`].
-    pub const E_ELEMENT_WRITE_THROUGH_ERASED_PROPERTY: Code = Code::new("E0480");
+    pub const E_ELEMENT_WRITE_THROUGH_ERASED_PROPERTY: Code = Code::new("E0480").card(
+        "You cannot change an array element through a property when the class of the object is \
+         not known. Convert the object first with `$x as ClassName`. You can also copy the \
+         property into a typed variable, change it, and assign it back.",
+    );
     /// `$a[]` where a value is read rather than assigned to.
     ///
     /// `[]` names "the key one past the highest integer key" and only has
@@ -1876,7 +1945,10 @@ pub mod code {
     /// not there yet reads as `""`, and no rule in Novis makes an absent
     /// element read as a zero value — which is § 7 row 8 one storage kind
     /// along, not a new judgement.
-    pub const E_APPEND_IN_READ_POSITION: Code = Code::new("E0481");
+    pub const E_APPEND_IN_READ_POSITION: Code = Code::new("E0481").card(
+        "`$a[]` adds a new element, so it can only be the target of `=`, as in `$a[] = $value;`. \
+         To read an element, write its key, such as `$a[0]`, or use `Core\\Arr::last($a)`.",
+    );
     /// `$x[…]` where `$x` is not an `array<T>`, and `[…] = $x;` — `rule:types/grammar`.3's destructuring — for the same reason: every leaf is an element
     /// read, so a value with no elements has nothing to take apart.
     ///
@@ -1888,7 +1960,11 @@ pub mod code {
     /// row 8's family; Novis refuses at check time instead. A `string` is not
     /// an exception: `rule:types/string-is-utf8` indexes one by grapheme cluster through
     /// `Core\Str`, not through a subscript.
-    pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482");
+    pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482").card(
+        "`[...]` reads an element of an array, and destructuring takes an array apart. This value \
+         is not an `array<T>`, so neither works. Test a `?array<T>` with `!== null` first, and \
+         use `Core\\Str` for the characters of a string.",
+    );
     /// `&value` as an element of an array literal, or `[int &$x] = $pair;`
     /// as a destructuring leaf — the same element from the other side, and
     /// the same answer.
@@ -1902,7 +1978,10 @@ pub mod code {
     /// a thing the language does not have. Write the value; to share one
     /// mutable cell, put it in an object, exactly as `rule:types/implicit-capture`'s own
     /// worked example does.
-    pub const E_ARRAY_ELEMENT_BY_REFERENCE: Code = Code::new("E0483");
+    pub const E_ARRAY_ELEMENT_BY_REFERENCE: Code = Code::new("E0483").card(
+        "An array element cannot be a reference, so remove the `&` or the `inout`. The element is \
+         a copy of the value. To share one value that can change, put it in an object.",
+    );
     /// `[...$x]` where `$x` is not an `array<T>`.
     ///
     /// A spread element contributes the subject's *entries* to the literal
@@ -1914,7 +1993,10 @@ pub mod code {
     /// names both array types and is the better message — so this code is
     /// only what a position naming no `array<T>` at all is left with, a
     /// `mixed` binding or parameter being the reachable one.
-    pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484");
+    pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484").card(
+        "`...` inside an array literal works only on an `array<T>`. Declare the value as an \
+         array, or write it as an ordinary element without `...`.",
+    );
     // `E0485` is retired and is never reused: it refused a `name:` argument at
     // a target whose signature carried no parameter names, and `rule:core-api/shape-rules` R2
     // leaves no such signature — a `Core` row's names are
@@ -1931,16 +2013,26 @@ pub mod code {
     /// at the call site from the arguments written into it, so a name has
     /// nowhere to be recorded — and a caller that wants a keyed entry writes
     /// the array itself.
-    pub const E_UNKNOWN_ARG_NAME: Code = Code::new("E0486");
+    pub const E_UNKNOWN_ARG_NAME: Code = Code::new("E0486").card(
+        "The function has no parameter with this name. Check the spelling against the parameter \
+         names in the message. A name cannot fill a `...$rest` parameter, so write those \
+         arguments without names.",
+    );
     /// One parameter given an argument twice — positionally and then by name,
     /// or by the same name twice.
-    pub const E_DUPLICATE_ARG: Code = Code::new("E0487");
+    pub const E_DUPLICATE_ARG: Code = Code::new("E0487").card(
+        "This parameter gets two arguments, by position and by name, or by the same name twice. \
+         Remove one of them.",
+    );
     /// A positional argument after a `name:` or a `...` one.
     ///
     /// PHP refuses both orderings for the same reason: which parameter a
     /// positional argument fills is its own position in the list, and neither
     /// a named argument nor an unpacked array leaves that position defined.
-    pub const E_POSITIONAL_AFTER_NAMED: Code = Code::new("E0488");
+    pub const E_POSITIONAL_AFTER_NAMED: Code = Code::new("E0488").card(
+        "A positional argument cannot come after a named argument or a `...` argument. Write \
+         every positional argument first.",
+    );
     /// `...$rest` at a call with no variadic parameter left for it to land in
     /// — the callee declares no `...$x` at all, or one or more of its fixed
     /// parameters is still unfilled where the spread is written.
@@ -1948,7 +2040,10 @@ pub mod code {
     /// How many entries an array holds is a run-time fact, so a spread that
     /// had to fill fixed parameters would leave a call's arity uncheckable.
     /// Write the fixed arguments out and let the spread supply the tail.
-    pub const E_SPREAD_ARG_NOT_VARIADIC: Code = Code::new("E0489");
+    pub const E_SPREAD_ARG_NOT_VARIADIC: Code = Code::new("E0489").card(
+        "`...$array` in a call can only fill a `...$rest` parameter. Write the argument for every \
+         other parameter yourself, and use `...` only for the rest.",
+    );
     /// `foreach (… as inout $v)` over a subject that is not a plain variable
     /// holding an `array<T>` — a call's result, a literal, a property, or an
     /// `Iterable`/`Iterator`.
@@ -1957,7 +2052,11 @@ pub mod code {
     /// a slot to write to. PHP refuses the same shapes, and a cursor is the
     /// one it names outright ("an iterator cannot be used with foreach by
     /// reference").
-    pub const E_FOREACH_INOUT_SUBJECT: Code = Code::new("E0490");
+    pub const E_FOREACH_INOUT_SUBJECT: Code = Code::new("E0490").card(
+        "`foreach` with `inout` changes each element in place, so it needs a variable that \
+         contains an array. Store the value in a variable first, or remove `inout`. An \
+         `Iterable` or `Iterator` cannot be used with `inout`.",
+    );
     /// A `foreach (… as inout T $v)` whose `T` is not the subject's element type
     /// exactly.
     ///
@@ -4648,29 +4747,26 @@ mod tests {
     /// it: it lands with its card. Goal `core-class-cards` is what empties the
     /// list.
     const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0461", "E0462", "E0463", "E0464", "E0465", "E0466", "E0467", "E0468", "E0469", "E0470",
-        "E0471", "E0472", "E0473", "E0474", "E0475", "E0476", "E0477", "E0478", "E0479", "E0480",
-        "E0481", "E0482", "E0483", "E0484", "E0486", "E0487", "E0488", "E0489", "E0490", "E0491",
-        "E0492", "E0493", "E0494", "E0495", "E0496", "E0498", "E0499", "E0501", "E0502", "E0601",
-        "E0602", "E0603", "E0604", "E0605", "E0606", "E0607", "E0608", "E0609", "E0610", "E0611",
-        "E0612", "E0613", "E0614", "E0615", "E0616", "E0617", "E0618", "E0619", "E0620", "E0621",
-        "E0622", "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629", "E0630", "E0631",
-        "E0633", "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640", "E0641", "E0642",
-        "E0643", "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650", "E0700", "E0701",
-        "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709", "E0710", "E0711",
-        "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721", "E0722", "E0723",
-        "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731", "E0732", "E0733",
-        "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741", "E0742", "E0743",
-        "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751", "E0752", "E0753",
-        "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761", "E0762", "E0763",
-        "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772", "E0775",
-        "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786", "E0787",
-        "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796", "E0797",
-        "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808", "E0809",
-        "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819", "E0820",
-        "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829", "E0830",
-        "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004", "W1005",
-        "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
+        "E0491", "E0492", "E0493", "E0494", "E0495", "E0496", "E0498", "E0499", "E0501", "E0502",
+        "E0601", "E0602", "E0603", "E0604", "E0605", "E0606", "E0607", "E0608", "E0609", "E0610",
+        "E0611", "E0612", "E0613", "E0614", "E0615", "E0616", "E0617", "E0618", "E0619", "E0620",
+        "E0621", "E0622", "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629", "E0630",
+        "E0631", "E0633", "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640", "E0641",
+        "E0642", "E0643", "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650", "E0700",
+        "E0701", "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709", "E0710",
+        "E0711", "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721", "E0722",
+        "E0723", "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731", "E0732",
+        "E0733", "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741", "E0742",
+        "E0743", "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751", "E0752",
+        "E0753", "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761", "E0762",
+        "E0763", "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772",
+        "E0775", "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786",
+        "E0787", "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796",
+        "E0797", "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808",
+        "E0809", "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819",
+        "E0820", "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829",
+        "E0830", "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004",
+        "W1005", "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
     ];
 
     /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
