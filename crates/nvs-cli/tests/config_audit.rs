@@ -94,6 +94,51 @@ fn check_counts_the_example_tree_and_dump_names_the_file_each_key_came_from() {
     );
 }
 
+/// The configuration chapter's audit, over a tree with one `[[app]]` block: `dump`
+/// numbers the block's keys `app.0.…` in dotted-key order, and the `--toml`
+/// document, written out and dumped again, lists exactly the same rows, so two
+/// environments compare by their documents alone.
+// covers: tools:config/auditing-a-tree
+#[test]
+fn dump_numbers_each_app_block_and_the_toml_document_dumps_the_same_rows() {
+    let dir = shipped("docs/examples/tools/config/auditing-a-tree");
+
+    let (out, err, code) = nvs_in(&dir, &["config", "check", "nvs.toml"]);
+    assert_eq!(code, Some(0), "the example tree is valid: {err}");
+    assert_eq!(
+        out,
+        "ok: 1 file, 4 directives set, 0 overrides, 0 warnings\n"
+    );
+
+    let (dump, err, code) = nvs_in(&dir, &["config", "dump", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    assert_eq!(
+        dump,
+        concat!(
+            "app.0.limits.wall_time = \"120s\"\n",
+            "app.0.root             = \".\"\n",
+            "limits.memory          = \"256M\"\n",
+            "limits.wall_time       = \"30s\"\n",
+        )
+    );
+
+    let (document, err, code) = nvs_in(&dir, &["config", "dump", "--toml", "nvs.toml"]);
+    assert_eq!(code, Some(0), "{err}");
+    let again = scratch("auditing-a-tree");
+    std::fs::write(again.join("nvs.toml"), &document).expect("the document is written");
+    let (redump, err, code) = nvs_in(&again, &["config", "dump", "nvs.toml"]);
+    assert_eq!(
+        code,
+        Some(0),
+        "the `--toml` document is itself a valid tree: {err}"
+    );
+    assert_eq!(
+        redump, dump,
+        "the document is the tree it was printed from: {document}"
+    );
+    drop(std::fs::remove_dir_all(&again));
+}
+
 /// Every refusal the chapter lists exits `1` with its code on standard error and
 /// prints no summary line; the unchecked quantity it names passes.
 // covers: tools:cli/nvs-config-check-and-nvs-config-dump

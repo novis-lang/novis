@@ -1,0 +1,27 @@
+<?nvs
+// Attack: a program tries to read the settings of an `[[app]]` block that does not cover it.
+// `nvs config dump` shows every block, but a program must only see its own settings.
+
+// 1. Read each key of the other block by the name the dump prints.
+array<string> $other = [
+    'app.1.root',
+    'app.1.origin',
+    'app.1.limits.memory',
+    'app.1.capabilities.script.spawn',
+    'app.0.root',
+    'app.0.limits.memory',
+];
+foreach ($other as string $key) {
+    echo $key, ': ', Core\Config::get($key) ?? '(unset)', "\n";
+}
+
+// 2. Read the settings this program got. They must be this block's values only.
+echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+echo 'origin: ', Core\Config::get('origin') ?? '(unset)', "\n";
+echo 'spawn: ', Core\Config::get('capabilities.script.spawn') ?? '(unset)', "\n";
+
+// 3. List every setting this program can see.
+array<string> $all = Core\Config::all();
+foreach ($all as string $key => string $value) {
+    echo $key, ' = ', $value, "\n";
+}

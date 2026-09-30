@@ -539,3 +539,13 @@ wait for the next start (the server chapter, § *What reaches a running server*)
 `nvs config dump` prints every key in force, `--origin` adds which file wrote it and which it
 overrode, and `--toml` prints the resolved tree as one document. Both are described with the other
 subcommands in the `nvs` command chapter.
+
+```text
+$ nvs config check nvs.toml
+ok: 1 file, 4 directives set, 0 overrides, 0 warnings
+$ nvs config dump nvs.toml
+app.0.limits.wall_time = "120s"
+app.0.root             = "."
+limits.memory          = "256M"
+limits.wall_time       = "30s"
+```
