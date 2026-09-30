@@ -10,7 +10,8 @@
       "crates/nvs-server/src/mount.rs",
       "crates/nvs-test/src/request.rs",
       "crates/nvs-server/src/control.rs",
-      "crates/nvs-cli/src/service.rs"
+      "crates/nvs-cli/src/service.rs",
+      "crates/nvs-config/src/server.rs"
     ],
     "rules": [
       "testing/feature-proofs",
