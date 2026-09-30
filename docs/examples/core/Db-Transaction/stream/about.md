@@ -1,20 +1,17 @@
-Runs one statement that reads rows inside a transaction, and gives them to you one at a time.
+Runs one statement that reads rows inside a transaction, and gives you the rows one at a time.
 
-`Core\Db\Transaction::stream` is the method for a result that is too large to hold in memory, inside
-the work you passed to `Core\Db\Connection::transaction`. It returns a `Core\Db\Stream` object, and a
-`foreach` over that object reads one row from the database each time around the loop. Only the
-current row is in memory, so a table of ten million rows costs about as much as a table of ten. Every
-row the transaction has written is already there, and nobody else sees those rows until the
-transaction ends.
+Use `Core\Db\Transaction::stream` for a result that is too large for memory, inside the function
+you gave to `Core\Db\Connection::transaction`. It returns a `Core\Db\Stream`, and a `foreach` over
+it reads one row from the database in each round of the loop. Only the current row is in memory.
+The result includes the rows that the transaction has already written.
 
-The walk holds the connection, and that is the connection the transaction has to end on. While rows
-remain, a second statement through the transaction is a `LogicError`, and the end of the transaction
-is refused as well. So read every row, then run the next statement. A loop you leave early with
-`break` keeps the connection busy until the request ends, so write the bound into the statement with
-`limit` instead.
+The transaction is busy until the last row is read. While rows remain, a second statement through
+the transaction throws a `LogicError`, and the transaction cannot end. So read all the rows first,
+and write after the loop.
 
-`Core\Db\Transaction::query` is the sibling for a result that fits in memory. It reads every row
-before it returns, so you can write inside the loop that reads them.
+**Good to know:** a loop that you leave early with `break` keeps the connection busy until the
+request ends. To read only the first rows, put a `limit` in the statement. For a result that fits
+in memory, use `Core\Db\Transaction::query`. With `query` you can write inside the loop.
 
-The examples read the transaction's own rows one at a time, collect the rows before they write them,
-and total a large table into a summary row.
+**The examples below** read the rows that the transaction wrote one at a time, collect rows before
+they write them, and add up a large table into a summary row.
