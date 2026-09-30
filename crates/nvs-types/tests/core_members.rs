@@ -30,6 +30,54 @@ fn a_core_member_call_with_the_wrong_arity_is_diagnosed() {
     );
 }
 
+/// `rule:statements/no-host-populated-variables`: the help under a refused
+/// superglobal names the `Core` member that replaces it, and every name it
+/// writes is a row of the registry, so the help never sends its reader to a
+/// second compile error. The parser owns the text and cannot reach the
+/// registry; this is the crate that sees both.
+// covers: tools:php-differences/two-spellings-side-by-side
+#[test]
+fn every_core_member_a_refused_superglobal_names_is_registered() {
+    for name in [
+        "$_GET",
+        "$_POST",
+        "$_COOKIE",
+        "$_FILES",
+        "$_SERVER",
+        "$_SESSION",
+        "$_ENV",
+        "$argv",
+        "$argc",
+        "$_ARGS",
+    ] {
+        let diags = check_src_allowing_parse_errors(&format!("<?nvs\necho {name};\n"));
+        let refusal = diags
+            .iter()
+            .find(|d| d.code == Some(code::E_SUPERGLOBAL_UNSUPPORTED))
+            .unwrap_or_else(|| panic!("`{name}` is not refused: {diags:?}"));
+        let named: Vec<&str> = refusal
+            .notes
+            .iter()
+            .flat_map(|note| note.split('`'))
+            .filter(|piece| piece.starts_with("Core\\"))
+            .collect();
+        assert!(
+            !named.is_empty(),
+            "the help for `{name}` names no `Core` member: {refusal:?}"
+        );
+        for symbol in named {
+            let (class, member) = symbol.split_once("::").unwrap_or((symbol, ""));
+            let row = nvs_stdlib::registry::class(class).unwrap_or_else(|| {
+                panic!("the help for `{name}` names `{class}`, which is not registered")
+            });
+            assert!(
+                member.is_empty() || row.members().any(|candidate| candidate.name == member),
+                "the help for `{name}` names `{symbol}`, and `{class}` has no such member"
+            );
+        }
+    }
+}
+
 /// `rule:core-api/shape-rules` R2's options bag at a call site: written, and omitted whole.
 /// `Core\Arr::range`'s `{step?: int}` is the first one in the roster, and
 /// `MethodSig::required()` has to say 2 either way — the bag is optional

@@ -846,14 +846,12 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// The help `rule:statements/no-host-populated-variables` gives for a PHP superglobal, or `None` if `name`
     /// (the raw `$…` text) is not one.
     ///
-    /// **No arm names an accessor class or one of its members.** § 1's table is
-    /// the map from a superglobal to what replaces it, and this build ships
-    /// none of those classes: a help reading *use `Core\Request`* sent the
-    /// reader out of this refusal and straight into `E0405`, since the registry
-    /// is the whole roster of `Core` and holds no such row
-    /// (`nvs_types::core_lib`). Citing the table instead is the answer that is
-    /// true now and still true once they land — the map has one home, and a
-    /// second copy here is a copy that rots in exactly this direction.
+    /// **Each accessor arm names the `Core` member that replaces the variable**,
+    /// as the rule's table maps it, because the rule has the refusal name its
+    /// replacement. A name written here is a second copy of the registry's,
+    /// and this crate cannot reach the registry, so `nvs-types`' test
+    /// `every_core_member_a_refused_superglobal_names_is_registered` holds
+    /// each one against `nvs_stdlib::registry`.
     fn superglobal_replacement(name: &str) -> Option<&'static str> {
         Some(match name {
             "$GLOBALS" => {
@@ -865,11 +863,34 @@ impl<'src, 'd> Parser<'src, 'd> {
                  cookie input into one place — read each explicitly, so the source is visible at \
                  the call site (`rule:statements/no-host-populated-variables`)"
             }
-            "$_GET" | "$_POST" | "$_COOKIE" | "$_FILES" | "$_SERVER" | "$_SESSION" | "$_ENV"
-            | "$argv" | "$argc" | "$_ARGS" => {
-                "every fact the host has is reached through a `Core` accessor rather than an \
-                 ambient variable; `rule:statements/no-host-populated-variables`'s table maps this one to the class that replaces \
-                 it, and that class is still to be implemented"
+            "$_GET" => {
+                "use `Core\\Request::query` — it returns one query parameter of the current request"
+            }
+            "$_POST" => {
+                "use `Core\\Request::post` — it returns one form field of the current request"
+            }
+            "$_COOKIE" => {
+                "use `Core\\Request::cookie` — it returns one cookie of the current request"
+            }
+            "$_FILES" => {
+                "use `Core\\Request::files` — it returns the files uploaded with the current \
+                 request"
+            }
+            "$_SERVER" => {
+                "use `Core\\Request` for the request — `Core\\Request::method`, \
+                 `Core\\Request::path` and `Core\\Request::header` — and `Core\\Server` for the \
+                 server"
+            }
+            "$_SESSION" => {
+                "call `Core\\Session::start`, then use `Core\\Session::get` and \
+                 `Core\\Session::set`"
+            }
+            "$_ENV" => "use `Core\\Env::get` — it returns one environment variable",
+            "$argv" | "$argc" => {
+                "use `Core\\Cli::arguments` — it returns the command-line arguments as an array"
+            }
+            "$_ARGS" => {
+                "use `Core\\Script::args` — it returns the value the script was started with"
             }
             _ => return None,
         })

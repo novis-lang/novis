@@ -1,0 +1,37 @@
+--TEST--
+The three PHP programs the side-by-side section of the PHP-differences chapter shows do not compile, and `$_GET` is refused by naming the `Core` member that replaces it — `rule:classes/no-free-functions-or-constants`, `rule:statements/no-host-populated-variables`
+--FILE--
+<?nvs
+// covers: tools:php-differences/two-spellings-side-by-side
+// The section shows three programs, one per code it names. This case holds
+// them in one file, in the section's order, so one compile reports all three.
+function total(array $xs) {
+    return array_sum($xs);
+}
+echo total([1, 2]) === 3 and true;
+
+class Point {
+    public function __construct(public int $x, public int $y) {}
+}
+
+string $name = $_GET["name"];
+echo (int)$name;
+--EXPECTF-ERROR--
+error[E0215]: a function must be a method
+%A
+error[E0232]: `===` is not supported
+%A
+error[E0226]: `and` is not supported
+%A
+error[E0114]: Novis's constructor is spelled `constructor`, not `__construct`
+%A
+error[E0211]: `$_GET` is not supported
+   --> case.nvs:14:16
+   |
+14 | string $name = $_GET["name"];
+   |                ^^^^^ no variable is ever populated by the host
+   = help: use `Core\Request::query` — it returns one query parameter of the current request
+%A
+error[E0225]: `(int)expr` is not supported
+%A
+error: aborting due to 10 errors
