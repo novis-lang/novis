@@ -138,6 +138,7 @@ const ROOT: &str = "[db.main]\ndriver = \"postgres\"\npassword_file = \"secrets/
 /// § 7's central claim, and both halves of its one trimming rule: the file's **whole** content is
 /// the value, minus one trailing newline, with the leading and trailing spaces a password may
 /// legitimately carry left exactly where they were.
+// covers: tools:config/secrets-from-files
 #[test]
 fn a_password_file_yields_its_content_with_one_trailing_newline_stripped() {
     let fs = Fake::with(&[("etc/nvs.toml", ROOT), ("etc/secrets/db", " hunt er2 \n")]);
@@ -239,6 +240,7 @@ fn a_second_trailing_newline_is_part_of_the_value() {
 
 /// § 7: exactly one of the pair may be set. Two sources for one value is the second spelling
 /// `rule:statements/nothing-gets-a-second-name` refuses, and the refusal names both so an operator can see which to remove.
+// covers: tools:config/secrets-from-files
 #[test]
 fn setting_both_halves_of_the_pair_is_refused() {
     let fs = Fake::with(&[
@@ -394,6 +396,7 @@ fn a_secret_file_another_account_can_read_warns_and_the_value_still_resolves() {
 /// § 5 reaches § 7: a relative `password_file` resolves against the directory of the file it was
 /// written in, not the working directory and not the root file's — so an included file may name a
 /// secret beside itself.
+// covers: tools:config/secrets-from-files
 #[test]
 fn a_relative_secret_path_resolves_against_the_file_that_wrote_it() {
     let fs = Fake::with(&[

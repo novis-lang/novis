@@ -1,0 +1,10 @@
+# The mail password is the content of `secrets/mail-password`.
+# The program may read files in `data`, and nothing else.
+[mail.relay]
+host = "smtp.example.com"
+from = "shop@example.com"
+user = "shop"
+password_file = "secrets/mail-password"
+
+[capabilities.fs]
+read = ["data"]
