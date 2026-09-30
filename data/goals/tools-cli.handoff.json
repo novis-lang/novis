@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-cli`: six features of `docs/reference/tools/10-cli.md` now have all their proofs. This\nsession finished `nvs-info` and `the-compile-cache`. `nvs-info` reads no program, so its example\nand attack are entries in `data/proofs/policy.json`'s `skip` table, each with its reason. Its\nsection said `nvs -i` gets an error naming `nvs info`. That was false, and the section now says what\nthe binary does. `bun nv proofs --owed | grep tools:cli` lists the seven features still owed. Two of\nthem also owe `help`: `nvs-build-compile` and `nvs-build-openapi`.",
+  "state": "Goal `tools-cli`: seven features of `docs/reference/tools/10-cli.md` now have all their proofs. This\nsession finished `nvs-config-check-and-nvs-config-dump`. Its attack found a bug, and the bug is\nfixed. A value or a table name holding a newline printed across several rows of `nvs config dump`,\nso it could forge a row such as `limits.hard.memory = \"99G\"`. `nvs_config::audit` now spells every\nkey and value on one line with TOML escapes, and `nvs ctl config` shares that renderer.\n`bun nv proofs --owed | grep tools:cli` lists the six features still owed. Two of them also owe\n`help`: `nvs-build-compile` and `nvs-build-openapi`.",
   "next": {
     "stage": 1,
     "title": "tool proofs, one chapter",
@@ -12,21 +12,19 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:cli/nvs-config-check-and-nvs-config-dump`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:304`. This is the first feature the driver's check names. Look for existing `nvs config check` or `nvs config dump` tests in `crates/nvs-cli/tests/` that need only a `// covers:` marker. The example is a program. Its comment says which `nvs config` command to run beside it."
+        "text": "**`tools:cli/nvs-build-compile`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:259`. For help, add a fenced block showing the command and what it writes. Look for existing `--compile` tests in `crates/nvs-cli/tests/bundle.rs` that need only a `// covers:` marker."
       },
       {
         "done": false,
-        "text": "**`tools:cli/nvs-build-compile`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:259`. For help, add a fenced block showing the command and what it writes."
-      },
-      {
-        "done": false,
-        "text": "**`tools:cli/nvs-build-openapi`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:280`. The attack for `nvs-api-diff` already builds routes that are hard to write into an API document. Reuse it only if the test for this feature needs different assertions."
+        "text": "**`tools:cli/nvs-build-openapi`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:280`. `crates/nvs-cli/tests/openapi.rs` may already hold tests that need only a `// covers:` marker. The attack for `nvs-api-diff` already builds routes that are hard to write into an API document. Reuse it only if this feature's test needs different assertions."
       }
     ]
   },
   "backlog": [
     "`tools:cli/one-binary`, `nvs-run`, `nvs-check` and `nvs-test` each owe examples, hostile and tests (`docs/reference/tools/10-cli.md`).",
-    "`nvs info | head -1` in PowerShell exited 255, which may be a panic on a closed pipe (`crates/nvs-cli/src/info.rs:53`). *not checked* under a POSIX shell.",
-    "A compile cache directory under `target/tmp` is refused on Windows, because the check reaches its grandparent (playbook bullet). Whether that is intended belongs to `rule:config/ownership-is-the-trust-boundary`."
+    "`Core\\Config::set` returns `true` for a name no setting reads, such as `limits.memoryX` or one holding a newline: the `limits` block row governs every `limits.<anything>` (`crates/nvs-config/src/directive.rs:283`). The value only reaches the request's own overlay. Whether a block row may govern an unknown leaf belongs to `rule:config/ini-set-is-core-config-set` (`crates/nvs-config/src/request.rs:101`).",
+    "`nvs config dump` sorts numbered blocks as text, so `app.10` prints before `app.2`. The chapter says \"dotted-key order\", which this is. `crates/nvs-config/src/audit.rs` owns the order.",
+    "The `E0601` note for a table header prints the header cut at its first dot: `in [log.` for `[log.handler.\"x\"]`. *not checked* where the note is built.",
+    "`nvs info | head -1` in PowerShell exited 255, which may be a panic on a closed pipe (`crates/nvs-cli/src/info.rs:53`). *not checked* under a POSIX shell."
   ]
 }
