@@ -27779,15 +27779,15 @@ the end of a file is fine.
 | `__call`, `__callStatic` | none; declare the method | `E0111` |
 | `__invoke` | a closure, `fn(…) => …` | `E0111` |
 | `__destruct`, `__clone`, `__sleep`, `__wakeup`, `__serialize`, `__debugInfo`, `__set_state` | none: no destructors, no clone hook, no serialization hook | `E0111` |
-| any name starting with `_` | no identifier starts with `_` | `E0111` |
+| any name starting with `_` | no identifier starts with `_` | `E0111` on a method, `E0112` on a property |
 | `function f()` inside a class (no visibility) | `public function f(): T` — every member writes `public`, `protected` or `private` | `E0122` |
-| `trait T {}`, `use T;` inside a class | an interface method with a body for behaviour; `implements I by $field;` for state | `E0227` |
+| `trait T {}`, `use T;` inside a class | an interface method with a body for behaviour; `class C implements I by $field { … }` for state | `E0227` |
 | a property inside an `interface` body | a method every implementor writes, or a typed constant the implementor overrides and a default method reads as `static::NAME` | `E0254` |
 | `new class { … }` | a named class in the same file, or a closure where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
 | `readonly class A` | not a class modifier; `readonly` on a property parses | parse error `E0102` |
 | a `readonly` property initialized from any method of the declaring class, the second write throwing at run time | written by that class's `constructor` and nowhere else, refused where the write is written | `E0782` |
 | a write from outside the class to a property with a `get` hook and no `set` hook, which PHP stores when the property is backed | only the declaring class writes it — from outside, the accessors are the property | `E0787` |
-| `enum E: string { case A = "a"; }` | `enum E: int { A = 1 }` or `enum E { A, B }` — cases only, no `case` keyword, no methods or constants inside | `E0219`, `E0220` |
+| `enum E: string { case A = "a"; }` | `enum E: int { A = 1 }` or `enum E { A, B }` — cases only, no `case` keyword, no methods or constants inside | `E0219` for the backing, `E0239` for `case`, `E0220` for a method or constant |
 | `class order_line`, `function Total_Price()`, `const maxLines` | `PascalCase` class, `camelCase` member, `SCREAMING_SNAKE_CASE` constant — casing is a hard error | `E0110`–`E0113` |
 
 Constructor promotion (`public function constructor(public int $x)`), `static::`, `parent::`,
@@ -27800,9 +27800,9 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 |---|---|---|
 | `function (int $x) use ($k) { … }` | `fn(int $x): int => $x + $k;` — every outer variable read is captured by value, no `use` clause | `E0222`, `E0223` |
 | `function (int $x) { … }` (no `use`) | `fn(int $x): int => { …; return …; }` — the block-body form | `E0222` |
-| `fn($x) => $x` | `fn(int $x) => $x` — parameters declare a type; the return type may be inferred | `E0101` |
-| `strlen(...)`, `A::f(...)`, `$o->m(...)` | write a closure: `fn(string $s): uint => Core\Str::length($s)` — first-class callable syntax type-checks but stops the compiler in this build | `E0320` for a free name |
-| `call_user_func($f, 1)` | `$f(1)` — the answer of a call through `callable` is `mixed`, so `$f(1) as int` | — |
+| `fn($x) => $x` | `fn(int $x) => $x` — parameters declare a type unless the closure is passed straight to a parameter that gives one, as in `Core\Arr::map($a, fn($x) => $x * 2)`; the return type may be inferred | `E0808` |
+| `strlen(...)` | there is no free function to name: write a closure, `fn(string $s): uint => Core\Str::length($s)`; `A::f(...)` and `$o->m(...)` work as in PHP | `E0320` |
+| `call_user_func($f, 1)` | `$f(1)` — the answer of a call through `callable` is `mixed`, so `$f(1) as int` | `E0320` |
 
 ### Arrays and strings
 

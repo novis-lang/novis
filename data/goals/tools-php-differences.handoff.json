@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-php-differences`: 1 of the chapter's features is done. `tools:php-differences/arrays-and-strings` has its test, example and attack. The attack carries `// proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops`, the endless self-concatenation hang that record describes.\nThe proofs corrected two rows of `docs/reference/tools/30-php-differences.md` § *Arrays and strings*: `$a = [1, 2];` is `E0301` and only `var` is `E0414`, and keyed destructuring works when every leaf declares its type.\nNew gap `nvs-host/a-cpu-time-set-at-run-time-is-not-enforced`: `Core\\Config::set(\"cpu_time\", …)` returns `true`, but the watchdog keeps the ceiling the request started with.\nThis feature owes one example and one attack (`bun nv proofs --id`), and no `about.md` or bench.",
+  "state": "Goal `tools-php-differences`: 3 of the chapter's 12 features are done: `arrays-and-strings`, `classes` and `closures-and-callables`. `bun nv proofs --owed --group tools:php-differences` lists the 9 still owed.\nThe proofs corrected five rows of `docs/reference/tools/30-php-differences.md`. § *Classes*: a leading `_` is `E0112` on a property, and the `case` keyword is `E0239`. § *Closures and callables*: `fn($x) => $x` is `E0808`, `call_user_func` is `E0320`, and `A::f(...)` and `$o->m(...)` run.\n`tests/conformance/reject/a-php-closure-a-use-clause-and-an-untyped-parameter-are-refused.nvst` now pins `E0222`, `E0223` and `E0808`, which no case pinned before.\nEach feature here owes one example, one attack and one case carrying `// covers:`. It owes no `about.md` or bench. `the-short-list` and `the-tools-you-do-not-install` also owe help: their sections show no code block.\nGap `nvs-runtime/a-loop-that-only-concatenates-never-stops` still marks the arrays-and-strings attack.",
   "next": {
     "stage": 1,
     "title": "one feature per slice, chapter order",
@@ -8,16 +8,21 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:php-differences/classes`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). Run every row of the table through `bun nv try` before writing a proof. This session found two of seven rows wrong in the neighbouring table. `docs/reference/tools/30-php-differences.md:147`"
+        "text": "**`tools:php-differences/the-short-list`** — owes examples, help, hostile, tests (`rule:testing/feature-proofs`). Help: the section needs a short code block, which `nvs agent show` prints. Before you write a proof, run every row through `bun nv try`. So far 7 of 23 checked rows in this chapter were wrong. `docs/reference/tools/30-php-differences.md:16`"
       },
       {
         "done": false,
-        "text": "**`tools:php-differences/closures-and-callables`** — owes examples, hostile, tests. The same row check. The test can be one `lang/` case running the table's Novis column, with `// covers:` as the first `--FILE--` comment, the way `tests/conformance/lang/the-php-differences-arrays-and-strings-rows-run-as-written.nvst` does. `docs/reference/tools/30-php-differences.md:173`"
+        "text": "**`tools:php-differences/files-tags-and-names`** — owes examples, hostile, tests. The same row check. `docs/reference/tools/30-php-differences.md:48`"
+      },
+      {
+        "done": false,
+        "text": "**`tools:php-differences/functions-constants-and-scope`** — owes examples, hostile, tests. The same row check. `docs/reference/tools/30-php-differences.md:64`"
       }
     ]
   },
   "backlog": [
-    "`nvs-host/a-cpu-time-set-at-run-time-is-not-enforced`: a raise past the starting `cpu_time` is not checked. It is owned by `crates/nvs-host/src/watchdog.rs`.",
-    "An endless `while (true) { $n = $n + 1; }` under `nvs run` is stopped only by a configured `cpu_time`. `wall_time` is not enforced there, as `docs/reference/tools/20-config.md:165` says."
+    "`types-and-conversions`, `operators` and `control-flow` (`docs/reference/tools/30-php-differences.md:84`, `:104`, `:122`) are the group after next.",
+    "`what-parses-but-behaves-differently`, `the-tools-you-do-not-install` (owes help) and `two-spellings-side-by-side` close the chapter (`docs/reference/tools/30-php-differences.md:196`).",
+    "On an `int`, `/` returns `int|float`. So an `int` hook or return type written with `/` does not compile. `Core\\Math::intDiv` is the replacement (docs/reference/lang/30-expressions.md)."
   ]
 }
