@@ -1,19 +1,18 @@
 {
-  "state": "Milestone `dossier`, goal `the-description-is-owed`, stage 2. `data/proofs/policy.json` carries\n`owes.all.about: true`, and every feature whose examples were on disk when this goal first ran has\nits description: the 13 sections of `tools:config` were the last, and\n`bun nv proofs --verify --group tools:config` passes.\n\n**This goal now sits behind goals `tools-install` and `tools-server` on the chain.** Its one check,\n`bun nv proofs --gate`, is the whole roster, and those two goals own the features it still named.\nEach of them writes its features' descriptions with their other proofs, because the policy already\nmakes a description owed. So when the chain comes back here the check is expected to pass as the\ntree stands, and a feature it still names is one a goal in front left behind.\n\n**Two things for the user to look at.** `docs/reference/tools/20-config.md:65-70` says `nvs run`\nenforces `[limits] memory` alone and that the server, database client and logger are not in the\nbinary. Line 165 of the same chapter says `memory` and `cpu_time`, a run under `cpu_time = \"1s\"`\nstops with `FATAL: the request exceeded its CPU-time limit`, and `nvs --help` lists `serve`. The\nparagraph was left as it stands, because rewriting it needs each block checked against `nvs run`,\nand the new descriptions state none of it. Carried forward and not re-checked: gap\n`nvs-ir/throws-on-an-array-key-that` was moved from owner goal `coalesce-assign` back to\n`milestone: M10`, and `docs/agent/goals/coalesce-assign.md` still has that goal delete it.\n\nThe pack does not print `docs/examples/README.md` § *The description*; it is one `bun nv peek`.\nA group is checked with `bun nv proofs --gate --group '<G>'`.",
+  "state": "Milestone `dossier`, goal `the-description-is-owed`, stage 2, **reached**. `data/proofs/policy.json`\ncarries `owes.all.about: true`, and `bun nv proofs --gate` passes over the whole roster with nothing\nwritten: every feature owes tests, examples, perf, hostile, about and help, and none is owed.\n`bun nv verify` is green, `bun nv verify --doc` resolves every link, and `bun nv owners --closes`\nand `bun nv playbook --closes` name nothing for this goal.\n\n**One thing for the user to look at, outside this goal.** `docs/reference/tools/20-config.md:65-70`\nsays `nvs run` enforces `[limits] memory` alone and that the server, database client and logger are\nnot in the binary. Both are out of date. A run under `[limits] cpu_time = \"1s\"` stops with\n`FATAL: the request exceeded its CPU-time limit`, which is what line 165 of the same chapter says,\nand `nvs --help` lists `serve`. Lines 181-182 say the same of the logger and the HTTP error pages\nfor `[mode]`. The paragraphs were left as they stand: a rewrite needs `[mode]`, `[log]`, `[http]`,\n`[db]` and `[cache]` each run under `nvs run`, which was not checked, and no description states any\nof it.\n\nGap `nvs-ir/throws-on-an-array-key-that` is owned by `milestone: M10`, and goal `coalesce-assign`,\nstill on the chain, deletes the record in the session that closes it\n(`docs/agent/goals/coalesce-assign.md:83`). The two agree, and nothing is owed there.",
   "next": {
     "stage": 2,
     "title": "the description is owed",
     "files": [],
-    "note": "one file set: `data/proofs/policy.json` and the `about.md` files under `docs/examples/`. Run the check first: with goals `tools-install` and `tools-server` walked it is expected to pass with nothing written.",
+    "note": "one file set: `data/proofs/policy.json` and the `about.md` files under `docs/examples/`. Nothing is open: the goal is reached.",
     "items": [
       {
-        "done": false,
-        "text": "**The whole roster owes nothing** (`rule:testing/feature-proofs`): `bun nv proofs --gate` passes with `data/proofs/policy.json:10` as it stands. A feature it still names owes a description written from its reference section and from its examples."
+        "done": true,
+        "text": "**The whole roster owes nothing** (`rule:testing/feature-proofs`): `bun nv proofs --gate` passes with `data/proofs/policy.json:10` as it stands."
       }
     ]
   },
   "backlog": [
-    "`docs/reference/tools/20-config.md:65` — the paragraph on what `nvs run` acts on disagrees with line 165 and with the binary; owner: the chapter itself.",
-    "`docs/reference/tools/20-config.md:169` — § `[mode]` says the logger and the HTTP error pages are not in this binary, not checked against `nvs serve`; owner: the chapter itself."
+    "`docs/reference/tools/20-config.md:65-70` and `:181-182` state what `nvs run` acts on as it was before `nvs serve` and the CPU-time limit shipped. Owner: the chapter itself; no goal on the chain names it."
   ]
 }
