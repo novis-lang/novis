@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-config`. Eight of the configuration chapter's thirteen features have all their proofs:\n`app-per-application-blocks`, `auditing-a-tree`, `capabilities`, `network-grants-the-addresses-and-endpoints-they-reach`,\n`include-a-tree-of-files`, `trust`, `secrets-from-files` and `reading-and-changing-it-from-a-program-core-config`\n(each `tools:config/<slug>`). `bun nv proofs --verify --group tools:config` names the five still owed. A tool feature\nowes one example, one attack and one test (a Rust test or a `.nvst` case with a `covers:` marker counts), plus `help`\nwhen its reference section shows no code. A feature whose example needs settings puts its own `nvs.toml` in the\nfeature directory, and `bun nv try` copies a script away from it, so run such a proof with\n`bun nv proofs --run --show --id '<feature>'`. Only stdout goes into a blessed `.out`, so a boot warning such as\n`W1005` for a readable secret file does not. Nothing is blocked.",
+  "state": "Goal `tools-config`. Twelve of the configuration chapter's thirteen features have all their proofs. The one\nleft is `tools:config/mode`, and `bun nv proofs --verify --group tools:config` names only it. A tool feature\nowes one example, one attack and one test (a Rust test or a `.nvst` case with a `covers:` marker counts).\nA feature whose proof needs settings puts its own `nvs.toml` in the feature directory, and the runner hands\nit over as `--config`, so run such a proof with `bun nv proofs --run --show --id '<feature>'`. A hostile case\nwith `// hostile: expect-refusal` passes on *any* diagnostic, a type error included, so check that the\nrefusal it prints is the one it attacks. Nothing is blocked.",
   "next": {
     "stage": 2,
     "title": "the dossier, file order",
@@ -8,25 +8,12 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:config/the-file-and-where-it-is-read-from`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:8`. An existing `nvs-config` resolve test that picks the root file can carry the `covers:` marker."
-      },
-      {
-        "done": false,
-        "text": "**`tools:config/the-blocks-the-binary-accepts`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:42`. The attack can write an unknown block into a feature's own `nvs.toml` only if the boot still runs, because a compile or boot diagnostic is never a hostile pass."
-      },
-      {
-        "done": false,
-        "text": "**`tools:config/values-and-units`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:72`. `Core\\Config::set(\"memory\", \" 128M\")` returns `true` (see Backlog); decide from `rule:errors/ambiguous-input-refused` before the attack's comment claims either way."
-      },
-      {
-        "done": false,
-        "text": "**`tools:config/limits-and-limits-hard`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:108`. `tests/conformance/core/config-set-memory-above-the-hard-ceiling-is-refused-and-the-ceiling-in-force-stands.nvst` can carry the marker."
+        "text": "**`tools:config/mode`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:169`. A `covers:` marker on an existing `nvs-config` test of `[mode] default` and `ceiling` is the test. When the group check passes, close the goal: `bun nv verify --doc`, `bun nv owners --closes tools-config`, `bun nv playbook --closes tools-config`, then `DONE`."
       }
     ]
   },
   "backlog": [
-    "`tools:config/mode` owes examples, hostile, tests — `docs/reference/tools/20-config.md:169`.",
-    "`Core\\Config::set('memory', ' 128M')` returns `true`: a size with a leading space is parsed rather than refused. It stays under the ceiling, so it is not a breach. Owner: `rule:errors/ambiguous-input-refused` and `crates/nvs-config/src/request.rs:101`.",
-    "Whether `Core\\Config::set('limits.nosuch', '1M')` returns `true` because the `limits` row governs any `limits.*` name — not checked. `crates/nvs-config/src/directive.rs:283`."
+    "`spawn script` of a file in a granted spawn directory that is not a program prints the file's text (PHP's inline-text rule). So `script.spawn` can read any file under its roots without `fs.read`. It is not checked whether this is intended. `rule:security/capability-declaration-is-one-table` owns capabilities.",
+    "A `[limits.hard]` value that does not parse makes every `Core\\Config::set` of that key return `false`, even a value below the limit. This is safe, and pinned in `crates/nvs-config/tests/value.rs` (`an_incomparable_pair_exceeds`). `docs/reference/tools/20-config.md` § *Values and units* does not say so."
   ]
 }
