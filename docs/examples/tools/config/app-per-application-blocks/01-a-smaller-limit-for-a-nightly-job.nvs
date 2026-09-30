@@ -1,0 +1,13 @@
+<?nvs
+// Shows a nightly job that gets its own memory limit from an `[[app]]` block in `nvs.toml`.
+// Three places in that file set `memory`. The block that names this file wins.
+
+// This prints `memory: 128M`.
+echo "memory: ", Core\Config::get("memory") ?? "(unset)", "\n";
+
+// The same block lowers the ceiling to `256M`. The job cannot go above it.
+// This prints `300M: no`.
+echo "300M: ", Core\Config::set("memory", "300M") ? "yes" : "no", "\n";
+
+// A value under the ceiling is allowed. This prints `200M: yes`.
+echo "200M: ", Core\Config::set("memory", "200M") ? "yes" : "no", "\n";

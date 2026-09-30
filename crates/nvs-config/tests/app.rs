@@ -191,6 +191,7 @@ fn a_root_matches_on_component_boundaries_and_never_on_part_of_a_name() {
 
 /// § 2's ordering, asserted as the whole sequence: least-specific first, and the `entry` block
 /// last of all because its path is the longest of the three that match.
+// covers: tools:config/app-per-application-blocks
 #[test]
 fn every_matching_app_block_applies_least_specific_first() {
     let fs = shop();
@@ -269,6 +270,7 @@ fn a_relative_root_resolves_against_the_file_that_wrote_it() {
 
 /// § 1 gives a block one key. Both is a refusal rather than a precedence rule, because a block
 /// naming a directory *and* a file has not said which of the two it means.
+// covers: tools:config/app-per-application-blocks
 #[test]
 fn a_block_naming_both_keys_is_refused() {
     let fs = Fake::with(&[
@@ -286,6 +288,7 @@ fn a_block_naming_both_keys_is_refused() {
 
 /// And neither is a refusal for the opposite reason: there is no default application, so a block
 /// with no key would carry directives nothing ever reads.
+// covers: tools:config/app-per-application-blocks
 #[test]
 fn a_block_naming_neither_key_is_refused() {
     let fs = Fake::with(&[("nvs.toml", "[[app]]\nmode = \"production\"\n")]);
@@ -355,6 +358,7 @@ fn layered_shop() -> Fake {
 /// `600s` from its own while inheriting everything neither states, and the `256M` the widest block
 /// wrote is gone. Asserted together because a fold that dropped the inherited `origin` and one
 /// that ignored specificity each pass on a different half.
+// covers: tools:config/app-per-application-blocks
 #[test]
 fn every_matching_blocks_directives_layer_least_specific_first() {
     let fs = layered_shop();

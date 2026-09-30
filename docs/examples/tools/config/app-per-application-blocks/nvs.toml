@@ -1,0 +1,23 @@
+# Every program on this server gets these limits.
+[limits]
+memory = "256M"
+
+[limits.hard]
+memory = "512M"
+
+# This block covers every program in this directory.
+[[app]]
+root = "."
+
+[app.limits]
+memory = "192M"
+
+# This block covers one file only. It is the most specific block, so its values win.
+[[app]]
+entry = "01-a-smaller-limit-for-a-nightly-job.nvs"
+
+[app.limits]
+memory = "128M"
+
+[app.limits.hard]
+memory = "256M"
