@@ -297,15 +297,80 @@ away`), an event stream with nothing to write. A program may read the same bit t
     nvs ctl config [--socket <path>]
     nvs ctl status [--socket <path>]
 
-`nvs ctl` reaches a running server over its control socket, `[control] socket` in the
-configuration — a path on Unix, `\\.\pipe\nvs-control` on Windows, `false` to have none. Its owner
-and mode are the whole of who may use it; there is no token and no TCP form. `reload` re-reads the
-configuration tree, applies what can change while running, prints what it applied and names each
-key that needs a restart; a mount `scan` expands again. `config` prints what the process is
-holding, each key with the file it came from. `status` reports how many requests are in flight,
-whether the process is draining, and each restart key whose change is waiting for the next start. `--socket` names one server where several run on a host. A
-changed `[control] socket` moves the socket without a restart: the new one answers before the old
-one closes.
+`nvs ctl` sends one request to a running server and prints the answer. It reaches the server over
+the control socket, which `[control] socket` in the configuration names:
+
+```toml
+[control]
+socket = "/run/nvs/control.sock"      # on Windows a pipe name: '\\.\pipe\nvs-control'
+```
+
+A server has no control socket when the value is `false`, or when no `[control]` block is written.
+Only the account that runs the server can use the socket. It has no password and no network
+address. The server does not start when another account can write to the directory that contains
+the socket. No request runs code of your program.
+
+`nvs ctl` reads the name of the socket from `./nvs.toml`, or from the file that `--config` names.
+`--socket` gives the name directly, which selects one server when several run on a host. `nvs ctl`
+and the server must be the same version of `nvs`.
+
+**`status`** prints how many requests are running and whether the server is draining.
+`config_check` counts the checks that the server made of its own configuration files. A
+`restart pending` line follows for each key whose changed value waits for the next start:
+
+```text
+$ nvs ctl status
+in_flight: 3
+draining: false
+config_check: 412 passes, 412 stats, 1 paths
+restart pending: server.workers (running not written, written 2)
+```
+
+**`config`** prints every key that the server is running with, and the file that set it.
+`nvs config dump --origin` prints the same list from the files on disk. A difference between the
+two lists is a change that the server has not applied.
+
+```text
+$ nvs ctl config
+control.socket = "/run/nvs/control.sock"    /srv/shop/nvs.toml
+limits.memory  = "128M"                     /srv/shop/nvs.toml
+mode.default   = "production"               /srv/shop/nvs.toml
+```
+
+**`reload`** reads all configuration files again and applies the result at once. It prints an
+`applied:` line for each key that it changed. It prints an `ignored:` line for each changed key
+that it did not apply, such as a key that needs a restart. `invalidated:` is the number of
+compiled program files that the change made stale, and the server compiles them again. A mount
+`scan` is expanded again. The server also checks its files by itself every two seconds, and a
+change that it already applied is not listed.
+
+```text
+$ nvs ctl reload
+applied: limits.memory
+ignored: server.workers
+invalidated: 0
+```
+
+When a file has an error, `reload` applies nothing. It prints the error and exits with status `1`,
+and the server keeps the configuration it has:
+
+```text
+$ nvs ctl reload
+error: the server refused `POST /reload` with 409:
+error[E0601]: unclosed table, expected `]`
+  --> /srv/shop/nvs.toml:7:8
+  |
+7 | [limits
+  |        ^ here
+  = note: in `[limits`
+
+note: the running configuration is unchanged
+```
+
+A changed `[control] socket` moves the socket without a restart. The new socket answers before the
+old one closes.
+
+<!-- src: `rule:config/one-local-control-socket`, `rule:config/a-reload-names-what-it-could-not-apply`, `rule:config/ctl-config-reports-the-live-snapshot`, `rule:config/no-network-control-surface` -->
 
 # nvs service
 

@@ -1245,6 +1245,7 @@ fn moved_endpoint(dir: &Path) -> PathBuf {
 /// endpoint answers `nvs ctl` and the old one does not. A name whose endpoint
 /// cannot be created is logged and named as not applied, and the endpoint in
 /// force keeps answering.
+// covers: tools:server/nvs-ctl
 #[test]
 fn a_changed_control_socket_moves_the_control_endpoint() {
     let server = Server::start("moves", "", &[("app.nvs", PLAIN)]);
@@ -1290,6 +1291,82 @@ fn a_changed_control_socket_moves_the_control_endpoint() {
         status.contains("in_flight:"),
         "the endpoint in force stopped answering after a move that failed: {status}"
     );
+}
+
+/// `nvs ctl` from outside the process, one request after another. `config`
+/// lists a key the server runs with beside the file that wrote it. A `reload`
+/// over a file that does not parse fails: it prints the file and the line,
+/// says that the running configuration is unchanged, and `config` still lists
+/// the value from before. A `reload` over the repaired file is answered with
+/// its report, and `config` lists the new value. The same three requests sent
+/// to the HTTP port reach the program, as any other path does.
+// covers: tools:server/nvs-ctl
+#[test]
+fn nvs_ctl_reads_and_reloads_a_running_server_and_the_http_port_does_neither() {
+    const POLICY: &str = "http.headers.referrer_policy";
+    let server = Server::start(
+        "ctl",
+        "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+    let held = |listing: &str| {
+        listing
+            .lines()
+            .find(|line| line.starts_with(POLICY))
+            .unwrap_or_else(|| panic!("`nvs ctl config` does not list `{POLICY}`: {listing}"))
+            .to_owned()
+    };
+
+    let row = held(&server.ctl("config"));
+    assert!(
+        row.contains("\"no-referrer\"") && row.trim_end().ends_with("nvs.toml"),
+        "the row does not give the value and the file that wrote it: {row}"
+    );
+
+    server.save("[http.headers]\nreferrer_policy = \"same-ori");
+    let refused = server.ctl_output(&server.socket, "reload");
+    let said = String::from_utf8_lossy(&refused.stderr).into_owned();
+    assert!(
+        !refused.status.success() && refused.stdout.is_empty(),
+        "a reload over a file that does not parse was reported as done: {said}"
+    );
+    assert!(
+        said.contains("nvs.toml:"),
+        "the refusal does not name the file and the line: {said}"
+    );
+    assert!(
+        said.contains("note: the running configuration is unchanged"),
+        "the refusal does not say what the server runs with now: {said}"
+    );
+    let row = held(&server.ctl("config"));
+    assert!(
+        row.contains("\"no-referrer\""),
+        "a refused reload changed the running configuration: {row}"
+    );
+
+    let report = server.reload("[http.headers]\nreferrer_policy = \"same-origin\"\n");
+    assert!(
+        report.contains("invalidated: "),
+        "the reload over the repaired file printed no report: {report}"
+    );
+    let row = held(&server.ctl("config"));
+    assert!(
+        row.contains("\"same-origin\""),
+        "`nvs ctl config` does not list the reloaded value: {row}"
+    );
+
+    for (method, path, control) in [
+        ("POST", "/reload", "invalidated:"),
+        ("GET", "/config", POLICY),
+        ("GET", "/status", "in_flight:"),
+    ] {
+        let answer = server.send(method, path, &[]);
+        assert!(
+            !answer.body.contains(control),
+            "`{method} {path}` on the HTTP port was answered by the control endpoint: {answer:?}"
+        );
+    }
 }
 
 /// A stand-in OTLP collector on a loopback port of its own. It answers every
@@ -2114,6 +2191,7 @@ fn a_half_written_configuration_file_is_logged_and_the_running_one_kept() {
 /// A changed restart key is logged once, with the value in force and the
 /// value written, and `nvs ctl status` lists it until the file is changed
 /// back. A later save that changes another key does not log it again.
+// covers: tools:server/nvs-ctl
 #[test]
 fn a_changed_restart_key_is_logged_as_pending_and_listed_by_ctl_status() {
     const PENDING: &str = "configuration restart pending";

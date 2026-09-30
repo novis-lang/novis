@@ -1,0 +1,3 @@
+# The control socket of this server. `nvs ctl` connects to it.
+[control]
+socket = "/run/nvs/control.sock"
