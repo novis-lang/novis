@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/check.rs",
+  "title": "A `never` method whose body reaches its closing brace compiles, and a call to it returns to the caller.",
+  "text": "`check_body_exits` exempts `never` from `E0739`, so `public static function stop(int $n): never { if ($n > 0) { throw new RuntimeError(\"x\"); } }` compiles and `stop(0)` comes back: the statement after the call runs. PHP throws a `TypeError` there. `nvs_ir::lower`'s `CheckedTy::Never => Ty::Void` arm names the same hole, and erasing to `void` keeps it memory-safe. Dropping the exemption alone would refuse a `never` body whose last statement calls another `never` method, because `crate::returns` walks statements syntactically and counts only `throw` and `exit` as leaving. The fix makes that walk count a call typed `never`, drops the exemption, and rewrites the last sentence of `rule:php-migration/a-body-never-falls-off-its-end`, which states the exemption. `docs/reference/tools/30-php-differences.md` § *Types and conversions* tells a reader to end every path of a `never` body with `throw`, which is the part nothing checks yet.",
+  "milestone": "M10"
+}

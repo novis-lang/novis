@@ -111,15 +111,16 @@ populates.
 
 | PHP | Novis | Code |
 |---|---|---|
-| `function f($x)`, `fn($x) => …` | `function f(int $x)` — every parameter declares a type | `E0101` |
+| `function f($x)` | `function f(int $x)` — every parameter declares a type | `E0101` |
+| `fn($x) => …` | `fn(int $x) => …`; the type may be left out only where the closure is given to a `callable(int): int` type, which names it | `E0808` |
 | `public $x;` | `public int $x = 0;` | `E0101` |
 | `(int)$s`, `(string)$n`, `(float)`, `(bool)`, `(array)` | `$s as int` — throws where a cast would truncate; `$s as ?int` answers `null` instead | `E0225` |
 | `settype($x, "int")` | a new binding: `int $n = $x as int;` | `E0208` |
 | `resource` | no such type; a handle is an object of a `Core` class | `E0303` |
-| `iterable $x` | `array<T>` or `Iterable<T>` | `E0401` at the call |
+| `iterable $x` | `array<T>` for an array, `Iterable<T>` for a generator or an object; an `array<T>` is not an `Iterable<T>` | `E0401` at the call |
 | `callable $f = "strlen";`, `callable $f = [$obj, "m"];`, `callable $f = "A::m";` | only a closure is callable: `fn(string $s): uint => Core\Str::length($s)` | `E0418`, `E0419` |
-| `never` return type | not lowered in this build (internal error); declare `void` and `throw` | — |
-| `public ?int $x = null;` | assign `null` in the constructor; a default is a literal, `[]`, an enum case or a constant | `E0472` |
+| `never` return type | the same `never`; end every path of the body with `throw`. A `return;` in it is refused | `E0822` |
+| `public int $x = 1 + 2;`, `public string $s = "a" . "b";` | write the value, or compute it in the constructor; a default is one literal, `null`, `[]`, an enum case or a constant | `E0472` |
 | `1 == "1"` | convert one side: `$n == ($s as int)` — disjoint types do not compare | `E0466` |
 | `"3" * 2`, `"a" < "b"` | `($s as int) * 2`; `Core\Str::compare($a, $b)` | `E0716`, `E0715` |
 | `$s++` on a string | none; a binding never changes type | `E0474` |

@@ -1,0 +1,81 @@
+--TEST--
+Every Novis spelling in the types and conversions table of the PHP-differences chapter compiles and runs — `rule:types/declaration`, `rule:types/conversion`
+--FILE--
+<?nvs
+// covers: tools:php-differences/types-and-conversions
+// The PHP column of every row is pinned under `tests/conformance/reject/`;
+// this case runs the replacement column.
+class Item {
+    // A property declares its type, and a default is one constant.
+    public int $count = 0;
+    public ?int $limit = null;
+    public string $label;
+
+    public function constructor(string $label) {
+        // A value that needs computing is set in the constructor.
+        $this->label = $label . "!";
+    }
+
+    // Every parameter declares a type.
+    public static function twice(int $x): int {
+        return $x * 2;
+    }
+
+    // `never` ends every path with a throw.
+    public static function stop(string $why): never {
+        throw new RuntimeError($why);
+    }
+
+    // An array parameter is `array<T>`.
+    public static function sum(array<int> $xs): int {
+        int $t = 0;
+        foreach ($xs as int $x) {
+            $t = $t + $x;
+        }
+        return $t;
+    }
+}
+
+Item $item = new Item("box");
+echo $item->label, " ", $item->count, " ", $item->limit is null ? "null" : "set", "\n";
+echo Item::twice(4), " ", Item::sum([1, 2, 3]), "\n";
+
+// `as int` converts, and throws where a cast would lose part of the value.
+string $whole = "42";
+string $part = "4.5";
+echo $whole as int, " ", ($whole as int) * 2, "\n";
+echo ($part as ?int) is null ? "null" : "set", "\n";
+try {
+    echo $part as int, "\n";
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+
+// A settype becomes a new variable with the new type.
+int $n = $whole as int;
+echo $n == ($whole as int) ? "same" : "different", "\n";
+
+// Strings compare with `Core\Str::compare`.
+echo Core\Str::compare("a", "b"), "\n";
+
+// Only a closure is callable, and its parameter type may come from the
+// `callable(...)` type it is given to.
+callable $len = fn(string $s): uint => Core\Str::length($s);
+callable(int): int $triple = fn($x) => $x * 3;
+echo $len("Café"), " ", $triple(5), "\n";
+
+try {
+    Item::stop("stopped");
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+--EXPECT--
+box! 0 null
+8 6
+42 84
+null
+caught: cannot convert string "4.5" to `int`
+same
+-1
+4 15
+caught: stopped
