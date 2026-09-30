@@ -1,5 +1,5 @@
 {
-  "live": "the-description-is-owed",
+  "live": "tools-install",
   "goals": [
     "core-depth",
     "concurrency",
@@ -172,11 +172,11 @@
     "tools-config",
     "tools-php-differences",
     "tools-agents",
+    "tools-install",
+    "tools-server",
     "the-description-is-owed",
     "limit-handler-reach",
     "core-class-cards",
-    "tools-install",
-    "tools-server",
     "plain-comments",
     "foreach-var",
     "var-array-literal",

@@ -14,10 +14,10 @@ Novis *and* from Rust, three small real-world examples, one measured performance
 and one file written to break it. `bun nv proofs --id '<feature>'` prints what
 one feature has and what it still owes, with the path each proof belongs at.
 
-**Every feature here also gets its website description**, `about.md` in its example
-directory, written before its examples. The check does not count it yet -- goal
-`the-description-is-owed` is where that is switched on -- so nothing but this
-paragraph asks for it: a feature is not done until it has one.
+**Every feature here also owes its website description**, `about.md` in its example
+directory, written before its examples. `data/proofs/policy.json` makes it owed, so this
+goal's check counts it with the other proofs, and goal `the-description-is-owed` behind
+this one only confirms that the whole roster has one.
 
 ## The item list, grouped by file set
 
@@ -26,11 +26,11 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`tools:install/linux-and-macos`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:168`
-2. **`tools:install/the-layout`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:9`
-3. **`tools:install/what-novis-checks`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:72`
-4. **`tools:install/when-something-is-refused`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:184`
-5. **`tools:install/windows`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:107`
+1. **`tools:install/linux-and-macos`** — owes about, examples, help, hostile, tests. `docs/reference/tools/15-install.md:168`
+2. **`tools:install/the-layout`** — owes about, examples, hostile, tests. `docs/reference/tools/15-install.md:9`
+3. **`tools:install/what-novis-checks`** — owes about, examples, hostile, tests. `docs/reference/tools/15-install.md:72`
+4. **`tools:install/when-something-is-refused`** — owes about, examples, hostile, tests. `docs/reference/tools/15-install.md:184`
+5. **`tools:install/windows`** — owes about, examples, hostile, tests. `docs/reference/tools/15-install.md:107`
 
 ## Stage 2 — the dossier
 

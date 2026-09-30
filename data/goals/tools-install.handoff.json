@@ -7,15 +7,15 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:install/linux-and-macos`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:168`"
+        "text": "**`tools:install/linux-and-macos`** — owes about, examples, help, hostile, tests. `docs/reference/tools/15-install.md:168`"
       },
       {
         "done": false,
-        "text": "**`tools:install/the-layout`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:9`"
+        "text": "**`tools:install/the-layout`** — owes about, examples, hostile, tests. `docs/reference/tools/15-install.md:9`"
       },
       {
         "done": false,
-        "text": "**`tools:install/what-novis-checks`** — owes examples, hostile, tests. `docs/reference/tools/15-install.md:72`"
+        "text": "**`tools:install/what-novis-checks`** — owes about, examples, hostile, tests. `docs/reference/tools/15-install.md:72`"
       }
     ],
     "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."

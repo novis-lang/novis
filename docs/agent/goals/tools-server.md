@@ -14,10 +14,10 @@ Novis *and* from Rust, three small real-world examples, one measured performance
 and one file written to break it. `bun nv proofs --id '<feature>'` prints what
 one feature has and what it still owes, with the path each proof belongs at.
 
-**Every feature here also gets its website description**, `about.md` in its example
-directory, written before its examples. The check does not count it yet -- goal
-`the-description-is-owed` is where that is switched on -- so nothing but this
-paragraph asks for it: a feature is not done until it has one.
+**Every feature here also owes its website description**, `about.md` in its example
+directory, written before its examples. `data/proofs/policy.json` makes it owed, so this
+goal's check counts it with the other proofs, and goal `the-description-is-owed` behind
+this one only confirms that the whole roster has one.
 
 ## The item list, grouped by file set
 
@@ -26,14 +26,14 @@ features. The expensive thing a session buys is understanding what the feature d
 edges, and the test, the examples, the bench and the attack all spend that same
 understanding; split across one session per proof it is bought once per proof.
 
-1. **`tools:server/behind-a-proxy-trusted-proxies`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:165`
-2. **`tools:server/mounts-which-file-answers-a-request`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:70`
-3. **`tools:server/nvs-ctl`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:190`
-4. **`tools:server/nvs-serve`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:9`
-5. **`tools:server/nvs-service`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:204`
-6. **`tools:server/stopping-and-reloading-the-drain`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:179`
-7. **`tools:server/the-server-block`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:37`
-8. **`tools:server/what-a-program-reads-about-its-door`** — owes examples, hostile, tests. `docs/reference/tools/25-server.md:140`
+1. **`tools:server/behind-a-proxy-trusted-proxies`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:165`
+2. **`tools:server/mounts-which-file-answers-a-request`** — owes about, examples, hostile, tests. `docs/reference/tools/25-server.md:70`
+3. **`tools:server/nvs-ctl`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:190`
+4. **`tools:server/nvs-serve`** — owes about, examples, hostile, tests. `docs/reference/tools/25-server.md:9`
+5. **`tools:server/nvs-service`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:204`
+6. **`tools:server/stopping-and-reloading-the-drain`** — owes about, examples, help, hostile, tests. `docs/reference/tools/25-server.md:179`
+7. **`tools:server/the-server-block`** — owes about, examples, hostile, tests. `docs/reference/tools/25-server.md:37`
+8. **`tools:server/what-a-program-reads-about-its-door`** — owes about, examples, hostile, tests. `docs/reference/tools/25-server.md:140`
 
 ## Stage 2 — the dossier
 
