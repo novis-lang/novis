@@ -1,26 +1,27 @@
 {
-  "state": "This goal has just been installed. Nothing in tools:config has been taken yet.",
+  "state": "Goal `tools-config`. Two of the configuration chapter's features have all their proofs:\n`tools:config/app-per-application-blocks` and `tools:config/auditing-a-tree`.\nA tool feature owes one example, one attack and one test (Rust with a `covers:` marker counts);\n`bun nv proofs --id '<feature>'` says so, and adds `help` when its reference section shows no code.\nA feature whose example needs settings puts its own `nvs.toml` in the feature directory\n(`docs/examples/README.md` § *A grant the examples need*); both landed features do.\nNothing is blocked.",
   "next": {
-    "stage": null,
+    "stage": 1,
+    "title": "proofs, file order",
     "files": [],
-    "note": "One slice is one feature with all its feature proofs. Take them in this order — the list runs in file order, so neighbours share an implementing file and the second and third cost a fraction of the first:",
+    "note": "one file set: `docs/reference/tools/20-config.md` and the `docs/examples/tools/config/`, `tests/hostile/tools/config/` trees, each with its own `nvs.toml`.",
     "items": [
       {
         "done": false,
-        "text": "**`tools:config/app-per-application-blocks`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:292`"
+        "text": "**`tools:config/capabilities`** — owes examples, hostile, tests. `rule:testing/feature-proofs`. `docs/reference/tools/20-config.md:184`"
       },
       {
         "done": false,
-        "text": "**`tools:config/auditing-a-tree`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:535`"
+        "text": "**`tools:config/network-grants-the-addresses-and-endpoints-they-reach`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:258`"
       },
       {
         "done": false,
-        "text": "**`tools:config/capabilities`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:184`"
+        "text": "**`tools:config/include-a-tree-of-files`** — owes examples, hostile, tests. `docs/reference/tools/20-config.md:355`"
       }
-    ],
-    "after": "`bun nv proofs --id '<feature>'` prints the paths each proof belongs at."
+    ]
   },
   "backlog": [
-    "(nothing yet)"
+    "The rest of `tools:config/*` in `bun nv proofs --owed`: the file, the blocks, values and units, limits, mode, trust (also owes help), secrets, `Core\\Config`.",
+    "`crates/nvs-config/tests/app.rs` already pins the `[[app]]` rules; a `covers:` marker on an existing test is the whole test edit when one fits."
   ]
 }
