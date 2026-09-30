@@ -1,5 +1,5 @@
 {
-  "state": "Goal `tools-php-differences`: 9 of the chapter's 12 features are done. This session added `operators` and `control-flow`. `bun nv proofs --owed --group tools:php-differences` lists the 3 still owed: `what-parses-but-behaves-differently`, `the-tools-you-do-not-install` and `two-spellings-side-by-side`.\nSo far the proofs have corrected twelve rows of `docs/reference/tools/30-php-differences.md`. This session split the `&` row in § *Operators*: `&` in a parameter or a `foreach` is `E0237`, and `$b = &$a` is `E0701`. Every control-flow row matched the binary.\n`int $b = &$a;` (also `var` and a `for` header) was a bare `E0102` parse error. The parser now reports `E0701` there too, through `nvs_syntax::by_reference_assignment`, which the typer's `$b = &$a` refusal now calls. `tests/conformance/lang/a-reference-assignment-in-a-declaration-is-e0701.nvst` pins it.\nGap `nvs-types/a-never-method-that-reaches-its-end-returns`, gap `nvs-syntax/a-second-namespace-statement-in-one-file-compiles` and `nvs-runtime/a-loop-that-only-concatenates-never-stops` are still open.\nEach feature here owes one example, one attack and one case carrying `// covers:`. It owes no `about.md` or bench. `the-tools-you-do-not-install` also owes help: its section shows no code block.\nTwo `catch` variables of different classes cannot share a name in one scope, even in separate `try` statements (`E0406`), the same as two `foreach` headers.",
+  "state": "Goal `tools-php-differences`: 10 of the chapter's 12 features are done. This session added `what-parses-but-behaves-differently`. `bun nv proofs --owed --group tools:php-differences` lists the 2 still owed: `the-tools-you-do-not-install` and `two-spellings-side-by-side`.\nSo far the proofs have corrected fourteen rows of `docs/reference/tools/30-php-differences.md`. This session rewrote two rows of § *What parses but behaves differently*: a `require` of a written path with no file is `E0311` at compile time and never a throw, and a pattern cannot ask for backtracking (`rule:core-classes/regex-two-tiers`).\nGap `nvs-ir/a-require-with-a-computed-path-runs-nothing` is new: `require $path;` compiles and runs nothing, whether the file exists or not. No proof carries its marker, because an attack on it passes.\nGap `nvs-types/a-never-method-that-reaches-its-end-returns`, gap `nvs-syntax/a-second-namespace-statement-in-one-file-compiles` and `nvs-runtime/a-loop-that-only-concatenates-never-stops` are still open.\nEach feature here owes one example, one attack and one case carrying `// covers:`. It owes no `about.md` or bench. `the-tools-you-do-not-install` also owes help: its section shows no code block.\nA failed `float as int` throws `ArithmeticError`, which a `catch (RuntimeError …)` does not catch.",
   "next": {
     "stage": 1,
     "title": "one feature per slice, chapter order",
@@ -8,21 +8,18 @@
     "items": [
       {
         "done": false,
-        "text": "**`tools:php-differences/what-parses-but-behaves-differently`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). Run every row through `nvs run` on a scratch file under `.agent-tmp/` first. `docs/reference/tools/30-php-differences.md:224`"
+        "text": "**`tools:php-differences/the-tools-you-do-not-install`** — owes examples, hostile, tests, and help: add a short code block to the section so `nvs agent show` prints code (`rule:testing/feature-proofs`). The section names `#[Test]`, `Core\\Test`, `nvs test` and `nvs check`; run each claim on a scratch file under `.agent-tmp/` first. `docs/reference/tools/30-php-differences.md:275`"
       },
       {
         "done": false,
-        "text": "**`tools:php-differences/the-tools-you-do-not-install`** — owes examples, hostile, tests, and help: add a short code block to the section so `nvs agent show` prints how it is written. `docs/reference/tools/30-php-differences.md:275`"
-      },
-      {
-        "done": false,
-        "text": "**`tools:php-differences/two-spellings-side-by-side`** — owes examples, hostile, tests. `docs/reference/tools/30-php-differences.md:290`"
+        "text": "**`tools:php-differences/two-spellings-side-by-side`** — owes examples, hostile, tests (`rule:testing/feature-proofs`). The section is three code blocks and no table, so the case runs the middle block and pins the two `error` blocks under `tests/conformance/reject/`. `docs/reference/tools/30-php-differences.md:290`"
       }
     ]
   },
   "backlog": [
-    "When all three land, the goal's check `dossier-tools-php-differences` should pass: close with `bun nv verify --doc`, `bun nv owners --closes tools-php-differences` and `bun nv playbook --closes tools-php-differences` (the loop prompt's `DONE` step).",
+    "Gap `nvs-ir/a-require-with-a-computed-path-runs-nothing` — `data/gaps/nvs-ir/`. It needs a decision between a compile error and a run-time throw, which this goal may not open.",
     "Gap `nvs-types/a-never-method-that-reaches-its-end-returns` — `data/gaps/nvs-types/`.",
-    "Gap `nvs-syntax/a-second-namespace-statement-in-one-file-compiles` — `data/gaps/nvs-syntax/`."
+    "Gap `nvs-syntax/a-second-namespace-statement-in-one-file-compiles` — `data/gaps/nvs-syntax/`.",
+    "The `decimal` range error's message names `rule:types/decimal`, a rule id an end user cannot look up — `crates/nvs-runtime`, not located."
   ]
 }
