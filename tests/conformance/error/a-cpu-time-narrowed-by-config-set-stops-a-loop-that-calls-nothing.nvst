@@ -1,0 +1,32 @@
+--TEST--
+A `limits.cpu_time` the program narrows with `Core\Config::set`, in a request that started under no cap, stops a loop that allocates nothing, writes nothing and calls nothing, and the tier-1 handler is told `cpu_time` — `rule:errors/on-limit`
+--FILE--
+<?nvs
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    // `rule:errors/on-limit`'s `LimitReport`: the `limit` key is what tells
+    // this breach from a memory one.
+    echo "onLimit ", $report['limit'], "\n";
+});
+
+// No `nvs.toml` beside this case, so the request started under no cap and
+// nothing was charging it. The set is accepted and read back, which is the
+// half that always worked; the loop below is the half this case exists for.
+echo Core\Config::set('limits.cpu_time', '200ms') ? "narrowed" : "refused", "\n";
+echo Core\Config::get('limits.cpu_time'), "\n";
+
+// A comparison rather than `true`, so the loop is compiled as written and
+// what follows it is not proved unreachable. It reaches no member, so the
+// only thing that can stop it is the ceiling set above.
+int $spins = 0;
+while ($spins >= 0) {
+    $spins = $spins + 1;
+}
+
+// Must not run: the request is over where the ceiling was crossed.
+echo "spun ", $spins, " times\n";
+--EXPECT--
+narrowed
+200ms
+onLimit cpu_time
+--EXPECT-ERROR--
+FATAL: the request exceeded its CPU-time limit
