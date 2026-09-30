@@ -1,0 +1,31 @@
+--TEST--
+A `require` whose written path has no file behind it is `E0311`, and `<` on two objects whose class does not implement `Comparable` is `E0411` — `rule:statements/require-is-the-only-inclusion-construct`
+--FILE--
+<?nvs
+// covers: tools:php-differences/what-parses-but-behaves-differently
+// The two rows of the PHP-differences chapter's "What parses but behaves
+// differently" tables that end in a compile error.
+class Box {
+    public int $v = 0;
+}
+
+require "no-such-file.nvs";
+
+Box $p = new Box();
+Box $q = new Box();
+echo $p < $q ? "lt" : "ge", "\n";
+--EXPECTF-ERROR--
+error[E0311]: `%s` cannot be loaded
+  --> %s:9:9
+  |
+9 | require "no-such-file.nvs";
+  |         ^^^^^^^^^^^^^^^^^^ no file found at this path
+
+error[E0411]: `Box` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
+   --> %s:13:6
+   |
+13 | echo $p < $q ? "lt" : "ge", "\n";
+   |      ^^^^^^^ compared here
+   = help: implement `Comparable`'s `compareTo(self $other): int` on the class
+
+error: aborting due to 2 errors

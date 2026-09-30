@@ -1,0 +1,140 @@
+<?nvs
+// Attack: the features that give a different result from PHP get values at the end of their range.
+// Each step should end with an error or a result. The program must not crash.
+// hostile: timeout-ms 30000
+
+enum Level
+{ Low = 1, High = 2 }
+
+// 1. One million integer overflows are caught.
+int $caught = 0;
+int $i = 0;
+int $big = 9223372036854775807;
+while ($i < 1000000) {
+    try {
+        int $next = $big + $i + 1;
+        echo $next;
+    } catch (ArithmeticError $overflow) {
+        $caught = $caught + 1;
+    }
+    $i = $i + 1;
+}
+echo $caught, "\n";
+
+// 2. The smallest `int` is negated, multiplied by -1 and divided by -1.
+int $min = -9223372036854775807 - 1;
+try {
+    echo -$min, "\n";
+} catch (ArithmeticError $negated) {
+    echo 'negate: ', $negated->message, "\n";
+}
+try {
+    echo $min * -1, "\n";
+} catch (ArithmeticError $multiplied) {
+    echo 'multiply: ', $multiplied->message, "\n";
+}
+try {
+    echo Core\Math::intDiv($min, -1), "\n";
+} catch (Throwable $divided) {
+    echo 'divide: ', $divided->message, "\n";
+}
+try {
+    echo $min % -1, "\n";
+} catch (Throwable $remainder) {
+    echo 'remainder: ', $remainder->message, "\n";
+}
+
+// 3. Numbers that are not whole, or are too large for an `int`, are converted with `as int`.
+float $huge = 1.0e308;
+array<float> $floats = [9.9, -0.5, 1.0e19, $huge * 10.0, -$huge * 10.0, 9223372036854775807.0];
+foreach ($floats as float $f) {
+    try {
+        echo $f as int, "\n";
+    } catch (Throwable $notWhole) {
+        echo 'float: ', $notWhole->message, "\n";
+    }
+}
+
+// 4. A text of one letter and one million accents is measured.
+string $accents = 'e' . Core\Str::repeat("\u{0301}", 1000000);
+echo Core\Str::length($accents), "\n";
+
+// 5. Array keys at both ends of the `int` range, and a text key that looks like a number.
+array<string> $keys = [];
+$keys[9223372036854775807] = 'max';
+$keys[$min] = 'min';
+$keys['007'] = 'text';
+$keys[7] = 'seven';
+echo Core\Arr::count($keys), ' ', $keys['9223372036854775807'], ' ', $keys['7'], ' ', $keys['007'], "\n";
+
+// 6. Two arrays of one million elements are compared with `==`.
+array<int> $left = [];
+array<int> $right = [];
+$i = 0;
+while ($i < 1000000) {
+    $left[] = $i;
+    $right[] = $i;
+    $i = $i + 1;
+}
+echo $left == $right ? 'equal' : 'different', "\n";
+$right[999999] = -1;
+echo $left == $right ? 'equal' : 'different', "\n";
+
+// 7. An `int` that is not a case of the enum is converted to the enum.
+try {
+    int $raw = 99;
+    Level $level = $raw as Level;
+    echo $level as int, "\n";
+} catch (Throwable $noCase) {
+    echo 'enum: ', $noCase->message, "\n";
+}
+
+// 8. The largest `decimal` is added to itself.
+try {
+    decimal $top = 79228162514264337593543950335;
+    decimal $twice = $top + $top;
+    echo $twice, "\n";
+} catch (Throwable $tooBig) {
+    echo 'decimal: ', $tooBig->message, "\n";
+}
+
+// 9. Two patterns that are very slow in PHP are tested against a long text.
+string $subject = Core\Str::repeat('a', 100000) . 'b';
+echo Core\Regex::matches($subject, '^(a+)+$') ? 'match' : 'no match', "\n";
+try {
+    echo Core\Regex::matches($subject, "^(a|a?)+\\1$") ? 'match' : 'no match', "\n";
+} catch (Throwable $budget) {
+    echo 'regex: ', Core\Str::slice($budget->message, 0, 60), "\n";
+}
+
+// 10. Password hashes that are not hashes, or that need a very large amount of work, are checked.
+array<string> $hashes = [
+    '',
+    'not a hash',
+    '$2y$31$o0TH/nGkgeTN9qH9i90Iduqfpi1flzdXtvwKJYoyqSVGJxC8tMG4G',
+    '$2y$99$o0TH/nGkgeTN9qH9i90Iduqfpi1flzdXtvwKJYoyqSVGJxC8tMG4G',
+    '$argon2id$v=19$m=4294967295,t=4294967295,p=255$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG',
+    Core\Str::repeat('$2y$04$', 100000),
+];
+foreach ($hashes as string $stored) {
+    try {
+        echo Core\Password::verify('secret', $stored) ? 'ok' : 'bad', "\n";
+    } catch (Throwable $badHash) {
+        echo 'verify: ', Core\Str::slice($badHash->message, 0, 60), "\n";
+    }
+    try {
+        echo Core\Password::needsRehash($stored) ? 'rehash' : 'keep', "\n";
+    } catch (Throwable $notHash) {
+        echo 'rehash: ', Core\Str::slice($notHash->message, 0, 60), "\n";
+    }
+}
+
+// 11. Every control byte, and two terminal commands, are printed.
+uint $byte = 0;
+string $control = '';
+while ($byte < 32) {
+    $control = $control . Core\Str::fromCodePoint($byte);
+    $byte = $byte + 1;
+}
+echo $control, "\x7f\x1b[2J\x1b]0;title\x07", "\n";
+echo "done\n";

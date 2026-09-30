@@ -245,8 +245,8 @@ The library:
 
 | PHP | Novis |
 |---|---|
-| `require_once` bookkeeping decides whether a file runs | `require` throws on a missing file and runs it every time control reaches it |
-| a `preg_*` pattern may backtrack exponentially (ReDoS) | patterns run on a linear-time engine by default; backtracking is opt-in per pattern and budgeted |
+| `require_once` bookkeeping decides whether a file runs | `require` runs the file every time control reaches it, and a written path with no file behind it does not compile (`E0311`) |
+| a `preg_*` pattern may backtrack exponentially (ReDoS) | a pattern runs on a linear-time engine whenever that engine can express it; a lookaround or a backreference needs the backtracking engine, which has a step budget and throws when it runs out |
 | `password_hash` takes an algorithm and cost at the call site | no algorithm argument exists — `Core\Password` owns the choice, `verify` still reads a PHP-stored bcrypt hash, and `needsRehash` answers *weaker*, never *different* |
 | control bytes written to a terminal pass through | every control byte reaching the terminal is substituted with a visible glyph |
 

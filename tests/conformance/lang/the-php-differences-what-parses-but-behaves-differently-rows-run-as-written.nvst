@@ -1,0 +1,133 @@
+--TEST--
+Every row of the two tables under "What parses but behaves differently" in the PHP-differences chapter behaves as its Novis column says — `rule:types/integer-literals`, `rule:types/decimal`, `rule:statements/require-is-the-only-inclusion-construct`, `rule:core-classes/regex-two-tiers`, `rule:security/needs-rehash-answers-weaker`
+--FILE--
+<?nvs
+// covers: tools:php-differences/what-parses-but-behaves-differently
+// The two rows that end in a compile error are pinned in
+// `tests/conformance/reject/a-missing-require-target-and-an-ordering-of-plain-objects-do-not-compile.nvst`;
+// this case runs every other row.
+class Box {
+    public int $v;
+    public function constructor(int $v) {
+        $this->v = $v;
+    }
+}
+
+class Version implements Comparable {
+    public int $major;
+    public function constructor(int $major) {
+        $this->major = $major;
+    }
+    public function compareTo(self $other): int {
+        return $this->major <=> $other->major;
+    }
+}
+
+enum Level { Low = 1, High = 2 }
+
+// `==` on two strings compares text.
+echo "01" == "1" ? "eq" : "ne", "\n";
+
+// Arrays compare element by element, in order, so key order counts.
+array<int> $a = [1, 2];
+array<int> $b = [1, 2];
+array<int> $c = [2, 1];
+array<int> $xy = ["x" => 1, "y" => 2];
+array<int> $yx = ["y" => 2, "x" => 1];
+echo $a == $b ? "eq" : "ne", " ", $a == $c ? "eq" : "ne", " ", $xy == $yx ? "eq" : "ne", "\n";
+
+// Objects compare by identity.
+Box $p = new Box(1);
+Box $q = new Box(1);
+Box $r = $p;
+echo $p == $q ? "eq" : "ne", " ", $p == $r ? "eq" : "ne", "\n";
+
+// Ordering two objects goes through `Comparable`.
+echo new Version(2) < new Version(10) ? "lt" : "ge", "\n";
+
+// Integer overflow throws.
+try {
+    int $n = 9223372036854775807;
+    $n = $n + 1;
+    echo "wrapped\n";
+} catch (ArithmeticError $overflow) {
+    echo "overflow throws\n";
+}
+
+// A leading zero is not a radix; octal is `0o`.
+echo 017, " ", 0o17, "\n";
+
+// A float with a fraction does not convert to `int`; the rounding is written.
+float $f = 9.9;
+try {
+    echo $f as int, "\n";
+} catch (Throwable $lossy) {
+    echo "9.9 as int throws\n";
+}
+echo Core\Math::floor($f) as int, "\n";
+
+// A string is measured in grapheme clusters.
+echo Core\Str::length("héllo"), "\n";
+
+// An integer subscript is the same key as its string.
+array<string> $m = [];
+$m[1] = "one";
+echo $m["1"], "\n";
+
+// An enum case is a named integer.
+echo Level::High as int, "\n";
+
+// `decimal` is exact where `float` is not.
+decimal $tenth = 0.10;
+decimal $fifth = 0.20;
+decimal $sum = $tenth + $fifth;
+decimal $want = 0.30;
+float $ft = 0.1;
+float $ff = 0.2;
+echo $sum, " ", $sum == $want ? "exact" : "off", " ", $ft + $ff == 0.3 ? "exact" : "off", "\n";
+
+// `require` runs its file every time control reaches it.
+require "partial.nvs";
+require "partial.nvs";
+
+// A pattern a backtracking engine is slow on is answered by the linear
+// engine, and one that needs backtracking throws when its budget runs out.
+string $subject = Core\Str::repeat("a", 40) . "b";
+echo Core\Regex::matches($subject, "^(a+)+$") ? "match" : "no match", "\n";
+try {
+    echo Core\Regex::matches($subject, "^(a|a?)+\\1$") ? "match" : "no match", "\n";
+} catch (Throwable $budget) {
+    echo "budget throws\n";
+}
+
+// `verify` reads a bcrypt hash PHP stored, and `needsRehash` calls it weaker.
+string $stored = '$2y$04$o0TH/nGkgeTN9qH9i90Iduqfpi1flzdXtvwKJYoyqSVGJxC8tMG4G';
+echo Core\Password::verify("secret", $stored) ? "ok" : "bad", " ";
+echo Core\Password::verify("wrong", $stored) ? "ok" : "bad", " ";
+echo Core\Password::needsRehash($stored) ? "rehash" : "keep", " ";
+echo Core\Password::needsRehash(Core\Password::hash("secret")) ? "rehash" : "keep", "\n";
+
+// A control byte written to the terminal is replaced by a visible glyph.
+echo "\x1b[31mred\x07\n";
+--FILE partial.nvs--
+<?nvs
+echo "partial\n";
+--EXPECT--
+ne
+eq ne ne
+ne eq
+lt
+overflow throws
+17 15
+9.9 as int throws
+9
+5
+one
+2
+0.30 exact off
+partial
+partial
+no match
+budget throws
+ok bad rehash keep
+␛[31mred␇
