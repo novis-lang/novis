@@ -1,0 +1,34 @@
+<?nvs
+// Attack: a program declares commands and options with the names that `nvs` itself uses.
+// `nvs run` gives every word after the file name to the program. `nvs` must act on none of them.
+
+class Tool
+{
+    // 1. `nvs run app.nvs version -h` must reach this method with `$human` set. It must not print help.
+    #[Core\Command(name: "version", about: "Print a version")]
+    public static function version(
+        #[Core\Option(short: "h", about: "A flag with the short name of help")] bool $human = false,
+        #[Core\Option(short: "V", about: "A flag with the short name of version")] bool $verbose = false,
+        #[Core\Option(short: "i", about: "A flag with a short name that `nvs` does not accept")] bool $info = false,
+    ): uint
+    {
+        echo 'tool version ', $human ? 'human' : 'plain', "\n";
+        return 0;
+    }
+
+    // 2. `nvs run app.nvs help --help --config x` must reach this method. `nvs` reads no file `x`.
+    #[Core\Command(name: "help", about: "A command with the name help")]
+    public static function help(
+        #[Core\Option(about: "An option with the name help")] bool $help = false,
+        #[Core\Option(about: "An option with the name version")] bool $version = false,
+        #[Core\Option(about: "An option with the name config")] string $config = '',
+    ): uint
+    {
+        echo 'tool help ', $config, "\n";
+        return 0;
+    }
+}
+
+// 3. With no words, the program prints its usage and returns 2. The program continues.
+uint $status = Core\Command::run();
+echo 'status ', $status, "\n";
