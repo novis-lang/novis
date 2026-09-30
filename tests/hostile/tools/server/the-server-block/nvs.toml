@@ -1,0 +1,8 @@
+# A small server: 100 requests at one time, 2 workers and 50 open WebSocket connections.
+[server]
+max_in_flight = 100
+workers       = 2
+
+[server.connection]
+max_open    = 50
+max_message = "1M"

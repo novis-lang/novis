@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a request tries to raise the limits in the `[server]` block of its own server.
+// Only the person who runs the server may set them, so every attempt below should fail.
+
+// 1. Raise the number of requests that run at one time, and the number of workers.
+echo 'more requests:       ', Core\Config::set('server.max_in_flight', '4294967295') ? 'accepted' : 'refused', "\n";
+echo 'more workers:        ', Core\Config::set('server.workers', '65535') ? 'accepted' : 'refused', "\n";
+
+// 2. Raise the limits of a WebSocket connection.
+echo 'more connections:    ', Core\Config::set('server.connection.max_open', '4294967295') ? 'accepted' : 'refused', "\n";
+echo 'larger messages:     ', Core\Config::set('server.connection.max_message', '1024G') ? 'accepted' : 'refused', "\n";
+
+// 3. Remove each limit with `false`, with `0` and with a negative number.
+array<string> $limits = [
+    'server.max_in_flight',
+    'server.workers',
+    'server.connection.max_open',
+    'server.connection.max_frame',
+    'server.connection.max_message',
+    'server.connection.idle_timeout',
+    'server.connection.max_lifetime',
+    'server.connection.send_timeout',
+];
+array<string> $values = ['false', '0', '-1'];
+uint $accepted = 0;
+foreach ($limits as string $limit) {
+    foreach ($values as string $value) {
+        if (Core\Config::set($limit, $value)) {
+            $accepted = $accepted + 1;
+        }
+    }
+}
+echo 'limits removed:      ', $accepted, "\n";
+
+// 4. Give a key and a value of one million characters each.
+string $long = Core\Str::repeat('9', 1000000);
+echo 'a very long value:   ', Core\Config::set('server.max_in_flight', $long) ? 'accepted' : 'refused', "\n";
+echo 'a very long key:     ', Core\Config::set('server.' . $long, '1') ? 'accepted' : 'refused', "\n";
+echo 'read a very long key: ', Core\Config::get('server.' . $long) ?? 'not set', "\n";
+
+// 5. Try 100000 different values for the number of requests.
+$accepted = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Config::set('server.max_in_flight', "{$i}")) {
+        $accepted = $accepted + 1;
+    }
+    $i = $i + 1;
+}
+echo 'accepted changes:    ', $accepted, "\n";
+
+// 6. Each setting still has the value from `nvs.toml`.
+echo 'requests at one time: ', Core\Config::get('server.max_in_flight') ?? 'not set', "\n";
+echo 'workers:              ', Core\Config::get('server.workers') ?? 'not set', "\n";
+echo 'open connections:     ', Core\Config::get('server.connection.max_open') ?? 'not set', "\n";
+echo 'largest message:      ', Core\Config::get('server.connection.max_message') ?? 'not set', "\n";

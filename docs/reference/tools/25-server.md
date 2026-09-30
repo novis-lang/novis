@@ -50,7 +50,7 @@ header_timeout     = "10s"                # idle waits, each finite with nothing
 body_idle_timeout  = "30s"
 write_idle_timeout = "30s"
 keepalive_timeout  = "75s"
-drain_timeout      = "30s"                # how long working connections are served after a stop begins
+drain_timeout      = "30s"                # after a stop: the longest a connection with no request stays open
 ```
 
 A running server applies a change to any key here by itself, except `listen`, `socket_mode` and

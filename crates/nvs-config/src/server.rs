@@ -1030,6 +1030,7 @@ mod tests {
 
     /// A tree that writes no `[server]` block is bounded anyway: § 5's own numbers are what the
     /// server runs on, and an operator configuring nothing is the deployment they describe.
+    // covers: tools:server/the-server-block
     #[test]
     fn a_tree_with_no_server_block_still_has_every_wait() {
         let waits = waits_for(&tree(""), &BTreeMap::new()).expect("an empty tree was refused");
@@ -1072,6 +1073,7 @@ mod tests {
     /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s headline, as the refusals that hold it up. Each side is named in one case
     /// because a resolution that refused only `false` would still accept the `0` that closes every
     /// connection as it arrives.
+    // covers: tools:server/the-server-block
     #[test]
     fn neither_false_nor_zero_is_a_wait_this_server_accepts() {
         for written in [
