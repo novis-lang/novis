@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to check a configuration before you deploy it, and how to see which file set each setting.
+// This program runs under the `nvs.toml` in its folder. That file includes `production.toml`.
+
+// `nvs config check nvs.toml` reads both files and runs nothing. It prints this line and exits with `0`:
+//     ok: 2 files, 4 directives set, 1 override, 0 warnings
+// The override is `limits.memory`. Both files set it, and the file read last wins.
+
+// `nvs config dump nvs.toml` prints every setting in force, one per line:
+//     include.0.path     = "production.toml"
+//     limits.hard.memory = "512M"
+//     limits.memory      = "128M"
+//     limits.wall_time   = "30s"
+// With `--origin`, each line also names its file. The `limits.memory` line says it overrides `nvs.toml`.
+
+// A running program gets the same values. This prints `128M`, the value from `production.toml`.
+echo 'memory:         ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+
+// `nvs.toml` is the only file that sets these two. This prints `30s` and `512M`.
+echo 'time limit:     ', Core\Config::get('limits.wall_time') ?? '(unset)', "\n";
+echo 'memory ceiling: ', Core\Config::get('limits.hard.memory') ?? '(unset)', "\n";

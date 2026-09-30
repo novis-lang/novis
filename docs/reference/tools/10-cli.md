@@ -318,7 +318,9 @@ is none); naming files positionally is the same as `--config`.
   quantity, or whether a default lies under its own `[limits.hard]` ceiling: `memory = "12
   bananas"` passes `config check` in this build.
 - `config dump` prints every key in force, one per line in dotted-key order, with array-of-tables
-  blocks numbered (`app.0.root`, `include.1.path`). `--origin` adds the file each key was written
+  blocks numbered (`app.0.root`, `include.1.path`). A value or a table name that holds a new line, a
+  control character or a right-to-left mark is written as a TOML escape, such as `\n` for a new
+  line. Each key stays on one line, and you can see text that a terminal would hide. `--origin` adds the file each key was written
   in, and the file it overrode; `--toml` prints the resolved tree as one canonical TOML document,
   for diffing two environments.
 

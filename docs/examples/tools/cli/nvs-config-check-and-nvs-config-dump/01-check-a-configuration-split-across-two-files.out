@@ -1,0 +1,3 @@
+memory:         128M
+time limit:     30s
+memory ceiling: 512M

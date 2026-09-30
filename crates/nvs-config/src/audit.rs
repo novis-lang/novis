@@ -129,7 +129,27 @@ impl<'a> Audit<'a> {
     #[must_use]
     pub fn render(&self, origin: bool) -> String {
         let rows = self.listing();
-        let width = rows.iter().map(|(key, _)| key.len()).max().unwrap_or(0);
+        // Each key is printed with its segments quoted where they need it, so a table named with a
+        // newline, `[db."main\n…"]`, cannot start a row of its own. A secret is not a leaf of the
+        // table; its `_file` sibling is, and the two share every segment but the last.
+        let spellings: BTreeMap<String, String> = spelled_leaves(self.table)
+            .into_iter()
+            .map(|leaf| (leaf.key, leaf.shown))
+            .collect();
+        let shown: Vec<String> = rows
+            .iter()
+            .map(|(key, _)| match spellings.get(key) {
+                Some(shown) => shown.clone(),
+                None => spellings
+                    .get(&format!("{key}_file"))
+                    .and_then(|file| file.strip_suffix("_file"))
+                    .map_or_else(
+                        || key.split('.').map(segment).collect::<Vec<_>>().join("."),
+                        str::to_owned,
+                    ),
+            })
+            .collect();
+        let width = shown.iter().map(String::len).max().unwrap_or(0);
         let value_width = rows.iter().map(|(_, value)| value.len()).max().unwrap_or(0);
         let overridden: BTreeMap<&str, &Override> = self
             .overrides
@@ -138,11 +158,11 @@ impl<'a> Audit<'a> {
             .collect();
 
         let mut out = String::new();
-        for (key, value) in &rows {
+        for ((key, value), shown) in rows.iter().zip(&shown) {
             let mut line = if origin {
-                format!("{key:width$} = {value:value_width$}")
+                format!("{shown:width$} = {value:value_width$}")
             } else {
-                format!("{key:width$} = {value}")
+                format!("{shown:width$} = {value}")
             };
             if origin {
                 // A secret's origin is the file its *value* came from, not the file that named it —
@@ -186,8 +206,26 @@ impl<'a> Audit<'a> {
 /// Counted rather than [`Resolved::origins`], whose keys include the containers a leaf hangs off.
 #[must_use]
 pub fn leaves(table: &toml::Table) -> Vec<(String, String)> {
+    spelled_leaves(table)
+        .into_iter()
+        .map(|leaf| (leaf.key, leaf.value))
+        .collect()
+}
+
+/// One row of the listing before it is laid out.
+struct Leaf {
+    /// The dotted key every lookup uses: [`Resolved::origins`], the secrets, the unapplied keys.
+    key: String,
+    /// The same key as the listing prints it, each segment through [`segment`].
+    shown: String,
+    /// The value, through [`spelled`].
+    value: String,
+}
+
+/// [`leaves`], with the printed spelling of each key beside the one lookups use.
+fn spelled_leaves(table: &toml::Table) -> Vec<Leaf> {
     let mut out = Vec::new();
-    flatten(&mut out, String::new(), &toml::Value::Table(table.clone()));
+    flatten(&mut out, "", "", &toml::Value::Table(table.clone()));
     out
 }
 
@@ -200,27 +238,103 @@ pub fn leaves(table: &toml::Table) -> Vec<(String, String)> {
 /// than a second walk. An array of scalars is a leaf, because
 /// `rule:config/a-value-array-replaces-and-a-table-appends` makes a value array *replace* — there is
 /// no per-element origin to report.
-fn flatten(out: &mut Vec<(String, String)>, prefix: String, value: &toml::Value) {
-    let joined = |key: &str| {
+fn flatten(out: &mut Vec<Leaf>, key: &str, shown: &str, value: &toml::Value) {
+    let joined = |prefix: &str, next: &str| {
         if prefix.is_empty() {
-            key.to_string()
+            next.to_string()
         } else {
-            format!("{prefix}.{key}")
+            format!("{prefix}.{next}")
         }
     };
     match value {
         toml::Value::Table(table) => {
-            for (key, child) in table {
-                flatten(out, joined(key), child);
+            for (name, child) in table {
+                flatten(
+                    out,
+                    &joined(key, name),
+                    &joined(shown, &segment(name)),
+                    child,
+                );
             }
         }
         toml::Value::Array(items) if items.iter().any(toml::Value::is_table) => {
             for (index, child) in items.iter().enumerate() {
-                flatten(out, joined(&index.to_string()), child);
+                let index = index.to_string();
+                flatten(out, &joined(key, &index), &joined(shown, &index), child);
             }
         }
-        leaf => out.push((prefix, leaf.to_string())),
+        leaf => out.push(Leaf {
+            key: key.to_owned(),
+            shown: shown.to_owned(),
+            value: spelled(leaf),
+        }),
     }
+}
+
+/// `value` as TOML spells it on **one line**, which is what keeps the listing one row per key.
+///
+/// `toml`'s own `Display` writes a string holding a newline as a multi-line string, so a value
+/// could print a line of its own that reads as another directive — `limits.hard.memory = "99G"`
+/// forged by an `origin` nobody checks. Every string here is a basic string instead, with each
+/// character a terminal would act on or hide escaped.
+fn spelled(value: &toml::Value) -> String {
+    match value {
+        toml::Value::String(text) => quoted(text),
+        toml::Value::Array(items) => {
+            let items: Vec<String> = items.iter().map(spelled).collect();
+            format!("[{}]", items.join(", "))
+        }
+        toml::Value::Table(table) => {
+            let pairs: Vec<String> = table
+                .iter()
+                .map(|(key, child)| format!("{} = {}", segment(key), spelled(child)))
+                .collect();
+            format!("{{ {} }}", pairs.join(", "))
+        }
+        scalar => scalar.to_string(),
+    }
+}
+
+/// One key segment, bare when every character may stand bare in TOML and quoted otherwise.
+fn segment(key: &str) -> String {
+    let bare = !key.is_empty()
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-');
+    if bare { key.to_owned() } else { quoted(key) }
+}
+
+/// `text` as a TOML basic string, on one line, with every control character and every
+/// directional or invisible formatting character written as an escape, so the row shows what the
+/// file holds and not what a terminal makes of it.
+fn quoted(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for ch in text.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            ch if ch.is_control() || hidden(ch) => {
+                let _ = write!(out, "\\u{:04X}", u32::from(ch));
+            }
+            ch => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// A formatting character that changes how the text around it reads without showing itself: the
+/// directional marks, embeddings, overrides and isolates, the line and paragraph separators, and
+/// the zero-width characters.
+fn hidden(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{061C}' | '\u{200B}'..='\u{200F}' | '\u{2028}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{FEFF}'
+    )
 }
 
 #[cfg(test)]
@@ -257,6 +371,56 @@ mod tests {
                 ("app.1.root", "\"/srv/two\""),
                 ("capabilities.fs.read", "[\"/srv\", \"/tmp\"]"),
             ]
+        );
+    }
+
+    /// `rule:config/check-and-dump-audit-the-tree-offline`'s listing is one line per key, even when a
+    /// value or a table name holds a newline written to look like another directive. Each is spelled
+    /// on its row with the newline, the quotes and the right-to-left override escaped.
+    // covers: tools:cli/nvs-config-check-and-nvs-config-dump
+    #[test]
+    fn a_value_or_a_table_name_holding_a_newline_cannot_forge_a_row() {
+        let table: toml::Table = toml::from_str(concat!(
+            "[[app]]\n",
+            "root = \".\"\n",
+            "origin = \"https://example.test\\nlimits.hard.memory = \\\"99G\\\"\\u202e\\t\"\n",
+            "[db.\"main\\nlimits.hard.memory = \\\"99G\\\"\"]\n",
+            "hosts = [\"a\\nb\", \"c\"]\n",
+        ))
+        .expect("the fixture is valid TOML");
+        let origins = std::collections::BTreeMap::new();
+        let secrets = std::collections::BTreeMap::new();
+        let audit = Audit {
+            table: &table,
+            origins: &origins,
+            overrides: &[],
+            secrets: &secrets,
+            unapplied: &[],
+        };
+
+        let listing = audit.render(false);
+        let forged_table = r#"db."main\nlimits.hard.memory = \"99G\"".hosts"#;
+        let width = forged_table.len();
+        let expected = [
+            (
+                "app.0.origin",
+                concat!(
+                    r#""https://example.test\nlimits.hard.memory = \"99G\""#,
+                    "\\u",
+                    "202E",
+                    r#"\t""#
+                ),
+            ),
+            ("app.0.root", r#"".""#),
+            (forged_table, r#"["a\nb", "c"]"#),
+        ]
+        .map(|(key, value)| format!("{key:width$} = {value}\n"))
+        .concat();
+        assert_eq!(listing, expected);
+        assert_eq!(listing.lines().count(), audit.listing().len());
+        assert!(
+            !listing.lines().any(|line| line.starts_with("limits")),
+            "no row reads as a limit: {listing}"
         );
     }
 

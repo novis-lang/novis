@@ -1,0 +1,11 @@
+# The settings every server of this application shares.
+[limits]
+memory = "256M"
+wall_time = "30s"
+
+[limits.hard]
+memory = "512M"
+
+# This server's own settings are in a second file, which is read after this one.
+[[include]]
+path = "production.toml"

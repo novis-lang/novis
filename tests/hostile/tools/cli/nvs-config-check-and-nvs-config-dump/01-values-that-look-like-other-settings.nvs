@@ -1,0 +1,42 @@
+<?nvs
+// Attack: the `nvs.toml` beside this file has values and a database name that contain a new line.
+// The text after it looks like another setting. It should stay text, and never become a setting.
+
+// 1. Seven files set `limits.memory`. A folder of files is read in name order, as text,
+// so `9-earlier.toml` is read after `10-later.toml` and its `16M` wins.
+echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+
+// 2. Three values contain the text `limits.hard.memory = "99G"`. The real ceiling is not `99G`.
+echo 'ceiling: ', Core\Config::get('limits.hard.memory') ?? '(unset)', "\n";
+
+// 3. Two values contain the text `capabilities.script.spawn = true`. The program still may not start scripts.
+echo 'spawn: ', Core\Config::get('capabilities.script.spawn') ?? '(unset)', "\n";
+
+// 4. The program asks for keys that contain the same new line and quotes.
+array<string> $keys = [
+    "limits.memory\nlimits.hard.memory",
+    "db.main\nlimits.hard.memory = \"99G\".host",
+    "limits.hard.memory = \"99G\"",
+    "limits.memory\u{202e}",
+    '',
+    '.',
+    'limits..memory',
+];
+foreach ($keys as string $key) {
+    try {
+        echo Core\Json::encode($key), ': ', Core\Config::get($key) ?? '(unset)', "\n";
+    } catch (Throwable $error) {
+        echo Core\Json::encode($key), ': ', $error->message, "\n";
+    }
+}
+
+// 5. The program tries to raise the ceiling from step 2, with the same kinds of key.
+array<string> $targets = ['limits.hard.memory', "limits.hard.memory\n", "limits.memory\nlimits.hard.memory"];
+foreach ($targets as string $key) {
+    try {
+        echo Core\Json::encode($key), ' set: ', Core\Config::set($key, '99G') ? 'yes' : 'no', "\n";
+    } catch (Throwable $error) {
+        echo Core\Json::encode($key), ' set: ', $error->message, "\n";
+    }
+}
+echo 'ceiling: ', Core\Config::get('limits.hard.memory') ?? '(unset)', "\n";
