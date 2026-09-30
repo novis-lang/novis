@@ -316,7 +316,8 @@ use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
+    ParamDoc, Qual,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -649,10 +650,28 @@ const KEY_FORMAT_DOC: EnumDoc = EnumDoc {
     ],
 };
 
+/// `Core\Crypto`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Encryption, signatures and key derivation. Each algorithm is a case of an enum, so a \
+            wrong name does not compile. No method picks an algorithm for you.",
+};
+
+/// `Core\Crypto\PublicKey`'s class card — `rule:core-api/reference-card`.
+const PUBLIC_KEY_CARD: ClassDoc = ClassDoc {
+    short: "The public half of a key pair, such as a key that another server sent you. You use it \
+            to check a signature or to agree on a shared secret.",
+};
+
+/// `Core\Crypto\KeyPair`'s class card — `rule:core-api/reference-card`.
+const KEY_PAIR_CARD: ClassDoc = ClassDoc {
+    short: "A private key together with its public key. You use it to sign data and to agree on a \
+            shared secret with another party's public key.",
+};
+
 /// `rule:core-api/tier-roster`'s AEAD-only surface, as registry rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "generateKey",
@@ -1108,7 +1127,7 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
 /// with it, and those are the calls that matter.
 pub(crate) const PUBLIC_KEY: CoreClass = CoreClass {
     name: PUBLIC_KEY_NAME,
-    doc: None,
+    doc: Some(&PUBLIC_KEY_CARD),
     methods: &[CoreMethod {
         name: "read",
         names: &["encoded", "kind", "format"],
@@ -1256,7 +1275,7 @@ const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
 /// key. `write` needs none: it answers the slot.
 pub(crate) const KEY_PAIR: CoreClass = CoreClass {
     name: KEY_PAIR_NAME,
-    doc: None,
+    doc: Some(&KEY_PAIR_CARD),
     methods: &[CoreMethod {
         name: "read",
         // `$pkcs8` is `secret bytes` because that is what a private key is, and

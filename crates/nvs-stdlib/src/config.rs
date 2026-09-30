@@ -26,16 +26,22 @@
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = "Core\\Config";
 
+/// `Core\Config`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads the settings of `nvs.toml` for the current request. You can change some \
+            settings for this request only, and reset them again.",
+};
+
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "get",

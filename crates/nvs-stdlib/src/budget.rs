@@ -45,17 +45,24 @@
 
 use nvs_runtime::Value;
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = "Core\\Budget";
 
+/// `Core\Budget`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reports how much memory the current request uses, the most it has used so far, and \
+            its memory limit. The numbers are for this request only, not for the whole server \
+            process.",
+};
+
 /// `Core\Budget`'s registry rows — the three numbers, and the module docs above
 /// own why there is no fourth and no `$real_usage` boolean beside any of them.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "memoryHeld",

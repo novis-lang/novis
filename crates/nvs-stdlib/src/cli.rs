@@ -144,13 +144,20 @@ use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
-    ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
+    EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// `Core\Cli`'s fully-qualified name, in one place so the registry row and
 /// every refusal that names the class cannot drift apart.
 pub(crate) const CLASS_NAME: &str = r"Core\Cli";
+
+/// `Core\Cli`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Works with the terminal in a command-line program. It gives the program's arguments \
+            and the terminal's size and colours, asks the user questions, and shows output that \
+            updates in place.",
+};
 
 /// `rule:tooling/the-terminal-profile-resolves-once`'s profile, § 1's launderer and § 4's prompts, as registry
 /// rows. See [`crate::registry::CLASSES`].
@@ -172,7 +179,7 @@ pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 /// two ways of writing a frame rather than two surfaces.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "arguments",
@@ -769,6 +776,12 @@ pub(crate) const LIVE_NAME: &str = r"Core\Cli\Live";
 /// names. See [`REGIONS`].
 const LIVE_DEPTH: usize = 0;
 
+/// `Core\Cli\Live`'s class card — `rule:core-api/reference-card`.
+const LIVE_CARD: ClassDoc = ClassDoc {
+    short: "An area of the terminal that your program redraws while it works. `Core\\Cli::live` \
+            gives one to your function. Each update replaces what the area showed before.",
+};
+
 /// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Live` — the handle `$body` is handed, and the whole of
 /// what a program may do to a live region.
 ///
@@ -779,7 +792,7 @@ const LIVE_DEPTH: usize = 0;
 /// section refuses.
 pub(crate) const LIVE: CoreClass = CoreClass {
     name: LIVE_NAME,
-    doc: None,
+    doc: Some(&LIVE_CARD),
     methods: &[],
     instance: &[CoreMethod {
         name: "set",
@@ -881,6 +894,12 @@ const ADVANCE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `Core\Cli\Progress`'s class card — `rule:core-api/reference-card`.
+const PROGRESS_CARD: ClassDoc = ClassDoc {
+    short: "A progress bar that `Core\\Cli::progress` gives to your function. Each step moves the \
+            counter forward and draws the bar again.",
+};
+
 /// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Progress` — the handle `progress`'s body is handed.
 ///
 /// One member, as § 5's table writes it. `progress` over `live` is not an ADR
@@ -889,7 +908,7 @@ const ADVANCE_OPTIONS: &[CoreOption] = &[
 /// one is neither — which is why this class has a counter and no `set`.
 pub(crate) const PROGRESS: CoreClass = CoreClass {
     name: PROGRESS_NAME,
-    doc: None,
+    doc: Some(&PROGRESS_CARD),
     methods: &[],
     instance: &[CoreMethod {
         name: "advance",
@@ -1943,6 +1962,12 @@ fn label_of(ctx: &mut nvs_runtime::Ctx, labels: Value, option: Value) -> Result<
 /// it as `nvs_types::CORE_CLI_TEXT_CLASS`.
 pub const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 
+/// `Core\Cli\Text`'s class card — `rule:core-api/reference-card`.
+const TEXT_CARD: ClassDoc = ClassDoc {
+    short: "Text for the terminal, which can have colours and styles. You join two pieces with \
+            `+`. Outside an HTTP request, `Core\\Out::capture` returns the captured output as one.",
+};
+
 /// Spec § 13's `Core\Cli\Text` — `rule:security/capture-answers-the-carrier`'s slot, and `rule:tooling/styling-is-a-value-not-a-grammar`'s first
 /// constructor over it.
 ///
@@ -1951,7 +1976,7 @@ pub const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 /// every other stream is rendered from.
 pub(crate) const TEXT: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&TEXT_CARD),
     methods: &[
         CoreMethod {
             name: "plain",
@@ -2369,6 +2394,12 @@ const INK_INDEXED: i64 = 0;
 /// [`COLOR_KIND`] for 24-bit colour.
 const INK_RGB: i64 = 1;
 
+/// `Core\Cli\Color`'s class card — `rule:core-api/reference-card`.
+const COLOR_CARD: ClassDoc = ClassDoc {
+    short: "A terminal colour: one of the sixteen named colours, or any RGB colour. A terminal \
+            that shows fewer colours gets the nearest colour it can show.",
+};
+
 /// `rule:tooling/styling-is-a-value-not-a-grammar`'s `Cli\Color` — **a value type, not an enum**.
 ///
 /// `rule:enums/closed-integer-type`'s closed
@@ -2380,7 +2411,7 @@ const INK_RGB: i64 = 1;
 /// them, which a single encoded number would make an arithmetic puzzle.
 pub(crate) const COLOR: CoreClass = CoreClass {
     name: COLOR_NAME,
-    doc: None,
+    doc: Some(&COLOR_CARD),
     methods: &[
         CoreMethod {
             name: "index",
@@ -2604,6 +2635,12 @@ const STYLE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `Core\Cli\Style`'s class card — `rule:core-api/reference-card`.
+const STYLE_CARD: ClassDoc = ClassDoc {
+    short: "How a piece of terminal text looks: its colours, and whether it is bold, underlined or \
+            struck through. A style does not change after you create it.",
+};
+
 /// `rule:tooling/styling-is-a-value-not-a-grammar`'s `Cli\Style` — what a `Text` wears, as a value.
 ///
 /// One member, because a style is constructed and then read: `rule:core-api/shape-rules` R5's
@@ -2611,7 +2648,7 @@ const STYLE_OPTIONS: &[CoreOption] = &[
 /// options, R20's immutability for everything after.
 pub(crate) const STYLE: CoreClass = CoreClass {
     name: STYLE_NAME,
-    doc: None,
+    doc: Some(&STYLE_CARD),
     methods: &[CoreMethod {
         name: "of",
         names: &[],

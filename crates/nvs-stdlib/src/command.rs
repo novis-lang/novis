@@ -100,17 +100,26 @@
 use nvs_runtime::commands::{ArgConv, CaseValue, Command, CommandArg, CommandTable};
 use nvs_runtime::{Decimal, Fault, MethodRow, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every refusal that names the class cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Command";
 
+/// `Core\Command`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Runs the commands a command-line program declares with `#[Command]` methods. It \
+            reads the command and its options from the program's arguments, and it prints a help \
+            page for each command.",
+};
+
 /// `rule:tooling/commands-are-compiled`'s generated help, as a registry row. See
 /// [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "help",

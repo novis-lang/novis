@@ -79,13 +79,19 @@ use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownCla
 
 use crate::ordering::compare_values;
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
+    ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
 // Registration — this class's rows, its enum, and where its symbols live
 // ============================================================================
+
+/// `Core\Arr`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Works with arrays. It finds, sorts, changes and combines elements. Every method returns \
+            a new array, and the array you pass in does not change.",
+};
 
 /// `Core\Arr`'s registry rows, in the spec's own order.
 ///
@@ -95,7 +101,7 @@ use crate::registry::{
 /// per member.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Arr",
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "count",

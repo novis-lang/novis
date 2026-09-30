@@ -97,7 +97,9 @@
 use nvs_runtime::csrf::{Key, NONCE_LEN};
 use nvs_runtime::{Fault, NvsStr, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class name, once, for the messages that all name it.
 const NAME: &str = r"Core\Csrf";
@@ -106,10 +108,17 @@ const NAME: &str = r"Core\Csrf";
 /// written once so neither row can drift from the other.
 const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 
+/// `Core\Csrf`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Protects forms against cross-site request forgery, a request that another site sends \
+            in the user's name. `issue` creates a token for one session, and `verify` checks a \
+            token.",
+};
+
 /// `rule:security/protocol-roster`'s second roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "issue",

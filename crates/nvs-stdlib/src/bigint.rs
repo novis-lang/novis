@@ -76,7 +76,7 @@ use num_integer::Integer;
 use nvs_runtime::{Decimal, Fault, NvsStr, ThrownClass, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -112,6 +112,12 @@ const DEFAULT_RADIX: u64 = 10;
 /// answer is not bounded by the width of what was handed to them.
 const MAX_BITS: u64 = 1 << 20;
 
+/// `Core\BigInt`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "An integer with no size limit, for numbers too large for `int`. A `Core\\BigInt` never \
+            changes: every calculation returns a new value.",
+};
+
 /// Spec § 13's `Core\BigInt` — construction, arithmetic, and reading a value
 /// back out, in that order.
 ///
@@ -120,7 +126,7 @@ const MAX_BITS: u64 = 1 << 20;
 /// row's reference card is what documents it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "of",

@@ -167,7 +167,7 @@ use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value, budget};
 use nvs_syntax::duration;
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 pub(crate) mod redis;
@@ -181,10 +181,30 @@ pub(crate) const STORE_NAME: &str = r"Core\Cache\Store";
 /// [`SECRET_ENTRY`]'s name — see [`NAME`].
 pub(crate) const SECRET_ENTRY_NAME: &str = r"Core\Cache\SecretEntry";
 
+/// `Core\Cache`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Keeps values between requests. `local` is memory for one worker, `process` is shared \
+            by the whole server process, and `shared` is an external store such as Redis. Each \
+            one returns a `Core\\Cache\\Store`.",
+};
+
+/// `Core\Cache\Store`'s class card — `rule:core-api/reference-card`.
+const STORE_CARD: ClassDoc = ClassDoc {
+    short: "One cache, from `Core\\Cache`. It saves a copy of a value under a key and returns a \
+            copy when you read it. A change to the value after you save it does not change the \
+            cache.",
+};
+
+/// `Core\Cache\SecretEntry`'s class card — `rule:core-api/reference-card`.
+const SECRET_ENTRY_CARD: ClassDoc = ClassDoc {
+    short: "A secret and how long it stays valid, such as a token and the time until it expires. \
+            The `fill` function of `getSecret` returns one.",
+};
+
 /// § 1's two tiers, as the two members that hand one back.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "local",
@@ -322,7 +342,7 @@ const GET_SECRET_OPTIONS: &[CoreOption] = &[
 /// later.
 pub(crate) const STORE: CoreClass = CoreClass {
     name: STORE_NAME,
-    doc: None,
+    doc: Some(&STORE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -702,7 +722,7 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
 /// (R16, R18).
 pub(crate) const SECRET_ENTRY: CoreClass = CoreClass {
     name: SECRET_ENTRY_NAME,
-    doc: None,
+    doc: Some(&SECRET_ENTRY_CARD),
     methods: &[CoreMethod {
         name: "of",
         names: &["value", "ttl"],

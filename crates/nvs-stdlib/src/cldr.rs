@@ -246,7 +246,8 @@ use jiff::tz::{Offset, TimeZone};
 use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
+    ParamDoc, Qual,
 };
 
 /// One field a pattern letter names, already resolved from the letter so
@@ -1607,6 +1608,12 @@ const PLURAL_MEMBER: &str = r"Core\Cldr::pluralCategory";
 /// The ordinal member's name, likewise.
 const ORDINAL_MEMBER: &str = r"Core\Cldr::ordinalCategory";
 
+/// `Core\Cldr`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Plural rules for many languages. They pick the word form for a count, such as \
+            \"1 file\" or \"2 files\", and for a position, such as \"1st\" or \"2nd\".",
+};
+
 /// `rule:programs/framework-core-half`'s row and the ordinal table beside it, and the whole of the
 /// class: two members, no capability, no instance and no constant.
 ///
@@ -1617,7 +1624,7 @@ const ORDINAL_MEMBER: &str = r"Core\Cldr::ordinalCategory";
 /// has no door to put a check at.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "pluralCategory",

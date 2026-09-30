@@ -67,7 +67,7 @@
 use nvs_config::capability::{Cap, Scope};
 use nvs_runtime::{Fault, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 
 /// The class's own name, for the rosters in [`crate::registry`] that key on it.
 pub(crate) const NAME: &str = r"Core\Cap";
@@ -75,10 +75,16 @@ pub(crate) const NAME: &str = r"Core\Cap";
 /// The member's own name, so that [`is_query`] and the row cannot drift apart.
 const HAS: &str = "has";
 
+/// `Core\Cap`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Checks whether the running code has a capability, such as `fs.write`. Code can use it \
+            to skip a feature that is not allowed. It never grants a capability.",
+};
+
 /// `rule:security/optional-capability-degrades`'s one member, and there is deliberately no second.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: HAS,
         names: &["capability"],

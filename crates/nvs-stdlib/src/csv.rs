@@ -188,7 +188,7 @@ use std::io::Read;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -199,10 +199,22 @@ use crate::registry::{
 /// every diagnostic naming the class cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Csv";
 
+/// `Core\Csv`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads CSV text into rows of strings, and writes rows back as CSV. It can use a header \
+            row, and a different separator or quote character.",
+};
+
+/// `Core\Csv\Rows`'s class card — `rule:core-api/reference-card`.
+const ROWS_CARD: ClassDoc = ClassDoc {
+    short: "The rows of a CSV file, read one at a time while a `foreach` loop runs. The whole \
+            file is never in memory at once.",
+};
+
 /// `Core\Csv`'s registry rows — spec § 12's second table, whole.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "parse",
@@ -294,7 +306,7 @@ const ROWS_RECORD_AT: usize = 2;
 /// `Core\IO\Lines`: its slots are read, just not through a member of its own.
 pub(crate) const ROWS: CoreClass = CoreClass {
     name: ROWS_NAME,
-    doc: None,
+    doc: Some(&ROWS_CARD),
     methods: &[],
     instance: &[],
     slots: &["reader", "path", "record"],

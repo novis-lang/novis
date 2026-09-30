@@ -90,7 +90,9 @@
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class name, as a program writes it.
 pub(crate) const NAME: &str = r"Core\Ast";
@@ -114,10 +116,16 @@ const COLUMN_SLOT: usize = 3;
 /// [`NODE`]'s slot holding the byte offset the production starts at.
 const OFFSET_SLOT: usize = 4;
 
+/// `Core\Ast`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads Novis source code and gives its structure as a tree of nodes. It uses the same \
+            parser as the compiler. Nothing in the tree runs.",
+};
+
 /// `Core\Ast` — one member, because parsing is one question.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "parse",
         names: &["source"],
@@ -160,6 +168,12 @@ const PARSE_DOC: MethodDoc = MethodDoc {
 /// receiver is.
 const NODE_SLOTS: &[&str] = &["kind", "children", "line", "column", "offset"];
 
+/// `Core\Ast\Node`'s class card — `rule:core-api/reference-card`.
+const NODE_CARD: ClassDoc = ClassDoc {
+    short: "One part of a parsed source file, such as a class, a statement or an expression. A \
+            node has its kind, the nodes inside it, and the place where it starts in the source.",
+};
+
 /// `Core\Ast\Node` — the type [`CLASS`]'s member and this class's own two
 /// collections are declared as, and the members every parsed node answers.
 ///
@@ -168,7 +182,7 @@ const NODE_SLOTS: &[&str] = &["kind", "children", "line", "column", "offset"];
 /// owns.
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
-    doc: None,
+    doc: Some(&NODE_CARD),
     methods: &[],
     instance: &[
         CoreMethod {

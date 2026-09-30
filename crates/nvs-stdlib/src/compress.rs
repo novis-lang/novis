@@ -101,8 +101,8 @@ use std::io::Read;
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc, Qual,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -189,10 +189,29 @@ const DATA: &[CoreTy] = &[
     CoreTy::Text(Qual::Contagious),
 ];
 
+/// `Core\Compress`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Compresses and decompresses data in a format you choose from `Core\\Codec`, such as \
+            gzip. Decompression always has a size limit, so a small input cannot fill the \
+            server's memory.",
+};
+
+/// `Core\Compress\Compressor`'s class card — `rule:core-api/reference-card`.
+const COMPRESSOR_CARD: ClassDoc = ClassDoc {
+    short: "Compresses data that arrives in pieces. You add each piece, and `finish` returns the \
+            compressed data.",
+};
+
+/// `Core\Compress\Decompressor`'s class card — `rule:core-api/reference-card`.
+const DECOMPRESSOR_CARD: ClassDoc = ClassDoc {
+    short: "Decompresses data that arrives in pieces. The whole result has a size limit, so a \
+            small input cannot fill the server's memory.",
+};
+
 /// `Core\Compress`'s registry rows — § 17's whole-buffer pair.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "compress",
@@ -371,7 +390,7 @@ pub(crate) const COMPRESSOR_NAME: &str = r"Core\Compress\Compressor";
 /// either one spends.
 pub(crate) const COMPRESSOR: CoreClass = CoreClass {
     name: COMPRESSOR_NAME,
-    doc: None,
+    doc: Some(&COMPRESSOR_CARD),
     methods: &[],
     instance: &[
         CoreMethod {
@@ -441,7 +460,7 @@ pub(crate) const DECOMPRESSOR_NAME: &str = r"Core\Compress\Decompressor";
 /// the opening fixed and no later configuration read can raise them.
 pub(crate) const DECOMPRESSOR: CoreClass = CoreClass {
     name: DECOMPRESSOR_NAME,
-    doc: None,
+    doc: Some(&DECOMPRESSOR_CARD),
     methods: &[],
     instance: &[
         CoreMethod {

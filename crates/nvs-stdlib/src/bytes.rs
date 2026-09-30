@@ -155,7 +155,7 @@
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -165,6 +165,13 @@ use crate::registry::{
 /// The class's fully-qualified name, written once.
 pub(crate) const NAME: &str = r"Core\Bytes";
 
+/// `Core\Bytes`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Works with binary data, the `bytes` type. It reads, searches, compares and builds \
+            buffers, and converts values to and from a fixed binary format, such as a network \
+            message header.",
+};
+
 /// `Core\Bytes`'s registry rows, in the spec's own order.
 ///
 /// Declared beside the implementations rather than in one flat table, so
@@ -172,7 +179,7 @@ pub(crate) const NAME: &str = r"Core\Bytes";
 /// [`crate::registry::CLASSES`], which grows one line per *class*.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "length",

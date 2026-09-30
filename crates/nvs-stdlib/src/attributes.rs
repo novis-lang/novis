@@ -27,7 +27,7 @@
 //! casing rule needs at least one character — and so is the one value that can
 //! mean "the target itself" without shadowing a real name.
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{ClassDoc, Const, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -49,10 +49,17 @@ const T: CoreTy = CoreTy::Written("T");
 /// selects which declaration is read rather than flowing into what is read.
 const MEMBER: CoreTy = CoreTy::Text(Qual::Neutral);
 
+/// `Core\Attributes`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Reads the attributes written on a class, a method, a property or a parameter. You give \
+            the shape you want, and the compiler finds the matching attribute. The call costs \
+            nothing when the program runs.",
+};
+
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[
         CoreMethod {
             name: "get",
