@@ -218,6 +218,36 @@ export function goalPlan(slug: string, root: string = ROOT): Goal | null {
   return withFloor(own, walked);
 }
 
+/** The flags that narrow a `bun nv proofs` run to part of the roster. */
+const ROSTER_SCOPES = ["--group", "--only", "--id"];
+
+/** What a `bun nv proofs` check passes after the command's name, or null for any other check. */
+function proofsArgs(c: GoalCheck): string[] | null {
+  const argv = c.argv ?? [];
+  return argv[0] === "bun" && argv[1] === "nv" && argv[2] === "proofs" ? argv.slice(3) : null;
+}
+
+/**
+ * Every goal of `ahead`, the goals the run has still to reach in chain order, whose whole-roster gate
+ * cannot pass where it stands, each with the goals behind it that are why. `bun nv proofs --gate` with no
+ * scope is red while any roster group owes a proof, and a goal whose check names a group with `--group` is
+ * that group's proofs still to write, so the gate is reached only behind it.
+ */
+export function gatesInFrontOfGroups(ahead: { slug: string; goal: Goal }[]): { slug: string; behind: string[] }[] {
+  const has = (goal: Goal, test: (args: string[]) => boolean) =>
+    goal.checks.some((c) => {
+      const args = proofsArgs(c);
+      return args !== null && test(args);
+    });
+  const out: { slug: string; behind: string[] }[] = [];
+  ahead.forEach(({ slug, goal }, i) => {
+    if (!has(goal, (a) => a.includes("--gate") && !ROSTER_SCOPES.some((s) => a.includes(s)))) return;
+    const behind = ahead.slice(i + 1).filter((h) => has(h.goal, (a) => a.includes("--group"))).map((h) => h.slug);
+    if (behind.length > 0) out.push({ slug, behind });
+  });
+  return out;
+}
+
 /** The side goal this process runs, or null in a chain run: `SIDE_ENV`'s slug, when a side goal's prose has it. */
 export function sideGoal(root: string = ROOT): string | null {
   const slug = (process.env[SIDE_ENV] ?? "").trim();

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { currentPlan, type Goal, goalPlan, graduatesTo, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan, withFloor } from "../lib/chain.ts";
+import { currentPlan, gatesInFrontOfGroups, type Goal, goalPlan, graduatesTo, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan, withFloor } from "../lib/chain.ts";
 import { load, write } from "../lib/store.ts";
 import { chain } from "../schema/chain.ts";
 import { goal, sideGoal as sideGoalType } from "../schema/goal.ts";
@@ -109,6 +109,39 @@ describe("withFloor", () => {
     const plan = withFloor(own, [{ slug: "old", goal: g([{ number: 2, title: "x", summary: "s" }], [kept]) }]);
     expect(graduatesTo(named)?.id).toBe("permanent-suite-nvs-types");
     expect(plan.checks.map((c) => c.id)).toEqual(["own-test", "in-a-dir"]);
+  });
+});
+
+describe("gatesInFrontOfGroups", () => {
+  const stage = [{ number: 2, title: "the work", summary: "s" }];
+  const gate = g(stage, [cmd("gate", 2, ["bun", "nv", "proofs", "--gate"])]);
+  const group = g(stage, [cmd("group", 2, ["bun", "nv", "proofs", "--verify", "--group", "tools:x"])]);
+  const other = g(stage, [cmd("other", 2, ["cargo", "fmt"])]);
+
+  test("a whole-roster gate is named with every goal behind it that still proves a roster group", () => {
+    const found = gatesInFrontOfGroups([
+      { slug: "owed", goal: gate },
+      { slug: "other", goal: other },
+      { slug: "x", goal: group },
+      { slug: "cards", goal: gate },
+      { slug: "y", goal: group },
+    ]);
+    expect(found).toEqual([
+      { slug: "owed", behind: ["x", "y"] },
+      { slug: "cards", behind: ["y"] },
+    ]);
+  });
+
+  test("a gate behind every group goal, and a gate narrowed to part of the roster, are left alone", () => {
+    const narrowed = g(stage, [cmd("one", 2, ["bun", "nv", "proofs", "--gate", "--only", "tools:x/a"]), cmd("grp", 2, ["bun", "nv", "proofs", "--gate", "--group", "tools:x"])]);
+    expect(
+      gatesInFrontOfGroups([
+        { slug: "narrowed", goal: narrowed },
+        { slug: "x", goal: group },
+        { slug: "owed", goal: gate },
+        { slug: "later", goal: gate },
+      ]),
+    ).toEqual([]);
   });
 });
 

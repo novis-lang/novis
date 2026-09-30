@@ -16,6 +16,8 @@
 //   - a goal with checks has no handoff record;
 //   - a retired goal, one whose record has no checks, stands at or behind the installed goal;
 //   - a goal pinned `position: last` has an unpinned goal behind it;
+//   - a goal still to be reached runs `bun nv proofs --gate` over the whole roster while a goal behind it
+//     still proves a roster group with `--group` (`gatesInFrontOfGroups`);
 //   - a side goal with checks has no prose, no `# Side goal` H1 or no handoff record;
 //   - a side goal has no checks, which is one that has landed: its files are deleted, never kept;
 //   - prose names a goal by its number, which is a position and moves;
@@ -33,7 +35,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ChainGoal, chainGoals, graduatesTo, h1Of, liveGoal, walkedGoals } from "../lib/chain.ts";
+import { type ChainGoal, chainGoals, gatesInFrontOfGroups, graduatesTo, h1Of, liveGoal, walkedGoals } from "../lib/chain.ts";
 import { Index } from "../lib/index.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
@@ -214,6 +216,18 @@ async function check(): Promise<number> {
     if (pinned.has(g.slug) && ahead(g)) {
       problems.push(`${where(g)}: its record says \`position: last\` and ${goals.length - g.num} goal(s) sit behind it`);
     }
+  }
+
+  // A whole-roster gate in front of a goal that still proves a roster group holds the run on a check no
+  // session of its goal can turn green.
+  const toReach = goals.filter((g) => !g.retired && (live === null || g.num >= live.num) && records.has(g.slug));
+  for (const { slug, behind } of gatesInFrontOfGroups(toReach.map((g) => ({ slug: g.slug, goal: records.get(g.slug) })))) {
+    const named = behind.map((s) => `\`${s}\``).join(", ");
+    problems.push(
+      `${where(goals.find((g) => g.slug === slug)!)}: its check \`bun nv proofs --gate\` is the whole roster, and ${named} behind it ` +
+        `still prove${behind.length === 1 ? "s" : ""} a roster group, so no session of this goal can turn it green -- ` +
+        `the goal sits behind \`${behind[behind.length - 1]}\``,
+    );
   }
 
   for (const slug of sideGoals) {
