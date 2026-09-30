@@ -122,11 +122,17 @@ pub const HANDLE_NAME: &str = r"Core\Script\Handle";
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const HANDLE: CoreClass = CoreClass {
     name: HANDLE_NAME,
-    doc: None,
+    doc: Some(&HANDLE_CARD),
     methods: &[],
     instance: &[],
     slots: &["pending"],
     constants: &[],
+};
+
+/// `Core\Script\Handle`'s class card — `rule:core-api/reference-card`.
+const HANDLE_CARD: ClassDoc = ClassDoc {
+    short: "A script that `spawn script` started. The only thing you can do with it is `await` \
+            it, which waits until that script ends.",
 };
 
 /// [`HANDLE`]'s one slot: the key of the started isolate this handle names, or

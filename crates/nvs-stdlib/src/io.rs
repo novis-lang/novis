@@ -1678,6 +1678,12 @@ pub(crate) const LINES_ITERATE_SYMBOL: &str = "nvs_core_io_lines_iterate";
 /// [`LINES`]'s one slot: the lines themselves, as an `array<string>`.
 const LINES_SLOT: usize = 0;
 
+/// `Core\IO\Lines`'s class card — `rule:core-api/reference-card`.
+const LINES_CARD: ClassDoc = ClassDoc {
+    short: "The lines of a file, which `Core\\IO::lines` returns. Use it in a `foreach` loop to \
+            get one line at a time, as a string.",
+};
+
 /// The class `lines` answers with — spec § 14's `Iterable<string>`, given the
 /// name the registry needs to write it.
 ///
@@ -1714,7 +1720,7 @@ const LINES_SLOT: usize = 0;
 /// member of its own.
 pub(crate) const LINES: CoreClass = CoreClass {
     name: LINES_NAME,
-    doc: None,
+    doc: Some(&LINES_CARD),
     methods: &[],
     instance: &[],
     slots: &["lines"],
@@ -1730,6 +1736,12 @@ pub(crate) const WALK_ITERATE_SYMBOL: &str = "nvs_core_io_walk_iterate";
 
 /// [`WALK`]'s one slot: the entries themselves, as an `array<string>`.
 const WALK_SLOT: usize = 0;
+
+/// `Core\IO\Walk`'s class card — `rule:core-api/reference-card`.
+const WALK_CARD: ClassDoc = ClassDoc {
+    short: "Every file and directory under a directory, which `Core\\IO::walk` returns. Use it in \
+            a `foreach` loop to get each path, relative to the directory you started from.",
+};
 
 /// The class `walk` answers with — spec § 14's second `Iterable<string>`.
 ///
@@ -1788,7 +1800,7 @@ const WALK_SLOT: usize = 0;
 /// `iterate()`, dispatched by name through [`crate::instance`]'s roster.
 pub(crate) const WALK: CoreClass = CoreClass {
     name: WALK_NAME,
-    doc: None,
+    doc: Some(&WALK_CARD),
     methods: &[],
     instance: &[],
     slots: &["entries"],

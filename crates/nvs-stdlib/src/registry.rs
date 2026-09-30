@@ -5280,21 +5280,7 @@ mod tests {
     /// [`ClassDoc`], the test below says so by name, and a class added after
     /// this list was written is never added to it: it lands with its card, as
     /// a member does. Goal `core-class-cards` is what empties the list.
-    const CLASSES_STILL_OWING_A_CARD: &[&str] = &[
-        r"Core\Http",
-        r"Core\Http\Client",
-        r"Core\Http\Identity",
-        r"Core\Http\Part",
-        r"Core\Http\Target",
-        r"Core\IO\Lines",
-        r"Core\IO\Walk",
-        r"Core\Regex\Pattern",
-        r"Core\Request\BodyStream",
-        r"Core\Request\Files",
-        r"Core\Request\PartContent",
-        r"Core\Script\Handle",
-        r"Core\Task\Channel",
-    ];
+    const CLASSES_STILL_OWING_A_CARD: &[&str] = &[];
 
     /// Every row, enum, constant and class carries its
     /// `rule:core-api/reference-card` card — the second of conventions.md's five

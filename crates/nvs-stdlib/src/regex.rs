@@ -479,11 +479,17 @@ const PATTERN_NAME: &str = r"Core\Regex\Pattern";
 /// stands for is the cache's, shared by every call that names the same pair.
 pub const PATTERN: CoreClass = CoreClass {
     name: PATTERN_NAME,
-    doc: None,
+    doc: Some(&PATTERN_CARD),
     methods: &[],
     instance: &[],
     slots: &["pattern", "flags"],
     constants: &[],
+};
+
+/// `Core\Regex\Pattern`'s class card — `rule:core-api/reference-card`.
+const PATTERN_CARD: ClassDoc = ClassDoc {
+    short: "A regular expression and its options, which `Core\\Regex::compile` returns. You can \
+            pass it to every `Core\\Regex` method that takes a pattern string.",
 };
 
 /// [`PATTERN`]'s `pattern` slot, by index — see [`GROUPS_SLOT`].

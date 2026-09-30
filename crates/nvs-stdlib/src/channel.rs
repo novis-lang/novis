@@ -71,7 +71,7 @@ use nvs_runtime::host::{Waker, Woken};
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
-use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\Task\Channel";
@@ -107,6 +107,12 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     doc: Some(&CONSTRUCTOR_DOC),
 };
 
+/// `Core\Task\Channel`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A queue with a fixed size that sends values from one task to another. `send` waits \
+            while the queue is full, and a `foreach` loop over the channel receives the values.",
+};
+
 /// `Core\Task\Channel<T>` — two members, because everything else a program
 /// wants of one is spelled `foreach`.
 ///
@@ -116,7 +122,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// that deliberately.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[],
     instance: &[
         CoreMethod {

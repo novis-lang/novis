@@ -144,10 +144,41 @@ pub(crate) const NAME: &str = r"Core\Http";
 /// What a refusal from this module and from the door below it is written under.
 const MEMBER: &str = r"Core\Http::allowUrl";
 
+/// `Core\Http`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Makes HTTP calls to other servers. `Core\\Http::allowUrl` checks a URL that came from \
+            user input, and the classes under `Core\\Http` send the requests.",
+};
+
+/// `Core\Http\Target`'s class card — `rule:core-api/reference-card`.
+const TARGET_CARD: ClassDoc = ClassDoc {
+    short: "A URL that `Core\\Http::allowUrl` checked, with the addresses it was approved for. \
+            A call connects only to those addresses, so a second name lookup cannot send it \
+            somewhere else.",
+};
+
+/// `Core\Http\Identity`'s class card — `rule:core-api/reference-card`.
+const IDENTITY_CARD: ClassDoc = ClassDoc {
+    short: "A client certificate and its key. A request sends it when the server asks the client \
+            to prove who it is.",
+};
+
+/// `Core\Http\Part`'s class card — `rule:core-api/reference-card`.
+const PART_CARD: ClassDoc = ClassDoc {
+    short: "Describes a request body, or one field of a multipart body. A file part is read from \
+            disk while it is sent, so the whole file is never in memory.",
+};
+
+/// `Core\Http\Client`'s class card — `rule:core-api/reference-card`.
+const CLIENT_CARD: ClassDoc = ClassDoc {
+    short: "Sends HTTP requests to other servers, with one method for each HTTP verb. Each call \
+            returns the reply as a `Core\\Http\\Response`.",
+};
+
 /// `rule:http-server/allow-url-pins-the-address`'s launderer, as the one row `Core\Http` has today.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    doc: None,
+    doc: Some(&CARD),
     methods: &[CoreMethod {
         name: "allowUrl",
         names: &["url"],
@@ -203,7 +234,7 @@ pub(crate) const TARGET_NAME: &str = r"Core\Http\Target";
 /// make pinning decorative.
 pub(crate) const TARGET: CoreClass = CoreClass {
     name: TARGET_NAME,
-    doc: None,
+    doc: Some(&TARGET_CARD),
     methods: &[],
     instance: &[],
     slots: &["url", "addresses"],
@@ -252,7 +283,7 @@ pub(crate) const IDENTITY_FINGERPRINT_SLOT: usize = 2;
 /// per identity, held as long as the value is and released with it.
 pub(crate) const IDENTITY: CoreClass = CoreClass {
     name: IDENTITY_NAME,
-    doc: None,
+    doc: Some(&IDENTITY_CARD),
     methods: &[CoreMethod {
         name: "read",
         // The chain is `bytes` and unqualified: a certificate is public, and
@@ -1135,7 +1166,7 @@ const PART_BYTES_OPTIONS: &[CoreOption] = &[CoreOption {
 /// while octets a program composed have no name until it writes one.
 pub(crate) const PART: CoreClass = CoreClass {
     name: PART_NAME,
-    doc: None,
+    doc: Some(&PART_CARD),
     methods: &[
         CoreMethod {
             name: "file",
@@ -1546,7 +1577,7 @@ const DEFAULT_SEND_TIMEOUT: Duration = Duration::from_secs(30);
 /// ([`STREAM_OPTIONS`]).
 pub(crate) const CLIENT: CoreClass = CoreClass {
     name: CLIENT_NAME,
-    doc: None,
+    doc: Some(&CLIENT_CARD),
     methods: &[
         CoreMethod {
             name: "get",

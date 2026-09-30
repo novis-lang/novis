@@ -1067,6 +1067,13 @@ pub(crate) const BODY_STREAM_CURRENT_SYMBOL: &str = "nvs_core_request_body_strea
 /// `current()` answers, and `null` before the first one.
 const BODY_STREAM_CHUNK: usize = 0;
 
+/// `Core\Request\BodyStream`'s class card — `rule:core-api/reference-card`.
+const BODY_STREAM_CARD: ClassDoc = ClassDoc {
+    short: "The request body, read in pieces as it arrives. `Core\\Request::bodyStream` returns \
+            it. Use it in a `foreach` loop to get each piece as `tainted` bytes, so the whole body \
+            is never in memory at once.",
+};
+
 /// The class `bodyStream` answers with — spec § 15's `Iterable<bytes>`, given
 /// the name the registry needs to write it.
 ///
@@ -1101,7 +1108,7 @@ const BODY_STREAM_CHUNK: usize = 0;
 /// thing it answers with.
 pub(crate) const BODY_STREAM: CoreClass = CoreClass {
     name: BODY_STREAM_NAME,
-    doc: None,
+    doc: Some(&BODY_STREAM_CARD),
     methods: &[],
     instance: &[],
     slots: &["chunk"],
@@ -1123,6 +1130,12 @@ pub(crate) const FILES_CURRENT_SYMBOL: &str = "nvs_core_request_files_current";
 /// [`FILES`]'s one slot: the part the last `advance()` opened, which `current()`
 /// answers, and `null` before the first one and after the last.
 const FILES_PART: usize = 0;
+
+/// `Core\Request\Files`'s class card — `rule:core-api/reference-card`.
+const FILES_CARD: ClassDoc = ClassDoc {
+    short: "The files uploaded with a multipart request, which `Core\\Request::files` returns. Use \
+            it in a `foreach` loop to get each file as a `Core\\Request\\Part`.",
+};
 
 /// The class `rule:http-server/an-upload-is-received-only-through-files`
 /// 's `files()` answers with — `Iterable<Core\Request\Part>`, given the name
@@ -1150,7 +1163,7 @@ const FILES_PART: usize = 0;
 /// the part rather than on the walk.
 pub(crate) const FILES: CoreClass = CoreClass {
     name: FILES_NAME,
-    doc: None,
+    doc: Some(&FILES_CARD),
     methods: &[],
     instance: &[],
     slots: &["part"],
@@ -1481,6 +1494,13 @@ pub(crate) const PART_CONTENT_CURRENT_SYMBOL: &str = "nvs_core_request_part_cont
 const PART_CONTENT_CHUNK: usize = 0;
 const PART_CONTENT_ORDINAL: usize = 1;
 
+/// `Core\Request\PartContent`'s class card — `rule:core-api/reference-card`.
+const PART_CONTENT_CARD: ClassDoc = ClassDoc {
+    short: "The content of one uploaded file, read in pieces as it arrives. \
+            `Core\\Request\\Part::content` returns it. Read it in a `foreach` loop before the \
+            `files()` loop moves to the next file.",
+};
+
 /// The class `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
 /// 's `content()` answers with — `Iterable<bytes>` over one part, given the
 /// name the registry needs to write it.
@@ -1500,7 +1520,7 @@ const PART_CONTENT_ORDINAL: usize = 1;
 /// multipart parse in front of it.
 pub(crate) const PART_CONTENT: CoreClass = CoreClass {
     name: PART_CONTENT_NAME,
-    doc: None,
+    doc: Some(&PART_CONTENT_CARD),
     methods: &[],
     instance: &[],
     slots: &["chunk", "ordinal"],
