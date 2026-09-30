@@ -1,8 +1,0 @@
-- **`nvs-host`'s clock-reading watchdog tests fail under `nv verify`'s side-by-side test run and
-  pass alone, so the gate goes red on a crate your slice never touched.**
-  `a_capped_request_publishes_a_baseline_and_an_uncapped_one_publishes_nothing` and
-  `a_run_that_is_no_core_is_sampled_and_reported_never` measure process CPU time every other test
-  binary competes for, and `the_watchdog_reports_a_wedged_worker_without_a_heartbeat` allows a
-  heartbeat a 250 ms wall-clock margin the same load eats, so which of the three fails varies per run.
-  Read the failing name before looking for your own change in it; a rerun only moves it, and it stops
-  the gate before the `.nvst` trees and clippy have run at all. [until: gone crates/nvs-host/src/watchdog.rs:a_capped_request_publishes_a_baseline_and_an_uncapped_one_publishes_nothing]
