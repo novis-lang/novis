@@ -12,7 +12,9 @@ use std::process::{Command, Output};
 /// A directory of the case's own under the target's scratch, emptied first,
 /// so two cases running in parallel never share a fixture.
 fn scratch(case: &str) -> PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("check-command").join(case);
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("check-command")
+        .join(case);
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("the target's scratch directory is writable");
     dir
@@ -65,10 +67,20 @@ fn nvs_check_reports_every_diagnostic_and_runs_nothing() {
     let bad = check_in(&dir, &["bad.nvs"]);
     let stderr = String::from_utf8_lossy(&bad.stderr);
     assert_eq!(bad.status.code(), Some(1), "{stderr}");
-    assert!(bad.stdout.is_empty(), "neither `no errors` nor the program's output");
-    let first = stderr.find("error[E0401]").expect("the argument of the wrong type");
-    let second = stderr.find("error[E0405]").expect("the property that does not exist");
+    assert!(
+        bad.stdout.is_empty(),
+        "neither `no errors` nor the program's output"
+    );
+    let first = stderr
+        .find("error[E0401]")
+        .expect("the argument of the wrong type");
+    let second = stderr
+        .find("error[E0405]")
+        .expect("the property that does not exist");
     assert!(first < second, "diagnostics come in source order: {stderr}");
-    assert!(stderr.contains("bad.nvs:10:9"), "the location is file:line:column: {stderr}");
+    assert!(
+        stderr.contains("bad.nvs:10:9"),
+        "the location is file:line:column: {stderr}"
+    );
     assert!(stderr.contains("aborting due to 2 errors"), "{stderr}");
 }

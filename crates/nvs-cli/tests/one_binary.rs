@@ -31,28 +31,46 @@ fn nvs_is_one_binary_with_a_subcommand_for_every_operation() {
     assert_eq!(version.status.code(), Some(0));
     let line = stdout.strip_suffix('\n').expect("one line");
     assert!(!line.contains('\n'), "one line: {stdout}");
-    let rest = line.strip_prefix("nvs ").expect("it starts with the binary's name");
+    let rest = line
+        .strip_prefix("nvs ")
+        .expect("it starts with the binary's name");
     let (semver, build) = rest.split_once(" (commit ").expect("then the commit");
     assert_eq!(semver.split('.').count(), 3, "a three-part version: {line}");
     let (_hash, date) = build.split_once(", ").expect("then the date");
-    assert!(date.ends_with(')') && date.len() == "2026-09-24)".len(), "{line}");
+    assert!(
+        date.ends_with(')') && date.len() == "2026-09-24)".len(),
+        "{line}"
+    );
 
     for sub in SUBCOMMANDS {
         let help = nvs(&[sub, "--help"]);
         let stderr = String::from_utf8_lossy(&help.stderr);
         assert_eq!(help.status.code(), Some(0), "`nvs {sub} --help`: {stderr}");
-        assert!(!help.stdout.is_empty(), "`nvs {sub} --help` prints its usage");
+        assert!(
+            !help.stdout.is_empty(),
+            "`nvs {sub} --help` prints its usage"
+        );
     }
 
     for flag in ["-i", "-a", "-r", "-f", "-v"] {
         let refused = nvs(&[flag]);
         let stderr = String::from_utf8_lossy(&refused.stderr);
-        assert_ne!(refused.status.code(), Some(0), "`nvs {flag}` is not PHP's: {stderr}");
-        assert!(stderr.contains(&format!("unexpected argument '{flag}'")), "{stderr}");
+        assert_ne!(
+            refused.status.code(),
+            Some(0),
+            "`nvs {flag}` is not PHP's: {stderr}"
+        );
+        assert!(
+            stderr.contains(&format!("unexpected argument '{flag}'")),
+            "{stderr}"
+        );
     }
 
     let convert = nvs(&["convert", "index.php"]);
     let stderr = String::from_utf8_lossy(&convert.stderr);
     assert_ne!(convert.status.code(), Some(0));
-    assert!(stderr.contains("unrecognized subcommand 'convert'"), "{stderr}");
+    assert!(
+        stderr.contains("unrecognized subcommand 'convert'"),
+        "{stderr}"
+    );
 }

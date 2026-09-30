@@ -12,7 +12,9 @@ use std::process::{Command, Output};
 /// A directory of the case's own under the target's scratch, emptied first,
 /// so two cases running in parallel never share a fixture.
 fn scratch(case: &str) -> PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("test-command").join(case);
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("test-command")
+        .join(case);
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("the target's scratch directory is writable");
     dir
@@ -61,7 +63,8 @@ echo \"top level\\n\";
 
 /// Position of `needle` in `hay`, or a failure naming the report.
 fn at(hay: &str, needle: &str) -> usize {
-    hay.find(needle).unwrap_or_else(|| panic!("`{needle}` is in the report: {hay}"))
+    hay.find(needle)
+        .unwrap_or_else(|| panic!("`{needle}` is in the report: {hay}"))
 }
 
 /// Classes come in name order and methods in declaration order; a test that
@@ -78,19 +81,48 @@ fn nvs_test_runs_each_test_method_and_fails_on_any_failure() {
     let all = test_in(&dir, &["suite_test.nvs"]);
     let stdout = String::from_utf8_lossy(&all.stdout);
     let stderr = String::from_utf8_lossy(&all.stderr);
-    assert_eq!(all.status.code(), Some(1), "a failed test fails the run: {stdout}{stderr}");
-    assert!(at(&stdout, "AlphaTest") < at(&stdout, "ZetaTest"), "classes in name order");
-    assert!(at(&stdout, "second") < at(&stdout, "first"), "methods in declaration order");
-    assert!(at(&stdout, "✗ checksNothing") > 0, "a test that asserts nothing fails");
-    assert!(!stdout.contains("helper"), "a method without `#[Test]` is not a test: {stdout}");
-    assert!(stdout.contains("not written yet"), "a skip carries its reason: {stdout}");
+    assert_eq!(
+        all.status.code(),
+        Some(1),
+        "a failed test fails the run: {stdout}{stderr}"
+    );
+    assert!(
+        at(&stdout, "AlphaTest") < at(&stdout, "ZetaTest"),
+        "classes in name order"
+    );
+    assert!(
+        at(&stdout, "second") < at(&stdout, "first"),
+        "methods in declaration order"
+    );
+    assert!(
+        at(&stdout, "✗ checksNothing") > 0,
+        "a test that asserts nothing fails"
+    );
+    assert!(
+        !stdout.contains("helper"),
+        "a method without `#[Test]` is not a test: {stdout}"
+    );
+    assert!(
+        stdout.contains("not written yet"),
+        "a skip carries its reason: {stdout}"
+    );
     assert!(stdout.contains("1 failed, 1 passed, 1 skipped"), "{stdout}");
-    assert!(!stdout.contains("top level"), "top-level code is not a test: {stdout}");
+    assert!(
+        !stdout.contains("top level"),
+        "top-level code is not a test: {stdout}"
+    );
 
     let one = test_in(&dir, &["--filter", "ZetaTest::", "suite_test.nvs"]);
     let stdout = String::from_utf8_lossy(&one.stdout);
     let stderr = String::from_utf8_lossy(&one.stderr);
-    assert_eq!(one.status.code(), Some(0), "a skip is not a failure: {stdout}{stderr}");
-    assert!(!stdout.contains("AlphaTest"), "the filter selects one class: {stdout}");
+    assert_eq!(
+        one.status.code(),
+        Some(0),
+        "a skip is not a failure: {stdout}{stderr}"
+    );
+    assert!(
+        !stdout.contains("AlphaTest"),
+        "the filter selects one class: {stdout}"
+    );
     assert!(stdout.contains("0 failed, 1 passed, 1 skipped"), "{stdout}");
 }

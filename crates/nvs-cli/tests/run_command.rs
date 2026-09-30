@@ -12,7 +12,9 @@ use std::process::{Command, Output};
 /// A directory of the case's own under the target's scratch, emptied first,
 /// so two cases running in parallel never share a fixture.
 fn scratch(case: &str) -> PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("run-command").join(case);
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("run-command")
+        .join(case);
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("the target's scratch directory is writable");
     dir
@@ -45,26 +47,48 @@ fn nvs_run_reads_the_working_directory_s_nvs_toml_unless_a_config_is_named() {
 
     let looked_up = run_in(&dir, &["main.nvs"]);
     let stderr = String::from_utf8_lossy(&looked_up.stderr);
-    assert_eq!(looked_up.status.code(), Some(1), "the broken file stops the run: {stderr}");
-    assert!(stderr.contains("E0601"), "the diagnostic names the file's error: {stderr}");
-    assert!(stderr.contains("nvs.toml"), "and the file it is in: {stderr}");
+    assert_eq!(
+        looked_up.status.code(),
+        Some(1),
+        "the broken file stops the run: {stderr}"
+    );
+    assert!(
+        stderr.contains("E0601"),
+        "the diagnostic names the file's error: {stderr}"
+    );
+    assert!(
+        stderr.contains("nvs.toml"),
+        "and the file it is in: {stderr}"
+    );
     assert!(looked_up.stdout.is_empty(), "the program never ran");
 
     let named = run_in(&dir, &["--config", "empty.toml", "main.nvs"]);
     let stderr = String::from_utf8_lossy(&named.stderr);
-    assert_eq!(named.status.code(), Some(0), "`./nvs.toml` is not read at all: {stderr}");
+    assert_eq!(
+        named.status.code(),
+        Some(0),
+        "`./nvs.toml` is not read at all: {stderr}"
+    );
     assert_eq!(String::from_utf8_lossy(&named.stdout), "ran\n");
 
     let missing = run_in(&dir, &["--config", "absent.toml", "main.nvs"]);
     let stderr = String::from_utf8_lossy(&missing.stderr);
-    assert_eq!(missing.status.code(), Some(1), "a named file must exist: {stderr}");
+    assert_eq!(
+        missing.status.code(),
+        Some(1),
+        "a named file must exist: {stderr}"
+    );
     assert!(stderr.contains("E0605"), "{stderr}");
     assert!(missing.stdout.is_empty(), "the program never ran");
 
     fs::remove_file(dir.join("nvs.toml")).unwrap();
     let none = run_in(&dir, &["main.nvs"]);
     let stderr = String::from_utf8_lossy(&none.stderr);
-    assert_eq!(none.status.code(), Some(0), "no `./nvs.toml` is no error: {stderr}");
+    assert_eq!(
+        none.status.code(),
+        Some(0),
+        "no `./nvs.toml` is no error: {stderr}"
+    );
     assert_eq!(String::from_utf8_lossy(&none.stdout), "ran\n");
 }
 
@@ -76,7 +100,12 @@ fn nvs_run_reads_the_working_directory_s_nvs_toml_unless_a_config_is_named() {
 fn nvs_run_ends_with_the_status_its_reference_table_names() {
     let dir = scratch("exit-status");
     let cases = [
-        ("exits.nvs", "<?nvs\necho \"bye\", \"\\n\";\nexit(3);\n", 3, "bye\n"),
+        (
+            "exits.nvs",
+            "<?nvs\necho \"bye\", \"\\n\";\nexit(3);\n",
+            3,
+            "bye\n",
+        ),
         ("says.nvs", "<?nvs\nexit(\"done\");\n", 0, "done"),
         (
             "throws.nvs",
