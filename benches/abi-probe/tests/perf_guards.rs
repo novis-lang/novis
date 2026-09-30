@@ -1361,9 +1361,7 @@ fn overlapping_fan_out(patience: Duration) -> Vec<(thread::ThreadId, bool)> {
                     *started += 1;
                     changed.notify_all();
                     let (started, _) = changed
-                        .wait_timeout_while(started, patience, |started| {
-                            *started < isolate::WIDTH
-                        })
+                        .wait_timeout_while(started, patience, |started| *started < isolate::WIDTH)
                         .unwrap_or_else(PoisonError::into_inner);
                     (thread::current().id(), *started >= isolate::WIDTH)
                 })
