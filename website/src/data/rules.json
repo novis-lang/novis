@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1018,
-    "shipped": 781,
-    "designed": 237,
+    "shipped": 782,
+    "designed": 236,
     "diverging": 589
   },
   "topics": [
@@ -2253,8 +2253,8 @@
       "single": false,
       "counts": {
         "total": 67,
-        "shipped": 43,
-        "designed": 24,
+        "shipped": 44,
+        "designed": 23,
         "diverging": 40
       },
       "sections": [
@@ -2571,8 +2571,8 @@
           "url": "/docs/rules/tooling/doc-comments-and-metadata/",
           "counts": {
             "total": 14,
-            "shipped": 6,
-            "designed": 8,
+            "shipped": 7,
+            "designed": 7,
             "diverging": 6
           },
           "rules": [
@@ -2660,7 +2660,7 @@
               "id": "tooling/the-index-names-every-key-command-and-code",
               "slug": "the-index-names-every-key-command-and-code",
               "title": "`nvs agent index` carries one derived line per configuration key, command, flag and diagnostic code, and `find` reaches each by the name a user types",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/doc-comments-and-metadata/#the-index-names-every-key-command-and-code",
               "diverges": null
             },

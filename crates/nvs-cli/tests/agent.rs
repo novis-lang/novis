@@ -34,9 +34,20 @@ fn document() -> serde_json::Value {
     serde_json::from_slice(&out.stdout).expect("the document is JSON")
 }
 
-/// The symbol a line opens with: everything before its first `(`, `<` or space,
-/// which is the whole parser a consumer needs to get from a line back to `show`.
+/// The symbol a line carries: everything before its first `(`, `<` or space,
+/// except on a line that opens with the kind of name it is. There the symbol is
+/// the rest of the line after `config: `, `command: ` or `flag: `, and the code
+/// after `code: `. That is the whole parser a consumer needs to get from a line
+/// back to `show`.
 fn symbol_of(line: &str) -> &str {
+    for kind in ["config: ", "command: ", "flag: "] {
+        if let Some(rest) = line.strip_prefix(kind) {
+            return rest;
+        }
+    }
+    if let Some(rest) = line.strip_prefix("code: ") {
+        return rest.split(' ').next().unwrap_or(rest);
+    }
     let end = line.find(['(', '<', ' ']).unwrap_or(line.len());
     &line[..end]
 }

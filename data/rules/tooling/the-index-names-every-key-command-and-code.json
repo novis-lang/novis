@@ -1,6 +1,6 @@
 {
   "title": "`nvs agent index` carries one derived line per configuration key, command, flag and diagnostic code, and `find` reaches each by the name a user types",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0216"
   ],
@@ -9,5 +9,7 @@
     "tooling/a-diagnostic-code-carries-its-card",
     "testing/feature-proofs"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-cli/src/agent/names.rs"
+  ]
 }

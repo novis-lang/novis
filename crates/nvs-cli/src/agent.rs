@@ -101,11 +101,20 @@
 //! still cuts the symbol. `show` on a section prints the section as the chapter
 //! has it; on a chapter it prints the summary and the chapter's own lines, since
 //! a whole chapter is more than the question that reached it asked for.
+//!
+//! ## A key, a command, a flag and a code
+//!
+//! The index ends with a line per configuration key, command, flag and
+//! diagnostic code, which [`names`] derives. Those lines open with the kind of
+//! name they carry — `config: [server] max_in_flight` — so their symbol is not
+//! the line's first token, and that module says what it is instead.
 
 use std::path::Path;
 use std::process::ExitCode;
 
 use serde_json::Value;
+
+mod names;
 
 /// The line that marks the section under it, on a line of its own.
 const MARKER: &str = "<!-- primer -->";
@@ -160,6 +169,33 @@ struct Chapter {
 struct Entry {
     symbol: String,
     line: String,
+    /// A second name `find` and `show` reach the line by: a configuration
+    /// key's dotted spelling, `server.max_in_flight`, beside the
+    /// `[server] max_in_flight` its line writes.
+    also: Option<String>,
+    /// What `show` prints under the line for an entry whose text is its own
+    /// rather than the document's; empty for every other entry.
+    body: String,
+}
+
+impl Entry {
+    fn new(symbol: String, line: String) -> Self {
+        Self {
+            symbol,
+            line,
+            also: None,
+            body: String::new(),
+        }
+    }
+
+    /// Whether `test` holds for the symbol or for the second name.
+    fn named(&self, test: impl Fn(&str) -> bool) -> bool {
+        test(&self.symbol.to_lowercase())
+            || self
+                .also
+                .as_deref()
+                .is_some_and(|also| test(&also.to_lowercase()))
+    }
 }
 
 /// The document's array under `key`, or nothing where the omission rule dropped
@@ -194,7 +230,8 @@ fn gates(document: &Value) -> Vec<(String, &str)> {
 
 /// Every line of the index, in the registry's own order: the members class by
 /// class, then the enums, exceptions and attributes beside them, then each
-/// chapter over its headings.
+/// chapter over its headings, then the configuration keys, the commands with
+/// their flags and the diagnostic codes.
 fn entries(document: &Value) -> Vec<Entry> {
     let gates = gates(document);
     let mut out = Vec::new();
@@ -219,10 +256,7 @@ fn entries(document: &Value) -> Vec<Entry> {
             if !names.is_empty() {
                 line.push_str(&format!(": {}", names.join(", ")));
             }
-            out.push(Entry {
-                symbol: class_name.to_owned(),
-                line,
-            });
+            out.push(Entry::new(class_name.to_owned(), line));
         }
         for member in array(class, "members") {
             let symbol = format!("{class_name}::{}", text(member, "name"));
@@ -232,7 +266,7 @@ fn entries(document: &Value) -> Vec<Entry> {
                 line.push_str(capability);
                 line.push(']');
             }
-            out.push(Entry { symbol, line });
+            out.push(Entry::new(symbol, line));
         }
     }
 
@@ -246,10 +280,7 @@ fn entries(document: &Value) -> Vec<Entry> {
         if !cases.is_empty() {
             line.push_str(&format!(" {{{}}}", cases.join(", ")));
         }
-        out.push(Entry {
-            symbol: name.to_owned(),
-            line,
-        });
+        out.push(Entry::new(name.to_owned(), line));
     }
 
     for exception in array(document, "exceptions") {
@@ -259,29 +290,23 @@ fn entries(document: &Value) -> Vec<Entry> {
             line.push_str(" extends ");
             line.push_str(parent);
         }
-        out.push(Entry {
-            symbol: name.to_owned(),
-            line,
-        });
+        out.push(Entry::new(name.to_owned(), line));
     }
 
     for attribute in array(document, "attributes") {
         let Some(name) = attribute.as_str() else {
             continue;
         };
-        out.push(Entry {
-            symbol: name.to_owned(),
-            line: format!("{name}  attribute"),
-        });
+        out.push(Entry::new(name.to_owned(), format!("{name}  attribute")));
     }
 
     for topic in topics() {
-        out.push(Entry {
-            symbol: topic.symbol,
-            line: topic.line,
-        });
+        out.push(Entry::new(topic.symbol, topic.line));
     }
 
+    out.extend(names::config_keys());
+    out.extend(names::commands());
+    out.extend(names::codes());
     out
 }
 
@@ -599,13 +624,15 @@ pub(crate) fn find(query: &str) -> ExitCode {
     let wanted = query.to_lowercase();
     let mut out = String::new();
     for entry in entries(&document) {
-        if entry.symbol.to_lowercase().contains(&wanted) {
+        if entry.named(|name| name.contains(&wanted)) {
             out.push_str(&entry.line);
             out.push('\n');
         }
     }
     if out.is_empty() {
-        eprintln!("nothing matches `{query}`: no `Core` symbol and no chapter heading has it.");
+        eprintln!(
+            "nothing matches `{query}`: no `Core` symbol, chapter heading, configuration key, command, flag or diagnostic code has it."
+        );
         eprintln!(
             "a keyword may be written under a heading that does not name it: `nvs agent primer` ends with the chapter map, and `nvs agent show <chapter>` lists one chapter's sections."
         );
@@ -618,25 +645,13 @@ pub(crate) fn find(query: &str) -> ExitCode {
 /// for.
 pub(crate) fn show(symbol: &str) -> ExitCode {
     let document = crate::meta::document();
-    let entries = entries(&document);
-    // A generic member's line opens `Core\Json::decodeAs<T>(…`, and the whole
-    // leading token is what an agent copies, so the type parameters come off
-    // here rather than being a spelling the surface refuses.
-    let wanted = match symbol.split_once('<') {
-        Some((name, _)) => name.to_lowercase(),
-        None => symbol.to_lowercase(),
-    };
-
-    if let Some(entry) = entries
-        .iter()
-        .find(|entry| entry.symbol.to_lowercase() == wanted)
-    {
-        print!("{}", card(&document, entry));
+    if let Some(entry) = show_target(&document, symbol) {
+        print!("{}", card(&document, &entry));
         return ExitCode::SUCCESS;
     }
 
     eprintln!("no symbol named `{symbol}`");
-    let nearest = nearest(&entries, &wanted);
+    let nearest = nearest(&entries(&document), &wanted(symbol));
     if nearest.is_empty() {
         eprintln!("`nvs agent index` lists every symbol there is.");
     } else {
@@ -646,6 +661,24 @@ pub(crate) fn show(symbol: &str) -> ExitCode {
         }
     }
     ExitCode::FAILURE
+}
+
+/// The entry whose symbol, or second name, is `symbol`, compared without case.
+fn show_target(document: &Value, symbol: &str) -> Option<Entry> {
+    let wanted = wanted(symbol);
+    entries(document)
+        .into_iter()
+        .find(|entry| entry.named(|name| name == wanted))
+}
+
+/// `symbol` as `show` compares it: lowercased, and with a generic member's type
+/// parameters taken off. A generic member's line opens `Core\Json::decodeAs<T>(…`,
+/// and the whole leading token is what an agent copies, so `show` accepts it.
+fn wanted(symbol: &str) -> String {
+    match symbol.split_once('<') {
+        Some((name, _)) => name.to_lowercase(),
+        None => symbol.to_lowercase(),
+    }
 }
 
 /// The symbols closest to what was asked for, longest shared run first.
@@ -698,6 +731,10 @@ fn shared_run(a: &str, b: &str) -> usize {
 /// for what it did not.
 fn card(document: &Value, entry: &Entry) -> String {
     let mut out = format!("{}\n", entry.line);
+    if !entry.body.is_empty() {
+        push_prose(&mut out, &entry.body);
+        return out;
+    }
     let Some((class_name, member_name)) = entry.symbol.split_once("::") else {
         if let Some(card) = topic_card(&entry.symbol) {
             return card;

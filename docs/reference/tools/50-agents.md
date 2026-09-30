@@ -9,7 +9,8 @@ keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agen
 # nvs agent
 
     nvs agent index                one line per Core member, enum, exception and attribute,
-                                   then one per chapter of this reference and per heading in it
+                                   one per chapter of this reference and per heading in it,
+                                   then one per configuration key, command, flag and error code
     nvs agent find <query>         the index lines whose symbol matches the query
     nvs agent show <symbol>        a member's card: signature, description, parameters, errors;
                                    a heading's section; a chapter's list of sections
@@ -35,6 +36,21 @@ from it back to `show` — which also accepts that leading token with a generic'
 A name in brackets after a signature is the capability the call is gated on, granted in `nvs.toml`;
 a line with no bracket names a member that reaches nothing outside the program.
 
+**A key, a command, a flag and an error code have lines too.** Each of these lines opens with the
+kind of name it carries:
+
+```text
+config: [server] max_in_flight
+command: nvs serve
+flag: nvs serve --port
+code: E0621
+```
+
+The symbol is the rest of the line after `config: `, `command: ` or `flag: `, and the code alone
+after `code: `. A key is also found by its dotted name, as `server.max_in_flight`. `show` prints a
+key's comment from the shipped `nvs.toml` and the key's own line, and for a command or a flag it
+prints the text `--help` prints.
+
 **A keyword is found by its heading.** The registry holds what `Core` declares, and `autoload`,
 `require` and `match` are grammar, so no member is named for them. Each heading of this reference
 has a line instead, whose symbol is the chapter's name, a `#`, and the heading in lowercase with
@@ -46,7 +62,8 @@ does not answer with every member that returns one. It is a command rather than 
 grep the index, because a namespaced name loses its backslash to the shell before `grep` sees it,
 and the empty result that follows is indistinguishable from a name the language does not have.
 `find` prints nothing on standard output and succeeds when a query matches nothing: the index is
-complete, so an empty result is the answer that no `Core` symbol and no heading carries that word.
+complete, so an empty result is the answer that no `Core` symbol, heading, key, command, flag or
+code carries that word.
 It is not yet the answer that the language lacks the thing — a keyword may be written under a
 heading that does not name it — so standard error says what was searched and points at the chapter
 map. `show` is the opposite — it was asked for one specific thing, and when it cannot resolve the
@@ -212,11 +229,13 @@ echo Core\Str::length($name), "\n";
 ```
 
 Asked next whether classes load themselves, it looks for the PHP word, which is a keyword here and
-no member's name. The line that comes back is a heading, and the same `show` prints the section:
+no member's name. Two lines come back: a heading, and a flag of `nvs check` that has the word in
+its name. The heading is the one it wants, and the same `show` prints the section:
 
 ```text
 $ nvs agent find autoload
 programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
+flag: nvs check --autoload-map
 $ nvs agent show 'programs#autoload-find-a-class-by-its-namespace'
 programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace
 
