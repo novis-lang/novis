@@ -89,6 +89,10 @@
 //! priority 3, and a bounded `memcpy` on an L1-resident buffer is the cheap
 //! side of that trade; if a benchmark ever says otherwise, the thing to change
 //! is the buffer's size, and only then the `forbid`.
+//!
+//! # Known gaps
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-server/src/io.rs` lists them.
 
 use std::cell::Cell;
 use std::io;

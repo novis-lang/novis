@@ -78,6 +78,10 @@
 //! request makes one. A moved control endpoint is one thread while it
 //! answers, and two for the moment between the new one starting and the old
 //! one ending.
+//!
+//! # Known gaps
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/control.rs` lists them.
 
 use std::collections::BTreeMap;
 use std::io;

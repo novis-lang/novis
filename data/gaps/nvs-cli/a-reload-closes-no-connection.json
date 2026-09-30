@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/control.rs",
+  "title": "A reload closes no connection.",
+  "text": "`rule:concurrency/a-drain-closes-a-connection-cleanly` gives a control-socket reload the same ending a stop has: connections closed with a defined code after a drain period. [`Process::reload`] publishes the new tree and begins no drain, so a WebSocket or an event stream open across a reload stays open under the waits and bounds it was accepted with until its own bounds close it. The process's drain cannot serve here: it is one bit, written once, and the accept loop that reads it stops accepting. Closing what is open at a reload needs a drain per published generation that leaves the accept loop serving, which is a change to [`nvs_runtime::Drain`] and to what every connection reads at its wait. `crates/nvs-cli/tests/live_config.rs`'s `a_reload_closes_no_connection_and_begins_no_drain` pins what a reload does today, and is the case that changes with it.",
+  "milestone": "M10"
+}
