@@ -1,0 +1,7 @@
+# The program gets its settings from this file.
+# The path `notes` is the folder next to this file.
+[limits]
+memory = "64M"
+
+[capabilities.fs]
+read = ["notes"]

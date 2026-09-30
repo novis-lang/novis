@@ -183,6 +183,7 @@ fn memory(resolved: &Resolved) -> Option<&Setting> {
 /// disables the `./nvs.toml` step entirely — an operator naming files never gets a surprise merge
 /// with whatever is in the working directory — while a directory holding no file falls through to
 /// the shipped defaults rather than to a failure.
+// covers: tools:config/the-file-and-where-it-is-read-from
 #[test]
 fn a_root_is_named_by_config_else_found_else_defaulted() {
     let fs = Fake::with(&[("app/nvs.toml", ""), ("etc/base.toml", "")]);
@@ -212,6 +213,7 @@ fn a_root_is_named_by_config_else_found_else_defaulted() {
 
 /// § 1 steps 2 and 3: `./nvs.toml` is **exactly one directory, never a walk upward**, so a nested
 /// directory falls through to the shipped defaults rather than finding its parent's file.
+// covers: tools:config/the-file-and-where-it-is-read-from
 #[test]
 fn the_local_file_is_not_searched_for_upward() {
     let fs = Fake::with(&[("app/nvs.toml", "")]);
@@ -527,6 +529,7 @@ fn a_value_array_replaces_where_a_table_appends() {
 
 /// § 5: a relative path resolves against the directory of the file it is written in, which is the
 /// only rule under which a config directory survives being copied or relocated whole.
+// covers: tools:config/the-file-and-where-it-is-read-from
 #[test]
 fn a_relative_path_resolves_against_the_file_it_is_written_in() {
     let fs = Fake::with(&[

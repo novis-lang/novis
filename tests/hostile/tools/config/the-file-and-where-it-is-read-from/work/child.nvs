@@ -1,0 +1,20 @@
+<?nvs
+// The attack in the folder above starts this script. It checks which settings it has.
+
+string $dir = 'tests/hostile/tools/config/the-file-and-where-it-is-read-from';
+
+// The memory limit comes from the parent's file. This prints `64M`.
+echo 'child memory: ', Core\Config::get('memory'), "\n";
+
+// The highest limit is also 64M, so this prints `no`.
+echo 'child memory 1G: ', Core\Config::set('memory', '1G') ? 'yes' : 'no', "\n";
+
+// The file next to this script allows every read. It is not in use, so each read fails.
+array<string> $paths = [$dir . '/work/nvs.toml', $dir . '/nvs.toml'];
+foreach ($paths as string $path) {
+    try {
+        echo Core\Str::length(Core\IO::read($path)), "\n";
+    } catch (Throwable $denied) {
+        echo "child read: denied\n";
+    }
+}

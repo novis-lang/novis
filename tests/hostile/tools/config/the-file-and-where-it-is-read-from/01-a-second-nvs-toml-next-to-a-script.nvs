@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a folder has its own `nvs.toml` with more memory and every right, and the program
+// starts a script from that folder. The script should still get only this program's settings.
+
+string $dir = 'tests/hostile/tools/config/the-file-and-where-it-is-read-from';
+
+// 1. Use file paths as setting names. Each `set` should return `false`, and each `get` `null`.
+array<string> $names = [
+    'nvs.toml',
+    'work/nvs.toml',
+    $dir . '/work/nvs.toml',
+    '../nvs.toml',
+    'config',
+    'include.path',
+    "memory\0.toml",
+    Core\Str::repeat('../', 1000) . 'nvs.toml',
+];
+foreach ($names as string $name) {
+    echo Core\Config::set($name, '64G') ? 'yes' : 'no', ' ';
+    echo Core\Config::get($name) ?? 'null', "\n";
+}
+
+// 2. Start the script next to the second `nvs.toml`. It should print `64M` and `no`.
+var $child = spawn script $dir . '/work/child.nvs' with(output: 'capture');
+var $result = await $child;
+echo $result->output;
+
+// 3. The memory limit of this program is still the one from its own file. This prints `64M`.
+echo Core\Config::get('memory'), "\n";

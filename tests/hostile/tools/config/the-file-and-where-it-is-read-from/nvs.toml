@@ -1,0 +1,10 @@
+# The program may start the scripts in `work`, and nothing else.
+# Its memory limit is 64M, and 64M is also the highest limit it may set.
+[limits]
+memory = "64M"
+
+[limits.hard]
+memory = "64M"
+
+[capabilities.script]
+spawn = ["work"]
