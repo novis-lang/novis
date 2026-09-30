@@ -17,3 +17,4 @@ try {
 error[E0245]: a `catch` clause names one class
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

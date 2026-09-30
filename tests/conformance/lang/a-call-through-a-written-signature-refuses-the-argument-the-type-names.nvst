@@ -26,3 +26,4 @@ error[E0809]: this `callable` names 2 parameter(s), and this call passes 1
    = help: a call through a written signature passes exactly the parameters the type names — the value may hold a closure declaring fewer, and the runtime hands that closure only the ones it declares
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

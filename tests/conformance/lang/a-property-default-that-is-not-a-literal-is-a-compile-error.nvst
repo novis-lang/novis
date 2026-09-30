@@ -24,3 +24,4 @@ error[E0472]: a property default must be a `int` constant
 error[E0472]: a property default must be a `string` constant
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

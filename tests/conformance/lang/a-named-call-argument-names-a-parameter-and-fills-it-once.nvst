@@ -33,3 +33,4 @@ error[E0486]: no parameter of this call can be filled by the name `subject`
    --> case.nvs:16:23
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

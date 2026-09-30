@@ -20,3 +20,4 @@ class Docs {
 error[E0819]: `Lang::De` and `Lang::Deutsch` both carry `7`, so that segment names two cases
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

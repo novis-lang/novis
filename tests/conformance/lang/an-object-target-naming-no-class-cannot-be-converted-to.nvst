@@ -48,3 +48,4 @@ error[E0711]: `string` cannot be converted to `object`
    = help: `rule:types/conversion` tabulates no conversion into an object, and this target names no class to test the value against: name a class values are made of instead — a declared one, or a `Core` class with instances such as `Core\Time\Date` — which is the checked way out of `mixed`
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

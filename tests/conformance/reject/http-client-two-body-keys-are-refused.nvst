@@ -36,3 +36,4 @@ error[E0815]: `Core\Http\Client::patch` is given two bodies, `body` and `multipa
    = help: which key a body is written under is what says how it is sent, so exactly one of `json`, `form`, `body` and `multipart` may be written: keep the one whose encoding the server expects
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

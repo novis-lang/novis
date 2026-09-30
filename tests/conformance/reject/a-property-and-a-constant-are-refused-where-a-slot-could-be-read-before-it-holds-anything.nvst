@@ -47,3 +47,4 @@ error[E0409]: `$n` is not assigned on every path out of the constructor
 error[E0472]: a property default must be a `string` constant
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

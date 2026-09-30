@@ -45,3 +45,4 @@ error[E0439]: only a variable or a property can be passed to an `inout` paramete
 error[E0439]: only a variable or a property can be passed to an `inout` parameter
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

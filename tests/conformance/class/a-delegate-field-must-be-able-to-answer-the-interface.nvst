@@ -68,3 +68,4 @@ error[E0720]: `$voice` is `Counts`, which cannot satisfy `Greets`
 error[E0449]: `Half` does not declare `count`, which `Counts` requires
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

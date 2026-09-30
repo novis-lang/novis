@@ -42,3 +42,4 @@ error[E0723]: an array's key binding is a `string`, not `int`
 error[E0434]: a `float`, `bool`, or `null` array key is not allowed
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

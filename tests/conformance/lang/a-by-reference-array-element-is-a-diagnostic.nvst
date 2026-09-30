@@ -38,3 +38,4 @@ error[E0483]: an array element cannot be taken by reference
    = help: Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes an element a copy, so drop the `&` — to share one mutable cell, hold it in an object and store that
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -98,3 +98,4 @@ error[E0480]: an array element cannot be written through the erased property `co
    --> case.nvs:55:7
 %A
 error: aborting due to 12 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

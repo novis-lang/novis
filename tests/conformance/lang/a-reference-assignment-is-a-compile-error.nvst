@@ -41,3 +41,4 @@ error[E0701]: a binding cannot be assigned by reference
    = help: Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -10,3 +10,4 @@ error[E0458]: `Core\Regex\Match::text` is an instance member, so it is called on
   --> case.nvs:2:6
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

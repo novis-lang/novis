@@ -41,3 +41,4 @@ Core\Db\Rows<Core\Db\Row> $wrong = $db->queryAs<Person>("select id, name from pe
 error[E0401]: expected `Core\Db\Rows<Core\Db\Row>`, found `Core\Db\Rows<Person>`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

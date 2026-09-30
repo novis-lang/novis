@@ -56,3 +56,4 @@ error[E0304]: the option `pretty` is given twice
    |                                              ^^^^^^^^^^^^^ already set above
 
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -38,3 +38,4 @@ error[E0220]: an enum declares only cases and an optional backing type
 error[E0437]: this case's auto-incremented value runs past its enum's backing type
 %A
 error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

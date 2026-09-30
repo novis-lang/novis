@@ -16,3 +16,4 @@ error[E0227]: traits do not exist
   --> case.nvs:2:1
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

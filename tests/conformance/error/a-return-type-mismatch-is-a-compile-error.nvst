@@ -15,3 +15,4 @@ error[E0403]: this method declares `int` but returns `string`
   --> case.nvs:4:16
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

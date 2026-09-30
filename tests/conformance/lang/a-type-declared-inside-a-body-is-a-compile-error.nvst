@@ -57,3 +57,4 @@ error[E0233]: a nested `enum` declaration is not supported
    = help: move `InAClosure` out to file scope — every type in Novis is declared before any code runs, so a name's existence never depends on control flow
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -17,3 +17,4 @@ echo "never reached", "\n";
 error[E0471]: `Config::constructor()` is `private`, so only `Config`'s own bodies reach it
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -16,3 +16,4 @@ error[E0204]: `global` is not supported
   --> case.nvs:4:9
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

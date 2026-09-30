@@ -30,3 +30,4 @@ error[E0303]: `Unwritten` is not declared
 error[E0002]: unterminated block comment
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -48,3 +48,4 @@ error[E0117]: an object literal here is ambiguous with a block
    --> case.nvs:31:1
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

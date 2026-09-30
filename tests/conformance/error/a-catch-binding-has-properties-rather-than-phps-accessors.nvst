@@ -57,3 +57,4 @@ error[E0405]: `Throwable` has no method named `getCode`
 error[E0405]: `LogicError` has no method named `getMessage`
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

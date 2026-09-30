@@ -56,3 +56,4 @@ error[E0321]: `parent` names a class, and a class is not a value
    = help: write `parent::` and the member wanted — a method call, a constant or a static property. There is no class handle to pass around: `rule:classes/no-free-functions-or-constants` puts every reflective question on `Core\Reflect` instead
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

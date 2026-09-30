@@ -80,3 +80,4 @@ error[E0722]: `private` on a parameter promotes it to a property, and only a `co
    = help: drop the keyword — a parameter is a binding here. To declare a property, write it on the class or promote it in the `constructor`
 
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

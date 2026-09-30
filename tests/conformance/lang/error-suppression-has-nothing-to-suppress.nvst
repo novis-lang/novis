@@ -59,3 +59,4 @@ error[E0236]: `@expr` error suppression does not exist
    = help: a failure is a `Throwable` propagated by checked return, not a diagnostic printed beside a value — catch it with `try`/`catch`
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

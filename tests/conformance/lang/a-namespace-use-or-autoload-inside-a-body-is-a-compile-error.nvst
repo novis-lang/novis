@@ -53,3 +53,4 @@ error[E0233]: a nested `namespace` declaration is not supported
    = help: move the `namespace` out to file scope — it applies to the whole file, so what a name resolves to never depends on control flow
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

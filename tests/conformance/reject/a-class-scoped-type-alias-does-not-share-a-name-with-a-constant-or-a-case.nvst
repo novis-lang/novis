@@ -56,3 +56,4 @@ error[E0304]: `ACase::Red` is already declared as an enum case
    --> case.nvs:37:5
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

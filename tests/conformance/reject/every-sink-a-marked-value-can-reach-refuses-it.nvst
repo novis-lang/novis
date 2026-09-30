@@ -65,3 +65,4 @@ error[E0422]: a `secret`-qualified value cannot be passed as a `Throwable` messa
 error[E0401]: expected `string`, found `secret string`
 %A
 error: aborting due to 13 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

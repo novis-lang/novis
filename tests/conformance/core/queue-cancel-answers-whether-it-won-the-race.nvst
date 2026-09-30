@@ -23,3 +23,4 @@ Core\Queue\State $wrong = Core\Queue::cancel($receipt);
 error[E0401]: expected `Core\Queue\State`, found `bool`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

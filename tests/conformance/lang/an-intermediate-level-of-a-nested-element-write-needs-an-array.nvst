@@ -47,3 +47,4 @@ error[E0482]: `null|array<int>` cannot be subscripted
    --> case.nvs:22:7
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

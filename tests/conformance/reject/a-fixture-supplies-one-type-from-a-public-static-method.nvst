@@ -110,3 +110,4 @@ error[E0304]: `TwiceTest` declares two `#[Fixture]` methods returning `Schema`
    --> case.nvs:86:28
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

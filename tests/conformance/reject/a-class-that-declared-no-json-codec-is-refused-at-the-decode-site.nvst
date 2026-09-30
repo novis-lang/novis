@@ -75,3 +75,4 @@ error[E0821]: `Legacy` carries no `#[Json\Derive]` and declares no `fromJson`, s
 error[E0821]: `Plain` carries no `#[Json\Derive]` and declares no `fromJson`, so `Core\Json::decodeAs` has no codec to read one with
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

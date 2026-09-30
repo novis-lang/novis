@@ -61,3 +61,4 @@ error[E0401]: expected `string`, found `int`
    |   ^^^^^^^^^^^^ this is `int`
 
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

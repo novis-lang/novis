@@ -45,3 +45,4 @@ class Counted extends Plain {
 error[E0410]: `Trial` extends another class, but a path through its constructor never calls `parent::constructor(...)`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

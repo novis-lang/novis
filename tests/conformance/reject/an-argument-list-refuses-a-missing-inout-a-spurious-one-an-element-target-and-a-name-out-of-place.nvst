@@ -49,3 +49,4 @@ error[E0488]: a positional argument cannot follow a `name:` or `...` argument
 error[E0486]: no parameter of this call can be filled by the name `rest`
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -19,3 +19,4 @@ error[E0405]: `Box` has no property named `missing`
    --> case.nvs:10:1
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

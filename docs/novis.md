@@ -26233,11 +26233,14 @@ error[E0405]: `Order` has no property named `totl`
    |      ^^ referenced here
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
 A code is `E` followed by four digits for an error and `W` for a warning; the location is
 `file:line:column`; the caret marks the span; optional `= help:` and `= note:` lines follow. The
-code is stable and is what the tables in this reference cite.
+code is stable and is what the tables in this reference cite. The last line is printed once, after
+all the diagnostics. `nvs agent show E0401` prints what the error `E0401` means and how to fix it.
+`nvs check --json` does not print this line.
 
 `--autoload-map` prints the resolved `autoload` map instead of `no errors` — every prefix, what a
 `discover` glob skipped, what was shadowed, and every root that does not exist — so an autoload
@@ -27814,6 +27817,7 @@ error[E0631]: `the entry file` is relative: `index.nvs`
   = help: write the path absolutely
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
 The options of the installer:

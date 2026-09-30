@@ -37,3 +37,4 @@ var $rows = $db->queryAs<int>("select id from people", []);
 error[E0465]: `Core\Db\Connection::queryAs` builds a class or an inline shape, or a list of one, and `int` is none of those
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

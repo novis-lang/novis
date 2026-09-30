@@ -63,3 +63,4 @@ error[E0708]: `void` cannot be converted to `string`
 error[E0708]: `null` cannot be converted to `int`
 %A
 error: aborting due to 9 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

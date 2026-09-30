@@ -59,3 +59,4 @@ error[E0771]: this `security` entry is not a string
 error[E0771]: this `#[Api]` annotates no operation
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

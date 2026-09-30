@@ -27,3 +27,4 @@ error[E0401]: expected `array<string>`, found `string`
    --> case.nvs:14:39
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

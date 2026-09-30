@@ -27,3 +27,4 @@ echo $p->x, "\n";
 error[E0248]: a constructor's `return` carries no value
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

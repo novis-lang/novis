@@ -52,3 +52,4 @@ error[E0307]: a `type` alias may not name a single class, interface or enum on i
    --> case.nvs:35:15
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

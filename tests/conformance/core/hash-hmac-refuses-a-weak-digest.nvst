@@ -16,3 +16,4 @@ echo Core\Encoding::toHex($mac), "\n";
 error[E0401]: expected `Core\Digest::Sha224|Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512|Core\Digest::Sha512_224|Core\Digest::Sha512_256|Core\Digest::Sha3_224|Core\Digest::Sha3_256|Core\Digest::Sha3_384|Core\Digest::Sha3_512`, found `Core\Digest`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

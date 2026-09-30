@@ -22,3 +22,4 @@ echo "\n";
 error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

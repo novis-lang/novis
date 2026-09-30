@@ -37,3 +37,4 @@ error[E0324]: `examples/nothing-is-here.nvs` names no file
    = help: the path is relative to the file that wrote it, as a `require` path is
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

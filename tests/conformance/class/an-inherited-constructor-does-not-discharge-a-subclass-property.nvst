@@ -24,3 +24,4 @@ error[E0409]: `$b` has no default value, and `Child` declares no constructor to 
    --> case.nvs:14:16
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

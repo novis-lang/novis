@@ -78,3 +78,4 @@ error[E0466]: `bool` and `int` are disjoint; no value is both, so this compariso
    = help: convert one side deliberately and then compare — `$s == ($n as string)`
 
 error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

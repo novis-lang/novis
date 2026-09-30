@@ -43,3 +43,4 @@ error[E0304]: the option `name` is given twice
    --> case.nvs:25:35
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

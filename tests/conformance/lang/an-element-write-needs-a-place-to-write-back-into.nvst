@@ -58,3 +58,4 @@ error[E0700]: an array element cannot be written through a temporary
    --> case.nvs:34:2
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

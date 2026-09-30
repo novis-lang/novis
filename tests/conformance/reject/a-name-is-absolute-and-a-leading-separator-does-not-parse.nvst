@@ -47,3 +47,4 @@ error[E0240]: a name is already absolute
    --> case.nvs:28:32
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

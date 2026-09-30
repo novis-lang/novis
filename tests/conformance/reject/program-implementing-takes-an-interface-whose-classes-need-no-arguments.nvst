@@ -58,3 +58,4 @@ error[E0744]: `Needy` implements `Needful` and its constructor takes 1 required 
    --> case.nvs:44:22
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

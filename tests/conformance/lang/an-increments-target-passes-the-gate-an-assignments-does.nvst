@@ -40,3 +40,4 @@ error[E0105]: this expression cannot be assigned to
    --> case.nvs:22:3
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

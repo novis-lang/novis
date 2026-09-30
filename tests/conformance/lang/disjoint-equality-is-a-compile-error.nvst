@@ -38,3 +38,4 @@ echo $n == $u, "\n";
 error[E0466]: `string` and `int` are disjoint; no value is both, so this comparison is always false
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

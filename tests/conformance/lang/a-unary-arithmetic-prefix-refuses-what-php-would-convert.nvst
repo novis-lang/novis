@@ -78,3 +78,4 @@ error[E0401]: `-` has no meaning for `Thing`
    = help: Novis has no operator overloading; call the member that does this — a `Core\Time\Duration` negates with `->negated()` and subtracts with `->minus(…)`
 
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

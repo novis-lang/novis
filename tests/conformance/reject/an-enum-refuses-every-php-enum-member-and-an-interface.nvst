@@ -44,3 +44,4 @@ error[E0309]: `Level` has no method named `from`
 error[E0309]: `Level` has no method named `tryFrom`
 %A
 error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

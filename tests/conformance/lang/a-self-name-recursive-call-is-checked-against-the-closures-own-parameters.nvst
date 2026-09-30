@@ -28,3 +28,4 @@ error[E0809]: this closure names 2 parameter(s), and this call passes 1
    = help: a closure calling itself by its own name passes exactly the parameters it declares — the signature being checked is the one written right here, so there is no wider type for a shorter list to be matched against
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

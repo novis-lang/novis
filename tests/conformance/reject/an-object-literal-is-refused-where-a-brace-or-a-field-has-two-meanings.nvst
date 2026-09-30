@@ -48,3 +48,4 @@ error[E0401]: expected `{x: int, y: int}`, found `{x: int}`
 error[E0401]: expected `{x: int, y: int}`, found `{x: int, y: string}`
 %A
 error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -33,3 +33,4 @@ error[E0794]: `new` over `class<Formatter>` cannot check its arguments
    = help: a class reference may hold any implementor, so every one of them has to accept the arguments written here — give `Strict` a constructor compatible with `Formatter`'s, or narrow this to `as class<Strict>` and instantiate that
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

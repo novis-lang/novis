@@ -11,3 +11,4 @@ error[E0301]: `$unknown` is not declared
   --> case.nvs:3:15
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

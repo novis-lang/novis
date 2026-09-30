@@ -54,3 +54,4 @@ error[E0717]: `%` has no meaning for `float`
 error[E0401]: expected `int`, found `int|float`
 %A
 error: aborting due to 8 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

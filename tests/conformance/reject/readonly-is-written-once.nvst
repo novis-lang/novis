@@ -41,3 +41,4 @@ error[E0782]: `Widget::$id` is `readonly`, so only `Widget`'s constructor writes
 error[E0782]: `Label::$text` is `readonly`, so only `Label`'s constructor writes it
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

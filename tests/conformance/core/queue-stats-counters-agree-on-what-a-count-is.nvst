@@ -26,3 +26,4 @@ Core\Queue\Stats $wrong = $counts->deadLettered();
 error[E0401]: expected `Core\Queue\Stats`, found `uint`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

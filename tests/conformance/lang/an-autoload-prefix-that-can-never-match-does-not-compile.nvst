@@ -38,3 +38,4 @@ error[E0327]: `App\{..}\{.}` is not a namespace prefix
 %sonly one segment may name a directory
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

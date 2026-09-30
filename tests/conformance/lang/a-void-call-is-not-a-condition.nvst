@@ -67,3 +67,4 @@ error[E0719]: a call that returns `void` has no value, so there is nothing to te
 error[E0718]: a call that returns `void` has no value, so it is not an operand
 %A
 error: aborting due to 9 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -51,3 +51,4 @@ error[E0401]: expected `Mode::Read|Mode::Write`, found `Mode`
 error[E0470]: `Mode::Exec` is not one of `Mode::Read`, `Mode::Write`
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

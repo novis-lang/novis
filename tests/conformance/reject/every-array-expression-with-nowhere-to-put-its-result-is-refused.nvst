@@ -52,3 +52,4 @@ error[E0230]: `list(...)` is not supported
 error[E0101]: expected a destructuring leaf's type
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

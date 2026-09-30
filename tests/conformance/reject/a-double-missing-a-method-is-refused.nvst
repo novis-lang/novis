@@ -25,3 +25,4 @@ echo "unreachable\n";
 error[E0825]: `Clock::zone` is not implemented by this double
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

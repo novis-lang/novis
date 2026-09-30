@@ -61,3 +61,4 @@ error[E0810]: `Query::$q` is declared `string`, and `Core\Request::queryAs` answ
 error[E0810]: `Form::$email` is declared `string`, and `Core\Request::postAs` answers a peer's octets
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -19,3 +19,4 @@ error[E0301]: `$missing` is not declared
    |      ^^^^^^^^ no declaration for this name
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -20,3 +20,4 @@ error[E0122]: a property must declare `public`, `protected` or `private`
   --> case.nvs:5:9
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

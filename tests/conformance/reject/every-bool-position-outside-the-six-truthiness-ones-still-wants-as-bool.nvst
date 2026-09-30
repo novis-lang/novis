@@ -59,3 +59,4 @@ error[E0401]: expected `bool`, found `string`
 error[E0466]: `bool` and `string` are disjoint; no value is both, so this comparison is always false
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -14,3 +14,4 @@ error[E0129]: the right side of `|>` needs the hole `$_`
 %A= note: PHP 8.5's `|>` applies a callable; Novis's substitutes `$_` at compile time
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

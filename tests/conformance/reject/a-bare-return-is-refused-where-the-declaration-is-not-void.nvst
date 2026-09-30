@@ -37,3 +37,4 @@ error[E0822]: `of` declares `int` but this `return` hands back nothing
 error[E0822]: the closure declares `int` but this `return` hands back nothing
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

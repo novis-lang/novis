@@ -36,3 +36,4 @@ error[E0303]: `App\Mailer` is not declared
    |      ^^^^^^^^^^ no matching declaration
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

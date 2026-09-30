@@ -37,3 +37,4 @@ error[E0711]: `array<string|null>` cannot be an `as` target
 error[E0711]: `array<array<Cell>>` cannot be an `as` target
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

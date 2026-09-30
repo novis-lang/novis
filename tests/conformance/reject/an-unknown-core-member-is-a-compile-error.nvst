@@ -10,3 +10,4 @@ error[E0405]: `Core\Str` has no member named `nosuchmember`
   --> case.nvs:2:6
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

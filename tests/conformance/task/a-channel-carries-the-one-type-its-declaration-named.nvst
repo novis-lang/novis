@@ -34,3 +34,4 @@ foreach ($orders as Order $order) {
 error[E0401]: expected `int`, found `string`
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

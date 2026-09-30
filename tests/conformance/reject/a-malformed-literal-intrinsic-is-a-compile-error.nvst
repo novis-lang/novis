@@ -65,3 +65,4 @@ error[E0769]: this literal is not one this member can read: duration units stric
 %A
 error[E0769]: this literal is not one this member can read: this text is not a URI reference (RFC 3986 § 4.1)%A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

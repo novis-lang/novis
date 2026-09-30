@@ -55,3 +55,4 @@ error[E0402]: expected 1 argument(s), found 0
    |                  ^^^^^^^^^^^^^ called here
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

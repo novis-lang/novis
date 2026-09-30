@@ -43,3 +43,4 @@ error[E0320]: `tally` is not a function that exists
    = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's own name to its `Core` member
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

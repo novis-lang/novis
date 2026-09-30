@@ -13,3 +13,4 @@ echo $note, "\n";
 error[E0008]: unterminated bidirectional control U+202B RIGHT-TO-LEFT EMBEDDING
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

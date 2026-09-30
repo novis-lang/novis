@@ -16,3 +16,4 @@ error[E0420]: a value of type `string` is not callable
   = help: only a closure is callable (`rule:types/callable-is-a-closure`): write an `fn` literal, or take a reference with first-class callable syntax — `Class::method(...)` or `$obj->method(...)`. A string holding a function's name is not one
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

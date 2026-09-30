@@ -75,3 +75,4 @@ error[E0401]: expected `{method: string, path: string}`, found `{path: string}`
    --> case.nvs:52:8
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

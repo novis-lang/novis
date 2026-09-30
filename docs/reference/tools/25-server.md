@@ -442,6 +442,7 @@ error[E0631]: `the entry file` is relative: `index.nvs`
   = help: write the path absolutely
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
 The options of the installer:

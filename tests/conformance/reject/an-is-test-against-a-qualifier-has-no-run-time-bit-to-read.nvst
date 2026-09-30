@@ -18,3 +18,4 @@ error[E0813]: `tainted string` is a qualifier the compiler erases, so no value c
 error[E0813]: `secret bytes` is a qualifier the compiler erases, so no value carries it at run time
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -54,3 +54,4 @@ error[E0766]: `#[Option] $flag` is on a method that declares no command
 error[E0745]: two options of `sync` are spelled `-v`
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

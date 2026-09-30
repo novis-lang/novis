@@ -25,3 +25,4 @@ error[E0496]: the target of `new` must be a written class name
 error[E0496]: the class side of a `::` call must be a written class name
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

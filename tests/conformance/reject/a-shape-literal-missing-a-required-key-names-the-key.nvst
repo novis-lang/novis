@@ -39,3 +39,4 @@ error[E0401]: expected `{age: int, name: string}`, found `{name: string}`
    = help: `age` is required here, and this value does not supply it
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

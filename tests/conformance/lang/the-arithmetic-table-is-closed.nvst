@@ -60,3 +60,4 @@ error[E0717]: `%` has no meaning for `float`
 error[E0717]: `%` has no meaning for `float`
 %A
 error: aborting due to 9 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

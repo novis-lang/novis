@@ -34,3 +34,4 @@ error[E0234]: `unset()` takes an array element of a named holder
 error[E0413]: `unset()` on `Holder::$rows` is refused; a declared property can never become uninitialized again
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

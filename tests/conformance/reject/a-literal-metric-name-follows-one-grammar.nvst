@@ -24,3 +24,4 @@ error[E0769]: this literal is not one this member can read: a series name starts
   --> case.nvs:9:21
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

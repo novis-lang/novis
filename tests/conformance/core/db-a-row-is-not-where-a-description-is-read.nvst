@@ -35,3 +35,4 @@ error[E0405]: `Core\Db\Row` has no method named `columns`
    --> case.nvs:26:21
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

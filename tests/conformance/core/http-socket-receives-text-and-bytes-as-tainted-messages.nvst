@@ -35,3 +35,4 @@ echo $text, Core\Bytes::length($octets), "\n";
 error[E0401]: expected `string`, found `tainted string`
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

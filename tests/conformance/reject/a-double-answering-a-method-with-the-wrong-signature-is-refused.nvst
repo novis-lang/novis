@@ -26,3 +26,4 @@ echo "unreachable\n";
 error[E0828]: `now:` answers `Clock::now` with `callable(): string`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

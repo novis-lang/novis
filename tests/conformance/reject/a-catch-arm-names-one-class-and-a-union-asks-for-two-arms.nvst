@@ -16,3 +16,4 @@ error[E0245]: a `catch` clause names one class
   = help: write one `catch` arm per class, each with its own variable name, or one arm naming a class they all extend
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

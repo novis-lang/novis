@@ -29,3 +29,4 @@ error[E0411]: `Box` does not implement `Comparable`; ordering two objects with `
    = help: implement `Comparable`'s `compareTo(self $other): int` on the class
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

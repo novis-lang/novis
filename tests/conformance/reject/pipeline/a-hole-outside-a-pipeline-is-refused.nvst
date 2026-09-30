@@ -11,3 +11,4 @@ echo $_, "\n";
 error[E0131]: `$_` is the pipeline hole and has no meaning here
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

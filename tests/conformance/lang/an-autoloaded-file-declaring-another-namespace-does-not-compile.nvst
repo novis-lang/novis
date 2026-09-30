@@ -41,3 +41,4 @@ error[E0317]: an autoloaded file declares exactly one thing, named `Shop\View\In
 %sthis declares `Blog\View\Index`, but the autoload map finds this file as `Shop\View\Index`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

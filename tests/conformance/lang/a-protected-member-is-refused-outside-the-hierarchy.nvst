@@ -36,3 +36,4 @@ error[E0471]: `Ledger::$balance` is `protected`, so only `Ledger` and the classe
 error[E0471]: `Ledger::audit()` is `protected`, so only `Ledger` and the classes that extend it reach it
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

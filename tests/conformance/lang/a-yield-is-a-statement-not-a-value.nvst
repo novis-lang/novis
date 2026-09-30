@@ -42,3 +42,4 @@ error[E0448]: a `yield` is a statement, not a value
    = help: `rule:iteration/one-way-only` gives a generator no `send()`, so a resumed `yield` has nothing to hand back — write `yield $v;` on its own
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

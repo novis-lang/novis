@@ -51,3 +51,4 @@ error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<T>`, whose keys are `string`
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

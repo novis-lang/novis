@@ -29,3 +29,4 @@ error[E0496]: the class side of a `::` constant must be a written class name
    = help: a constant is inlined where it is read, so its class is written, never carried in a value — `App::VERSION`, or `self::VERSION` inside the class; a `class<T>` reference opens `new`, a `::` call and `is`, not a constant (`rule:types/class-reference-sites`)
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -14,3 +14,4 @@ echo $count, "\n";
 error[E0126]: a `catch` arm is an expression, and `return` is a statement
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -42,3 +42,4 @@ var $walk = $db->streamAs<Plain>("select id from people", []);
 error[E0806]: `Plain` carries no `#[Db\Derive]` and declares no `fromRow`, so `Core\Db\Transaction::streamAs` has no mapping
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

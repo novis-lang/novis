@@ -16,3 +16,4 @@ error[E0424]: `lateinit` is only allowed on a class- or interface-typed property
   --> case.nvs:3:28
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

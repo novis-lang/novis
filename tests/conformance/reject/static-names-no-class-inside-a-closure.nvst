@@ -39,3 +39,4 @@ error[E0834]: `static::` names no class inside a closure body
    --> case.nvs:20:40
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

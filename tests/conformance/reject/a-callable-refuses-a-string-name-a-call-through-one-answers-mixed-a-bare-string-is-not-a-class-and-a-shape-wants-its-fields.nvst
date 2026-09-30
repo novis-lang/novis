@@ -46,3 +46,4 @@ error[E0496]: the right-hand side of `is` is a type or a class reference, and th
 error[E0401]: expected `{x: int, y: int}`, found `{x: int}`
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

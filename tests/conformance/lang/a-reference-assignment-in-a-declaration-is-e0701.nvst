@@ -31,3 +31,4 @@ error[E0701]: a binding cannot be assigned by reference
   |          ^^^^^^^^ this would share `$a`'s own slot
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

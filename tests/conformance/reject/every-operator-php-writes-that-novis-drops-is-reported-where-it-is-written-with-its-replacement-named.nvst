@@ -87,3 +87,4 @@ error[E0474]: `++`/`--` has no meaning for `string`
    = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP's string increment does not exist in Novis, because a binding never changes type
 
 error: aborting due to 9 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

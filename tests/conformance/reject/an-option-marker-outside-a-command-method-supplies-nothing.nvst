@@ -26,3 +26,4 @@ error[E0766]: `#[Option] $target` is on a method that declares no command
   --> case.nvs:8:37
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

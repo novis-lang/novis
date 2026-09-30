@@ -68,3 +68,4 @@ error[E0715]: `<` has no meaning for `string`
 error[E0230]: `list(...)` is not supported
 %A
 error: aborting due to 17 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -29,3 +29,4 @@ error[E0616]: `fs.delete` is not a capability
 error[E0616]: `network.connect` is not a capability
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

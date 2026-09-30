@@ -14,3 +14,4 @@ error[E0226]: `and` is not supported
   --> case.nvs:4:8
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

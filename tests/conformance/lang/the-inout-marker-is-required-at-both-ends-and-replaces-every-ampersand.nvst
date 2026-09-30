@@ -84,3 +84,4 @@ error[E0714]: `inout` names no parameter of a `callable`
    --> case.nvs:55:9
 %A
 error: aborting due to 8 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

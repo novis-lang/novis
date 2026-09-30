@@ -49,3 +49,4 @@ error[E0491]: a by-reference binding over an `array<int>` needs the type `int` e
    --> case.nvs:32:21
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

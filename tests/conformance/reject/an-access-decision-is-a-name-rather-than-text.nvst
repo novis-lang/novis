@@ -32,3 +32,4 @@ error[E0761]: an access decision is a name rather than a value
    --> case.nvs:11:26
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

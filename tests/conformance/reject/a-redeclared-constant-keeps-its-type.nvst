@@ -34,3 +34,4 @@ error[E0833]: `Child::PATH` is `int`, and `Base::PATH` is `string`
    --> case.nvs:15:22
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

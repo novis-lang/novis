@@ -31,3 +31,4 @@ error[E0739]: `Reading::$doubled::get` declares `int` but a path reaches the end
 error[E0739]: the closure declares `int` but a path reaches the end of its body
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

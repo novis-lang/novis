@@ -19,3 +19,4 @@ error[E0010]: a code block cannot open inside a markup literal
   = help: write `<?= expr ?>` for one value, or build the fragments in code mode and compose them with `+` or `Core\Html::join`
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

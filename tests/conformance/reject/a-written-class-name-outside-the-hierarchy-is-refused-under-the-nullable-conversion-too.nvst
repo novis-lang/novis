@@ -15,3 +15,4 @@ error[E0708]: `Rock` is not a `Animal`, so this can never be a `class<Animal>`
   = help: `rule:types/class-reference` decides a written-out `::class` operand at compile time, and this one names a class outside the hierarchy: convert to `class<T>` at a class the name actually reaches, or make the class an implementor of the one written here
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

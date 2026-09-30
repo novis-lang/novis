@@ -80,3 +80,4 @@ error[E0304]: `Refused` declares two `#[Test]` methods named `twiceOver`
    --> case.nvs:48:21
 %A
 error: aborting due to 8 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

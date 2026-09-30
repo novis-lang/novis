@@ -27,3 +27,4 @@ echo "unreachable\n";
 error[E0810]: `name` is declared `string` in `{name: string}`, and `Core\Http\Response::jsonAs` answers a peer's octets
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

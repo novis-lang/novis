@@ -17,3 +17,4 @@ error[E0496]: the class side of a `::` static property must be a written class n
   = help: a static property's storage belongs to a written class — `App::$mode`, or `self::$mode` inside the class; a `class<T>` reference opens `new`, a `::` call and `is`, not a static property (`rule:types/class-reference-sites`)
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

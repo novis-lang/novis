@@ -67,3 +67,4 @@ error[E0111]: method names must be camelCase, e.g. `hidden`
 error[E0112]: local variable names must be camelCase, e.g. `scratch`
 %A
 error: aborting due to 12 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

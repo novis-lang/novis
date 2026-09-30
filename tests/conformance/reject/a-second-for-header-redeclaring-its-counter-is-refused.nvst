@@ -17,3 +17,4 @@ for (int $i = 0; $i < 2; $i = $i + 1) {
 error[E0406]: `$i` is already declared
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

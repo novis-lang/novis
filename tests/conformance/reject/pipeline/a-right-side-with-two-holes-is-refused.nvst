@@ -13,3 +13,4 @@ echo $n |> Core\Str::format("%s%s", $_, $_), "\n";
 error[E0130]: `$_` may appear exactly once on the right side of a `|>`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

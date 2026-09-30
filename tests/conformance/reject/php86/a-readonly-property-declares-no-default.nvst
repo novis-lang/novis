@@ -20,3 +20,4 @@ echo $c->retries, "\n";
 error[E0249]: a `readonly` property declares no default
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

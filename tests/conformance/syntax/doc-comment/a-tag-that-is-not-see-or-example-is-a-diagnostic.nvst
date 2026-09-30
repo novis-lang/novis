@@ -32,3 +32,4 @@ error[E0128]: `@ledger` is not a documentation tag
   = help: a doc comment is Markdown plus `@see` and `@example`, and the set is closed (`rule:tooling/doc-comment-tags-are-see-and-example`)
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

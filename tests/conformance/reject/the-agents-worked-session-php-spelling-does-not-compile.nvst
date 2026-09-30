@@ -17,3 +17,4 @@ error[E0320]: `strlen` is not a function that exists
   = help: PHP's `strlen` is `Core\Str::length` here. `rule:classes/no-free-functions-or-constants`: every callable is a method, so there is no free function to call, and `docs/spec/02-php-migration.md` has the row of each PHP built-in, with its reason and any rewrite
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

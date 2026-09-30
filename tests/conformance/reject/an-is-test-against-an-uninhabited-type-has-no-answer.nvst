@@ -18,3 +18,4 @@ error[E0811]: no value is ever a `void`, so `is void` has no answer
 error[E0811]: no value is ever a `never`, so `is never` has no answer
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

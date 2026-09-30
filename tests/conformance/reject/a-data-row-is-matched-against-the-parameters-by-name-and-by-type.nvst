@@ -104,3 +104,4 @@ error[E0736]: nothing supplies `$missing` of the #[Test] method `itNeedsMore`, w
    --> case.nvs:81:21
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

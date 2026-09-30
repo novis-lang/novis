@@ -15,3 +15,4 @@ error[E0110]: `thing` must be PascalCase, e.g. `Thing`
   --> case.nvs:2:7
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

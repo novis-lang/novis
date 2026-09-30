@@ -95,3 +95,4 @@ error[E0759]: `Orders::show`'s path `/orders/{id}` has no `pge`, and `Orders::sh
    --> case.nvs:67:6
 %A
 error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

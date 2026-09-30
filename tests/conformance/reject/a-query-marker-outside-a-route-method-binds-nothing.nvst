@@ -29,3 +29,4 @@ error[E0765]: `#[Query] $sort` is on a method that declares no route
   --> case.nvs:9:29
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

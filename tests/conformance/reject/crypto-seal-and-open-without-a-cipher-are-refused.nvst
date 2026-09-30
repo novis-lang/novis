@@ -17,3 +17,4 @@ echo "unreachable", "\n";
 error[E0402]: expected 3 argument(s), found 2
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

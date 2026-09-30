@@ -57,3 +57,4 @@ error[E0495]: a property cannot be reached through `Box|Circle`
    = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (`rule:types/conversion`) and defers the whole question to a catchable throw at run time
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

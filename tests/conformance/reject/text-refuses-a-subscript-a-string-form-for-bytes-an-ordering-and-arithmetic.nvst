@@ -41,3 +41,4 @@ error[E0715]: `<` has no meaning for `string`
 error[E0716]: `*` has no meaning for `string`
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

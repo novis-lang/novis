@@ -38,3 +38,4 @@ $steps->getReturn();
 error[E0303]: `Fiber` is not declared
 %A
 error: aborting due to 11 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

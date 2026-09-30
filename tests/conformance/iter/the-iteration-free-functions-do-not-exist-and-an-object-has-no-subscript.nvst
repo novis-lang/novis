@@ -35,3 +35,4 @@ echo $bag[0], "\n";
 error[E0320]: `iterator_to_array` is not a function that exists
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

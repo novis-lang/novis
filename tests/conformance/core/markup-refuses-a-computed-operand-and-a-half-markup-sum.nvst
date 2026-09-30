@@ -25,3 +25,4 @@ error[E0716]: `+` has no meaning for `Core\Html\Markup`
    = help: `rule:core-classes/html-auto-escape` composes `Markup` with `Markup` and nothing else: lift the other operand with `as Markup` if it is a source literal, or escape it with `Core\Html::escape(...)` — `+` is not a sink and will not escape it for you
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

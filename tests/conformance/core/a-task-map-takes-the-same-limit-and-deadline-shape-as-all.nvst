@@ -37,3 +37,4 @@ error[E0405]: `Core\Task` has no member named `mapLimit`
    --> case.nvs:18:9
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

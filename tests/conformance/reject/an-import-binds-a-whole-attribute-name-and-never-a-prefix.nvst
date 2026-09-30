@@ -39,3 +39,4 @@ error[E0303]: `Json\Derive` is not declared
    --> case.nvs:25:3
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

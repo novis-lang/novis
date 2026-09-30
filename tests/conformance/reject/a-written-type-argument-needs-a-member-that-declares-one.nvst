@@ -11,3 +11,4 @@ error[E0441]: `Core\Arr::count` takes no type arguments
   --> case.nvs:3:22
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

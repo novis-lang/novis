@@ -18,3 +18,4 @@ error[E0402]: expected 1 argument(s), found 2
   --> case.nvs:9:10
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

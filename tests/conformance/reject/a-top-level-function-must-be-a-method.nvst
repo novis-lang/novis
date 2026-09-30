@@ -13,3 +13,4 @@ error[E0215]: a function must be a method
   --> case.nvs:2:1
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

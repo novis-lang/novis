@@ -30,3 +30,4 @@ error[E0127]: this doc comment is attached to nothing
    = help: a doc comment documents the declaration it precedes, across no blank line; write `//` for a note to the reader
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

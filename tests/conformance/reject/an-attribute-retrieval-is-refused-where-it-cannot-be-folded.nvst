@@ -94,3 +94,4 @@ error[E0798]: a `Core\Attributes` retrieval names `$path`, which `Twice` does no
    = help: `rule:attributes/structural-retrieval`: a *written* member name is checked against the target's real declarations here, because the answer a misspelling would fold to — `null`, or the empty array — is the same one a correct retrieval of an absent attribute gives, and nothing later can tell them apart; only a computed `$member` falls back to that empty result
 
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

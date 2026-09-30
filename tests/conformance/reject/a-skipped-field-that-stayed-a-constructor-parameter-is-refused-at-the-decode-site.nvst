@@ -64,3 +64,4 @@ error[E0820]: `Stamped`'s codec fills 1 of its constructor's 2 parameter(s), so 
 error[E0820]: `Stamped`'s codec fills 1 of its constructor's 2 parameter(s), so `Core\Json::decodeAs` cannot build one
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -22,3 +22,4 @@ error[E0323]: `Ledger` has no member named `missing` for `@see` to resolve
   |          ^^^^^^^^^^^^^^^ no such member
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

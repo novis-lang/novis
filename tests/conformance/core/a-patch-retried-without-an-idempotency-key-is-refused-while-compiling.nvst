@@ -27,3 +27,4 @@ error[E0796]: `Core\Http\Client::patch` asks for retries without `retryIdempoten
    = help: a repeated `PATCH` is a second effect rather than a second question, so an attempt needs an identity the server can recognise: add `retryIdempotencyKey: "..."` to the same bag, sent as `Idempotency-Key` and identical across attempts
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

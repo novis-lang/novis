@@ -67,3 +67,4 @@ error[E0303]: `Bogus` is not declared
    |      ^^^^^ no matching declaration
 
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

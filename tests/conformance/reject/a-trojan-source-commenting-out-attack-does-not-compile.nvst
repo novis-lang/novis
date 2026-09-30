@@ -12,3 +12,4 @@ echo "you are an admin\n";
 error[E0008]: unterminated bidirectional control U+202E RIGHT-TO-LEFT OVERRIDE
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

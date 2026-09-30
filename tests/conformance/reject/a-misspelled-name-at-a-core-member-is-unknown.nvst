@@ -24,3 +24,4 @@ error[E0486]: no parameter of this call can be filled by the name `arguments`
 error[E0486]: no parameter of this call can be filled by the name `fn`
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

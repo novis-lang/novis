@@ -43,3 +43,4 @@ error[E0429]: this integer literal is too large to represent in either `int` or 
    |                       ^^^^^^^^^^^^^^^^^^^^ too large for a 64-bit integer
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

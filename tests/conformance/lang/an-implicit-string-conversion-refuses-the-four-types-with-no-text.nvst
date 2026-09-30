@@ -59,3 +59,4 @@ error[E0707]: `void` has no string form
    = help: a call that returns `void` has no value at all, so there is nothing here to print
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

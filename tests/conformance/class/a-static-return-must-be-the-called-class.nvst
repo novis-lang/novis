@@ -56,3 +56,4 @@ error[E0741]: a body declaring `static` returns a value that is not the called c
    = help: `static` is the class the call named, which a subclass may be — return `$this` or `new static(...)`, or declare `self` if the declaring class is what is meant
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -46,3 +46,4 @@ error[E0482]: `null|array<string>` cannot be subscripted
    --> case.nvs:28:6
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

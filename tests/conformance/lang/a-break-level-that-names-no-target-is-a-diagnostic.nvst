@@ -58,3 +58,4 @@ error[E0475]: `break` is not inside a loop or `switch`
    | ^^^^^^ no enclosing loop or `switch` to leave
 
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -22,3 +22,4 @@ error[E0832]: `static::ROWS` reads `Page::ROWS`, which is `array<int>` and has n
    --> case.nvs:10:16
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

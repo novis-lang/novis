@@ -41,3 +41,4 @@ class Greeter
 error[E0315]: `App` is already autoloaded from somewhere else
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

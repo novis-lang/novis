@@ -130,3 +130,4 @@ error[E0411]: `object` names no class to check `Comparable` on; ordering two obj
    = help: implement `Comparable`'s `compareTo(self $other): int` on the class
 
 error: aborting due to 11 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

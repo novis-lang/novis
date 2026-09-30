@@ -47,3 +47,4 @@ error[E0454]: `timeout` is not an option of this member
    = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart, identity, tlsCa, tlsPin, tlsVerifyHost, tlsVerify, tlsMinVersion, connectTo, redirectToHttp
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

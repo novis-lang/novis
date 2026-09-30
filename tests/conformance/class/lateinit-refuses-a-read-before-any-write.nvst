@@ -30,3 +30,4 @@ error[E0428]: `$this->engine` is read here, but nothing on this path has written
    --> case.nvs:17:23
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

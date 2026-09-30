@@ -53,3 +53,4 @@ error[E0787]: `Reading::$tripled` declares a `get` hook and no `set` hook, so on
 error[E0787]: `Reading::$tripled` declares a `get` hook and no `set` hook, so only `Reading` writes it
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

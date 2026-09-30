@@ -25,3 +25,4 @@ uint $wrong = $counts;
 error[E0401]: expected `uint`, found `Core\Queue\Stats`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -26,3 +26,4 @@ error[E0471]: `Vault::$balance` is `private`, so only `Vault`'s own bodies reach
 error[E0471]: `Vault::audit()` is `private`, so only `Vault`'s own bodies reach it
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

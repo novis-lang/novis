@@ -131,3 +131,4 @@ error[E0735]: the `#[Fixture]` method `spreading` declares a variadic parameter
     --> case.nvs:107:28
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

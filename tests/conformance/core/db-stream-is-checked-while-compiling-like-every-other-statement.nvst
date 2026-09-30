@@ -31,3 +31,4 @@ error[E0770]: this query and its parameters do not agree: the statement has 2 `?
    --> case.nvs:14:25
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

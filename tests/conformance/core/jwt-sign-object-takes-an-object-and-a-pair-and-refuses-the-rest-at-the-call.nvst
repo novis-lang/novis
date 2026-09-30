@@ -33,3 +33,4 @@ error[E0401]: expected `Core\Crypto\KeyPair`, found `secret bytes`
    |                                                                               ^^^^^^^ this is `secret bytes`
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

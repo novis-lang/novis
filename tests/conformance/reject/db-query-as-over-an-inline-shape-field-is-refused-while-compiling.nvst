@@ -42,3 +42,4 @@ error[E0756]: `Row::$where` is declared `{city: string}`, which has no column ma
 error[E0806]: `Row::$where` is declared a type no column reads back, so `Core\Db\Transaction::queryAs` has no value to give it
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -20,3 +20,4 @@ error[E0798]: `Core\Program::implementingWith` names `draw`, which `Index` does 
    --> case.nvs:10:66
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

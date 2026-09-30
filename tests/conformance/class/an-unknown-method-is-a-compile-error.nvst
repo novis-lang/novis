@@ -18,3 +18,4 @@ error[E0405]: `Box` has no method named `widen`
    --> case.nvs:10:6
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

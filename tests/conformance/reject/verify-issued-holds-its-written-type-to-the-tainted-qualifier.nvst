@@ -47,3 +47,4 @@ error[E0810]: `iss` is declared `string` in `{exp: int, iss: string}`, and `Core
    --> case.nvs:24:38
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

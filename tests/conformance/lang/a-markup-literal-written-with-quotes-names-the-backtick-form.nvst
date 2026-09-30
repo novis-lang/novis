@@ -26,3 +26,4 @@ error[E0101]: expected `;`
   |                           ^ not found here
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

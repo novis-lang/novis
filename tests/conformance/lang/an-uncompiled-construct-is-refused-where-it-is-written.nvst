@@ -39,3 +39,4 @@ error[E0818]: `remote` is not a placement
    = help: `on: "worker"` starts the child on another core and `on: "here"` starts it on this one, which is what a spawn without the option does. A placement a program computes is two spawns under an `if`
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

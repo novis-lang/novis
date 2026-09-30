@@ -17,3 +17,4 @@ echo $u->with({path: null})->toString(), "\n";
 error[E0401]: expected `string`, found `null`
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

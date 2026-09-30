@@ -20,3 +20,4 @@ var $c = Core\Task::map($rows, 7);
 error[E0401]: expected `callable(int, string): int`, found `callable(int, string, int): int`
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

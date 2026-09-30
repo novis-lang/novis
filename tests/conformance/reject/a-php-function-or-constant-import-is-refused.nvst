@@ -21,3 +21,4 @@ error[E0252]: `use const` imports a kind of name this language does not have
 error[E0306]: `Shop\LIMIT` does not resolve to any declaration
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

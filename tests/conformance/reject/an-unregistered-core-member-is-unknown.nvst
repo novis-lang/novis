@@ -28,3 +28,4 @@ error[E0405]: `Core\Env` has no constant named `SAPI`
 error[E0405]: `Core\Log` has no member named `info`
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

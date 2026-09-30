@@ -50,3 +50,4 @@ error[E0772]: `Docs::page` admits `7`, `9` for `lang`, and this link supplies `D
 error[E0772]: `Docs::shelf` admits `New`, `Sale` for `shelf`, and this link supplies `1`
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

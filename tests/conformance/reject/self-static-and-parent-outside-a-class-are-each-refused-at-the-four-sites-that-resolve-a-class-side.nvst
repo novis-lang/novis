@@ -58,3 +58,4 @@ error[E0303]: `static` used outside any class
    = help: `self`, `static` and `parent` each name a class through the declaration they are written in — name the class itself, or move this inside one
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

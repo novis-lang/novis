@@ -112,3 +112,4 @@ error[E0706]: `&` has no meaning for `bool`
    = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error: aborting due to 10 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

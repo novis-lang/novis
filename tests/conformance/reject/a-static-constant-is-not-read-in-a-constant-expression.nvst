@@ -15,3 +15,4 @@ error[E0831]: `static::` has no class in a constant expression
   --> case.nvs:4:28
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

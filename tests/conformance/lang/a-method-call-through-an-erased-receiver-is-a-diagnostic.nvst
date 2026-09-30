@@ -37,3 +37,4 @@ error[E0477]: `{x: int}` names no class, so it has no method `scaled`
    = help: narrow the receiver to the class that declares `scaled` first — `if ($x is ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

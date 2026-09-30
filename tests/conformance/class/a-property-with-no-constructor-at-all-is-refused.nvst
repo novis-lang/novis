@@ -13,3 +13,4 @@ error[E0409]: `$n` has no default value, and `Box` declares no constructor to as
   --> case.nvs:3:16
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

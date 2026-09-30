@@ -35,3 +35,4 @@ error[E0742]: `void` is a return type only, and this is a binding
    --> case.nvs:16:17
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

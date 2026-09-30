@@ -74,3 +74,4 @@ error[E0401]: expected `bytes`, found `secret tainted bytes`
 error[E0401]: expected `bytes`, found `tainted bytes`
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

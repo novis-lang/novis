@@ -38,3 +38,4 @@ error[E0405]: `Core\Task` has no member named `race`
    --> case.nvs:19:9
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

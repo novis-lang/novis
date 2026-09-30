@@ -54,3 +54,4 @@ error[E0755]: `Users::show`'s path `/users/{id}` captures `id`, and this `$param
    --> case.nvs:34:6
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

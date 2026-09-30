@@ -80,3 +80,4 @@ error[E0708]: `null` cannot be converted to `int`
 error[E0473]: `Foo` is a class, so `as ?Foo` is not a conversion
 %A
 error: aborting due to 14 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

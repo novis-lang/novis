@@ -76,3 +76,4 @@ error[E0401]: expected `string`, found `tainted string`
 error[E0401]: expected `string`, found `secret tainted string`
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

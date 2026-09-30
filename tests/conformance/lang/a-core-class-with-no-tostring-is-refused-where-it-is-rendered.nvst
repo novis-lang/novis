@@ -64,3 +64,4 @@ error[E0710]: `Core\Time\Instant` cannot be converted to `string`; it has no `to
    = help: a `Core` class renders exactly where the spec gives it a `toString`, and this one has none — call the member that answers the text you want
 
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

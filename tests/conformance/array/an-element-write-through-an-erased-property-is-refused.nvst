@@ -36,3 +36,4 @@ error[E0480]: an array element cannot be written through the erased property `ro
    --> case.nvs:24:1
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

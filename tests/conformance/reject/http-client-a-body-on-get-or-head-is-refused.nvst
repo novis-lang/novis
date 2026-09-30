@@ -32,3 +32,4 @@ error[E0816]: `Core\Http\Client::head` sends no body, and `body` is one
    = help: a `HEAD` asks a question rather than carrying one, and a server reads no body off it: put the value in the URL's query, or send it with the member whose verb takes a body
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -37,3 +37,4 @@ var $rows = $db->queryAs("select id from people", []);
 error[E0442]: `Core\Db\Connection::queryAs` takes 1 type argument(s)
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

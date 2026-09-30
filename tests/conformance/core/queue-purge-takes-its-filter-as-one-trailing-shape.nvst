@@ -19,3 +19,4 @@ uint $beside = Core\Queue::purge("email", Core\Queue\State::Dead);
 error[E0453]: an options argument must be written out as `{...}` at the call site
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

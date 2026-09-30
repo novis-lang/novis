@@ -42,3 +42,4 @@ error[E0233]: a nested `type` declaration is not supported
    --> case.nvs:24:10
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

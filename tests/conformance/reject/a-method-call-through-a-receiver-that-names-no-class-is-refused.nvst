@@ -87,3 +87,4 @@ error[E0459]: `null|Dog` may be `null`, so `->` cannot reach a member of it
    = help: test it first — inside `if ($x != null) { … }` the receiver is no longer nullable — or use `?->`, which answers `null` instead of reaching the member
 
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

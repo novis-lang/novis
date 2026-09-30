@@ -22,3 +22,4 @@ error[E0448]: a `yield` has no key half in Novis
   --> case.nvs:5:15
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -22,3 +22,4 @@ class Steps {
 error[E0303]: `Countable` is not declared
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -43,3 +43,4 @@ error[E0240]: a name is already absolute
 error[E0303]: `App\Helper` is not declared
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

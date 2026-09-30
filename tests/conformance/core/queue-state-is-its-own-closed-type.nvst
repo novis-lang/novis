@@ -22,3 +22,4 @@ Core\Db\Isolation $wrong = $state;
 error[E0401]: expected `Core\Db\Isolation`, found `Core\Queue\State`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -13,6 +13,15 @@ use crate::diagnostic::{Diagnostic, Label, LabelStyle, Severity};
 use crate::source::SourceMap;
 use crate::span::SourceId;
 
+/// The line a terminal rendering closes with when any diagnostic in it carried
+/// a code: where the reader finds that code's card.
+///
+/// It does not start with a severity label, so a reader that picks the heads
+/// out of a rendering by their labels passes over it as it passes over the
+/// summary.
+pub const AGENT_SHOW_LINE: &str =
+    "To read what a code means and how to fix it, run `nvs agent show <code>`.";
+
 /// Renders diagnostics as rustc-style annotated source snippets.
 #[derive(Debug, Clone)]
 pub struct Renderer {
@@ -247,7 +256,12 @@ impl Renderer {
         out.write_all(b"\n")
     }
 
-    /// Renders many diagnostics, then a summary line if anything was fatal.
+    /// Renders many diagnostics, then a summary line if anything was fatal, then
+    /// [`AGENT_SHOW_LINE`] if any of them carried a code.
+    ///
+    /// The last line is written once per call rather than once per diagnostic,
+    /// and it is the same text whatever the codes were, because each head above
+    /// it already names its own — `rule:tooling/a-diagnostic-code-carries-its-card`.
     ///
     /// # Errors
     ///
@@ -260,12 +274,14 @@ impl Renderer {
     ) -> io::Result<()> {
         let mut errors = 0usize;
         let mut warnings = 0usize;
+        let mut coded = false;
         for d in diagnostics {
             match d.severity {
                 Severity::Error | Severity::Bug => errors += 1,
                 Severity::Warning => warnings += 1,
                 _ => {}
             }
+            coded |= d.code.is_some();
             self.render(d, map, out)?;
         }
 
@@ -279,6 +295,10 @@ impl Renderer {
                 summary.push_str(&format!("; {warnings} warning{wp} emitted"));
             }
             self.paint(Style::new().bold(), &summary, out)?;
+            out.write_all(b"\n")?;
+        }
+        if coded {
+            out.write_all(AGENT_SHOW_LINE.as_bytes())?;
             out.write_all(b"\n")?;
         }
         Ok(())
@@ -493,9 +513,12 @@ mod tests {
             .unwrap();
         let out = String::from_utf8(buf).unwrap();
         assert!(
-            out.contains("aborting due to 2 errors; 1 warning emitted"),
+            out.ends_with(&format!(
+                "error: aborting due to 2 errors; 1 warning emitted\n{AGENT_SHOW_LINE}\n"
+            )),
             "got:\n{out}"
         );
+        assert_eq!(out.matches(AGENT_SHOW_LINE).count(), 1, "got:\n{out}");
     }
 
     #[test]
@@ -510,6 +533,26 @@ mod tests {
             .unwrap();
         let out = String::from_utf8(buf).unwrap();
         assert!(!out.contains("aborting"), "got:\n{out}");
+        // A warning has a card as an error does, so the run still names where
+        // to read it.
+        assert!(
+            out.ends_with(&format!("{AGENT_SHOW_LINE}\n")),
+            "got:\n{out}"
+        );
+    }
+
+    #[test]
+    fn no_agent_show_line_without_a_code() {
+        let mut map = SourceMap::new();
+        let f = map.add("t.nvs", "abc\n");
+        let mut d =
+            Diagnostic::error(code::E_EVAL_UNSUPPORTED, "e").with_primary(Span::new(f, 0, 1), "");
+        d.code = None;
+        let mut buf = Vec::new();
+        Renderer::new().render_all([&d], &map, &mut buf).unwrap();
+        let out = String::from_utf8(buf).unwrap();
+        assert!(out.contains("aborting due to 1 error"), "got:\n{out}");
+        assert!(!out.contains(AGENT_SHOW_LINE), "got:\n{out}");
     }
 
     #[test]

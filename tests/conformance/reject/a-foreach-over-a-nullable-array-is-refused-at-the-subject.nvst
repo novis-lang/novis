@@ -40,3 +40,4 @@ error[E0443]: `foreach` cannot iterate a `null|array<string>`
 error[E0443]: `foreach` cannot iterate a `null|array<string>`
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

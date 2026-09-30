@@ -18,3 +18,4 @@ var $c = Core\Task::all("not a shape");
 error[E0401]: expected `{name: callable(): T, ...}`, found `array<mixed>`
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

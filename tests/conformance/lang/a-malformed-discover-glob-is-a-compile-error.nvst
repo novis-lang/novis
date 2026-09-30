@@ -32,3 +32,4 @@ error[E0318]: `./plugin-*/src` is not a discovery glob
 error[E0318]: `./*/*/src` holds more than one `*`
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

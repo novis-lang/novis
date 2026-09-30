@@ -36,3 +36,4 @@ error[E0810]: `email` is declared `string` in `{email: string}`, and `Core\Reque
    --> case.nvs:11:34
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

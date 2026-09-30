@@ -51,3 +51,4 @@ error[E0785]: `Shape` is `abstract`, so it has no instances
 error[E0786]: `Counter::reset` is `abstract`, but `Counter` is not
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

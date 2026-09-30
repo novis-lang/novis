@@ -34,3 +34,4 @@ error[E0499]: `static::` does not resolve a static property
    = help: write `self::` for the class this is declared in, or name the class whose storage is meant
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

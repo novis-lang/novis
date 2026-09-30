@@ -46,3 +46,4 @@ error[E0414]: `var` cannot infer an array literal's element type
 error[E0208]: `settype` is not supported
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

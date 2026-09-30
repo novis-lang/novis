@@ -39,3 +39,4 @@ error[E0484]: a `...` array element needs an `array<T>` to spread
    = help: `...` contributes the subject's own entries to the array being built, so the subject has to have entries — write the value as an ordinary element instead
 
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

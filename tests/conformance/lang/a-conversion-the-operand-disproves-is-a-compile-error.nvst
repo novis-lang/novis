@@ -18,3 +18,4 @@ error[E0469]: `"z"` is not one of `"a"`, `"b"`
 error[E0470]: `Mode::Admin` is not one of `Mode::Read`, `Mode::Write`
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

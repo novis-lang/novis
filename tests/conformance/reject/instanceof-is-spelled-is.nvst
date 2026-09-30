@@ -22,3 +22,4 @@ error[E0253]: `instanceof` is not a Novis operator; the type test is `is`
    = help: write `$x is Request`; a class reference on the right is `$x is $cls` (`rule:types/type-test`)
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

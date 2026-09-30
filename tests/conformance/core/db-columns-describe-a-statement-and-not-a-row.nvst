@@ -34,3 +34,4 @@ error[E0401]: expected `array<Core\Db\Row>`, found `array<Core\Db\Column>`
    --> case.nvs:26:29
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

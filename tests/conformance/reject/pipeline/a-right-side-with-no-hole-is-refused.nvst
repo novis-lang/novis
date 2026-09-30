@@ -13,3 +13,4 @@ echo $padded |> Core\Str::trim("y"), "\n";
 error[E0129]: the right side of `|>` needs the hole `$_`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -32,3 +32,4 @@ error[E0817]: `contentType` is written without `body`
    = help: `contentType` names the media type `body`'s octets are sent under: write the octets, or drop it — a `json`, `form` or `multipart` body already carries the type its own key named
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

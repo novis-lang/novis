@@ -38,3 +38,4 @@ error[E0479]: `?->` cannot be written through
 error[E0479]: `?->` cannot be written through
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

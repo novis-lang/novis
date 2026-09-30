@@ -18,3 +18,4 @@ error[E0223]: closures have no `use` clause
 error[E0808]: this parameter has no type, and no position to take one from
 %A
 error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

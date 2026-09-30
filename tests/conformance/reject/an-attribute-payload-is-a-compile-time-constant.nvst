@@ -87,3 +87,4 @@ error[E0725]: an attribute's field value is not a compile-time constant
    --> case.nvs:62:43
 %A
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -42,3 +42,4 @@ error[E0732]: `get(...)` names no closure through a `mixed` receiver
    = help: `rule:types/erased-member-access` defers a *call* through a `mixed` to the receiver's runtime class, but a closure value carries its callee with it and there is no class here to read one off — call the member directly (`$m->get(…)`), or narrow the receiver first with `is` or `as ClassName`
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

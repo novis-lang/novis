@@ -72,3 +72,4 @@ error[E0707]: `array<int>` has no string form
    = help: an `array<T>` has no text of its own; render it — `Core\Json::encode($a)` — or build the string from its elements
 
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

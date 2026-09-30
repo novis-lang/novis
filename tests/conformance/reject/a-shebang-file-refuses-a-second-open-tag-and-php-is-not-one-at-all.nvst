@@ -21,3 +21,4 @@ error[E0009]: this file opens with `#!` and is already in code mode
 error[E0229]: `<?php` is not supported
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

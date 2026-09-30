@@ -86,3 +86,4 @@ error[E0801]: a response has one body, and this handler writes it with both `Cor
    --> case.nvs:44:9
 %A
 error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

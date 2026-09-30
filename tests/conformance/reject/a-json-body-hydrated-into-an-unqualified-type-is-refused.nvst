@@ -65,3 +65,4 @@ error[E0810]: `Author::$name` is declared `string`, and `Core\Request::jsonAs` a
 error[E0810]: `Post::$tags` is declared `array<string>`, and `Core\Request::jsonAs` answers a peer's octets
 %A
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

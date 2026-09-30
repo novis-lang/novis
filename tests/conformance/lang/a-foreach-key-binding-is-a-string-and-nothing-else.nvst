@@ -84,3 +84,4 @@ error[E0723]: an array's key binding is a `string`, not `int`
    = help: `rule:types/arrays` gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
 
 error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

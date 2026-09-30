@@ -24,3 +24,4 @@ error[E0402]: this member requires the shape key `driver`
    = help: the keys this member requires are: driver, host, database, user, password
 
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

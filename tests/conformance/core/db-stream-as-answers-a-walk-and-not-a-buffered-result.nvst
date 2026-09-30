@@ -43,3 +43,4 @@ Core\Db\Rows<Person> $wrong = $db->streamAs<Person>("select id, name from people
 error[E0401]: expected `Core\Db\Rows<Person>`, found `Core\Db\Stream<Person>`
 %A
 error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

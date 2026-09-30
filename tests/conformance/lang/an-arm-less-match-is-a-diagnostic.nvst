@@ -26,3 +26,4 @@ error[E0476]: a `match` with no arms has no value
   = help: write the arm this was meant to have, or `throw` outright if the intent was to refuse every subject
 
 error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

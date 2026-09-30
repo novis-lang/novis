@@ -74,3 +74,4 @@ error[E0133]: a `type` alias takes no modifier and no attribute group
    --> case.nvs:47:5
 %A
 error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
