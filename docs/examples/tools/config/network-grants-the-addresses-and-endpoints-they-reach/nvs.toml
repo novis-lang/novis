@@ -1,0 +1,6 @@
+# Programs may open a server on 127.0.0.1 and connect to two loopback addresses.
+# Only 127.0.0.1 is listed under `internal`, so only that address is reached.
+[capabilities.net]
+listen = ["127.0.0.1:0"]
+connect = ["127.0.0.1", "127.0.0.2"]
+internal = ["127.0.0.1"]

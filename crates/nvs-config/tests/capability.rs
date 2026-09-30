@@ -278,6 +278,7 @@ fn ip(text: &str) -> std::net::IpAddr {
 /// `rule:security/net-address-policy`'s table reads an IPv6 address that carries an IPv4 address —
 /// mapped, IPv4-compatible or behind the NAT64 well-known prefix — as the address it carries, and an
 /// exception written for the IPv4 address does not reach the two wider spellings.
+// covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
 #[test]
 fn an_ipv6_address_carrying_an_internal_ipv4_address_is_denied() {
     for (carried, range) in [
@@ -335,6 +336,7 @@ fn an_ipv6_address_carrying_an_internal_ipv4_address_is_denied() {
 /// incidental to it: `true` is the one `Setting` spelling that does not mean everything here, and a
 /// hostname entry matches nothing at all, because this list is read before resolution and a name
 /// checked here would exempt whatever it resolved to afterwards.
+// covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
 #[test]
 fn an_operator_exception_names_one_address_and_widens_nothing_else() {
     let disk = Disk::of(&["/srv"]);
@@ -612,6 +614,7 @@ fn db_schema_names_blocks_and_does_not_follow_from_db_connect() {
 /// resolved. `net.listen` is asked of an **endpoint**, and both sides of the comparison are parsed:
 /// what a program binds is an address, not the string an operator typed, so one address's several
 /// spellings are one endpoint and an entry that is not an endpoint at all matches nothing.
+// covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
 #[test]
 fn net_listen_and_net_local_are_on_the_roster_and_denied_by_default() {
     let disk = Disk::of(&["/run", "/run/redis.sock", "/var/run", "/var/run/other.sock"]);

@@ -1,0 +1,4 @@
+connected
+Core\Net::connect refuses 127.0.0.2: it is loopback (127.0.0.0/8), which `net.internal` does not except
+Core\Net::listen needs the capability `net.listen` for 127.0.0.1:8080, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`
