@@ -27148,6 +27148,19 @@ build neither `nvs run` nor `nvs config check` applies it: `nvs run` executes a 
 person chose, from a working directory they chose, and an offline audit on another machine cannot
 answer the question the check asks.
 
+A tree that passes on Linux. Only `root` can write, and the group `novis` that runs the server can
+read:
+
+```text
+drwxr-x---  root  novis  /opt/novis/config/
+-rw-r-----  root  novis  /opt/novis/config/nvs.toml
+drwxr-x---  root  novis  /opt/novis/config/conf.d/
+-rw-r-----  root  novis  /opt/novis/config/conf.d/10-limits.toml
+```
+
+`chmod 0664 /opt/novis/config/nvs.toml` gives the group the right to write, and the next start
+fails with `E0607`.
+
 [Installing on a host](#tools-install) lists the permissions that pass, the commands that set them
 on Windows and on Linux, and what each refusal message means.
 
@@ -27174,8 +27187,9 @@ password_file = "/run/secrets/mail-password"
 The value is read at boot, and again each time the configuration is applied, never per request. It never appears
 in a diagnostic or a dump: `nvs config dump` prints `<secret>` and names the file the value came
 from, so an audit can act on the file without the credential passing through the audit.
-`Core\Config::get("db.main.password")` answers the value, not the path — the `_file` sibling is how
-the value is *written*, not a second key a program reads.
+`Core\Config::get("db.main.password")` returns the value. `Core\Config::get("db.main.password_file")`
+returns the path as it was written, so a program can say where a credential came from without
+printing it.
 
 A secret file is part of the trust boundary above, because an account that can rewrite it chooses
 the credential the server connects with. So a secret file another account can **write** refuses the
