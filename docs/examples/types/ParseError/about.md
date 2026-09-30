@@ -1,14 +1,15 @@
-The error for input that did not match a format the program declared: a document that is not the
-document it was announced as, a field that will not convert to the type it is read into, a value
-nested deeper than the reader was allowed to go. It sits on the `RuntimeError` side of the tree,
-because being handed a bad document is the world's doing rather than the program's.
+The error a program throws when input does not match the format it should have: text that is not
+valid JSON, a field with the wrong type, or a document that is nested too deeply.
 
-What makes it different from every other error is the list it carries. Besides the message and the
-place it was thrown from, a `ParseError` has `issues`: one entry per thing that was wrong, each
-naming the field it was found at and what was wrong there. A form with three bad fields is one
-error reporting all three, so a reply can tell a person about every one of them instead of one per
-attempt. A document that is simply broken is one entry whose field name is empty — nothing in
-particular was at fault, the whole thing was.
+`ParseError` is a kind of `RuntimeError`, because bad input comes from outside the program.
 
-**The examples below** show a form whose every bad field is reported at once, a document that is not
-JSON at all, and a reply naming each field a signup got wrong.
+A `ParseError` has a `message` like every error, and it also has `issues`. `issues` is a list with
+one entry for each problem that was found. Each entry has a `path`, which is the name of the field,
+and a `message`, which says what is wrong with that field. A form with three bad fields throws one
+`ParseError` with three entries. Your reply can then tell the person about all three fields at once.
+
+**Good to know:** when the whole document is broken, `issues` has one entry and its `path` is an
+empty string.
+
+**The examples below** show a form with two bad fields that are reported together, a document that
+is not valid JSON, and a JSON reply that names each wrong field of a signup.
