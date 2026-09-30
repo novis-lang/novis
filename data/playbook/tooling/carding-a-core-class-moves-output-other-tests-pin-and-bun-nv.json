@@ -1,0 +1,12 @@
+{
+  "lead": "Carding a `Core` class moves output other tests pin, and `bun nv verify --fast` names them only as a failing test binary.",
+  "body": "A `ClassDoc` adds a `///` line to the class's generated stub, so a `tests/lsp/definition/*.lspt` whose `--EXPECT--` is `stubs/Core/<Class>.nvs:L:C` moves down one line, and `nvs agent show <Class>` prints the card under the class line, so `crates/nvs-cli/tests/agent.rs` asserting a bare class line fails. Before carding, `grep -rn \"stubs/Core/<Class>\" tests/lsp` and `grep -n '<Class>' crates/nvs-cli/tests/agent.rs`, and move the pinned line in the same commit.",
+  "files": [
+    "crates/nvs-cli/tests/agent.rs",
+    "crates/nvs-stdlib/src/registry.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/registry.rs:CLASSES_STILL_OWING_A_CARD"
+  }
+}

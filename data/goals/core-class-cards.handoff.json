@@ -1,31 +1,32 @@
 {
-  "state": "**Goal `core-class-cards`, Stage 2 (the cards), is under way: 31 of 64 listed classes carry their card.**\n`Core\\Arr` through `Core\\Csv\\Rows` in the list's order are carded and struck from\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`; `bun nv class-cards` prints\nthe 33 left, starting at `Core\\Db`. Goal `limit-handler-reach`'s whole list is Stage 1's floor.\n\nADR 0203 holds the design and nothing about it is a session's to re-decide. The voice is AGENTS.md\n§ *Text an end user reads*; the goal's standing decisions say what a card is and is not. The shape\nevery card so far uses: a `/// \\`Core\\X\\`'s class card — \\`rule:core-api/reference-card\\`.` const\nnamed `CARD` (or `<CLASS>_CARD` for a second class in the module) placed directly above the first\nclass's doc comment, never between a doc comment and its item, `ClassDoc` added to the module's\n`use crate::registry::{…}`, and `doc: Some(&…)` on the row. `docs/reference/core/<Class>.md`'s\n`summary:` is a quick source for what a class is for.",
+  "state": "**Goal `core-class-cards`, Stage 2 (the cards), is under way: 51 of 64 listed classes carry their card.**\n`Core\\Arr` through `Core\\Html\\Markup` in the list's order are carded and struck from\n`CLASSES_STILL_OWING_A_CARD` in `crates/nvs-stdlib/src/registry.rs`; `bun nv class-cards` prints\nthe 13 left, starting at `Core\\Http`. Goal `limit-handler-reach`'s whole list is Stage 1's floor.\n\nADR 0203 holds the design and nothing about it is a session's to re-decide. The voice is AGENTS.md\n§ *Text an end user reads*; the goal's standing decisions say what a card is and is not. The shape\nevery card so far uses: a `/// \\`Core\\X\\`'s class card — \\`rule:core-api/reference-card\\`.` const\nnamed `CARD` (or `<CLASS>_CARD` for a second class in the module), all of a module's cards in one\nblock directly above the first class's doc comment, never between a doc comment and its item,\n`ClassDoc` added to the module's `use crate::registry::{…}`, and `doc: Some(&…)` on the row. One\n`bun nv splice --patch` per module set does all of it. Carding a class can move a pinned stub line\nor `nvs agent show` output: the playbook's *Tooling* bullet on carding says where to look.",
   "next": {
     "stage": 2,
     "title": "the cards",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/registry.rs` and the `Core\\Db` family, which is one module.",
+    "note": "one file set: `crates/nvs-stdlib/src/registry.rs` and `crates/nvs-stdlib/src/http.rs`, which holds the whole `Core\\Http` family.",
     "items": [
       {
         "done": false,
-        "text": "**Card the eleven `Core\\Db` classes in the db registry module** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/db/registry.rs:133` (`Core\\Db`), `:254` Connection, `:615` Transaction, `:1211` Rows, `:1324` Row, `:1487` Write, `:1547` Column, `:1595` InList, `:1614` Schema, `:1788` Plan, `:1822` Plan\\Step; delete each from `crates/nvs-stdlib/src/registry.rs:5283` in the same commit."
+        "text": "**Card the five `Core\\Http` classes in one module** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/http.rs:148` (`Core\\Http`), `:204` Target, `:253` Identity, `:1136` Part, `:1547` Client; delete each from `crates/nvs-stdlib/src/registry.rs:5283` in the same commit."
       },
       {
         "done": false,
-        "text": "**Card `Core\\Db\\Stream`** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/db/stream.rs:75`."
+        "text": "**Card `Core\\IO\\Lines` and `Core\\IO\\Walk`** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/io.rs:1715`, `:1789`."
       },
       {
         "done": false,
-        "text": "**Then the list onward** — `Core\\Debug`, `Core\\Decimal`, `Core\\Encoding`, `Core\\Env`, `Core\\Fatal`, one module each — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/debug.rs:104`, `crates/nvs-stdlib/src/decimal.rs:84`, `crates/nvs-stdlib/src/encoding.rs:337`, `crates/nvs-stdlib/src/env.rs:108`, `crates/nvs-stdlib/src/fatal.rs:43`."
+        "text": "**Card the three `Core\\Request` classes** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/request.rs:1102` BodyStream, `:1151` Files, `:1501` PartContent."
       },
       {
         "done": false,
-        "text": "**Hold the pair together** — `cargo test --lib every_registry_row_carries_a_reference_card` names a class carded and still listed, or listed and not carded; `crates/nvs-stdlib/src/registry.rs:5283`."
+        "text": "**Then the last three, one module each** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/regex.rs:480` Pattern, `crates/nvs-stdlib/src/script.rs:123` Handle, `crates/nvs-stdlib/src/channel.rs:117` Task\\Channel. When the list is empty, delete `CLASSES_STILL_OWING_A_CARD` and its uses in `crates/nvs-stdlib/src/registry.rs:5283`, and `bun nv class-cards --check` turns stage 2 green."
       }
     ]
   },
   "backlog": [
-    "The rest of the list after `Core\\Fatal`: Hash, Heap, Html, Http, IO\\Lines, IO\\Walk, Regex\\Pattern, the three `Core\\Request` handles, Script\\Handle, Task\\Channel — `bun nv class-cards`.",
-    "Stage 5 (*Help* for a `Core` class) cannot pass before Stage 2 has — the goal's standing decisions."
+    "Stage 3, the index entries — `every_key_command_flag_and_code_is_an_index_entry`, owned by `docs/agent/goals/core-class-cards.md`.",
+    "Stage 4, the code cards — `every_code_carries_its_card_or_is_listed`, same owner.",
+    "Stage 5, help is owed — `bun nv proofs` with an empty `data/proofs/help-backlog.json`, same owner."
   ]
 }
