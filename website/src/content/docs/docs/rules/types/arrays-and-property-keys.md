@@ -84,7 +84,7 @@ things change.
 - The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
 - **Array literals are checked against the target type, never inferred and then compared.** Because
   every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
-  ([`types/var-inference`](/docs/rules/types/declarations-and-numbers/#var-inference "var takes a local's type from its initializer and fixes it there for good")). Each element is placed at the element type, so `[1, $count]` at
+  ([`types/var-inference`](/docs/rules/types/declarations-and-numbers/#var-inference "var takes a local's or a foreach binding's type from the expression that fills it, and fixes it there for good")). Each element is placed at the element type, so `[1, $count]` at
   `array<float>` stores two floats, at any depth and in a shape field.
 - At runtime an array header carries a pointer to an interned, immutable type descriptor **exactly
   where something reads one back**: **one pointer per array header**, interned process-wide and

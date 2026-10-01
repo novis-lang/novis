@@ -260,12 +260,12 @@
               "title": "Every binding declares its type, and no binding's type ever changes",
               "status": "shipped",
               "href": "/docs/rules/types/declarations-and-numbers/#declaration",
-              "diverges": "a local, a `foreach` binding, a `for` counter and a destructuring target all carry a written type, and PHP source with none does not compile"
+              "diverges": "a local, a `foreach` binding, a `for` counter and a destructuring target all carry a type, written or (for the first three) taken with `var`, and PHP source with neither does not compile"
             },
             {
               "id": "types/var-inference",
               "slug": "var-inference",
-              "title": "`var` takes a local's type from its initializer and fixes it there for good",
+              "title": "`var` takes a local's or a `foreach` binding's type from the expression that fills it, and fixes it there for good",
               "status": "shipped",
               "href": "/docs/rules/types/declarations-and-numbers/#var-inference",
               "diverges": null
