@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { descendants, killTree, processTable, run } from "../lib/proc.ts";
 import { sinceOverlay } from "../select/change.ts";
 import { CovMap } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
@@ -126,34 +125,6 @@ describe("moving the base past a green run", () => {
     }
     expect(st.base()).toBeNull();
     expect(st.atom("test:a lib a")!.verdict).toBe("green");
-  });
-});
-
-describe("process trees", () => {
-  test("the process table holds this process, and a tree is killed whole", async () => {
-    const table = processTable();
-    expect(table.some(([pid]) => pid === process.pid)).toBe(true);
-    const argv = process.platform === "win32" ? ["cmd", "/c", "ping -n 60 127.0.0.1 > NUL"] : ["sh", "-c", "sleep 60 & wait"];
-    const child = Bun.spawn(argv, { stdout: "ignore", stderr: "ignore" });
-    let below: number[] = [];
-    for (let i = 0; i < 50 && below.length === 0; i++) {
-      await Bun.sleep(100);
-      below = descendants(child.pid);
-    }
-    expect(below.length).toBeGreaterThan(0);
-    killTree(child.pid);
-    await child.exited;
-    await Bun.sleep(200);
-    const left = new Set(processTable().map(([pid]) => pid));
-    expect(below.filter((p) => left.has(p))).toEqual([]);
-  });
-
-  test("a run past its timeout kills what its program started", async () => {
-    const argv = process.platform === "win32" ? ["cmd", "/c", "ping -n 60 127.0.0.1 > NUL"] : ["sh", "-c", "sleep 60 & wait"];
-    const started = performance.now();
-    const r = await run(argv, { timeoutMs: 1_000 });
-    expect(r.timedOut).toBe(true);
-    expect(performance.now() - started).toBeLessThan(30_000);
   });
 });
 

@@ -27,7 +27,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { digest } from "../keys/scan.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
-import { killTree, reapOrphans, run as runProc } from "../lib/proc.ts";
+import { Tree } from "../driver/proctree.ts";
+import { run as runProc } from "../lib/proc.ts";
 import { inPart } from "../lib/reads.ts";
 import { record } from "../lib/written.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
@@ -218,22 +219,28 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
     stdout: "pipe",
     stderr: "pipe",
   });
+  const tree = new Tree(child.pid, child);
+  let done = false;
   let timedOut = false;
+  // Once the program has exited, the timeout reaches only what it left holding the pipes.
   const timer = setTimeout(() => {
     timedOut = true;
-    killTree(child.pid);
+    if (done) tree.reap();
+    else tree.kill();
   }, timeoutMs);
   try {
     const reading = Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
     const exited = await child.exited;
+    done = true;
     // What a failed or killed program left running is killed with it, so it holds no pipe and no file.
-    if (exited !== 0 || timedOut) reapOrphans(child.pid);
+    if (exited !== 0 || timedOut) tree.reap();
     const [stdout, stderr] = await reading;
     // A program ended by a signal has no exit status of its own, and that is crash-shaped.
     const code = child.signalCode && !timedOut ? -1 : exited;
     return { code, stdout, stderr, timedOut, ms: performance.now() - started };
   } finally {
     clearTimeout(timer);
+    tree.close();
   }
 }
 
