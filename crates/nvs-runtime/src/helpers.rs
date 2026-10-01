@@ -2165,9 +2165,8 @@ crate::nvs_helper! {
 /// `array<array<int>>` is checked all the way down.
 ///
 /// No widening, unlike the closure-entry check: an `int` element does not
-/// satisfy `array<float>`. `rule:types/conversion`'s implicit `int → float` widening is a
-/// conversion, and a conversion here would have to *rewrite* the element,
-/// which is the copy this row exists without.
+/// have the tag `array<float>` describes. [`convert_element`] is what turns
+/// one into a `float`, in the copy [`to_array_of`] makes for it.
 fn element_has_tag(value: Value, tags: u64) -> bool {
     let nibble = u8::try_from(tags & 0xf).unwrap_or(u8::MAX);
     if nibble == crate::closure::CLOSURE_PARAM_TAG_ANY {
@@ -2235,40 +2234,119 @@ unsafe fn every_element_has_tag(array: *mut crate::array::ArrayHeader, tags: u64
 /// `rule:types/conversion`'s `array<T> as array<U>` row, shared by its throwing and its
 /// `null`-answering spelling exactly as [`to_bytes`] shares that pair's.
 ///
-/// `None` for an operand that is not an array at all — `rule:types/unions-and-mixed`'s `mixed`
-/// reaching this row — and for one whose walk found an element `U` does not
-/// admit.
+/// `Err(None)` for an operand that is not an array at all —
+/// `rule:types/unions-and-mixed`'s `mixed` reaching this row — and for one
+/// whose walk found an element `U` does not admit. `Err(Some(fault))` for an
+/// `int` or `uint` element that is not exact as a `float`.
 ///
-/// **The result is the operand's own allocation under one more reference.**
-/// `rule:types/arrays` makes `array<T>` invariant so that the restamp is visible
-/// rather than hidden inside an assignment, and the restamp is the walk; the
-/// buffer itself can stay shared, because an Novis array is copy-on-write and
-/// whichever of the two views writes first separates itself
-/// ([`crate::array`]'s `make_unique`). Copying here would be O(n) bytes moved
-/// to reach a state observably identical to this one.
-fn to_array_of(value: Value, tags: Value) -> Option<Value> {
-    let tags = tags.as_uint()?;
-    let array = value.array_ptr()?;
+/// **Where every element already has `U`'s tag, the result is the operand's
+/// own allocation under one more reference.** The buffer can stay shared,
+/// because a Novis array is copy-on-write and whichever of the two views
+/// writes first separates itself ([`crate::array`]'s `make_unique`).
+///
+/// **Where an `int` or `uint` element meets a `float` in `U`, the result is a
+/// new array** ([`converted_array`]): the elements are stored without a
+/// conversion of their own, so converting one means rewriting it, and the
+/// operand's other owners still read the `int`. That costs one array of the
+/// operand's size, per level that holds such an element.
+fn to_array_of(value: Value, tags: Value) -> Result<Value, Option<Fault>> {
+    let tags = tags.as_uint().ok_or(None)?;
+    let array = value.array_ptr().ok_or(None)?;
     #[expect(
         unsafe_code,
         reason = "a Tag::Array value's payload is a live allocation the caller \
-                  owns a reference to, and the result carries a second one the \
-                  caller will release"
+                  owns a reference to, and the result carries a reference of its \
+                  own the caller will release"
     )]
     unsafe {
-        if !every_element_has_tag(array, tags) {
-            return None;
+        converted_array(array, tags)
+    }
+}
+
+/// `array`'s elements at the level `tags` describes, as [`to_array_of`]
+/// gives them: `array` itself under one more reference where every element
+/// has its tag, and otherwise a copy with each element [`convert_element`]
+/// converts.
+///
+/// Where the running request cannot afford the copy, the answer is `array`
+/// under one more reference. [`crate::budget::affords`] has recorded the
+/// breach by then, so the request is over and allocates nothing more.
+///
+/// # Safety
+///
+/// `array` must refer to a live Novis array allocation.
+#[expect(
+    unsafe_code,
+    reason = "the array pointer's liveness is the caller's to guarantee and \
+              the signature cannot express it"
+)]
+unsafe fn converted_array(
+    array: *mut crate::array::ArrayHeader,
+    tags: u64,
+) -> Result<Value, Option<Fault>> {
+    #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
+    let unchanged = unsafe { every_element_has_tag(array, tags) };
+    if !unchanged {
+        // A borrowed handle: the caller owns the reference, so this one must
+        // not release it when it goes out of scope.
+        #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
+        let source = std::mem::ManuallyDrop::new(unsafe { crate::NvsArray::from_raw(array) });
+        if let Some(copy) = source.map_values(|value| convert_element(value, tags))? {
+            return Ok(Value::array(copy));
         }
+    }
+    #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
+    unsafe {
         crate::array::nvs_array_retain(array);
     }
-    Some(Value::from_array_ptr(array))
+    Ok(Value::from_array_ptr(array))
+}
+
+/// One element of [`converted_array`]'s walk: `Ok(None)` where it already has
+/// the tag the level of `tags` describes, `Ok(Some(v))` with the converted
+/// element where it can be converted, and the [`to_array_of`] error where it
+/// cannot.
+///
+/// An `int` or `uint` meets a `float` the way `$n as float` does: exact, or
+/// the error above 2^53. An array meets an array one level down.
+fn convert_element(value: Value, tags: u64) -> Result<Option<Value>, Option<Fault>> {
+    if element_has_tag(value, tags) {
+        return Ok(None);
+    }
+    let target = u8::try_from(tags & 0xf).ok().and_then(Tag::from_byte);
+    match (target, value.tag()) {
+        (Some(Tag::Float), Some(Tag::Int)) => {
+            let n = value.as_int().ok_or(None)?;
+            row::int_to_float(n)
+                .map(|f| Some(Value::float(f)))
+                .ok_or_else(|| Some(numeric_does_not_fit(&format!("`int` {n}"), "float")))
+        }
+        (Some(Tag::Float), Some(Tag::Uint)) => {
+            let n = value.as_uint().ok_or(None)?;
+            row::uint_to_float(n)
+                .map(|f| Some(Value::float(f)))
+                .ok_or_else(|| Some(numeric_does_not_fit(&format!("`uint` {n}"), "float")))
+        }
+        (Some(Tag::Array), Some(Tag::Array)) => {
+            let inner = value.array_ptr().ok_or(None)?;
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array element's payload is a live allocation the \
+                          array holding it owns a reference to"
+            )]
+            unsafe {
+                converted_array(inner, tags >> 4).map(Some)
+            }
+        }
+        _ => Err(None),
+    }
 }
 
 crate::nvs_helper! {
     /// `nvs_ir::Helper::ToArrayOf` — `rule:types/conversion`'s `array<T> as array<U>`
-    /// row, so [`to_array_of`]'s `None` is the throw rather than a `null`.
+    /// row, so [`to_array_of`]'s error is the throw rather than a `null`.
     ///
-    /// The two ways that `None` arises are told apart here rather than inside
+    /// The two ways `Err(None)` arises are told apart here rather than inside
     /// the shared walk, because they are two different mistakes: an operand
     /// that is not an array at all is `rule:types/unions-and-mixed`'s `mixed` holding something
     /// else, and it reads as every other row's refusal does; an element the
@@ -2276,16 +2354,19 @@ crate::nvs_helper! {
     /// Which element is not named, for the reason
     /// `nvs_ir::lower::Lowering::lower_checked_downcast`'s message does not
     /// name a class: the walk compares tags, and a key would have to be
-    /// rendered to be quoted.
+    /// rendered to be quoted. `Err(Some(fault))` is an `int` element above
+    /// 2^53, and throws what `$n as float` throws for it.
     fn nvs_to_array_of(_ctx, args: [2]) {
         if args[0].tag() != Some(Tag::Array) {
             return Err(does_not_fit("this value", "array"));
         }
-        to_array_of(args[0], args[1]).ok_or_else(|| {
-            Fault::thrown(
-                "an element of this array is not of the element type it is converted to"
-                    .to_owned(),
-            )
+        to_array_of(args[0], args[1]).map_err(|fault| {
+            fault.unwrap_or_else(|| {
+                Fault::thrown(
+                    "an element of this array is not of the element type it is converted to"
+                        .to_owned(),
+                )
+            })
         })
     }
 }
@@ -2293,10 +2374,10 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::ToArrayOfOrNull` — `rule:expressions/nullable-conversion`'s non-throwing form of
     /// [`nvs_to_array_of`], over [`to_array_of`]'s one implementation of the
-    /// walk. Nothing here can fault on the way, so like [`nvs_to_bytes_or_null`]
-    /// there is no exception of the program's own to keep out of the `null`.
+    /// walk. Every error of that walk is the `null`, the `int` above 2^53
+    /// included, because `$n as ?float` gives `null` for it too.
     fn nvs_to_array_of_or_null(_ctx, args: [2]) {
-        Ok(to_array_of(args[0], args[1]).unwrap_or_else(Value::null))
+        Ok(to_array_of(args[0], args[1]).unwrap_or_else(|_| Value::null()))
     }
 }
 

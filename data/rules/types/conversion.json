@@ -15,7 +15,8 @@
     "0125",
     "0126",
     "0144",
-    "0237"
+    "0237",
+    "0238"
   ],
   "divergesFromPhp": "nothing converts silently — `(int)\"abc\"` is not `0`, `PHP_INT_MAX + 1` is not a `float`, and `settype` does not exist; every conversion is written, checked, and throws rather than substituting",
   "seeAlso": [
@@ -31,6 +32,7 @@
     "tests/conformance/lang/a-lossy-conversion-throws.nvst",
     "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst",
     "tests/conformance/lang/a-string-that-is-not-a-number-refuses-to-convert.nvst",
-    "tests/conformance/lang/an-as-conversion-to-a-shape-tests-its-fields-and-throws-where-is-answers-false.nvst"
+    "tests/conformance/lang/an-as-conversion-to-a-shape-tests-its-fields-and-throws-where-is-answers-false.nvst",
+    "tests/conformance/lang/an-array-literal-at-a-float-element-type-stores-floats-and-as-converts-an-int-array.nvst"
   ]
 }

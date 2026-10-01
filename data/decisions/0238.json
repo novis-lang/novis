@@ -1,0 +1,17 @@
+{
+  "title": "An array literal at `array<float>` stores floats, an existing `array<int>` is not an `array<float>`, and `as array<float>` converts one into a new array",
+  "status": "accepted",
+  "scope": "How an `int` or `uint` meets a `float` element of an array: in an array literal, in an array that\nalready exists, and in `as array<float>`. The shape half is [0236](0236.md).",
+  "dependsOn": [
+    "0007",
+    "0054",
+    "0236"
+  ],
+  "dependsOnText": "[0007](0007.md) and [0054](0054.md) (the `int` → `float` widening is the one implicit\nconversion), [0236](0236.md) (an existing value's `int` field does not satisfy a `float` one).",
+  "validatedBy": "`tests/conformance/lang/an-array-literal-at-a-float-element-type-stores-floats-and-as-converts-an-int-array.nvst`\nand `tests/conformance/reject/an-existing-int-array-does-not-widen-to-a-float-array.nvst`.",
+  "summary": {
+    "group": "types",
+    "headline": "Whole numbers in a float array",
+    "body": "`array<float> $a = [1, 2];` stores `1.0` and `2.0`, and so does `[$count]` with an `int` variable.\nAn `array<int>` you already have is not an `array<float>`: passing, returning or assigning one there\ndoes not compile. `$counts as array<float>` converts it. The result is a new array of floats, and\nthe conversion throws for a whole number above 2^53."
+  }
+}

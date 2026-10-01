@@ -1429,11 +1429,13 @@ impl<'a> Lowering<'a> {
     /// widening row. A [`Ty::Tagged`] operand still calls, because the tag
     /// test on the operand *itself* is `rule:types/unions-and-mixed`'s whole content there.
     ///
-    /// **Ownership is the `bytes` rows'**, and the buffer is not copied:
-    /// [`Helper::ToArrayOf`] hands back the operand's own allocation under one
-    /// more reference, so a borrowed operand needs nothing and a fresh one is
-    /// released once the helper has read it — the pair that leaves exactly one
-    /// reference for the consumer of an `as` to own, either way.
+    /// **Ownership is the `bytes` rows'**: [`Helper::ToArrayOf`] gives back
+    /// an array that carries a reference of its own, so a borrowed operand
+    /// needs nothing and a fresh one is released once the helper has read it
+    /// — the pair that leaves exactly one reference for the consumer of an
+    /// `as` to own, either way. That array is the operand's own allocation
+    /// where every element already has `U`'s tag, and a new one where an
+    /// `int` or `uint` element is converted to a `float`.
     ///
     /// # Panics
     ///

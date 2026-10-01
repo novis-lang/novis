@@ -40,14 +40,20 @@ things change.
   covariance buys is every signature written over a union — `Core\Arr::sum`'s
   `array<int|float|decimal>` takes the `array<int>` a caller means by it, and `Core\Arr::flip`'s
   `array<int|string>` takes an `array<string>`.
+- **The `int` → `float` widening is not part of the covariance.** An element of an array that already
+  exists keeps the representation it was stored with, so an `array<int>` or `array<uint>` is not an
+  `array<float>`, at any depth and in any position (`rule:types/implicit-widening`). `array<int|float>`
+  still takes it, because `int` is one of its members.
 - **The read is free; the conversion is not.** `as array<int|string>` is still the spelling that
   *restamps*, at O(n), one tag test per element (`rule:types/conversion`) — it is what converts an
-  array, where the covariant read only passes one along. Neither costs a copy: the two views share
-  one copy-on-write buffer.
+  array, where the covariant read only passes one along. The two views share one copy-on-write
+  buffer. `as array<float>` over `int` or `uint` elements is the one conversion that copies: it builds
+  a new array of the same size with each such element converted.
 - The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
 - **Array literals are checked against the target type, never inferred and then compared.** Because
   every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
-  (`rule:types/var-inference`).
+  (`rule:types/var-inference`). Each element is placed at the element type, so `[1, $count]` at
+  `array<float>` stores two floats, at any depth and in a shape field.
 - At runtime an array header carries a pointer to an interned, immutable type descriptor **exactly
   where something reads one back**: **one pointer per array header**, interned process-wide and
   O(distinct types in the program). An array every write to which was checked as it was compiled has

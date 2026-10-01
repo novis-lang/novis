@@ -5112,7 +5112,7 @@ impl<'a> Lowering<'a> {
             let mark = self.temporaries_mark();
             let mut entries = Vec::with_capacity(items.len());
             for (i, item) in items.iter().enumerate() {
-                let (v, ty) = self.lower_expr(&item.value, None, env, cur);
+                let (v, ty) = self.lower_array_element(&item.value, env, cur);
                 if ty.is_refcounted() {
                     if self.aliasing_read(&item.value) {
                         self.emit_retain(*cur, v);
@@ -5179,7 +5179,7 @@ impl<'a> Lowering<'a> {
                         Some(kv)
                     }
                 };
-                let (v, ty) = self.lower_expr(&item.value, None, env, cur);
+                let (v, ty) = self.lower_array_element(&item.value, env, cur);
                 if ty.is_refcounted() && self.aliasing_read(&item.value) {
                     self.emit_retain(*cur, v);
                 }
@@ -5191,6 +5191,31 @@ impl<'a> Lowering<'a> {
             }
             self.forget_temporary(slot);
             (array_v, Ty::Array)
+        }
+    }
+
+    /// One element of an array literal, stored at the literal's `float`
+    /// element type where the checker recorded one
+    /// (`nvs_types::expr::literals::check_array_literal`). A number literal is
+    /// lowered as a `float`, and an `int` or `uint` value is converted, so
+    /// `[1, $count]` at `array<float>` stores two floats. Every other element
+    /// is stored as it was lowered, because only a `float` element is read
+    /// back without a tag.
+    fn lower_array_element(
+        &mut self,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let want = self
+            .exprs
+            .declared_ty(value.span)
+            .map(|id| erase_checked_ty(id, self.checked_types))
+            .filter(|ty| *ty == Ty::Float);
+        let (v, ty) = self.lower_expr(value, want, env, cur);
+        match want {
+            Some(want) => (self.coerce(*cur, v, ty, want, env), want),
+            None => (v, ty),
         }
     }
     /// `$arr[$i]` — the element's declared type comes from

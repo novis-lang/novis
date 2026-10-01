@@ -155,6 +155,12 @@
           "headline": "`as` converts to a shape",
           "body": "`$value as Point` with `type Point = {x: float, y: float};` checks that the value is an object with an `x` and a `y` that are both `float`. If it is, the result is that value as a `Point`. If it is not, `as` throws a `RuntimeError`, the same error a failed `as User` throws. `$value is Point` runs the same check and returns `true` or `false`.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0237.md"
+        },
+        {
+          "adr": "0238",
+          "headline": "Whole numbers in a float array",
+          "body": "`array<float> $a = [1, 2];` stores `1.0` and `2.0`, and so does `[$count]` with an `int` variable. An `array<int>` you already have is not an `array<float>`: passing, returning or assigning one there does not compile. `$counts as array<float>` converts it. The result is a new array of floats, and the conversion throws for a whole number above 2^53.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0238.md"
         }
       ]
     },

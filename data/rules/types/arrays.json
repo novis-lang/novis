@@ -7,7 +7,8 @@
     "0114",
     "0002",
     "0159",
-    "0188"
+    "0188",
+    "0238"
   ],
   "divergesFromPhp": "there is no integer key — `Core\\Arr::keys()` returns `array<string>` and a `foreach` key binds as a `string` — and an element type is declared and enforced on every write, reading covariantly",
   "seeAlso": [
@@ -25,6 +26,8 @@
     "tests/conformance/core/arr-a-callback-key-is-a-string-on-a-list-too.nvst",
     "tests/conformance/core/arr-flip-takes-an-array-of-string-without-a-conversion.nvst",
     "tests/conformance/lang/an-array-of-string-is-passed-where-an-array-of-int-or-string-is-read.nvst",
-    "crates/nvs-types/tests/arrays.rs"
+    "crates/nvs-types/tests/arrays.rs",
+    "tests/conformance/lang/an-array-literal-at-a-float-element-type-stores-floats-and-as-converts-an-int-array.nvst",
+    "tests/conformance/reject/an-existing-int-array-does-not-widen-to-a-float-array.nvst"
   ]
 }

@@ -1,0 +1,95 @@
+--TEST--
+An array literal placed at `array<float>` stores each whole number as a `float`, at any depth and inside a shape field, and `as array<float>` converts an existing `array<int>` into a new array of floats — `rule:types/arrays`, `rule:types/conversion`
+--FILE--
+<?nvs
+// covers: lang:types/array-t
+
+type Line = {xs: array<float>};
+
+class Shop
+{
+    public static function first(array<float> $xs): float
+    {
+        return $xs[0];
+    }
+
+    public static function make(): array<float>
+    {
+        return [3, 4];
+    }
+}
+
+// Whole-number literals are stored as floats.
+array<float> $a = [1, 2];
+echo $a[0] + 0.5, " ", $a[1] + 0.5, "\n";
+
+// An `int` variable and an `int` sum are converted the same way, with or without a key.
+int $n = 7;
+array<float> $b = [$n, $n + 1];
+array<float> $keyed = ["k" => $n];
+echo $b[0] + 0.5, " ", $b[1] + 0.5, " ", $keyed["k"] + 0.5, "\n";
+
+// A literal passed as an argument, and a returned one.
+echo Shop::first([5]) + 0.5, " ", Shop::make()[1] + 0.5, "\n";
+
+// A nested literal, and a literal in a shape field.
+array<array<float>> $grid = [[1, 2], [3]];
+Line $line = {xs: [1, 2]};
+echo $grid[0][1] + 0.5, " ", $grid[1][0] + 0.5, " ", $line->xs[1] + 0.5, "\n";
+
+// `as array<float>` builds a new array of floats. The `array<int>` does not change.
+array<int> $whole = [1, 2];
+array<float> $f = $whole as array<float>;
+echo $f[1] + 0.5, " ", $whole[1], "\n";
+float $x = $f[1];
+echo $x, "\n";
+foreach ($f as float $v) {
+    echo $v + 0.5, ";";
+}
+echo "\n";
+echo Core\Json::encode(Core\Arr::sum($f)), " ", Core\Json::encode($f), "\n";
+
+// The keys and their order stay the same.
+array<int> $named = ["b" => 2, "a" => 1];
+echo Core\Json::encode($named as array<float>), "\n";
+
+// The conversion works at every depth, and for `uint` elements too.
+array<array<int>> $rows = [[1], [2, 3]];
+echo Core\Json::encode($rows as array<array<float>>), "\n";
+array<uint> $counts = [4];
+echo ($counts as array<float>)[0] + 0.5, "\n";
+
+// An array of floats is returned as it is.
+array<float> $same = $f as array<float>;
+echo Core\Json::encode($same), "\n";
+
+// An `array<int>` is an `array<int|float>` without a conversion, so its elements stay whole numbers.
+array<int|float> $either = $whole;
+echo Core\Json::encode($either), "\n";
+
+// A whole number above 2^53 is not exact as a `float`, so the conversion throws.
+// With `as ?array<float>` the result is `null`.
+array<int> $big = [1, 9007199254740993];
+echo ($big as ?array<float>) == null ? "null" : "array", "\n";
+try {
+    array<float> $no = $big as array<float>;
+    echo Core\Arr::count($no), "\n";
+} catch (Throwable $e) {
+    echo "threw: ", $e->message, "\n";
+}
+--EXPECT--
+1.5 2.5
+7.5 8.5 7.5
+5.5 4.5
+2.5 3.5 2.5
+2.5 2
+2
+1.5;2.5;
+3.0 [1.0,2.0]
+{"b":2.0,"a":1.0}
+[[1.0],[2.0,3.0]]
+4.5
+[1.0,2.0]
+[1,2]
+null
+threw: cannot convert `int` 9007199254740993 to `float`

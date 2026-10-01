@@ -2,7 +2,6 @@
 // A price list for a small shop. Some prices are round numbers and some are
 // not, and a list declared to hold fractions takes both. Nothing is written
 // at the place where the round ones move across.
-// proof: gap nvs-ir/container-literal-stores-its-elements-without
 
 array<float> $prices = [4, 2.5, 3];
 float $total = 0.0;

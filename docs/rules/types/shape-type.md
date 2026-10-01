@@ -14,11 +14,14 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   of its own. The exception is the `int`/`uint` → `float` widening (`rule:types/implicit-widening`):
   it does not reach a field of a value that already exists, at any depth of the field type. Such a
   value is shared, not copied, so its field cannot be converted. `{w: int}` does not satisfy
-  `{w: float}`, `{w: ?float}` or `{w: array<float>}`, and a class with an `int $w` property does not
-  satisfy `{w: float}` either; `{w: int|float}` accepts both, because `int` is one of its members.
+  `{w: float}` or `{w: ?float}`, `{w: array<int>}` does not satisfy `{w: array<float>}`, and a class
+  with an `int $w` property does not satisfy `{w: float}` either; `{w: int|float}` accepts both,
+  because `int` is one of its members.
 - **An object literal placed at a declared shape** takes each field the declaration names at the
   declared type, when its value fits it: `{w: 2}` and `{w: $count}` at `{w: float}` are `{w: float}`,
-  and the literal stores `2.0`. A field the declaration does not name keeps the type of its value.
+  and the literal stores `2.0`. An array literal in a field is placed the same way, so `{xs: [1, 2]}`
+  at `{xs: array<float>}` stores two floats (`rule:types/arrays`). A field the declaration does not
+  name keeps the type of its value.
 - **An optional key** is written `{name?: T}`, and that is not nullability: `{a?: int}` accepts a value
   with no `a`, `{a: ?int}` demands an `a` that may hold `null`, and the two accept different values so
   they intern apart. A source missing an *optional* field satisfies the shape; missing a *required* one

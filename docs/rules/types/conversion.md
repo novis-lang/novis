@@ -12,7 +12,7 @@ This is the whole conversion surface:
 | `float` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Math::floor`/`ceil`/`round`, said out loud |
 | `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
 | anything → `string` | total for scalars; an object needs `Stringable`, or it throws |
-| `array<T>` → `array<U>` | every element must satisfy `U`; an O(n) restamp, one tag test per element, sharing the one copy-on-write buffer. An element type naming a class, an enum, a literal type or a union is refused where it is written, `array<mixed>` being the way round it |
+| `array<T>` → `array<U>` | every element must satisfy `U`, or be an `int` or `uint` where `U` is `float`, at any depth; an O(n) walk, one tag test per element. Where every element already satisfies `U`, the result shares the one copy-on-write buffer. Where an `int` or `uint` element meets a `float`, the result is a new array of the operand's size with that element converted, exact or throwing above 2^53. An element type naming a class, an enum, a literal type or a union is refused where it is written, `array<mixed>` being the way round it |
 | `int` / `uint` → `decimal` | always exact — both fit in 96 bits |
 | `decimal` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round` |
 | `float` → `decimal` | the shortest decimal that round-trips to that `float` — `0.1 as decimal` is `0.1` |

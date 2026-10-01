@@ -222,6 +222,13 @@ an `x` and a `y` that are both `float`. If it is, the result is that value as a 
 not, `as` throws a `RuntimeError`, the same error a failed `as User` throws. `$value is Point` runs
 the same check and returns `true` or `false`.
 
+**Whole numbers in a float array**
+
+`array<float> $a = [1, 2];` stores `1.0` and `2.0`, and so does `[$count]` with an `int` variable.
+An `array<int>` you already have is not an `array<float>`: passing, returning or assigning one there
+does not compile. `$counts as array<float>` converts it. The result is a new array of floats, and
+the conversion throws for a whole number above 2^53.
+
 ## How code is written
 
 Spelling. What parses and what does not, which PHP forms were kept and which were rejected, naming, visibility, and the shape of a file.

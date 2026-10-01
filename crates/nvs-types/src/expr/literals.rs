@@ -1026,6 +1026,17 @@ pub(crate) fn check_array_literal(
                 env,
             );
         }
+        // The literal builds a new array, so each element can be converted
+        // where it is stored, as an object literal's field is
+        // ([`check_object_literal`]). The element type is recorded at the
+        // element's span, and `nvs_ir::lower` reads it back: it lowers a
+        // number literal at that type and converts any other value to it, so
+        // `1` and `$count` in an `array<float>` literal are stored as floats.
+        if let Some(elem) = elem_expected
+            && is_assignable(elem_ty, elem, env.interner, env.graph, env.signatures)
+        {
+            env.exprs.record_type(item.value.span, elem);
+        }
     }
     match (expected, elem_expected) {
         (Some(id), Some(_)) => id,

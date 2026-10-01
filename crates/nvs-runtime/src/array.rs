@@ -637,6 +637,21 @@ impl Table {
         }
     }
 
+    /// Puts `value` at the live `slot` in place of the value there, and gives
+    /// back the value it replaced for the caller to release. The key, the
+    /// order and the shape do not change.
+    fn replace_at(&mut self, slot: usize, value: Value) -> Value {
+        let stored = match &mut self.shape {
+            Shape::Packed(values) => values.get_mut(slot),
+            Shape::Hashed(hashed) => hashed
+                .entries
+                .get_mut(slot)
+                .and_then(Option::as_mut)
+                .map(|entry| &mut entry.value),
+        };
+        std::mem::replace(stored.expect("replace_at is only given a live slot"), value)
+    }
+
     /// A separated copy: the same entries in the same shape and the same
     /// order, each key and value retained.
     fn separate(&self) -> Self {
@@ -1116,6 +1131,52 @@ impl NvsArray {
     #[must_use]
     pub fn value_at(&self, slot: usize) -> Option<Value> {
         self.header().table.borrow().value_at(slot)
+    }
+
+    /// A new array with the same keys in the same order, whose values are
+    /// what `convert` gives for each value of this one. This is the copy
+    /// `array<int> as array<float>` makes, and it costs one array of this
+    /// one's size.
+    ///
+    /// `convert` is given each value borrowed. `Ok(Some(v))` stores `v`, whose
+    /// reference the copy takes over, and `Ok(None)` keeps the value as it is.
+    /// An `Err` stops the walk, frees the copy and is returned.
+    ///
+    /// `Ok(None)` from this method means the running request cannot afford
+    /// the copy. [`crate::budget::affords`] has already recorded that, so the
+    /// caller allocates nothing more.
+    pub(crate) fn map_values<E>(
+        &self,
+        mut convert: impl FnMut(Value) -> Result<Option<Value>, E>,
+    ) -> Result<Option<Self>, E> {
+        let cost = {
+            let table = self.header().table.borrow();
+            size_of::<ArrayHeader>().saturating_add(table.separation_cost())
+        };
+        if !crate::budget::affords(cost) {
+            return Ok(None);
+        }
+        let copy = Self::new();
+        *copy.header().table.borrow_mut() = self.header().table.borrow().separate();
+        let mut from = 0;
+        while let Some(slot) = copy.next_slot(from) {
+            let value = copy
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            if let Some(converted) = convert(value)? {
+                let old = copy.header().table.borrow_mut().replace_at(slot, converted);
+                #[expect(
+                    unsafe_code,
+                    reason = "the copy owned exactly one reference to the value it \
+                              replaced, and no longer holds it"
+                )]
+                unsafe {
+                    crate::release::release_value(old);
+                }
+            }
+            from = slot + 1;
+        }
+        Ok(Some(copy))
     }
 
     /// Every key in insertion order — `Core\Arr::keys`, and what a test reads

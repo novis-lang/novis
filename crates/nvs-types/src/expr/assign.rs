@@ -75,7 +75,10 @@ pub(crate) fn is_assignable(
 /// because that value is shared and its field keeps the representation it was
 /// built with. [`shape_satisfied`] compares fields with [`Widening::InPlace`],
 /// at every depth of the field type, so a `{w: int}` value never satisfies
-/// `{w: float}`, `{w: ?float}` or `{w: array<float>}`.
+/// `{w: float}`, `{w: ?float}` or `{w: array<float>}`. An array's elements are
+/// compared the same way, for the same reason: the elements of an array that
+/// already exists keep the representation they were stored with, so an
+/// `array<int>` never satisfies `array<float>`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Widening {
     /// The value is converted where it is stored, so `int` fills a `float`.
@@ -201,9 +204,24 @@ fn assignable(
     // `array<int|float|decimal>` takes an `array<int>`, which is what a caller
     // means by it — and `Core\Arr::flip`'s `array<T>` binding a `T` it could
     // not otherwise reach.
+    //
+    // The elements are compared with [`Widening::InPlace`]: an array that
+    // already exists keeps the representation its elements were stored with,
+    // so an `array<int>` is not an `array<float>` at any depth. `as
+    // array<float>` is the conversion, and it builds a new array. An array
+    // *literal* at `array<float>` is not compared here at all: its elements
+    // are checked one by one against `float`, and lowering stores each one
+    // converted (`super::literals::check_array_literal`).
     if let (Ty::Array(from_elem), Ty::Array(to_elem)) = (interner.get(from), interner.get(to)) {
         let (from_elem, to_elem) = (*from_elem, *to_elem);
-        return assignable(from_elem, to_elem, widen, interner, graph, signatures);
+        return assignable(
+            from_elem,
+            to_elem,
+            Widening::InPlace,
+            interner,
+            graph,
+            signatures,
+        );
     }
     // `rule:types/class-reference-variance`: **`class<T>` is covariant in its argument, and only
     // upward** — `class<Dog>` widens to `class<Animal>` wherever `Dog` widens
@@ -471,7 +489,10 @@ pub(crate) fn mismatch(
                      value instead: `{{{name}: $value->{name}}}`"
                 ))
             }
-            None => diag,
+            None => match unconverted_array_help(expected, actual, env) {
+                Some(help) => diag.with_help(help),
+                None => diag,
+            },
         },
         [one] => diag.with_help(format!(
             "`{one}` is required here, and this value does not supply it"
@@ -557,6 +578,35 @@ fn unconverted_field(
     })
 }
 
+/// The help line for an `array<int>` or `array<uint>` that fails an
+/// `array<float>` target only because [`field_fits`] leaves out the `int` →
+/// `float` row for its elements, at any depth of nesting and under a `?`.
+/// `as` is the conversion, so the help names it with the target type. `None`
+/// for every other mismatch.
+fn unconverted_array_help(expected: TypeId, actual: TypeId, env: &mut Env<'_>) -> Option<String> {
+    let (signatures, graph) = (env.signatures, env.graph);
+    let target = env.interner.without_null(expected);
+    let (mut from, mut to) = (actual, target);
+    let mut nested = false;
+    while let (Ty::Array(from_elem), Ty::Array(to_elem)) =
+        (env.interner.get(from), env.interner.get(to))
+    {
+        (from, to) = (*from_elem, *to_elem);
+        nested = true;
+    }
+    let scalar = matches!(env.interner.get(from), Ty::Int | Ty::Uint);
+    let converts = scalar && is_assignable(from, to, env.interner, graph, signatures);
+    if !nested || !converts || field_fits(from, to, env.interner, graph, signatures) {
+        return None;
+    }
+    let (actual, target) = (env.interner.describe(actual), env.interner.describe(target));
+    Some(format!(
+        "an `{actual}` that already exists keeps the type of its elements, so it is not \
+         converted to `{target}`. Convert it with `as`, which builds a new array: \
+         `$value as {target}`"
+    ))
+}
+
 /// Checks a `return expr;`'s value against the method's declared return
 /// type, reporting `E_BAD_RETURN_TYPE` — distinct wording from the generic
 /// `E_TYPE_MISMATCH` [`check_expr`] itself reports, for what is structurally
@@ -593,13 +643,16 @@ pub(crate) fn check_return(
     if !is_assignable(actual, return_ty, env.interner, env.graph, env.signatures) {
         let expected_desc = env.interner.describe(return_ty);
         let actual_desc = env.interner.describe(actual);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_BAD_RETURN_TYPE,
-                format!("this method declares `{expected_desc}` but returns `{actual_desc}`"),
-            )
-            .with_primary(expr.span, format!("this is `{actual_desc}`")),
-        );
+        let diag = Diagnostic::error(
+            code::E_BAD_RETURN_TYPE,
+            format!("this method declares `{expected_desc}` but returns `{actual_desc}`"),
+        )
+        .with_primary(expr.span, format!("this is `{actual_desc}`"));
+        let diag = match unconverted_array_help(return_ty, actual, env) {
+            Some(help) => diag.with_help(help),
+            None => diag,
+        };
+        env.diags.report(diag);
     }
 }
 

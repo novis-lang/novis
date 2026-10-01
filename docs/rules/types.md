@@ -242,11 +242,14 @@ size-computation bug. Code that wants unbounded magnitude declares `float`, or c
 `rule:types/implicit-widening`
 
 Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
-position** — an argument, a return, an assignment, a field of an object literal, or the far side of
-an arithmetic operator. It never reaches the field of a shape value or object that already exists,
-because that value is shared and its field is not converted ([`types/shape-type`](types.md#types-shape-type)). It is
-the one coercion PHP's own `strict_types` permits, and it throws above 2^53 rather than rounding,
-where `f64` stops representing every integer.
+position** — an argument, a return, an assignment, a field of an object literal, an element of an
+array literal, or the far side of an arithmetic operator. It never reaches the field of a shape value
+or object that already exists, because that value is shared and its field is not converted
+([`types/shape-type`](types.md#types-shape-type)). It never reaches the elements of an array that already exists either: they
+keep the representation they were stored with, so an `array<int>` is not an `array<float>`, and
+`as array<float>` is the conversion ([`types/arrays`](types.md#types-arrays)). It is the one coercion PHP's own
+`strict_types` permits, and it throws above 2^53 rather than rounding, where `f64` stops representing
+every integer.
 
 Everything else is a diagnostic. `mixed` never absorbs implicitly in either direction
 ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), a `decimal` never meets a `float` in arithmetic
@@ -254,7 +257,7 @@ Everything else is a diagnostic. `mixed` never absorbs implicitly in either dire
 ([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
 so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0236](../decisions/0236.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-decimal"></a>
 
@@ -564,14 +567,20 @@ things change.
   covariance buys is every signature written over a union — `Core\Arr::sum`'s
   `array<int|float|decimal>` takes the `array<int>` a caller means by it, and `Core\Arr::flip`'s
   `array<int|string>` takes an `array<string>`.
+- **The `int` → `float` widening is not part of the covariance.** An element of an array that already
+  exists keeps the representation it was stored with, so an `array<int>` or `array<uint>` is not an
+  `array<float>`, at any depth and in any position ([`types/implicit-widening`](types.md#types-implicit-widening)). `array<int|float>`
+  still takes it, because `int` is one of its members.
 - **The read is free; the conversion is not.** `as array<int|string>` is still the spelling that
   *restamps*, at O(n), one tag test per element ([`types/conversion`](types.md#types-conversion)) — it is what converts an
-  array, where the covariant read only passes one along. Neither costs a copy: the two views share
-  one copy-on-write buffer.
+  array, where the covariant read only passes one along. The two views share one copy-on-write
+  buffer. `as array<float>` over `int` or `uint` elements is the one conversion that copies: it builds
+  a new array of the same size with each such element converted.
 - The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
 - **Array literals are checked against the target type, never inferred and then compared.** Because
   every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
-  ([`types/var-inference`](types.md#types-var-inference)).
+  ([`types/var-inference`](types.md#types-var-inference)). Each element is placed at the element type, so `[1, $count]` at
+  `array<float>` stores two floats, at any depth and in a shape field.
 - At runtime an array header carries a pointer to an interned, immutable type descriptor **exactly
   where something reads one back**: **one pointer per array header**, interned process-wide and
   O(distinct types in the program). An array every write to which was checked as it was compiled has
@@ -587,7 +596,7 @@ things change.
   anything else is refused where it is written. User-written generic functions and classes are not
   part of this.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-array-combination"></a>
 
@@ -958,7 +967,7 @@ This is the whole conversion surface:
 | `float` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Math::floor`/`ceil`/`round`, said out loud |
 | `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
 | anything → `string` | total for scalars; an object needs `Stringable`, or it throws |
-| `array<T>` → `array<U>` | every element must satisfy `U`; an O(n) restamp, one tag test per element, sharing the one copy-on-write buffer. An element type naming a class, an enum, a literal type or a union is refused where it is written, `array<mixed>` being the way round it |
+| `array<T>` → `array<U>` | every element must satisfy `U`, or be an `int` or `uint` where `U` is `float`, at any depth; an O(n) walk, one tag test per element. Where every element already satisfies `U`, the result shares the one copy-on-write buffer. Where an `int` or `uint` element meets a `float`, the result is a new array of the operand's size with that element converted, exact or throwing above 2^53. An element type naming a class, an enum, a literal type or a union is refused where it is written, `array<mixed>` being the way round it |
 | `int` / `uint` → `decimal` | always exact — both fit in 96 bits |
 | `decimal` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round` |
 | `float` → `decimal` | the shortest decimal that round-trips to that `float` — `0.1 as decimal` is `0.1` |
@@ -988,7 +997,7 @@ where it runs.
 condition, which tests any type against PHP's truthy table without asking for one. PHP's cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -1464,11 +1473,14 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   of its own. The exception is the `int`/`uint` → `float` widening ([`types/implicit-widening`](types.md#types-implicit-widening)):
   it does not reach a field of a value that already exists, at any depth of the field type. Such a
   value is shared, not copied, so its field cannot be converted. `{w: int}` does not satisfy
-  `{w: float}`, `{w: ?float}` or `{w: array<float>}`, and a class with an `int $w` property does not
-  satisfy `{w: float}` either; `{w: int|float}` accepts both, because `int` is one of its members.
+  `{w: float}` or `{w: ?float}`, `{w: array<int>}` does not satisfy `{w: array<float>}`, and a class
+  with an `int $w` property does not satisfy `{w: float}` either; `{w: int|float}` accepts both,
+  because `int` is one of its members.
 - **An object literal placed at a declared shape** takes each field the declaration names at the
   declared type, when its value fits it: `{w: 2}` and `{w: $count}` at `{w: float}` are `{w: float}`,
-  and the literal stores `2.0`. A field the declaration does not name keeps the type of its value.
+  and the literal stores `2.0`. An array literal in a field is placed the same way, so `{xs: [1, 2]}`
+  at `{xs: array<float>}` stores two floats ([`types/arrays`](types.md#types-arrays)). A field the declaration does not
+  name keeps the type of its value.
 - **An optional key** is written `{name?: T}`, and that is not nullability: `{a?: int}` accepts a value
   with no `a`, `{a: ?int}` demands an `a` that may hold `null`, and the two accept different values so
   they intern apart. A source missing an *optional* field satisfies the shape; missing a *required* one
@@ -1498,7 +1510,7 @@ The read is deliberately **not** widened to `?T`: optionality and nullability ar
 ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable)), and one language does not answer "the key may be
 absent" two different ways in two containers.
 
-<sub>See also [`types/object-literal`](types.md#types-object-literal), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0013](../decisions/0013.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md).</sub>
+<sub>See also [`types/object-literal`](types.md#types-object-literal), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0013](../decisions/0013.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-erased-member-access"></a>
 
