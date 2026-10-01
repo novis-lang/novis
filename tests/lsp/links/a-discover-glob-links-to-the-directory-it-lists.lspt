@@ -1,0 +1,13 @@
+--TEST--
+an `autoload discover` glob links to the directory it lists, the part before its `*` segment — `rule:programs/autoload`
+--FILE--
+<?nvs
+autoload discover 'modules/*/src';
+--FILE modules/Shop/src/Cart.nvs--
+<?nvs
+namespace Shop;
+class Cart { }
+--REQUEST--
+documentLink
+--EXPECT--
+2:19-2:34 -> modules/

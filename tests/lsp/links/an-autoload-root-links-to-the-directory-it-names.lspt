@@ -1,0 +1,18 @@
+--TEST--
+each root literal of an `autoload` declaration links to the directory it resolves to against the declaring file, a directory spelled with a `/` after it — `rule:programs/autoload`
+--FILE--
+<?nvs
+autoload 'App' from 'src', 'lib';
+--FILE src/User.nvs--
+<?nvs
+namespace App;
+class User { }
+--FILE lib/Cart.nvs--
+<?nvs
+namespace App;
+class Cart { }
+--REQUEST--
+documentLink
+--EXPECT--
+2:21-2:26 -> src/
+2:28-2:33 -> lib/

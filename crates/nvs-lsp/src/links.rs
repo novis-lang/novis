@@ -1,31 +1,36 @@
-//! Every `require` in one document, and the file it reaches.
+//! Every path literal in one document that names something on disk, and what
+//! it names.
 //!
-//! `textDocument/documentLink` is the third projection with nothing behind it
-//! (`rule:ide/the-request-set-is-closed`), and the least work of the three: the
-//! edge from a `require`'s path literal to the file it named already exists,
-//! because the graph walk that loaded the program is the one place it can
-//! exist. `nvs_hir::requires::Loaded::requires` is that edge — a span paired
-//! with a `SourceId` — and its own doc says why nothing downstream re-derives
-//! it from the literal's text. This module reads it.
+//! `textDocument/documentLink` is one of the projections with nothing behind it
+//! (`rule:ide/the-request-set-is-closed`): each edge it reports was already
+//! resolved by the walk that loaded the program, and this module reads it.
+//!
+//! - **A `require`'s path literal links to the file it loaded.**
+//!   `nvs_hir::requires::Loaded::requires` is that edge, a span paired with a
+//!   `SourceId`, and its own doc says why nothing downstream re-derives it from
+//!   the literal's text.
+//! - **An `autoload` root links to the directory it names, and a `discover`
+//!   glob to the directory it lists** — the part before its `*` segment
+//!   (`rule:programs/autoload`). The walk keeps each declaration as an
+//!   `nvs_hir::autoload::Site` with every literal's span, and
+//!   `Site::directories` resolves those literals with the same functions the
+//!   autoload map is built with, so a link and the map cannot disagree.
 //!
 //! **The entry file only**, on [`crate::symbols::for_document`]'s terms: a
 //! required file's own `require` is a link in *its* document.
 //!
-//! **A link is a path literal, and `require`'s is the only one with an edge.**
-//! A `use` names a class rather than a file, and where a name is declared is
-//! `textDocument/definition`'s answer. An `autoload` does write path literals
-//! (`rule:programs/autoload`), and the goal names them — but a root is a
-//! *directory*, `discover`'s is a glob, and `nvs_hir::autoload::Site` records
-//! the declaration's own span rather than one per literal, so there is no
-//! literal-to-path edge to read. Deriving one here would be the second copy of
-//! the resolution rule that `Loaded::requires`' own doc exists to prevent, so
-//! linking one is the slice that adds that edge beside the `require` one.
+//! **What has no edge has no link**: a `require` path that is not a literal,
+//! one that resolves to nothing loadable, one that would close a cycle, an
+//! `autoload` root that does not exist, and a glob of the wrong shape or over a
+//! missing directory. Each is already a diagnostic, the dynamic fallback, or a
+//! root `rule:programs/autoload` allows to be missing, and an underline that
+//! opened nothing would be a second, quieter report of the same thing.
 //!
-//! **What has no edge has no link**: a path that is not a literal, one that
-//! resolves to nothing loadable, and one that would close a cycle. Each is
-//! already a diagnostic or the dynamic fallback that rule leaves alone, and an
-//! underline that opened nothing would be a second, quieter report of the same
-//! thing.
+//! **A directory is a target of its own kind.** An editor opens a file in a tab
+//! and cannot open a directory there, so [`PathLink::directory`] says which one
+//! a link names. The server sends a directory as a `file:` URI ending in `/`,
+//! which is how a URI names a directory, and the VS Code client reveals such a
+//! target in its Explorer instead of opening it.
 //!
 //! **The target is a path, and the caller spells it.** A client is sent a
 //! `file:` URI and a `.lspt` case names the file the way the case wrote it;
@@ -40,15 +45,17 @@ use nvs_diagnostics::PositionEncoding;
 use crate::document::Analysed;
 use crate::position::range_at;
 
-/// One `require`'s path literal, and the file the graph walk resolved it to.
+/// One path literal, and the file or directory the walk resolved it to.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequireLink {
-    /// The path expression's own range — the literal an editor underlines,
-    /// with its quotes, since that is the span the walk recorded the edge
-    /// under.
+pub struct PathLink {
+    /// The literal's own range, quotes included — the span the walk recorded
+    /// the edge under, and the text an editor underlines.
     pub range: Range,
-    /// The file it names, as the analysis loaded it: absolute and canonical.
+    /// What it names, as the analysis resolved it: absolute and canonical.
     pub target: PathBuf,
+    /// Whether [`target`](Self::target) is a directory: an `autoload` root or
+    /// a `discover` glob's base, where a `require` names a file.
+    pub directory: bool,
 }
 
 /// Every link the entry document of `analysed` carries, in `encoding`.
@@ -57,29 +64,38 @@ pub struct RequireLink {
 /// stated rather than inherited from the walk, because a `.lspt` case freezes
 /// this list and the order it reads in should be the document's.
 #[must_use]
-pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<RequireLink> {
-    let Some(loaded) = analysed
+pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<PathLink> {
+    let file = analysed.map.file(analysed.entry);
+    let mut links: Vec<PathLink> = analysed
         .loaded
         .iter()
         .find(|loaded| loaded.id == analysed.entry)
-    else {
-        return Vec::new();
-    };
-    let file = analysed.map.file(analysed.entry);
-    let mut links: Vec<RequireLink> = loaded
-        .requires
+        .map(|loaded| loaded.requires.as_slice())
+        .unwrap_or_default()
         .iter()
         .filter_map(|(span, target)| {
-            Some(RequireLink {
+            Some(PathLink {
                 range: range_at(file, *span, encoding),
                 // A required file was loaded from disk, so it has a path. The
                 // filter is a fallback rather than a policy, on the same terms
                 // as [`crate::symbols`]': a file the walk reached without one
                 // shows no link rather than taking the server down.
                 target: analysed.map.file(*target).path()?.to_path_buf(),
+                directory: false,
             })
         })
         .collect();
+    links.extend(
+        analysed
+            .autoloads
+            .iter()
+            .flat_map(nvs_hir::autoload::Site::directories)
+            .map(|(span, target)| PathLink {
+                range: range_at(file, span, encoding),
+                target,
+                directory: true,
+            }),
+    );
     links.sort_by_key(|link| link.range.start);
     links
 }

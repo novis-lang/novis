@@ -486,6 +486,14 @@ pub struct Analysed {
     /// one still changes what this analysis resolves, which is why
     /// [`files`](Self::files) names them.
     pub lent: Vec<PathBuf>,
+    /// The `autoload` declarations the **entry** document wrote, as the walk
+    /// cooked them, each with its directory and its literals' spans.
+    ///
+    /// [`crate::links`] asks each one which directories its literals name
+    /// ([`Site::directories`](nvs_hir::autoload::Site::directories)), so the
+    /// answer comes from the code that resolves a root and not from a copy of
+    /// it here. A declaration the walk rejected is not in this list.
+    pub autoloads: Vec<nvs_hir::autoload::Site>,
     /// Every whitespace run and every comment of the **entry** document, in
     /// source order — the other two thirds of the one parse that produced
     /// `loaded`'s first entry (`rule:ide/one-grammar-one-tree`).
@@ -665,7 +673,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     // program's (`rule:ide/an-open-document-is-its-own-entry-point`).
     let lender = documents.lender_for(path);
     let lent = lender.map_or_else(Vec::new, |lender| lender.declaring.clone());
-    let (module, loaded, _autoload) = resolve_program_borrowing(
+    let (module, loaded, autoload) = resolve_program_borrowing(
         entry,
         stmts,
         &mut map,
@@ -674,6 +682,12 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         &mut diags,
         lender.map_or(&[], |lender| lender.map.sites()),
     );
+    let autoloads: Vec<nvs_hir::autoload::Site> = autoload
+        .sites()
+        .iter()
+        .filter(|site| site.span.file == entry)
+        .cloned()
+        .collect();
 
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
@@ -710,6 +724,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         module,
         loaded,
         lent,
+        autoloads,
         trivia,
         index,
         exprs,
@@ -761,6 +776,23 @@ pub fn path_of(uri: &Uri) -> Option<PathBuf> {
 /// have sent in the first place.
 #[must_use]
 pub fn uri_of(path: &Path) -> Option<Uri> {
+    uri_text(path)?.parse().ok()
+}
+
+/// [`uri_of`] for a directory: the same URI with a `/` at its end, which is
+/// how a URI says it names a directory. A client reads it to know the target
+/// cannot open in an editor tab ([`crate::links`]).
+#[must_use]
+pub(crate) fn directory_uri_of(path: &Path) -> Option<Uri> {
+    let mut uri = uri_text(path)?;
+    if !uri.ends_with('/') {
+        uri.push('/');
+    }
+    uri.parse().ok()
+}
+
+/// The `file:` URI of `path`, as text, for [`uri_of`] and [`directory_uri_of`].
+fn uri_text(path: &Path) -> Option<String> {
     let path = path.to_str()?;
     // `\\?\D:\a` and `D:\a` are the same file, and no client has ever been sent
     // the first spelling — `Path::canonicalize` is where it comes from.
@@ -779,7 +811,7 @@ pub fn uri_of(path: &Path) -> Option<Uri> {
             _ => write!(uri, "%{byte:02X}").ok()?,
         }
     }
-    uri.parse().ok()
+    Some(uri)
 }
 
 /// A percent-encoded string's bytes, as UTF-8.

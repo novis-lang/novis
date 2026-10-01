@@ -1,0 +1,13 @@
+--TEST--
+a root that does not exist is allowed and names no directory, so it has no link, and the root beside it keeps its own — `rule:programs/autoload`
+--FILE--
+<?nvs
+autoload 'App' from 'gone', 'src';
+--FILE src/User.nvs--
+<?nvs
+namespace App;
+class User { }
+--REQUEST--
+documentLink
+--EXPECT--
+2:29-2:34 -> src/

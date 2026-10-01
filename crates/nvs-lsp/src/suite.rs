@@ -543,18 +543,26 @@ fn folding_range(analysed: &Analysed) -> Response {
     Response::FoldingRange(folding::for_document(analysed, COLUMNS))
 }
 
-/// `textDocument/documentLink` — every `require` the entry document writes.
+/// `textDocument/documentLink` — every `require` and `autoload` path literal
+/// the entry document writes that names something on disk.
 ///
 /// The target is named the way the case wrote it, which is the resolution half
 /// [`Link`]'s doc leaves to the runner: what the analysis answers is an
 /// absolute path inside the directory this case was materialised into, and
-/// nothing else knows what that directory is.
+/// nothing else knows what that directory is. A directory ends in `/`, as the
+/// URI the server sends for one does.
 fn document_link(analysed: &Analysed, files: &Materialised) -> Response {
     let links = links::for_document(analysed, COLUMNS)
         .into_iter()
-        .map(|link| Link {
-            range: link.range,
-            target: files.spelling(&link.target),
+        .map(|link| {
+            let mut target = files.spelling(&link.target);
+            if link.directory {
+                target.push('/');
+            }
+            Link {
+                range: link.range,
+                target,
+            }
         })
         .collect();
     Response::DocumentLink(links)

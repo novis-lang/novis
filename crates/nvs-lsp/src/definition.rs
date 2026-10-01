@@ -105,7 +105,7 @@ use crate::position::range_at;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declared {
     /// The file, as the analysis loaded it: absolute and canonical, on
-    /// [`crate::links::RequireLink`]'s terms.
+    /// [`crate::links::PathLink`]'s terms.
     pub path: PathBuf,
     /// The declared name's own range — not the whole declaration's, because
     /// that is the span `nvs_hir::Symbol` records and it is what an editor

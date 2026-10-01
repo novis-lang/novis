@@ -77,7 +77,7 @@ use crate::card;
 use crate::completion;
 use crate::definition;
 use crate::diagnostics::{Phases, dimming, for_document};
-use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
+use crate::document::{Analysed, Documents, analyse, directory_uri_of, path_of, uri_of};
 use crate::folding;
 use crate::hints;
 use crate::hover;
@@ -1302,6 +1302,8 @@ fn at_or_after(position: Position, limit: Position) -> bool {
     (position.line, position.character) >= (limit.line, limit.character)
 }
 
+/// `textDocument/documentLink` — every path literal [`links::for_document`]
+/// resolved, a file as its `file:` URI and a directory as one ending in `/`.
 fn document_link(
     documents: &Documents,
     encoding: PositionEncoding,
@@ -1313,9 +1315,14 @@ fn document_link(
     links::for_document(&analysed, encoding)
         .into_iter()
         .filter_map(|link| {
+            let target = if link.directory {
+                directory_uri_of(&link.target)?
+            } else {
+                uri_of(&link.target)?
+            };
             Some(DocumentLink {
                 range: link.range,
-                target: Some(uri_of(&link.target)?),
+                target: Some(target),
                 tooltip: None,
                 data: None,
             })
