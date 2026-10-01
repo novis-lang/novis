@@ -1106,10 +1106,16 @@ is emitted in a shape mirroring the registry's own: name, signature, the doc com
 list and its `@example` list ([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)). The `Core` half of that
 shape is the registry's and is unchanged by this; the user half is this rule's.
 
+A user class also names its lineage: `extends` is its parent class and `implements` the interfaces it
+lists, in the order written, and an interface's `extends` is the list of interfaces it extends. Every one
+of them is **fully qualified**, resolved through the declaring file's namespace and `use` imports the way
+the compiler resolves it, and each key is omitted when the declaration has none. Only what the declaration
+itself writes is listed; an interface reached through the parent is on the parent's entry.
+
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md), [0233](../decisions/0233.md).</sub>
 
 <a id="tooling-an-agent-asks-the-binary"></a>
 

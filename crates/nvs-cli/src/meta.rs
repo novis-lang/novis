@@ -90,6 +90,13 @@
 //! omission rule is the registry's, key for key: a declaration with no `///`
 //! has no `doc`, and no array is ever emitted empty.
 //!
+//! A class names its lineage the way the registry's exception tree names a
+//! `parent`, but in the words a program writes: `extends` is its parent class
+//! and `implements` its interfaces, and an interface's `extends` is the list of
+//! interfaces it extends. Each is fully qualified, resolved through the file's
+//! namespace and `use` imports by the same function the compiler resolves it
+//! with, so a renderer never has to know which file the name was written in.
+//!
 //! One key has no registry counterpart: a member carries its `visibility`,
 //! because a `Core` member is public or it is not in the registry while a
 //! program's is whatever it was written as. It is always present rather than
@@ -105,14 +112,17 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use nvs_diagnostics::{SourceFile, Span};
+use nvs_hir::QName;
 use nvs_stdlib::registry::{
     CAPABILITIES, CLASSES, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
     ENUMS, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, class_type_params, constructor_of,
 };
 use nvs_syntax::ast::{
     ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, DocTagKind, EnumDecl,
-    InterfaceDecl, MethodMember, Modifier, Param, PropertyMember, Stmt, StmtKind, TypeAliasDecl,
+    InterfaceDecl, MethodMember, Modifier, Name, Param, PropertyMember, Stmt, StmtKind,
+    TypeAliasDecl,
 };
+use rustc_hash::FxHashMap;
 use serde_json::{Map, Value, json};
 
 /// Prints the registry — and, with an entry point, the program's declarations
@@ -573,10 +583,13 @@ fn program_json(checked: &crate::Checked) -> Value {
 /// `enclosing` is the namespace the list already sits in. A bracketed
 /// `namespace N { ... }` recurses with `N`; the statement form has no body and
 /// applies to the rest of *this* list, which is what the running local holds.
-/// Nothing else descends: a declaration inside a function body or a branch is
-/// not a declaration this language has.
+/// The `use` imports a class's `extends` and `implements` resolve through are
+/// gathered in the same pass, into a [`Scope`] that each namespace starts
+/// empty. Nothing else descends: a declaration inside a function body or a
+/// branch is not a declaration this language has.
 fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared) {
     let mut namespace = enclosing.to_owned();
+    let mut scope = Scope::new(enclosing);
     for stmt in stmts {
         match &stmt.kind {
             StmtKind::NamespaceDecl(decl) => {
@@ -586,13 +599,20 @@ fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared
                     .unwrap_or_default();
                 match &decl.body {
                     Some(block) => collect(&block.stmts, src, &name, out),
-                    None => namespace = name,
+                    None => {
+                        scope = Scope::new(&name);
+                        namespace = name;
+                    }
                 }
             }
-            StmtKind::ClassDecl(decl) => out.classes.push(user_class_json(decl, src, &namespace)),
+            StmtKind::UseDecl(decl) => scope.import(text(src, decl.path.span)),
+            StmtKind::ClassDecl(decl) => {
+                out.classes
+                    .push(user_class_json(decl, src, &namespace, &scope));
+            }
             StmtKind::InterfaceDecl(decl) => {
                 out.interfaces
-                    .push(user_interface_json(decl, src, &namespace));
+                    .push(user_interface_json(decl, src, &namespace, &scope));
             }
             StmtKind::EnumDecl(decl) => out.enums.push(user_enum_json(decl, src, &namespace)),
             StmtKind::TypeAliasDecl(decl) => out.types.push(user_alias_json(
@@ -606,13 +626,66 @@ fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared
     }
 }
 
-/// One user class: its name, its members, its constants and its own card —
-/// [`class_json`]'s shape, minus the `typeParams` and `constructor` keys a
-/// registry class carries because the compiler owns them.
-fn user_class_json(decl: &ClassDecl, src: &SourceFile, namespace: &str) -> Value {
+/// The namespace and `use` imports in force at one point of a file, which is
+/// what a written `extends` or `implements` name needs to mean what the
+/// compiler took it to mean.
+///
+/// The name itself is resolved by [`nvs_hir::resolve_ref`], the one function
+/// that decides what a name means (`rule:statements/one-function-resolves-every-name`).
+/// This only carries its two inputs, gathered the way
+/// `nvs_hir::HierarchyResolver` gathers them: a statement-form `namespace`
+/// starts a fresh scope, and a bracketed one is walked with its own.
+struct Scope {
+    namespace: Vec<String>,
+    imports: FxHashMap<String, QName>,
+}
+
+impl Scope {
+    fn new(namespace: &str) -> Self {
+        let namespace = if namespace.is_empty() {
+            Vec::new()
+        } else {
+            QName::parse(namespace).segments().to_vec()
+        };
+        Self {
+            namespace,
+            imports: FxHashMap::default(),
+        }
+    }
+
+    fn import(&mut self, path: &str) {
+        let target = QName::parse(path);
+        self.imports.insert(target.short_name().to_owned(), target);
+    }
+
+    /// `name` as written, fully qualified.
+    fn resolve(&self, src: &SourceFile, name: Name) -> String {
+        nvs_hir::resolve_ref(text(src, name.span), &self.namespace, &self.imports).to_string()
+    }
+}
+
+/// One user class: its name, its parent and interfaces, its members, its
+/// constants and its own card — [`class_json`]'s shape, minus the `typeParams`
+/// and `constructor` keys a registry class carries because the compiler owns
+/// them.
+///
+/// `extends` is the parent class's fully qualified name and `implements` the
+/// interfaces' names in the order they were written, each omitted when the
+/// class has none. Only the names written on this declaration are listed: an
+/// interface reached through the parent is the parent's own entry.
+fn user_class_json(decl: &ClassDecl, src: &SourceFile, namespace: &str, scope: &Scope) -> Value {
     let mut out = Map::new();
     let name = qualify(namespace, text(src, decl.name.span));
     out.insert("name".into(), Value::from(name.as_str()));
+    if let Some(parent) = decl.extends {
+        out.insert("extends".into(), Value::from(scope.resolve(src, parent)));
+    }
+    let implements: Vec<Value> = decl
+        .implements
+        .iter()
+        .map(|clause| Value::from(scope.resolve(src, clause.name)))
+        .collect();
+    put_values(&mut out, "implements", implements);
     body_json(&decl.members, src, &name, &mut out);
     put_doc(&mut out, decl.doc.as_ref(), src);
     Value::Object(out)
@@ -620,11 +693,23 @@ fn user_class_json(decl: &ClassDecl, src: &SourceFile, namespace: &str) -> Value
 
 /// One user interface, in a class's shape: an interface declares members and
 /// constants exactly as a class does, and a consumer rendering either renders
-/// the same keys.
-fn user_interface_json(decl: &InterfaceDecl, src: &SourceFile, namespace: &str) -> Value {
+/// the same keys. Its `extends` is a list, because an interface may extend
+/// several, and is omitted when it extends none.
+fn user_interface_json(
+    decl: &InterfaceDecl,
+    src: &SourceFile,
+    namespace: &str,
+    scope: &Scope,
+) -> Value {
     let mut out = Map::new();
     let name = qualify(namespace, text(src, decl.name.span));
     out.insert("name".into(), Value::from(name.as_str()));
+    let extends: Vec<Value> = decl
+        .extends
+        .iter()
+        .map(|parent| Value::from(scope.resolve(src, *parent)))
+        .collect();
+    put_values(&mut out, "extends", extends);
     body_json(&decl.members, src, &name, &mut out);
     put_doc(&mut out, decl.doc.as_ref(), src);
     Value::Object(out)

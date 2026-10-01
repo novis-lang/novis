@@ -458,6 +458,40 @@ fn a_user_declarations_shape_carries_prose_see_and_example() {
     );
 }
 
+/// A class names its parent under `extends` and its interfaces under
+/// `implements`, and an interface names the interfaces it extends under an
+/// `extends` list. Every name is fully qualified: the fixture writes `Item` and
+/// `Named` through `use` imports from another namespace, and the document says
+/// `Shop\Item` and `Shop\Named`. A declaration with no lineage carries neither
+/// key, by the registry's omission rule.
+#[test]
+fn a_user_class_names_its_parent_and_interfaces_fully_qualified() {
+    let lineage = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/meta/lineage.nvs")
+        .display()
+        .to_string();
+    let program = program(&["--json", &lineage]);
+
+    let post = declared(&program, "classes", r"Blog\Post");
+    assert_eq!(post["extends"], r"Shop\Item");
+    assert_eq!(post["implements"], serde_json::json!([r"Shop\Named"]));
+
+    let named = declared(&program, "interfaces", r"Shop\Named");
+    assert_eq!(named["extends"], serde_json::json!([r"Shop\Printable"]));
+
+    let item = declared(&program, "classes", r"Shop\Item");
+    assert!(item.get("extends").is_none(), "`extends` was emitted empty");
+    assert!(
+        item.get("implements").is_none(),
+        "`implements` was emitted empty"
+    );
+    let printable = declared(&program, "interfaces", r"Shop\Printable");
+    assert!(
+        printable.get("extends").is_none(),
+        "`extends` was emitted empty"
+    );
+}
+
 /// The registry document's rosters, and the one this adds beside them.
 fn roster(document: &serde_json::Value, key: &str) -> Vec<serde_json::Value> {
     document[key]

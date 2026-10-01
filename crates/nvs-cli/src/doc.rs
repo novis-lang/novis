@@ -97,10 +97,12 @@ fn file_name(name: &str) -> PathBuf {
     PathBuf::from(format!("{}.md", name.replace('\\', ".")))
 }
 
-/// One page: the declaration's own card, then a section per roster it carries.
+/// One page: the declaration's lineage and its own card, then a section per
+/// roster it carries.
 fn render(page: &Page<'_>, names: &[&str]) -> String {
     let mut out = format!("# {}\n\n*{}*\n", page.name, page.kind);
-    card(&mut out, &page.value["doc"], page.name, names);
+    lineage(&mut out, page.value, names);
+    card(&mut out, &page.value["doc"], page, names);
     section(&mut out, page, "cases", "Cases", names);
     section(&mut out, page, "constants", "Constants", names);
     section(&mut out, page, "members", "Members", names);
@@ -123,14 +125,21 @@ fn section(out: &mut String, page: &Page<'_>, key: &str, title: &str, names: &[&
         let name = entry["name"].as_str().unwrap_or_default();
         out.push_str(&format!("\n### {name}\n"));
         if let Some(signature) = entry["signature"].as_str() {
-            out.push_str(&format!("\n```nvs\n{signature}\n```\n"));
+            // The document carries `static` as the member's `kind` and leaves
+            // it out of `signature`, so the page writes it back in front.
+            let prefix = if entry["kind"] == "static" {
+                "static "
+            } else {
+                ""
+            };
+            out.push_str(&format!("\n```nvs\n{prefix}{signature}\n```\n"));
         } else if let Some(value) = entry["value"].as_str() {
             let ty = entry["type"]
                 .as_str()
                 .map_or(String::new(), |ty| format!("{ty} "));
             out.push_str(&format!("\n```nvs\n{ty}{name} = {value}\n```\n"));
         }
-        card(out, &entry["doc"], page.name, names);
+        card(out, &entry["doc"], page, names);
     }
 }
 
@@ -148,13 +157,42 @@ fn reachable(entry: &Value) -> bool {
         .is_none_or(|seen| seen == "public")
 }
 
+/// The declaration's parent and interfaces, one line each, from the document's
+/// `extends` and `implements` keys. A class's `extends` is one name and an
+/// interface's is a list, and both render the same way. Nothing is written
+/// for a key the document omitted.
+fn lineage(out: &mut String, value: &Value, names: &[&str]) {
+    for (key, title) in [("extends", "Extends"), ("implements", "Implements")] {
+        let listed: Vec<&str> = match &value[key] {
+            Value::String(name) => vec![name.as_str()],
+            Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
+            _ => continue,
+        };
+        if listed.is_empty() {
+            continue;
+        }
+        let rendered: Vec<String> = listed.iter().map(|name| link(name, names)).collect();
+        out.push_str(&format!("\n{title}: {}\n", rendered.join(", ")));
+    }
+}
+
+/// A declaration's name as a link to its page in this run, or as code when it
+/// has none — the same choice [`see`] makes for a `@see` target.
+fn link(name: &str, names: &[&str]) -> String {
+    if names.contains(&name) {
+        format!("[{name}]({})", file_name(name).display())
+    } else {
+        format!("`{name}`")
+    }
+}
+
 /// A card: its prose as it was written, then each tag as its own line.
 ///
 /// `@see` renders as a link when its target has a page in this run and as code
 /// when it does not — a `Core` member's page is the reference this renderer does
 /// not produce, and a link to a file that was never written is worse than the
 /// name.
-fn card(out: &mut String, doc: &Value, owner: &str, names: &[&str]) {
+fn card(out: &mut String, doc: &Value, owner: &Page<'_>, names: &[&str]) {
     if let Some(short) = doc["short"].as_str() {
         out.push_str(&format!("\n{short}\n"));
     }
@@ -179,15 +217,17 @@ fn card(out: &mut String, doc: &Value, owner: &str, names: &[&str]) {
 /// One `@see` target as a link into this run's own pages, or as code.
 ///
 /// `self` and `static` name the page they were written on, exactly as they name
-/// a class in code. `parent` does not: the document carries no `extends` edge,
-/// and guessing one here would be this renderer deciding something.
-fn see(target: &str, owner: &str, names: &[&str]) -> String {
+/// a class in code, and `parent` names the class that page's `extends` key
+/// names. An interface's `extends` is a list, so on an interface's page
+/// `parent` names nothing and stays code.
+fn see(target: &str, owner: &Page<'_>, names: &[&str]) -> String {
     let (class, member) = match target.split_once("::") {
         Some((class, member)) => (class.trim(), Some(member.trim())),
         None => (target.trim(), None),
     };
     let class = match class {
-        "self" | "static" => owner,
+        "self" | "static" => owner.name,
+        "parent" => owner.value["extends"].as_str().unwrap_or(class),
         other => other,
     };
     if !names.contains(&class) {

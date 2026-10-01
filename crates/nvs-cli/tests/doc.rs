@@ -75,6 +75,49 @@ var $till = new Till();
 echo $till->charge(150) . "\n";
 "#;
 
+/// A class with a parent class, an interface and a static method. `Shop\Item`
+/// and `Shop\Printable` are named through `use` imports, so the page has to
+/// name them fully qualified to link to their pages.
+const LINEAGE: &str = r#"<?nvs
+namespace Shop;
+
+/// Something a reader can see.
+interface Printable {
+    /// The text a reader sees.
+    public function render(): string;
+}
+
+/// A thing a shop sells.
+abstract class Item {
+    /// What the item costs, in cents.
+    public function price(): int {
+        return 100;
+    }
+}
+
+namespace Blog;
+
+use Shop\Item;
+use Shop\Printable;
+
+/// A post, sold like any other item.
+///
+/// @see parent::price
+class Post extends Item implements Printable {
+    /// The post as a reader sees it.
+    public function render(): string {
+        return "a post";
+    }
+
+    /// A post with nothing in it yet.
+    public static function blank(): Post {
+        return new Post();
+    }
+}
+
+echo Post::blank()->render(), "\n";
+"#;
+
 /// A fresh directory holding `case.nvs`, and the `pages` directory `nvs doc`
 /// will be pointed at.
 fn fixture(name: &str) -> PathBuf {
@@ -188,5 +231,56 @@ fn nvs_doc_renders_every_see_and_every_example() {
     assert!(
         page.contains("Example: `examples/charge.nvs`, `examples/refund.nvs`"),
         "both `@example` paths were not rendered on one line: {page}"
+    );
+}
+
+#[test]
+fn nvs_doc_writes_static_in_front_of_a_static_methods_signature() {
+    // The document carries `static` as the member's `kind` and leaves it out
+    // of `signature`, so the page has to write it back. Without it a reader
+    // calls `blank()` on an instance.
+    let dir = fixture_of("static", LINEAGE);
+    let out = doc(&dir);
+    assert!(
+        out.status.success(),
+        "`nvs doc` failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let page = page(&dir, "Blog.Post.md");
+    assert!(
+        page.contains("```nvs\nstatic blank(): Post\n```"),
+        "the static method's signature has no `static`: {page}"
+    );
+    assert!(
+        page.contains("```nvs\nrender(): string\n```"),
+        "an instance method's signature gained a prefix: {page}"
+    );
+}
+
+#[test]
+fn nvs_doc_names_the_parent_class_and_the_interfaces() {
+    // `extends` and `implements` come from the document fully qualified, and
+    // each becomes a link because both declarations got a page in this run.
+    // `parent::price` in a `@see` links to the parent's page for the same
+    // reason.
+    let dir = fixture_of("lineage", LINEAGE);
+    let out = doc(&dir);
+    assert!(
+        out.status.success(),
+        "`nvs doc` failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let page = page(&dir, "Blog.Post.md");
+    assert!(
+        page.contains(r"Extends: [Shop\Item](Shop.Item.md)"),
+        "the parent class is not named: {page}"
+    );
+    assert!(
+        page.contains(r"Implements: [Shop\Printable](Shop.Printable.md)"),
+        "the interface is not named: {page}"
+    );
+    assert!(
+        page.contains("[parent::price](Shop.Item.md#price)"),
+        "`parent::` in a `@see` did not link to the parent's page: {page}"
     );
 }

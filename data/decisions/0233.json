@@ -1,0 +1,15 @@
+{
+  "title": "`nvs meta --json <entry>` names a user class's parent and interfaces fully qualified, and `nvs doc` prints them",
+  "status": "accepted",
+  "scope": "the program half of `nvs meta --json <entry>` and the page `nvs doc` renders from it. The\nregistry half is unchanged, and so is the no-argument form.",
+  "dependsOn": [
+    "0137"
+  ],
+  "dependsOnText": "[0137](0137.md) (`nvs meta --json` takes a program, and `nvs doc` renders that\ndocument and nothing else).",
+  "validatedBy": "`crates/nvs-cli/tests/meta.rs` (`a_user_class_names_its_parent_and_interfaces_fully_qualified`)\nand `crates/nvs-cli/tests/doc.rs` (`nvs_doc_names_the_parent_class_and_the_interfaces`,\n`nvs_doc_writes_static_in_front_of_a_static_methods_signature`).",
+  "summary": {
+    "group": "tooling",
+    "headline": "`nvs doc` names a class's parent class and interfaces",
+    "body": "`nvs meta --json app.nvs` now gives each class an `extends` key with its parent class and an\n`implements` key with its interfaces. Each name is written in full, with its namespace. `nvs doc`\nprints both at the top of the class page, and writes `static` in front of a static method."
+  }
+}

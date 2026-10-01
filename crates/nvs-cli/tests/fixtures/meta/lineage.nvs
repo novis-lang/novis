@@ -1,0 +1,53 @@
+<?nvs
+// The program `nvs meta --json <entry>` reads for a declaration's lineage: a
+// class that extends a class and implements an interface, an interface that
+// extends another, and each of them named through a `use` import from a second
+// namespace. The document names every one of them fully qualified.
+
+namespace Shop;
+
+/// Something a reader can see.
+interface Printable {
+    /// The text a reader sees.
+    public function render(): string;
+}
+
+/// Something a reader can see, under a name.
+interface Named extends Printable {
+    /// The name a reader sees.
+    public function name(): string;
+}
+
+/// A thing a shop sells.
+abstract class Item {
+    /// What the item costs, in cents.
+    public function price(): int {
+        return 100;
+    }
+}
+
+namespace Blog;
+
+use Shop\Item;
+use Shop\Named;
+
+/// A post, sold like any other item.
+class Post extends Item implements Named {
+    /// The post's title.
+    public function name(): string {
+        return "First post";
+    }
+
+    /// The post as a reader sees it.
+    public function render(): string {
+        return "<h1>" . $this->name() . "</h1>";
+    }
+
+    /// A post with nothing in it yet.
+    public static function blank(): Post {
+        return new Post();
+    }
+}
+
+var $post = Post::blank();
+echo $post->render(), "\n";
