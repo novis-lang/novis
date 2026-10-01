@@ -1372,8 +1372,10 @@ impl CoreTy {
     }
 
     /// What this parameter's text names — [`ParamText::Path`] for
-    /// [`Self::Path`], [`ParamText::ClassName`] for [`Self::ClassName`], and
-    /// [`ParamText::Plain`] for every other type. `?T` answers what `T` does.
+    /// [`Self::Path`] and for [`Self::Entry`], whose string form is the path of
+    /// the script an isolate runs, [`ParamText::ClassName`] for
+    /// [`Self::ClassName`], and [`ParamText::Plain`] for every other type.
+    /// `?T` answers what `T` does.
     ///
     /// The one place the question is answered, so the checker and an editor
     /// read the same mark: [`CoreMethod::param_text`] asks it of one
@@ -1381,7 +1383,7 @@ impl CoreTy {
     #[must_use]
     pub const fn param_text(&self) -> ParamText {
         match self {
-            Self::Path(_) => ParamText::Path,
+            Self::Path(_) | Self::Entry => ParamText::Path,
             Self::ClassName(_) => ParamText::ClassName,
             Self::Nullable(inner) => inner.param_text(),
             _ => ParamText::Plain,

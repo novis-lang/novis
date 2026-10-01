@@ -31,6 +31,6 @@ try {
 } catch (LogicError $bad) {
     echo $bad->message, "\n";
 }
---EXPECT--
-`spawn script 'no-such-child.nvs'`: `no-such-child.nvs` could not be compiled; see the errors above
+--EXPECTF--
+`spawn script '%s%eno-such-child.nvs'`: `%s%eno-such-child.nvs` could not be compiled; see the errors above
 `spawn script`'s `output:` is `'capture'` or `'inherit'`, got `'inherait'`

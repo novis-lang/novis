@@ -16,6 +16,7 @@
     "tests/conformance/core/path-a-relative-path-built-at-run-time-throws.nvst",
     "tests/conformance/core/path-from-cwd-joins-the-working-directory.nvst",
     "tests/conformance/core/path-from-cwd-throws-while-a-request-is-answered.nvst",
+    "tests/conformance/isolate/a-spawn-script-literal-names-the-script-beside-the-file-that-wrote-it.nvst",
     "tests/conformance/reject/the-path-marker-is-only-for-a-string-parameter.nvst"
   ]
 }

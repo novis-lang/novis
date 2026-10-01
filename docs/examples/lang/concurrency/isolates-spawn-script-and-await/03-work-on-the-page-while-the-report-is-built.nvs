@@ -2,8 +2,7 @@
 // Shows why you start a file instead of calling a function. The report is built
 // while this program writes the page. Collect it at the end.
 
-string $path = "docs/examples/lang/concurrency/isolates-spawn-script-and-await/jobs/build-report.nvs";
-var $handle = spawn script $path with(output: "capture");
+var $handle = spawn script "jobs/build-report.nvs" with(output: "capture");
 
 // This part of the page is written while the report is still being built.
 echo "<h1>Sales</h1>\n";

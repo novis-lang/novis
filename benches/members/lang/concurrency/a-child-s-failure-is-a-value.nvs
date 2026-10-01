@@ -5,10 +5,16 @@
 // bench: iterations 2000
 
 class Bench {
+    // `here` returns its argument as a full path. A relative path in a string
+    // literal starts at the folder of this file.
+    private static function here(#[Core\Path] string $path): string {
+        return $path;
+    }
+
     public static function run(uint $rounds): uint {
         array<string> $jobs = [
-            "benches/members/lang/concurrency/a-child-s-failure-is-a-value/import-orders.nvs",
-            "benches/members/lang/concurrency/a-child-s-failure-is-a-value/send-receipts.nvs",
+            Bench::here("a-child-s-failure-is-a-value/import-orders.nvs"),
+            Bench::here("a-child-s-failure-is-a-value/send-receipts.nvs"),
         ];
         uint $total = 0;
         uint $i = 0;

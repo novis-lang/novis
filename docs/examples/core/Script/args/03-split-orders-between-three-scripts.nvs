@@ -2,12 +2,11 @@
 // Splits a list of order totals between three scripts that run at the same time.
 // Each script adds up its own part, and this script adds the three sums.
 
-string $path = "docs/examples/core/Script/args/scripts/sum-orders.nvs";
-
 // Each child receives its own copy of one part of the list.
-var $first = spawn script $path with(args: [120, 80, 45]);
-var $second = spawn script $path with(args: [300, 15]);
-var $third = spawn script $path with(args: [99, 1, 60, 40]);
+// The path starts at the folder of this file.
+var $first = spawn script "scripts/sum-orders.nvs" with(args: [120, 80, 45]);
+var $second = spawn script "scripts/sum-orders.nvs" with(args: [300, 15]);
+var $third = spawn script "scripts/sum-orders.nvs" with(args: [99, 1, 60, 40]);
 
 // `value` is what the child returned. The three sums are 245, 315 and 200.
 int $total = 0;

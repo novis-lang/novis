@@ -21,7 +21,7 @@ foreach ($names as string $name) {
 }
 
 // 2. Start the script next to the second `nvs.toml`. It should print `64M` and `no`.
-var $child = spawn script $dir . '/work/child.nvs' with(output: 'capture');
+var $child = spawn script 'work/child.nvs' with(output: 'capture');
 var $result = await $child;
 echo $result->output;
 

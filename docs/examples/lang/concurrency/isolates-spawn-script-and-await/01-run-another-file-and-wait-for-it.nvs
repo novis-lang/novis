@@ -2,9 +2,8 @@
 // Shows how to run another file and collect its result. `spawn script` starts
 // the file. `await` waits for it to finish and gives you a result to read.
 
-// A path starts at the folder where you run the program.
-string $path = "docs/examples/lang/concurrency/isolates-spawn-script-and-await/jobs/count-rows.nvs";
-var $handle = spawn script $path with(output: "capture");
+// The path starts at the folder of this file.
+var $handle = spawn script "jobs/count-rows.nvs" with(output: "capture");
 
 // The file is running now. Your program can do other work on this line.
 echo "the file was started\n";

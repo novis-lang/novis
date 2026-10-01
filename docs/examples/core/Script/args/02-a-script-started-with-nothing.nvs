@@ -9,6 +9,5 @@ echo "given: ", $given == null ? "nothing" : "a value", "\n";
 
 // This child is started with no `args:`. It reads `null` too, and it prints
 // "Hello, everyone!".
-string $path = "docs/examples/core/Script/args/scripts/greet.nvs";
-var $child = spawn script $path with(output: "capture");
+var $child = spawn script "scripts/greet.nvs" with(output: "capture");
 echo (await $child)->output;

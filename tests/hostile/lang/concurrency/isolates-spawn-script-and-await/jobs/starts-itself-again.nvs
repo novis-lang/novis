@@ -3,8 +3,7 @@
 // and the copy it starts does the same. Nothing here stops the chain, so the
 // runtime is what has to stop it.
 
-string $me = 'tests/hostile/lang/concurrency/isolates-spawn-script-and-await/jobs/starts-itself-again.nvs';
-var $handle = spawn script $me with(output: 'capture');
+var $handle = spawn script 'starts-itself-again.nvs' with(output: 'capture');
 var $result = await $handle;
 
 // The copy started above either returned a depth or stopped. This run counts

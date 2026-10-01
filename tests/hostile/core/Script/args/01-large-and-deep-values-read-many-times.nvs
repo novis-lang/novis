@@ -4,7 +4,6 @@
 // an error value, and the runtime must not crash.
 // hostile: timeout-ms 60000
 
-string $reader = 'tests/hostile/core/Script/args/scripts/reader.nvs';
 string $row = 'order 1042, customer 77, shipping address line one, line two, postcode, city, country';
 
 // 1. A list of 20000 long strings is passed, and the child reads it 100000 times.
@@ -15,7 +14,8 @@ try {
         $rows[] = $row . ' ' . $i;
         $i = $i + 1;
     }
-    var $large = spawn script $reader with(args: $rows);
+    // The path starts at the folder of this file.
+    var $large = spawn script 'scripts/reader.nvs' with(args: $rows);
     var $result = await $large;
     echo 'large: ', $result->ok ? 'read' : 'failed', "\n";
 } catch (Throwable $error) {
@@ -30,7 +30,7 @@ try {
         $deep = [$deep];
         $level = $level + 1;
     }
-    var $nested = spawn script $reader with(args: $deep);
+    var $nested = spawn script 'scripts/reader.nvs' with(args: $deep);
     var $read = await $nested;
     echo 'deep: ', $read->ok ? 'read' : 'failed', "\n";
 } catch (Throwable $error) {
@@ -48,7 +48,7 @@ try {
     array<Core\Script\Handle> $jobs = [];
     int $n = 0;
     while ($n < 100) {
-        $jobs[] = spawn script $reader with(args: $shared);
+        $jobs[] = spawn script 'scripts/reader.nvs' with(args: $shared);
         $n = $n + 1;
     }
     int $ok = 0;

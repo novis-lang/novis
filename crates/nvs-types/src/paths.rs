@@ -13,6 +13,13 @@
 //! `crate::expr::args::check_options_arg` hands each written field to
 //! [`resolve_literal`].
 //!
+//! The script an isolate runs is a path position too. `spawn script <path>` is
+//! a construct rather than a call, so `crate::expr::isolate`'s `check_entry`
+//! hands its operand to [`resolve_literal`] itself. `Core\Socket::upgrade` and
+//! `Core\Sse::upgrade` mark their entry `nvs_stdlib::registry::CoreTy::Entry`,
+//! whose [`ParamText`] is [`ParamText::Path`], so they arrive through
+//! [`resolve_args`] like any other `Core` row.
+//!
 //! # What is a literal
 //!
 //! **A plain string literal, written at the argument itself** — `'data/x.json'`,

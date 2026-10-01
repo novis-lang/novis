@@ -17,7 +17,7 @@
 // so its line arrives before anything below it. Awaiting first is what makes
 // that ordering a fact rather than a race: § 4 of ADR 0072 applies to an
 // isolate exactly as it does to a task.
-var $hello = spawn script 'examples/isolate/hello.nvs' with(
+var $hello = spawn script 'isolate/hello.nvs' with(
     output: 'inherit',
 );
 var $greeting = await $hello;
@@ -29,7 +29,7 @@ if ($greeting->ok) {
 
 // `output: 'capture'` — the same child machinery with the other sink. What
 // comes back is the child's bytes, and the parent decides where they go.
-var $capture = spawn script 'examples/isolate/capture.nvs' with(
+var $capture = spawn script 'isolate/capture.nvs' with(
     output: 'capture',
 );
 var $captured = await $capture;
@@ -40,7 +40,7 @@ echo 'captured=', $captured->output, "\n";
 // needed — because a child that fails may not be able to end its parent.
 // The same is true of a limit breach and of a contained panic inside it
 // (ADR 0106 § 2), which is the whole point of the boundary.
-var $bad = spawn script 'examples/isolate/throws.nvs' with(
+var $bad = spawn script 'isolate/throws.nvs' with(
     output: 'capture',
 );
 var $failed = await $bad;

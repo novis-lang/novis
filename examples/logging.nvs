@@ -35,7 +35,7 @@ try {
 }
 
 // And the rung above it, where the program no longer gets a say.
-var $child = spawn script 'examples/logging/throws.nvs' with(
+var $child = spawn script 'logging/throws.nvs' with(
     output: 'inherit',
 );
 var $done = await $child;

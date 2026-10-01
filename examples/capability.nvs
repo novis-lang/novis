@@ -25,7 +25,7 @@
 
 // Granted: a read under the root the operator named.
 try {
-    string $greeting = Core\IO::read('examples/capability/greeting.txt');
+    string $greeting = Core\IO::read('capability/greeting.txt');
     echo 'granted: ' . Core\Str::trim($greeting) . "\n";
 } catch (RuntimeError $refused) {
     echo 'granted: refused', "\n";
@@ -35,7 +35,7 @@ try {
 // granted root on purpose — what is missing is the capability, not the
 // prefix, so a tree that checked only the path would pass the wrong half.
 try {
-    Core\IO::write('examples/capability/denied.txt', 'unreachable');
+    Core\IO::write('capability/denied.txt', 'unreachable');
     echo 'allowed: fs.write', "\n";
 } catch (RuntimeError $refused) {
     echo 'denied: fs.write', "\n";
@@ -49,7 +49,7 @@ try {
 try {
     // `await` is an expression, so its result is bound rather than discarded:
     // a bare `await $child;` is not a statement this language has.
-    var $child = spawn script 'examples/isolate/hello.nvs' with(
+    var $child = spawn script 'isolate/hello.nvs' with(
         output: 'capture',
     );
     var $done = await $child;

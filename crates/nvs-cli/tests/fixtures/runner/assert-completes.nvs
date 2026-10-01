@@ -11,10 +11,9 @@
 // accepted side of this member lives here. `tests/conformance/core/`'s three
 // `assert-completes-*` cases are the refused side.
 //
-// The child path is written from `crates/nvs-cli`, which is where `cargo test`
-// runs this crate from and where a relative `spawn script` path is anchored
-// (`crates/nvs-cli/src/script.rs`). `crates/nvs-cli/src/runner.rs`'s own tests
-// are the only reader of this file.
+// The child path is a literal, so it names the file beside this one
+// (`rule:programs/path-literals-resolve-from-their-file`).
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
 use Core\Test;
 use Core\Time;
 
@@ -32,7 +31,7 @@ final class AssertCompletesTest {
     #[Test(at: "2026-01-01T00:00:00Z")]
     public function itFailsABodyThatLeavesWorkRunning(): void {
         Test::assertCompletes(
-            fn(): void => { var $orphan = spawn script 'tests/fixtures/runner/task-tree-child.nvs'; },
+            fn(): void => { var $orphan = spawn script 'task-tree-child.nvs'; },
             {within: 50ms},
         );
     }

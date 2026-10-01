@@ -1,0 +1,45 @@
+--TEST--
+`spawn script 'child.nvs'` runs the `child.nvs` beside the file that contains the spawn, whatever the working directory is, and a relative path built while the program runs throws a `RuntimeError` before any child starts — `rule:programs/path-literals-resolve-from-their-file`
+--FILE nvs.toml--
+[capabilities.script]
+spawn = true
+--FILE child.nvs--
+<?nvs
+echo "the child beside case.nvs ran\n";
+--FILE jobs/child.nvs--
+<?nvs
+echo "the child beside jobs/Runner.nvs ran\n";
+--FILE jobs/Runner.nvs--
+<?nvs
+class Runner {
+    public static function run(): void {
+        // Written in `jobs/`, so the literal names `jobs/child.nvs`. The case
+        // runs from the folder above, where another `child.nvs` waits.
+        var $done = await spawn script "child.nvs" with(output: "capture");
+        echo $done->output;
+    }
+}
+--FILE--
+<?nvs
+require './jobs/Runner.nvs';
+
+Runner::run();
+
+// Written in this file, so the same literal names the `child.nvs` beside it.
+var $here = await spawn script "child.nvs" with(output: "capture");
+echo $here->output;
+
+// A path built at run time is not joined to anything, and a relative one
+// throws in the parent: no child starts, so there is no `ScriptResult`.
+string $name = "child" . ".nvs";
+try {
+    spawn script $name;
+    echo "unreachable\n";
+} catch (RuntimeError $relative) {
+    echo $relative->message, "\n";
+}
+--EXPECT--
+the child beside jobs/Runner.nvs ran
+the child beside case.nvs ran
+`spawn script` needs an absolute path, and `child.nvs` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
