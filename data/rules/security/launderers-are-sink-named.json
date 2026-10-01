@@ -4,7 +4,8 @@
   "because": [
     "0024",
     "0133",
-    "0055"
+    "0055",
+    "0248"
   ],
   "divergesFromPhp": "there is no `sanitize()`, no `clean()` and no `filter_var` catch-all; a value safe for HTML is not safe for a path",
   "seeAlso": [
@@ -15,6 +16,8 @@
   ],
   "guardedBy": [
     "tests/conformance/core/a-launder-row-hands-a-tainted-value-to-the-sink-it-names.nvst",
-    "tests/conformance/core/html-escape-launders-a-tainted-value-and-writes-all-five-characters.nvst"
+    "tests/conformance/core/html-escape-launders-a-tainted-value-and-writes-all-five-characters.nvst",
+    "tests/conformance/core/path-from-cwd-gives-a-path-core-io-read-accepts.nvst",
+    "tests/conformance/reject/path-a-tainted-path-not-from-cwd-does-not-reach-io-read.nvst"
   ]
 }

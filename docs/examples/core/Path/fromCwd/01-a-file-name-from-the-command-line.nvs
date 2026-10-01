@@ -6,8 +6,10 @@ array<tainted string> $words = Core\Cli::arguments();
 tainted string $typed = Core\Arr::first($words) ?? "notes.txt";
 
 // `fromCwd` joins the name to the folder the user started the program from.
-// The result is a full path, so this prints `true`.
-tainted string $path = Core\Path::fromCwd($typed);
+// The result is a full path that is not `tainted`, so `Core\IO::read` accepts it.
+string $path = Core\Path::fromCwd($typed);
+
+// The path starts at a root, so this prints `true`.
 echo Core\Path::isAbsolute($path) ? "true" : "false", "\n";
 
 // The file name is still the last part of the path. This prints `notes.txt`.

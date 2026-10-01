@@ -1,0 +1,25 @@
+--TEST--
+A path typed on the command line that does not go through `Core\Path::fromCwd` is still `tainted`, so `Core\IO::read` does not compile with it — `rule:security/launderers-are-sink-named`
+--ARGS--
+notes/report.txt
+--FILE--
+<?nvs
+// `fromCwd` is the one launderer for a typed path. Without it the argument
+// keeps `tainted`, and a path door refuses it while compiling.
+foreach (Core\Cli::arguments() as tainted string $typed) {
+    echo Core\IO::read($typed);
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:5:24
+  |
+5 |     echo Core\IO::read($typed);
+  |                        ^^^^^^ this is `tainted string`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

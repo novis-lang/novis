@@ -2347,6 +2347,7 @@ mod tests {
             (r"Core\Html::sanitize", true),
             (r"Core\Http::allowUrl", false),
             (r"Core\IO::within", false),
+            (r"Core\Path::fromCwd", false),
             (r"Core\Regex::quote", false),
             (r"Core\SignedCookie::open", false),
             (r"Core\Taint::assertTrusted", false),

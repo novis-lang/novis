@@ -1,0 +1,29 @@
+--TEST--
+A path typed on the command line reaches `Core\IO::read` through `Core\Path::fromCwd`, whose answer is a `string` without `tainted`, and the `fs` grant still bounds the file it names — `rule:security/launderers-are-sink-named`, `rule:programs/path-literals-resolve-from-their-file`
+--ARGS--
+notes/report.txt
+../outside.txt
+--FILE--
+<?nvs
+// Every argument is `tainted`. `fromCwd` removes that qualifier, so its answer
+// is a declared `string` and a path door accepts it.
+foreach (Core\Cli::arguments() as tainted string $typed) {
+    string $path = Core\Path::fromCwd($typed);
+    try {
+        echo Core\IO::read($path);
+    } catch (IOError $missing) {
+        echo "the os answered\n";
+    } catch (RuntimeError $refused) {
+        // The grant is `.`, and a path that climbs out of it is still refused:
+        // removing `tainted` widens no grant.
+        echo "refused outside the grant\n";
+    }
+}
+--FILE notes/report.txt--
+first line of the report
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+first line of the report
+refused outside the grant

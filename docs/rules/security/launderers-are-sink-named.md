@@ -8,6 +8,13 @@ a shell argument or a path, and a single catch-all invites exactly the false con
 exists to prevent. The roster grows by adding a named member to the class that owns the sink, never by
 widening an existing one.
 
+**One launderer checks nothing in the bytes: `Core\Path::fromCwd`**, for a file path typed on the
+command line. It throws while a request is being answered, so request data never passes through it.
+The user who typed the path can already open any file the process can, and the `fs` grants still
+bound every file its answer names. A request that opens a file named by its own data keeps
+`Core\IO::within($base, $path)`. `fromCwd` removes `tainted` and nothing else: a `secret` argument
+does not compile, as at every launderer.
+
 Which return type a launderer takes is a predicate rather than a per-member choice
 (`rule:security/launderer-answers-a-carrier`). Where no built-in launderer fits, the way out is
 `rule:security/assert-trusted` — written, greppable, and carrying a reason — and never a silent cast.

@@ -53,3 +53,13 @@ while ($i < 10000) {
     $i = $i + 1;
 }
 echo '5: ', $thrown, " of 10000 calls throw\n";
+
+// 6. The path of the request, which is `tainted`. The call throws, so the
+// request's own data never comes back without `tainted`.
+try {
+    tainted string $asked = Core\Request::path();
+    string $joined = Core\Path::fromCwd($asked);
+    echo $joined, "\n";
+} catch (RuntimeError $error) {
+    echo "6: throws\n";
+}

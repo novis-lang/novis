@@ -413,11 +413,12 @@ bundled executable the file's folder maps to the same folder beside the executab
 and the path, before any grant is asked. `Core\Path::join` builds an absolute path from a folder the
 program holds, and `Core\Path::fromCwd` joins a path typed on a command line to the working directory.
 `fromCwd` throws while a request is being answered, because a server's working directory is not the
-app's. The resolver an isolate's script goes through refuses a relative path the same way, for a
+app's. Its answer is a plain `string` without `tainted`, so a path from `Core\Cli::arguments` reaches
+a path door through it ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named) states the exception). The resolver an isolate's script goes through refuses a relative path the same way, for a
 spawn, a queued job, a scheduled entry and a log handler alike. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
 that file's folder, names the same files as a literal in a program beside it.
 
-<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md).</sub>
+<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md), [0248](../decisions/0248.md).</sub>
 
 <a id="programs-program-id"></a>
 

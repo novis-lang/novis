@@ -75,9 +75,17 @@
 //! directory, so it *looks* like the thing that makes a `tainted` path safe —
 //! and spec § 8 says outright that it is not. Its answer is still the caller's
 //! bytes rearranged, and the sink it would have to launder for is a filesystem
-//! nothing in this module opens. So it is `Qual::Contagious` with the other
-//! seven text-answering members, and `isAbsolute` is the class's only
+//! nothing in this module opens. So it is `Qual::Contagious`, like every other
+//! member that answers the caller's text, and `isAbsolute` is the class's only
 //! `Qual::Neutral` row because a `bool` carries no byte of its subject.
+//!
+//! **`fromCwd` is the class's one launderer**, for the file-path sink, and it
+//! checks nothing in the bytes. `rule:security/launderers-are-sink-named`
+//! states it as that rule's one exception and why it holds: the member throws
+//! while a request is answered, the user who typed the path can already open
+//! what the process can, and the `fs` grants still bound every file the answer
+//! names. `Qual::Launder` refuses a `secret` argument, so `tainted` is the only
+//! qualifier it removes.
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
@@ -197,9 +205,10 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["path"],
             // Plain text and not a path parameter: a path parameter's literal
             // is joined to the file that wrote it, and the whole point of this
-            // member is the other base. Contagious, since the answer is the
-            // caller's bytes behind a directory.
-            params: &[CoreTy::Text(Qual::Contagious)],
+            // member is the other base. A launderer for the file-path sink, so
+            // a path from `Core\Cli::arguments` reaches a path door — the
+            // module doc's § *What these members do with a qualifier*.
+            params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_path_from_cwd",
@@ -418,7 +427,8 @@ const FROM_CWD_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "A full path, written with `Core\\Path::SEPARATOR`, with its `.` and `..` parts \
-          removed. The method does not check that the file exists.",
+          removed. The method does not check that the file exists. The result is not \
+          `tainted`, so you can pass a path from `Core\\Cli::arguments` to `Core\\IO::read`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The program is answering a web request. A server has no working folder that \
@@ -1112,8 +1122,10 @@ nvs_runtime::nvs_helper! {
     /// **The one member of this class that reads the process**, and it reads
     /// it through `nvs_runtime::capability::working_dir`, which throws while
     /// a request is being answered. The working directory is read first, so a
-    /// request throws whatever the argument is. `rule:programs/path-literals-resolve-from-their-file`
-    /// owns why nothing else resolves against that directory.
+    /// request throws whatever the argument is, and that throw is what makes
+    /// the row's `Qual::Launder` safe: request data never reaches the answer.
+    /// `rule:programs/path-literals-resolve-from-their-file` owns why nothing
+    /// else resolves against that directory.
     ///
     /// The join is this module's grammar: the directory's text and the
     /// argument are one path to [`parse`], and [`resolved`] removes `.` and
@@ -1562,5 +1574,49 @@ mod tests {
         );
         assert_eq!(relative_to(r"\\server\one\a", r"\\server\two\a"), None);
         assert_eq!(relative_to(r"\\server\share\a", "/a"), None);
+    }
+
+    /// `rule:security/launderers-are-sink-named`'s one exception, in its two
+    /// halves. The row launders its one parameter and answers a plain
+    /// `string`, so the checker gives a path typed on the command line to a
+    /// path door. And a context answering a request still throws, whatever
+    /// the argument is, so request data never reaches that answer.
+    // covers: Core\Path::fromCwd
+    #[test]
+    fn from_cwd_returns_a_string_without_tainted() {
+        use crate::registry::{CoreTy, Qual};
+
+        let row = super::CLASS
+            .methods
+            .iter()
+            .find(|method| method.name == "fromCwd")
+            .expect("`Core\\Path::fromCwd` is registered");
+        assert!(
+            matches!(row.params, [CoreTy::Text(Qual::Launder)]),
+            "the one parameter is a launderer, so its `tainted` does not reach the answer"
+        );
+        assert!(
+            matches!(row.return_ty, CoreTy::Str),
+            "the answer is a plain `string`: no path sink transforms a value on its own"
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        let path = s("report.txt");
+        let result = call(super::nvs_core_path_from_cwd, &mut ctx, &[path]);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built for the \
+                      argument, and the helper borrowed rather than consumed it"
+        )]
+        unsafe {
+            path.release();
+        }
+        assert!(result.is_err(), "a request throws before the join");
+        let message = ctx.pending().expect("the throw is pending").into_owned();
+        assert!(
+            message.contains("cannot be used while answering a request"),
+            "{message}"
+        );
     }
 }

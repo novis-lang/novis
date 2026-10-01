@@ -1,0 +1,12 @@
+{
+  "title": "`Core\\Path::fromCwd` removes `tainted` from a path typed on the command line, and nothing else",
+  "status": "accepted",
+  "scope": "Which qualifier `Core\\Path::fromCwd`'s answer carries, and the one exception that makes it a\nlaunderer for the file-path sink. The member's join, its refusal during a request and every\n`fs` grant are unchanged.",
+  "dependsOn": [
+    "0241",
+    "0024",
+    "0133"
+  ],
+  "dependsOnText": "[0241](0241.md) (a relative path built at run time throws, and `fromCwd` is the one way\nto the working directory), [0024](0024.md) (laundering is sink-named), [0133](0133.md) (which\nlaunderers answer a carrier).",
+  "validatedBy": "the Stage 4 checks of goal `path-literals-follow-up`: `nvs-stdlib`'s\n`from_cwd_returns_a_string_without_tainted`, and the two `.nvst` cases named under *Verification*."
+}
