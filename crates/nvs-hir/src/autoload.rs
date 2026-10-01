@@ -90,11 +90,13 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceMap, Span, code};
 use nvs_syntax::ast::{NamespaceDecl, Stmt, StmtKind};
 use rustc_hash::FxHashSet;
 
+use crate::hierarchy::{ClassLinks, CoreRoster, HierarchyResolver};
 use crate::qname::QName;
+use crate::symbol::{SymbolKind, SymbolTable};
 
 /// The file extension every autoloaded declaration lives in.
 const SOURCE_EXTENSION: &str = "nvs";
@@ -601,6 +603,42 @@ impl AutoloadMap {
         let found = self.enumerate_into(&mut listed);
         self.trace.listed.extend(listed);
         found
+    }
+
+    /// Every class and interface [`Self::enumerate`] lists that `loaded` does
+    /// not declare, each with the `extends` and `implements` its file writes,
+    /// as [`HierarchyResolver::written`] reads them.
+    ///
+    /// This is the editor's question about a program it has analysed: which
+    /// classes the program could still load, and what each would be a subtype
+    /// of. A string literal under `as class<T>` loads the class it names
+    /// (`rule:types/class-reference`), so these are names it may be completed
+    /// to. Each file is parsed the way the graph walk parses a file it loads,
+    /// and only the
+    /// declaration under the name the file is listed by is kept, the one
+    /// `rule:programs/one-declaration-per-autoloaded-file` allows there. An
+    /// enum is not kept, because it has no links. Nothing is added to a
+    /// program and no diagnostic is kept, and nothing is cached: each call
+    /// lists every root again and parses every file it lists that is not
+    /// loaded.
+    #[must_use]
+    pub fn loadable_links(&self, loaded: &SymbolTable) -> Vec<(QName, SymbolKind, ClassLinks)> {
+        let mut map = SourceMap::new();
+        let mut diags = Diagnostics::new();
+        self.enumerate()
+            .into_iter()
+            .filter(|(name, _)| !loaded.contains(name))
+            .filter_map(|(name, path)| {
+                let id = map.load(&path).ok()?;
+                let stmts = nvs_syntax::parse_file(map.file(id), &mut diags);
+                let mut hierarchy = HierarchyResolver::new(CoreRoster::Trusted);
+                hierarchy.collect_links(&stmts, map.file(id));
+                hierarchy
+                    .written()
+                    .into_iter()
+                    .find(|(declared, _, _)| *declared == name)
+            })
+            .collect()
     }
 
     fn enumerate_into(&self, listed: &mut Vec<Listing>) -> Vec<(QName, PathBuf)> {

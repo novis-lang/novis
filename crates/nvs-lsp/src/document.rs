@@ -494,6 +494,13 @@ pub struct Analysed {
     /// answer comes from the code that resolves a root and not from a copy of
     /// it here. A declaration the walk rejected is not in this list.
     pub autoloads: Vec<nvs_hir::autoload::Site>,
+    /// The `autoload` map the walk resolved names through, the borrowed
+    /// declarations included.
+    ///
+    /// [`crate::completion`] lists every class it can load from it, because
+    /// the operand of `as class<T>` may name a class nothing else loads
+    /// (`rule:types/class-reference`).
+    pub autoload: AutoloadMap,
     /// Every whitespace run and every comment of the **entry** document, in
     /// source order — the other two thirds of the one parse that produced
     /// `loaded`'s first entry (`rule:ide/one-grammar-one-tree`).
@@ -725,6 +732,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         loaded,
         lent,
         autoloads,
+        autoload,
         trivia,
         index,
         exprs,

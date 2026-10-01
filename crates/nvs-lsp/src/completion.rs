@@ -12,7 +12,8 @@
 //! or a name, the entries of a directory in a `require` or `autoload` path or
 //! at a path parameter, the namespaces the workspace declares in an
 //! `autoload` prefix, the classes that are a `T` in the operand of `as
-//! class<T>`, and the classes the program declares at a class-name parameter.
+//! class<T>`, loaded or loadable, and the classes the program loads at a
+//! class-name parameter.
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -293,8 +294,9 @@
 //!   in or under.
 //! - **The operand of `as class<T>`** is a class's whole name
 //!   (`rule:types/class-reference`): [`class_names`] offers each class and
-//!   interface the program declares that is a `T`. That is the set the
-//!   conversion compares the string with at run time, which resolves no `use`.
+//!   interface that is a `T`, among those the program loads and those its
+//!   `autoload` map can load. The compiler loads the class a literal names, and
+//!   resolves no `use` in it.
 //! - **An argument at a class-name parameter** is a class's whole name too,
 //!   for a `Core` member that looks a class up by its name, such as
 //!   `Core\Reflect::forClass`. [`class_names`] offers every class the program
@@ -663,19 +665,25 @@ fn prefixes(cursor: &Cursor<'_>, text_start: BytePos) -> Vec<CompletionItem> {
 
 /// The classes a class-name literal may name, for the classes `bound` allows.
 ///
-/// - **The operand of `as class<T>`** may name every class and interface the
-///   program declares that is a `T`, `T` included. This is the set the
-///   run-time conversion compares the string against, so a name offered here
+/// - **The operand of `as class<T>`** may name every class and interface that
+///   is a `T`, `T` included, among those the program loads and those its
+///   `autoload` map can load. The compiler loads the class a literal names
+///   while it compiles (`rule:types/class-reference`), so a name offered here
 ///   is one the conversion accepts.
 /// - **An argument at a class-name parameter** may name every class the
-///   program declares. Where the parameter names an error to expect, only a
+///   program loads. Where the parameter names an error to expect, only a
 ///   class that is a `Throwable` is offered, and the error classes the
 ///   language declares itself are offered with them.
 ///
-/// The list is read off the analysis, the same declarations and hierarchy the
-/// checker reads. A class the program never loads is not offered, because
-/// nothing at run time can find it either. Each item is the whole name, the
-/// only form either accepts, and it replaces all the text written so far.
+/// A loaded class is read off the analysis, the same declarations and
+/// hierarchy the checker reads. A loadable one is read by
+/// [`nvs_hir::AutoloadMap::loadable_links`], from the files the map lists for
+/// `Core\Program::implementing<T>()`, and the same hierarchy walk decides
+/// whether it is a `T`. Each request inside the literal lists every root and
+/// parses every file it lists that the program has not loaded. A class-name
+/// parameter offers no loadable class, because nothing loads the class its
+/// argument names. Each item is the whole name,
+/// the only form either accepts, and it replaces all the text written so far.
 fn class_names(
     cursor: &Cursor<'_>,
     text_start: BytePos,
@@ -687,22 +695,38 @@ fn class_names(
     };
     let module = &cursor.analysed.module;
     let throwable = QName::parse(nvs_hir::errors::ROOT);
-    let declared = module.symbols.iter().filter_map(|symbol| {
-        let kind = match (symbol.kind, bound) {
+    let loadable = match bound {
+        ClassBound::Type(_) => cursor.analysed.autoload.loadable_links(&module.symbols),
+        ClassBound::Any | ClassBound::Thrown => Vec::new(),
+    };
+    let widened;
+    let graph = if loadable.is_empty() {
+        &module.graph
+    } else {
+        let mut graph = module.graph.clone();
+        for (name, _, links) in &loadable {
+            graph.insert(name.clone(), links.clone());
+        }
+        widened = graph;
+        &widened
+    };
+    let classes = module
+        .symbols
+        .iter()
+        .map(|symbol| (&symbol.qname, symbol.kind))
+        .chain(loadable.iter().map(|(name, kind, _)| (name, *kind)));
+    let declared = classes.filter_map(|(name, kind)| {
+        let kind = match (kind, bound) {
             (SymbolKind::Class, _) => CompletionItemKind::CLASS,
             (SymbolKind::Interface, ClassBound::Type(_)) => CompletionItemKind::INTERFACE,
             _ => return None,
         };
         let fits = match bound {
-            ClassBound::Type(base) => {
-                nvs_hir::hierarchy::implements_interface(&symbol.qname, base, &module.graph)
-            }
+            ClassBound::Type(base) => nvs_hir::hierarchy::implements_interface(name, base, graph),
             ClassBound::Any => true,
-            ClassBound::Thrown => {
-                nvs_hir::hierarchy::implements_interface(&symbol.qname, &throwable, &module.graph)
-            }
+            ClassBound::Thrown => nvs_hir::hierarchy::implements_interface(name, &throwable, graph),
         };
-        fits.then_some((symbol.qname.to_string(), kind))
+        fits.then_some((name.to_string(), kind))
     });
     let language = nvs_hir::errors::TREE
         .iter()

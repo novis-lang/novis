@@ -15,7 +15,8 @@
 //! the ones completion offers the open tags at.
 
 use lsp_types::{
-    CompletionItem, CompletionTextEdit, Documentation, InsertTextFormat, Position, Range, TextEdit,
+    CompletionItem, CompletionItemKind, CompletionTextEdit, Documentation, InsertTextFormat,
+    Position, Range, TextEdit,
 };
 use nvs_diagnostics::{PositionEncoding, SourceMap};
 use nvs_lsp::{
@@ -135,6 +136,67 @@ fn a_class_name_item_replaces_all_the_text_written() {
             },
             new_text: "App\\User".to_owned(),
         }))
+    );
+}
+
+/// The operand of `as class<T>` is offered every class and interface the
+/// program's `autoload` map can load that is a `T`, and not only the ones the
+/// program already loads: the compiler loads the class a literal names.
+///
+/// `Shop\Animal` is loaded, because the type names it, and every other file is
+/// only on disk. `Shop\Puppy` is an `Animal` through `Shop\Dog`, which is not
+/// loaded either, and `Shop\Wild\Wolf` names `Animal` through a `use` line.
+/// `Shop\Rock` is not an `Animal`, so it is not offered.
+#[test]
+fn completion_in_a_class_literal_offers_every_class_autoload_can_load() {
+    let root = std::env::temp_dir().join(format!(
+        "nvs-completion-class-literal-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    let fixtures = [
+        (
+            "src/Animal.nvs",
+            "<?nvs\nnamespace Shop;\ninterface Animal { }\n",
+        ),
+        (
+            "src/Dog.nvs",
+            "<?nvs\nnamespace Shop;\nclass Dog implements Animal { }\n",
+        ),
+        (
+            "src/Puppy.nvs",
+            "<?nvs\nnamespace Shop;\nclass Puppy extends Dog { }\n",
+        ),
+        (
+            "src/Pet.nvs",
+            "<?nvs\nnamespace Shop;\ninterface Pet extends Animal { }\n",
+        ),
+        ("src/Rock.nvs", "<?nvs\nnamespace Shop;\nclass Rock { }\n"),
+        (
+            "src/Wild/Wolf.nvs",
+            "<?nvs\nnamespace Shop\\Wild;\nuse Shop\\Animal;\nclass Wolf implements Animal { }\n",
+        ),
+    ];
+    std::fs::create_dir_all(root.join("src/Wild")).expect("a scratch directory");
+    for (name, text) in fixtures {
+        std::fs::write(root.join(name), text).expect("a writable scratch file");
+    }
+    let source = "<?nvs\nautoload 'Shop' from 'src';\n$c = 'Sh<|>' as class<Shop\\Animal>;";
+    let items = offered_in(&root.join("main.nvs"), EDITOR, source);
+    let _ = std::fs::remove_dir_all(&root);
+
+    for (label, kind) in [
+        ("Shop\\Animal", CompletionItemKind::INTERFACE),
+        ("Shop\\Dog", CompletionItemKind::CLASS),
+        ("Shop\\Puppy", CompletionItemKind::CLASS),
+        ("Shop\\Pet", CompletionItemKind::INTERFACE),
+        ("Shop\\Wild\\Wolf", CompletionItemKind::CLASS),
+    ] {
+        assert_eq!(named(&items, label).kind, Some(kind), "{label}");
+    }
+    assert!(
+        items.iter().all(|item| item.label != "Shop\\Rock"),
+        "a class that is not an `Animal` is not offered"
     );
 }
 

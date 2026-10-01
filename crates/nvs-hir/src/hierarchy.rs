@@ -143,7 +143,7 @@ pub struct ClassLinks {
 }
 
 /// Every declaration's resolved [`ClassLinks`], keyed by its [`QName`].
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ClassGraph {
     links: FxHashMap<QName, ClassLinks>,
 }
@@ -158,9 +158,11 @@ impl ClassGraph {
 
     /// Records one name's links, replacing any already there.
     ///
-    /// Exists for the compiler-owned declarations that have no source text to
-    /// resolve from — today only [`crate::errors::TREE`], seeded by
-    /// [`seed_exception_tree`] before the first declared link is resolved.
+    /// Exists for links no [`HierarchyResolver::resolve`] produced:
+    /// [`crate::errors::TREE`]'s, which have no source text and are seeded by
+    /// [`seed_exception_tree`] before the first declared link is resolved, and
+    /// an editor's copy of the graph widened by [`HierarchyResolver::written`]
+    /// with a class the program has not loaded.
     pub fn insert(&mut self, qname: QName, links: ClassLinks) {
         self.links.insert(qname, links);
     }
@@ -375,6 +377,35 @@ impl<'a> HierarchyResolver<'a> {
         detect_cycles(&graph, symbols, diags);
 
         graph
+    }
+
+    /// Every declaration collected so far, with each `extends`/`implements`
+    /// name resolved by [`resolve_ref`] alone.
+    ///
+    /// This is the half of [`Self::resolve`] that needs no [`SymbolTable`]: a
+    /// name is not checked against anything, so a name nothing declares, or a
+    /// parent of the wrong kind, is kept as written, and no diagnostic is
+    /// raised. It is for an editor that reads a file the program has not
+    /// loaded and asks what that file's class would be a subtype of. The
+    /// checker reports anything wrong with the links once the program loads it.
+    #[must_use]
+    pub fn written(&self) -> Vec<(QName, SymbolKind, ClassLinks)> {
+        self.pending
+            .iter()
+            .map(|pending| {
+                let resolve = |refs: &[RawRef]| -> Vec<QName> {
+                    refs.iter()
+                        .map(|raw| resolve_ref(&raw.text, &pending.namespace, &pending.imports))
+                        .collect()
+                };
+                let links = ClassLinks {
+                    extends: resolve(&pending.extends),
+                    implements: resolve(&pending.implements),
+                    concrete: pending.concrete,
+                };
+                (pending.qname.clone(), pending.own_kind, links)
+            })
+            .collect()
     }
 }
 

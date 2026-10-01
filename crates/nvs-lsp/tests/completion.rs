@@ -623,8 +623,11 @@ fn sources() -> Vec<Source> {
 /// The two name-literal arms read tables already named here. An `autoload`
 /// prefix is offered the namespaces of the workspace index's declarations and
 /// the analysis's symbol table. The operand of `as class<T>` is offered the
-/// analysis's classes that `nvs_hir::hierarchy::implements_interface` says are
-/// a `T`, the walk the checker answers the same question with.
+/// classes that `nvs_hir::hierarchy::implements_interface` says are a `T`, the
+/// walk the checker answers the same question with. They are the analysis's
+/// classes and the ones `nvs_hir::AutoloadMap::loadable_links` reads from the
+/// files the map lists for `Core\Program::implementing<T>()`, so the arm itself
+/// reads no file.
 const SOURCED: [(&str, &str); 32] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
