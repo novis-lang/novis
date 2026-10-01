@@ -185,6 +185,7 @@
     "ci-green",
     "goal-closeout",
     "performance-pass",
-    "growth-proof"
+    "growth-proof",
+    "coverage-depth"
   ]
 }

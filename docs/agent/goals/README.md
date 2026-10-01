@@ -115,6 +115,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [goal-closeout](goal-closeout.md) | post-parity, one new record — a finished goal is deleted from this goal on — `position: last` | `tools/nv/cmd/owners.ts`, `tools/nv/cmd/loop.ts`, `tools/nv/lib/chain.ts`, `docs/plan/` — every old goal proven finished, its unhomed decisions kept in `docs/agent/goal-decisions.md`, the switch made to delete a walked goal, and every goal in front of it deleted |
 | [performance-pass](performance-pass.md) | post-parity, a record only if a fix changes a rule — `position: last` | `bun nv scaling` (new), `benches/scaling/` (new), every crate a finding names — one pass over everything: no work that grows faster than linear, the big problems fixed at the root, and a plain summary in `docs/perf/performance-pass.md` |
 | [growth-proof](growth-proof.md) | `rule:testing/feature-proofs` and `rule:testing/member-perf-ledger`, two new records — `position: last` | `tools/nv/proofs/perf.ts`, `tools/nv/select/atoms.ts`, `tools/nv/cmd/affected.ts`, `benches/members/` — growth is part of every perf proof, with valgrind only as a fallback; benches are small and budgeted; a change reruns only the benches it reaches, and skips the ones already proven |
+| [coverage-depth](coverage-depth.md) | post-parity, `rule:testing/coverage-report`, one new record — `position: last` | `crates/nvs-cli/src/coverage.rs`, `nvs-codegen/src/emit.rs`, `editors/vscode/src/tests.ts` — `nvs test`'s coverage files gain functions, branches and Cobertura, the JSON report lists each test's lines, and VS Code's Test Explorer shows the coverage |
 
 ## The chain contract
 
@@ -222,7 +223,8 @@ A red gate holds the goal open, and `bun nv orient` prints the finding from `.lo
 
 ## What stops the run
 
-- **The last goal goes green** — goal `growth-proof`. In front of it, goal `ci-green` closes the
+- **The last goal goes green** — goal `coverage-depth`, behind goal `growth-proof`. In front of
+  them, goal `ci-green` closes the
   program the chain was written for: it sits behind the last *generated* one, which is every group on
   `rule:testing/feature-proofs`'s roster owing nothing, `bun nv proofs --gate` exiting 0 over the whole language.
   The parity program's own gate — goals `core-depth` through `server`, PHP core feature parity — is

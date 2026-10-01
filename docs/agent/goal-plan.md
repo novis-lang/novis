@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 185 goals. 176 are walked (120 of them retired), `plain-comments` is live at 177 of 185, and 8 are ahead.
+The chain holds 186 goals. 176 are walked (120 of them retired), `plain-comments` is live at 177 of 186, and 9 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -198,3 +198,4 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 183 | [`goal-closeout`](goals/goal-closeout.md) | every old goal is closed, its decisions are kept, and the goals are deleted | ahead, pinned last |  | **2** the registers · **3** every old goal is read · **4** finished in place · **5** deletion becomes the rule · **6** the old goals are deleted |
 | 184 | [`performance-pass`](goals/performance-pass.md) | one performance pass over everything, and no work that grows faster than linear | ahead, pinned last |  | **2** the growth tool · **3** the ladders, area by area · **4** the review · **5** the fixes · **6** the summary |
 | 185 | [`growth-proof`](goals/growth-proof.md) | every feature checks its own growth, and a change reruns only the benches it reaches | ahead, pinned last |  | **2** growth is a feature proof · **3** small benches, and a budget · **4** a change reruns the benches it reaches · **5** skip what is already proven · **6** what the user reads |
+| 186 | [`coverage-depth`](goals/coverage-depth.md) | coverage reports carry functions, branches and per-test lines, in Cobertura too, and VS Code shows them | ahead, pinned last |  | **2** functions and Cobertura · **3** branches · **4** per-test lines · **5** coverage in VS Code · **6** the reference and the proofs |

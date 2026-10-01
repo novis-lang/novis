@@ -1,0 +1,230 @@
+{
+  "title": "coverage reports carry functions, branches and per-test lines, in Cobertura too, and VS Code shows them",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-cli/src/coverage.rs",
+      "crates/nvs-cli/src/runner.rs",
+      "crates/nvs-runtime/src/ctx/trace.rs",
+      "crates/nvs-codegen/src/emit.rs"
+    ],
+    "rules": [
+      "testing/coverage-report",
+      "testing/debug-probes",
+      "testing/report-formats"
+    ],
+    "adrs": [
+      "0235"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "functions and Cobertura",
+      "summary": "Adds function coverage to the lcov and Clover files, and a third file, `--coverage-cobertura <FILE>`.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": [
+          "A decision record",
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "branches",
+      "summary": "Emits the branch probe on every conditional edge, and adds branch counts to all three files.",
+      "context": {
+        "rules": [],
+        "adrs": [
+          "0018"
+        ],
+        "shapes": [
+          "A decision record"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "per-test lines",
+      "summary": "Lists the lines each test reached in the `--format json` document, at `schemaVersion: 3`.",
+      "context": {
+        "rules": [
+          "ide/ast-json-schema-is-frozen"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 5,
+      "title": "coverage in VS Code",
+      "summary": "Adds a Coverage run profile to the Test Explorer that reads the lcov file into VS Code's own coverage view.",
+      "context": {
+        "rules": [
+          "ide/the-extension-builds-no-ui-the-editor-already-has"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 6,
+      "title": "the reference and the proofs",
+      "summary": "Rewrites the reference section, the help and `about.md` of `nvs test` for everything this goal added.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-cli-coverage-lists-functions-and-writes-cobertura",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-cli (the lcov and Clover files list every function and whether it ran, and `--coverage-cobertura` writes the same lines)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "the_lcov_file_lists_every_function_and_how_often_it_was_called",
+        "the_clover_file_counts_methods_and_covered_methods",
+        "the_cobertura_file_carries_the_lines_and_the_line_rate",
+        "all_three_files_can_be_written_by_one_run"
+      ]
+    },
+    {
+      "id": "nvs-codegen-a-branch-probe-counts-each-edge",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-codegen (the branch probe counts each conditional edge taken, under its own flag, and adds no call with the flag off)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-codegen"
+      ],
+      "tests": [
+        "a_branch_probe_counts_each_edge_taken",
+        "branch_coverage_and_line_coverage_are_separate_flags",
+        "the_branch_probe_costs_nothing_observable_with_every_bit_off"
+      ]
+    },
+    {
+      "id": "nvs-cli-coverage-lists-branches",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-cli (each coverage file lists every branch and how often each side ran)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "the_lcov_file_lists_each_branch_and_each_side_taken",
+        "the_clover_file_counts_conditionals_and_covered_conditionals",
+        "the_cobertura_file_carries_the_branch_rate"
+      ]
+    },
+    {
+      "id": "nvs-cli-the-json-document-lists-each-tests-lines",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-cli (`--format json` with a coverage flag lists the lines each test reached, at schema version 3)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "the_json_document_lists_the_lines_each_test_reached",
+        "the_json_document_without_a_coverage_flag_has_no_coverage_key",
+        "a_retried_test_lists_the_lines_of_every_attempt"
+      ]
+    },
+    {
+      "id": "vscode-headless-with-coverage",
+      "kind": "command",
+      "stage": 5,
+      "name": "vscode (headless, the Coverage run profile reads an lcov file into the editor's coverage view)",
+      "argv": [
+        "npm",
+        "run",
+        "--silent",
+        "test:headless"
+      ],
+      "cwd": "editors/vscode",
+      "want": [
+        "coverage:",
+        "0 failing"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-coverage-depth",
+      "kind": "command",
+      "stage": 6,
+      "name": "proofs: the whole roster owes nothing with the deeper coverage reports in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}
