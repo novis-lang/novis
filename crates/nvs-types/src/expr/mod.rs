@@ -125,6 +125,11 @@ pub fn type_is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// to it — the refusal below, and the callable one above it — at its own,
 /// narrower span. Repeating either here is one mistake reported twice, a column
 /// apart, which is what `Door::a(({name: "x"}))` used to print.
+///
+/// An expression that contains a node the parser already refused reports
+/// neither: its type is a stand-in, and the parser's error is the real one
+/// ([`Env::refused_exprs`]). That covers the refused argument itself and a call
+/// whose result type was inferred from it.
 pub(crate) fn check_expr(
     expr: &Expr,
     expected: Option<TypeId>,
@@ -133,9 +138,11 @@ pub(crate) fn check_expr(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    let refused_before = env.refused_exprs;
     let actual = infer(expr, expected, live, scope, ctx, env);
     if let Some(expected_id) = expected
         && !matches!(expr.kind, ExprKind::Paren(_))
+        && env.refused_exprs == refused_before
     {
         // A written signature is a callable position like the bare type is
         // (`rule:types/callable-signature`), so a value that is not a closure
@@ -932,7 +939,10 @@ pub(crate) fn infer(
             env.interner.make_union(types)
         }
         ExprKind::Paren(inner) => check_expr(inner, expected, live, scope, ctx, env),
-        ExprKind::Error(_) => env.interner.mixed(),
+        ExprKind::Error(_) => {
+            env.refused_exprs += 1;
+            env.interner.mixed()
+        }
         _ => env.interner.mixed(),
     }
 }

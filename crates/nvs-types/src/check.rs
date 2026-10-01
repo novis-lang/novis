@@ -184,6 +184,7 @@ pub fn check_program_granted(
             decode_sites: &mut decode_sites,
             diags: &mut *diags,
             closure_seq,
+            refused_exprs: 0,
             fn_self: None,
             exit_targets: Vec::new(),
             write_target_levels: FxHashMap::default(),

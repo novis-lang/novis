@@ -761,6 +761,7 @@ pub fn build_signatures(
             decode_sites: &mut placeholder_decode_sites,
             diags: &mut *diags,
             closure_seq: 0,
+            refused_exprs: 0,
             fn_self: None,
             exit_targets: Vec::new(),
             write_target_levels: FxHashMap::default(),

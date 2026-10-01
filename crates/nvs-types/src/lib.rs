@@ -482,6 +482,17 @@ pub(crate) struct Env<'a> {
     /// because a closure nested inside another closure has no enclosing
     /// declaration of its own to be numbered within.
     pub closure_seq: u32,
+    /// How many `ExprKind::Error` nodes [`crate::expr::infer`] has typed so far
+    /// in this file — an expression the parser already refused and reported.
+    ///
+    /// [`crate::expr::check_expr`] reads it before and after inferring an
+    /// expression: a change means the expression contains a refused node, so
+    /// its type is a stand-in (`mixed`, or a generic result inferred from
+    /// `mixed`) and no mismatch is reported against it. The parser's own error
+    /// is the one the reader needs, and the program fails to compile on it
+    /// regardless, so nothing reaches a human less checked. An ordinary
+    /// `mixed` value never moves the count.
+    pub refused_exprs: u32,
     /// `rule:types/closure-self-name`'s self-name, for the `fn` literal whose body is being checked —
     /// `None` outside one, and `None` again inside a nested literal that
     /// declares no name of its own.

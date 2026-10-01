@@ -566,7 +566,9 @@ impl Admitted {
 /// anywhere else, because the expectation is what shapes an array literal and
 /// a closure literal; only the *comparison* is made against the narrowed
 /// type. So a genuine mismatch here still reads `expected string, found int`
-/// rather than naming a qualified type the member never declared.
+/// rather than naming a qualified type the member never declared. An argument
+/// that contains a node the parser already refused is not compared at all, as
+/// in [`check_expr`].
 ///
 /// The inferred type is what comes back either way, qualifiers intact: what a
 /// call *answers* is decided from the return type plus [`carries_contagion`],
@@ -584,7 +586,11 @@ fn check_arg_admitting_quals(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    let refused_before = env.refused_exprs;
     let actual = infer(value, Some(expected), live, scope, ctx, env);
+    if env.refused_exprs != refused_before {
+        return actual;
+    }
     let mut compared = actual;
     if admitted.tainted {
         compared = untainted(compared, env.interner);
@@ -1389,6 +1395,10 @@ pub(crate) fn check_generic_args(
     // the pass between the binding and the substitution below is where they
     // are checked.
     let mut deferred_fn = vec![false; list.len()];
+    // The arguments that contain a node the parser already refused, by
+    // argument index. Their type is a stand-in, so the last pass reports no
+    // mismatch for them ([`Env::refused_exprs`]).
+    let mut refused = vec![false; list.len()];
     for (index, Arg { value, .. }) in list.iter().enumerate() {
         // A placeholder for the bag: overwritten in the second pass below,
         // and never read in between — `crate::generics::bind` is skipped for
@@ -1422,7 +1432,9 @@ pub(crate) fn check_generic_args(
         // Every diagnostic and not just the errors: a warning repeated is as
         // much a second report as an error repeated.
         let reported = env.diags.iter().len();
+        let refused_before = env.refused_exprs;
         arg_types.push(check_expr(value, expected, live, scope, ctx, env));
+        refused[index] = env.refused_exprs != refused_before;
         // A literal that reported anything is left where it is: it has said
         // its piece already, and checking it again would repeat that.
         // `unplaced_expectation` is what keeps the one run of digits that
@@ -1504,7 +1516,9 @@ pub(crate) fn check_generic_args(
             continue;
         }
         let actual = arg_types[index];
-        if !is_assignable(actual, declared, env.interner, env.graph, env.signatures) {
+        if !refused[index]
+            && !is_assignable(actual, declared, env.interner, env.graph, env.signatures)
+        {
             report_mismatch(arg.value.span, declared, actual, env);
         }
     }

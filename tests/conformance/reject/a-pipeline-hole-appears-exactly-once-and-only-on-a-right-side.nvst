@@ -33,5 +33,5 @@ error[E0129]: the right side of `|>` needs the hole `$_`
 %A
 error[E0131]: `$_` is the pipeline hole and has no meaning here
 %A
-error: aborting due to 5 errors
+error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -39,8 +39,6 @@ list($x, $y) = $pair;
 --EXPECTF-ERROR--
 error[E0225]: `(int)expr` is not supported
 %A
-error[E0401]: expected `int`, found `mixed`
-%A
 error[E0320]: `intval` is not a function that exists
 %A
 error[E0401]: expected `int`, found `mixed`
@@ -67,5 +65,5 @@ error[E0715]: `<` has no meaning for `string`
 %A
 error[E0230]: `list(...)` is not supported
 %A
-error: aborting due to 17 errors
+error: aborting due to 16 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

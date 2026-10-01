@@ -11,9 +11,8 @@ An object literal is refused where its `{` or one of its fields would have two m
 // ambiguity, and `rule:types/shape-type` names the way out: the shape gets
 // a name, and the declaration uses the name.
 //
-// The arrow function reports twice. Its body is refused, so the closure's
-// result type is `mixed` at the binding, and the second error is the
-// consequence of the first and is expected here.
+// The arrow function reports once. Its body is refused, and a refused
+// expression reports no type mismatch of its own against `Point`.
 //
 // The three field diagnostics are what is left once the braces parse. A
 // name written twice has no answer for which value the field takes. A
@@ -37,8 +36,6 @@ error[E0117]: an object literal here is ambiguous with a block
 %A
 error[E0117]: an object literal here is ambiguous with a block
 %A
-error[E0401]: expected `{x: int, y: int}`, found `mixed`
-%A
 error[E0134]: a local declaration cannot be typed with a bare shape
 %A
 error[E0494]: the field `x` is written twice in this object literal
@@ -47,5 +44,5 @@ error[E0401]: expected `{x: int, y: int}`, found `{x: int}`
 %A
 error[E0401]: expected `{x: int, y: int}`, found `{x: int, y: string}`
 %A
-error: aborting due to 7 errors
+error: aborting due to 6 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

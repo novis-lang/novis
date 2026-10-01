@@ -990,6 +990,7 @@ mod tests {
             decode_sites: &mut Vec::new(),
             diags: &mut diags,
             closure_seq: 0,
+            refused_exprs: 0,
             fn_self: None,
             exit_targets: Vec::new(),
             write_target_levels: rustc_hash::FxHashMap::default(),

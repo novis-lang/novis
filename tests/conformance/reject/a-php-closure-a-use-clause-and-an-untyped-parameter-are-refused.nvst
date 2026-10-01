@@ -3,8 +3,6 @@ A PHP `function (…) use (…) { … }` literal and an `fn` parameter with no t
 --FILE--
 <?nvs
 // covers: tools:php-differences/closures-and-callables
-// The values are discarded so each error is the refusal itself: a binding would
-// carry a second one about the type the expression has instead.
 int $k = 3;
 function (int $x) use ($k) { return $x + $k; };
 fn($x) => $x;
