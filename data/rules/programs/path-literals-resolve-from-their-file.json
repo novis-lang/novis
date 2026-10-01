@@ -4,7 +4,8 @@
   "because": [
     "0241",
     "0245",
-    "0248"
+    "0248",
+    "0249"
   ],
   "divergesFromPhp": "PHP resolves a relative `fopen` path against the process's working directory; here a literal resolves against its own source file, and nothing resolves against the working directory implicitly",
   "seeAlso": [
@@ -14,11 +15,14 @@
   ],
   "guardedBy": [
     "crates/nvs-types/tests/paths.rs",
+    "crates/nvs-ir/tests/path_constants.rs",
     "tests/conformance/core/path-a-relative-literal-resolves-from-the-file-that-wrote-it.nvst",
     "tests/conformance/core/path-a-relative-path-built-at-run-time-throws.nvst",
     "tests/conformance/core/path-from-cwd-gives-a-path-core-io-read-accepts.nvst",
     "tests/conformance/core/path-from-cwd-joins-the-working-directory.nvst",
     "tests/conformance/core/path-from-cwd-throws-while-a-request-is-answered.nvst",
+    "tests/conformance/core/path-this-file-and-this-dir-name-the-file-that-wrote-them.nvst",
+    "tests/conformance/reject/path-this-dir-joins-only-a-relative-literal.nvst",
     "tests/conformance/isolate/a-spawn-script-literal-names-the-script-beside-the-file-that-wrote-it.nvst",
     "tests/conformance/reject/the-path-marker-is-only-for-a-string-parameter.nvst"
   ]

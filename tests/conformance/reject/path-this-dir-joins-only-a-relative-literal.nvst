@@ -1,0 +1,19 @@
+--TEST--
+`Core\Path::thisDir`'s join is added while compiling, so a join held in a variable does not compile and the help names `Core\Path::join` — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+// A variable is a value the program builds while it runs.
+string $part = 'data';
+echo Core\Path::thisDir($part), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0837]: `Core\Path::thisDir($part)` needs a relative path written as a literal
+  --> case.nvs:4:25
+  |
+4 | echo Core\Path::thisDir($part), "\n";
+  |                         ^^^^^ not a relative string literal
+  = help: the folder is joined while compiling (`rule:programs/path-literals-resolve-from-their-file`): write a relative literal such as `'data'`, or `Core\Path::join(Core\Path::thisDir(), $part)` for a path the program builds
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

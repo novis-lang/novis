@@ -1,0 +1,30 @@
+--TEST--
+`Core\Path::thisFile` and `thisDir` written in a file reached through `require` name that file and its folder, not the entry file — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+require 'lib/blog.nvs';
+
+// The entry file and the required file each name themselves.
+echo Core\Path::basename(Core\Path::thisFile()), "\n";
+echo Core\Path::basename(Blog::file()), "\n";
+
+// The required file's folder is `lib`, one folder below the entry file's.
+echo Core\Path::basename(Blog::folder()), "\n";
+echo Core\Path::normalize(Core\Path::dirname(Blog::folder())) == Core\Path::normalize(Core\Path::thisDir())
+    ? "lib is below\n" : "lib is elsewhere\n";
+--FILE lib/blog.nvs--
+<?nvs
+class Blog {
+    public static function file(): string {
+        return Core\Path::thisFile();
+    }
+
+    public static function folder(): string {
+        return Core\Path::thisDir();
+    }
+}
+--EXPECT--
+case.nvs
+blog.nvs
+lib
+lib is below

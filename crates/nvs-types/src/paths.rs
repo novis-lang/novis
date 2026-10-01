@@ -56,14 +56,27 @@
 //! resolved literal for the length of a compile. A program pays nothing at
 //! run time: the instruction is the same constant string a literal always
 //! lowers to.
+//!
+//! # The file that wrote the call
+//!
+//! `Core\Path::thisFile()` and `Core\Path::thisDir($join)` are replaced by
+//! [`fold_this`] with the path of the file that wrote them and its folder,
+//! from the same [`base_dir`] a literal is joined to, so a bundle answers the
+//! folder beside the executable. The answer goes into the path-literal table
+//! under the call's own span, and `nvs-ir` lowers it to a string constant and
+//! no call. `$join` is a literal [`resolved`] accepts and nothing else
+//! (`E0837`): the fold happens while compiling, and a value built at run time
+//! already has `Core\Path::join`. A source with no file records nothing, and
+//! the member's own symbol throws.
 
 use std::path::{Component, Path, PathBuf, Prefix};
 
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
+use nvs_hir::QName;
 use nvs_stdlib::registry::ParamText;
 use nvs_syntax::ast::{
-    Arg, AttributeGroup, ClassMember, ClassMemberKind, EnumCase, Expr, ExprKind, MethodMember,
-    Param, Type, TypeAtom, TypeKind,
+    Arg, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, EnumCase, Expr, ExprKind,
+    MethodMember, Param, Type, TypeAtom, TypeKind,
 };
 
 use crate::defaults::ConstArg;
@@ -151,22 +164,92 @@ pub(crate) fn resolve_literal(value: &Expr, env: &mut Env<'_>) {
     }
 }
 
-/// The absolute path `text` names when it is written in `src`: joined to the
-/// folder that holds `src`, with `.` and `..` removed. `None` for a path that
-/// already starts at a root, for the empty string, and for a source with no
-/// folder to join to.
+/// Whether `member` of `owner` is `Core\Path::thisFile` or `thisDir`, the two
+/// calls [`fold_this`] replaces with a path.
+pub(crate) fn is_this(owner: &QName, member: &str) -> bool {
+    owner.to_string() == r"Core\Path" && matches!(member, "thisFile" | "thisDir")
+}
+
+/// Records the path `Core\Path::thisFile()` or `Core\Path::thisDir($join)`
+/// names under the call's own span, in the table a path literal is recorded
+/// in, where `nvs-ir` lowers it to a string constant — the module doc's
+/// § *The file that wrote the call*.
+///
+/// A `$join` that is not a relative string literal is `E0837`. A source with
+/// no folder records nothing, so the call stays a call and its symbol throws.
+pub(crate) fn fold_this(call: &Expr, member: &str, args: &CallArgs, env: &mut Env<'_>) {
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    let join = list
+        .first()
+        .filter(|arg| !matches!(arg.value.unparenthesized().kind, ExprKind::Null));
+    let path = match (member, join) {
+        ("thisFile", _) => env
+            .src
+            .path()
+            .and_then(Path::file_name)
+            .zip(base_dir(env.src))
+            .map(|(name, dir)| dir.join(name).to_string_lossy().into_owned()),
+        (_, None) => base_folder(env.src),
+        (_, Some(arg)) => {
+            let text = match arg.value.unparenthesized().kind {
+                ExprKind::Str(span) if !arg.spread => {
+                    Some(nvs_syntax::string_lit::cook_string_literal(env.src, span))
+                }
+                _ => None,
+            };
+            let Some(text) = text.filter(|text| is_relative(text)) else {
+                report_join(&arg.value, env);
+                return;
+            };
+            resolved(env.src, &text)
+        }
+    };
+    if let Some(path) = path {
+        env.exprs.record_path_literal(call.span, path);
+    }
+}
+
+/// `E0837`, at a `$join` [`fold_this`] cannot add to the folder.
+fn report_join(join: &Expr, env: &mut Env<'_>) {
+    let written = span_text(env.src, join.span).to_owned();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_PATH_THIS_DIR_JOIN_NOT_A_RELATIVE_LITERAL,
+            format!("`Core\\Path::thisDir({written})` needs a relative path written as a literal"),
+        )
+        .with_primary(join.span, "not a relative string literal")
+        .with_help(
+            "the folder is joined while compiling \
+             (`rule:programs/path-literals-resolve-from-their-file`): write a relative literal \
+             such as `'data'`, or `Core\\Path::join(Core\\Path::thisDir(), $part)` for a path \
+             the program builds",
+        ),
+    );
+}
+
+/// Whether `text` is a path [`resolved`] joins to a folder: not empty, not
+/// starting at a root, and with no `:` in its first segment.
 ///
 /// "Starts at a root" is [`Path::has_root`], the same test the run-time
 /// refusal makes, so a literal this leaves alone is one that check accepts.
 ///
-/// A literal whose first segment holds a `:` is left alone too. That segment
-/// is a drive (`C:data`), a URI scheme (`file:app.db?mode=memory`) or a name an
-/// engine gives something that is not a file (SQLite's `:memory:`), and joining
-/// a folder in front of any of them makes a name nothing can open.
+/// A first segment that holds a `:` is a drive (`C:data`), a URI scheme
+/// (`file:app.db?mode=memory`) or a name an engine gives something that is not
+/// a file (SQLite's `:memory:`), and joining a folder in front of any of them
+/// makes a name nothing can open.
+fn is_relative(text: &str) -> bool {
+    let first = text.split(['/', '\\']).next().unwrap_or_default();
+    !text.is_empty() && !first.contains(':') && !Path::new(text).has_root()
+}
+
+/// The absolute path `text` names when it is written in `src`: joined to the
+/// folder that holds `src`, with `.` and `..` removed. `None` for a `text`
+/// that is not [`is_relative`], and for a source with no folder to join to.
 #[must_use]
 pub fn resolved(src: &SourceFile, text: &str) -> Option<String> {
-    let first = text.split(['/', '\\']).next().unwrap_or_default();
-    if text.is_empty() || first.contains(':') || Path::new(text).has_root() {
+    if !is_relative(text) {
         return None;
     }
     let joined = normalize(&base_dir(src)?.join(text));

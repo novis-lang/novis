@@ -497,6 +497,17 @@ pub(crate) fn infer_static_call(
         crate::retrieval::fold_retrieval(expr, &name, &written, args, ctx, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
+    // `rule:programs/path-literals-resolve-from-their-file`'s `thisFile` and
+    // `thisDir`, replaced by the path of the file that wrote them — the arm
+    // above's reasoning, for a fold whose answer is a path. A source with no
+    // file records nothing here, and the `ExprInfo::Call` below lowers the
+    // call. See [`crate::paths::fold_this`].
+    if let Some((qname, name, _)) = &resolved
+        && crate::paths::is_this(qname, name)
+    {
+        let name = name.clone();
+        crate::paths::fold_this(expr, &name, args, env);
+    }
     // `rule:programs/implementing`'s enumeration, which is not a call at all once it has been
     // answered — the arm above's reasoning, for a fold whose answer allocates.
     // See [`crate::program`].

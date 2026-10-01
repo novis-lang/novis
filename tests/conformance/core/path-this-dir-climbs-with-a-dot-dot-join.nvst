@@ -1,0 +1,30 @@
+--TEST--
+`Core\Path::thisDir('..')` is the folder above, and `thisFile` and `thisDir` give the same path in a method, in a loop and at the top of the file — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+class Shop {
+    public static function file(): string {
+        return Core\Path::thisFile();
+    }
+}
+
+// `..` is removed from the join, so the result is the folder above.
+string $dir = Core\Path::normalize(Core\Path::thisDir());
+echo Core\Path::normalize(Core\Path::thisDir('..')) == Core\Path::dirname($dir)
+    ? "one folder up\n" : "somewhere else\n";
+echo Core\Path::normalize(Core\Path::thisDir('data/..')) == $dir ? "same folder\n" : "different folder\n";
+
+// Every call in this file gives the same path.
+uint $same = 0;
+uint $round = 0;
+while ($round < 3) {
+    if (Shop::file() == Core\Path::thisFile()) {
+        $same = $same + 1;
+    }
+    $round = $round + 1;
+}
+echo $same, "\n";
+--EXPECT--
+one folder up
+same folder
+3

@@ -409,6 +409,13 @@ depend on whether the file exists yet. The capability check still canonicalizes 
 before it compares it with a grant ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)). Inside a
 bundled executable the file's folder maps to the same folder beside the executable.
 
+**A program names its own file and folder with `Core\Path::thisFile()` and `Core\Path::thisDir()`.**
+The compiler replaces each call with the absolute path of the file that contains it, or that file's
+folder, from the same folder a literal is joined to, and the program runs a string constant.
+`thisDir($join)` adds a relative string literal to the folder, lexically; any other `$join` does not
+compile (`E0837`), and `Core\Path::join(Core\Path::thisDir(), $part)` joins a path the program
+builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`.
+
 **A relative path that reaches a `Core` door at run time throws** a `RuntimeError` naming the member
 and the path, before any grant is asked. `Core\Path::join` builds an absolute path from a folder the
 program holds, and `Core\Path::fromCwd` joins a path typed on a command line to the working directory.
@@ -418,7 +425,7 @@ a path door through it ([`security/launderers-are-sink-named`](security.md#secur
 spawn, a queued job, a scheduled entry and a log handler alike. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
 that file's folder, names the same files as a literal in a program beside it.
 
-<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md), [0248](../decisions/0248.md).</sub>
+<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md), [0248](../decisions/0248.md), [0249](../decisions/0249.md).</sub>
 
 <a id="programs-program-id"></a>
 

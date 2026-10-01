@@ -1348,6 +1348,11 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     "the markup literal is written with backticks, `html`<p>{$name}</p>``: its \
                      text is a `Core\\Html\\Markup` and every `{$…}` hole in it is escaped"
                         .to_owned()
+                } else if matches!(text, "__FILE__" | "__DIR__") {
+                    "there are no magic constants: `Core\\Path::thisFile()` is the path of this \
+                     file and `Core\\Path::thisDir()` its folder, both written in while compiling \
+                     (`rule:programs/path-literals-resolve-from-their-file`)"
+                        .to_owned()
                 } else {
                     "`rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no \
                      global one to fetch — write `Class::NAME`, and for a PHP built-in the \

@@ -185,3 +185,117 @@ fn the_marker_is_refused_away_from_a_string_parameter() {
         "{diags:?}"
     );
 }
+
+/// `Core\Path::thisFile()` is replaced by the absolute path of the file that
+/// contains the call.
+// covers: Core\Path::thisFile
+#[test]
+fn this_file_folds_to_the_absolute_path_of_the_file_that_wrote_it() {
+    let (diags, exprs) = check_program_table(&[(
+        "this_file.nvs",
+        "<?nvs\necho Core\\Path::thisFile(), \"\\n\";\n",
+    )]);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let paths = resolved(&exprs);
+    assert_eq!(paths.len(), 1, "{paths:?}");
+    let path = &paths[0];
+    assert!(Path::new(path).has_root(), "{path}");
+    assert!(path.ends_with(&tail(&["this_file.nvs"])), "{path}");
+    assert!(!path.starts_with(r"\\?\"), "{path}");
+}
+
+/// A call in a file reached through `require` names *that* file, not the
+/// entry file.
+// covers: Core\Path::thisFile
+#[test]
+fn this_file_in_a_required_file_names_that_file() {
+    let (diags, exprs) = check_program_table(&[
+        (
+            "this_file_required.nvs",
+            "<?nvs\nrequire 'lib/blog.nvs';\necho Blog::source(), \"\\n\";\n",
+        ),
+        (
+            "lib/blog.nvs",
+            "<?nvs\nclass Blog {\n  public static function source(): string {\n    \
+             return Core\\Path::thisFile();\n  }\n}\n",
+        ),
+    ]);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let paths = resolved(&exprs);
+    assert_eq!(paths.len(), 1, "{paths:?}");
+    assert!(paths[0].ends_with(&tail(&["lib", "blog.nvs"])), "{paths:?}");
+}
+
+/// `Core\Path::thisDir()` is the folder `thisFile()` is in, and `null` as the
+/// join is the same as writing none.
+// covers: Core\Path::thisDir
+#[test]
+fn this_dir_folds_to_the_folder_of_the_file_that_wrote_it() {
+    let (diags, exprs) = check_program_table(&[
+        (
+            "this_dir.nvs",
+            "<?nvs\nrequire 'shop/report.nvs';\necho Report::where(), \"\\n\";\n",
+        ),
+        (
+            "shop/report.nvs",
+            "<?nvs\nclass Report {\n  public static function where(): string {\n    \
+             return Core\\Path::thisFile() . Core\\Path::thisDir() . Core\\Path::thisDir(null);\n  \
+             }\n}\n",
+        ),
+    ]);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let paths = resolved(&exprs);
+    assert_eq!(paths.len(), 3, "{paths:?}");
+    let (dir, file) = (&paths[0], &paths[2]);
+    assert_eq!(&paths[1], dir, "{paths:?}");
+    assert!(dir.ends_with(&tail(&["shop"])), "{dir}");
+    assert_eq!(Path::new(file).parent(), Some(Path::new(dir)), "{paths:?}");
+}
+
+/// A relative literal is joined to the folder as a path literal is, with `.`
+/// and `..` removed, and a named argument fills the same parameter.
+// covers: Core\Path::thisDir
+#[test]
+fn this_dir_joins_a_relative_literal() {
+    let (diags, exprs) = check_program_table(&[(
+        "this_dir_join.nvs",
+        "<?nvs\necho Core\\Path::thisDir(), \"\\n\";\n\
+         echo Core\\Path::thisDir('data/./rates.json'), \"\\n\";\n\
+         echo Core\\Path::thisDir(join: 'data/../mail'), \"\\n\";\n",
+    )]);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let paths = resolved(&exprs);
+    assert_eq!(paths.len(), 3, "{paths:?}");
+    let dir = &paths[0];
+    assert!(
+        paths.contains(&format!("{dir}{}", tail(&["data", "rates.json"]))),
+        "{paths:?}"
+    );
+    assert!(
+        paths.contains(&format!("{dir}{}", tail(&["mail"]))),
+        "{paths:?}"
+    );
+}
+
+/// A join that is a variable, a constant, a concatenation or an absolute path
+/// does not compile, and records nothing.
+// covers: Core\Path::thisDir
+#[test]
+fn this_dir_with_a_join_that_is_not_a_relative_literal_does_not_compile() {
+    let (diags, exprs) = check_program_table(&[(
+        "this_dir_reject.nvs",
+        "<?nvs\nclass Shop {\n  public const string DATA = 'data';\n}\n\
+         string $part = 'data';\n\
+         echo Core\\Path::thisDir($part), \"\\n\";\n\
+         echo Core\\Path::thisDir(Shop::DATA), \"\\n\";\n\
+         echo Core\\Path::thisDir('da' . 'ta'), \"\\n\";\n\
+         echo Core\\Path::thisDir('/srv/data'), \"\\n\";\n\
+         echo Core\\Path::thisDir(''), \"\\n\";\n",
+    )]);
+    assert_eq!(
+        count(&diags, code::E_PATH_THIS_DIR_JOIN_NOT_A_RELATIVE_LITERAL),
+        5,
+        "{diags:?}"
+    );
+    assert!(resolved(&exprs).is_empty(), "{:?}", resolved(&exprs));
+}

@@ -11411,7 +11411,7 @@ Reads `$b` back through `$format`, as `unpack` does, over `pack`'s code table in
 <a id="core-core-path"></a>
 ### `Core\Path`
 
-Keywords: basename, dirname, pathinfo, PATHINFO_EXTENSION, PATHINFO_BASENAME, realpath, DIRECTORY_SEPARATOR, explode(DIRECTORY_SEPARATOR), path, file extension, absolute path, relative path, normalize, .., basename, dirname, extension, withExtension, join, split, normalize, isAbsolute, relativeTo, fromCwd
+Keywords: basename, dirname, pathinfo, PATHINFO_EXTENSION, PATHINFO_BASENAME, realpath, DIRECTORY_SEPARATOR, explode(DIRECTORY_SEPARATOR), path, file extension, absolute path, relative path, normalize, .., basename, dirname, extension, withExtension, join, split, normalize, isAbsolute, relativeTo, fromCwd, thisFile, thisDir
 
 `Core\Path` is string algebra over path text: no member reads the disk, so nothing here needs a
 capability, follows a symlink or checks that a file exists — that is `Core\IO`. Both `/` and `\`
@@ -11462,6 +11462,8 @@ none
 | [`Core\Path::isAbsolute`](#core-core-path-isabsolute) | `isAbsolute(string $path): bool` |
 | [`Core\Path::relativeTo`](#core-core-path-relativeto) | `relativeTo(string $path, string $base): ?string` |
 | [`Core\Path::fromCwd`](#core-core-path-fromcwd) | `fromCwd(string $path): string` |
+| [`Core\Path::thisFile`](#core-core-path-thisfile) | `thisFile(): string` |
+| [`Core\Path::thisDir`](#core-core-path-thisdir) | `thisDir(?string $join = null): string` |
 | `Core\Path::SEPARATOR` | `string` = `"/" ("\" on Windows)` — The separator this platform's paths are rendered with — `\` on Windows and `/` everywhere else, as `DIRECTORY_SEPARATOR` is; every member emits it and accepts both. |
 
 <a id="core-core-path-basename"></a>
@@ -11622,6 +11624,36 @@ Joins `$path` to the folder the program was started from, and returns the full p
 **Returns** `string` — A full path, written with `Core\Path::SEPARATOR`, with its `.` and `..` parts removed. The method does not check that the file exists. The result is not `tainted`, so you can pass a path from `Core\Cli::arguments` to `Core\IO::read`.
 
 **Throws** `RuntimeError` — The program is answering a web request. A server has no working folder that belongs to the app.
+
+<a id="core-core-path-thisfile"></a>
+#### `Core\Path::thisFile`
+
+```nvs skip
+Core\Path::thisFile(): string
+```
+
+Returns the full path of the source file that contains this call. The compiler writes the path in place of the call, so the call costs nothing when the program runs.
+
+**Returns** `string` — The full path of the file, written with `Core\Path::SEPARATOR`. In a bundled program, the folder is the one beside the executable.
+
+**Throws** `RuntimeError` — The source was given to the compiler as text, so there is no file to name.
+
+<a id="core-core-path-thisdir"></a>
+#### `Core\Path::thisDir`
+
+```nvs skip
+Core\Path::thisDir(?string $join = null): string
+```
+
+Returns the full path of the folder that contains this source file. The compiler writes the path in place of the call, so the call costs nothing when the program runs.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$join` | `?string` (default `null`, neutral) | A relative path written as a string literal, such as `'data'`. It is added to the folder. A variable or a full path does not compile. Use `Core\Path::join(Core\Path::thisDir(), $part)` for a part the program builds. |
+
+**Returns** `string` — The full path of the folder, with `$join` added when you give one, and with its `.` and `..` parts removed.
+
+**Throws** `RuntimeError` — The source was given to the compiler as text, so there is no folder to name.
 
 <a id="core-core-io"></a>
 ### `Core\IO`
@@ -28293,7 +28325,7 @@ populates.
 | `\Core\Str::length($s)` (leading `\`) | `Core\Str::length($s)` — a name with a `\` in it is already absolute | `E0240` |
 | `$obj->{$name}`, `$obj->$name` | write the member; hold run-time keys in an `array<T>`, whose keys are `string` | `E0235` |
 | `new $className()`, `$className::f()`, `$x is $className` over a `string` | a written class name, or a class reference: `class<T> $cls = $className as class<T>;` then the same three spellings. The `as` is where a name that is not a `T` throws, so every site downstream of it holds a class that already passed | `E0496` at all three |
-| `__DIR__`, `__FILE__`, `__LINE__`, `__CLASS__`, `PHP_EOL` | no magic constants; `Throwable::$location` carries a file and line, `"\n"` is the newline | `E0319` |
+| `__DIR__`, `__FILE__`, `__LINE__`, `__CLASS__`, `PHP_EOL` | no magic constants; `Core\Path::thisFile()` and `Core\Path::thisDir()` are the file and its folder, `Throwable::$location` carries a file and line, `"\n"` is the newline | `E0319` |
 
 ### Functions, constants and scope
 

@@ -1,0 +1,11 @@
+{
+  "title": "`Core\\Path::thisFile` and `thisDir` are folded while compiling to the file that wrote the call, and `thisDir` joins only a relative literal",
+  "status": "accepted",
+  "scope": "Two `Core\\Path` members that name the source file containing the call and its folder, how\nthe checker folds them, and what `thisDir`'s join accepts. How a path literal at a path parameter\nresolves is unchanged.",
+  "dependsOn": [
+    "0241",
+    "0021"
+  ],
+  "dependsOnText": "[0241](0241.md) (a relative path literal resolves from the file that wrote it, and a\n`__DIR__` constant was rejected), [0021](0021.md) (`require` resolves against the requiring file).",
+  "validatedBy": "the Stage 5 checks of goal `path-literals-follow-up`: `nvs-types`' tests in\n`crates/nvs-types/tests/paths.rs`, `nvs-ir`'s `this_file_and_this_dir_lower_to_a_string_constant`,\nand the two `.nvst` cases named under *Verification*."
+}

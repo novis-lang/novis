@@ -28,6 +28,13 @@ depend on whether the file exists yet. The capability check still canonicalizes 
 before it compares it with a grant (`rule:security/path-scope-canonicalise-then-prefix`). Inside a
 bundled executable the file's folder maps to the same folder beside the executable.
 
+**A program names its own file and folder with `Core\Path::thisFile()` and `Core\Path::thisDir()`.**
+The compiler replaces each call with the absolute path of the file that contains it, or that file's
+folder, from the same folder a literal is joined to, and the program runs a string constant.
+`thisDir($join)` adds a relative string literal to the folder, lexically; any other `$join` does not
+compile (`E0837`), and `Core\Path::join(Core\Path::thisDir(), $part)` joins a path the program
+builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`.
+
 **A relative path that reaches a `Core` door at run time throws** a `RuntimeError` naming the member
 and the path, before any grant is asked. `Core\Path::join` builds an absolute path from a folder the
 program holds, and `Core\Path::fromCwd` joins a path typed on a command line to the working directory.

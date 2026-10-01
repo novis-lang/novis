@@ -1906,10 +1906,11 @@ impl ExprTypeTable {
         self.path_literals.insert(span, path);
     }
 
-    /// The absolute path `nvs-ir` lowers the string literal at `span` to in
-    /// place of its written text, or `None` for every literal that is not a
-    /// relative path at a path parameter. Keyed by the literal's own span,
-    /// which is what `nvs_syntax::ast::ExprKind::Str` carries.
+    /// The absolute path `nvs-ir` lowers the expression at `span` to, or
+    /// `None` for every other expression. Two kinds are recorded: a relative
+    /// string literal at a path parameter, keyed by the literal's own span
+    /// (what `nvs_syntax::ast::ExprKind::Str` carries), and a
+    /// `Core\Path::thisFile` or `thisDir` call, keyed by the call's span.
     #[must_use]
     pub fn path_literal(&self, span: Span) -> Option<&str> {
         self.path_literals.get(&span).map(String::as_str)

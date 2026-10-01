@@ -214,6 +214,28 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_path_from_cwd",
             doc: Some(&FROM_CWD_DOC),
         },
+        // The next two are folded while checking (`nvs_types::paths`'s
+        // § *The file that wrote the call*): the call is replaced by the path
+        // of the file that wrote it, and these symbols are reached only by a
+        // source the compiler was handed as text, with no file behind it.
+        CoreMethod {
+            name: "thisFile",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_path_this_file",
+            doc: Some(&THIS_FILE_DOC),
+        },
+        CoreMethod {
+            name: "thisDir",
+            names: &["join"],
+            params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
+            defaults: &[Const::Null],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_path_this_dir",
+            doc: Some(&THIS_DIR_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -436,6 +458,40 @@ const FROM_CWD_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Path::thisFile`'s reference card — `rule:core-api/reference-card`.
+const THIS_FILE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the full path of the source file that contains this call. The compiler \
+            writes the path in place of the call, so the call costs nothing when the program \
+            runs.",
+    params: &[],
+    ret: "The full path of the file, written with `Core\\Path::SEPARATOR`. In a bundled \
+          program, the folder is the one beside the executable.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The source was given to the compiler as text, so there is no file to name.",
+    }],
+};
+
+/// `Core\Path::thisDir`'s reference card — `rule:core-api/reference-card`.
+const THIS_DIR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the full path of the folder that contains this source file. The compiler \
+            writes the path in place of the call, so the call costs nothing when the program \
+            runs.",
+    params: &[ParamDoc {
+        name: "join",
+        desc: "A relative path written as a string literal, such as `'data'`. It is added to \
+               the folder. A variable or a full path does not compile. Use \
+               `Core\\Path::join(Core\\Path::thisDir(), $part)` for a part the program builds.",
+        shape: &[],
+    }],
+    ret: "The full path of the folder, with `$join` added when you give one, and with its \
+          `.` and `..` parts removed.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The source was given to the compiler as text, so there is no folder to name.",
+    }],
+};
+
 /// `Core\Path::basename`'s `{withoutExtension?: bool}` — `pathinfo`'s
 /// `PATHINFO_FILENAME` as an option rather than as a second member, since it
 /// asks the same question of the same path.
@@ -486,6 +542,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_path_is_absolute" => (nvs_core_path_is_absolute as *const ()).cast(),
         "nvs_core_path_relative_to" => (nvs_core_path_relative_to as *const ()).cast(),
         "nvs_core_path_from_cwd" => (nvs_core_path_from_cwd as *const ()).cast(),
+        "nvs_core_path_this_file" => (nvs_core_path_this_file as *const ()).cast(),
+        "nvs_core_path_this_dir" => (nvs_core_path_this_dir as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1152,6 +1210,35 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Path::thisFile(): string` — `__FILE__`, as a member the checker
+    /// folds. `nvs_types::paths` replaces every call written in a file with
+    /// that file's path, so this body runs only for a source the compiler was
+    /// handed as text, which has no file to name.
+    fn nvs_core_path_this_file(_ctx, _args: [0]) {
+        // no case can reach this: every case is a file, so the checker folds
+        // the call. `this_file_and_this_dir_throw_without_a_file` is what
+        // asserts it instead.
+        Err(Fault::thrown(
+            r"Core\Path::thisFile has no file to name: this source was compiled from text",
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Path::thisDir(?string $join = null): string` — `__DIR__`, as a
+    /// member the checker folds. [`nvs_core_path_this_file`]'s reason for a
+    /// body that only throws.
+    fn nvs_core_path_this_dir(_ctx, _args: [1]) {
+        // no case can reach this: every case is a file, so the checker folds
+        // the call. `this_file_and_this_dir_throw_without_a_file` is what
+        // asserts it instead.
+        Err(Fault::thrown(
+            r"Core\Path::thisDir has no folder to name: this source was compiled from text",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{Ctx, NvsArray, OutputSink, Value, call};
@@ -1576,11 +1663,9 @@ mod tests {
         assert_eq!(relative_to(r"\\server\share\a", "/a"), None);
     }
 
-    /// `rule:security/launderers-are-sink-named`'s one exception, in its two
-    /// halves. The row launders its one parameter and answers a plain
-    /// `string`, so the checker gives a path typed on the command line to a
-    /// path door. And a context answering a request still throws, whatever
-    /// the argument is, so request data never reaches that answer.
+    /// `rule:security/launderers-are-sink-named`'s one exception, its first
+    /// half. The row launders its one parameter and answers a plain `string`,
+    /// so the checker gives a path typed on the command line to a path door.
     // covers: Core\Path::fromCwd
     #[test]
     fn from_cwd_returns_a_string_without_tainted() {
@@ -1599,7 +1684,14 @@ mod tests {
             matches!(row.return_ty, CoreTy::Str),
             "the answer is a plain `string`: no path sink transforms a value on its own"
         );
+    }
 
+    /// The exception's second half, and what makes the first one safe: a
+    /// context answering a request throws whatever the argument is, so
+    /// request data never reaches the laundered answer.
+    // covers: Core\Path::fromCwd
+    #[test]
+    fn from_cwd_throws_while_a_request_is_answered() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
         let path = s("report.txt");
@@ -1618,5 +1710,25 @@ mod tests {
             message.contains("cannot be used while answering a request"),
             "{message}"
         );
+    }
+
+    /// The two symbols behind the members the checker folds. They run only
+    /// for a source with no file, and then each throws and names what is
+    /// missing.
+    // covers: Core\Path::thisFile
+    // covers: Core\Path::thisDir
+    #[test]
+    fn this_file_and_this_dir_throw_without_a_file() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(super::nvs_core_path_this_file, &mut ctx, &[]);
+        assert!(result.is_err(), "no file to name");
+        let message = ctx.pending().expect("the throw is pending").into_owned();
+        assert!(message.contains("has no file to name"), "{message}");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(super::nvs_core_path_this_dir, &mut ctx, &[Value::null()]);
+        assert!(result.is_err(), "no folder to name");
+        let message = ctx.pending().expect("the throw is pending").into_owned();
+        assert!(message.contains("has no folder to name"), "{message}");
     }
 }

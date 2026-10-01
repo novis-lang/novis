@@ -306,6 +306,13 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     return self.emit_const_arg(&value, None, env, *cur);
                 }
+                // `Core\Path::thisFile` and `thisDir`, which the checker
+                // replaced with the path of the file that wrote them, under
+                // the call's span in the table a path literal uses
+                // (`rule:programs/path-literals-resolve-from-their-file`).
+                if let Some(path) = self.exprs.path_literal(expr.span) {
+                    return self.emit(*cur, Ty::Str, InstKind::ConstStr(path.to_owned()));
+                }
                 // `rule:programs/implementing-with`'s join: the same list, each
                 // entry beside the attribute payload the checker folded for it.
                 if let Some(ExprInfo::ProgramInstancesWith {

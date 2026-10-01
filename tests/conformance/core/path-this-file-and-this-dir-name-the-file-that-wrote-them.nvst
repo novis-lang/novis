@@ -1,0 +1,26 @@
+--TEST--
+`Core\Path::thisFile` and `thisDir` name the file that contains the call and its folder, and `thisDir`'s join agrees with `Core\Path::join` over that folder — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+// The full path changes from machine to machine, so this prints only what is
+// the same everywhere: the file's own name, and that both paths are absolute.
+string $file = Core\Path::thisFile();
+string $dir = Core\Path::thisDir();
+echo Core\Path::basename($file), "\n";
+echo Core\Path::isAbsolute($file) && Core\Path::isAbsolute($dir) ? "absolute\n" : "relative\n";
+
+// The folder is the one the file is in.
+echo Core\Path::normalize($dir) == Core\Path::dirname(Core\Path::normalize($file))
+    ? "same folder\n" : "different folder\n";
+
+// A relative literal is added to the folder, with `.` and `..` removed.
+string $rates = Core\Path::thisDir('data/./rates.json');
+echo Core\Path::normalize($rates) == Core\Path::normalize(Core\Path::join($dir, 'data', 'rates.json'))
+    ? "same path\n" : "different path\n";
+echo Core\Path::thisDir(null) == $dir ? "same folder\n" : "different folder\n";
+--EXPECT--
+case.nvs
+absolute
+same folder
+same path
+same folder

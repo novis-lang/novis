@@ -1104,7 +1104,8 @@ pub mod code {
     pub const E_NO_GLOBAL_CONSTANT: Code = Code::new("E0319").card(
         "A bare name such as `MY_LIMIT` is not a constant, because Novis has no global constants. \
          Every constant belongs to a class, so write `Class::NAME`. For a PHP constant, use its \
-         `Core` replacement, for example `Core\\Math::PI` for `M_PI`.",
+         `Core` replacement, for example `Core\\Math::PI` for `M_PI`. For `__FILE__` and \
+         `__DIR__`, write `Core\\Path::thisFile()` and `Core\\Path::thisDir()`.",
     );
     /// A bare name called as a function — `strlen($s)` — which in PHP would
     /// be a global function call. `rule:classes/no-free-functions-or-constants`: every callable is a method,
@@ -5271,6 +5272,20 @@ pub mod code {
     pub const E_PATH_MARKER_NOT_ON_A_STRING: Code = Code::new("E0836").card(
         "`#[Core\\Path]` works only on a method parameter whose type is `string` or `?string`. \
          Change the parameter's type to `string`, or delete `#[Core\\Path]`.",
+    );
+
+    /// A `Core\Path::thisDir($join)` whose `$join` is not a relative string
+    /// literal — a variable, a constant, a concatenation or an absolute path.
+    ///
+    /// `rule:programs/path-literals-resolve-from-their-file`'s fold replaces
+    /// the call with a path while compiling, so its argument has to be known
+    /// then. A value built at run time has a member that joins it already,
+    /// and the help names it rather than letting the fold quietly fall back to
+    /// a call.
+    pub const E_PATH_THIS_DIR_JOIN_NOT_A_RELATIVE_LITERAL: Code = Code::new("E0837").card(
+        "`Core\\Path::thisDir` adds its argument to the folder while the program compiles, so \
+         the argument must be a relative path written as a string literal, such as `'data'`. \
+         For a path the program builds, write `Core\\Path::join(Core\\Path::thisDir(), $part)`.",
     );
 
     // --- E09xx internal ----------------------------------------------------
