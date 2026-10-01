@@ -719,13 +719,14 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
 /// anywhere in the program turn every autoload root's whole tree into files
 /// to load.
 ///
-/// Two classes ask for the same scan. `Core\Program`'s enumeration members
-/// are § 3's own query. `Core\Router`'s table readers need the compile-time
-/// route table, which `rule:routing/table-is-opt-in` builds by filtering
-/// *this* enumeration by a `#[Core\Route]` attribute rather than by an
-/// implemented interface. That is why both are member lists here and not two
-/// walks: a program calling any of them pays § 5's directory-listing
-/// dependency once, and a program calling none of them performs no scan.
+/// Three classes ask for the same scan. `Core\Program`'s enumeration members
+/// are § 3's own query. `Core\Router`'s and `Core\Request`'s route readers
+/// need the compile-time route table, which `rule:routing/table-is-opt-in`
+/// builds by filtering *this* enumeration by a `#[Core\Route]` attribute
+/// rather than by an implemented interface. That is why all three are member
+/// lists here and not separate walks: a program calling any of them pays § 5's
+/// directory-listing dependency once, and a program calling none of them
+/// performs no scan.
 const PROGRAM_CLASS: &str = r"Core\Program";
 /// The `Core\Program` members that expand to the enumeration, and so need
 /// every class the autoload roots declare. Each one alone opts the program
@@ -733,14 +734,29 @@ const PROGRAM_CLASS: &str = r"Core\Program";
 /// `implementing` would.
 const PROGRAM_SCAN_MEMBERS: &[&str] = &["implementing", "implementingWith"];
 const ROUTER_CLASS: &str = r"Core\Router";
-/// The `Core\Router` members that read the route table, and so need the scan
-/// that builds it: the three link builders resolve a route name against it,
-/// `match` and `methodsFor` walk it. `signedRoute` is not one of them, since
-/// it reads the match the request already carries and never the table.
-const ROUTER_SCAN_MEMBERS: &[&str] = &["url", "urlAbsolute", "urlSigned", "match", "methodsFor"];
+/// The `Core\Router` members whose answer comes from the route table, and so
+/// need the scan that builds it: the three link builders resolve a route name
+/// against it, `match` and `methodsFor` walk it, and `signedRoute` verifies
+/// against the match the door took from it. With no table that match is
+/// always absent and every signed link is refused.
+const ROUTER_SCAN_MEMBERS: &[&str] = &[
+    "url",
+    "urlAbsolute",
+    "urlSigned",
+    "match",
+    "methodsFor",
+    "signedRoute",
+];
+const REQUEST_CLASS: &str = r"Core\Request";
+/// The `Core\Request` members whose answer comes from the route table. `route`
+/// returns the match the door took from it, and is the only one: `mount`
+/// comes from the server's mount table, and every `Core\Router\Match` reader
+/// is an instance method reached through `route`, `match` or `signedRoute`.
+const REQUEST_SCAN_MEMBERS: &[&str] = &["route"];
 
 /// Whether this static call opts a program into the scan: a
-/// [`PROGRAM_SCAN_MEMBERS`] or a [`ROUTER_SCAN_MEMBERS`] call.
+/// [`PROGRAM_SCAN_MEMBERS`], [`ROUTER_SCAN_MEMBERS`] or
+/// [`REQUEST_SCAN_MEMBERS`] call.
 ///
 /// Matched nominally against the *resolved* class name, so a `use Core;` plus
 /// `Program::implementing<Module>()` is the same call as the fully written
@@ -760,10 +776,16 @@ fn is_program_scan(class: &Expr, method: &MemberName, src: &SourceFile, out: &Ha
         return false;
     };
     let class_name = crate::hierarchy::resolve_ref(class_text, &out.namespace, &out.imports);
-    if class_name == QName::parse(PROGRAM_CLASS) {
-        return PROGRAM_SCAN_MEMBERS.contains(&member_text);
-    }
-    class_name == QName::parse(ROUTER_CLASS) && ROUTER_SCAN_MEMBERS.contains(&member_text)
+    let members = if class_name == QName::parse(PROGRAM_CLASS) {
+        PROGRAM_SCAN_MEMBERS
+    } else if class_name == QName::parse(ROUTER_CLASS) {
+        ROUTER_SCAN_MEMBERS
+    } else if class_name == QName::parse(REQUEST_CLASS) {
+        REQUEST_SCAN_MEMBERS
+    } else {
+        return false;
+    };
+    members.contains(&member_text)
 }
 
 /// Records every name a type expression mentions. A shape type's fields, a
@@ -2892,12 +2914,14 @@ class Unreached {}
     }
 
     /// `rule:routing/table-is-opt-in`'s opt-in is 0061 § 3's, reused: every
-    /// `Core\Router` member that reads the route table needs the scan, and
-    /// the table is built from this same enumeration. Each member is asserted
-    /// alone, because a member list is the kind of list that ships with one
-    /// entry missing. The negative is another `Core` static call rather than
-    /// no call at all. The pair above already pins that half, and what could
-    /// go wrong *here* is a rule that scans for any `Core::` call it walks past.
+    /// `Core\Router` or `Core\Request` member whose answer comes from the route
+    /// table needs the scan, and the table is built from this same
+    /// enumeration. Each member is asserted alone, because a member list is the
+    /// kind of list that ships with one entry missing. The negatives are other
+    /// `Core` static calls rather than no call at all, one of them on
+    /// `Core\Request` itself. The pair above already pins that half, and what
+    /// could go wrong *here* is a rule that scans for any `Core::` call it walks
+    /// past, or for any member of a class it lists.
     #[test]
     fn a_router_link_asks_for_the_same_enumeration() {
         let dir = TempDir::new("autoload-scan-router");
@@ -2921,7 +2945,10 @@ class Unreached {}
                 r"Core\Router::match(Core\Http\Method::Get, '/')",
             ),
             ("methods.nvs", r"Core\Router::methodsFor('/')"),
+            ("signed.nvs", r"Core\Router::signedRoute([])"),
+            ("route.nvs", r"Core\Request::route()"),
             ("other.nvs", r"Core\Str::length('Users::show')"),
+            ("path.nvs", r"Core\Request::path()"),
         ] {
             dir.write(
                 file,
@@ -2931,15 +2958,24 @@ class Unreached {}
 
         let mailer = QName::parse(r"Framework\Mailer");
 
-        for file in ["url.nvs", "absolute.nvs", "match.nvs", "methods.nvs"] {
+        for file in [
+            "url.nvs",
+            "absolute.nvs",
+            "match.nvs",
+            "methods.nvs",
+            "signed.nvs",
+            "route.nvs",
+        ] {
             let (module, diags) = resolve_entry(&dir, file);
             assert!(!diags.has_errors(), "{file}: {diags:?}");
             assert!(module.symbols.contains(&mailer), "{file} did not scan");
         }
 
-        let (quiet, diags) = resolve_entry(&dir, "other.nvs");
-        assert!(!diags.has_errors(), "{diags:?}");
-        assert!(!quiet.symbols.contains(&mailer));
+        for file in ["other.nvs", "path.nvs"] {
+            let (quiet, diags) = resolve_entry(&dir, file);
+            assert!(!diags.has_errors(), "{file}: {diags:?}");
+            assert!(!quiet.symbols.contains(&mailer), "{file} scanned");
+        }
     }
 
     /// The two directions have to agree about which file declares a name, or

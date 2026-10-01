@@ -178,8 +178,8 @@ a static type to call through: `object` is opaque, shape types describe data rat
 Answering the query means parsing and collecting declarations from every file under every autoload root
 — the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend
 on a *directory's contents* rather than a file's bytes. It is therefore opt-in: **a program that calls
-neither this member, nor `implementingWith`, nor a `Core\Router` member that reads the compile-time
-route table performs no scan at all**, and a program calling any of them pays the directory-listing
+neither this member, nor `implementingWith`, nor a `Core\Router` or `Core\Request` member whose answer
+comes from the compile-time route table performs no scan at all**, and a program calling any of them pays the directory-listing
 dependency once, however many it calls. Type checking and lowering stay
 lazy regardless — a discovered class nobody calls is never checked past its declaration and never
 reaches codegen.

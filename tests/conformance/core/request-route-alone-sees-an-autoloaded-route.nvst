@@ -1,0 +1,43 @@
+--TEST--
+`Core\Request::route()` alone opts the program into the autoload scan, so the request matches a route only an autoload root declares — `rule:routing/table-is-opt-in`
+--FILE--
+<?nvs
+// `Shop\Catalog` is written nowhere in this program, and no `Core\Router` or
+// `Core\Program` call appears. The table only has its route if `route()` makes
+// the program scan the `Shop` root. Without the scan the child prints
+// `the table claimed nothing` and the body says so.
+//
+// The `catch` is the child, on
+// `an-in-process-request-carries-the-compiled-route-tables-own-match.nvst`'s
+// terms: the program answering an in-process request is this same program, and
+// its own `Core\Test::request` throws.
+autoload 'Shop' from './lib';
+
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/catalog");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
+} catch (RuntimeError $refused) {
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "the table claimed nothing";
+    } else {
+        echo $matched->name() ?? "unnamed";
+    }
+}
+--FILE lib/Catalog.nvs--
+<?nvs
+namespace Shop;
+
+class Catalog
+{
+    #[Core\Route(path: "/catalog", method: Core\Http\Method::Get, name: "Catalog::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string
+    {
+        return "catalog";
+    }
+}
+--EXPECT--
+status 200
+body Catalog::index
