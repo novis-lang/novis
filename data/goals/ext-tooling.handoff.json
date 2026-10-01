@@ -1,0 +1,41 @@
+{
+  "state": "**Goal `ext-tooling` — `nvs ext` builds, inspects, tests and pins an extension, and a bundle carries one — has just started; nothing of it has landed yet.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host`, `ext-compiler` and `ext-grants`' tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 10 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in `crates/nvs-cli/src/ext.rs`'s module doc.\n\nWhat the tree held as the goal was written: no `ext` subcommand in `crates/nvs-cli/src/main.rs:270`'s `Command`; a bundle's payload holds source text only (`crates/nvs-cli/src/bundle.rs:286`) and `nvs build --compile` reads no configuration (`crates/nvs-cli/src/main.rs:1540`); no wasm target in `rust-toolchain.toml`. `rule:packaging/nvs-ext-is-the-authoring-tool` and `rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload` say **Not on disk**. The packer and the load checks are goal `ext-host`'s, in `crates/nvs-ext`; read its module doc first.",
+  "next": {
+    "stage": 2,
+    "title": "`new`, `build` and `nvsx.toml`",
+    "files": [
+      "crates/nvs-cli/src/main.rs",
+      "crates/nvs-cli/src/ext.rs",
+      "crates/nvs-cli/templates/ext/rust/",
+      "crates/nvs-cli/templates/ext/c/",
+      "crates/nvs-cli/tests/ext_command.rs",
+      "rust-toolchain.toml"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The command** — `Command::Ext` with `new`, `build`, `inspect`, `test`, `verify` and `pin` in `crates/nvs-cli/src/main.rs:270`, dispatched beside `Command::Build` at `crates/nvs-cli/src/main.rs:1533` into `crates/nvs-cli/src/ext.rs` (new); a subcommand a later stage builds says so and exits non-zero. `rule:packaging/nvs-ext-is-the-authoring-tool`."
+      },
+      {
+        "done": false,
+        "text": "**`nvsx.toml`** — one key per manifest field of ADR 0246 § 3, each method's signature as Novis text, an unknown key refused with file and line; it writes the `{\"manifest\": 1, ...}` JSON goal `ext-host`'s loader reads. `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`; the refusal shape is `crates/nvs-config/src/tree.rs:419`'s `deny_unknown_fields`."
+      },
+      {
+        "done": false,
+        "text": "**`nvs ext new --lang rust|c <dir>`** — both templates under `crates/nvs-cli/templates/ext/`, the world's WIT copied from the binary's own, an empty `[workspace]` table in the Rust one, the C one's two build commands written in one place; `wasm32-wasip2` joins `rust-toolchain.toml`'s targets. Tests run the binary in a scratch folder (`crates/nvs-cli/tests/bundle.rs:172` is a test that pins stderr empty)."
+      },
+      {
+        "done": false,
+        "text": "**`nvs ext build`** — componentize a core module with `wit-component` or take a component, write both sections and the `.nvsx`, run every boot load check, print path and pin; a WASI preview 1 module is refused naming `wasm32-wasip2`. The nine tests the record's Stage 2 check names, in `crates/nvs-cli/tests/ext_command.rs` (new), guests compiled from WAT by the `wat` crate."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: `inspect`, `verify`, `pin`** — same file set; `verify` is the boot's own load function; `pin` passes `nvs config check` (`crates/nvs-cli/src/config.rs:1`).",
+    "**Stage 4: `test`** — through the runner in `crates/nvs-cli/src/testing.rs:1`; no `nvs.toml`, no grant, `--config` with a matching pin.",
+    "**Stage 5: a bundle carries its extensions** — `crates/nvs-cli/src/bundle.rs:164`, `:286`, `:398`, `crates/nvs-cli/src/main.rs:1540`; deletes `data/gaps/nvs-cli/nvsx-entries-are-not-embedded-yet.json`.",
+    "**Stage 6: the CI job** — `bun nv ext-templates` (new), `tools/nv/cmd/ci-changes.ts:41`'s `ext` lane, the `extension-templates` job beside `extension-sandbox`.",
+    "**Stage 7: the help and the feature proofs** — three sections after `docs/reference/tools/10-cli.md:273`, `crates/nvs-cli/tests/agent.rs:382`'s shape for `nvs agent find`.",
+    "When this goal's last check goes green the driver takes goal `ext-image`."
+  ]
+}

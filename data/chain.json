@@ -189,6 +189,14 @@
     "performance-pass",
     "growth-proof",
     "coverage-depth",
-    "php-oracle-retired"
+    "php-oracle-retired",
+    "ext-design",
+    "ext-host",
+    "ext-compiler",
+    "ext-grants",
+    "ext-tooling",
+    "ext-image",
+    "ext-image-analysis",
+    "ext-intl"
   ]
 }

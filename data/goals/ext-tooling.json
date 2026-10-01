@@ -1,0 +1,357 @@
+{
+  "title": "`nvs ext` builds, inspects, tests and pins an extension, and a bundle carries one",
+  "milestone": "M9",
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-cli/src/main.rs",
+      "crates/nvs-cli/src/ext.rs",
+      "crates/nvs-cli/src/bundle.rs",
+      "crates/nvs-cli/src/testing.rs",
+      "crates/nvs-cli/tests/bundle.rs",
+      "crates/nvs-ext/src/*.rs",
+      "tools/nv/cmd/ci-changes.ts",
+      ".github/workflows/ci.yml",
+      "docs/reference/tools/10-cli.md"
+    ],
+    "rules": [
+      "packaging/nvs-ext-is-the-authoring-tool",
+      "packaging/an-nvsx-is-one-file-carrying-its-manifest",
+      "packaging/the-first-party-components-are-built-in"
+    ],
+    "adrs": [
+      "0246 §10"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Tooling > cargo test --lib -p nvs-cli",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": [
+      "M9:verify"
+    ]
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "`new`, `build` and `nvsx.toml`",
+      "summary": "Adds `nvs ext new` with Rust and C templates and `nvs ext build`, which packs a built module with its manifest and its Novis source into one checked `.nvsx`.",
+      "context": {
+        "rules": [
+          "packaging/a-value-crosses-as-its-wit-type",
+          "packaging/an-extension-package-carries-two-payloads"
+        ],
+        "adrs": [
+          "0246 §3"
+        ],
+        "shapes": [
+          "A code comment"
+        ],
+        "playbook": [
+          "Tooling > a project command writes"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "`inspect`, `verify` and `pin`",
+      "summary": "Adds the three commands that read a `.nvsx` without running it: what it declares, whether it loads, and the entry that pins it.",
+      "context": {
+        "rules": [
+          "packaging/extension-loading-is-root-controlled",
+          "security/extension-grants-are-an-intersection"
+        ],
+        "adrs": [
+          "0246 §4"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "`test`",
+      "summary": "Adds `nvs ext test`, which runs the project's `.nvs` tests with the built file loaded and no `nvs.toml`.",
+      "context": {
+        "rules": [
+          "packaging/a-guest-has-no-ambient-authority"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "a bundle carries its extensions",
+      "summary": "Makes `nvs build --compile` embed every `.nvsx` its configuration lists, with its pin, and makes the bundle load them as the entries would.",
+      "context": {
+        "rules": [
+          "packaging/a-nvsx-dependency-embeds-in-the-same-payload",
+          "packaging/a-bundle-carries-source-not-artifacts",
+          "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A rule fragment"
+        ],
+        "playbook": [
+          "Running things > a note: on the configuration-resolution"
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "title": "the CI job",
+      "summary": "Builds, loads and tests both templates on Linux, Windows and macOS in CI, through one `bun nv` tool that also runs on a contributor's machine.",
+      "context": {
+        "rules": [
+          "testing/ci-lanes",
+          "packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci"
+        ],
+        "adrs": [
+          "0247 §4"
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "title": "the help and the feature proofs",
+      "summary": "Writes the reference sections, the help and the feature proofs of every `nvs ext` command, and grows `nvs build --compile`'s.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs",
+          "testing/hostile-case-contract"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-cli-nvs-ext-new-and-build",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-cli (`nvs ext new` writes both templates with the binary's own world, and `nvs ext build` packs a module, its manifest and its source into one file that loads)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "nvs_ext_new_writes_a_rust_project_with_the_binarys_own_world",
+        "nvs_ext_new_writes_a_c_project_with_the_binarys_own_world",
+        "nvs_ext_new_refuses_a_folder_that_is_not_empty",
+        "nvs_ext_build_packs_a_component_its_manifest_and_its_source_into_one_file",
+        "nvs_ext_build_componentizes_a_core_module",
+        "nvs_ext_build_refuses_an_nvsx_toml_key_it_does_not_know_naming_the_line",
+        "nvs_ext_build_refuses_a_signature_the_exports_do_not_match",
+        "nvs_ext_build_refuses_a_preview_1_module_naming_wasm32_wasip2",
+        "nvs_ext_build_prints_the_path_and_the_pin_of_what_it_wrote"
+      ]
+    },
+    {
+      "id": "nvs-cli-nvs-ext-inspect-verify-and-pin",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-cli (`inspect` prints what a file declares with control characters escaped, `verify` runs every boot check and instantiates nothing, and `pin` prints an entry boot accepts)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "nvs_ext_inspect_prints_the_manifest_and_the_io_it_requests",
+        "nvs_ext_inspect_source_prints_every_source_file_under_its_path",
+        "nvs_ext_inspect_escapes_control_characters_from_the_file",
+        "nvs_ext_verify_passes_a_file_boot_would_load",
+        "nvs_ext_verify_names_every_refusal_boot_would_make",
+        "nvs_ext_verify_instantiates_nothing",
+        "nvs_ext_pin_prints_an_entry_nvs_config_check_accepts",
+        "nvs_ext_pin_never_writes_a_grant"
+      ]
+    },
+    {
+      "id": "nvs-cli-nvs-ext-test",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-cli (`nvs ext test` runs the project's tests with the built file loaded, reads no `nvs.toml`, grants nothing, and refuses a stale build or a mismatched pin)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded",
+        "nvs_ext_test_reads_no_nvs_toml_and_grants_nothing",
+        "nvs_ext_test_refuses_a_built_file_older_than_its_module",
+        "nvs_ext_test_refuses_a_config_whose_entry_pin_differs"
+      ]
+    },
+    {
+      "id": "nvs-cli-a-bundle-carries-its-extensions",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-cli (a bundle embeds each extension its configuration lists, with its pin, and runs it as the entry would)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "a_bundle_carrying_an_extension_calls_it_with_no_nvsx_beside_it",
+        "a_bundled_extension_runs_identically_to_its_entry_under_nvs_run",
+        "a_bundle_refuses_to_build_when_an_extension_does_not_match_its_pin",
+        "a_bundle_whose_embedded_extension_was_altered_refuses_to_start",
+        "a_class_declared_by_a_bundled_and_a_configured_extension_is_refused"
+      ]
+    },
+    {
+      "id": "the-rust-template-builds-loads-tests-and-is-called",
+      "kind": "command",
+      "stage": 6,
+      "name": "the Rust template, written by `nvs ext new`, builds for wasm32-wasip2, passes `nvs ext verify` and `nvs ext test`, and is called from a program",
+      "argv": [
+        "bun",
+        "nv",
+        "ext-templates",
+        "--lang",
+        "rust"
+      ],
+      "want": [
+        "rust template: built, verified, tested and called"
+      ]
+    },
+    {
+      "id": "the-ci-job-runs-both-templates-on-three-platforms",
+      "kind": "command",
+      "stage": 6,
+      "name": "the CI job runs both templates on Linux, Windows and macOS, the `ext` lane covers what they are built from, and the C leg fails in CI without wasi-sdk",
+      "argv": [
+        "bun",
+        "test",
+        "tools/nv/test/ext-templates.test.ts"
+      ],
+      "want": [
+        "the CI job runs both templates on Linux, Windows and macOS",
+        "the ext lane covers every file the templates are built from",
+        "the C leg is skipped without wasi-sdk and fails under CI without it",
+        " 0 fail"
+      ]
+    },
+    {
+      "id": "ci-changes-has-an-ext-lane",
+      "kind": "command",
+      "stage": 6,
+      "name": "ci-changes: the `ext` lane exists and gates the template job",
+      "argv": [
+        "bun",
+        "nv",
+        "ci-changes",
+        "--lanes"
+      ],
+      "want": [
+        "\"ext\": (\"crates/nvs-ext/\""
+      ]
+    },
+    {
+      "id": "nvs-cli-every-nvs-ext-command-has-its-help",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "nvs-cli (`nvs agent find` reaches every `nvs ext` command, and `nvs ext --help` lists all six)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "nvs_agent_find_reaches_every_nvs_ext_command",
+        "nvs_ext_help_lists_all_six_commands"
+      ]
+    },
+    {
+      "id": "dossier-nvs-ext",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: the three `nvs ext` features and `nvs build --compile` owe nothing, and their attacks and examples pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--only",
+        "tools:cli/nvs-ext-new-and-nvs-ext-build",
+        "tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
+        "tools:cli/nvs-ext-test",
+        "tools:cli/nvs-build-compile"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-the-nvs-ext-proofs-carry-plain-comments",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: the programs this goal added or changed carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/tools/cli/nvs-ext-new-and-nvs-ext-build",
+        "docs/examples/tools/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
+        "docs/examples/tools/cli/nvs-ext-test",
+        "docs/examples/tools/cli/nvs-build-compile",
+        "tests/hostile/tools/cli/nvs-ext-new-and-nvs-ext-build",
+        "tests/hostile/tools/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
+        "tests/hostile/tools/cli/nvs-ext-test"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

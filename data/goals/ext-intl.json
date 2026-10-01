@@ -1,0 +1,387 @@
+{
+  "title": "`Novis\\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\\Time` values",
+  "milestone": "M9",
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-stdlib/src/cldr.rs",
+      "crates/nvs-cli/tests/bundle.rs"
+    ],
+    "rules": [
+      "packaging/the-first-party-components-are-built-in",
+      "packaging/the-boundary-is-the-cost"
+    ],
+    "adrs": [
+      "0247 §5"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the record and `wit/intl.wit`",
+      "summary": "Writes the intl API record, batch-shaped and covering exactly ADR 0247 § 5's list, and the WIT interface the component exports.",
+      "context": {
+        "rules": [
+          "packaging/a-value-crosses-as-its-wit-type",
+          "core-api/no-ambient-state",
+          "core-api/one-paradigm-per-operation"
+        ],
+        "adrs": [
+          "0051 §3"
+        ],
+        "shapes": [
+          "A decision record",
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "collation, and the component is built in",
+      "summary": "Builds `extensions/intl` into every binary beside the image component, and adds sort keys and whole-array sort, where sorting 10,000 strings is one crossing.",
+      "context": {
+        "rules": [
+          "packaging/a-wasm-module-cache-reuses-the-artifact-cache"
+        ],
+        "adrs": [
+          "0247 §4"
+        ],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "numbers and plural rules",
+      "summary": "Adds decimal, percent, currency and compact number formatting and the plural and ordinal categories, each over a list in one call.",
+      "context": {
+        "rules": [
+          "programs/framework-core-half",
+          "packaging/a-dependency-break-is-absorbed-never-forwarded"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "dates and times, relative time, lists",
+      "summary": "Formats `Core\\Time` values in a locale and a zone, formats relative times, and joins lists with the locale's words, each over a list in one call.",
+      "context": {
+        "rules": [
+          "security/no-cross-request-state"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "title": "segmentation and locale negotiation",
+      "summary": "Splits strings into words and sentences by the locale's rules, and picks the best available locale from an `Accept-Language` value.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "title": "the growth, and a bundle",
+      "summary": "Measures what the two components add to the binary and records it in the component's module doc, and proves a bundle built with `nvs build --compile` calls both.",
+      "context": {
+        "rules": [
+          "packaging/a-nvsx-dependency-embeds-in-the-same-payload"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 8,
+      "title": "the feature proofs",
+      "summary": "Writes the feature proofs for every `Novis\\Intl` member the record named.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs",
+          "core-api/reference-card",
+          "testing/hostile-case-contract"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ],
+        "playbook": [
+          "Tooling > `bun nv proofs --verify --group`"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-stdlib-the-intl-interface-is-batch-shaped",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-stdlib (`wit/intl.wit` parses against the world in its types alone, and every formatting export takes a list and returns a list)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ext_world"
+      ],
+      "tests": [
+        "the_intl_interface_parses_against_the_world_in_wit_types_alone",
+        "every_intl_formatting_export_takes_a_list_and_returns_a_list"
+      ]
+    },
+    {
+      "id": "nvs-ext-the-intl-component-is-built-in-and-sorts-in-one-crossing",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-ext (the intl component is built in and answers with no configuration, sorting 10,000 strings is one crossing, counted, and the order is the locale's)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "intl"
+      ],
+      "tests": [
+        "the_intl_component_is_built_in_and_answers_with_no_configuration",
+        "sorting_ten_thousand_strings_is_one_crossing",
+        "sort_keys_order_as_the_collator_orders",
+        "a_swedish_sort_puts_a_umlaut_after_z_and_a_german_sort_does_not"
+      ]
+    },
+    {
+      "id": "intl-answers-and-sorts-by-locale",
+      "kind": "nvs-suite",
+      "stage": 3,
+      "name": "`Novis\\Intl` answers from a binary with no `nvs.toml`, sorts by the locale's order, and a malformed locale tag throws",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/intl-answers-with-no-configuration.nvst",
+        "tests/conformance/novis/intl-collation-sorts-by-locale.nvst",
+        "tests/conformance/novis/intl-a-malformed-locale-tag-throws.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-numbers-and-plurals",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-ext (numbers format by locale in one crossing per batch, and plural rules agree with `Core\\Cldr` on its whole roster)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "intl"
+      ],
+      "tests": [
+        "decimal_percent_currency_and_compact_format_by_locale",
+        "a_batch_of_numbers_formats_in_one_crossing",
+        "plural_and_ordinal_categories_of_a_batch",
+        "plural_rules_agree_with_core_cldr_on_its_whole_roster"
+      ]
+    },
+    {
+      "id": "intl-numbers-and-plurals-run",
+      "kind": "nvs-suite",
+      "stage": 4,
+      "name": "numbers and plural categories format by locale",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/intl-numbers-format-by-locale.nvst",
+        "tests/conformance/novis/intl-plural-categories-by-locale.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-dates-relative-time-and-lists",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-ext (a `Core\\Time` value formats in its zone and locale with no tz database in the guest, relative time runs both ways, and lists use the locale's words)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "intl"
+      ],
+      "tests": [
+        "a_core_time_value_formats_in_its_zone_and_locale",
+        "the_guest_carries_no_time_zone_database",
+        "relative_time_formats_past_and_future",
+        "a_list_formats_with_its_locale_conjunction"
+      ]
+    },
+    {
+      "id": "intl-dates-relative-time-and-lists-run",
+      "kind": "nvs-suite",
+      "stage": 5,
+      "name": "dates format in their zone and locale, and relative times and lists use the locale's words",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/intl-dates-format-in-their-zone-and-locale.nvst",
+        "tests/conformance/novis/intl-relative-time-and-lists.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-segments-and-negotiation",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "nvs-ext (words and sentences of a batch of strings, and `Accept-Language` negotiates the best offered locale or returns the default)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "intl"
+      ],
+      "tests": [
+        "word_and_sentence_segments_of_a_batch_of_strings",
+        "accept_language_negotiates_the_best_offered_locale",
+        "a_regional_range_falls_back_to_its_language",
+        "an_empty_or_malformed_accept_language_returns_the_default"
+      ]
+    },
+    {
+      "id": "intl-segments-and-negotiates",
+      "kind": "nvs-suite",
+      "stage": 6,
+      "name": "strings split into words and sentences, and a locale is negotiated from an `Accept-Language` value",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/intl-segments-words-and-sentences.nvst",
+        "tests/conformance/novis/intl-negotiates-a-locale-from-accept-language.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-the-recorded-growth-is-the-embedded-size",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "nvs-ext (each component's module doc states its embedded size, within 5% of the bytes the binary carries)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "builtin"
+      ],
+      "tests": [
+        "the_recorded_growth_matches_the_embedded_components"
+      ]
+    },
+    {
+      "id": "nvs-cli-a-bundle-calls-both-built-in-components",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "nvs-cli (a bundle built with `nvs build --compile` calls `Novis\\Image` and `Novis\\Intl` from a folder with no `nvs.toml`)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli",
+        "--test",
+        "bundle"
+      ],
+      "tests": [
+        "a_bundle_calls_both_built_in_components"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-novis-intl",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: the whole roster owes nothing with `Novis\\Intl` in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-carries-plain-comments",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: the `Novis\\` programs carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/novis",
+        "tests/hostile/novis",
+        "benches/members/novis"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

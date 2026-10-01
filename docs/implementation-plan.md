@@ -106,7 +106,7 @@ somebody has already followed.
 | done | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | done | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
 | done | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
-| backlog 1 | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
+| goals `ext-design`, `ext-host`, `ext-compiler`, `ext-grants`, `ext-tooling`, `ext-image`, `ext-image-analysis`, `ext-intl` | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
 | goals `agent-surface`, `workspace-index`, `editor-surfaces`, `fmt`, `template-format` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | backlog 3 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |

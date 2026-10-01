@@ -1,0 +1,34 @@
+{
+  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries; after goal `goal-closeout` that is nothing.\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nWhat goal `ext-image` left and this goal stands on: the crate `extensions/image/` and its build and embedding, the builder source in `extensions/image/nvs/`, every decoder and encoder, the pixel cap, the per-instance crossing counter, the roster's `novis/` paths, and `docs/reference/novis/Image.md`. Goal `ext-design`'s `wit/image.wit` already declares the `compare`, `hash`, `placeholder`, `palette` and `qr` exports, and its test list says where `hashDistance` and `measureText` run: read that list before Stage 3 and Stage 5. `crates/nvs-ext` did not exist when the goal was written, so the goal's `context` names no module in it: add the files you read with `bun nv goal context --add`.",
+  "next": {
+    "stage": 2,
+    "title": "comparison",
+    "files": [
+      "extensions/image/src/compare.rs",
+      "extensions/image/nvs/Image.nvs",
+      "extensions/image/nvs/Diff.nvs",
+      "crates/nvs-ext/tests/image_analysis.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The `compare` export** (`rule:core-classes/image-one-entry-point-per-job`, ADR 0120 § 8) — `extensions/image/src/compare.rs`: decode both, a size mismatch is `err(invalid(…))` naming both sizes, then `identical`, `differingPixels` over `tolerance`, `maxDelta`, an SSIM written in the component (`dssim` is AGPL), and a PNG marking the differing pixels with `render`."
+      },
+      {
+        "done": false,
+        "text": "**The builder member and `Diff`** — `Image::compare(bytes|Image $a, bytes|Image $b, {tolerance?, render?}): Diff` in `extensions/image/nvs/Image.nvs`; an `Image` argument is run to PNG by its own pipeline first; `Diff` in `extensions/image/nvs/Diff.nvs` has readonly properties."
+      },
+      {
+        "done": false,
+        "text": "**The Stage 2 checks** — `crates/nvs-ext/tests/image_analysis.rs` (the compare fixture of ADR 0120 *Verification*, then the refusal, `render`, `tolerance` and the run-once test), with images built by `create` and `encode` rather than fixture files; and the three cases under `tests/conformance/novis/`."
+      }
+    ]
+  },
+  "backlog": [
+    "Stage 3: hashes, placeholders and palette — `extensions/image/src/hash.rs`, `placeholder.rs`, `palette.rs`, `HashKind.nvs`, `PlaceholderKind.nvs`; shares `Image.nvs` and `image_analysis.rs` with Stage 2.",
+    "Stage 4: `QrCode::render` — `extensions/image/src/qr.rs`, `QrCode.nvs`, `QrLevel.nvs`; `rqrr` as a dev-dependency of `nvs-ext`.",
+    "Stage 5: text — `extensions/image/src/text.rs`, `Font.nvs`, `Align.nvs`, the OFL fixture font under `extensions/image/fixtures/font/`.",
+    "Stage 6: the feature proofs for every member this goal added — `docs/agent/goals/ext-image-analysis.md`.",
+    "When this goal's last check goes green the driver takes goal `ext-intl`."
+  ]
+}

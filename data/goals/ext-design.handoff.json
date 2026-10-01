@@ -1,0 +1,35 @@
+{
+  "state": "**Goal `ext-design` — the `nvs:ext@1.0.0` world is written, and a guest call is proven to park and yield inside a Novis coroutine — has just started; nothing of it has landed yet.** It is the first of the eight M9 goals, and the floor it carries is whatever the chain carries after goal `goal-closeout`.\n\nThe design is settled: ADR 0246 and ADR 0247 decide how an extension crosses, runs and fails, and the user's eleven calls in the goal file's § *Standing decisions* are not re-decided. This goal writes no loader. It proves 0246 § 5's async bridge in `benches/abi-probe` behind `wasm-probe`, then writes `wit/nvs-ext/` and `wit/image.wit` with tests that walk the `Core` roster and 0120's builder table.\n\nThree facts about the tree as the goal was written. wasmtime 48 is a workspace dependency used only by `benches/abi-probe`'s `wasm-probe` feature (`benches/abi-probe/Cargo.toml:22`), whose probe proves the pooling allocator and epoch interruption on a plain thread with a core module, not a component and not async. `wit-parser` and `wit-component` 0.254 and `wat` 1.257 are in `Cargo.lock` but not in `[workspace.dependencies]`. There is no `wit/` folder.",
+  "next": {
+    "stage": 2,
+    "title": "the async bridge",
+    "files": [
+      "benches/abi-probe/Cargo.toml",
+      "benches/abi-probe/src/wasm.rs",
+      "benches/abi-probe/tests/wasm_async.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The feature's dependencies** — `benches/abi-probe/Cargo.toml:22`'s `wasm-probe` turns on wasmtime's component model and async support and the `wat` parser for component text, at the versions `Cargo.lock` holds; nothing outside the feature changes. Read the graph with `cargo tree -e features` before a comment states it."
+      },
+      {
+        "done": false,
+        "text": "**The async probe** — beside `benches/abi-probe/src/wasm.rs:66`'s `WasmProbe`, built like it (`:95` pooling, `:108` epoch interruption) plus async support, over a guest in component WAT text. A `corosensei` coroutine (the crate `crates/nvs-host/src/scheduler.rs:168` uses) polls `call_async`'s future and suspends on `Pending` as `crates/nvs-host/src/scheduler.rs:1376`'s `suspend_current` parks a task; the waker marks it runnable as `crates/nvs-host/src/reactor.rs:824`'s `wake_this_task` does. `rule:packaging/a-guest-call-yields-on-its-core`."
+      },
+      {
+        "done": false,
+        "text": "**The five named tests** in a new `benches/abi-probe/tests/wasm_async.rs` (`#![cfg(feature = \"wasm-probe\")]`, the shape of `benches/abi-probe/tests/wasm_sandbox.rs:8`): a pending async host import parks and resumes; a second coroutine enters wasm while the first is parked and both finish; an epoch tick yields a long call to another coroutine; a CPU deadline traps a yielding guest; a fresh call on the thread succeeds after each."
+      },
+      {
+        "done": false,
+        "text": "**The rule's *Not on disk* paragraph** — `rule:packaging/a-guest-call-yields-on-its-core`'s is rewritten whole in the same commit. If the bridge cannot be made sound, record slot (b) of the goal file applies and the session reports `BLOCKED`; the tests are never softened."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: the world text** — a new `wit/nvs-ext/` (`types`, `log`, `settings`, world `extension`, WASI 0.2 vendored under `deps/`), `wit-parser` 0.254 into `[workspace.dependencies]` and `crates/nvs-stdlib/Cargo.toml`'s dev-dependencies, and a new `crates/nvs-stdlib/tests/ext_world.rs` walking `crates/nvs-stdlib/src/registry.rs:1685`'s `CLASSES` (a value class has `slots`, `registry.rs:1569`). Its own file set; nothing of Stage 2 is open.",
+    "**Stage 4: the image interface** — a new `wit/image.wit` (`nvs:image@1.0.0`, interface `codec`, the eight exports of `docs/decisions/0120.md:168`), and its tests in `crates/nvs-stdlib/tests/ext_world.rs`. Shares the test file with Stage 3. Record slot (a) is decided here.",
+    "When this goal's last check goes green the driver takes goal `ext-host`."
+  ]
+}

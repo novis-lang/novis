@@ -1,0 +1,45 @@
+{
+  "state": "**Goal `ext-host` — an extension loads under its pin, runs once per request on its request's core, and stays inside that request's budget — has just started; nothing of it has landed yet.** The floor it carries is whatever the chain carries after goal `goal-closeout`, plus goal `ext-design`'s checks while they are carried.\n\nThe design is settled: ADR 0246 §§ 3–6 and the user's eleven calls in the goal file's § *Standing decisions*, which no session re-decides. Goal `ext-design` proved the async bridge in `benches/abi-probe/tests/wasm_async.rs` and wrote the `nvs:ext@1.0.0` world under `wit/nvs-ext/`; if it wrote a record under its slot (b), that record decides Stage 4's call model. This goal has no record slot. Calls go through `nvs-ext`'s Rust API with Novis values; the compiler path is goal `ext-compiler`'s and the WASI linker goal `ext-grants`'s.\n\nThree facts about the tree as the goal was written. `crates/nvs-config/src/tree.rs:419`'s `Extension` has `path` and `sha256`, both optional, and `crates/nvs-config/tests/tree.rs:44` parses `sha256 = \"abc\"`. The pins already fold into `env_hash` (`crates/nvs-config/src/cache.rs:636`). There is no `crates/nvs-ext`, and nothing loads, verifies or instantiates a component; add the new crate's paths to the record with `bun nv goal context --add` as they land.",
+  "next": {
+    "stage": 2,
+    "title": "the pin and the load refusals",
+    "files": [
+      "crates/nvs-config/src/tree.rs",
+      "crates/nvs-config/src/extension.rs",
+      "crates/nvs-config/src/resolve.rs",
+      "crates/nvs-config/tests/tree.rs",
+      "crates/nvs-config/tests/extension.rs",
+      "crates/nvs-config/src/default.toml"
+    ],
+    "note": "then the loader: a new `crates/nvs-ext` (`Cargo.toml`, `src/lib.rs`, `src/load.rs`, `src/manifest.rs`, `tests/load.rs`), its own session if the first set fills one.",
+    "items": [
+      {
+        "done": false,
+        "text": "**The entry** — `crates/nvs-config/src/tree.rs:419`'s `Extension` gains the optional `memory` ceiling `rule:packaging/a-guest-runs-under-the-requests-budget` names; its doc comments are rewritten whole for a required `path` and `sha256`. `rule:packaging/extension-loading-is-root-controlled`."
+      },
+      {
+        "done": false,
+        "text": "**The refusal** — a new `crates/nvs-config/src/extension.rs` `validate(config, origins)` in the shape of `crates/nvs-config/src/queue.rs:81`, called at `crates/nvs-config/src/resolve.rs:384` beside the others: no `path`, no `sha256`, or a pin that is not 64 hex digits is refused naming its file and line. `crates/nvs-config/tests/tree.rs:44`'s `\"abc\"` becomes a 64-hex pin. Tests in a new `crates/nvs-config/tests/extension.rs`."
+      },
+      {
+        "done": false,
+        "text": "**The shipped template** — `crates/nvs-config/src/default.toml:1006`'s `[[extension]]` block says the pin is required, stops calling it native, and uses a neutral example path; its key lines keep their `# example` endings. `rule:packaging/extension-loading-is-root-controlled`'s *Not on disk* paragraph is rewritten in the same commit."
+      },
+      {
+        "done": false,
+        "text": "**The crate and the manifest model** — a new `crates/nvs-ext` (wasmtime with component model, async and pooling; `sha2`; `serde_json`). The manifest type, its parser and the section reader sit where `nvs-types` can depend on them without wasmtime; the place is written in the module doc. `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`."
+      },
+      {
+        "done": false,
+        "text": "**Load, in 0246 § 4's order, each refusal naming the entry** — digest against pin, validation, both sections, the manifest against the exports through 0246 § 1's table, imports against `wit/nvs-ext/`'s world, `Core\\`/`Novis\\` classes (`rule:core-api/core-means-always-present`), a duplicate class, a world version outside `1.x`. Guests are component WAT text with the sections added by a test helper; tests in `crates/nvs-ext/tests/load.rs`."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: the packer** — `crates/nvs-ext/src/pack.rs` with `wit-component` 0.254 added to `[workspace.dependencies]`; deterministic output that Stage 2's load accepts. Shares the crate with Stage 2's loader.",
+    "**Stage 4: instances, the call bridge and the budget** — the engine and the per-request instances in `crates/nvs-ext/src/`, parking through `crates/nvs-host/src/scheduler.rs:1376` and `crates/nvs-host/src/reactor.rs:824`, the CPU check in the epoch callback (`crates/nvs-runtime/src/ctx/limits.rs:495`), the memory charge through `crates/nvs-runtime/src/budget.rs:383`, the drop at `crates/nvs-host/src/isolate.rs:1155`.",
+    "**Stage 5: failures** — `ExtensionError` in `crates/nvs-hir/src/errors.rs:96` and `crates/nvs-runtime/src/throwable.rs:318`, then the mapping in `crates/nvs-ext`. Two file sets.",
+    "**Stage 6: reload and the module cache** — the cache seam in `crates/nvs-ext` filled by `crates/nvs-cli/src/cache.rs`, then boot and `crates/nvs-cli/src/control.rs:602`'s reload with tests in `crates/nvs-cli/tests/live_config.rs` and `compile_cache.rs`. Two file sets.",
+    "When this goal's last check goes green the driver takes goal `ext-compiler`."
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "state": "**Goal `ext-grants` — a guest reaches only the files and hosts all three parties grant — has just started; nothing of it has landed yet.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host` and `ext-compiler`'s tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\nWhat the tree held as the goal was written: `wasmtime` 48 at `Cargo.toml:308`, no `wasmtime-wasi` or `wasmtime-wasi-http` in `Cargo.lock`, and `Extension` with `path` and `sha256` only (`crates/nvs-config/src/tree.rs:419`). `rule:security/extension-grants-are-an-intersection` and `rule:packaging/a-guest-has-no-ambient-authority` both say **Not on disk**. `crates/nvs-ext` is goal `ext-host`'s; read its module doc first for where the linker and the instance are built.",
+  "next": {
+    "stage": 2,
+    "title": "the empty WASI",
+    "files": [
+      "crates/nvs-ext/src/wasi.rs",
+      "crates/nvs-ext/src/lib.rs",
+      "crates/nvs-ext/Cargo.toml",
+      "Cargo.toml",
+      "crates/nvs-stdlib/src/time.rs",
+      "crates/nvs-stdlib/src/random.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The dependency and the linker** — `wasmtime-wasi` at wasmtime 48's version beside `Cargo.toml:308`; `crates/nvs-ext/src/wasi.rs` (new) links each WASI interface the world `nvs:ext@1.0.0` lists, one by one, and a test reads the linker's definitions and fails naming any other; goal `ext-host`'s load check, which refuses every WASI import until now, admits the linked ones from the same list. `rule:packaging/a-guest-has-no-ambient-authority`."
+      },
+      {
+        "done": false,
+        "text": "**What goal `ext-host` left to the linker** — if `nvs:ext/log`, `nvs:ext/settings` and the `[ext.<name>]` block (ADR 0246 § 9) are not linked yet, link them first: `log` into the calling request's log under the extension's name (`crates/nvs-stdlib/src/log.rs:1`), `settings` from the request's snapshot, the block `System`/`Reload` with an unknown key refused at boot (`crates/nvs-config/src/directive.rs:261` is where `extension` is classed). The three tests of the record's second Stage 2 check guard them either way."
+      },
+      {
+        "done": false,
+        "text": "**An empty context** — no environment, arguments, preopens or sockets; stdin empty; stdout and stderr to the calling request's log at `debug` with the extension's name as the channel, as `nvs:ext/log` writes (`crates/nvs-stdlib/src/log.rs:1`). `rule:packaging/a-guest-has-no-ambient-authority`."
+      },
+      {
+        "done": false,
+        "text": "**The request's clock and generator** — the wall clock is `crates/nvs-stdlib/src/time.rs:3537`'s `wall_clock`, so a fixed test clock reaches the guest; random bytes are drawn through `crates/nvs-stdlib/src/random.rs:927`'s `draw`. Where `nvs-ext` cannot reach a `pub(crate)` function, `nvs-stdlib` exposes one entry point; nothing is copied."
+      },
+      {
+        "done": false,
+        "text": "**`exit` traps, and a libc-shaped guest runs** — `exit` throws `ExtensionError` and the next call is fresh (`rule:packaging/a-guest-crash-throws`); a WAT component importing what a `wasm32-wasip2` libc links at start-up loads, runs, prints and finds nothing it could use. Tests in `crates/nvs-ext/tests/wasi.rs`, the eight the record's Stage 2 check names."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: the grant** — `crates/nvs-config/src/tree.rs:419` (`grants`), `crates/nvs-config/src/capability.rs:836` (`anchor`), `crates/nvs-config/src/cache.rs:636`, then `crates/nvs-ext/src/grants.rs` (new) over `crates/nvs-runtime/src/capability.rs:210`.",
+    "**Stage 4: files** — preopens from the intersection in `crates/nvs-ext/src/wasi.rs`; one test per party, `..` and a planted symlink.",
+    "**Stage 5: outbound HTTP** — `wasmtime-wasi-http`, the handler routed through `crates/nvs-stdlib/src/http.rs:3834` (`exchanged`); both rules lose **Not on disk**.",
+    "**Stage 6: the attacks, the reloads and the feature proofs** — `tests/hostile/tools/config/extension-grants-what-a-component-may-reach/`, `crates/nvs-cli/tests/live_config.rs:518`, the section after `docs/reference/tools/20-config.md:259`.",
+    "When this goal's last check goes green the driver takes goal `ext-tooling`."
+  ]
+}
