@@ -3863,6 +3863,8 @@ mod tests {
             | CoreTy::Str
             | CoreTy::Bytes
             | CoreTy::Text(_)
+            | CoreTy::Path(_)
+            | CoreTy::ClassName(_)
             | CoreTy::Blob(_)
             | CoreTy::SecretBytes
             | CoreTy::SecretBlob(_)
@@ -3894,6 +3896,8 @@ mod tests {
             CoreTy::Str
             | CoreTy::Bytes
             | CoreTy::Text(_)
+            | CoreTy::Path(_)
+            | CoreTy::ClassName(_)
             | CoreTy::Blob(_)
             | CoreTy::SecretBytes
             | CoreTy::SecretBlob(_)

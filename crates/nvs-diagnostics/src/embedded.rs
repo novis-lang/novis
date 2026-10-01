@@ -49,6 +49,9 @@ use std::sync::OnceLock;
 /// One bundled program's files, keyed by the synthetic path they resolve at.
 #[derive(Debug)]
 pub struct Payload {
+    /// The synthetic root every payload path is joined onto — the running
+    /// executable's own path.
+    root: PathBuf,
     /// The entry point, as [`crate::SourceMap::load`] must be handed it.
     entry: PathBuf,
     /// Synthetic path -> (the relative name a diagnostic prints, the source).
@@ -121,6 +124,7 @@ pub fn install(root: &Path, files: Vec<(String, String)>) -> &'static Path {
         listing.sort();
     }
     let payload = Payload {
+        root: normalize(root),
         entry: entry.expect("checked non-empty above"),
         files: table,
         dirs,
@@ -189,6 +193,27 @@ pub fn is_dir(path: &Path) -> bool {
         .is_some_and(|payload| payload.dirs.contains(&normalize(path)))
 }
 
+/// Where a synthetic directory sits on the disk of the machine running the
+/// bundle: the same relative place, under the folder that holds the
+/// executable. `None` for a path outside the payload's root, which is every
+/// path in an ordinary `nvs`.
+///
+/// `rule:programs/path-literals-resolve-from-their-file` joins a relative path
+/// literal to the folder of the file that wrote it, and inside a bundle that
+/// folder is synthetic: `app.exe/src` is a directory of the payload and
+/// nothing on disk. This answers that rule's question for a bundle. A literal
+/// in `src/main.nvs` names a file under `src/` beside the executable, so a
+/// bundle reads its data files from where the source tree kept them, placed
+/// next to the executable.
+#[must_use]
+pub fn on_disk(dir: &Path) -> Option<PathBuf> {
+    let payload = PAYLOAD.get()?;
+    let rest = normalize(dir);
+    let rest = rest.strip_prefix(&payload.root).ok()?;
+    let beside = payload.root.parent()?;
+    Some(beside.join(rest))
+}
+
 /// `.` dropped and `..` popped, with no filesystem access.
 fn normalize(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
@@ -230,5 +255,6 @@ mod tests {
         // here is "ask the disk", not "this directory is empty".
         assert!(read_dir(Path::new("/anywhere")).is_none());
         assert!(!is_dir(Path::new("/anywhere")));
+        assert!(on_disk(Path::new("/anywhere")).is_none());
     }
 }

@@ -1,0 +1,22 @@
+--TEST--
+`Core\Path::fromCwd` joins a relative path to the working directory and normalizes it, returns an absolute path normalized, and agrees with `Core\Path::join` over the same directory — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+// The working directory itself is absolute.
+string $here = Core\Path::fromCwd('.');
+echo Core\Path::isAbsolute($here) ? "absolute\n" : "relative\n";
+
+// `.` and `..` are removed after the join.
+string $note = Core\Path::fromCwd('./data/../data/note.txt');
+echo Core\Str::replace(Core\Path::relativeTo($note, $here) ?? '', Core\Path::SEPARATOR, '/'), "\n";
+
+// The same answer as `join` over the working directory.
+echo $note == Core\Path::join($here, 'data', 'note.txt') ? "same\n" : "different\n";
+
+// An absolute path is returned normalized and keeps its own root.
+echo Core\Str::replace(Core\Path::fromCwd('/srv/shop/../blog/x.json'), Core\Path::SEPARATOR, '/'), "\n";
+--EXPECT--
+absolute
+data/note.txt
+same
+/srv/blog/x.json

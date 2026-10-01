@@ -1,0 +1,21 @@
+{
+  "title": "A relative path literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws",
+  "status": "shipped",
+  "because": [
+    "0241"
+  ],
+  "divergesFromPhp": "PHP resolves a relative `fopen` path against the process's working directory; here a literal resolves against its own source file, and nothing resolves against the working directory implicitly",
+  "seeAlso": [
+    "programs/path-case",
+    "security/path-scope-canonicalise-then-prefix",
+    "config/a-relative-path-resolves-against-the-file-it-is-written-in"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/paths.rs",
+    "tests/conformance/core/path-a-relative-literal-resolves-from-the-file-that-wrote-it.nvst",
+    "tests/conformance/core/path-a-relative-path-built-at-run-time-throws.nvst",
+    "tests/conformance/core/path-from-cwd-joins-the-working-directory.nvst",
+    "tests/conformance/core/path-from-cwd-throws-while-a-request-is-answered.nvst",
+    "tests/conformance/reject/the-path-marker-is-only-for-a-string-parameter.nvst"
+  ]
+}

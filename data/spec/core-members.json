@@ -1510,6 +1510,12 @@
           "`relativeTo(string $path, string $base): ?string`",
           "nothing",
           ""
+        ],
+        [
+          "`fromCwd`",
+          "`fromCwd(string $path): string`",
+          "`getcwd() . '/' . $path`",
+          ""
         ]
       ]
     },

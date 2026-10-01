@@ -456,6 +456,12 @@ pub struct CoreShapeField {
     /// rather than leaving a reader with a bare `expected string, found
     /// tainted string`.
     pub qual: Option<Qual>,
+    /// What the field's text names — `nvs_stdlib::registry::CoreTy::param_text`
+    /// of the row's own type. `Db\Settings`' `path` is
+    /// [`ParamText::Path`](nvs_stdlib::registry::ParamText::Path), so a
+    /// relative literal written for it is resolved the way one written at a
+    /// path parameter is (`crate::paths`).
+    pub text: nvs_stdlib::registry::ParamText,
 }
 
 /// Interns [`Ty`] values, giving structurally identical types the same
@@ -926,14 +932,23 @@ impl TypeInterner {
     /// [`Qual::Launder`] — and `None` where the caller has no registry row
     /// behind it.
     #[must_use]
-    pub fn options(&mut self, options: Vec<(String, TypeId, Option<Qual>)>) -> TypeId {
+    pub fn options(
+        &mut self,
+        options: Vec<(
+            String,
+            TypeId,
+            Option<Qual>,
+            nvs_stdlib::registry::ParamText,
+        )>,
+    ) -> TypeId {
         let fields: Vec<CoreShapeField> = options
             .into_iter()
-            .map(|(name, ty, qual)| CoreShapeField {
+            .map(|(name, ty, qual, text)| CoreShapeField {
                 name,
                 ty,
                 required: false,
                 qual,
+                text,
             })
             .collect();
         // A bag is `rule:core-api/shape-arms-are-disjoint`'s one-arm case, and carries that arm rather

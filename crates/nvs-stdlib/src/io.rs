@@ -98,7 +98,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // and the separators direct the resolver. The module doc above owns
             // why the whole class carries the mark together, and `within` is
             // the row that makes it usable.
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
             symbol: "nvs_core_io_read",
@@ -110,7 +110,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The path is a sink and `$content` is not: `rule:security/sink-predicate`'s table
             // puts a file's *contents* on the data side, so bytes that arrived
             // from outside may be written to a path this program chose.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_write",
@@ -122,7 +122,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `write`'s pair exactly, and for its reason: the path directs a
             // resolver and the content does not, so `rule:security/sink-predicate`'s table marks
             // the first and leaves the second alone.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_append",
@@ -138,7 +138,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // three shapes, so an `array<bytes>` a program already holds is
             // one of them and no caller has to build a generator to write.
             params: &[
-                CoreTy::Text(Qual::Sink),
+                CoreTy::Path(Qual::Sink),
                 CoreTy::Iterated(&CoreTy::Blob(Qual::Neutral)),
                 CoreTy::Options(WRITE_STREAM_OPTIONS),
             ],
@@ -150,7 +150,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "exists",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_io_exists",
@@ -159,7 +159,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "isFile",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_io_is_file",
@@ -168,7 +168,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "isDir",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_io_is_dir",
@@ -177,7 +177,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "isReadable",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_io_is_readable",
@@ -186,7 +186,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "isWritable",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_io_is_writable",
@@ -195,7 +195,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "size",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             // `uint` rather than `int`, like `Core\Arr::count`: a byte count has
             // no negative half, and the spec's answer for "how big is it" is the
@@ -207,7 +207,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "modifiedAt",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             // `Core\Time\Instant` and never an epoch `int`: R12's "units are
             // types", and the one place PHP's `filemtime` leaks a number a
@@ -219,7 +219,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "stat",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Instance(METADATA_NAME),
             symbol: "nvs_core_io_stat",
@@ -231,7 +231,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // Both paths are sinks: this class marks every path parameter it
             // has, and the module doc above owns why it is the whole class
             // together rather than the ones that happen to resolve.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_copy",
@@ -240,7 +240,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "move",
             names: &["from", "to"],
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_move",
@@ -249,7 +249,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "remove",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_remove",
@@ -258,7 +258,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "makeDir",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_make_dir",
@@ -267,7 +267,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "removeDir",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_io_remove_dir",
@@ -276,7 +276,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "list",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             // `array<string>` and not `array<tainted string>`, which is spec
             // § 14's own spelling and agrees with `stdin`'s row comment below
@@ -292,7 +292,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "walk",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             // `Iterable<string>` spelled the way `lines` above spells one — a
             // named class, because `CoreTy::Iterated` is parameter position
@@ -323,7 +323,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // sitting next to each other is the whole reason this comment is
             // here — reaching for the resolver when the question was
             // containment is the mistake `rule:security/launderers-are-sink-named` exists to prevent.
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
             symbol: "nvs_core_io_canonicalize",
@@ -337,7 +337,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // sink like every other; `$path` is the untrusted half the member
             // exists to accept, and `rule:security/launderers-are-sink-named` makes a launderer's answer the
             // plain, unqualified type.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Launder)],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Path(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_io_within",
@@ -349,7 +349,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The path is a sink like every other in this class, and the
             // charset is the one trailing options shape `rule:core-api/shape-rules` R3 allows —
             // which is why `names` carries one entry and `params` two.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(READ_TEXT_OPTIONS)],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Options(READ_TEXT_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
             symbol: "nvs_core_io_read_text",
@@ -358,7 +358,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "lines",
             names: &["path"],
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             // Spec § 14 writes `Iterable<string>`, and a *named class* is how
             // the registry spells one: `CoreTy::Iterated` is parameter
@@ -375,7 +375,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The path is a sink like every other in this class. The mode is
             // [`FILE_MODE`] and never a string, which is R11 and the whole of
             // what replaces `fopen`'s `"r+b"` grammar.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Enum(FILE_MODE_NAME)],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Enum(FILE_MODE_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(FILE_NAME),
             symbol: "nvs_core_io_open",
@@ -457,7 +457,7 @@ const READ_DOC: MethodDoc = MethodDoc {
             symlink or a `..` that leaves the granted roots is refused.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to read, absolute or relative to the working directory.",
+        desc: "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "The file's content as a `string`, with nothing stripped. The content must be UTF-8 text; \
@@ -487,7 +487,7 @@ const WRITE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to write, absolute or relative to the working directory.",
+            desc: "The file to write. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {
@@ -521,7 +521,7 @@ const APPEND_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to add to, absolute or relative to the working directory.",
+            desc: "The file to add to. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {
@@ -602,7 +602,7 @@ const EXISTS_DOC: MethodDoc = MethodDoc {
             touched, so an ungranted path throws rather than answering `false`.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to look for, absolute or relative to the working directory.",
+        desc: "The name to look for. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` if the name resolves to something, `false` if it resolves to nothing. Absence is \
@@ -629,7 +629,7 @@ const IS_FILE_DOC: MethodDoc = MethodDoc {
             before the path is touched.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to ask about, absolute or relative to the working directory.",
+        desc: "The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` for a regular file, `false` for a directory, for anything else the operating \
@@ -656,7 +656,7 @@ const IS_DIR_DOC: MethodDoc = MethodDoc {
             a link to a directory answers `true`. Needs the `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to ask about, absolute or relative to the working directory.",
+        desc: "The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` for a directory, `false` for a file, for anything else, and for a name that is \
@@ -682,7 +682,7 @@ const IS_READABLE_DOC: MethodDoc = MethodDoc {
             grant is refused rather than reported as unreadable.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about, absolute or relative to the working directory.",
+        desc: "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` if the operating system would allow a read, `false` if it would not — including \
@@ -701,7 +701,7 @@ const IS_WRITABLE_DOC: MethodDoc = MethodDoc {
             granted only reads cannot ask where it could write.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about, absolute or relative to the working directory.",
+        desc: "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` if the operating system would allow a write, `false` if it would not — including \
@@ -718,7 +718,7 @@ const SIZE_DOC: MethodDoc = MethodDoc {
             `filesize`. Needs the `fs.read` capability: measuring a file is reading it.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to measure, absolute or relative to the working directory.",
+        desc: "The file to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "The byte count as a `uint`. For a text file this is bytes and not characters — a \
@@ -744,7 +744,7 @@ const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
             capability: asking when a file changed is reading it.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about, absolute or relative to the working directory.",
+        desc: "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "The modification time as an absolute point on the timeline, with no zone of its own — \
@@ -771,7 +771,7 @@ const STAT_DOC: MethodDoc = MethodDoc {
             `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to measure, absolute or relative to the working directory.",
+        desc: "The file or directory to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "A `Core\\IO\\Metadata` — a snapshot, not a live view: it answers about the moment the \
@@ -1047,7 +1047,7 @@ const CANONICALIZE_DOC: MethodDoc = MethodDoc {
             containment, and it is the one an untrusted path has to pass through.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to resolve, absolute or relative to the working directory. Every \
+        desc: "The name to resolve. A relative path must be a string literal, and is joined to the folder of the file that contains it. Every \
                component must exist, including the last one.",
         shape: &[],
     }],
@@ -1120,7 +1120,7 @@ const READ_TEXT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to read, absolute or relative to the working directory.",
+            desc: "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {
@@ -1155,7 +1155,7 @@ const LINES_DOC: MethodDoc = MethodDoc {
             the `fs.read` capability for the path, exactly as `read` does.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to read, absolute or relative to the working directory.",
+        desc: "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "An `Iterable<string>` a `foreach` walks in file order, and walks again as often as it \
@@ -1182,7 +1182,7 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to open, absolute or relative to the working directory.",
+            desc: "The file to open. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {

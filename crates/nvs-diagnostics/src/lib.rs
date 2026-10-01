@@ -5257,6 +5257,22 @@ pub mod code {
          into a variable outside the closure, and use that variable inside it.",
     );
 
+    /// A `#[Core\Path]` written anywhere but on a `string` parameter of a
+    /// method — on a class, a property, a method itself, or a parameter whose
+    /// declared type is not `string` or `?string`.
+    ///
+    /// `rule:programs/path-literals-resolve-from-their-file`'s marker means one
+    /// thing: a string literal passed to this parameter is a path, joined to
+    /// the folder of the file that wrote it. Anywhere else there is no
+    /// argument for it to resolve, so it is refused for the reason
+    /// [`E_QUERY_WITHOUT_ROUTE`] refuses a stray `#[Query]`: a name the
+    /// compiler knows, written where it does nothing, reads as a declaration
+    /// that works.
+    pub const E_PATH_MARKER_NOT_ON_A_STRING: Code = Code::new("E0836").card(
+        "`#[Core\\Path]` works only on a method parameter whose type is `string` or `?string`. \
+         Change the parameter's type to `string`, or delete `#[Core\\Path]`.",
+    );
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901").card(

@@ -1,0 +1,17 @@
+{
+  "title": "A relative path literal resolves from the file that wrote it, and a relative path built at run time throws",
+  "status": "accepted",
+  "scope": "Which directory a relative file path names when a program passes one to a `Core` member\nor to a parameter marked `#[Core\\Path]`, how the registry marks such a parameter, and the one member\nthat reads the working directory. How `nvs.toml` anchors a relative *grant* is unchanged.",
+  "dependsOn": [
+    "0021",
+    "0062",
+    "0118"
+  ],
+  "dependsOnText": "[0021](0021.md) (`require` resolves against the requiring file), [0062](0062.md)\n(path case), [0118](0118.md) (a path scope is compared after it is canonicalized).",
+  "validatedBy": "`crates/nvs-types/tests/paths.rs`, `nvs_runtime::capability`'s\n`a_relative_path_throws_before_any_grant_is_asked`, and the `.nvst` cases named under\n*Verification*.",
+  "summary": {
+    "group": "language",
+    "headline": "Path literals are relative to their file",
+    "body": "`Core\\IO::read('data/x.json')` reads `data/x.json` beside the file that contains the call, in a\nterminal, under `nvs serve` and as a service alike. A relative path built while the program runs\nthrows; `Core\\Path::join` or `Core\\Path::fromCwd` makes it absolute. Mark your own path parameter\nwith `#[Core\\Path]` to get the same resolution."
+  }
+}

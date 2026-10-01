@@ -93,6 +93,11 @@ fn check_arg_list(
         (0..list.len()).map(ArgSlot::Param).collect()
     };
     check_inout_markers(list, &slots, &sig, env);
+    // `rule:programs/path-literals-resolve-from-their-file`: a relative literal
+    // at a path parameter is recorded as the absolute path it names. It reads
+    // only the written text and the slot, so it runs before the argument types
+    // are known. See [`crate::paths`].
+    crate::paths::resolve_args(list, &slots, &sig, env);
     if sig.is_generic(env.interner) {
         let (types, sig) = check_generic_args(list, &slots, sig, live, scope, ctx, env);
         return (types, slots, sig);
@@ -710,6 +715,11 @@ pub(crate) fn check_options_arg(
             }
             _ => check_arg(&field.value, declared, live, scope, ctx, env),
         };
+        // A path field — `Db\Settings`' `path` — resolves a relative literal
+        // as a path parameter does. See [`crate::paths`].
+        if slot.is_some_and(|option| option.text == nvs_stdlib::registry::ParamText::Path) {
+            crate::paths::resolve_literal(&field.value, env);
+        }
         if declared.is_none() {
             let names = option_names(options);
             env.diags.report(
@@ -1895,6 +1905,7 @@ mod tests {
             ty,
             required,
             qual: None,
+            text: nvs_stdlib::registry::ParamText::Plain,
         };
         let shape = [key("driver", true), key("host", true), key("port", false)];
 

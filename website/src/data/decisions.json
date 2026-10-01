@@ -403,6 +403,12 @@
           "headline": "An attribute can name a `type` alias declared in an interface or class",
           "body": "`#[Page::Meta(title: \"Home\")]` names the alias `Meta` declared inside `Page`. It is resolved the same way as the type `Page::Meta`. A mistake inside `#[...]` is reported once, and the declaration after it is still read.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0232.md"
+        },
+        {
+          "adr": "0241",
+          "headline": "Path literals are relative to their file",
+          "body": "`Core\\IO::read('data/x.json')` reads `data/x.json` beside the file that contains the call, in a terminal, under `nvs serve` and as a service alike. A relative path built while the program runs throws; `Core\\Path::join` or `Core\\Path::fromCwd` makes it absolute. Mark your own path parameter with `#[Core\\Path]` to get the same resolution.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0241.md"
         }
       ]
     },

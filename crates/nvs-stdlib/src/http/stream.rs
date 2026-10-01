@@ -237,7 +237,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
         CoreMethod {
             name: "saveTo",
             names: &["path", "max"],
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Uint],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_http_stream_save_to",

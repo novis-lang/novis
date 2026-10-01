@@ -1295,7 +1295,7 @@ pub(crate) const PART: CoreClass = CoreClass {
             // § 4 makes this member that one's delegation, and a default
             // written twice is a default that can disagree with itself.
             params: &[
-                CoreTy::Text(Qual::Sink),
+                CoreTy::Path(Qual::Sink),
                 CoreTy::Options(crate::io::WRITE_STREAM_OPTIONS),
             ],
             defaults: &[],

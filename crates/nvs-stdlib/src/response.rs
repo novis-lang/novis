@@ -360,7 +360,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // of their own — nothing here re-parses them, and what they are
             // called is the static policy's table rather than this member's
             // argument.
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_response_send_file",

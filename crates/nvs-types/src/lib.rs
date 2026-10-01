@@ -185,6 +185,7 @@ pub mod layout;
 pub(crate) mod links;
 pub mod locals;
 pub mod lower;
+pub mod paths;
 pub(crate) mod program;
 pub(crate) mod reasons;
 pub(crate) mod response;

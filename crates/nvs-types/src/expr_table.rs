@@ -1247,6 +1247,7 @@ pub struct ExprTypeTable {
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
+    path_literals: FxHashMap<Span, String>,
     prepared: FxHashMap<Span, Prepared>,
     delegations: Vec<Delegation>,
     locals: Vec<(Span, Vec<LocalBinding>)>,
@@ -1866,6 +1867,32 @@ impl ExprTypeTable {
     /// fact that has a home beside the others here.
     pub fn record_require_target(&mut self, span: Span, target: nvs_diagnostics::SourceId) {
         self.require_targets.insert(span, target);
+    }
+
+    /// Records the absolute path the relative string literal at `span` names —
+    /// `rule:programs/path-literals-resolve-from-their-file`, decided by
+    /// [`crate::paths`] at the one place that sees both the literal and the
+    /// parameter it fills.
+    pub(crate) fn record_path_literal(&mut self, span: Span, path: String) {
+        self.path_literals.insert(span, path);
+    }
+
+    /// The absolute path `nvs-ir` lowers the string literal at `span` to in
+    /// place of its written text, or `None` for every literal that is not a
+    /// relative path at a path parameter. Keyed by the literal's own span,
+    /// which is what `nvs_syntax::ast::ExprKind::Str` carries.
+    #[must_use]
+    pub fn path_literal(&self, span: Span) -> Option<&str> {
+        self.path_literals.get(&span).map(String::as_str)
+    }
+
+    /// Every resolved path literal with the span it was written at, in no
+    /// particular order — for a caller that wants to show them rather than
+    /// lower one.
+    pub fn path_literals(&self) -> impl Iterator<Item = (Span, &str)> + '_ {
+        self.path_literals
+            .iter()
+            .map(|(span, path)| (*span, path.as_str()))
     }
 
     /// Records what [`crate::intrinsics`]'s fold prepared out of the literal a

@@ -1,5 +1,5 @@
 Every path-valued directive — `opcache.file_cache_dir`, `capabilities.script.spawn`, `debug.trace`,
-`[[extension]] path`, `[[server.mount]] root`, `[db.<name>] path`, `password_file`, an `[[app]]`
+`[[extension]] path`, `[[server.mount]] root`, `[db.<name>] path`, `[storage.<name>] root`, `password_file`, an `[[app]]`
 block's `root` or `entry`, and `[[include]]`'s own `path` and `dir` — resolves relative to the
 directory of the file the value appears in. A path given on the **command line** resolves against the
 working directory, because that is what a shell argument means.

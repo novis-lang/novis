@@ -1,0 +1,35 @@
+--TEST--
+`#[Core\Path]` on a parameter that is not a `string`, or on a declaration that takes no argument, is refused rather than ignored, and on a `string` or `?string` parameter it is accepted — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+// The marker says that a string literal passed to the parameter is a file
+// path. An `int` parameter is never passed one.
+class Counter {
+    public static function bump(#[Core\Path] int $by): int { return $by + 1; }
+}
+
+// A property is never passed an argument at all.
+class Settings {
+    #[Core\Path]
+    public string $file = '';
+}
+
+// The accepted sites: a `string` parameter and a `?string` one.
+class Store {
+    public static function load(#[Core\Path] string $file, #[Core\Path] ?string $backup = null): string {
+        return $file;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0836]: `#[Core\Path] $by` is on a parameter of type `int`
+  --> case.nvs:5:35
+%A
+error[E0836]: `#[Core\Path]` is on a property
+   --> case.nvs:10:7
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

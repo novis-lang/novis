@@ -673,8 +673,10 @@ cases it converts itself rather than delegating.
 
 ## 8. `Core\Path`
 
-Pure string algebra over paths. **No member touches the disk**, so none needs a capability and every member
-is constant-foldable. Everything that reads or writes is `Core\IO` (§ 14) — that split is the point.
+Pure string algebra over paths. **No member touches the disk**, so none needs a capability, and every member
+but `fromCwd` is constant-foldable. Everything that reads or writes is `Core\IO` (§ 14) — that split is the
+point. `fromCwd` reads the process's working directory, and throws while a request is being answered
+(`rule:programs/path-literals-resolve-from-their-file`).
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
@@ -687,6 +689,7 @@ is constant-foldable. Everything that reads or writes is `Core\IO` (§ 14) — t
 | `normalize` | `normalize(string $path): string` | the lexical half of `realpath` — resolves `.`/`..` **without** touching the disk | |
 | `isAbsolute` | `isAbsolute(string $path): bool` | manual checks | neutral |
 | `relativeTo` | `relativeTo(string $path, string $base): ?string` | nothing | |
+| `fromCwd` | `fromCwd(string $path): string` | `getcwd() . '/' . $path` | |
 
 Every member accepts `/` and `\` alike as a separator on every platform and emits `Path::SEPARATOR`, so a
 path written with forward slashes in source is correct on Windows — the reverse of PHP, where

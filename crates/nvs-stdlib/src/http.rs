@@ -1225,7 +1225,7 @@ pub(crate) const PART: CoreClass = CoreClass {
             // A sink in the path, as every path in `Core\IO` is and for that
             // class's reason: `..` and the separators direct the resolver, so a
             // `tainted` path is refused where it is written.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(PART_FILE_OPTIONS)],
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Options(PART_FILE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(PART_NAME),
             symbol: "nvs_core_http_part_file",
@@ -1259,7 +1259,8 @@ const PART_FILE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to send, absolute or relative to the working directory.",
+            desc: "The file to send. A relative path must be a string literal, and is joined to \
+                   the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {

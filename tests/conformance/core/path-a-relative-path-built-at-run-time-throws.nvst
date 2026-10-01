@@ -1,0 +1,39 @@
+--TEST--
+a relative path that reaches a `Core` door at run time throws a `RuntimeError` naming the path and both ways to make it absolute, before any grant is asked, and `Core\Path::fromCwd` or `Core\Path::join` makes it one the door accepts — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+// The literal is assigned to a variable, so it is not written at a path
+// parameter, and the compiler leaves it as it is.
+string $name = 'data/note.txt';
+try {
+    echo Core\IO::read($name);
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// The same refusal at a door that writes. A path joined with `.` is built
+// while the program runs, even when both halves are literals.
+try {
+    Core\IO::write('data/' . 'copy.txt', 'x');
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// `fromCwd` joins it to the folder the program was started from.
+echo Core\IO::read(Core\Path::fromCwd($name));
+
+// `join` builds it from a folder the program already holds as an absolute path.
+string $folder = Core\Path::fromCwd('data');
+echo Core\IO::read(Core\Path::join($folder, 'note.txt'));
+--FILE data/note.txt--
+read
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["./data"]
+--EXPECT--
+Core\IO::read needs an absolute path, and `data/note.txt` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
+Core\IO::write needs an absolute path, and `data/copy.txt` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
+read
+read

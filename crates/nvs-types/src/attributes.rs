@@ -53,6 +53,9 @@ pub(crate) fn check_declaration(
     env: &mut Env<'_>,
 ) {
     check_groups(groups, ctx, env);
+    // `#[Core\Path]`'s attach rule asks the same question of every site this
+    // walk visits, so it walks the same lists once, beside it.
+    crate::paths::check_marker_sites(groups, members, cases, ctx, env);
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
