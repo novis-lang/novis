@@ -5,33 +5,33 @@
 
 // 1. A plain file name.
 try {
-    echo Core\Path::fromCwd("nvs.toml"), "\n";
+    echo Core\Path::fromCwd('nvs.toml'), "\n";
 } catch (RuntimeError $error) {
     echo "1: throws\n";
 }
 
 // 2. An empty path and a single dot, which would return the folder itself.
 try {
-    echo Core\Path::fromCwd(""), "\n";
+    echo Core\Path::fromCwd(''), "\n";
 } catch (RuntimeError $error) {
     echo "2: throws\n";
 }
 try {
-    echo Core\Path::fromCwd("."), "\n";
+    echo Core\Path::fromCwd('.'), "\n";
 } catch (RuntimeError $error) {
     echo "2: throws\n";
 }
 
 // 3. A full path, which does not need the folder at all.
 try {
-    echo Core\Path::fromCwd("/srv/shop/nvs.toml"), "\n";
+    echo Core\Path::fromCwd('/srv/shop/nvs.toml'), "\n";
 } catch (RuntimeError $error) {
     echo "3: throws\n";
 }
 
 // 4. A path of a million characters and a path with a NUL byte.
 try {
-    echo Core\Str::length(Core\Path::fromCwd(Core\Str::repeat("a/", 500000))), "\n";
+    echo Core\Str::length(Core\Path::fromCwd(Core\Str::repeat('a/', 500000))), "\n";
 } catch (RuntimeError $error) {
     echo "4: throws\n";
 }
@@ -46,10 +46,10 @@ uint $thrown = 0;
 uint $i = 0;
 while ($i < 10000) {
     try {
-        Core\Path::fromCwd("data");
+        Core\Path::fromCwd('data');
     } catch (RuntimeError $error) {
         $thrown = $thrown + 1;
     }
     $i = $i + 1;
 }
-echo "5: ", $thrown, " of 10000 calls throw\n";
+echo '5: ', $thrown, " of 10000 calls throw\n";

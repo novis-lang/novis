@@ -64,8 +64,10 @@ Core\Config::restore('limits.max_script_depth');
 echo 'the ceiling reads: ', Core\Config::get('limits.max_script_depth') ?? '(nothing)', "\n";
 // `Here::path` returns its argument as a full path. A relative path in a string literal
 // starts at the folder of this file.
-class Here {
-    public static function path(#[Core\Path] string $path): string {
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
         return $path;
     }
 }
