@@ -671,9 +671,11 @@ Finding routes is the question the program enumeration was built for — *what e
 names* — and the route table is that enumeration filtered by `#[Route]`, reused wholesale with its
 consequences ([`programs/implementing`](programs.md#programs-implementing)):
 
-- **A program containing no `Core\Router::match`/`::url` call performs no scan and builds no table**,
-  the identical opt-in rule a discovery query has; a program with no `#[Route]` anywhere pays nothing,
-  including no pass. A running program with no table matches nothing — `Core\Request::route()` is
+- **A program containing no call to a `Core\Router` member that reads the table — `match`,
+  `methodsFor`, `url`, `urlAbsolute` or `urlSigned` — performs no scan of the autoload roots**, the
+  identical opt-in rule a discovery query has, and any one of them alone opts it in. `signedRoute`
+  reads the request's match and not the table, so it does not. A program with no `#[Route]` anywhere
+  pays nothing, including no pass. A running program with no table matches nothing — `Core\Request::route()` is
   `null`, `methodsFor` answers empty — and serves the request however it likes.
 - **The scan makes the compiled unit depend on directory contents**, so every listed directory joins
   the revalidation set: no new dependency kind and no new directive. Zero under `validate = never`,

@@ -1,0 +1,25 @@
+--TEST--
+`Core\Router::methodsFor` alone opts the program into the autoload scan, so the route table holds a route only an autoload root declares — `rule:routing/table-is-opt-in`
+--FILE--
+<?nvs
+// `Shop\Catalog` is written nowhere in this program, and no other `Core\Router`
+// call appears. The table only has its route if `methodsFor` makes the program
+// scan the `Shop` root. Without the scan this prints `methods: 0`.
+autoload 'Shop' from './lib';
+
+echo "methods: ", Core\Arr::count(Core\Router::methodsFor("/catalog")), "\n";
+--FILE lib/Catalog.nvs--
+<?nvs
+namespace Shop;
+
+class Catalog
+{
+    #[Core\Route(path: "/catalog", method: Core\Http\Method::Get, name: "Catalog::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string
+    {
+        return "catalog";
+    }
+}
+--EXPECT--
+methods: 1

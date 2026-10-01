@@ -719,26 +719,28 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
 /// anywhere in the program turn every autoload root's whole tree into files
 /// to load.
 ///
-/// More than one class asks for the same scan. `Core\Program::implementing<T>()` is
-/// § 3's own query; `Core\Router`'s link half needs the compile-time route
-/// table, which `rule:routing/table-is-opt-in`
-/// builds by filtering *this* enumeration by a `#[Core\Route]` attribute
-/// rather than by an implemented interface. That is why the router's half is a
-/// member list here and not a second walk: a program calling either pays
-/// § 5's directory-listing dependency once, and a program calling neither
-/// still performs no scan at all.
+/// Two classes ask for the same scan. `Core\Program`'s enumeration members
+/// are § 3's own query. `Core\Router`'s table readers need the compile-time
+/// route table, which `rule:routing/table-is-opt-in` builds by filtering
+/// *this* enumeration by a `#[Core\Route]` attribute rather than by an
+/// implemented interface. That is why both are member lists here and not two
+/// walks: a program calling any of them pays § 5's directory-listing
+/// dependency once, and a program calling none of them performs no scan.
 const PROGRAM_CLASS: &str = r"Core\Program";
-const IMPLEMENTING_MEMBER: &str = "implementing";
+/// The `Core\Program` members that expand to the enumeration, and so need
+/// every class the autoload roots declare. Each one alone opts the program
+/// in: a program that calls only `implementingWith` lists the same classes
+/// `implementing` would.
+const PROGRAM_SCAN_MEMBERS: &[&str] = &["implementing", "implementingWith"];
 const ROUTER_CLASS: &str = r"Core\Router";
 /// The `Core\Router` members that read the route table, and so need the scan
-/// that builds it. `rule:routing/table-is-opt-in` names `::match` alongside `::url`; it is
-/// absent here because it is absent from the registry, so listing it would
-/// describe a call no program can currently write. It joins this list with
-/// the member, not before it.
-const ROUTER_SCAN_MEMBERS: &[&str] = &["url", "urlAbsolute", "urlSigned"];
+/// that builds it: the three link builders resolve a route name against it,
+/// `match` and `methodsFor` walk it. `signedRoute` is not one of them, since
+/// it reads the match the request already carries and never the table.
+const ROUTER_SCAN_MEMBERS: &[&str] = &["url", "urlAbsolute", "urlSigned", "match", "methodsFor"];
 
-/// Whether this static call opts a program into the scan —
-/// `Core\Program::implementing<T>()`, or a `Core\Router` link.
+/// Whether this static call opts a program into the scan: a
+/// [`PROGRAM_SCAN_MEMBERS`] or a [`ROUTER_SCAN_MEMBERS`] call.
 ///
 /// Matched nominally against the *resolved* class name, so a `use Core;` plus
 /// `Program::implementing<Module>()` is the same call as the fully written
@@ -759,7 +761,7 @@ fn is_program_scan(class: &Expr, method: &MemberName, src: &SourceFile, out: &Ha
     };
     let class_name = crate::hierarchy::resolve_ref(class_text, &out.namespace, &out.imports);
     if class_name == QName::parse(PROGRAM_CLASS) {
-        return member_text == IMPLEMENTING_MEMBER;
+        return PROGRAM_SCAN_MEMBERS.contains(&member_text);
     }
     class_name == QName::parse(ROUTER_CLASS) && ROUTER_SCAN_MEMBERS.contains(&member_text)
 }
@@ -2858,13 +2860,44 @@ class Unreached {}
         assert!(!quiet.symbols.contains(&mailer));
     }
 
-    /// `rule:routing/table-is-opt-in`'s opt-in is 0061 § 3's, reused: a router link needs the
-    /// route table, and the table is built from this same enumeration. Both
-    /// link members are asserted, because the list they are matched against
-    /// is the kind that ships with one entry filled in. The negative is
-    /// another `Core` static call rather than no call at all — the pair above
-    /// already pins that half, and what could go wrong *here* is a rule that
-    /// scans for any `Core::` call it walks past.
+    /// `rule:programs/implementing-with` is the same enumeration as
+    /// `implementing`, so it opts the program into the same scan on its own.
+    /// The program below writes no `implementing` call, and still collects a
+    /// class nothing requires and nothing names.
+    #[test]
+    fn implementing_with_alone_opts_the_program_into_the_scan() {
+        let dir = TempDir::new("autoload-scan-with");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
+        );
+        dir.write(
+            "src/Mailer.nvs",
+            "<?nvs\nnamespace Framework;\nclass Mailer {}\n",
+        );
+        dir.write(
+            "with.nvs",
+            concat!(
+                "<?nvs\n",
+                "require './Bootstrap.nvs';\n",
+                "interface Module {}\n",
+                "var $rows = Core\\Program::implementingWith<Module, {path: string}>();\n",
+            ),
+        );
+
+        let (module, diags) = resolve_entry(&dir, "with.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(module.symbols.contains(&QName::parse(r"Framework\Mailer")));
+    }
+
+    /// `rule:routing/table-is-opt-in`'s opt-in is 0061 § 3's, reused: every
+    /// `Core\Router` member that reads the route table needs the scan, and
+    /// the table is built from this same enumeration. Each member is asserted
+    /// alone, because a member list is the kind of list that ships with one
+    /// entry missing. The negative is another `Core` static call rather than
+    /// no call at all. The pair above already pins that half, and what could
+    /// go wrong *here* is a rule that scans for any `Core::` call it walks past.
     #[test]
     fn a_router_link_asks_for_the_same_enumeration() {
         let dir = TempDir::new("autoload-scan-router");
@@ -2883,6 +2916,11 @@ class Unreached {}
                 "absolute.nvs",
                 r"Core\Router::urlAbsolute('Users::show', [])",
             ),
+            (
+                "match.nvs",
+                r"Core\Router::match(Core\Http\Method::Get, '/')",
+            ),
+            ("methods.nvs", r"Core\Router::methodsFor('/')"),
             ("other.nvs", r"Core\Str::length('Users::show')"),
         ] {
             dir.write(
@@ -2893,7 +2931,7 @@ class Unreached {}
 
         let mailer = QName::parse(r"Framework\Mailer");
 
-        for file in ["url.nvs", "absolute.nvs"] {
+        for file in ["url.nvs", "absolute.nvs", "match.nvs", "methods.nvs"] {
             let (module, diags) = resolve_entry(&dir, file);
             assert!(!diags.has_errors(), "{file}: {diags:?}");
             assert!(module.symbols.contains(&mailer), "{file} did not scan");
