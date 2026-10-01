@@ -105,7 +105,12 @@ callgrind settles a doubtful slope, as it does for a bench.
 
 **The bounds**, written in the tool's module doc, which is their one home:
 
-- A count's slope above **1.35** fails. Counts are the same on every run, so they decide.
+- A count's slope above **1.15** fails, by the user's decision of 2026-10-01. Counts are the same on
+  every run, so they decide. The bound may go up a little, and only the user raises it. When a slope
+  above 1.15 turns out to be a cost Novis pays in general and the fix cannot remove without a large
+  tradeoff, the session does not raise the bound. It writes the case under *Decisions for you*: the
+  ladders it shows on, their measured slopes, the cause at its `file:line`, and the bound it would
+  need. It then marks those ladders `// scaling: proposal`, and the pass continues.
 - A clock slope above **1.5** fails only when a second run agrees. The machine runs other work, so
   the clock is the second signal and never the first.
 - `expect` may name an algorithm whose best known form is steeper than linear: `nlogn` for a sort,
