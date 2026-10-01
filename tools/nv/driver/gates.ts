@@ -10,15 +10,20 @@
 // which `nv orient` prints to the next session; a red gate holds the goal open without ending the run.
 //
 // **A goal's services** are its record's `env.docker`: the compose file and the services its checks
-// reach. `preflight` asks for a reachable Docker daemon before a session is spent against checks that
-// cannot pass, and `bringUp` starts the services once per run and once per goal switch, with `--wait`, so
-// "up" means healthy.
+// reach. `preflight` asks for a reachable Docker daemon at the start of every turn, before a session or a
+// sweep is spent against checks that cannot pass, and `bringUp` then starts the services with `--wait`,
+// so "up" means healthy. When the daemon does not answer, `preflight` starts Docker Desktop itself,
+// detached, and waits for it. That start is the one process the driver leaves outside every job: on
+// Windows each `Bun.spawn` child is in a job that kills all its members when the spawning process exits,
+// and a session's whole tree is in its turn's, so a Docker Desktop a session started dies with that turn
+// and the next sweep finds nothing listening.
 //
 // **The disk.** A run refuses to start below `--min-free-gb`, since a run that fills the disk dies inside a
 // session with the tree half edited. `sweepDisk` is `nv disk --clean`'s sweep, run in-process after every
 // session's acceptance sweep: the command itself refuses while `.loop/running` exists, and the driver is
 // the one process that knows nothing is building.
 
+import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { clean, freeGb, freedLines, human, total } from "../cmd/disk.ts";
@@ -75,13 +80,35 @@ export interface Docker {
   services: string[];
 }
 
-/** Whether a Docker daemon answers. Returns "" when it does, or why the goal cannot run. */
+/** How long `preflight` waits for a Docker Desktop it started to answer. */
+const DAEMON_WAIT_MS = 300_000;
+
+/** The daemon's version, or null when `docker info` fails. */
+async function daemonVersion(): Promise<string | null> {
+  const r = await run(["docker", "info", "--format", "{{.ServerVersion}}"], { timeoutMs: 120_000 });
+  return r.code === 0 ? r.stdout.trim() : null;
+}
+
+/** Whether a Docker daemon answers, after starting Docker Desktop when it does not. Returns "" when it does, or why the goal cannot run. */
 export async function preflight(docker: Docker | undefined, say: Say): Promise<string> {
   if (docker === undefined) return "";
-  if (!Bun.which("docker")) return "this goal needs Docker and the `docker` command is not on PATH. Install Docker Desktop, or run this goal by hand.";
-  const r = await run(["docker", "info", "--format", "{{.ServerVersion}}"], { timeoutMs: 120_000 });
-  if (r.code !== 0) return "this goal needs a reachable Docker daemon and `docker info` failed. Start Docker Desktop and run again; nothing has been spent.";
-  say(`docker daemon ${r.stdout.trim()} is up`);
+  const exe = Bun.which("docker");
+  if (!exe) return "this goal needs Docker and the `docker` command is not on PATH. Install Docker Desktop, or run this goal by hand.";
+  let version = await daemonVersion();
+  if (version === null) {
+    // Docker Desktop that runs while its engine is stuck at `stopping` answers `status` and needs a restart.
+    const verb = (await run([exe, "desktop", "status"], { timeoutMs: 60_000 })).code === 0 ? "restart" : "start";
+    say(`no docker daemon answers -- \`docker desktop ${verb}\`, detached so Docker Desktop outlives this turn`);
+    // node:child_process, not `Bun.spawn`: only `detached` keeps the child out of this process's job.
+    spawn(exe, ["desktop", verb, "--timeout", String(DAEMON_WAIT_MS / 1000)], { detached: true, stdio: "ignore", windowsHide: true }).on("error", () => {}).unref();
+    const until = Date.now() + DAEMON_WAIT_MS;
+    while (version === null && Date.now() < until) {
+      await Bun.sleep(5_000);
+      version = await daemonVersion();
+    }
+  }
+  if (version === null) return "this goal needs a reachable Docker daemon, and `docker info` still failed after Docker Desktop was started. Start Docker Desktop and run again; nothing has been spent.";
+  say(`docker daemon ${version} is up`);
   return "";
 }
 

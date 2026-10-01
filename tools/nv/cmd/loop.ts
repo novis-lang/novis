@@ -1005,12 +1005,11 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   const found = selected({});
   if (found === null) return end("chain-error", "the live goal's plan did not read; `bun nv check` and `bun nv chain --check` say why");
   const { live, goal, labelOf, total } = found;
-  if (fresh) {
-    // Once per run, and again at every goal switch: a daemon and its containers outlive the turn that asked for them.
-    step(live.num === null ? `side run: goal \`${live.slug}\`, ${placeOf(live, total)}` : `chain: resuming at goal \`${live.slug}\`, ${placeOf(live, total)}`, C.CYAN);
-    const down = (await preflight(goal.env.docker, (l) => say(`   ${l}`, C.GRAY))) || (await bringUp(goal.env.docker, (l) => step(l, C.CYAN)));
-    if (down) return finish(state, `chain: ${down}`);
-  }
+  if (fresh) step(live.num === null ? `side run: goal \`${live.slug}\`, ${placeOf(live, total)}` : `chain: resuming at goal \`${live.slug}\`, ${placeOf(live, total)}`, C.CYAN);
+  // On every turn: a Docker Desktop a session started is in that turn's job and ends when the turn exits,
+  // so the daemon is checked, and started again if it is gone, before each session and each sweep.
+  const down = (await preflight(goal.env.docker, (l) => say(`   ${l}`, C.GRAY))) || (await bringUp(goal.env.docker, (l) => say(`   ${l}`, C.GRAY)));
+  if (down) return finish(state, `chain: ${down}`);
   const checks = goal.checks as Check[];
   const plan = { slug: live.slug, stages: goal.stages, checks };
   const results: Results = await lastGreen(checks);
