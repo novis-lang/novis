@@ -1,0 +1,13 @@
+--TEST--
+inside an `autoload discover` glob the list is the directories the text before the cursor reaches, resolved against the declaring file's directory, and no file — `rule:programs/autoload`
+--FILE--
+<?nvs
+autoload discover 'mod<|>/*/src';
+--FILE modules/Shop/src/Cart.nvs--
+<?nvs
+namespace Shop;
+class Cart { }
+--REQUEST--
+completion
+--EXPECT--
+modules/ folder

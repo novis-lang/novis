@@ -1,0 +1,13 @@
+--TEST--
+an `autoload` declaration names a prefix and a directory, not a declaration, so a jump from it goes nowhere; its root is a link instead — `rule:programs/autoload`
+--FILE--
+<?nvs
+autoload 'App' from 's<|>rc';
+--FILE src/User.nvs--
+<?nvs
+namespace App;
+class User { }
+--REQUEST--
+definition
+--EXPECT--
+none

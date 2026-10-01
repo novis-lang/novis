@@ -3,7 +3,8 @@
   "status": "designed",
   "because": [
     "0108",
-    "0111"
+    "0111",
+    "0240"
   ],
   "divergesFromPhp": "framework-aware IntelliSense built from convention scans, annotation dialects and an `ide.json` patch file has no counterpart; a route name or a directive completes from the table the compiler built, and an ORM column or a view name has nothing to complete from because Novis has neither",
   "seeAlso": [

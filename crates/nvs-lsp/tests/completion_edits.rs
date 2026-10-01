@@ -46,10 +46,19 @@ const CURSOR: &str = "<|>";
 /// What `client` is offered at the [`CURSOR`] in `source`, or at its end
 /// where it writes none.
 fn offered_to(client: Client, source: &str) -> Vec<CompletionItem> {
+    offered_in(
+        &std::env::temp_dir().join("nvs-completion-edit.nvs"),
+        client,
+        source,
+    )
+}
+
+/// [`offered_to`], with the buffer opened under `path`. Nothing is written
+/// there: the path only says which directory the document sits in.
+fn offered_in(path: &std::path::Path, client: Client, source: &str) -> Vec<CompletionItem> {
     let cursor = source.find(CURSOR).unwrap_or(source.len());
     let source = source.replacen(CURSOR, "", 1);
-    let uri = uri_of(&std::env::temp_dir().join("nvs-completion-edit.nvs"))
-        .expect("a temp path is UTF-8");
+    let uri = uri_of(path).expect("a test path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source);
     let analysis = analyse(&documents, &uri).expect("an open document analyses");
@@ -102,6 +111,49 @@ fn at(line: u32, character: u32) -> Range {
         start: position,
         end: position,
     }
+}
+
+/// A directory in a path literal replaces only the segment being written,
+/// writes a `/` after its name, and opens the list again for the next segment.
+#[test]
+fn a_path_item_replaces_the_segment_being_written() {
+    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("nvs-path-case.nvs");
+    let items = offered_in(&here, EDITOR, "<?nvs\nrequire '../nvs-l<|>';");
+    let directory = named(&items, "nvs-lsp/");
+    let segment = Range {
+        start: Position {
+            line: 1,
+            character: 12,
+        },
+        end: Position {
+            line: 1,
+            character: 17,
+        },
+    };
+    assert_eq!(
+        directory.text_edit,
+        Some(CompletionTextEdit::Edit(TextEdit {
+            range: segment,
+            new_text: "nvs-lsp/".to_owned(),
+        }))
+    );
+    assert_eq!(
+        directory
+            .command
+            .as_ref()
+            .map(|command| command.command.as_str()),
+        Some(Client::SUGGEST)
+    );
+
+    // The crate's directory holds `Cargo.toml` beside `src` and `tests`, and a
+    // root names a directory, so the file is not offered.
+    let items = offered_in(&here, EDITOR, "<?nvs\nautoload 'App' from 'sr<|>';");
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert_eq!(
+        labels,
+        ["src/", "tests/"],
+        "a root offers directories alone"
+    );
 }
 
 #[test]

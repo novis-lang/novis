@@ -1,0 +1,13 @@
+--TEST--
+an `autoload` declaration declares no name, so a cursor on it has nothing to document — `rule:programs/autoload`
+--FILE--
+<?nvs
+auto<|>load 'App' from 'src';
+--FILE src/User.nvs--
+<?nvs
+namespace App;
+class User { }
+--REQUEST--
+hover
+--EXPECT--
+none

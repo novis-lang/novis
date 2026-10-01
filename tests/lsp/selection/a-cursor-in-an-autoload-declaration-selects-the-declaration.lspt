@@ -1,0 +1,13 @@
+--TEST--
+an `autoload` declaration is one node whose literals are not nodes of their own, so one keypress selects the whole declaration — `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+autoload 'App' from 's<|>rc';
+--FILE src/User.nvs--
+<?nvs
+namespace App;
+class User { }
+--REQUEST--
+selectionRange
+--EXPECT--
+2:1-2:27

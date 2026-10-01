@@ -1556,6 +1556,12 @@ shows that comment on the method and names the class or interface it comes from.
 line a statement starts on is listed with the number of times it ran. A line no test reached reads
 `0`. Coverage costs nothing in a run that does not ask for it.
 
+**Paths complete and link in the editor**
+
+Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the editor lists
+the folders and `.nvs` files in the folder the path reaches so far. An `autoload` path lists folders
+only. Ctrl+click on an `autoload` root or glob shows its folder in the Explorer.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

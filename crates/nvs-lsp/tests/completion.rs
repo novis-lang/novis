@@ -50,8 +50,16 @@ const RECEIVER: &str = "$b->";
 /// nothing here `require`s anything, so no directory is needed
 /// (`nvs_diagnostics::SourceMap::load`).
 fn analysed(source: &str) -> (Documents, Analysed) {
-    let uri = uri_of(&std::env::temp_dir().join("nvs-completion-case.nvs"))
-        .expect("a temp path is UTF-8");
+    analysed_at(
+        &std::env::temp_dir().join("nvs-completion-case.nvs"),
+        source,
+    )
+}
+
+/// [`analysed`], with the buffer opened under `path`. Nothing is written
+/// there: the path only says which directory the document sits in.
+fn analysed_at(path: &Path, source: &str) -> (Documents, Analysed) {
+    let uri = uri_of(path).expect("a test path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source.to_owned());
     let analysis = analyse(&documents, &uri).expect("an open document analyses");
@@ -65,9 +73,14 @@ fn analysed(source: &str) -> (Documents, Analysed) {
 /// the namespace arm reaches here is what a session's would reach.
 fn rendered(source: &str, at: u32) -> String {
     let (documents, analysis) = analysed(source);
-    let index = SymbolIndex::build(&documents, CheckScope::Open, None);
+    rendered_with(&documents, &analysis, at)
+}
+
+/// [`rendered`], over an analysis already made.
+fn rendered_with(documents: &Documents, analysis: &Analysed, at: u32) -> String {
+    let index = SymbolIndex::build(documents, CheckScope::Open, None);
     Response::Completion(completion::at(
-        &analysis,
+        analysis,
         &index,
         at,
         PhpNames::All,
@@ -431,12 +444,20 @@ fn the_php_names_setting_selects_among_the_shapes_and_nothing_else() {
 /// keystroke and `nvs_lsp::completion::continues_a_trigger` answers only where
 /// the whole spelling was written. The open tag's construct leaves code first:
 /// `<?` is half-written only in a run of markup.
-const TRIGGERED: [(&str, &str); 5] = [
-    (">", "$b->"),
-    (":", "User::"),
-    ("\\", "Core\\"),
-    ("$", "echo $"),
-    ("?", "?>\n<?"),
+///
+/// The third column is what follows the cursor. A path character's construct
+/// is a `require` literal, closed after the cursor the way an editor closes a
+/// quote, in a document placed in this crate's own directory: a quote lists
+/// that directory, and `/` lists the one above it.
+const TRIGGERED: [(&str, &str, &str); 8] = [
+    (">", "$b->", ""),
+    (":", "User::", ""),
+    ("\\", "Core\\", ""),
+    ("$", "echo $", ""),
+    ("?", "?>\n<?", ""),
+    ("'", "require '", "';"),
+    ("\"", "require \"", "\";"),
+    ("/", "require '../", "';"),
 ];
 
 /// A class with both halves declared, so every construct below has something
@@ -470,7 +491,7 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
         .collect();
     let named: Vec<String> = TRIGGERED
         .iter()
-        .map(|(character, _)| (*character).to_owned())
+        .map(|(character, _, _)| (*character).to_owned())
         .collect();
     assert_eq!(
         characters, named,
@@ -478,9 +499,16 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
          are not the same list"
     );
 
-    for (character, construct) in TRIGGERED {
-        let source = format!("{TRIGGER_DOC}{construct}\n");
-        let offered = rendered(&source, after(&source, construct));
+    let here = Path::new(env!("CARGO_MANIFEST_DIR")).join("nvs-trigger-case.nvs");
+    for (character, construct, tail) in TRIGGERED {
+        let source = format!("{TRIGGER_DOC}{construct}{tail}\n");
+        let at = after(&source, construct);
+        let (documents, analysis) = analysed_at(&here, &source);
+        assert!(
+            completion::continues_a_trigger(&analysis, at),
+            "`{character}` ends `{construct}` and the request it raises is not answered"
+        );
+        let offered = rendered_with(&documents, &analysis, at);
         assert!(
             !offered.is_empty(),
             "`{character}` is a trigger character and `{construct}` is offered nothing"
@@ -496,6 +524,25 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
             words.is_empty(),
             "`{character}` is a trigger character and `{construct}` is answered \
              the position list: {offered}"
+        );
+    }
+}
+
+/// A path character outside a path literal raises no list: `/` divides, and a
+/// quote opens every other string.
+#[test]
+fn a_path_character_outside_a_path_literal_is_not_answered() {
+    for (construct, tail) in [
+        ("var $half = 4 /", " 2;"),
+        ("echo '", "';"),
+        ("echo \"", "\";"),
+        ("echo 'lib/", "';"),
+    ] {
+        let source = format!("{TRIGGER_DOC}{construct}{tail}\n");
+        let (_documents, analysis) = analysed(&source);
+        assert!(
+            !completion::continues_a_trigger(&analysis, after(&source, construct)),
+            "`{construct}` is no path literal and its last character raised a list"
         );
     }
 }
@@ -567,7 +614,12 @@ fn sources() -> Vec<Source> {
 /// this repository, and what the arm may *insert* is bounded by the registry
 /// (`rule:php-migration/an-item-inserts-only-a-registered-member`). No
 /// directory is walked and no annotation is read for it.
-const SOURCED: [(&str, &str); 29] = [
+///
+/// The path arm reads one directory, the one a `require` or `autoload` path
+/// literal's text reaches, through `nvs_hir::autoload::entries_of`: the
+/// listing the compiler resolves a `discover` glob with. It walks no tree and
+/// looks for no convention, so what it offers is what resolution would find.
+const SOURCED: [(&str, &str); 30] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
@@ -578,6 +630,7 @@ const SOURCED: [(&str, &str); 29] = [
     ("type_members_of", "registry::class("),
     ("declared_type_members", "declared_type("),
     ("open_tags", "OPEN_TAGS"),
+    ("paths", "autoload::entries_of("),
     ("position", "words("),
     ("statement_words", "STATEMENT_WORDS"),
     ("followed", "Classes::of(cursor.symbols)"),

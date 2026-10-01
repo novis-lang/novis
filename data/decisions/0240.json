@@ -1,0 +1,16 @@
+{
+  "title": "A `require` or `autoload` path literal completes as a path, an `autoload` root or glob links to its directory, and a directory link reveals it in the Explorer",
+  "status": "accepted",
+  "scope": "Path completion and links inside the path literals of `require` and `autoload`, the trigger characters that open\nthat list, and what the VS Code client does with a link to a directory. Completion of any other string is not decided here.",
+  "dependsOn": [
+    "0099",
+    "0193"
+  ],
+  "dependsOnText": "[0099](0099.md) (the request set, and `documentLink` as a projection of the walk), [0193](0193.md)\n(trigger characters answered only where a spelling ends).",
+  "validatedBy": "`tests/lsp/completion/a-require-literal-offers-the-directories-and-nvs-files-its-text-reaches.lspt`,\n`tests/lsp/links/an-autoload-root-links-to-the-directory-it-names.lspt`, `crates/nvs-lsp/tests/completion.rs`\nand `editors/vscode/test/client/links.test.ts`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "Paths complete and link in the editor",
+    "body": "Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the editor lists the\nfolders and `.nvs` files in the folder the path reaches so far. An `autoload` path lists folders only.\nCtrl+click on an `autoload` root or glob shows its folder in the Explorer."
+  }
+}

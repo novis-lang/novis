@@ -1,0 +1,13 @@
+--TEST--
+an `autoload` declaration that resolves carries no diagnostic, so there is no fix to offer on it — `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+auto<|>load 'App' from 'src';
+--FILE src/User.nvs--
+<?nvs
+namespace App;
+class User { }
+--REQUEST--
+codeAction
+--EXPECT--
+none

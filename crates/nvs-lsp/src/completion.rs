@@ -1,14 +1,15 @@
 //! What may be written where the cursor is.
 //!
-//! `textDocument/completion` answers four things in
-//! `rule:ide/the-request-set-is-closed`'s list: the members reachable off a
-//! receiver whose class the analysis resolved, the static members and
+//! `textDocument/completion` answers the things
+//! `rule:ide/the-request-set-is-closed`'s list names: the members reachable off
+//! a receiver whose class the analysis resolved, the static members and
 //! constants reached through a class name, the cases of an enum written after
-//! `Type::` — a user-declared class and a `Core` one alike — and what a bare
+//! `Type::` — a user-declared class and a `Core` one alike — what a bare
 //! position offers, which is the keywords that may be written there, the
 //! variables in scope, the types a bare name reaches and the PHP built-ins a
 //! half-written one matches, and is the same walk asked at a node that is no
-//! access at all.
+//! access at all — and the entries of a directory, inside a `require` or
+//! `autoload` path literal.
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -256,6 +257,20 @@
 //! none and `nvs_stdlib::registry::CoreTy::Instance` owns why — so `$m->groups`
 //! is an unknown member and `$m->groups()` is the member.
 //!
+//! # What a path literal offers
+//!
+//! Inside the literal of a `require`, or of an `autoload` root or `discover`
+//! glob, the cursor is writing a path, and the list is what the directory its
+//! text reaches holds: [`paths`]. The directory is listed through
+//! `nvs_hir::autoload::entries_of` rather than by a filesystem call here, for
+//! two reasons. It is the listing the compiler resolves a `discover` glob and
+//! the `implementing` scan with, so a name offered is a name resolution would
+//! find, spelled as the disk spells it. And it keeps this module free of every
+//! direct filesystem read, which is what
+//! `rule:ide/completion-offers-only-what-the-compiler-derived` holds it to. The
+//! listing answers out of a bundle's payload inside a bundled executable; a
+//! language server never runs inside one, so here it is always the disk.
+//!
 //! **Known gaps.** Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/completion.rs` lists them.
 
 use std::collections::BTreeMap;
@@ -269,7 +284,8 @@ use nvs_hir::QName;
 use nvs_stdlib::php_names::{self, Candidate, Item, Kind};
 use nvs_stdlib::registry::{self, CoreClass, CoreConst, CoreEnum, CoreMethod};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember, StmtKind,
+    AutoloadKind, ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember,
+    StmtKind,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::{ExprInfo, Ty, TypeId};
@@ -341,6 +357,7 @@ pub fn at(
             under(symbols, &prefix),
         ),
         Asked::OpenTag(written) => open_tags(&cursor, written),
+        Asked::Path(literal) => paths(&cursor, &literal),
         Asked::Position => position(&cursor, php),
         Asked::Nothing => return Vec::new(),
     };
@@ -373,6 +390,8 @@ pub fn continues_a_trigger(analysed: &Analysed, offset: BytePos) -> bool {
         .iter()
         .any(|spelling| upto.ends_with(spelling))
         || open_tag_written(upto).is_some()
+        || (upto.ends_with(['/', '\'', '"'])
+            && path_literal(analysed, &analysed.index.at(offset), offset).is_some())
 }
 
 /// What every arm of a bare position reads: the analysis, the index, and where
@@ -443,6 +462,9 @@ enum Asked {
     /// A half-written open tag in a run of markup, this many bytes of it
     /// written so far — the tags that open code, and nothing else.
     OpenTag(usize),
+    /// The inside of a `require` or `autoload` path literal — the entries of
+    /// the directory its text reaches.
+    Path(PathLiteral),
     /// No access at all — what may be written where a statement or an
     /// expression goes.
     Position,
@@ -463,7 +485,127 @@ fn members_of(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Completio
     }
 }
 
-/// Which of the four questions the cursor at `offset` is asking.
+/// A `require` or `autoload` path literal the cursor is inside.
+struct PathLiteral {
+    /// The first byte of the literal's text, after its opening quote.
+    text_start: BytePos,
+    /// Whether a file is offered as well as a directory: a `require` loads a
+    /// file, and an `autoload` root or glob names a directory.
+    files: bool,
+}
+
+/// The path literal the cursor at `offset` is writing, if it is inside one.
+///
+/// A `require`'s path is a `Str` node directly under its `Require` node. An
+/// `autoload` declaration's literals are spans on the declaration and no nodes
+/// of their own, so they are read off the declaration the walk parsed, which
+/// is the parse the index was built from. Either way the cursor has to be
+/// between the quotes.
+fn path_literal(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Option<PathLiteral> {
+    let inside = |span: Span| (span.start < offset && offset < span.end).then_some(span.start + 1);
+    if let [string, parent, ..] = path.nodes()
+        && string.kind == "Str"
+        && parent.kind == "Require"
+    {
+        return inside(string.span).map(|text_start| PathLiteral {
+            text_start,
+            files: true,
+        });
+    }
+    let decl = path
+        .nodes()
+        .iter()
+        .find(|node| node.kind == "AutoloadDecl")?;
+    let stmts = &analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)?
+        .stmts;
+    let literals: Vec<Span> = stmts.iter().find_map(|stmt| match &stmt.kind {
+        StmtKind::AutoloadDecl(found) if found.span == decl.span => Some(match &found.kind {
+            AutoloadKind::Prefix { roots, .. } => roots.clone(),
+            AutoloadKind::Discover { glob } => vec![*glob],
+        }),
+        _ => None,
+    })?;
+    literals
+        .into_iter()
+        .find_map(inside)
+        .map(|text_start| PathLiteral {
+            text_start,
+            files: false,
+        })
+}
+
+/// What the directory a path literal's text reaches holds, for the segment
+/// the cursor is writing.
+///
+/// The text before the cursor is split at its last separator. What comes
+/// before it is a directory, resolved against the directory of the document,
+/// which is the base a `require` and an `autoload` root both resolve against
+/// (`rule:programs/autoload`). What comes after it is the segment the client
+/// filters by, and each item replaces exactly that segment. A directory is
+/// offered with a `/` after it and opens the list again. A file is offered
+/// only inside a `require`, and only a `.nvs` one. Nothing is offered once a
+/// `*` has been written, since a `discover` glob matches from there on.
+///
+/// The names come from `nvs_hir::autoload::entries_of`, the listing the
+/// compiler resolves a glob with, so each is spelled the way the disk spells
+/// it (`rule:programs/path-case`). A name starting with `.` is hidden. One
+/// directory is listed per request, and nothing is kept between requests.
+fn paths(cursor: &Cursor<'_>, literal: &PathLiteral) -> Vec<CompletionItem> {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let Some(written) = file
+        .text()
+        .get(literal.text_start as usize..cursor.offset as usize)
+    else {
+        return Vec::new();
+    };
+    let (directory, segment) = match written.rfind(['/', '\\']) {
+        Some(at) => (&written[..=at], &written[at + 1..]),
+        None => ("", written),
+    };
+    if directory.contains('*') {
+        return Vec::new();
+    }
+    let Some(base) = file.path().and_then(std::path::Path::parent) else {
+        return Vec::new();
+    };
+    let Some(entries) = nvs_hir::autoload::entries_of(&base.join(directory)) else {
+        return Vec::new();
+    };
+    entries
+        .into_iter()
+        .filter(|(name, _)| !name.starts_with('.'))
+        .filter_map(|(name, is_directory)| {
+            if is_directory {
+                let label = format!("{name}/");
+                Some(CompletionItem {
+                    text_edit: Some(cursor.replacing(segment.len(), label.clone())),
+                    label,
+                    kind: Some(CompletionItemKind::FOLDER),
+                    command: cursor.client.suggest.then(|| Command {
+                        title: "Suggest".to_owned(),
+                        command: Client::SUGGEST.to_owned(),
+                        arguments: None,
+                    }),
+                    ..CompletionItem::default()
+                })
+            } else if literal.files && name.ends_with(".nvs") {
+                Some(CompletionItem {
+                    text_edit: Some(cursor.replacing(segment.len(), name.clone())),
+                    label: name,
+                    kind: Some(CompletionItemKind::FILE),
+                    ..CompletionItem::default()
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// Which question the cursor at `offset` is asking.
 ///
 /// The namespace question is asked first and answers on its own terms: a
 /// separator has been written in the name the cursor is inside, which is true
@@ -471,6 +613,10 @@ fn members_of(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Completio
 /// below nothing and buys the receiver half of `Core\Str::` an answer it would
 /// otherwise be refused for standing before the receiver's end.
 fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
+    // A path literal is a string, so no other arm answers inside one.
+    if let Some(literal) = path_literal(analysed, path, offset) {
+        return Asked::Path(literal);
+    }
     // A cursor inside a run of markup is not writing a program, and a keyword
     // list offered there inserts text the page would render rather than run.
     // The editor's own HTML service answers here instead, inside the region

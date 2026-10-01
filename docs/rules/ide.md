@@ -321,10 +321,12 @@ the negotiated encoding, `code` set, phase-gated per [`ide/diagnostics-are-phase
 (the declared type, a `Core` member's registry signature row, a declaration's doc-comment run as
 Markdown); `definition` (the declaring span anywhere in the resolved `require`/`autoload` graph);
 `completion` (keywords by position, members off a resolved receiver including `Core` classes, enum cases
-after `Type::`, in-scope variables — no workspace symbol search); `semanticTokens/full`; `documentSymbol`;
+after `Type::`, in-scope variables, and inside a `require` or `autoload` path literal the entries of the
+directory its text reaches — no workspace symbol search); `semanticTokens/full`; `documentSymbol`;
 and three that are projections of data the tree already holds rather than features built on it —
 `selectionRange` (the index's ancestor list is the response), `foldingRange` (the same walk plus comment
-blocks out of the trivia layer) and `documentLink` (the resolved path literal of a `require` or `autoload`).
+blocks out of the trivia layer) and `documentLink` (the resolved path literal of a `require`, and each
+`autoload` root and `discover` glob, which name the directory each resolves to and list).
 M4B's non-standard request is `nvs/redactions`
 ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), non-standard because LSP has no shape for "do not
 show this to the room".
@@ -372,7 +374,7 @@ on. Neither has `.lspt` vocabulary, for the reason the four wire-held requests a
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -980,7 +982,9 @@ What that admits: route names and their parameters, from the route table
 `nvs.toml` and every file `[[include]]` pulls in, from the closed registry the runtime validates against
 ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)), so completion, hover with type and
 default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
-complete as paths — scoped to the workspace's config tree, never to every TOML file; `#[Api]` fields and
+complete as paths — scoped to the workspace's config tree, never to every TOML file; a `require` path
+and an `autoload` root or `discover` glob, which complete as the entries of the one directory the text
+before the cursor reaches, read through the listing the compiler resolves a glob with; `#[Api]` fields and
 every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
@@ -999,7 +1003,7 @@ and bounded on the insert side by [`ide/three-of-four-item-shapes-insert-nothing
 A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
 table the compiler builds for another reason.
 
-<sub>See also [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md).</sub>
+<sub>See also [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md), [0240](../decisions/0240.md).</sub>
 
 <a id="ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted"></a>
 
@@ -1038,16 +1042,20 @@ built and dropped with the answer.
 
 <a id="ide-completion-is-asked-where-a-spelling-ends"></a>
 
-## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, and `$`, a lone `:` and `<?` each narrow what is offered
+## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` path literal, and `$`, a lone `:` and `<?` each narrow what is offered
 
 `rule:ide/completion-is-asked-where-a-spelling-ends`
 
-The completion trigger characters are `>`, `:`, `\`, `$` and `?` — the last character of `->`, of `::`, of
-a namespace separator, of a variable's `$` and of a half-written `<?` — and a request one of them raised is
-answered only where the text before the cursor ends in that whole spelling. Each of the five is also an
-operator's character, and an editor asks on the keystroke: answering `$a >` or `Core\Str:` with whatever
-the position offers opens a list nobody asked for. `-` is not a trigger, because it finishes nothing. A
-request the developer raised by hand, or by typing a name, is not held to this.
+The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"` and `/`. The first five are the
+last character of `->`, of `::`, of a namespace separator, of a variable's `$` and of a half-written `<?`,
+and a request one of them raised is answered only where the text before the cursor ends in that whole
+spelling. Each of them is also an operator's character, and an editor asks on the keystroke: answering
+`$a >` or `Core\Str:` with whatever the position offers opens a list nobody asked for. `-` is not a
+trigger, because it finishes nothing. The last three open and extend a path, and a request one of them
+raised is answered only where the cursor is inside a `require` or `autoload` path literal: a quote opens
+one, a `/` starts its next segment, and a client offers nothing inside a string unless asked. Everywhere
+else a quote opens a string and `/` divides. A request the developer raised by hand, or by typing a
+name, is not held to this.
 
 Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
 body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left
@@ -1066,7 +1074,7 @@ HTML service does not answer beside the two tags. The extra character is what ke
 the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
 other processing instruction stay markup's own.
 
-<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0193](../decisions/0193.md).</sub>
+<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0193](../decisions/0193.md), [0240](../decisions/0240.md).</sub>
 
 <a id="ide-an-accepted-type-writes-what-follows-it"></a>
 

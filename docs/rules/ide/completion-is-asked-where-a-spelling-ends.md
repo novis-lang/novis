@@ -1,9 +1,13 @@
-The completion trigger characters are `>`, `:`, `\`, `$` and `?` — the last character of `->`, of `::`, of
-a namespace separator, of a variable's `$` and of a half-written `<?` — and a request one of them raised is
-answered only where the text before the cursor ends in that whole spelling. Each of the five is also an
-operator's character, and an editor asks on the keystroke: answering `$a >` or `Core\Str:` with whatever
-the position offers opens a list nobody asked for. `-` is not a trigger, because it finishes nothing. A
-request the developer raised by hand, or by typing a name, is not held to this.
+The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"` and `/`. The first five are the
+last character of `->`, of `::`, of a namespace separator, of a variable's `$` and of a half-written `<?`,
+and a request one of them raised is answered only where the text before the cursor ends in that whole
+spelling. Each of them is also an operator's character, and an editor asks on the keystroke: answering
+`$a >` or `Core\Str:` with whatever the position offers opens a list nobody asked for. `-` is not a
+trigger, because it finishes nothing. The last three open and extend a path, and a request one of them
+raised is answered only where the cursor is inside a `require` or `autoload` path literal: a quote opens
+one, a `/` starts its next segment, and a client offers nothing inside a string unless asked. Everywhere
+else a quote opens a string and `/` divides. A request the developer raised by hand, or by typing a
+name, is not held to this.
 
 Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
 body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left

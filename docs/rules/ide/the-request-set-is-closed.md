@@ -6,10 +6,12 @@ the negotiated encoding, `code` set, phase-gated per `rule:ide/diagnostics-are-p
 (the declared type, a `Core` member's registry signature row, a declaration's doc-comment run as
 Markdown); `definition` (the declaring span anywhere in the resolved `require`/`autoload` graph);
 `completion` (keywords by position, members off a resolved receiver including `Core` classes, enum cases
-after `Type::`, in-scope variables — no workspace symbol search); `semanticTokens/full`; `documentSymbol`;
+after `Type::`, in-scope variables, and inside a `require` or `autoload` path literal the entries of the
+directory its text reaches — no workspace symbol search); `semanticTokens/full`; `documentSymbol`;
 and three that are projections of data the tree already holds rather than features built on it —
 `selectionRange` (the index's ancestor list is the response), `foldingRange` (the same walk plus comment
-blocks out of the trivia layer) and `documentLink` (the resolved path literal of a `require` or `autoload`).
+blocks out of the trivia layer) and `documentLink` (the resolved path literal of a `require`, and each
+`autoload` root and `discover` glob, which name the directory each resolves to and list).
 M4B's non-standard request is `nvs/redactions`
 (`rule:ide/redaction-ranges-come-from-the-server`), non-standard because LSP has no shape for "do not
 show this to the room".

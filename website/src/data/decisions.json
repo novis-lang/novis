@@ -1084,6 +1084,12 @@
           "headline": "Test coverage reports for CI",
           "body": "`nvs test --coverage-lcov <FILE>` writes which lines your tests ran, in the lcov format. `--coverage-clover <FILE>` writes the same lines as Clover XML, the format PHPUnit writes. Every line a statement starts on is listed with the number of times it ran. A line no test reached reads `0`. Coverage costs nothing in a run that does not ask for it.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0235.md"
+        },
+        {
+          "adr": "0240",
+          "headline": "Paths complete and link in the editor",
+          "body": "Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the editor lists the folders and `.nvs` files in the folder the path reaches so far. An `autoload` path lists folders only. Ctrl+click on an `autoload` root or glob shows its folder in the Explorer.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0240.md"
         }
       ]
     },

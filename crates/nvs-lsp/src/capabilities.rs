@@ -211,13 +211,19 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
             // half-written open tag. Each is also an operator's character, so
             // `crate::completion::continues_a_trigger` answers a triggered
             // request only where the whole spelling was written. `-` is not
-            // among them: it finishes nothing.
+            // among them: it finishes nothing. The last three open and extend a
+            // path: a quote that opens a `require` or `autoload` path literal,
+            // and a `/` inside one. A client offers nothing in a string unless
+            // asked, and these are answered only inside such a literal.
             trigger_characters: Some(vec![
                 ">".to_owned(),
                 ":".to_owned(),
                 "\\".to_owned(),
                 "$".to_owned(),
                 "?".to_owned(),
+                "'".to_owned(),
+                "\"".to_owned(),
+                "/".to_owned(),
             ]),
             all_commit_characters: None,
             work_done_progress_options: WorkDoneProgressOptions::default(),

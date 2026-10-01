@@ -1,8 +1,9 @@
 {
-  "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, and `$`, a lone `:` and `<?` each narrow what is offered",
+  "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` path literal, and `$`, a lone `:` and `<?` each narrow what is offered",
   "status": "shipped",
   "because": [
-    "0193"
+    "0193",
+    "0240"
   ],
   "seeAlso": [
     "ide/a-template-region-gets-the-editors-services-and-formatter",
