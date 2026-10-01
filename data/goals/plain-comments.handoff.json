@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `plain-comments` is reached: both of its checks pass.**\n`bun nv proofs --comments docs/examples tests/hostile benches/members` exits 0 over 5463 programs, and\n`bun nv proofs --gate` says nothing is owed in the whole roster, with plain comments owed:\n`\"comments\": true` is under `owes.all` in `data/proofs/policy.json`.\n\nThe driver's last sweep found the gate red because 422 perf figures were stale. Commits that landed\nbeside this goal changed the implementing files of those features. Those were the class cards in\n`crates/nvs-stdlib/src/`, and the reference chapters under `docs/reference/lang/`.\n`bun nv proofs --record-perf` measured them again, and `docs/perf/members.ndjson` has the new records.\nThe `Core\\Test::request` description grew past its 200-word ceiling when `captures:` landed, and it\nis written again inside the band.\n\nAn attack's payload comment passes through a `// hostile: comment-payload` line, which skips the one\ncomment block directly under it (`tests/hostile/README.md`).",
+  "state": "**Goal `plain-comments` is reached: both of its checks pass.**\n`bun nv proofs --comments docs/examples tests/hostile benches/members` exits 0, and\n`bun nv proofs --gate` says nothing is owed in the whole roster. Plain comments are owed:\n`\"comments\": true` is under `owes.all` in `data/proofs/policy.json`.\n\nThe driver's last sweep found the floor red on three checks, and all three are green now:\n`bun nv chain --check`, `bun nv render --check` and `bun nv audit python`. Commits that landed\nbeside this goal had turned them red. These were a renamed `nvs-types` test, rule edits whose\nwebsite pages were not rendered again, and a goal prose line naming a deleted directory.\n\nAn attack's payload comment passes through a `// hostile: comment-payload` line, which skips the one\ncomment block directly under it (`tests/hostile/README.md`).",
   "next": {
     "stage": 3,
     "title": "the gate",
@@ -8,11 +8,12 @@
     "items": [
       {
         "done": true,
-        "text": "**The gate stays green** — `tools/nv/proofs/collect.ts:466` owes a perf figure again whenever an implementing file changes, so a commit that edits one re-records its figures with `bun nv proofs --record-perf` in the same slice (`rule:testing/feature-proofs`)."
+        "text": "**The floor is green again** — `data/goals/tooling-overhaul.json:13937` names the test under its new name, and `bun nv chain --check` passes."
       }
-    ]
+    ],
+    "after": "Every item in the group is ticked. If the driver's next sweep finds the goal reached, nothing is left. Otherwise, take the check it names."
   },
   "backlog": [
-    "None owned by this goal. The next goal on the chain starts from its own handoff record."
+    "None owed by this goal."
   ]
 }

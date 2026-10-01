@@ -141,8 +141,8 @@ rule working as written.
 **Does:** Deletes every goal in front of this one and every citation of them.
 
 - **The files.** For every slug in front of `goal-closeout`: `docs/agent/goals/<slug>.md`,
-  `data/goals/<slug>.json` and its `.handoff.json`. `docs/agent/goals/dossier/` and any tool, test or
-  fixture whose only job was one of those goals go too. `data/chain.json`'s `goals` starts at
+  `data/goals/<slug>.json` and its `.handoff.json`. Any tool, test or fixture whose only job was one of
+  those goals goes too. `data/chain.json`'s `goals` starts at
   `goal-closeout`. It is edited by hand this one time, because `bun nv chain --remove` refuses a walked
   goal, and then `bun nv render` writes the goal plan.
 - **The links first.** Do the deletion and the repair of every link it breaks in one slice, so `nv
