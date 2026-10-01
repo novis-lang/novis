@@ -1,0 +1,11 @@
+{
+  "title": "A scheduled script, a log handler and a queued job's script start at the file that names them",
+  "status": "accepted",
+  "scope": "Which file `[[schedule]] script`, `[log] handler` and `Core\\Queue::push`'s script name\nwhen they are relative, what a queue row stores, and what `nvs_runtime::script::resolve` does with a\nrelative path. The `script.spawn` grant they are checked against is unchanged.",
+  "dependsOn": [
+    "0241",
+    "0103"
+  ],
+  "dependsOnText": "[0241](0241.md) (a relative path literal resolves from the file that wrote it),\n[0103](0103.md) (a relative configuration path resolves against its file).",
+  "validatedBy": "the Stage 3 checks of goal `path-literals-follow-up`: `nvs-config`'s\n`a_schedule_script_resolves_against_the_folder_of_its_file`, `nvs-types`'\n`queue_push_script_literal_resolves_from_the_file_that_wrote_it`, `nvs-stdlib`'s\n`a_pushed_job_stores_an_absolute_script_path` and `nvs-cli`'s\n`a_schedule_script_beside_the_configuration_runs_from_any_working_directory`."
+}

@@ -376,7 +376,7 @@ A third array shape that fits neither half is the thing that would reopen this.
 
 Every path-valued directive — `opcache.file_cache_dir`, `capabilities.script.spawn`, `debug.trace`,
 `[[extension]] path`, `[[server.mount]] root`, `[db.<name>] path`, `[storage.<name>] root`, `password_file`, an `[[app]]`
-block's `root` or `entry`, and `[[include]]`'s own `path` and `dir` — resolves relative to the
+block's `root` or `entry`, `[[schedule]] script`, `[log] handler`, and `[[include]]`'s own `path` and `dir` — resolves relative to the
 directory of the file the value appears in. A path given on the **command line** resolves against the
 working directory, because that is what a shell argument means.
 
@@ -393,9 +393,11 @@ path = "data/app.sqlite"           # -> /etc/nvs/conf.d/data/app.sqlite
 One rule shared with `[[include]]`, and the only one under which a configuration directory survives
 being copied or relocated whole. The resolved absolute path is what the boot log and `nvs config dump`
 print, so the rule never has to be applied in a reader's head — and a block in an included file names
-a database beside *that* file, not beside the running program.
+a database beside *that* file, not beside the running program. A scheduled script and a log handler
+are resolved while the configuration is read, so every fire and every escalation runs the same file
+whatever folder the server was started in.
 
-<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0175](../decisions/0175.md), [0241](../decisions/0241.md).</sub>
+<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0175](../decisions/0175.md), [0241](../decisions/0241.md), [0245](../decisions/0245.md).</sub>
 
 <a id="config-any-file-in-the-tree-may-set-any-directive"></a>
 

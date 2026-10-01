@@ -2,7 +2,8 @@
   "title": "A relative path literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws",
   "status": "shipped",
   "because": [
-    "0241"
+    "0241",
+    "0245"
   ],
   "divergesFromPhp": "PHP resolves a relative `fopen` path against the process's working directory; here a literal resolves against its own source file, and nothing resolves against the working directory implicitly",
   "seeAlso": [

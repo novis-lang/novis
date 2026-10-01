@@ -165,7 +165,7 @@ A third array shape that fits neither half is the thing that would reopen this.
 
 Every path-valued directive — `opcache.file_cache_dir`, `capabilities.script.spawn`, `debug.trace`,
 `[[extension]] path`, `[[server.mount]] root`, `[db.<name>] path`, `[storage.<name>] root`, `password_file`, an `[[app]]`
-block's `root` or `entry`, and `[[include]]`'s own `path` and `dir` — resolves relative to the
+block's `root` or `entry`, `[[schedule]] script`, `[log] handler`, and `[[include]]`'s own `path` and `dir` — resolves relative to the
 directory of the file the value appears in. A path given on the **command line** resolves against the
 working directory, because that is what a shell argument means.
 
@@ -182,14 +182,16 @@ path = "data/app.sqlite"           # -> /etc/nvs/conf.d/data/app.sqlite
 One rule shared with `[[include]]`, and the only one under which a configuration directory survives
 being copied or relocated whole. The resolved absolute path is what the boot log and `nvs config dump`
 print, so the rule never has to be applied in a reader's head — and a block in an included file names
-a database beside *that* file, not beside the running program.
+a database beside *that* file, not beside the running program. A scheduled script and a log handler
+are resolved while the configuration is read, so every fire and every escalation runs the same file
+whatever folder the server was started in.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>A relative path in <code>php.ini</code> resolves against whatever the process's working directory happens to be; here it resolves against the file that wrote it, so a config directory survives being copied whole</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/includes-and-ownership/#include-takes-a-path-or-a-dir" title="[[include]] takes a path or a dir, never both and never neither, and a dir is not a glob"><code>config/include-takes-a-path-or-a-dir</code></a> <a href="/docs/rules/config/application-blocks/#app-keys-are-canonicalized-before-matching" title="Both sides of an [[app]] match are canonicalized first, and a key naming nothing examinable refuses the boot"><code>config/app-keys-are-canonicalized-before-matching</code></a> <a href="/docs/rules/config/includes-and-ownership/#a-secret-is-a-file-whose-content-is-the-value" title="A secret directive has a _file sibling, exactly one of the pair is set, and the file's whole content is the value"><code>config/a-secret-is-a-file-whose-content-is-the-value</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0103.md">record 0103</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0175.md">record 0175</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0241.md">record 0241</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-a-sqlite-path-resolves-against-the-file-that-wrote-it.nvst"><code>tests/conformance/core/db-a-sqlite-path-resolves-against-the-file-that-wrote-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-config/tests/resolve.rs"><code>crates/nvs-config/tests/resolve.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-config/tests/app.rs"><code>crates/nvs-config/tests/app.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/includes-and-ownership/#include-takes-a-path-or-a-dir" title="[[include]] takes a path or a dir, never both and never neither, and a dir is not a glob"><code>config/include-takes-a-path-or-a-dir</code></a> <a href="/docs/rules/config/application-blocks/#app-keys-are-canonicalized-before-matching" title="Both sides of an [[app]] match are canonicalized first, and a key naming nothing examinable refuses the boot"><code>config/app-keys-are-canonicalized-before-matching</code></a> <a href="/docs/rules/config/includes-and-ownership/#a-secret-is-a-file-whose-content-is-the-value" title="A secret directive has a _file sibling, exactly one of the pair is set, and the file's whole content is the value"><code>config/a-secret-is-a-file-whose-content-is-the-value</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0103.md">record 0103</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0175.md">record 0175</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0241.md">record 0241</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0245.md">record 0245</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-a-sqlite-path-resolves-against-the-file-that-wrote-it.nvst"><code>tests/conformance/core/db-a-sqlite-path-resolves-against-the-file-that-wrote-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-config/tests/resolve.rs"><code>crates/nvs-config/tests/resolve.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-config/tests/app.rs"><code>crates/nvs-config/tests/app.rs</code></a></dd></div></dl>
 
 </div>
 

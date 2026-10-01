@@ -4,7 +4,8 @@
   "because": [
     "0103",
     "0175",
-    "0241"
+    "0241",
+    "0245"
   ],
   "divergesFromPhp": "a relative path in `php.ini` resolves against whatever the process's working directory happens to be; here it resolves against the file that wrote it, so a config directory survives being copied whole",
   "seeAlso": [
