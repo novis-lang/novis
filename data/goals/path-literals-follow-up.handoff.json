@@ -1,28 +1,27 @@
 {
-  "state": "**Goal `path-literals-follow-up`: Stages 1 to 4's checks pass, and Stage 5's three code checks are on disk; Stage 5's feature proofs and Stage 6 are next.** Stage 1's floor is goal `plain-comments`'s list.\n\nADR 0249 is on disk: `Core\\Path::thisFile()` and `thisDir(?string $join)` are folded while compiling by `nvs_types::paths::fold_this` into the path-literal table under the call's span, and `nvs-ir`'s static-call arm lowers them to a `ConstStr`. A `$join` that is not a relative string literal is `E0837`. `rule:programs/path-literals-resolve-from-their-file` gained 0249 and a paragraph. `E0319`'s card and help, and the `__DIR__` row of `docs/reference/tools/30-php-differences.md`, name the two members. Stage 4's `nvs-stdlib` check now has both of its tests: `from_cwd_throws_while_a_request_is_answered` was split out of `from_cwd_returns_a_string_without_tainted`.\n\nStage 4's example 01 is only half done. It declares the answer a `string`, but it does not read the file yet: the example runner (`tools/nv/proofs/run.ts` `spawnProof`) starts every example from the repository root with no arguments, so the file beside the example is not under the working directory.\n\nAt this commit `bun nv proofs --id 'Core\\Path::thisDir'` still says \"no feature\", while `fromCwd` is found: the roster reads something verify did not rebuild (not checked which). If it still says so, find where `tools/nv/cmd/proofs.ts` reads the roster before writing a proof by hand.\n\nADR slot left: Stage 6, so check `docs/decisions/` right before claiming it (0250 or higher).",
+  "state": "**Goal `path-literals-follow-up`: Stages 1 to 5 are on disk. Stage 5's feature proofs for `Core\\Path::thisFile` and `thisDir` are written, and Stage 6 is next.** Stage 1's floor is goal `plain-comments`'s list.\n\nBoth members now have `about.md`, three examples with blessed `.out` files, one attack each and one bench each. The perf figures for `thisFile`, `thisDir` and the stale `fromCwd` were recorded over the `Core\\Path` group (see the perf commit). The `thisFile` attack found a compiler panic: `Core\\Path::$m()` (a `Core` class with a `::$name` side) reached `nvs-ir` with nothing recorded. `nvs-types` now reports `E0309` for it, and `tests/conformance/lang/a-static-property-of-a-core-class-does-not-compile.nvst` pins that.\n\nStage 4's example 01 (`docs/examples/core/Path/fromCwd/01-a-file-name-from-the-command-line.nvs`) is still only half done: it does not read the file. The example runner starts every example from the repository root with no arguments, and a read there needs an `fs.read` grant that the root does not give.\n\n`bun nv proofs --id` reads the roster from a stale `nvs` unless you pass `--nvs` (playbook, Tooling).\n\nADR slot left: Stage 6, so check `docs/decisions/` right before claiming it (0250 or higher).",
   "next": {
-    "stage": 5,
-    "title": "`thisFile` and `thisDir` feature proofs",
+    "stage": 6,
+    "title": "a class name written as a literal",
     "files": [],
-    "note": "one file set: the two members' trees under `docs/examples/core/Path/`, `tests/hostile/core/Path/` and `benches/members/core/Path/`, beside the cards in `Core\\Path`'s descriptor table.",
+    "note": "one file set, the compiler half of the goal's `## Stage 6`: `crates/nvs-types/src/expr/operators.rs`, `crates/nvs-hir/src/requires.rs`, `crates/nvs-hir/src/autoload.rs`. The editor half (`nvs-lsp`) follows.",
     "items": [
       {
         "done": false,
-        "text": "**`thisFile`'s proofs** (`rule:testing/feature-proofs`): `about.md`, three examples, one attack, one bench. `bun nv proofs --id 'Core\\Path::thisFile'` prints the paths; its card is at `crates/nvs-stdlib/src/path.rs:462`. An example cannot print an absolute path, so print `Core\\Path::basename` and compare with `dirname`, as the conformance case does."
+        "text": "**The ADR for `'X' as class<T>`** (`rule:types/class-reference`, which it `modifies`; Stage 6's slot, 0250 or higher, so check `docs/decisions/` first). The compile-time check that `X::class as class<T>` already runs is at `crates/nvs-types/src/expr/operators.rs:128`. A plain string literal gets the same check and reuses its codes."
       },
       {
         "done": false,
-        "text": "**`thisDir`'s proofs**, the same set; its card is at `crates/nvs-stdlib/src/path.rs:476`. The attack tries `..` joins that climb out of the folder and a first-class callable `Core\\Path::thisDir(...)`, which is not folded and throws (ADR 0249 § *Consequences*)."
+        "text": "**The literal loads its class through `autoload` while compiling** — test `a_class_literal_conversion_loads_its_class` in `nvs-hir`, beside `crates/nvs-hir/src/autoload.rs:1`. The `nvs-types` test is `a_class_literal_conversion_names_a_class_that_can_be_loaded`, and the case is `tests/conformance/lang/class-literal-conversion-is-decided-while-compiling.nvst`."
       },
       {
         "done": false,
-        "text": "**Stage 4's example 01 reads its file** (`rule:programs/path-literals-resolve-from-their-file`): either the example passes a path under the repository root, or `spawnProof` at `tools/nv/proofs/run.ts:1` gains an argument directive. Decide in the session; prefer the example change."
+        "text": "**Completion offers every class `autoload` can load that is a `T`** — test `completion_in_a_class_literal_offers_every_class_autoload_can_load`, at `crates/nvs-lsp/src/completion.rs:679` (`class_names`; its doc says what it offers)."
       }
     ]
   },
   "backlog": [
-    "Stage 6, `'X' as class<T>` decided while compiling — goal § *Stage 6*, one ADR slot.",
-    "Stage 7's perf records: `Core\\Path`'s figures are stale again, since `path.rs` changed — `benches/members/README.md`.",
-    "`Core\\Path::thisDir(...)` as a first-class callable is not folded and throws — ADR 0249 § *Consequences*; refuse it while compiling if an attack shows it matters."
+    "Stage 4's example 01 does not read its file (`docs/examples/core/Path/fromCwd/01-a-file-name-from-the-command-line.nvs`, `rule:programs/path-literals-resolve-from-their-file`). It can if the example runner reads an `nvs.toml` beside the example that grants `fs.read`. Not checked whether it does.",
+    "`Core\\X::$m()` reads in PHP as a call by a name held in a variable. Novis reports `E0309`, and no rule names that refusal: `docs/spec/02-php-migration.md` could carry the row."
   ]
 }

@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv proofs --id` can say \"no feature\" for a member that landed, because it reads the roster from whichever `nvs` it finds first, not the one just built.",
+  "body": "Its `binary()` picks a stale build ahead of the pipeline's `target/covws/<triple>/debug/nvs`, so a member added since that build is missing from the roster, while `--group` under the driver uses a fresh build and finds it. Pass `--nvs target/covws/<triple>/debug/nvs.exe`, or `--nvs target/debug/nvs.exe` after a `cargo build`, before you look for a bug in `tools/nv/cmd/proofs.ts`.",
+  "files": [
+    "tools/nv/cmd/proofs.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/proofs.ts:binary(named)"
+  }
+}
