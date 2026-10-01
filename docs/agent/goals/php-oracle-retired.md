@@ -20,7 +20,8 @@ removed   tests/differential/ (281 cases), the --ORACLE-- and --ORACLE-DIVERGES-
 kept      docs/spec/02-php-migration.md, tools/data/php-builtins.txt and its generator, docs/divergences.md,
           the php-migration rule chapter, the php-differences reference chapter and its examples and attacks,
           the PHP-name completion in the editor, the PHP benchmarks (benches/userland, --serve-vs-fpm, benches/proxied)
-rewritten priority 2 (AGENTS.md and rule:programs/memory-priority), the rules that make PHP normative,
+deleted   priority 2 of the priority ordering, outright: four priorities remain
+rewritten every citation of a priority by its number, the rules that make PHP normative,
           about.md and registry text that opens with or ends on "This replaces PHP's `x`."
 ```
 
@@ -45,24 +46,39 @@ Whatever the chain carries when this goal is reached. After goal `goal-closeout`
 suites, the `.nvst` trees and `nv verify` are the safety net. `tests/conformance/` is never weakened
 here — no case is deleted from it, and no frozen output in it is edited.
 
-## Stage 2 — priority 2 states the behaviour, not PHP
+## Stage 2 — priority 2 is deleted
 
-**Does:** Writes the decision record and rewrites the priority line and the rules that ground themselves in it.
+**Does:** Writes the decision record, deletes priority 2 from the ordering, and makes every citation name a priority instead of numbering it.
 
-One file set: `AGENTS.md`, `data/rules/programs/memory-priority.json` and its fragment,
-`data/rules/php-migration/every-divergence-is-deliberate-and-listed.json` and its fragment,
-`website/src/content/docs/docs/index.mdx`, `docs/agent/commands.md`, `docs/agent/user-report.md`.
+Two file sets, in this order. The ordering: `AGENTS.md`, `data/rules/programs/memory-priority.json`
+and its fragment, `data/rules/php-migration/every-divergence-is-deliberate-and-listed.json` and its
+fragment, `website/src/content/docs/docs/index.mdx`, `docs/agent/commands.md`,
+`docs/agent/user-report.md`. Then the citations: the rule fragments and Rust comments listed below.
 
 - **The decision record**, written first, for the whole goal. It `modifies` ADR 0004's priority list
   through `programs/memory-priority`, and `php-migration/every-divergence-is-deliberate-and-listed`,
   `testing/nvst-is-separate` and `ide/case-files-have-their-own-grammar`. It states the user's calls
-  and the tradeoffs from § *Standing decisions*.
-- **Priority 2** becomes "Correctness of language semantics — the observable behaviour the rules
-  state". `AGENTS.md:51`, `docs/rules/programs/memory-priority.md:5` and
-  `website/src/content/docs/docs/index.mdx:25` say the same words. This also ends the contradiction with
+  and the tradeoffs from § *Standing decisions*, and the old-to-new mapping of the ordering, so a
+  frozen record that says "priority 3" can still be read.
+- **Priority 2 is deleted, by the user's call.** "Correctness of language semantics — PHP-compatible
+  observable behaviour" leaves `AGENTS.md:51`, `docs/rules/programs/memory-priority.md:5` and
+  `website/src/content/docs/docs/index.mdx:25`, and is not replaced. The ordering is four items:
+  security and request isolation, latency and throughput on the request path, simplicity, memory
+  footprint. What a program observably does is stated by the rules and pinned by the conformance
+  cases, and the ordering does not repeat it. This also ends the contradiction with
   `rule:programs/no-compatibility-promise`, which forbids "PHP compatible" in any document.
+- **A priority is cited by its name, never its number.** The numbers shift, so every current citation
+  is rewritten to name the priority it means ("latency", "memory footprint"), and a name survives any
+  later change to the list. Known sites: `AGENTS.md:65`, `docs/rules/programs/memory-priority.md:21`,
+  `docs/rules/observability/an-exporter-brings-no-second-scheduler-and-no-second-client.md:20`,
+  `docs/rules/packaging/the-notice-is-embedded-in-the-binary.md:12`,
+  `docs/rules/packaging/the-windows-binary-says-what-it-is.md:33`,
+  `docs/rules/routing/a-capture-narrows-to-a-closed-set.md:13`,
+  `docs/rules/security/isolate-teardown-is-a-drain-then-a-sweep.md:11`, and the Rust comments that
+  cite the ordering by number (`git grep -n -i -E "priority [1-5]\b" -- crates` lists the candidates;
+  a scheduler or task priority is a different thing and stays). Frozen records keep their numbers.
 - **`php-migration/every-divergence-is-deliberate-and-listed`** is grounded in migration help: the list
-  exists so somebody moving a program knows what changes. It no longer cites priority 2 or a `.phpt`
+  exists so somebody moving a program knows what changes. It no longer cites a priority or a `.phpt`
   pass rate.
 - `docs/agent/commands.md:418` and `docs/agent/user-report.md:54` stop naming PHP behaviour as what a bug
   is measured against. A bug is Novis doing what a rule or the reference says it does not.
@@ -239,6 +255,8 @@ Four file sets, in this order.
   rewritten whole to state the behaviour. No pass walks `crates/` for them.
 - **Conformance output is never edited to make a check pass.** A case added in Stage 3 freezes what Novis
   prints today.
+- **Priority 2 is deleted, not reworded, by the user's call of 2026-10-01.** Correctness is the job of
+  the rules and the conformance cases. The ordering decides between the four things left in it.
 - **One ADR slot**: one new record, checked right before it is written, in Stage 2. Its tradeoffs:
   performance — none on the request path, and `nv verify` runs one tree fewer and spawns no PHP.
   Memory — none. Usability — somebody porting a program loses side-by-side `--ORACLE--` tests; the

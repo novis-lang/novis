@@ -2,7 +2,7 @@
   "state": "**Goal `php-oracle-retired` — nothing in Novis is tested against PHP, and PHP is named only where a page compares or helps a migration — has not started.** Goal `goal-closeout` ended the carried floor, so no goal record names `tests/differential/`.\n\nThe oracle is the `--ORACLE--` and `--ORACLE-DIVERGES--` sections of a `.nvst` case, parsed in `crates/nvs-test/src/case.rs` and run by `crates/nvs-test/src/run.rs`, which spawns `php`. Only `tests/differential/` uses them; `tests/conformance/` never runs PHP. `bun nv verify` runs the differential tree; CI does not. `crates/nvs-stdlib/tests/conformance_coverage.rs:@error_corpus` and `bun nv gaps --errors` read both trees.",
   "next": {
     "stage": 2,
-    "title": "priority 2 states the behaviour, not PHP",
+    "title": "priority 2 is deleted",
     "files": [
       "AGENTS.md",
       "data/rules/programs/memory-priority.json",
@@ -20,7 +20,11 @@
       },
       {
         "done": false,
-        "text": "**Priority 2** — \"Correctness of language semantics — the observable behaviour the rules state\" at `AGENTS.md:51`, `docs/rules/programs/memory-priority.md:5` and `website/src/content/docs/docs/index.mdx:25`."
+        "text": "**Priority 2 is deleted** — the line leaves `AGENTS.md:51`, `docs/rules/programs/memory-priority.md:5` and `website/src/content/docs/docs/index.mdx:25`, and four priorities remain."
+      },
+      {
+        "done": false,
+        "text": "**A priority is cited by its name** — `AGENTS.md:65`, `docs/rules/programs/memory-priority.md:21` and the five rule fragments and Rust comments the goal file's Stage 2 lists; frozen records keep their numbers."
       },
       {
         "done": false,

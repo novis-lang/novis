@@ -36,8 +36,8 @@
   "stages": [
     {
       "number": 2,
-      "title": "priority 2 states the behaviour, not PHP",
-      "summary": "Writes the decision record and rewrites the priority line and the rules that ground themselves in it.",
+      "title": "priority 2 is deleted",
+      "summary": "Writes the decision record, deletes priority 2 from the ordering, and makes every citation name a priority instead of numbering it.",
       "context": {
         "rules": [
           "programs/three-claims",
@@ -177,6 +177,42 @@
         "website/src/content",
         "docs/agent/commands.md",
         "docs/agent/user-report.md"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "the-ordering-has-no-semantics-priority",
+      "kind": "command",
+      "stage": 2,
+      "name": "the priority ordering no longer lists correctness of language semantics",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-i",
+        "Correctness of language semantics",
+        "--",
+        "AGENTS.md",
+        "docs/rules",
+        "website/src/content"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "no-rule-cites-a-priority-by-number",
+      "kind": "command",
+      "stage": 2,
+      "name": "AGENTS.md and the rule fragments name a priority instead of numbering it",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-i",
+        "-E",
+        "priority [1-5]\\b",
+        "--",
+        "AGENTS.md",
+        "docs/rules/*/*.md"
       ],
       "exit": "nonzero"
     },
