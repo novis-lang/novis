@@ -73,6 +73,31 @@ impl QName {
         Self { segments }
     }
 
+    /// The class a string literal under `as class<T>` names
+    /// (`rule:types/class-reference`): its cooked text read as the class's
+    /// whole name, so no `namespace` and no `use` applies to it. `None` when
+    /// the text is not a name at all — empty, a leading or trailing `\`, two
+    /// separators in a row, or a segment that is not an identifier.
+    ///
+    /// The harvest that loads the class ([`crate::requires`]) and the checker
+    /// that decides the conversion both read the literal through this, so the
+    /// file loaded and the class checked are always the same one.
+    #[must_use]
+    pub fn from_literal(text: &str) -> Option<Self> {
+        let is_identifier = |segment: &str| {
+            let mut chars = segment.chars();
+            chars
+                .next()
+                .is_some_and(|first| first == '_' || first.is_alphabetic())
+                && chars.all(|c| c == '_' || c.is_alphanumeric())
+        };
+        let segments: Vec<String> = text.split('\\').map(str::to_owned).collect();
+        segments
+            .iter()
+            .all(|segment| is_identifier(segment))
+            .then_some(Self { segments })
+    }
+
     /// The path's segments, root to leaf.
     #[must_use]
     pub fn segments(&self) -> &[String] {

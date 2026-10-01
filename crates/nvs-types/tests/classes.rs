@@ -811,6 +811,124 @@ fn a_string_becomes_a_class_reference_only_through_as() {
     );
 }
 
+/// The program the class-literal tests below share: a bootstrap that declares
+/// an `autoload` root, and a root holding an interface, two classes that
+/// implement it and one that does not. Nothing `require`s the root's files.
+const CLASS_LITERAL_ROOT: [(&str, &str); 5] = [
+    ("Bootstrap.nvs", "<?nvs\nautoload 'Shop' from './src';\n"),
+    (
+        "src/Animal.nvs",
+        "<?nvs\nnamespace Shop;\ninterface Animal {}\n",
+    ),
+    (
+        "src/Dog.nvs",
+        "<?nvs\nnamespace Shop;\nclass Dog implements Animal {}\n",
+    ),
+    (
+        "src/Bird.nvs",
+        "<?nvs\nnamespace Shop;\nclass Bird implements Animal {}\n",
+    ),
+    ("src/Rock.nvs", "<?nvs\nnamespace Shop;\nclass Rock {}\n"),
+];
+
+/// [`CLASS_LITERAL_ROOT`] behind an entry file of the given name and body. The
+/// entry is in `namespace Blog`, so a literal that resolved through the
+/// namespace would name `Blog\…` and fail.
+fn check_class_literals(
+    entry: &str,
+    body: &str,
+) -> (nvs_diagnostics::Diagnostics, nvs_hir::Module) {
+    let main = format!("<?nvs\nnamespace Blog;\nrequire './Bootstrap.nvs';\n{body}");
+    let mut files = vec![(entry, main.as_str())];
+    files.extend(CLASS_LITERAL_ROOT);
+    let (diags, _exprs, module) = check_program_module(&files);
+    (diags, module)
+}
+
+/// `rule:types/class-reference`: a string literal under `as class<T>` is the
+/// class's whole name, and its class is loaded through `autoload` while
+/// compiling. Nothing `require`s `Shop\Dog`, so only the literal can have
+/// loaded it, and both spellings of the conversion compile.
+#[test]
+fn a_class_literal_conversion_names_a_class_that_can_be_loaded() {
+    let (diags, module) = check_class_literals(
+        "class-literal-loads.nvs",
+        "class<Shop\\Animal> $dog = 'Shop\\Dog' as class<Shop\\Animal>;\n\
+         ?class<Shop\\Animal> $again = (\"Shop\\\\Dog\") as ?class<Shop\\Animal>;\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(module.symbols.contains(&nvs_hir::QName::parse(r"Shop\Dog")));
+}
+
+/// `rule:types/class-reference`: a literal that no declaration and no
+/// `autoload` entry answers does not compile, under the code `Bogus::class`
+/// gets. A short name is not read through the namespace, a leading `\` is not
+/// a name, and neither is text with a space in it.
+#[test]
+fn a_class_literal_conversion_naming_an_unknown_class_does_not_compile() {
+    let (diags, _module) = check_class_literals(
+        "class-literal-unknown.nvs",
+        "var $a = 'Shop\\Wolf' as class<Shop\\Animal>;\n\
+         var $b = 'Shop\\Wolf' as ?class<Shop\\Animal>;\n\
+         var $c = 'Dog' as class<Shop\\Animal>;\n\
+         var $d = '\\Shop\\Dog' as class<Shop\\Animal>;\n\
+         var $e = 'a dog' as class<Shop\\Animal>;\n",
+    );
+    let unknown = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_UNDEFINED_CLASS))
+        .count();
+    assert_eq!(unknown, 5, "{diags:?}");
+}
+
+/// `rule:types/class-reference`: a literal naming a class outside `T`'s
+/// hierarchy does not compile, under the code `Rock::class as class<Animal>`
+/// gets. The `?` form is the same refusal, because a decided operand has no
+/// run-time failure for the `?` to turn into `null`.
+#[test]
+fn a_class_literal_conversion_naming_a_class_that_is_not_a_t_does_not_compile() {
+    let (diags, module) = check_class_literals(
+        "class-literal-outside.nvs",
+        "var $a = 'Shop\\Rock' as class<Shop\\Animal>;\n\
+         var $b = 'Shop\\Rock' as ?class<Shop\\Animal>;\n\
+         var $c = Shop\\Rock::class as class<Shop\\Animal>;\n",
+    );
+    let outside = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_NO_CONVERSION))
+        .count();
+    assert_eq!(outside, 3, "{diags:?}");
+    assert!(
+        module
+            .symbols
+            .contains(&nvs_hir::QName::parse(r"Shop\Rock"))
+    );
+}
+
+/// `rule:programs/no-runtime-autoload`: a class name built while the program
+/// runs — a variable, a class constant, a concatenation of literals — is
+/// checked against the classes the program loaded, when it arrives. So it
+/// compiles whatever it names, and `Shop\Bird`, which only such a value names,
+/// is never loaded.
+#[test]
+fn a_class_string_built_at_run_time_still_sees_only_loaded_classes() {
+    let (diags, module) = check_class_literals(
+        "class-literal-run-time.nvs",
+        "class Names { const BIRD = 'Shop\\Bird'; }\n\
+         string $name = 'Shop\\Bird';\n\
+         var $a = $name as ?class<Shop\\Animal>;\n\
+         var $b = Names::BIRD as ?class<Shop\\Animal>;\n\
+         var $c = ('Shop\\\\' . 'Bird') as ?class<Shop\\Animal>;\n\
+         var $d = ('Shop\\\\' . 'Wolf') as ?class<Shop\\Animal>;\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(
+        !module
+            .symbols
+            .contains(&nvs_hir::QName::parse(r"Shop\Bird"))
+    );
+}
+
 /// `rule:types/property-key`: a property key's values are the public properties of the
 /// class it names -- its own and its ancestors' -- and nothing else, with `as`
 /// the only door into one. The written-out operand is decided where it stands,

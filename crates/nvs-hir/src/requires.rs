@@ -715,6 +715,31 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
     out.names.push((qname, name.span));
 }
 
+/// Records the class a string literal under `as class<T>` or `as ?class<T>`
+/// names, so the literal loads its class while compiling the way `X::class`
+/// does (`rule:types/class-reference`). The text is the class's whole name
+/// ([`QName::from_literal`]): the namespace and imports in force do not apply.
+///
+/// Only a literal written as the operand itself. A class constant, a
+/// concatenation and a variable are values built at run time, and nothing is
+/// loaded for them (`rule:programs/no-runtime-autoload`).
+fn record_class_literal(operand: &Expr, ty: &Type, src: &SourceFile, out: &mut Harvest) {
+    let target = match &ty.kind {
+        TypeKind::Nullable(inner) => &inner.kind,
+        kind => kind,
+    };
+    if !matches!(target, TypeKind::Atom(TypeAtom::ClassRef(_))) {
+        return;
+    }
+    let ExprKind::Str(span) = operand.unparenthesized().kind else {
+        return;
+    };
+    let text = nvs_syntax::string_lit::cook_string_literal(src, span);
+    if let Some(qname) = QName::from_literal(&text).filter(|qname| !qname.is_core()) {
+        out.names.push((qname, span));
+    }
+}
+
 /// `rule:programs/implementing`'s enumeration, spelled out: the calls whose appearance
 /// anywhere in the program turn every autoload root's whole tree into files
 /// to load.
@@ -1363,6 +1388,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             e!(else_);
         }
         ExprKind::Conversion { expr, ty } => {
+            record_class_literal(expr, ty, src, out);
             e!(expr);
             walk_type(ty, src, out);
         }
@@ -2276,6 +2302,46 @@ class Unreached {}
         let (module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(module.symbols.contains(&QName::parse(r"Framework\Core")));
+    }
+
+    /// `rule:types/class-reference`: a string literal under `as class<T>` or
+    /// `as ?class<T>` loads its class while compiling, as `X::class` does, and
+    /// the literal is the whole name even inside a namespace. A concatenation
+    /// is a value built at run time and loads nothing.
+    #[test]
+    fn a_class_literal_conversion_loads_its_class() {
+        let dir = TempDir::new("autoload-class-literal");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write("Bootstrap.nvs", "<?nvs\nautoload 'Shop' from './src';\n");
+        dir.write(
+            "src/Animal.nvs",
+            "<?nvs\nnamespace Shop;\ninterface Animal {}\n",
+        );
+        dir.write(
+            "src/Dog.nvs",
+            "<?nvs\nnamespace Shop;\nclass Dog implements Animal {}\n",
+        );
+        dir.write(
+            "src/Cat.nvs",
+            "<?nvs\nnamespace Shop;\nclass Cat implements Animal {}\n",
+        );
+        dir.write(
+            "src/Bird.nvs",
+            "<?nvs\nnamespace Shop;\nclass Bird implements Animal {}\n",
+        );
+        dir.write(
+            "main.nvs",
+            "<?nvs\nnamespace Blog;\nrequire './Bootstrap.nvs';\n\
+             var $dog = 'Shop\\Dog' as class<Shop\\Animal>;\n\
+             var $cat = ('Shop\\Cat') as ?class<Shop\\Animal>;\n\
+             var $bird = ('Shop\\\\' . 'Bird') as ?class<Shop\\Animal>;\n",
+        );
+
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(module.symbols.contains(&QName::parse(r"Shop\Dog")));
+        assert!(module.symbols.contains(&QName::parse(r"Shop\Cat")));
+        assert!(!module.symbols.contains(&QName::parse(r"Shop\Bird")));
     }
 
     /// The name a destructuring leaf's declared type writes is a class

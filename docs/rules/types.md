@@ -1583,9 +1583,19 @@ source, and its rows sit in the one conversion grid ([`types/conversion`](types.
 the same failure and throw the same way, with the class named in the message. `as ?class<T>` yields
 `null` exactly where it would throw.
 
-A `Foo::class` operand is decided at **compile time** — `Dog::class as class<Animal>` is a
-compile-time yes when `Dog` is an `Animal` and a compile-time refusal when it is not — so the ordinary
-factory shape pays nothing at run time.
+A class name written out in the source is decided at **compile time** — `Dog::class as
+class<Animal>` is a compile-time yes when `Dog` is an `Animal` and a compile-time refusal when it is
+not — so the ordinary factory shape pays nothing at run time. A plain string literal under `as
+class<T>` or `as ?class<T>` is written out too: its text is the class's whole name, with no `namespace`
+or `use` applied, and the compiler loads that class through [`programs/autoload`](programs.md#programs-autoload)'s map as it loads
+`Dog::class`. A literal that names nothing is `E0303` and one outside `T`'s hierarchy is `E0708`, the
+codes `Bogus::class` and `Rock::class` get. A class constant, a concatenation and a variable are values
+built at run time, and they are checked when they arrive against the classes the program loaded.
+
+```nvs
+class<Shop\Animal> $c = 'Shop\Dog' as class<Shop\Animal>;   // loads src/Dog.nvs while compiling
+?class<Shop\Animal> $d = $name as ?class<Shop\Animal>;       // null unless that class is loaded
+```
 
 A qualifier is stripped, as every checked conversion strips one, and here for a narrower reason than
 that row's: the conversion's whole output range is the set of classes declared to be `Animal`s in this
@@ -1597,7 +1607,7 @@ ever equal to one — `$cls == "Dog"` is exactly the string-as-a-class confusion
 and ordering one is refused with the other unordered types ([`types/ordering`](types.md#types-ordering)). A descriptor is
 immortal and process-wide, so holding one costs a word and frees nothing.
 
-<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0250](../decisions/0250.md).</sub>
 
 <a id="types-class-reference-variance"></a>
 

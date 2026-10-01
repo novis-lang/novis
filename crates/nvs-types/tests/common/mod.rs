@@ -295,6 +295,15 @@ pub(crate) fn check_src_granted(
 /// second file would not be found however the sources were concatenated into
 /// the `ProgramFile` slice.
 pub(crate) fn check_program_table(files: &[(&str, &str)]) -> (Diagnostics, ExprTypeTable) {
+    let (diags, exprs, _module) = check_program_module(files);
+    (diags, exprs)
+}
+
+/// [`check_program_table`], with the resolved module as well, so a test can ask
+/// which classes the `require`/`autoload` graph loaded.
+pub(crate) fn check_program_module(
+    files: &[(&str, &str)],
+) -> (Diagnostics, ExprTypeTable, nvs_hir::Module) {
     let dir = TempDir::new(files[0].0);
     for (name, src) in files {
         dir.write(name, src);
@@ -325,7 +334,7 @@ pub(crate) fn check_program_table(files: &[(&str, &str)]) -> (Diagnostics, ExprT
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
     check_program(&program, &module, &mut interner, &mut exprs, &mut diags);
-    (diags, exprs)
+    (diags, exprs, module)
 }
 
 /// A directory of fixture files that removes itself, the shape

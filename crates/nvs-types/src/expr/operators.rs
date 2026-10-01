@@ -124,23 +124,26 @@ pub(crate) fn infer_conversion(
     apply_qualifier_conversion_rule(inner_ty, result, env.interner)
 }
 
-/// `rule:types/class-reference`: **a `Foo::class` operand is decided at compile time.**
-/// `Dog::class as class<Animal>` is a compile-time yes when `Dog` is an
-/// `Animal` and a compile-time refusal when it is not — both sides are written
-/// out, so there is no run-time check for the program to reach and no throw for
-/// it to handle. This is the ordinary shape a factory takes, which is why § 2
-/// singles it out: the common case pays nothing at run time.
+/// `rule:types/class-reference`: **a written-out class name is decided at compile time.**
+/// `Dog::class as class<Animal>` and `'Shop\Dog' as class<Animal>` are a
+/// compile-time yes when `Dog` is an `Animal` and a compile-time refusal when it
+/// is not, so there is no run-time check for the program to reach and no throw
+/// for it to handle. This is the ordinary shape a factory takes, which is why
+/// § 2 singles it out: the common case pays nothing at run time.
 ///
-/// **Only this operand shape.** A computed `string` is the § 2 row proper,
-/// checked where the value arrives. A plain string *literal* looks equally
-/// foldable and is deliberately left alone: `"Dog"` names a class through no
-/// resolution rule the language has, while `::class` goes through the file's
-/// imports and namespace ([`super::members::check_class_name_const`]), which is
-/// exactly what makes it decidable here.
+/// **Two operand shapes.** `::class` goes through the file's imports and
+/// namespace ([`super::members::check_class_name_const`], which also reports a
+/// name it resolves to nothing). A plain string literal is the class's whole
+/// name ([`nvs_hir::QName::from_literal`]), and `nvs_hir::requires` has already
+/// loaded its class through `autoload` by the same reading, so a name that is
+/// still undeclared here is one nothing can load: [`code::E_UNDEFINED_CLASS`],
+/// the code `Bogus::class` gets. Every other operand — a class constant, a
+/// concatenation, a variable — is the § 2 row proper, checked where the value
+/// arrives against the classes the program loaded.
 ///
-/// The refusal is [`code::E_NO_CONVERSION`], the same code
-/// [`reject_unrelated_class_conversion`] gives the same mistake spelled at an
-/// instance — two types that share no value — rather than a code of its own.
+/// The refusal of a class outside `T` is [`code::E_NO_CONVERSION`], the code
+/// [`reject_unrelated_class_conversion`] gives the same mistake written at an
+/// instance — two types that share no value.
 fn reject_impossible_class_reference_conversion(
     inner: &Expr,
     to: TypeId,
@@ -148,9 +151,13 @@ fn reject_impossible_class_reference_conversion(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    let ExprKind::ClassNameConst { class } = &inner.kind else {
+    let operand = inner.unparenthesized();
+    if !matches!(
+        operand.kind,
+        ExprKind::ClassNameConst { .. } | ExprKind::Str(_)
+    ) {
         return;
-    };
+    }
     // Under `as ?class<T>` as well, and by the same sentence: `rule:expressions/nullable-conversion-availability`
     // makes the sugar answer `null` where the checked form throws, and § 2's
     // written-out operand never throws — it is decided here — so a name
@@ -164,11 +171,23 @@ fn reject_impossible_class_reference_conversion(
     let Ty::Class(target_q, _) = env.interner.get(arg).clone() else {
         return;
     };
-    // `None` is a class side already reported by `check_class_name_const`, and
-    // a name that resolves to nothing is its `undeclared_name` — both have said
-    // what is wrong, and a second diagnostic here would only say it vaguer.
-    let Some(from_q) = super::members::resolve_class_expr(class, ctx, env) else {
-        return;
+    let from_q = match &operand.kind {
+        // `None` is a class side already reported by `check_class_name_const`,
+        // and so is a name that resolves to nothing — a second diagnostic here
+        // would only say it vaguer.
+        ExprKind::ClassNameConst { class } => {
+            let Some(from_q) = super::members::resolve_class_expr(class, ctx, env) else {
+                return;
+            };
+            from_q
+        }
+        ExprKind::Str(text) => {
+            let Some(from_q) = class_literal_name(*text, &target_q, env) else {
+                return;
+            };
+            from_q
+        }
+        _ => return,
     };
     if from_q == target_q || nvs_hir::hierarchy::implements_interface(&from_q, &target_q, env.graph)
     {
@@ -181,11 +200,45 @@ fn reject_impossible_class_reference_conversion(
         )
         .with_primary(span, "converted here")
         .with_help(
-            "`rule:types/class-reference` decides a written-out `::class` operand at compile time, and this one \
-             names a class outside the hierarchy: convert to `class<T>` at a class the name \
-             actually reaches, or make the class an implementor of the one written here",
+            "`rule:types/class-reference` decides a class name written out in the source at compile \
+             time, and this one names a class outside the hierarchy: convert to `class<T>` at a \
+             class the name actually reaches, or make the class an implementor of the one written here",
         ),
     );
+}
+
+/// The class a string literal under `as class<T>` names, or `None` after
+/// reporting [`code::E_UNDEFINED_CLASS`] when it names none: the text is not a
+/// class name at all, or no declaration and no `autoload` entry answers it.
+/// `Core`'s classes and the reserved global ones are declared by no source
+/// file and pass through, as they do for `X::class`.
+fn class_literal_name(text: Span, target: &QName, env: &mut Env<'_>) -> Option<QName> {
+    let cooked = crate::string_lit::cook_string_literal(env.src, text);
+    let name = QName::from_literal(&cooked);
+    if let Some(name) = &name
+        && (env.symbols.get(name).is_some()
+            || name.is_core()
+            || name.is_reserved_global_class()
+            || name.is_reserved_global_interface())
+    {
+        return Some(name.clone());
+    }
+    let headline = match &name {
+        Some(name) => format!("`{name}` is not declared"),
+        None => format!("`{cooked}` is not a class name"),
+    };
+    env.diags.report(
+        Diagnostic::error(code::E_UNDEFINED_CLASS, headline)
+            .with_primary(
+                text,
+                "no declaration and no `autoload` entry has this class",
+            )
+            .with_help(format!(
+                "a string converted to `class<{target}>` is the class's whole name, with its \
+                 namespace and no leading `\\`: no `namespace` and no `use` applies to it"
+            )),
+    );
+    None
 }
 
 /// `rule:types/property-key`: **a written-out operand is decided where it is written.**
@@ -195,13 +248,11 @@ fn reject_impossible_class_reference_conversion(
 /// program has to reach. A hand-written key therefore pays nothing at run time
 /// and misspells at build time.
 ///
-/// [`reject_impossible_class_reference_conversion`]'s shape one type over, and
-/// what differs is *which* operand is decidable. There, a plain string literal
-/// is deliberately left alone because `"Dog"` names a class through no
-/// resolution rule the language has; here the literal is the whole of the
-/// answer, since a property name is written as text and § 2's door is the
-/// `string` row itself. A computed operand is that row proper, checked where
-/// the value arrives, and reaches nothing here.
+/// [`reject_impossible_class_reference_conversion`]'s shape one type over: a
+/// plain string literal is decided where it is written, since a property name
+/// is written as text and § 2's door is the `string` row itself. A computed
+/// operand is that row proper, checked where the value arrives, and reaches
+/// nothing here.
 ///
 /// A name outside the set and a name naming a `private` property are one
 /// failure with one message, which is § 2's sentence: visibility is decided at

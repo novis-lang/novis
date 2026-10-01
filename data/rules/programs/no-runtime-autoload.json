@@ -4,7 +4,8 @@
   "because": [
     "0061",
     "0028",
-    "0052"
+    "0052",
+    "0250"
   ],
   "divergesFromPhp": "there is no `spl_autoload_register`, no `__autoload` and no `new $name` — a name held in a string can never reach a file",
   "seeAlso": [

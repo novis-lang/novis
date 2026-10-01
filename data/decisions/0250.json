@@ -1,0 +1,11 @@
+{
+  "title": "A string literal under `as class<T>` is the class's whole name, loaded through `autoload` and checked while compiling",
+  "status": "accepted",
+  "scope": "Which operands of `as class<T>` and `as ?class<T>` the compiler decides, how a string literal\nnames its class, and that the literal loads the class through `autoload`. A value built at run time,\nand what editor completion offers inside the literal, are not decided here.",
+  "dependsOn": [
+    "0125",
+    "0061"
+  ],
+  "dependsOnText": "[0125](0125.md) (`class<T>`, and its `Foo::class` operand decided at compile time),\n[0061](0061.md) (a name reaches its file while compiling, and no loader runs at run time).",
+  "validatedBy": "the Stage 6 checks of goal `path-literals-follow-up`: four tests in\n`crates/nvs-types/tests/classes.rs`, `nvs-hir`'s `a_class_literal_conversion_loads_its_class`, and the\nthree `.nvst` cases named under *Verification*."
+}

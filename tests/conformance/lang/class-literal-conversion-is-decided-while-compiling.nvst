@@ -1,0 +1,80 @@
+--TEST--
+A string literal under `as class<T>` is the class's whole name and loads its class through `autoload` while compiling, and a name built at run time sees only the loaded classes — `rule:types/class-reference`, `rule:programs/no-runtime-autoload`
+--FILE--
+<?nvs
+namespace Blog;
+
+require './src/Bootstrap.nvs';
+
+// Nothing `require`s `src/Dog.nvs`. The literal names the class, so the
+// compiler loads it, and the literal is the whole name: the `Blog` namespace
+// does not apply to it.
+class<Shop\Animal> $dog = 'Shop\Dog' as class<Shop\Animal>;
+Shop\Animal $made = new $dog();
+echo $made->sound(), "\n";
+
+// The `?` form loads its class the same way.
+?class<Shop\Animal> $cat = ("Shop\\Cat") as ?class<Shop\Animal>;
+echo $cat == null ? "null" : $cat as string, "\n";
+
+// A name built at run time is checked when it arrives, against the classes
+// the program loaded. `Shop\Bird` can be autoloaded, but nothing written in
+// the source names it, so it is not loaded and the result is `null`.
+string $prefix = 'Shop\\';
+?class<Shop\Animal> $bird = ($prefix . 'Bird') as ?class<Shop\Animal>;
+echo $bird == null ? "null" : $bird as string, "\n";
+
+// The same text, built at run time, finds a class the literal above loaded.
+?class<Shop\Animal> $again = ($prefix . 'Dog') as ?class<Shop\Animal>;
+echo $again == $dog ? "same" : "different", "\n";
+--FILE src/Bootstrap.nvs--
+<?nvs
+autoload 'Shop' from './';
+--FILE src/Animal.nvs--
+<?nvs
+namespace Shop;
+
+interface Animal
+{
+    public function sound(): string;
+}
+--FILE src/Dog.nvs--
+<?nvs
+namespace Shop;
+
+class Dog implements Animal
+{
+    public function constructor() {}
+
+    public function sound(): string
+    {
+        return "woof";
+    }
+}
+--FILE src/Cat.nvs--
+<?nvs
+namespace Shop;
+
+class Cat implements Animal
+{
+    public function sound(): string
+    {
+        return "meow";
+    }
+}
+--FILE src/Bird.nvs--
+<?nvs
+namespace Shop;
+
+class Bird implements Animal
+{
+    public function sound(): string
+    {
+        return "tweet";
+    }
+}
+--EXPECT--
+woof
+Shop\Cat
+null
+same

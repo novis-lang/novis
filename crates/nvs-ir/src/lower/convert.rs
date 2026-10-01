@@ -1048,13 +1048,19 @@ impl<'a> Lowering<'a> {
         // name in the same `ExprInfo::CoreConst` an ordinary class constant
         // does — `Self::lower_expr`'s own `ClassNameConst` arm explains why the
         // name is the checker's to give — so the fold reads it from there
-        // rather than from the spelling the author wrote.
+        // rather than from the spelling the author wrote. A string literal is
+        // the class's whole name, which the checker has already found declared
+        // and inside `T`, so its cooked text is the name.
         if matches!(inner.kind, ExprKind::ClassNameConst { .. })
             && let Some(ExprInfo::CoreConst {
                 value: nvs_types::ConstArg::Str(name),
             }) = self.exprs.lookup(inner.span)
         {
             let class = name.clone();
+            return self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
+        }
+        if let ExprKind::Str(text) = inner.unparenthesized().kind {
+            let class = cook_str_literal(self.src, text);
             return self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
         }
         let (subject, _) = self.lower_expr(inner, None, env, cur);

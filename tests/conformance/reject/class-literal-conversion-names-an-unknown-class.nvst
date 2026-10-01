@@ -1,0 +1,17 @@
+--TEST--
+A string literal under `as class<T>` that no declaration and no `autoload` entry answers does not compile, under the code `Bogus::class` gets — `rule:types/class-reference`
+--FILE--
+<?nvs
+class Animal {}
+?class<Animal> $c = 'Wolf' as ?class<Animal>;
+echo $c == null ? "null" : "set", "\n";
+--EXPECTF-ERROR--
+error[E0303]: `Wolf` is not declared
+  --> %s:3:21
+  |
+3 | ?class<Animal> $c = 'Wolf' as ?class<Animal>;
+  |                     ^^^^^^ no declaration and no `autoload` entry has this class
+  = help: a string converted to `class<Animal>` is the class's whole name, with its namespace and no leading `\`: no `namespace` and no `use` applies to it
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

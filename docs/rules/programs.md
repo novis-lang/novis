@@ -263,9 +263,10 @@ later. A deployment that must exclude a module does not ship its directory.
 
 Classes cannot be loaded from a database, a generated file, or anywhere but the filesystem at compile
 time, and a name held in a string can never pull in a new file — `Core\Reflect`'s lookup by name
-reaches only the compiled program.
+reaches only the compiled program. A string *literal* under `as class<T>` is a name written in the
+source, not one held at run time, and is loaded while compiling ([`types/class-reference`](types.md#types-class-reference)).
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file). Decided in [0061](../decisions/0061.md), [0028](../decisions/0028.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file). Decided in [0061](../decisions/0061.md), [0028](../decisions/0028.md), [0052](../decisions/0052.md), [0250](../decisions/0250.md).</sub>
 
 <a id="programs-autoload"></a>
 

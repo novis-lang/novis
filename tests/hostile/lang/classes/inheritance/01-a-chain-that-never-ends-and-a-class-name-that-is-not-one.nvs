@@ -73,7 +73,8 @@ try {
 
 // 3. One million objects are made through a class the program picked while
 //    running, and each one is used once.
-class<L0> $cls = 'L4' as class<L0>;
+string $pick = 'L' . (2 + 2);
+class<L0> $cls = $pick as class<L0>;
 int $made = 0;
 int $sum = 0;
 while ($made < 1000000) {
@@ -83,8 +84,9 @@ while ($made < 1000000) {
 }
 echo '3: made ', $made, ' objects that add up to ', $sum, "\n";
 
-// 4. Text that names no class is converted to a class. Nothing catches the
-//    error, so the program ends here.
+// 4. Text that names no class is built while the program runs, and is
+//    converted to a class. Nothing catches the error, so the program ends here.
 echo "step 4\n";
-class<L0> $missing = 'NoSuchClass' as class<L0>;
+string $text = 'NoSuch' . 'Class';
+class<L0> $missing = $text as class<L0>;
 echo '4: BAD, the program is still running with ', $missing as string, "\n";

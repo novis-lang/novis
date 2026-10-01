@@ -1,17 +1,17 @@
 --TEST--
-`Rock::class as ?class<Animal>` is the same compile-time refusal the checked spelling is — `rule:types/class-reference` decides a written-out `::class` operand, so there is no run-time throw for `rule:expressions/nullable-conversion-availability`'s `?` to answer `null` for
+A string literal under `as class<T>` naming a class outside `T`'s hierarchy does not compile, under the code `Rock::class as class<Animal>` gets — `rule:types/class-reference`
 --FILE--
 <?nvs
 class Animal {}
 class Rock {}
-?class<Animal> $c = Rock::class as ?class<Animal>;
-echo $c == null ? "null" : "set", "\n";
+class<Animal> $c = 'Rock' as class<Animal>;
+echo $c as string, "\n";
 --EXPECTF-ERROR--
 error[E0708]: `Rock` is not a `Animal`, so this can never be a `class<Animal>`
-  --> %s:4:21
+  --> %s:4:20
   |
-4 | ?class<Animal> $c = Rock::class as ?class<Animal>;
-  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ converted here
+4 | class<Animal> $c = 'Rock' as class<Animal>;
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^ converted here
   = help: `rule:types/class-reference` decides a class name written out in the source at compile time, and this one names a class outside the hierarchy: convert to `class<T>` at a class the name actually reaches, or make the class an implementor of the one written here
 
 error: aborting due to 1 error

@@ -14,4 +14,5 @@ later. A deployment that must exclude a module does not ship its directory.
 
 Classes cannot be loaded from a database, a generated file, or anywhere but the filesystem at compile
 time, and a name held in a string can never pull in a new file — `Core\Reflect`'s lookup by name
-reaches only the compiled program.
+reaches only the compiled program. A string *literal* under `as class<T>` is a name written in the
+source, not one held at run time, and is loaded while compiling (`rule:types/class-reference`).

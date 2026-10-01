@@ -41,8 +41,9 @@ class<Shape> $cls = $className as class<Shape>;
 Shape $made = new $cls();
 mixed $any = $made;
 echo $made->name(), " ", $cls::kind(), " ", $any is $cls ? "yes" : "no", "\n";
+string $missing = "Shop\\Nothing";
 try {
-    class<Shape> $bad = "Shop\\Nothing" as class<Shape>;
+    class<Shape> $bad = $missing as class<Shape>;
 } catch (Throwable $e) {
     echo "caught: ", $e->message, "\n";
 }
@@ -62,5 +63,5 @@ Report <? not code ?> end
 3
 a circle circle yes
 caught: cannot convert to `class<Shop\Shape>`: the value does not denote a class that is a `Shop\Shape`
-case.nvs:49
+case.nvs:50
 Count: 2 items
