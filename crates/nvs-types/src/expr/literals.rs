@@ -985,14 +985,15 @@ pub(crate) fn check_array_literal(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    // An expectation's `null` arm is not something the literal has to satisfy:
-    // `?array<string> $m = ["k" => "v"];` places an `array<string>`, and `null`
-    // is the *other* thing the binding may hold. Strip it before looking for
-    // the `Ty::Array` — the same `without_null` `narrow` and
-    // `report_unsubscriptable` make — or the expectation is a `Ty::Union`, no
-    // element type is found, and every element is checked against nothing while
-    // the literal falls back to `array<mixed>` and fails at the binding.
-    let expected = expected.map(|id| env.interner.without_null(id));
+    // A literal is an array, so of a union expectation it fills the one
+    // `array<T>` member: `?array<string> $m = ["k" => "v"];` places an
+    // `array<string>`, and `float|array<float> $p = [1, 2];` an
+    // `array<float>`. The other members are what the binding may hold
+    // instead. Without this the expectation is a `Ty::Union`, no element type
+    // is found, every element is checked against nothing, and the literal
+    // falls back to `array<mixed>` and fails at the binding. A union with two
+    // array members names no single element type, so it keeps that fallback.
+    let expected = expected.map(|id| sole_array_member(id, env));
     let elem_expected = expected.and_then(|id| match env.interner.get(id) {
         Ty::Array(elem) => Some(*elem),
         _ => None,
@@ -1099,6 +1100,23 @@ fn check_spread_element(
         )
         .with_primary(item.value.span, format!("this is `{rendered}`"))
         .with_help(
+/// The one `array<T>` member of a union `expected`, or `expected` itself
+/// where it is not a union or has no member or several — see
+/// [`check_array_literal`].
+fn sole_array_member(expected: TypeId, env: &Env<'_>) -> TypeId {
+    let Ty::Union(members) = env.interner.get(expected) else {
+        return expected;
+    };
+    let mut arrays = members
+        .iter()
+        .copied()
+        .filter(|member| matches!(env.interner.get(*member), Ty::Array(_)));
+    match (arrays.next(), arrays.next()) {
+        (Some(only), None) => only,
+        _ => expected,
+    }
+}
+
             "`...` contributes the subject's own entries to the array being built, so the \
              subject has to have entries — write the value as an ordinary element instead",
         ),

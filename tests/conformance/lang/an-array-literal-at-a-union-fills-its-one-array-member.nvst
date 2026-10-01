@@ -1,0 +1,37 @@
+--TEST--
+An array literal placed at a union with one `array<T>` member is an `array<T>`, and its whole numbers are stored as floats where `T` is `float` — `rule:types/arrays`
+--FILE--
+<?nvs
+// covers: lang:types/array-t
+
+class Shop
+{
+    public static function pad(float|array<float> $pad): string
+    {
+        if ($pad is array<float>) {
+            return "array " . Core\Json::encode($pad);
+        }
+        return "float";
+    }
+
+    public static function tags(string|array<string> $tags): string
+    {
+        return $tags is array<string> ? "array" : "string";
+    }
+}
+
+// A literal of floats, and a literal of whole numbers, which are stored as floats.
+echo Shop::pad([1.0, 2.0]), "\n";
+echo Shop::pad([1, 2]), "\n";
+echo Shop::pad(3.0), "\n";
+
+// The same for a local and for a union that also holds `null`.
+float|array<float>|null $local = [4, 5];
+echo $local is array<float> ? Core\Json::encode($local) : "not array", "\n";
+echo Shop::tags(["a", "b"]), "\n";
+--EXPECT--
+array [1.0,2.0]
+array [1.0,2.0]
+float
+[4.0,5.0]
+array
