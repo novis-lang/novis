@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*61 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -976,15 +976,16 @@ readers read it.
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
-## The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network  *(designed — not yet in the compiler)*
+## The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network  *(designed — not yet in the compiler)*
 
 `rule:ide/completion-offers-only-what-the-compiler-derived`
 
-`nvs-lsp` contains no framework-specific module, no annotation dialect, no convention scan and no
-directory-layout knowledge. It offers a **value** in a completion list only where the compiler already
-derives that value for another reason, and it reaches it through the same table that other reason uses.
-This is the whole of Novis's answer to "framework support", and it is a closed rule, not a starting
-point.
+`nvs-lsp` contains no framework-specific module, no annotation dialect, no scan for a framework's
+conventions and no directory-layout knowledge. It offers a **value** in a completion list only where the
+compiler already derives that value for another reason, reaching it through the same table that other
+reason uses, or where a completion file under a `.novis/completion/` folder lists it for the parameter
+the cursor is at ([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)). This is the whole of
+Novis's answer to "framework support", and it is a closed rule, not a starting point.
 
 What that admits: route names and their parameters, from the route table
 [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) builds while compiling — the same table
@@ -1007,19 +1008,64 @@ and in-scope variables, which are the same rule and not an exception to it.
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection
 is resolved while compiling, so go-to-definition already goes there), and view-name completion
-([`programs/first-party-framework`](programs.md#programs-first-party-framework) makes the view layer the language). A vendor annotation dialect or
-an `ide.json`-style patch file is refused outright as a second, unchecked description of the program's
-shape — the failure [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table) refuses for API
-documents. And **the language server makes no network request**: a lockfile on disk may be read, a
-remote index may not be consulted.
+([`programs/first-party-framework`](programs.md#programs-first-party-framework) makes the view layer the language). A vendor annotation dialect is
+refused outright as a second, unchecked description of the program's shape — the failure
+[`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table) refuses for API documents. A completion
+file is not one: it describes values the compiler never holds, such as the keys of a dataset or the
+names in an icon set, and never a class, a member or a type. It is data and is never run. And **the
+language server makes no network request**: a lockfile on disk may be read, a remote index may not be
+consulted.
 
 One thing offered is not a *value*: a PHP built-in's name, admitted as a candidate from an audited table
 and bounded on the insert side by [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing).
 
 A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
-table the compiler builds for another reason.
+table the compiler builds for another reason or the table the completion files were loaded into. No
+completion source reads a directory or a file itself.
 
-<sub>See also [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md), [0240](../decisions/0240.md).</sub>
+<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md), [0240](../decisions/0240.md), [0242](../decisions/0242.md).</sub>
+
+<a id="ide-completion-files-offer-values-at-named-parameters"></a>
+
+## A JSON file under a `.novis/completion` folder offers values at the string parameters it names, changes only the string the cursor is in, and is read and never run  *(designed — not yet in the compiler)*
+
+`rule:ide/completion-files-offer-values-at-named-parameters`
+
+A `.json` file under a folder named `.novis/completion/`, anywhere in the workspace and `vendor/`
+included, is a completion file: data that names method parameters and the values the editor offers in a
+string argument at them. Nothing in it is run, by the language server or by any later reader of
+`.novis`, and the server makes no network request for it.
+
+**What a file says.** The top-level fields are `$schema`, `sets` and `parameters`, and the field set is
+closed at every level. A set is a name, shared across every completion file in the workspace, and a list
+of values. A value is a string, or an object whose one required field is `value`, the inserted text, with
+the optional fields `label`, `labelDetail`, `labelDescription`, `kind`, `title`, `documentation`,
+`deprecated`, `sortText`, `filterText` and `preselect`, each one field of an LSP completion item. An
+attachment is a `method` (`Class::method` with the class's whole name, a constructor as
+`Class::constructor`), a `parameter` named without its `$`, and a `set`, `values` or both.
+
+**Where it reaches.** An attachment is keyed by the declaration the checker resolved the call to, so an
+inherited method is reached through the class that declares it, and an override needs an attachment of
+its own. Every attachment for one parameter contributes, files in path order and entries in written
+order, and a repeated `value` keeps the first one read. Inside a string argument at such a parameter,
+`'` and `"` open the list, as they do at a path or class-name parameter.
+
+**What an item may do.** Its one edit replaces the text of the string literal with `value`, escaped for
+the literal's quote style. No item carries a command, an edit outside the string or a snippet.
+`documentation` is untrusted Markdown, and a relative link or image in it resolves against the
+completion file's folder.
+
+**How it stays current.** The server finds the files when it starts and registers a client watcher for
+`**/.novis/completion/**/*.json`. A file is read again when its modification time or size changes.
+
+**What is reported**, on the completion file's own URI and never for a file under `vendor/`: a file
+that is not valid JSON or has an unknown or mistyped field, which then contributes nothing; an
+attachment whose method or parameter the class does not have, for a class the workspace index declares;
+an attachment at a parameter that is not a string; a set no file defines; and, as a hint only, a class
+the index does not declare. Nothing checks a program's string literals against the values, because the
+data they describe can change after the file is written.
+
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends). Decided in [0242](../decisions/0242.md).</sub>
 
 <a id="ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted"></a>
 

@@ -1,0 +1,15 @@
+{
+  "title": "A `.novis/completion` folder anywhere in the workspace holds JSON files of values the editor offers at the string parameters they name, and nothing in them is run",
+  "status": "accepted",
+  "scope": "The `.novis` folder as a project's place for data its tools read, the `completion` kind inside it, the format of a\ncompletion file, and how the language server finds, reloads, checks and offers one, with the VS Code client's part\n(the file watcher and a JSON schema). Any other kind of content under `.novis`, and any reader other than the language\nserver, are left to the record that adds one.",
+  "dependsOn": [
+    "0108",
+    "0240"
+  ],
+  "dependsOnText": "[0108](0108.md) (its § 2, the terms on which a value enters a completion list, which this record widens),\n[0240](0240.md) (a string argument mapped to its parameter through `crate::arguments`, and `'` and `\"` as trigger\ncharacters answered only inside a string the editor completes).",
+  "summary": {
+    "group": "tooling",
+    "headline": "A project can add its own completion values for any string parameter",
+    "body": "Put JSON files in a `.novis/completion/` folder anywhere in your project. Each file lists values and the method\nparameters they belong to. When you type a string at one of those parameters, the editor offers the values. Each\nvalue can have a label, an icon, a title and a Markdown description. You can write the files by hand, or generate\nthem with any script, for example from a dataset or an icon set. The editor reloads a file when it changes. The\nfiles are only read and never run."
+  }
+}

@@ -38,6 +38,7 @@
     "ide/novis-ships-names-not-colours",
     "ide/five-features-are-one-reference-index",
     "ide/completion-offers-only-what-the-compiler-derived",
+    "ide/completion-files-offer-values-at-named-parameters",
     "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
     "ide/completion-is-asked-where-a-spelling-ends",
     "ide/an-accepted-type-writes-what-follows-it",
