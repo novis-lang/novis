@@ -3,7 +3,8 @@
   "status": "shipped",
   "because": [
     "0007",
-    "0054"
+    "0054",
+    "0236"
   ],
   "divergesFromPhp": "the widening throws above 2^53 instead of rounding, and no other implicit coercion survives",
   "seeAlso": [

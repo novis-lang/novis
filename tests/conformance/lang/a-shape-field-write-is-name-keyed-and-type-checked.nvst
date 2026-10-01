@@ -48,7 +48,8 @@ var $tagged = {alpha: "a", label: "left"};
 Move::relabel($tagged);
 echo $tagged->alpha, " ", $tagged->label, "\n";
 
-echo Move::widen({n: 1}), "\n";
+var $whole = {n: 1};
+echo Move::widen($whole), "\n";
 --EXPECT--
 5 2
 5 9

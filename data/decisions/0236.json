@@ -1,0 +1,17 @@
+{
+  "title": "An object literal at a declared shape takes the declared field types, and an existing value's `int` field does not satisfy a `float` one",
+  "status": "accepted",
+  "scope": "how an `int` value meets a `float` field of a shape: in an object literal written where a shape is\ndeclared, and in a shape value or object that already exists. The general `array<int>` → `array<float>`\nwidening outside a shape is left to another record.",
+  "dependsOn": [
+    "0036",
+    "0007",
+    "0054"
+  ],
+  "dependsOnText": "[0036](0036.md) (shape types and object literals), [0007](0007.md) and [0054](0054.md) (the\n`int` → `float` widening is the one implicit conversion).",
+  "validatedBy": "`tests/conformance/lang/a-shape-literal-at-a-declared-shape-takes-the-declared-field-types.nvst`\nand `tests/conformance/reject/an-existing-int-shape-field-does-not-widen-to-float.nvst`.",
+  "summary": {
+    "group": "types",
+    "headline": "Whole numbers in `float` shape fields",
+    "body": "`Point $p = {x: 2};` with `type Point = {x: float};` stores `2.0`, and `$p->x` is a `float`. A\nshape value that already exists with an `int` field is not accepted where a `float` field is\nneeded. Build a new value instead: `{x: $old->x}`."
+  }
+}

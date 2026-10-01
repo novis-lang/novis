@@ -143,6 +143,12 @@
           "headline": "A decoding member takes a class or an inline shape as its type argument",
           "body": "`Core\\Json::decodeAs<User>`, `Core\\Db::queryAs<User>` and `Core\\Request::jsonAs<User>` build a typed value straight from text, and the type written in the angle brackets may be a class, an inline shape such as `{id: int, name: string}`, or an array of either. A shape works there because it declares its own fields on the spot, so nothing has to be looked up elsewhere. Which members offer the angle brackets is a table the compiler holds, so adding one is a row, not a language change.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0159.md"
+        },
+        {
+          "adr": "0236",
+          "headline": "Whole numbers in `float` shape fields",
+          "body": "`Point $p = {x: 2};` with `type Point = {x: float};` stores `2.0`, and `$p->x` is a `float`. A shape value that already exists with an `int` field is not accepted where a `float` field is needed. Build a new value instead: `{x: $old->x}`.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0236.md"
         }
       ]
     },

@@ -833,14 +833,16 @@ pub(crate) fn check_heredoc_run_issues(
 }
 
 /// `{a: 1, b: $x}` — `rule:types/object-literal`'s object literal, whose type is the
-/// exact-fields shape its own initializers infer to.
+/// exact-fields shape of its own fields.
 ///
-/// Each field's type is inferred from its initializer with no expectation
-/// pushed in, the same way an `array<T>` literal's elements infer their own
-/// type when the position names none: a shape target's width subtyping
-/// ([`super::assign::is_assignable`]) is what lets the precise literal flow
-/// into a narrower shape or a plain `object`, so there is nothing for an
-/// expectation to place here.
+/// Where the position declares a shape (`rule:types/shape-type`), a field the
+/// declaration names is checked against the declared field type and, when its
+/// value fits, has that type: `{w: 2}` at `{w: float}` is a `{w: float}`. The
+/// literal builds a new value, so lowering can convert each field where it is
+/// stored, which an existing value's field cannot be (see
+/// [`super::assign::field_fits`]). Every other field infers its own type, and
+/// a shape target's width subtyping ([`super::assign::is_assignable`]) lets
+/// the literal flow into a narrower shape or a plain `object`.
 ///
 /// **A field name written twice is `E0494`.** A shape's fields are a set —
 /// `{a: int}` names one slot `a` — and the two sides of a repeated name would
@@ -860,17 +862,34 @@ pub(crate) fn check_object_literal(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    // The expectation is read for one question only —
-    // `rule:security/secret-qualifier`'s, below. What a field *infers* is
-    // deliberately unchanged: a literal's fields are its own, and a position
-    // that wants something else says so through the assignment that follows.
-    // `without_null` for [`check_array_literal`]'s reason: a `?{…}` position
-    // declares the shape, and `null` is the other thing it may hold.
-    let expected = expected.map(|id| env.interner.without_null(id));
+    // The declared shape, when the position names one: a `?{…}` position
+    // declares the shape and `null` is the other thing it may hold, and a union
+    // with exactly one shape member declares that member.
+    let expected = expected.and_then(|id| declared_shape(id, env));
     let mut out: Vec<ShapeField> = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();
-        let field_ty = check_expr(&field.value, None, live, scope, ctx, env);
+        let declared = declared_field_type(expected, &name, env);
+        // A field the declaration names is checked with the declared type as
+        // its expectation, so `2` in a `float` field is a `float` literal. When
+        // the value fits the declared type, the field has the declared type:
+        // `{w: $int}` at `{w: float}` is a `{w: float}`, and lowering converts
+        // the value where the literal stores it, at the slot type
+        // `nvs_ir::lower` reads back from the field name's span. A value that
+        // does not fit keeps its own type, and the assignment that follows
+        // reports it. So does a value with a `secret` or `tainted` qualifier the
+        // declared type does not carry, so the qualifier stays visible.
+        let inferred = infer(&field.value, declared, live, scope, ctx, env);
+        let field_ty = match declared {
+            Some(declared)
+                if is_assignable(inferred, declared, env.interner, env.graph, env.signatures)
+                    && !drops_qualifier(inferred, declared, env) =>
+            {
+                env.exprs.record_type(field.name, declared);
+                declared
+            }
+            _ => inferred,
+        };
         // Unlike an array element, a field's inferred type *keeps* the
         // qualifier, so what this catches is the declared field one step on:
         // `{token: $secret}` at a `{token: mixed}` is where the bit stops
@@ -878,10 +897,10 @@ pub(crate) fn check_object_literal(
         // nothing — it carries the qualifier onward in its own inferred type,
         // and a position that then widens it to `mixed` is the widening every
         // `mixed` binding in the language allows, not this axis.
-        if let Some(declared) = declared_field_type(expected, &name, env) {
+        if let Some(declared) = declared {
             reject_secret_into_container(
                 &field.value,
-                field_ty,
+                inferred,
                 Some(declared),
                 &format!("the field `{name}`"),
                 env,
@@ -899,11 +918,41 @@ pub(crate) fn check_object_literal(
     env.interner.shape(out)
 }
 
+/// The shape an object literal's position declares: `expected` itself when it
+/// is a shape, the shape inside a `?{…}`, or the one shape member of a union.
+/// `None` for anything else, including a union with two shape members, where
+/// the literal keeps the types its own fields infer.
+fn declared_shape(expected: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
+    let expected = env.interner.without_null(expected);
+    match env.interner.get(expected) {
+        Ty::Shape(_) => Some(expected),
+        Ty::Union(members) => {
+            let mut shapes = members
+                .iter()
+                .copied()
+                .filter(|member| matches!(env.interner.get(*member), Ty::Shape(_)));
+            match (shapes.next(), shapes.next()) {
+                (Some(only), None) => Some(only),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Whether a field value of type `inferred` loses a `secret` or `tainted`
+/// qualifier when its field takes the type `declared`.
+fn drops_qualifier(inferred: TypeId, declared: TypeId, env: &Env<'_>) -> bool {
+    let interner = &*env.interner;
+    (contains_secret(inferred, interner) && !contains_secret(declared, interner))
+        || (carries_tainted(inferred, interner) && !carries_tainted(declared, interner))
+}
+
 /// The type a *declared* shape gives the field named `name`, where the
 /// position declared a shape at all.
 ///
-/// [`check_object_literal`]'s one use of its expectation, and the whole of
-/// what `rule:security/secret-qualifier`'s container question needs: a field
+/// [`check_object_literal`] checks the field's value against it, and
+/// `rule:security/secret-qualifier`'s container question asks it: a field
 /// the declared shape does not name has no declaration to carry a qualifier,
 /// which reads the same as no expectation at all.
 fn declared_field_type(expected: Option<TypeId>, name: &str, env: &Env<'_>) -> Option<TypeId> {

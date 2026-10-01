@@ -10,7 +10,15 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
 
 - **Width subtyping**: a source with extra fields still satisfies the shape, so an already-shaped
   value never needs re-wrapping because a caller cares about two of its five fields.
-- **Field types** are ordinary assignability; a shape gets no variance rule of its own.
+- **Field types** are ordinary assignability with one exception, and a shape gets no variance rule
+  of its own. The exception is the `int`/`uint` → `float` widening (`rule:types/implicit-widening`):
+  it does not reach a field of a value that already exists, at any depth of the field type. Such a
+  value is shared, not copied, so its field cannot be converted. `{w: int}` does not satisfy
+  `{w: float}`, `{w: ?float}` or `{w: array<float>}`, and a class with an `int $w` property does not
+  satisfy `{w: float}` either; `{w: int|float}` accepts both, because `int` is one of its members.
+- **An object literal placed at a declared shape** takes each field the declaration names at the
+  declared type, when its value fits it: `{w: 2}` and `{w: $count}` at `{w: float}` are `{w: float}`,
+  and the literal stores `2.0`. A field the declaration does not name keeps the type of its value.
 - **An optional key** is written `{name?: T}`, and that is not nullability: `{a?: int}` accepts a value
   with no `a`, `{a: ?int}` demands an `a` that may hold `null`, and the two accept different values so
   they intern apart. A source missing an *optional* field satisfies the shape; missing a *required* one

@@ -4755,17 +4755,30 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
-        // What each field's initializer lowered to, keyed by name so the
+        // What each field stores, keyed by name so the
         // list handed to `record_shape_class` is in the class's own sorted
         // slot order rather than the literal's written one. This is the only
         // record of a shape field's type that survives to run time, and
         // `InstKind::SlotSet` is its one reader.
         let mut reprs: FxHashMap<&str, Ty> = FxHashMap::default();
         for (field, name) in fields.iter().zip(&names) {
-            let (v, ty) = self.lower_expr(&field.value, None, env, cur);
+            // A field the checker gave its declared type, when the literal sits
+            // at a declared shape (`nvs_types::expr::literals::check_object_literal`),
+            // is converted to that type here and its slot has that type: `{w: 2}`
+            // at `{w: float}` stores `2.0` in a `float` slot. Any other field
+            // stores its value as the value lowered.
+            let declared = self
+                .exprs
+                .declared_ty(field.name)
+                .map(|id| erase_checked_ty(id, self.checked_types));
+            let (v, ty) = self.lower_expr(&field.value, declared, env, cur);
             if ty.is_refcounted() && self.aliasing_read(&field.value) {
                 self.emit_retain(*cur, v);
             }
+            let (v, ty) = match declared {
+                Some(want) => (self.coerce(*cur, v, ty, want, env), want),
+                None => (v, ty),
+            };
             reprs.insert(name.as_str(), ty);
             self.emit_field_set(*cur, obj, class.clone(), name.clone(), v);
         }

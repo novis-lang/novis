@@ -209,6 +209,12 @@ such as `{id: int, name: string}`, or an array of either. A shape works there be
 its own fields on the spot, so nothing has to be looked up elsewhere. Which members offer the angle
 brackets is a table the compiler holds, so adding one is a row, not a language change.
 
+**Whole numbers in `float` shape fields**
+
+`Point $p = {x: 2};` with `type Point = {x: float};` stores `2.0`, and `$p->x` is a `float`. A shape
+value that already exists with an `int` field is not accepted where a `float` field is needed. Build
+a new value instead: `{x: $old->x}`.
+
 ## How code is written
 
 Spelling. What parses and what does not, which PHP forms were kept and which were rejected, naming, visibility, and the shape of a file.

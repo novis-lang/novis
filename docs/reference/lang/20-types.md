@@ -586,6 +586,11 @@ being written:
 Nothing else is implicit: `int` into `uint` (either way), a number into `string`, a `string` into
 a number, a `mixed` into anything, `?T` into `T` — each needs `as` or a narrowing test.
 
+The `int` row also converts a field of an object literal written where a shape is declared:
+`{x: 2}` at `{x: float}` stores `2.0`. It does not convert the field of a shape value or an object
+that already exists, so a `{x: int}` value is not a `{x: float}` value. Build a new value instead:
+`{x: $old->x}`.
+
 ```nvs
 <?nvs
 class Q {

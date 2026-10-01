@@ -242,7 +242,9 @@ size-computation bug. Code that wants unbounded magnitude declares `float`, or c
 `rule:types/implicit-widening`
 
 Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
-position** — an argument, a return, an assignment, or the far side of an arithmetic operator. It is
+position** — an argument, a return, an assignment, a field of an object literal, or the far side of
+an arithmetic operator. It never reaches the field of a shape value or object that already exists,
+because that value is shared and its field is not converted ([`types/shape-type`](types.md#types-shape-type)). It is
 the one coercion PHP's own `strict_types` permits, and it throws above 2^53 rather than rounding,
 where `f64` stops representing every integer.
 
@@ -252,7 +254,7 @@ Everything else is a diagnostic. `mixed` never absorbs implicitly in either dire
 ([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
 so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0236](../decisions/0236.md).</sub>
 
 <a id="types-decimal"></a>
 
@@ -1457,7 +1459,15 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
 
 - **Width subtyping**: a source with extra fields still satisfies the shape, so an already-shaped
   value never needs re-wrapping because a caller cares about two of its five fields.
-- **Field types** are ordinary assignability; a shape gets no variance rule of its own.
+- **Field types** are ordinary assignability with one exception, and a shape gets no variance rule
+  of its own. The exception is the `int`/`uint` → `float` widening ([`types/implicit-widening`](types.md#types-implicit-widening)):
+  it does not reach a field of a value that already exists, at any depth of the field type. Such a
+  value is shared, not copied, so its field cannot be converted. `{w: int}` does not satisfy
+  `{w: float}`, `{w: ?float}` or `{w: array<float>}`, and a class with an `int $w` property does not
+  satisfy `{w: float}` either; `{w: int|float}` accepts both, because `int` is one of its members.
+- **An object literal placed at a declared shape** takes each field the declaration names at the
+  declared type, when its value fits it: `{w: 2}` and `{w: $count}` at `{w: float}` are `{w: float}`,
+  and the literal stores `2.0`. A field the declaration does not name keeps the type of its value.
 - **An optional key** is written `{name?: T}`, and that is not nullability: `{a?: int}` accepts a value
   with no `a`, `{a: ?int}` demands an `a` that may hold `null`, and the two accept different values so
   they intern apart. A source missing an *optional* field satisfies the shape; missing a *required* one
@@ -1487,7 +1497,7 @@ The read is deliberately **not** widened to `?T`: optionality and nullability ar
 ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable)), and one language does not answer "the key may be
 absent" two different ways in two containers.
 
-<sub>See also [`types/object-literal`](types.md#types-object-literal), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0013](../decisions/0013.md), [0157](../decisions/0157.md).</sub>
+<sub>See also [`types/object-literal`](types.md#types-object-literal), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0013](../decisions/0013.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md).</sub>
 
 <a id="types-erased-member-access"></a>
 

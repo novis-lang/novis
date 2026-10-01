@@ -2010,8 +2010,9 @@ impl<'a> Lowering<'a> {
     /// Records the synthesized class a shape literal named — see
     /// [`Self::shapes`].
     ///
-    /// `reprs` is what each field's own initializer lowered to, in the same
-    /// sorted order as `fields`, and it is the whole of what
+    /// `reprs` is what each field stores — the declared field type where the
+    /// literal sits at a declared shape, otherwise what its initializer lowered
+    /// to — in the same sorted order as `fields`, and it is the whole of what
     /// `nvs_runtime::nvs_object_slot_set` gets to check a write against.
     ///
     /// A label already recorded is **merged**, not skipped: `$shape{x}` is

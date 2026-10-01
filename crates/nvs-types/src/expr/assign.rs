@@ -64,6 +64,35 @@ pub(crate) fn is_assignable(
     graph: &ClassGraph,
     signatures: &SignatureTable,
 ) -> bool {
+    assignable(from, to, Widening::Converts, interner, graph, signatures)
+}
+
+/// Whether the `int`/`uint` → `float` row of [`is_assignable`] applies.
+///
+/// The row is a conversion: lowering turns the `int` into a `float` where it
+/// is stored. That works for a value that is copied into the position, and it
+/// does not work for the field of a shape value or object that already exists,
+/// because that value is shared and its field keeps the representation it was
+/// built with. [`shape_satisfied`] compares fields with [`Widening::InPlace`],
+/// at every depth of the field type, so a `{w: int}` value never satisfies
+/// `{w: float}`, `{w: ?float}` or `{w: array<float>}`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Widening {
+    /// The value is converted where it is stored, so `int` fills a `float`.
+    Converts,
+    /// The value is read where it is, so `int` does not fill a `float`.
+    InPlace,
+}
+
+/// [`is_assignable`] with the `int` → `float` row on or off — see [`Widening`].
+fn assignable(
+    from: TypeId,
+    to: TypeId,
+    widen: Widening,
+    interner: &mut TypeInterner,
+    graph: &ClassGraph,
+    signatures: &SignatureTable,
+) -> bool {
     if from == to {
         return true;
     }
@@ -85,7 +114,7 @@ pub(crate) fn is_assignable(
     // nothing below widens a base type *down*, and § 4's last three rows make
     // that direction a checked `as`, never an assignment.
     let widened = interner.literal_base(from);
-    if widened != from && is_assignable(widened, to, interner, graph, signatures) {
+    if widened != from && assignable(widened, to, widen, interner, graph, signatures) {
         return true;
     }
     // A union target is satisfied member-wise, and **membership is checked
@@ -106,7 +135,7 @@ pub(crate) fn is_assignable(
             members.contains(&from)
                 || members
                     .iter()
-                    .any(|member| is_assignable(from, *member, interner, graph, signatures))
+                    .any(|member| assignable(from, *member, widen, interner, graph, signatures))
         };
         return match interner.get(from).clone() {
             Ty::Union(from_members) => from_members
@@ -133,9 +162,12 @@ pub(crate) fn is_assignable(
         let from_members = from_members.clone();
         return from_members
             .into_iter()
-            .all(|member| is_assignable(member, to, interner, graph, signatures));
+            .all(|member| assignable(member, to, widen, interner, graph, signatures));
     }
-    if matches!(interner.get(to), Ty::Float) && matches!(interner.get(from), Ty::Int | Ty::Uint) {
+    if widen == Widening::Converts
+        && matches!(interner.get(to), Ty::Float)
+        && matches!(interner.get(from), Ty::Int | Ty::Uint)
+    {
         return true;
     }
     if matches!(interner.get(to), Ty::Object)
@@ -171,7 +203,7 @@ pub(crate) fn is_assignable(
     // not otherwise reach.
     if let (Ty::Array(from_elem), Ty::Array(to_elem)) = (interner.get(from), interner.get(to)) {
         let (from_elem, to_elem) = (*from_elem, *to_elem);
-        return is_assignable(from_elem, to_elem, interner, graph, signatures);
+        return assignable(from_elem, to_elem, widen, interner, graph, signatures);
     }
     // `rule:types/class-reference-variance`: **`class<T>` is covariant in its argument, and only
     // upward** — `class<Dog>` widens to `class<Animal>` wherever `Dog` widens
@@ -185,7 +217,7 @@ pub(crate) fn is_assignable(
     // the narrow one to read back.
     if let (Ty::ClassRef(from_arg), Ty::ClassRef(to_arg)) = (interner.get(from), interner.get(to)) {
         let (from_arg, to_arg) = (*from_arg, *to_arg);
-        return is_assignable(from_arg, to_arg, interner, graph, signatures);
+        return assignable(from_arg, to_arg, widen, interner, graph, signatures);
     }
     // **Bare `callable` is the top of `rule:types/callable-signature`'s
     // lattice**, so a written signature always satisfies it. The reverse is
@@ -248,13 +280,13 @@ pub(crate) fn is_assignable(
         let params_ok = from_params
             .iter()
             .zip(&to_params)
-            .all(|(from_p, to_p)| is_assignable(*to_p, *from_p, interner, graph, signatures));
+            .all(|(from_p, to_p)| assignable(*to_p, *from_p, widen, interner, graph, signatures));
         // `never` is the bottom of the return position and the one place the
         // relation meets it: `rule:types/grammar` makes the atom return-only,
         // and a body that never comes back satisfies whatever its caller was
         // promised because the caller never reads it.
         let ret_ok = matches!(interner.get(from_ret), Ty::Never)
-            || is_assignable(from_ret, to_ret, interner, graph, signatures);
+            || assignable(from_ret, to_ret, widen, interner, graph, signatures);
         return params_ok && ret_ok;
     }
     // `rule:security/taint-propagation` / `rule:security/secret-propagation`: `tainted` and `secret` are two independent
@@ -330,8 +362,9 @@ pub(crate) fn class_satisfied(
 
 /// `rule:types/shape-type`'s structural check for a shape target: `from` must have at
 /// least every field `to_fields` names, each satisfying the field's declared
-/// type by this same [`is_assignable`] rule (width subtyping — an extra
-/// field on `from` is never a problem). A class receiver's field types come
+/// type by [`field_fits`] — [`is_assignable`] without the `int` → `float`
+/// row, because `from` is shared and its fields are not converted (width
+/// subtyping — an extra field on `from` is never a problem). A class receiver's field types come
 /// from [`resolve_property`], the same ancestor walk an ordinary `$obj->prop`
 /// access already uses; any other `from` (a scalar, `object`, a mismatched
 /// shape) never satisfies a shape target.
@@ -359,7 +392,7 @@ pub(crate) fn shape_satisfied(
             match from_fields.iter().find(|from| from.name == to_field.name) {
                 Some(from) => {
                     (from.required || !to_field.required)
-                        && is_assignable(from.ty, to_field.ty, interner, graph, signatures)
+                        && field_fits(from.ty, to_field.ty, interner, graph, signatures)
                 }
                 None => !to_field.required,
             }
@@ -370,13 +403,26 @@ pub(crate) fn shape_satisfied(
         Ty::Class(qname, _) => to_fields.iter().all(|to_field| {
             match resolve_property(&qname, &to_field.name, signatures, graph) {
                 Some(from_field_ty) => {
-                    is_assignable(from_field_ty, to_field.ty, interner, graph, signatures)
+                    field_fits(from_field_ty, to_field.ty, interner, graph, signatures)
                 }
                 None => !to_field.required,
             }
         }),
         _ => false,
     }
+}
+
+/// Whether a field of type `from` that already exists satisfies a field
+/// declared `to`: [`is_assignable`] without the `int` → `float` row, at any
+/// depth of `to` — see [`Widening`].
+pub(crate) fn field_fits(
+    from: TypeId,
+    to: TypeId,
+    interner: &mut TypeInterner,
+    graph: &ClassGraph,
+    signatures: &SignatureTable,
+) -> bool {
+    assignable(from, to, Widening::InPlace, interner, graph, signatures)
 }
 
 pub(crate) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'_>) {
@@ -416,7 +462,17 @@ pub(crate) fn mismatch(
     )
     .with_primary(span, format!("this is `{actual_desc}`"));
     match missing_required_keys(expected, actual, env).as_slice() {
-        [] => diag,
+        [] => match unconverted_field(expected, actual, env) {
+            Some((name, from, to)) => {
+                let (from, to) = (env.interner.describe(from), env.interner.describe(to));
+                diag.with_help(format!(
+                    "the field `{name}` is `{from}` in this value, and a value that already \
+                     exists keeps its field types, so it is not converted to `{to}`. Build a new \
+                     value instead: `{{{name}: $value->{name}}}`"
+                ))
+            }
+            None => diag,
+        },
         [one] => diag.with_help(format!(
             "`{one}` is required here, and this value does not supply it"
         )),
@@ -461,6 +517,44 @@ fn missing_required_keys(expected: TypeId, actual: TypeId, env: &mut Env<'_>) ->
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// The first field `expected`'s shape declares that `actual` fails only
+/// because [`field_fits`] leaves out the `int` → `float` row: an `int` or
+/// `uint` field that [`is_assignable`] accepts and [`field_fits`] does not.
+/// Building a new value converts that field. Gives the field's
+/// name, its type in `actual` and its declared type. `None` when `expected` is
+/// not a shape or no field fails that way.
+fn unconverted_field(
+    expected: TypeId,
+    actual: TypeId,
+    env: &mut Env<'_>,
+) -> Option<(String, TypeId, TypeId)> {
+    let (signatures, graph) = (env.signatures, env.graph);
+    let Ty::Shape(to_fields) = env.interner.get(expected).clone() else {
+        return None;
+    };
+    let from_fields: Vec<(String, TypeId)> = match env.interner.get(actual).clone() {
+        Ty::Shape(from_fields) => from_fields
+            .into_iter()
+            .map(|field| (field.name, field.ty))
+            .collect(),
+        Ty::Class(qname, _) => to_fields
+            .iter()
+            .filter_map(|to| {
+                resolve_property(&qname, &to.name, signatures, graph)
+                    .map(|ty| (to.name.clone(), ty))
+            })
+            .collect(),
+        _ => return None,
+    };
+    to_fields.into_iter().find_map(|to| {
+        let (_, from_ty) = from_fields.iter().find(|(name, _)| *name == to.name)?;
+        let scalar = matches!(env.interner.get(*from_ty), Ty::Int | Ty::Uint);
+        let converts = scalar && is_assignable(*from_ty, to.ty, env.interner, graph, signatures);
+        let fits = field_fits(*from_ty, to.ty, env.interner, graph, signatures);
+        (converts && !fits).then_some((to.name, *from_ty, to.ty))
+    })
 }
 
 /// Checks a `return expr;`'s value against the method's declared return

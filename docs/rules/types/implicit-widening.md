@@ -1,5 +1,7 @@
 Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
-position** — an argument, a return, an assignment, or the far side of an arithmetic operator. It is
+position** — an argument, a return, an assignment, a field of an object literal, or the far side of
+an arithmetic operator. It never reaches the field of a shape value or object that already exists,
+because that value is shared and its field is not converted (`rule:types/shape-type`). It is
 the one coercion PHP's own `strict_types` permits, and it throws above 2^53 rather than rounding,
 where `f64` stops representing every integer.
 
