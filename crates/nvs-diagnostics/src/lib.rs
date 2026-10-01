@@ -4117,7 +4117,10 @@ pub mod code {
     /// between them silently is the failure `rule:security/access-is-checked-for-presence-not-meaning` exists to prevent.
     /// Reported at the second, naming the first, because the first is the one
     /// an author reading the error is deciding whether to keep.
-    pub const E_ACCESS_REPEATED: Code = Code::new("E0763");
+    pub const E_ACCESS_REPEATED: Code = Code::new("E0763").card(
+        "A method can have only one `#[Access]` attribute. Delete one of them, and keep the one \
+         that says who may call the method.",
+    );
 
     /// A `csrf: false` beside a method whose every `#[Route]` names a safe verb.
     ///
@@ -4128,7 +4131,11 @@ pub mod code {
     /// decision and has no effect is exactly how one ends up pasted onto routes
     /// that never needed it — and a reader auditing those routes then has to
     /// re-derive which of them the runtime was ever going to check.
-    pub const E_CSRF_WITHOUT_UNSAFE_VERB: Code = Code::new("E0764");
+    pub const E_CSRF_WITHOUT_UNSAFE_VERB: Code = Code::new("E0764").card(
+        "`csrf: false` has no effect here, because no `#[Route]` on this method uses `Post`, \
+         `Put`, `Patch` or `Delete`. Only those HTTP methods have a CSRF check. Delete \
+         `csrf: false`.",
+    );
 
     /// A `#[Query]` on a parameter of a method carrying no `#[Route]`.
     ///
@@ -4141,7 +4148,10 @@ pub mod code {
     ///
     /// The sibling of [`E_OPTION_WITHOUT_COMMAND`], which is the same mistake
     /// made with the other pass's marker.
-    pub const E_QUERY_WITHOUT_ROUTE: Code = Code::new("E0765");
+    pub const E_QUERY_WITHOUT_ROUTE: Code = Code::new("E0765").card(
+        "`#[Query]` works only on a parameter of a method that has a `#[Route]`. Add a \
+         `#[Route]` to the method, or delete `#[Query]`.",
+    );
 
     /// An `#[Option]` on a parameter of a method carrying no `#[Command]`.
     ///
@@ -4149,7 +4159,10 @@ pub mod code {
     /// [`E_QUERY_WITHOUT_ROUTE`] holds `rule:routing/a-query-parameter-is-declared-like-a-capture`'s. Reported from the walk
     /// over every method rather than from the command pass, which by
     /// construction sees only the methods a `#[Command]` selects.
-    pub const E_OPTION_WITHOUT_COMMAND: Code = Code::new("E0766");
+    pub const E_OPTION_WITHOUT_COMMAND: Code = Code::new("E0766").card(
+        "`#[Option]` works only on a parameter of a method that has a `#[Command]`. Add a \
+         `#[Command]` to the method, or delete `#[Option]`.",
+    );
 
     /// A `#[Command]` that names no command.
     ///
@@ -4158,7 +4171,10 @@ pub mod code {
     /// discovers it — the same reading [`E_ROUTE_INCOMPLETE`] gives a
     /// `#[Route]` that gave no path, and the answer to that module's own
     /// question of whether `name` is required.
-    pub const E_COMMAND_WITHOUT_NAME: Code = Code::new("E0767");
+    pub const E_COMMAND_WITHOUT_NAME: Code = Code::new("E0767").card(
+        "A `#[Command]` needs a `name`, which is the word you type to run the command. Write \
+         `#[Core\\Command(name: \"deploy\", about: \"Push the current build\")]`.",
+    );
 
     /// Two `#[Command]`s claiming one name — the first of `rule:tooling/commands-are-compiled`'s
     /// compile errors, and the one only the whole program's enumeration can
@@ -4168,7 +4184,10 @@ pub mod code {
     /// for its reason: a command line naming a word two methods answer to has
     /// no answer, and which of them ran would depend on the order the files
     /// were walked in.
-    pub const E_DUPLICATE_COMMAND: Code = Code::new("E0768");
+    pub const E_DUPLICATE_COMMAND: Code = Code::new("E0768").card(
+        "Two `#[Command]` methods have the same `name`. Each command needs its own name, so \
+         rename one of them.",
+    );
 
     /// A literal argument to an `rule:expressions/intrinsic-list-is-closed` intrinsic that its own grammar
     /// refuses.
@@ -4180,7 +4199,11 @@ pub mod code {
     /// the message carries the parser's own words, and a reader searching for
     /// "malformed pattern" should not have to know which member made the
     /// refusal.
-    pub const E_INTRINSIC_LITERAL_MALFORMED: Code = Code::new("E0769");
+    pub const E_INTRINSIC_LITERAL_MALFORMED: Code = Code::new("E0769").card(
+        "This text argument is not valid for the function it is passed to, for example a \
+         regular expression with a syntax error. The compiler checks it with the same parser \
+         the program uses when it runs. The message says what is wrong, so fix the text there.",
+    );
 
     /// A literal `Core\Str::format` template, or a literal `Core\Db` query,
     /// that does not fit the arguments written beside it.
@@ -4193,7 +4216,11 @@ pub mod code {
     /// are the same question of a second grammar, so they are the same code:
     /// the message carries the reader's own words, per
     /// [`E_INTRINSIC_LITERAL_MALFORMED`]'s.
-    pub const E_FORMAT_TEMPLATE_MISMATCH: Code = Code::new("E0770");
+    pub const E_FORMAT_TEMPLATE_MISMATCH: Code = Code::new("E0770").card(
+        "The placeholders in this `Core\\Str::format` template or `Core\\Db` query do not match \
+         the arguments next to it. Every argument must be used by a placeholder, and every \
+         placeholder needs an argument. The message says which one is wrong.",
+    );
 
     /// An `#[Api]` that contradicts the code it annotates — `rule:attributes/api-adds-and-cannot-contradict`'s
     /// contradictions, under one code.
@@ -4204,7 +4231,11 @@ pub mod code {
     /// them is the message and the two spans it names, not a number an author
     /// would ever look up separately. The fix is the same in every case —
     /// correct the attribute, or correct the code it disagrees with.
-    pub const E_API_CONTRADICTS_THE_CODE: Code = Code::new("E0771");
+    pub const E_API_CONTRADICTS_THE_CODE: Code = Code::new("E0771").card(
+        "This `#[Api]` attribute does not agree with the code it is on, or its method has no \
+         `#[Route]`. `#[Api]` may add information, but it may not contradict the code. Change \
+         the attribute or the code so that they agree.",
+    );
 
     /// A `Core\Router::url` `$params` value is a literal outside the closed set
     /// the parameter it supplies declares.
@@ -4218,7 +4249,11 @@ pub mod code {
     /// this one a key that names something and cannot hold what it was given.
     /// Only a *literal* value is checked, exactly as § 6's key rule checks only
     /// a literal key — a computed value has nothing to read.
-    pub const E_ROUTE_LINK_VALUE_NOT_IN_SET: Code = Code::new("E0772");
+    pub const E_ROUTE_LINK_VALUE_NOT_IN_SET: Code = Code::new("E0772").card(
+        "A value in the `$params` of `Core\\Router::url` is not one of the values its route \
+         parameter allows. A link with this value leads to a `404` page. Use an allowed value, or \
+         widen the type of the route parameter.",
+    );
 
     /// A `secret`-qualified value reaches
     /// `rule:classes/graph-copy`'s graph copy — [ADR
@@ -4251,7 +4286,12 @@ pub mod code {
     /// **property** of an object being copied is refused by the walk itself at
     /// run time (`nvs_runtime::graph`), because the object's static type is
     /// what a call site sees and its properties are not.
-    pub const E_SECRET_CROSSES_A_BOUNDARY: Code = Code::new("E0775");
+    pub const E_SECRET_CROSSES_A_BOUNDARY: Code = Code::new("E0775").card(
+        "A `secret` value cannot be copied to another isolate or turned into bytes, for example \
+         with `Core\\Serialize::encode`, the `args:` of `spawn script` or \
+         `Core\\Topic::publish`. Pass a value that is not `secret`, or get the plain text with \
+         `Core\\Secret::reveal` first.",
+    );
     // `E0776` is retired and is never reused: `await` lowers, as `spawn
     // script` does at `E0703`.
     // `E0777` is retired and is never reused: `spawn script`'s `limits:`,
@@ -4274,7 +4314,10 @@ pub mod code {
     /// `self::f()` and `parent::f()` from an *instance* method are not this —
     /// they forward the frame's own `$this`, which is why the question asked
     /// is whether one is in scope rather than how the call is spelled.
-    pub const E_INSTANCE_METHOD_CALLED_STATICALLY: Code = Code::new("E0778");
+    pub const E_INSTANCE_METHOD_CALLED_STATICALLY: Code = Code::new("E0778").card(
+        "This method is not `static`, so it needs an object to run on. Call it as \
+         `$object->method()`, or declare the method `static`.",
+    );
 
     /// `$this` written where no receiver is in scope — a `static` method's
     /// body, a plain function's, or the file scope.
@@ -4283,7 +4326,11 @@ pub mod code {
     /// *declared* by anything a program writes: the fix is not an assignment
     /// but a different method, so a message about a missing declaration would
     /// send the reader looking for one to add.
-    pub const E_THIS_WITHOUT_A_RECEIVER: Code = Code::new("E0779");
+    pub const E_THIS_WITHOUT_A_RECEIVER: Code = Code::new("E0779").card(
+        "`$this` exists only inside a method that is not `static`. Here there is no object, for \
+         example in a `static` method or a function. Move the code into a method that is not \
+         `static`, or pass the object as a parameter.",
+    );
 
     /// `throw` of a value that is not a `Throwable` — a scalar, an `array<T>`,
     /// an enum, or a class outside spec § 10's tree.
@@ -4292,7 +4339,11 @@ pub mod code {
     /// `nvs_ir::lower::exception` builds a landing pad for, so an operand
     /// outside it has nothing to be caught by; the lowerer refuses to lower
     /// one at all.
-    pub const E_THROW_OPERAND_NOT_THROWABLE: Code = Code::new("E0780");
+    pub const E_THROW_OPERAND_NOT_THROWABLE: Code = Code::new("E0780").card(
+        "`throw` works only with an object whose class implements `Throwable`, and this value \
+         is not one. Throw a `RuntimeError`, a `LogicError` or a class of your own that extends \
+         one of them.",
+    );
 
     /// `clone` of a value that can hold no object — `rule:classes/clone-is-shallow` makes it "a
     /// new instance of `$x`'s class", and a scalar, an `array<T>` or an enum
@@ -4302,7 +4353,10 @@ pub mod code {
     /// merely refusing: it is already copied by assignment (`rule:programs/memory-priority`'s
     /// copy-on-write), so the `clone` a reader reaches for is not missing but
     /// unnecessary.
-    pub const E_CLONE_OPERAND_NOT_AN_OBJECT: Code = Code::new("E0781");
+    pub const E_CLONE_OPERAND_NOT_AN_OBJECT: Code = Code::new("E0781").card(
+        "`clone` works only with an object, and this value is a number, a string, an array or \
+         an enum. An array is copied when you assign it, so `$copy = $list;` is enough.",
+    );
 
     /// A write to a `readonly` property from anywhere but the declaring
     /// class's own `constructor` — `rule:classes/lateinit-restrictions`'s contract for the modifier,
@@ -4314,25 +4368,38 @@ pub mod code {
     /// admits an initializing write from any method of the declaring class and
     /// throws only on the second one, so the property is write-once by
     /// bookkeeping there and by the type system here.
-    pub const E_READONLY_WRITE_AFTER_CONSTRUCTION: Code = Code::new("E0782");
+    pub const E_READONLY_WRITE_AFTER_CONSTRUCTION: Code = Code::new("E0782").card(
+        "A `readonly` property can only be set in the `constructor` of its own class. Set it \
+         there, or remove `readonly` if the value has to change later.",
+    );
 
     /// A class names a `final` class as its superclass. PHP refuses the same
     /// declaration, and for the same reason: `final` is the author's statement
     /// that the class's behaviour is not extended, so an `extends` naming one
     /// is a contradiction rather than a widening.
-    pub const E_FINAL_CLASS_EXTENDED: Code = Code::new("E0783");
+    pub const E_FINAL_CLASS_EXTENDED: Code = Code::new("E0783").card(
+        "This class extends a `final` class, and a `final` class cannot have subclasses. Remove \
+         `final` from the parent class, or do not extend it.",
+    );
 
     /// A class redeclares a method an ancestor declared `final`.
     ///
     /// Separate from [`E_FINAL_CLASS_EXTENDED`] because the two are separate
     /// promises — a class that may be extended can still hold a member that
     /// may not be replaced — and a reader fixing one is not fixing the other.
-    pub const E_FINAL_METHOD_OVERRIDDEN: Code = Code::new("E0784");
+    pub const E_FINAL_METHOD_OVERRIDDEN: Code = Code::new("E0784").card(
+        "This method replaces a method that a parent class declares `final`, and a `final` \
+         method cannot be replaced. Give this method another name, or remove `final` from the \
+         parent's method.",
+    );
 
     /// `new` names a declaration that has no instances — an `abstract` class
     /// or an interface. Both leave members without a body, so the object it
     /// would allocate could not answer every call its own type admits.
-    pub const E_ABSTRACT_INSTANTIATED: Code = Code::new("E0785");
+    pub const E_ABSTRACT_INSTANTIATED: Code = Code::new("E0785").card(
+        "`new` cannot create an object of an `abstract` class or of an interface. Create an \
+         object of a class that extends or implements it.",
+    );
 
     /// A class that is not `abstract` declares a method with no body.
     ///
@@ -4340,12 +4407,18 @@ pub mod code {
     /// direction of the same rule — that one refuses the instance, this one
     /// refuses the hole — and a class whose declaration is fixed here has no
     /// `new` to fix.
-    pub const E_ABSTRACT_METHOD_IN_CONCRETE_CLASS: Code = Code::new("E0786");
+    pub const E_ABSTRACT_METHOD_IN_CONCRETE_CLASS: Code = Code::new("E0786").card(
+        "This method has no body, but its class is not `abstract`. Give the method a body, or \
+         declare the class `abstract`.",
+    );
 
     /// A write to a property that declares a `get` hook and no `set` hook.
     /// The accessor pair is the whole of what such a property answers with,
     /// so a write has nothing to commit through.
-    pub const E_GET_ONLY_HOOK_WRITE: Code = Code::new("E0787");
+    pub const E_GET_ONLY_HOOK_WRITE: Code = Code::new("E0787").card(
+        "This property has a `get` hook and no `set` hook, so you cannot assign a value to it. \
+         Add a `set` hook, or assign to the value the `get` hook reads.",
+    );
 
     /// An `#[Access]` on a method carrying no `#[Route]`.
     ///
@@ -4357,7 +4430,10 @@ pub mod code {
     /// nothing that ever reads it. The sibling of [`E_QUERY_WITHOUT_ROUTE`]
     /// and [`E_API_CONTRADICTS_THE_CODE`], which are the same mistake made
     /// with the other markers a `#[Route]` gives meaning to.
-    pub const E_ACCESS_WITHOUT_ROUTE: Code = Code::new("E0788");
+    pub const E_ACCESS_WITHOUT_ROUTE: Code = Code::new("E0788").card(
+        "`#[Access]` works only on a method that has a `#[Route]`. Add a `#[Route]` to the \
+         method, or delete `#[Access]`.",
+    );
 
     /// A `#[Command]` method that is not `static`, or that returns something
     /// other than `void` or `uint`.
@@ -4366,7 +4442,10 @@ pub mod code {
     /// under one code for [`E_TEST_METHOD_SHAPE`]'s reason: they are one
     /// question — whether this declaration is a command handler — and an
     /// author fixing either is editing the same line.
-    pub const E_COMMAND_METHOD_SHAPE: Code = Code::new("E0789");
+    pub const E_COMMAND_METHOD_SHAPE: Code = Code::new("E0789").card(
+        "A `#[Command]` method must be `static` and must return `void` or `uint`. A `uint` \
+         return value is the exit code of the command.",
+    );
 
     /// A `secret`-qualified value written by `echo` or `print`.
     ///
@@ -4385,7 +4464,11 @@ pub mod code {
     /// commonly an interpolation the qualifier spread to rather than the
     /// secret binding itself. The help says so, because that is the half an
     /// author does not expect.
-    pub const E_SECRET_OUTPUT: Code = Code::new("E0790");
+    pub const E_SECRET_OUTPUT: Code = Code::new("E0790").card(
+        "`echo`, `print` and `html` templates cannot write a `secret` value. This includes a string that contains \
+         one, such as `\"Password: {$password}\"`. If the value really must be shown, get the \
+         plain text with `Core\\Secret::reveal` first.",
+    );
 
     /// A `secret`-qualified value reaching `Core\Json::encode`.
     ///
@@ -4401,7 +4484,11 @@ pub mod code {
     /// is still the program's own. This one refuses a document written for
     /// something outside it, and the way out differs to match — `reveal` at
     /// the one field that must travel, rather than at the call.
-    pub const E_SECRET_ENCODED: Code = Code::new("E0791");
+    pub const E_SECRET_ENCODED: Code = Code::new("E0791").card(
+        "A `secret` value cannot be passed to `Core\\Json::encode` or `Core\\Queue::push`. If \
+         one field really has to be in the document, call `Core\\Secret::reveal` on that field \
+         only.",
+    );
 
     /// A read of a class constant whose declared value has no compile-time
     /// form.
@@ -4420,7 +4507,11 @@ pub mod code {
     /// down to the shapes no constant emitter exists for at all — another
     /// class's `const`, an enum case, and `Foo::class` nested inside a
     /// container.
-    pub const E_CLASS_CONST_NO_CONSTANT_FORM: Code = Code::new("E0792");
+    pub const E_CLASS_CONST_NO_CONSTANT_FORM: Code = Code::new("E0792").card(
+        "The value of this class constant cannot be computed when the program compiles, \
+         because it uses another class's constant, an enum case or `Foo::class`. Write the \
+         value out directly, as a literal or an array of literals.",
+    );
 
     /// `rule:types/callable-is-a-closure`'s `(...)` naming a member whose parameter list a
     /// `callable` cannot carry — one declared `inout $x`, or a variadic tail.
@@ -4435,7 +4526,10 @@ pub mod code {
     /// The `inout` half is [`E_CLOSURE_INOUT_PARAM`]'s rule reached by the
     /// other spelling — that code refuses the parameter where a closure
     /// *declares* it, this one refuses naming a member that already has one.
-    pub const E_FIRST_CLASS_CALLABLE_UNFORWARDABLE: Code = Code::new("E0793");
+    pub const E_FIRST_CLASS_CALLABLE_UNFORWARDABLE: Code = Code::new("E0793").card(
+        "`method(...)` cannot make a `callable` from a method with an `inout` parameter or a \
+         variadic parameter (`...$rest`). Write a closure that calls the method instead.",
+    );
 
     /// `rule:classes/constructor-compatibility`: a `new` through a `class<T>` whose `T` has an implementor
     /// declaring a constructor incompatible with `T`'s.
@@ -4447,7 +4541,11 @@ pub mod code {
     /// subclass never instantiated through a class reference is nobody's
     /// problem and refusing it at the declaration would make an unrelated
     /// file's `new` the reason a class cannot be written.
-    pub const E_DYNAMIC_NEW_DIVERGENT_CONSTRUCTOR: Code = Code::new("E0794");
+    pub const E_DYNAMIC_NEW_DIVERGENT_CONSTRUCTOR: Code = Code::new("E0794").card(
+        "`new` through a `class<T>` value needs every class that extends `T` to accept the \
+         arguments of `T`'s constructor. One of those classes declares a constructor that does \
+         not. Change that constructor so it accepts the same arguments.",
+    );
 
     /// `rule:types/class-reference`: a `class<T>` whose argument is not a class or an
     /// interface — `class<int>`, `class<array<Dog>>`, an enum name.
@@ -4459,7 +4557,10 @@ pub mod code {
     /// a name that resolves to nothing at all. `crate::lower`'s
     /// `lower_class_ref` reports this one only when the argument lowered
     /// without complaint of its own.
-    pub const E_CLASS_REF_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0795");
+    pub const E_CLASS_REF_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0795").card(
+        "In `class<T>`, `T` must be a class or an interface. `class<int>`, an array type or an \
+         enum is not allowed.",
+    );
 
     /// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`: a request member whose verb repeats an effect —
     /// `Core\Http\Client::post` — asking for retries without
@@ -4470,7 +4571,12 @@ pub mod code {
     /// at the call site. Distinct from [`E_UNKNOWN_OPTION`], which is the
     /// mistake of naming an option that does not exist; here every option
     /// named is real and it is the *absent* one that is the defect.
-    pub const E_RETRY_WITHOUT_IDEMPOTENCY_KEY: Code = Code::new("E0796");
+    pub const E_RETRY_WITHOUT_IDEMPOTENCY_KEY: Code = Code::new("E0796").card(
+        "Retries for a request like `Core\\Http\\Client::post` need a `retryIdempotencyKey`, \
+         because sending the request again can repeat what it does. Add \
+         `retryIdempotencyKey: \"...\"` to the same options. The server receives it as the \
+         `Idempotency-Key` header.",
+    );
 
     /// A `secret`-qualified value reaching `Core\Log::write`.
     ///
@@ -4487,7 +4593,11 @@ pub mod code {
     /// differs to match — the field a program genuinely means to record is
     /// revealed by name, which is what makes a logged credential a written
     /// decision rather than an accident of what was in the bag.
-    pub const E_SECRET_LOGGED: Code = Code::new("E0797");
+    pub const E_SECRET_LOGGED: Code = Code::new("E0797").card(
+        "A `secret` value cannot be written to a log. Log something that identifies it \
+         instead, such as its key name. If the value itself must be in the log, call \
+         `Core\\Secret::reveal` on that field only.",
+    );
 
     /// A `Core\Attributes` retrieval whose literal `$member` names no declared
     /// parameter or property of the target.
@@ -4505,7 +4615,10 @@ pub mod code {
     /// misspelling produces — `null`, or the empty array — is exactly what a
     /// correct retrieval of an absent attribute produces, and nothing later
     /// can tell the two apart.
-    pub const E_ATTRIBUTE_MEMBER_NOT_DECLARED: Code = Code::new("E0798");
+    pub const E_ATTRIBUTE_MEMBER_NOT_DECLARED: Code = Code::new("E0798").card(
+        "The member name passed to `Core\\Attributes` is not a parameter or property of the \
+         target. Check the spelling of the name.",
+    );
 
     /// `rule:types/property-key`: a `property<T>` whose argument is not a class —
     /// `property<int>`, an interface, an enum.
@@ -4535,7 +4648,10 @@ pub mod code {
     /// opens a new band rather than taking `E0800`, whose digits read as no
     /// band at all. That is a project-level decision and `docs/adr/README.md`
     /// § *Decisions taken at project level* is its home, as it is for `E0500`.
-    pub const E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0799");
+    pub const E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0799").card(
+        "In `property<T>`, `T` must be a class with at least one public property. An interface, \
+         an enum or a type like `int` is not allowed.",
+    );
 
     // --- E08xx types, continued again ---------------------------------------
     //
@@ -5139,14 +5255,11 @@ mod tests {
     /// it: it lands with its card. Goal `core-class-cards` is what empties the
     /// list.
     const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0763", "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772",
-        "E0775", "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786",
-        "E0787", "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796",
-        "E0797", "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808",
-        "E0809", "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819",
-        "E0820", "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829",
-        "E0830", "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004",
-        "W1005", "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
+        "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808", "E0809", "E0810", "E0811",
+        "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819", "E0820", "E0821", "E0822",
+        "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829", "E0830", "E0831", "E0832",
+        "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004", "W1005", "W1006", "W1007",
+        "W1008", "W1009", "W1010", "W1011", "W1012",
     ];
 
     /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
