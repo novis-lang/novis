@@ -1,28 +1,33 @@
 {
-  "state": "**Goal `core-class-cards`: Stages 2, 3 and 4 are done, and Stage 5 is next.** Every diagnostic code in\n`crates/nvs-diagnostics/src/lib.rs` carries its `.card(…)`, `CODES_STILL_OWING_A_CARD` is empty, and\n`no_code_still_owes_a_card` sits beside `every_code_carries_its_card_or_is_listed` and holds every\ndeclared code to a card. `rule:tooling/a-diagnostic-code-carries-its-card` is `shipped`, guarded by\nthat file and `render.rs`. The one red acceptance check left is Stage 5's: `bun nv proofs` still owes\n*Help* for features in `data/proofs/help-backlog.json`, and the backlog is not empty.",
+  "state": "**Goal `core-class-cards`: Stages 2, 3 and 4 are done, and Stage 5 is half done.** `data/proofs/help-backlog.json`\nis empty. Every `Core` member on it already passed through its class card. The five `lang:` sections\nleft over now show a runnable example in `docs/reference/lang/80-concurrency.md` and `90-attributes.md`.\n`bun nv proofs --gate` prints `nothing owed in the whole roster` and `help backlog: empty`, so the goal's last\nacceptance check is green. Stage 5's prose (`docs/agent/goals/core-class-cards.md` § *Stage 5*) still asks\nfor two things: *Help* switched on for exceptions, interfaces and directives. Those kinds are still\n`help: false` in `POLICY`. With them on, the gate names 13 exceptions and 6 interfaces with no card.",
   "next": {
     "stage": 5,
     "title": "Help is owed by the whole roster",
     "files": [
-      "data/proofs/help-backlog.json",
-      "tools/nv/proofs/collect.ts"
+      "crates/nvs-hir/src/errors.rs",
+      "crates/nvs-hir/src/interfaces.rs",
+      "crates/nvs-cli/src/meta.rs",
+      "crates/nvs-cli/src/agent.rs",
+      "tools/nv/proofs/collect.ts",
+      "tools/nv/proofs/roster.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Delete the backlog entries that already pass** — `rule:testing/feature-proofs`; the list `tools/nv/proofs/collect.ts:53` reads, `data/proofs/help-backlog.json`, is mostly `Core` members, and a member's *Help* is its class's card, which Stage 2 wrote. Run `bun nv proofs --id '<feature>'` on a sample first to confirm a carded class's member owes nothing, then delete every entry that passes in one edit, and write help only for what is left."
+        "text": "**An exception and an interface owe *Help*** — `rule:testing/feature-proofs`, `rule:core-api/reference-card`. `errors::TREE` (`crates/nvs-hir/src/errors.rs:96`) and `interfaces::RESERVED` (`crates/nvs-hir/src/interfaces.rs:44`) are bare tuples with no card. Give each row one `short` sentence, written in the end-user voice. Emit it as `doc.short` in `exception_json` and `interface_json` (`crates/nvs-cli/src/meta.rs:212`, `crates/nvs-cli/src/meta.rs:230`), the way `enum_doc_json` (`crates/nvs-cli/src/meta.rs:521`) does. Print it in `push_roster_card` (`crates/nvs-cli/src/agent.rs:796`). Interfaces are not on the `agent` index at all yet, so add them there too. Add a test in `crates/nvs-cli/tests/meta.rs` beside `every_enum_and_constant_carries_a_doc_key`. Then set `help: true` for both kinds at `tools/nv/proofs/collect.ts:45`. `roster.ts:296` already reads `doc.short` for both."
       },
       {
         "done": false,
-        "text": "**An exception and an interface owe *Help*** — `rule:testing/feature-proofs`; give both a card as an enum has one, and switch `help` on for both kinds in `POLICY` at `tools/nv/proofs/collect.ts:42`."
+        "text": "**A directive owes *Help*** — `rule:tooling/the-index-names-every-key-command-and-code`. `roster.ts` hard-codes `help: \"\"` for a directive (`tools/nv/proofs/roster.ts:323`), so switching it on proves nothing. Make the help owed when the directive's key has no entry on the index that `crates/nvs-cli/src/agent/names.rs` builds. Emit what the roster needs from `directive_json` (`crates/nvs-cli/src/meta.rs:239`). Then set `help: true` at `tools/nv/proofs/collect.ts:49`, and rewrite the comment above `POLICY` at `tools/nv/proofs/collect.ts:40`."
       },
       {
         "done": false,
-        "text": "**A directive owes *Help*** — `rule:tooling/the-index-names-every-key-command-and-code`; set a directive's help from its index entry (Stage 3 landed it) and switch `help` on for the kind in `POLICY` at `tools/nv/proofs/collect.ts:42`."
+        "text": "**Close the goal** — after both items, `bun nv proofs --gate` must still print all three wanted lines (`tools/nv/cmd/proofs.ts:249`). Then run AGENTS-loop step 6's `DONE` gates: `bun nv verify --doc`, `bun nv owners --closes core-class-cards`, `bun nv playbook --closes core-class-cards`."
       }
     ]
   },
   "backlog": [
-    "Once the backlog is empty and every kind owes *Help*, the goal is met: run `bun nv verify --doc`, `bun nv owners --closes core-class-cards` and `bun nv playbook --closes core-class-cards` before writing `DONE`."
+    "The `HELP_BACKLOG` reader in `tools/nv/proofs/collect.ts:79` and the empty `data/proofs/help-backlog.json` stay as they are. The gate's `help backlog: empty` line is what the acceptance check reads.",
+    "The `<!-- generated: attributes -->` table is not expanded by `nvs agent show` (it prints the marker). Owner: `crates/nvs-cli/src/agent.rs`, not checked further."
   ]
 }

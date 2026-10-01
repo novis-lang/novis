@@ -13,7 +13,11 @@
       "tools/nv/cmd/proofs.ts",
       "data/proofs/policy.json",
       "data/proofs/help-backlog.json",
-      "crates/nvs-cli/src/agent/names.rs"
+      "crates/nvs-cli/src/agent/names.rs",
+      "crates/nvs-hir/src/errors.rs",
+      "crates/nvs-hir/src/interfaces.rs",
+      "crates/nvs-cli/src/meta.rs",
+      "tools/nv/proofs/roster.ts"
     ],
     "rules": [
       "core-api/reference-card",
