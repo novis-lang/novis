@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program tries every way to get more memory than `[limits.hard]` allows.
 // Each attempt should fail, and the program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Remove or raise the highest limit itself. Each call should return `false`.
 array<string> $ceilings = ['false', '1G', '0', ''];
@@ -24,5 +24,6 @@ echo Core\Config::set('memory', '0.05G') ? 'yes' : 'no', "\n";
 echo Core\Config::get('memory'), "\n";
 
 // 4. Build 64M of text. The program should stop at its 48M limit.
+echo "step 4\n";
 string $large = Core\Str::repeat('x', 67108864);
 echo Core\Str::length($large), "\n";

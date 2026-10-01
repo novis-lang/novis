@@ -2,7 +2,7 @@
 // Attack: URLs try to reach this server's own network by hiding a loopback, private
 // or link-local address. Every one must be refused, and very long URLs must not
 // crash the runtime. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -66,6 +66,7 @@ foreach ($huge as string $url) {
 
 // 4. Every allowed URL is kept in a list and never freed.
 //    This step ends the program at its memory limit.
+echo "step 4\n";
 array<Core\Http\Target> $kept = [];
 uint $n = 0;
 while (true) {

@@ -2,7 +2,7 @@
 // Attack: a program splits very long texts into millions of pieces, with limits at the
 // far ends of their range. Each call should return an array or throw an error. The last
 // one should stop at the memory limit.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 // hostile: timeout-ms 30000
 
 class Split
@@ -43,4 +43,5 @@ echo $done, "\n";
 
 // 6. A text of 50 million characters is split into one piece per character. The pieces
 // need more memory than the limit, so the program stops here with a memory limit error.
+echo "step 6\n";
 echo Split::count(Core\Str::repeat('a', 50000000), '', 9223372036854775807), "\n";

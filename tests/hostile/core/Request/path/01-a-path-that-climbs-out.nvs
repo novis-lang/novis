@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a client sends a path that tries to climb out of the web folder, and the program keeps every path it reads.
 // The path should come back exactly as sent. The program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // 1. Reads the path. It has `..` parts, encoded slashes and an encoded zero byte.
 tainted string $path = Core\Request::path();
@@ -19,6 +19,7 @@ while ($i < 100000) {
 echo 'same answer: ', $same, "\n";
 
 // 3. Keeps every path without end. This stops at the memory limit.
+echo "step 3\n";
 array<tainted string> $kept = [];
 while (true) {
     $kept[] = Core\Request::path();

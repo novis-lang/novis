@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a client sends the `Host` header on many lines, with broken values and a false `X-Forwarded-Host`.
 // `host` should return one lower-case string and never read the forwarded header. The program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. Reads the host. The lines are joined, and one line opens a bracket that never closes.
 tainted string $host = Core\Request::host() ?? '';
@@ -25,6 +25,7 @@ while ($i < 10000) {
 echo 'same result: ', $same, "\n";
 
 // 5. Keeps every copy of the host without end. This stops at the memory limit.
+echo "step 5\n";
 array<?tainted string> $kept = [];
 while (true) {
     $kept[] = Core\Request::host();

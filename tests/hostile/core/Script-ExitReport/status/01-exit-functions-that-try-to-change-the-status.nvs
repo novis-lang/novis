@@ -2,7 +2,7 @@
 // Attack: exit functions call `exit` with other numbers to change the status,
 // and the script exits with the largest number there is. Every function should
 // read the same status, and the process should exit with it.
-// hostile: ends-early
+// hostile: ends-early 4 RuntimeError
 
 final class Seen
 {
@@ -38,4 +38,5 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
 });
 
 // 4. The script exits with the largest whole number.
+echo "step 4\n";
 exit(9223372036854775807);

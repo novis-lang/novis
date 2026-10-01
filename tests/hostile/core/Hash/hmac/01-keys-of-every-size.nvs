@@ -2,7 +2,7 @@
 // Attack: a program signs data with an empty key, a huge key and huge data, and then keeps
 // more signatures than memory can hold. Every signature should be computed. The program
 // must stop at its memory limit with an error.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -57,6 +57,7 @@ echo 'chain done: ', Core\Bytes::length($chain), " bytes\n";
 
 // 5. Every signature is kept, so nothing can be freed. This step ends the program at
 // its memory limit.
+echo "step 5\n";
 array<bytes> $kept = [];
 while (true) {
     $kept[] = Core\Hash::hmac('keep', $chain, Core\Digest::Sha512);

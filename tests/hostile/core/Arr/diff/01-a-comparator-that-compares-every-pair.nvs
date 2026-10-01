@@ -4,7 +4,7 @@
 // last step should stop at the memory limit with an error, and the program
 // must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. Nothing at all, on both sides.
 echo Core\Arr::count(Core\Arr::diff([], [])), "\n";
@@ -36,6 +36,7 @@ echo Core\Arr::count(Core\Arr::diff($wide, $left, {
 
 // 6. Two lists of one million numbers with nothing in common. Keeping every
 // result needs more memory than the program has, so it stops here with an error.
+echo "step 6\n";
 array<int> $huge = Core\Arr::range(1, 1000000);
 array<int> $other = Core\Arr::range(2000000, 3000000);
 array<array<int>> $kept = [];

@@ -4,7 +4,7 @@
 // Every step should finish, and the last one should stop the program with an
 // error. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 7 FATAL
 
 // 1. 100000 rows, one value taken out of each.
 array<array<string>> $rows = [];
@@ -48,6 +48,7 @@ echo 'step 6: ', Core\Arr::count(Core\Arr::column($empties, 'name')), '|', "\n";
 
 // 7. The value that `indexBy` names is a number with a fraction, which is not
 //    a key. The program stops here with an error.
+echo "step 7\n";
 array<array<mixed>> $mistyped = [['id' => 1.5, 'name' => 'n']];
 echo 'step 7: ', Core\Arr::count(Core\Arr::column($mistyped, 'name', { indexBy: 'id' })), '|', "\n";
 

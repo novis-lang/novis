@@ -2,7 +2,7 @@
 // Attack: a program sets a small memory limit and then starts task groups inside
 // task groups, 20,000 deep. Every waiting task uses memory, so the program should
 // stop at its memory limit with an error.
-// hostile: ends-early
+// hostile: ends-early 2 FATAL
 // hostile: timeout-ms 30000
 // proof: gap nvs-host/a-task-stack-is-not-charged-to-its-request
 
@@ -26,4 +26,5 @@ echo 'step 1: ', Core\Config::set('limits.memory', '64M') ? 'limit set' : 'not a
 
 // Step 2: 20,000 levels of groups. This should stop at the memory limit.
 // It is the last step because the program ends here.
+echo "step 2\n";
 echo 'step 2: ', Nest::down(20000), "\n";

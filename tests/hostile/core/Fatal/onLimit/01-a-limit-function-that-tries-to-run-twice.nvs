@@ -2,7 +2,7 @@
 // Attack: a program registers 100,000 limit functions, and the last one tries
 // to register another one and to throw. Only one function may run, once, and the
 // program must still end at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 // hostile: timeout-ms 30000
 
 Core\Config::set('limits.memory', '16M');
@@ -30,6 +30,7 @@ Core\Fatal::onLimit(fn (array<string> $report): void => {
 });
 
 // 3. The program fills its memory inside a `try`. The limit stops it here.
+echo "step 3\n";
 try {
     array<string> $blocks = [];
     while (true) {

@@ -2,7 +2,7 @@
 // Attack: exit functions save the report in a static array and read it many
 // times. Every read should give the same reason, and the runtime must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 3 RuntimeError
 
 final class Kept
 {
@@ -35,4 +35,5 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
 
 // 3. The script ends with an error that nothing catches. The saved reports
 // also keep that error, and all of them are freed when the script ends.
+echo "step 3\n";
 throw new RuntimeError('the job failed');

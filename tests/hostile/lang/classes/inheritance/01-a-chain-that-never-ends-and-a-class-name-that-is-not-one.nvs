@@ -3,7 +3,7 @@
 // of parent classes that never ends. It makes a million objects of a class it
 // picked while running. It converts text that names no class at all. The
 // runtime should stay standing.
-// hostile: ends-early
+// hostile: ends-early 4 RuntimeError
 // covers: lang:classes/inheritance
 
 class L0
@@ -85,5 +85,6 @@ echo '3: made ', $made, ' objects that add up to ', $sum, "\n";
 
 // 4. Text that names no class is converted to a class. Nothing catches the
 //    error, so the program ends here.
+echo "step 4\n";
 class<L0> $missing = 'NoSuchClass' as class<L0>;
 echo '4: BAD, the program is still running with ', $missing as string, "\n";

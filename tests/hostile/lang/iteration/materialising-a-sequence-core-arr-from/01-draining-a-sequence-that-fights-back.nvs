@@ -5,7 +5,7 @@
 // with no end, which fills the memory and stops the program.
 // covers: lang:iteration/materialising-a-sequence-core-arr-from
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Gen
 {
@@ -81,5 +81,6 @@ try {
 }
 
 // 5. A sequence with no end is drained with no limit, so this step ends the program.
+echo "step 5\n";
 array<string> $everything = Core\Arr::from(Gen::text('0123456789abcdef'));
 echo '5: kept ', Core\Arr::count($everything), "\n";

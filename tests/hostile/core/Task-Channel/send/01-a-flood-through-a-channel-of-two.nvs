@@ -3,7 +3,7 @@
 // program sends into a channel that is already closed. Memory use must stay at the
 // size of the channel, and the last step must stop the program cleanly.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Two hundred thousand values go through a channel with room for two. At most
 //    two values wait in the channel, so this must run to the end.
@@ -60,6 +60,7 @@ Core\Task::all({
 
 // 4. A send into a channel that is already closed. This must stop the program,
 //    so nothing after it runs.
+echo "step 4\n";
 var $shut = new Core\Task\Channel<int>(1);
 $shut->close();
 $shut->send(1);

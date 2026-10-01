@@ -2,7 +2,7 @@
 // Attack: broken tables, text that never ends and a huge document are parsed.
 // No step may crash the runtime. The last step stops the program at its memory limit.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -35,5 +35,6 @@ echo 'step 2: ', Count::nodes($open), "\n";
 
 // 3. A document with ten million paragraphs. The tree is larger than the memory limit,
 // so this step ends the program at the limit.
+echo "step 3\n";
 var $huge = Core\Html::parse(Core\Str::repeat('<p>x', 10000000));
 echo 'step 3: ', Count::nodes($huge), "\n";

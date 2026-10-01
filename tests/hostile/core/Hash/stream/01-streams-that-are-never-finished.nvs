@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program opens streams under every algorithm and never finishes most of them. Every
 // open stream should be freed with its variable. The program must stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -31,6 +31,7 @@ echo "abandoned streams: freed\n";
 
 // 3. Every stream is kept, and each one keeps its own text. This step ends the program at
 // its memory limit.
+echo "step 3\n";
 array<Core\Hash\Stream> $kept = [];
 uint $n = 0;
 while (true) {

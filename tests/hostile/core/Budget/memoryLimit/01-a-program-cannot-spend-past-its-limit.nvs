@@ -2,7 +2,7 @@
 // Attack: the limit is read half a million times, and then the program takes
 // more memory than the limit allows. The limit must be the same number every
 // time, and the runtime must stop the program when it goes over.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // 1. The limit is read 500000 times. It must never change, so this prints 0.
 uint $limit = Core\Budget::memoryLimit();
@@ -22,6 +22,7 @@ echo $limit > 0 && Core\Budget::memoryHeld() >= $limit ? 1 : 0, "\n";
 
 // 3. The program asks for far more memory than the limit allows. The runtime
 //    must stop it here with an error, so this is the last step.
+echo "step 3\n";
 array<string> $greed = [];
 $i = 0;
 while ($i < 20000000) {

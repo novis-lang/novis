@@ -2,7 +2,7 @@
 // Attack: requests with each of the eight HTTP methods try to reach this server's own
 // network, and `GET` and `HEAD` requests carry a very large body. Every one must throw
 // an error before anything is sent. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -103,6 +103,7 @@ echo 'step 3: ', $j, "\n";
 
 // 4. Every refused request is kept in a list with its error message, and never freed.
 //    The method changes on each call. This step ends the program at its memory limit.
+echo "step 4\n";
 array<string> $kept = [];
 uint $n = 0;
 while (true) {

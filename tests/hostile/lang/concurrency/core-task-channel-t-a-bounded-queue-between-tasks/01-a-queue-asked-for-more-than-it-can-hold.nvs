@@ -5,7 +5,7 @@
 // must stop the program with an error.
 // covers: lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Flood
 {
@@ -86,6 +86,7 @@ try {
 
 // Step 5: a value is sent into a channel that is already closed. This stops the
 // program with an error, so nothing after this line runs.
+echo "step 5\n";
 var $shut = new Core\Task\Channel<int>(4);
 $shut->close();
 $shut->send(1);

@@ -3,7 +3,7 @@
 // source that never stops giving them. The last step should stop with an
 // error, and the program must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Endless
 {
@@ -74,5 +74,6 @@ echo 'loop done ', $seen, "\n";
 
 // 5. The source that never ends, with no limit at all. No computer has that
 // much memory, so the program stops here with an error.
+echo "step 5\n";
 Core\Arr::from(Endless::counter());
 echo "endless read\n";

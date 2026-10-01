@@ -2,7 +2,7 @@
 // Attack: a program tries to upload files outside the one directory it may read, and
 // tries to add a second form field through a file name. Every attempt must throw an
 // error before anything is sent. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -103,6 +103,7 @@ echo 'step 3: ', $round, "\n";
 
 // 4. Parts with a file name of ten thousand characters are kept in a list and never
 //    freed. This step ends the program at its memory limit.
+echo "step 4\n";
 array<Core\Http\Part> $kept = [];
 uint $n = 0;
 while (true) {

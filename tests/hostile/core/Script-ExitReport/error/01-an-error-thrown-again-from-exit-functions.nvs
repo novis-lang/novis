@@ -3,7 +3,7 @@
 // 1000 earlier errors. Exit functions throw it again. Each throw should be logged,
 // the next function should still run, and the runtime must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 3 RuntimeError
 
 final class Seen
 {
@@ -44,6 +44,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
 });
 
 // 3. The error is built from 1000 earlier errors and a message of one million letters.
+echo "step 3\n";
 RuntimeError $cause = new RuntimeError('the first cause');
 int $k = 0;
 while ($k < 1000) {

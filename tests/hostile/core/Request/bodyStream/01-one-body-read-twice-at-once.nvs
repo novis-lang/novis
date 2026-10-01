@@ -2,7 +2,7 @@
 // Attack: a program reads the same request body twice at the same time, and then keeps
 // copies of it without end. Each second read should throw an error or read nothing.
 // The program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. Asks for the body in pieces twice. The second call throws a `LogicError`.
 Core\Request\BodyStream $stream = Core\Request::bodyStream();
@@ -42,6 +42,7 @@ try {
 
 // 5. Makes large copies of the first piece and keeps all of them.
 //    This stops at the memory limit.
+echo "step 5\n";
 array<tainted bytes> $copies = [];
 while (true) {
     $copies[] = Core\Bytes::repeat($kept[0], 100000);

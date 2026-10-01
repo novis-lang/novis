@@ -3,7 +3,7 @@
 // record of its failure. Every write should fail. The program then fails, and
 // the record should still be written to the configured target.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 RuntimeError
 
 // 1. Tries `log.target` and keys that are almost the same.
 array<string> $names = [
@@ -74,4 +74,5 @@ Core\Fatal::onLimit(fn (): void => {
 
 // 4. Throws an error with a very long message, and nothing catches it. The
 //    server should write the record and keep running.
+echo "step 4\n";
 throw new RuntimeError(Core\Str::repeat('the destination is not mine to move. ', 65536));

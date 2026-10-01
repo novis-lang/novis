@@ -4,7 +4,7 @@
 // print a correct number, and the last one should stop the program at its
 // memory limit. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. The key is the largest whole number there is, so adding an entry without a
 // key is not allowed. That error is caught, and the count stays at 1.
@@ -43,6 +43,7 @@ echo 'step 4: ', Core\Arr::count($wide), "\n";
 
 // 5. Every round adds a text of ten million characters and counts the array
 // again. The program should stop at its memory limit.
+echo "step 5\n";
 array<string> $kept = [];
 int $round = 0;
 while ($round < 400000) {

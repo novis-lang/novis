@@ -4,7 +4,7 @@
 // One has no end and is left only by a `break`. The last loop has a condition
 // that throws, with nothing to catch it.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 RuntimeError
 // covers: lang:statements/while-and-do-while
 
 class Attack
@@ -59,6 +59,7 @@ echo $skipped, ' ', $reached, "\n";
 
 // 5. The last loop asks its condition and the call throws. Nothing catches it,
 // so the program ends with status 1.
+echo "step 5\n";
 while (Attack::stop()) {
     echo "never\n";
 }

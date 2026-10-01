@@ -2,7 +2,7 @@
 // Attack: a program tries to change the environment through the array it was given.
 // Then it keeps one copy of the environment per round until nothing is left. The
 // environment must not change. The program must stop at its memory limit with an error.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '32M');
@@ -39,6 +39,7 @@ echo 'rounds done: ', $round, "\n";
 
 // 4. Every copy of the environment is kept, so nothing can be freed. This step ends
 // the program at its memory limit.
+echo "step 4\n";
 array<array<tainted string>> $kept = [];
 while (true) {
     $kept[] = Core\Env::all();

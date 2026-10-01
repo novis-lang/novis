@@ -3,7 +3,7 @@
 // million objects are held at once. One constructor throws, and another
 // creates its own class forever. Every step should end in an error the
 // program can catch, and the runtime should stay standing.
-// hostile: ends-early
+// hostile: ends-early 5 RuntimeError
 // covers: lang:classes/declaring-a-class
 
 // 1. Half a million objects of a tiny class, all held at the same time.
@@ -80,5 +80,6 @@ echo '4: made ', $pairs, " pairs that point at each other\n";
 
 // 5. A constructor throws again, and this time nothing catches it. The program
 // ends here.
+echo "step 5\n";
 var $last = new Refuser(2);
 echo "5: BAD, the program is still running\n";

@@ -4,7 +4,7 @@
 // four bytes each, and a hundred thousand deep. The last step should stop at
 // the request's memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Two million bytes of comment before a statement. Its offset is a large
 // number, and every byte before it has to be counted.
@@ -32,6 +32,7 @@ echo 'the last of a hundred thousand statements starts at ', $highest, "\n";
 
 // 4. A list of offsets that doubles in size. That soon needs more memory than
 // the request may hold, so the program stops here.
+echo "step 4\n";
 array<mixed> $offsets = [$far->offset(), $last->offset(), $highest];
 uint $k = 0;
 while ($k < 40) {

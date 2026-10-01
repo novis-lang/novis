@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a client sends one name in many cases and on many lines, and the program keeps every copy.
 // All the lines of one name should be in one list. The program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Counts the names and the lines. `X-Trace` arrived in four cases, so it is one key.
 array<array<tainted string>> $headers = Core\Request::headers();
@@ -22,6 +22,7 @@ $headers['x-trace'] = ['changed'];
 echo 'x-trace lines: ', Core\Arr::count(Core\Request::headers()['x-trace']), "\n";
 
 // 4. Keeps every copy of all the headers without end. This stops at the memory limit.
+echo "step 4\n";
 array<array<array<tainted string>>> $kept = [];
 while (true) {
     $kept[] = Core\Request::headers();

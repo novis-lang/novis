@@ -5,7 +5,7 @@
 // The runtime should stay standing.
 // covers: lang:iteration/the-two-interfaces
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Refusing implements Iterable<int>
 {
@@ -110,6 +110,7 @@ try {
 
 // 5. `iterate()` is called again and again, and every cursor it returns is kept. The cursors
 // fill the memory, so this step ends the program.
+echo "step 5\n";
 array<Iterator<int>> $cursors = [];
 var $source = new Pages();
 int $n = 0;

@@ -3,7 +3,7 @@
 // no real program reaches. The runtime should run every step, stop with an
 // error where a number no longer fits, and stay standing.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 5 ArithmeticError
 // covers: lang:statements/expression-statements-blocks-and-declarations
 
 // 1. Eighty blocks inside each other. A block opens no scope, so the variable
@@ -49,5 +49,6 @@ echo $verdict, "\n";
 
 // 5. The last statement throws its value away, and the multiplication still
 // runs. It overflows, nothing catches the error, and the program ends here.
+echo "step 5\n";
 int $huge = 9223372036854775807;
 $huge * $huge;

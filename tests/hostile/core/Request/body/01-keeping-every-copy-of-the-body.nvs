@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program reads the request body without end and keeps every copy.
 // The program should stop at its memory limit with an error, and must not crash.
-// hostile: ends-early
+// hostile: ends-early 2 FATAL
 
 // 1. Tries to read the body a chunk at a time after `body` already read it.
 //    This throws a `LogicError`, and the body is still there afterwards.
@@ -17,6 +17,7 @@ echo Core\Request::body() == $first ? "the body is unchanged\n" : "the body chan
 
 // 2. Calls `body` without end and keeps every string it returns.
 //    Each call returns a new copy, so this stops at the memory limit.
+echo "step 2\n";
 array<tainted string> $copies = [];
 while (true) {
     $copies[] = Core\Request::body();

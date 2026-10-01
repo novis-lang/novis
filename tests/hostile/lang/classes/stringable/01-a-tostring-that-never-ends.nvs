@@ -3,7 +3,7 @@
 // object it is rendering, two render each other, and one returns a text that
 // doubles every time it is called. The runtime should stay standing.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // covers: lang:classes/stringable
 
 final class Mirror implements Stringable
@@ -94,6 +94,7 @@ try {
 
 // 4. Forty renders of a text that doubles every time. This passes any memory
 //    limit within a few dozen rounds, and the program ends here.
+echo "step 4\n";
 var $grower = new Grower();
 int $rendered = 0;
 while ($rendered < 40) {

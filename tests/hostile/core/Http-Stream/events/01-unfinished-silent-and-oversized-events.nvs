@@ -2,7 +2,7 @@
 // Attack: a server sends events that never finish, only comments, lines and data that are
 // too long, and very many events. `events()` must give each finished event once, or throw
 // an error. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -71,6 +71,7 @@ echo 'step 5: done', "\n";
 
 // 6. Every event of every stream is kept in a list and never freed.
 //    This step ends the program at its memory limit.
+echo "step 6\n";
 array<Core\Http\Event> $kept = [];
 uint $n = 0;
 while (true) {

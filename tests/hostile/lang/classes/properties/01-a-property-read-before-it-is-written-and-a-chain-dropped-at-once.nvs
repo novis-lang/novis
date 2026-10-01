@@ -2,7 +2,7 @@
 // Attack: a program uses properties in ways a normal one never does. It reads a
 // property before anything writes it. It links two hundred thousand objects
 // through a property and drops them at once. The runtime should stay standing.
-// hostile: ends-early
+// hostile: ends-early 4 LogicError
 // covers: lang:classes/properties
 
 final class Node
@@ -56,6 +56,7 @@ echo '3: the static property now has ', Core\Arr::count(Bucket::$values), " valu
 
 // 4. The same unwritten property is read again, with nothing to catch the
 //    error. The program ends here.
+echo "step 4\n";
 var $last = new Holder();
 echo $last->node->depth, "\n";
 echo "4: BAD, the program is still running\n";

@@ -4,7 +4,7 @@
 // written to break that walk. Every step should finish, and the last one should
 // stop the program at its memory limit. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -57,6 +57,7 @@ echo 'step 3: ', Core\Arr::count($single), ' group of ', Core\Arr::count($single
 
 // 4. Every entry is named into a group of its own, and each group name is
 // 10000 characters long. The program should stop at its memory limit.
+echo "step 4\n";
 array<array<int>> $huge = Core\Arr::groupBy($wide, fn(int $n)
     => Core\Str::repeat('b', 10000) . Core\Str::format('%d', $n));
 echo 'step 4: ', Core\Arr::count($huge), "\n";

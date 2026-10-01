@@ -2,7 +2,7 @@
 // Attack: a server sends one header on a very large number of lines, and the
 // program asks for headers with very long or broken names. Each call must return
 // a value or throw an error. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -47,6 +47,7 @@ echo 'step 3: refused', "\n";
 
 // 4. The joined header is read again and again, and every result is kept. This
 //    step ends the program at its memory limit.
+echo "step 4\n";
 array<tainted string> $kept = [];
 while (true) {
     $kept[] = $response->header('X-Trace') ?? '';

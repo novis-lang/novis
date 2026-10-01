@@ -2,7 +2,7 @@
 // Attack: a program puts a script, line breaks and very large values into a page, and
 // then writes pages without end. Each value should be escaped or sent as it is, and the
 // program should stop at its memory limit without crashing.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 // hostile: timeout-ms 60000
 
 // 1. A value that tries to close the tag and start a script.
@@ -31,6 +31,7 @@ Core\Response::html($page);
 
 // 6. The page is kept in memory and written again and again until the memory limit
 // stops the program.
+echo "step 6\n";
 Core\Html\Markup $chunk = Core\Html::escape(Core\Str::repeat('b', 65536));
 var $kept = Core\Out::capture(fn (): void => {
     uint $written = 0;

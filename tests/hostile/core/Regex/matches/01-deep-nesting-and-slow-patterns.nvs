@@ -2,7 +2,7 @@
 // Attack: a program checks texts with patterns that are nested very deeply, that
 // need very many steps, or that have many groups. Each check should return `true`,
 // return `false` or throw an error. The last one should stop at the memory limit.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 class Check
 {
@@ -43,4 +43,5 @@ echo $true, "\n";
 
 // 6. A pattern with 5000 groups. Checking with it needs more memory than the
 // program may use, so the program stops here with a memory limit error.
+echo "step 6\n";
 echo Check::run(Core\Str::repeat('a', 5000), Core\Str::repeat('(a)', 5000)), "\n";

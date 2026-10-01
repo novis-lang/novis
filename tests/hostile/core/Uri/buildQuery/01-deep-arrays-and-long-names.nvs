@@ -2,7 +2,7 @@
 // Attack: a program builds query strings from arrays nested very deep, where every
 // value repeats a long name. Each call should return a text or throw an error.
 // The last one should stop at the memory limit before the text is built.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Build
 {
@@ -50,6 +50,7 @@ echo $done, "\n";
 
 // 5. 200000 values inside 2000 nested arrays. Every value repeats the long name,
 // so the text would need about 3 GB. The program stops here with a memory limit error.
+echo "step 5\n";
 array<mixed> $values = [];
 uint $j = 0;
 while ($j < 200000) {

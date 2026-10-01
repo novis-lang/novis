@@ -2,7 +2,7 @@
 // Attack: a request tries to remove `limits.fatal_reserve_memory`, the memory kept
 // for its error handler. It then runs out of memory. The handler should still run.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // Registers the handler first, so every step below runs while the handler is
 // in place.
@@ -82,6 +82,7 @@ while ($round < 1000) {
 
 // 4. Lowers the memory limit to `8M`, then fills it in a loop. The request
 //    stops, and the handler registered at the top should run in the reserve.
+echo "step 4\n";
 echo 'net:  ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing)', "\n";
 echo 'heap: ', Core\Config::set('limits.memory', '8M') ? 'lowered' : 'refused', "\n";
 

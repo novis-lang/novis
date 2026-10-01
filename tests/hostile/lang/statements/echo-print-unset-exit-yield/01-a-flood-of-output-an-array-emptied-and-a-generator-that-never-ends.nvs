@@ -4,7 +4,7 @@
 // generator with no end is abandoned ten thousand times. The last step ends
 // the program with a status far outside one byte.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 5 exit
 // covers: lang:statements/echo-print-unset-exit-yield
 
 class Attack
@@ -73,4 +73,5 @@ echo $sum, "\n";
 
 // 5. The last step ends the program. A status is one byte, so 300 leaves the
 // process reporting 44.
+echo "step 5\n";
 exit(300);

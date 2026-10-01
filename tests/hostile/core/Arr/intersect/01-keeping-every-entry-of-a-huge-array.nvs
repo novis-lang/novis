@@ -3,7 +3,7 @@
 // entry is kept, and it keeps every result. The last step should stop at the
 // memory limit with an error, and the program must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. Nothing at all, on both sides.
 echo Core\Arr::count(Core\Arr::intersect([], [])), "\n";
@@ -35,6 +35,7 @@ echo Core\Arr::count(Core\Arr::intersect($wide, $left, {
 
 // 6. Two lists of one million numbers, with the same numbers in both. Keeping
 // every result needs more memory than the program has, so it stops here.
+echo "step 6\n";
 array<int> $huge = Core\Arr::range(1, 1000000);
 array<int> $same = Core\Arr::range(1, 1000000);
 array<array<int>> $kept = [];

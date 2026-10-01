@@ -3,7 +3,7 @@
 // are far too long. The last step should stop with an error, and the program
 // must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // 1. One key and two values. The two lists must hold the same number of
 // entries, so this throws. The error is caught, so the next step still runs.
@@ -23,6 +23,7 @@ echo 'duplicates ', Core\Arr::count($collapsed), "\n";
 
 // 3. Four million keys and four million values. Both lists fit in memory, and
 // the line below prints their length. Pairing them stops at the memory limit.
+echo "step 3\n";
 array<int> $keys = Core\Arr::range(1, 4000000);
 array<int> $values = Core\Arr::range(1, 4000000);
 echo 'keys ', Core\Arr::count($keys), ' values ', Core\Arr::count($values), "\n";

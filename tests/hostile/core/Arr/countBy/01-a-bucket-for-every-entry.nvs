@@ -3,7 +3,7 @@
 // result is as large as the array itself. The last step should stop at the
 // memory limit with an error, and the program must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. Nothing at all.
 echo Core\Arr::count(Core\Arr::countBy([])), "\n";
@@ -32,6 +32,7 @@ echo Core\Arr::count(Core\Arr::countBy($wide, {
 
 // 6. One million different values, counted a thousand times and every result
 // kept. That needs more memory than the program has, so it stops here.
+echo "step 6\n";
 array<int> $huge = Core\Arr::range(1, 1000000);
 array<array<uint>> $kept = [];
 uint $k = 0;

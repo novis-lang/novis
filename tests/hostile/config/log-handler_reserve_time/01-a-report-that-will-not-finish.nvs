@@ -3,7 +3,9 @@
 // fails with a handler that runs for a long time. Every write should fail, and
 // the server should stop the handler when its time is used up.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 1 FATAL
+
+echo "step 1\n";
 
 array<string> $names = [
     'log.handler_reserve_time',

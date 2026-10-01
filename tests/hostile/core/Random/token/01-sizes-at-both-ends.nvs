@@ -2,7 +2,7 @@
 // Attack: a request asks for tokens of zero bytes, of many large sizes, and of sizes
 // whose hex text is too long to count. Each step should throw an error or stop at the
 // memory limit, and the program must not crash.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. Zero bytes throws an error, and it is caught here.
 try {
@@ -56,5 +56,6 @@ try {
 
 // 6. A token of one gigabyte is more than this request may use. The program should stop
 // at its memory limit.
+echo "step 6\n";
 Core\Random::token(536870912);
 echo '6 one gigabyte was served', "\n";

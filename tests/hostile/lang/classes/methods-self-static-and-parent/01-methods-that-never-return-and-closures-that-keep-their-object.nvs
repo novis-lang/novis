@@ -3,7 +3,7 @@
 // calls itself with no end. Two static methods call each other with no end. A
 // closure that keeps its object is made again and again. The runtime should
 // stay standing.
-// hostile: ends-early
+// hostile: ends-early 4 RuntimeError
 // covers: lang:classes/methods-self-static-and-parent
 
 final class Endless
@@ -70,5 +70,6 @@ echo '3: made ', $made, ' closures that add up to ', $sum, "\n";
 
 // 4. A static method throws instead of returning, and nothing catches it. The
 //    program ends here.
+echo "step 4\n";
 echo Bounce::refuse(), "\n";
 echo "4: BAD, the program is still running\n";

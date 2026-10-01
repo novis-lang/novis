@@ -4,7 +4,7 @@
 // types that cannot be added. The last step should stop at the memory limit
 // with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. Nothing at all. There is nothing to divide, so the result is `null` and
 // this prints "no mean".
@@ -46,6 +46,7 @@ echo Core\Arr::average($long), "\n";
 
 // 6. One array that doubles in size, with its mean read after every step.
 // That needs more memory than the program has, so it stops here.
+echo "step 6\n";
 array<int> $growing = Core\Arr::fill(1000, 1);
 uint $k = 0;
 while ($k < 40) {

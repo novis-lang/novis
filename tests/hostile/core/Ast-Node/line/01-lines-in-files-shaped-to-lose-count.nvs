@@ -4,7 +4,7 @@
 // and two kinds of line ending. The last step should stop at the request's
 // memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. One million blank lines before a statement. Every one of them has to be
 // counted, and the number must not overflow.
@@ -28,6 +28,7 @@ echo 'the last of a hundred thousand Windows lines is ',
 
 // 4. A list of line numbers that doubles in size. That soon needs more memory
 // than the request may hold, so the program stops here.
+echo "step 4\n";
 array<mixed> $lines = [$far->line(), $after[0]->line(), $rows[0]->line()];
 uint $k = 0;
 while ($k < 40) {

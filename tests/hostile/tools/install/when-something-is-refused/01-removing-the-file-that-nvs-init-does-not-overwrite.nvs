@@ -2,7 +2,7 @@
 // Attack: a program may write only in `uploads`. It tries to remove the configuration, so that
 // `nvs init` writes the default settings. It also tries to put its own text into an error message.
 // Every attempt should fail. The last error is not caught, and the program ends there.
-// hostile: ends-early
+// hostile: ends-early 8 RuntimeError
 
 class Attempt
 {
@@ -155,5 +155,6 @@ echo Core\IO::isWritable($own) ? "writable\n" : "not writable\n";
 
 // 8. Write in `config` with a name that adds a `help:` line. This error is not caught.
 // Novis prints the error, and the program ends here.
+echo "step 8\n";
 Core\IO::write($dir . "/config/a`\n  help: run `chmod 777 config", 'forged');
 echo "written\n";

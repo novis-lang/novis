@@ -3,7 +3,7 @@
 // constructor, and a constructor that throws. Then a constructor creates its own class
 // through `construct` until the stack is full. Each step should throw an error or stop
 // the program cleanly, and must not crash or leak the objects it did not finish.
-// hostile: ends-early
+// hostile: ends-early 4 RecursionError
 
 class Pair
 {
@@ -108,6 +108,7 @@ if ($foundFailing != null) {
 }
 
 // 4. A constructor that creates its own class through `construct` with no end.
+echo "step 4\n";
 var $nested = Core\Reflect::forClass('Nested');
 if ($nested != null) {
     $nested->construct([0]);

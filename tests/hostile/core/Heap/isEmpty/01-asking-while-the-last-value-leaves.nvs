@@ -2,7 +2,7 @@
 // Attack: a comparator calls `isEmpty` and `pop` on the heap it is ordering, while the heap
 // loses its last values. Other steps ask a heap millions of times.
 // No step may crash the runtime. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 60000
 
 class Attack
@@ -78,6 +78,7 @@ echo 'step 3: ', $full->count(), "\n";
 
 // 4. Texts are added while the heap is asked each time, and never taken out. This step
 // ends the program at its memory limit.
+echo "step 4\n";
 var $endless = new Core\Heap<string>();
 while (true) {
     $endless->push(Core\Str::repeat('e', 1000));

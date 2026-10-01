@@ -2,7 +2,7 @@
 // Attack: a program registers 100,000 error functions, and the last one registers
 // another one and throws the error it was given again. Only one function may run,
 // once, and the program must end with the first error.
-// hostile: ends-early
+// hostile: ends-early 3 RuntimeError
 // hostile: timeout-ms 30000
 
 // 1. Each function has its own 1 KB string. A new registration replaces the old
@@ -39,4 +39,5 @@ class Nest
 }
 
 // 3. Nothing catches this error. It is thrown 300 calls deep, and it ends the program.
+echo "step 3\n";
 Nest::to(300);

@@ -2,7 +2,7 @@
 // Attack: the function that builds each replacement returns long texts, throws errors
 // and calls `Core\Regex::replaceWith` again. Each call should return a text or throw
 // an error. The last one should stop at the memory limit before the new text is built.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 class Replace
 {
@@ -40,4 +40,5 @@ echo Replace::length('abc', '(b)', fn(Core\Regex\Match $m) => $m->group('nope') 
 
 // 6. 100000 matches, and the function returns 100000 characters for each one.
 // The new text would need about 10 GB, so the program stops here with a memory limit error.
+echo "step 6\n";
 echo Replace::length(Core\Str::repeat('a', 100000), 'a', fn(Core\Regex\Match $m) => Core\Str::repeat('x', 100000)), "\n";

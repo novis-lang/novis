@@ -2,7 +2,7 @@
 // Attack: a program tries to live through the limit that stops it. It hides
 // the allocation inside `try` and `finally`, replaces one limit handler with
 // another, and has the handler allocate more memory. The program still ends.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 // hostile: timeout-ms 30000
 
 // Step 1: a handler that replaces an earlier one. Only the second may run.
@@ -20,6 +20,7 @@ Core\Fatal::onLimit(fn (array<string> $report): void => {
 
 // Step 3: the allocation, under a `finally` inside a `catch`. Neither of them
 // may run.
+echo "step 3\n";
 try {
     try {
         array<string> $ballast = [];

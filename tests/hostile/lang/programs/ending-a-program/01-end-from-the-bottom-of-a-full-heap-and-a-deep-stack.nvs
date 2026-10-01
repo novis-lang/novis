@@ -4,7 +4,9 @@
 // The exit status is larger than a shell can store. The program should end
 // there, and the `finally` blocks should not run.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 1 exit
+
+echo "step 1\n";
 
 class Ending
 {

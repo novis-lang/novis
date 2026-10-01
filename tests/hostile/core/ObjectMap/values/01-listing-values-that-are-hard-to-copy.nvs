@@ -2,7 +2,7 @@
 // Attack: a program lists values that are huge, deeply nested or the map itself. It keeps a list
 // after the map is cleared, and lists values until memory runs out. Each `values` should work or
 // stop at the memory limit, and must not crash or leak.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -63,6 +63,7 @@ $chain = [];
 echo '4: ', $map->count(), "\n";
 
 // 5. The value list of a large map is kept again and again until the memory limit stops the program.
+echo "step 5\n";
 $i = 0;
 while ($i < 100000) {
     $map->set(new Node(), $i);

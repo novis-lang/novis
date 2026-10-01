@@ -2,7 +2,7 @@
 // Attack: a seeded generator makes tokens of zero bytes and of many large sizes. It also
 // gets sizes whose hex text is too long to count. Each step should throw an error or stop
 // at the memory limit, and the program must not crash.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 Core\Random\Seeded $generator = new Core\Random\Seeded(9223372036854775807);
 
@@ -58,5 +58,6 @@ try {
 
 // 6. A token of one gigabyte is more than this request may use. The program should stop
 // at its memory limit.
+echo "step 6\n";
 $generator->token(536870912);
 echo '6 one gigabyte was served', "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a request reads captures that its mount does not have, and keeps every mount it reads.
 // Each missing capture should throw an error. The program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // 1. Reads a capture past the last one. The mount has one capture, so index 1 throws an error.
 Core\Request\Mount $mount = Core\Request::mount();
@@ -25,6 +25,7 @@ while ($i < 100000) {
 echo 'same answer: ', $same, "\n";
 
 // 3. Keeps every mount without end. This stops at the memory limit.
+echo "step 3\n";
 array<Core\Request\Mount> $kept = [];
 while (true) {
     $kept[] = Core\Request::mount();

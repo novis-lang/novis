@@ -2,7 +2,7 @@
 // Attack: a program asks for every match in texts built to give very many matches,
 // and with a pattern of many groups. Each search should return its matches or throw
 // an error. The last one should stop at the memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 30000
 
 class Search
@@ -41,4 +41,5 @@ echo Search::count('aa; aa; ' . Core\Str::repeat('a', 40) . 'b', '(a|a?)+\1;'), 
 
 // 5. A pattern with 5000 groups. Searching with it needs more memory than the
 // program may use, so the program stops here with a memory limit error.
+echo "step 5\n";
 echo Search::count(Core\Str::repeat('a', 5000), Core\Str::repeat('(a)', 5000)), "\n";

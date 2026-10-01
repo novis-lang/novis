@@ -2,7 +2,7 @@
 // Attack: a program tries to use a cookie to add its own headers or attributes,
 // and then adds cookies without end. Each bad cookie should throw an error,
 // and the program should stop at its memory limit without crashing.
-// hostile: ends-early
+// hostile: ends-early 12 FATAL
 // hostile: timeout-ms 60000
 
 uint $refused = 0;
@@ -82,6 +82,7 @@ Core\Response::addCookie('forever', 'abc', { maxAge: Core\Time\Duration::nanosec
 Core\Response::addCookie('big', Core\Str::repeat('a', 8388608));
 
 // 12. Cookies of four kilobytes each, added until the memory limit stops the program.
+echo "step 12\n";
 string $page = Core\Str::repeat('b', 4096);
 uint $added = 0;
 while ($added < 1000000) {

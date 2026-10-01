@@ -2,7 +2,7 @@
 // Attack: `HEAD` requests try to reach this server's own network. Each address is
 // written in an unusual way, for example as one number or inside an IPv6 address.
 // Every one must throw an error. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -54,6 +54,7 @@ echo 'step 2: ', $i, "\n";
 
 // 3. Every refused request is kept in a list with its error message, and never freed.
 //    This step ends the program at its memory limit.
+echo "step 3\n";
 array<string> $kept = [];
 uint $n = 0;
 while (true) {

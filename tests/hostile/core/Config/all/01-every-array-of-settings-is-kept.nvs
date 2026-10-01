@@ -3,7 +3,7 @@
 // Then it keeps one array of settings per round until nothing is left. The
 // configuration must not move. The program must stop at its memory limit with an
 // error.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // A lower memory limit, so the last step reaches the ceiling quickly.
 Core\Config::set('memory', '32M');
@@ -23,6 +23,7 @@ echo 'in force: ', Core\Config::get('limits.memory') ?? 'unset', "\n";
 
 // 3. Every array of settings is kept, so nothing can be freed. This step ends
 // the program at its memory limit.
+echo "step 3\n";
 array<array<string>> $kept = [];
 while (true) {
     $kept[] = Core\Config::all();

@@ -4,7 +4,7 @@
 // should finish, and the last one should stop the program at its memory limit.
 // The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -49,6 +49,7 @@ echo 'step 3: ', Core\Arr::count(Core\Arr::filter($wide, fn(int $n) => true)), "
 
 // 4. The function adds an entry to the array being filtered. The walk reaches
 // those entries too, so the program should stop at its memory limit.
+echo "step 4\n";
 Attack::$rows = [1, 2, 3];
 array<int> $endless = Core\Arr::filter(Attack::$rows, fn(int $n): bool => {
     Attack::$rows[] = $n;

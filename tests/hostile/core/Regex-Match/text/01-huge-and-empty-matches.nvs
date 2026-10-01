@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program reads matches of millions of characters, empty matches and the same
 // match many times. The last step asks for more memory than the program may use and should stop with an error.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 30000
 
 // 1. A match of four million characters. This prints 4000000.
@@ -30,4 +30,5 @@ echo $same, "\n";
 
 // 4. The large match repeated one thousand times needs about eight billion bytes.
 // The program stops here with a memory limit error.
+echo "step 4\n";
 echo Core\Str::length(Core\Str::repeat($huge?->text() ?? '', 1000)), "\n";

@@ -2,7 +2,7 @@
 // Attack: `PATCH` requests carry a key with a line break, a very deep JSON body or a very
 // large one. Every call must throw an error before anything is sent, and the memory in use
 // must not grow. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -76,6 +76,7 @@ echo 'step 3: ', $tries, "\n";
 
 // 4. Every refused request is kept in a list with its key and its error message, and
 //    never freed. This step ends the program at its memory limit.
+echo "step 4\n";
 array<string> $kept = [];
 uint $n = 0;
 while (true) {

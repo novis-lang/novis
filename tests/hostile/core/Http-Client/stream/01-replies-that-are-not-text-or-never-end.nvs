@@ -2,7 +2,7 @@
 // Attack: streamed requests try to reach this server's own network. Then replies that
 // are not valid text, or have no end, try to break the methods that read the body. Every
 // step must throw an error or finish. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 9 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -154,6 +154,7 @@ echo 'step 8: done', "\n";
 
 // 9. Each stream is opened and only its first line is read. The stream and the line
 //    are kept in lists and never freed. This step ends the program at its memory limit.
+echo "step 9\n";
 array<Core\Http\Stream> $open = [];
 array<tainted string> $kept = [];
 uint $n = 0;

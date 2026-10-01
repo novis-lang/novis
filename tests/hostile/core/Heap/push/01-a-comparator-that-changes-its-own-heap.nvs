@@ -2,7 +2,7 @@
 // Attack: a comparator adds values to the same heap while `push` puts a value in place.
 // Other steps add values that cannot be ordered, and more values than memory can keep.
 // No step may crash the runtime. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 60000
 
 class Attack
@@ -91,6 +91,7 @@ while ($n > 0) {
 echo 'step 4: ', $falling->count(), ' values, smallest ', $falling->peek(), "\n";
 
 // 5. Long texts are added and never taken out. This step ends the program at its memory limit.
+echo "step 5\n";
 var $endless = new Core\Heap<string>();
 while (true) {
     $endless->push(Core\Str::repeat('x', 1000));

@@ -2,7 +2,7 @@
 // Attack: `Core\Str::format` gets templates with huge widths and precisions, and templates with many placeholders.
 // Each call should return text or throw an error. A width over the memory limit should stop the program with an error, and must not crash it.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Attack
 {
@@ -53,6 +53,7 @@ class Attack
     /// 5. Asks for a width of 100 billion characters, which is over the memory limit.
     public static function overTheLimit(): uint
     {
+        echo "step 5\n";
         string $template = '%99999999999s';
         return Core\Str::length(Core\Str::format($template, 'a'));
     }

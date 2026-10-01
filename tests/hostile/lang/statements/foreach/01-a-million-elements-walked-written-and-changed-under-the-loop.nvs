@@ -4,7 +4,7 @@
 // another loop. A loop adds and removes elements while it runs. The last loop
 // has a subject that throws, with nothing to catch it.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 RuntimeError
 // covers: lang:statements/foreach
 
 class Attack
@@ -72,6 +72,7 @@ echo $pairs, "\n";
 
 // 5. The last loop asks for its subject and the call throws. Nothing catches
 // it, so the program ends with status 1.
+echo "step 5\n";
 foreach (Attack::subject() as int $never) {
     echo $never, "\n";
 }

@@ -3,7 +3,7 @@
 // than the computer can hold. The last step should stop with an error, and
 // the program must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. Nothing at all, on both sides.
 echo Core\Arr::count(Core\Arr::overlay([], [])), "\n";
@@ -38,6 +38,7 @@ echo 'loop done ', $seen, "\n";
 
 // 6. Copies of a list of one million numbers, all kept at the same time. No
 // computer has that much memory, so the program stops here with an error.
+echo "step 6\n";
 array<int> $huge = Core\Arr::range(1, 1000000);
 array<array<int>> $kept = [];
 uint $k = 0;

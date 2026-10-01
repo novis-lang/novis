@@ -1,7 +1,7 @@
 <?nvs
 // Attack: the client says its body is one gigabyte long and sends a short one. Then the
 // program reads the body as bytes without end. The program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Reads the body that really arrived. The header does not change what `bytes` returns.
 tainted bytes $first = Core\Request::bytes();
@@ -24,6 +24,7 @@ try {
 
 // 4. Calls `bytes` without end and keeps every copy it returns.
 //    This stops at the memory limit.
+echo "step 4\n";
 array<tainted bytes> $copies = [];
 while (true) {
     $copies[] = Core\Request::bytes();

@@ -2,7 +2,7 @@
 // Attack: arrays and strings written the Novis way are pushed to their limits.
 // Every step below should end with an error or a clean result, and never a crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops
 
 // 1. An array nested 200,000 levels deep is printed with `Core\Debug::dump`.
@@ -34,6 +34,7 @@ try {
 }
 
 // 4. A heredoc interpolates a very long string into itself again and again.
+echo "step 4\n";
 string $text = 'ab';
 while (true) {
     $text = <<<EOT

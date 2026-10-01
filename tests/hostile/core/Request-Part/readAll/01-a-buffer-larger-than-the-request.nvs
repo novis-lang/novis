@@ -3,7 +3,7 @@
 // a file too large for `max`, and reads files twice and after the loop. Each wrong read
 // should throw an error. The program then copies a file without end and should stop at
 // its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 array<Core\Request\Part> $parts = [];
 tainted bytes $last = '' as bytes;
@@ -46,6 +46,7 @@ try {
 }
 
 // 5. Copies a file without end and keeps every copy. This stops at the memory limit.
+echo "step 5\n";
 array<tainted bytes> $copies = [];
 while (true) {
     $copies[] = Core\Bytes::repeat($last, 100000);

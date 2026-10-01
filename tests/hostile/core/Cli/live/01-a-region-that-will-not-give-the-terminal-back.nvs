@@ -4,7 +4,7 @@
 // must end at once. The last one must stop at the memory limit instead of taking
 // the whole machine.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. The body throws. The region must close on the way out, and the error must
 //    reach the program that made the call.
@@ -68,6 +68,7 @@ echo 'step 5 opened ', $total, " regions\n";
 
 // 6. A region of one million rows. This is more memory than the program is
 //    allowed, so it must stop at the limit. This step ends the program.
+echo "step 6\n";
 Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
     array<Core\Cli\Text> $many = [];
     uint $at = 0;

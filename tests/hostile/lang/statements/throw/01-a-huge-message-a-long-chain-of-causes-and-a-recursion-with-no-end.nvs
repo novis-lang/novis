@@ -4,7 +4,7 @@
 // thousand causes is built and walked. An error comes out of a recursion with
 // no end. The last step throws with nothing to catch it.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 5 RuntimeError
 // covers: lang:statements/throw
 
 class Attack
@@ -74,4 +74,5 @@ try {
 
 // 5. The last step throws and nothing catches it. The program ends with
 // status 1.
+echo "step 5\n";
 throw new RuntimeError('nothing catches this');

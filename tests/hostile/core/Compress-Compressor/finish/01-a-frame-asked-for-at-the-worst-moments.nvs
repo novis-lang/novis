@@ -4,7 +4,7 @@
 // hundred thousand, and finishes one holding more than the machine has. The
 // program must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. A stream that was given nothing. `finish` must write the block an empty
 //    stream writes, and not stop with an error.
@@ -33,6 +33,7 @@ echo 'step 3 finished ', $done, " streams\n";
 
 // 4. One stream given two thousand blocks of four mebibytes. `finish` joins
 //    all of it, so the program stops at its memory limit on this line.
+echo "step 4\n";
 bytes $block = Core\Bytes::fill(4194304, 66);
 var $huge = Core\Compress::compressor(Core\Codec::Gzip);
 uint $blocks = 0;

@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program removes values that were never added, and removes the same value many times.
 // It also removes values in a hard order. The set should stay correct, and the program must not crash.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -82,6 +82,7 @@ $set->remove($head);
 echo '5: ', $set->has($head) ? 'y' : 'n', "\n";
 
 // 6. New objects are added and removed until the memory limit stops the program.
+echo "step 6\n";
 Core\ObjectSet<Node> $kept = new Core\ObjectSet<Node>();
 while (true) {
     Node $fresh = new Node(0);

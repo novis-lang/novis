@@ -2,7 +2,7 @@
 // Attack: a request tries to give itself more memory than the server allows,
 // and then takes all its memory away. Every attempt above the ceiling should be
 // refused. The last step should stop the program with an error.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. A memory limit far above any machine. The server keeps a ceiling, so this
 // must be refused.
@@ -21,5 +21,6 @@ echo 'memory: ', Core\Config::get('memory') ?? 'not set', "\n";
 
 // 5. The request takes its own memory away: one byte for everything it does
 // next. This step ends the program at its memory limit.
+echo "step 5\n";
 Core\Config::set('memory', '1');
 echo Core\Str::repeat('x', 1000), "\n";

@@ -5,7 +5,7 @@
 // step should end with an error, and the runtime should stay standing.
 // covers: lang:enums/an-enum-as-a-type
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 enum Level
 { Low = 1, Mid = 5, High = 9 }
@@ -78,6 +78,7 @@ echo "3: the runtime is still running\n";
 
 // 4. An `array<Level>` filled with ten million cases. This step reaches the
 // memory limit, which stops the program.
+echo "step 4\n";
 class Filled
 {
     public static function build(int $rounds): uint

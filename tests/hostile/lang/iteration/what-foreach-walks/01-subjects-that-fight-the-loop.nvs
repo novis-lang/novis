@@ -5,7 +5,7 @@
 // The runtime should stay standing.
 // covers: lang:iteration/what-foreach-walks
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Shared implements Iterable<int>, Iterator<int>
 {
@@ -145,6 +145,7 @@ try {
 
 // 5. A subject with no end doubles its text every step, and the loop keeps every value.
 // The texts fill the memory, so this step ends the program.
+echo "step 5\n";
 array<string> $kept = [];
 int $n = 0;
 foreach (new Doubling('0123456789abcdef') as string $chunk) {

@@ -4,7 +4,7 @@
 // rows than the program may hold, and should stop it at its memory limit.
 // Nothing here may crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 var $db = Core\Db::connect('notes');
 $db->execute('create table notes (id integer primary key, text text not null)', []);
@@ -63,5 +63,6 @@ echo '5 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";
 
 // 6. A search that builds a gigabyte of rows, where this program may hold 256
 // megabytes. `query` reads every row into memory, so this step ends it.
+echo "step 6\n";
 $db->query('with recursive many(n) as (select 1 union all select n + 1 from many where n < 10000) select n, hex(zeroblob(50000)) as filler from many', []);
 echo "6 a gigabyte of rows fitted in a 256 megabyte limit\n";

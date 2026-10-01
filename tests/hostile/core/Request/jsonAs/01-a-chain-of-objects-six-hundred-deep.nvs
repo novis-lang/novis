@@ -2,7 +2,7 @@
 // Attack: a client sends a JSON body of 600 objects, each inside the one before.
 // The program reads it into a class that contains itself. Deep bodies should throw a `ParseError`,
 // and the program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 #[Core\Json\Derive]
 class Node
@@ -94,6 +94,7 @@ echo 'depth 1024: done', "\n";
 
 // 6. Reads the body into a `mixed` field and keeps every copy without end.
 // This stops at the memory limit.
+echo "step 6\n";
 array<Loose> $kept = [];
 while (true) {
     $kept[] = Core\Request::jsonAs<Loose>({ maxDepth: 1024 });

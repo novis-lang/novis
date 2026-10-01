@@ -3,7 +3,7 @@
 // more fields than the host has memory for. Every step should stop with an
 // error, and the last one should stop the program at its memory limit.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 bytes $two = Core\Encoding::fromHex('0001');
 
@@ -51,5 +51,6 @@ echo $seen, "\n";
 
 // 6. Twenty million one-byte fields in one list. A field costs more memory than
 //    the byte it came from, so the program stops here at its memory limit.
+echo "step 6\n";
 echo Core\Arr::count(Core\Bytes::unpack(Core\Bytes::fill(20000000, 7), 'C*')), "\n";
 echo "never reached\n";

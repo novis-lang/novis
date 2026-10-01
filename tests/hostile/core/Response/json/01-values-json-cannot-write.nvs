@@ -2,7 +2,7 @@
 // Attack: a program sends values that JSON cannot write and a value nested very deep, and
 // then sends JSON without end. Each bad value should throw an error, and the program
 // should stop at its memory limit without crashing.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 60000
 
 #[Core\Json\Derive]
@@ -60,6 +60,7 @@ Core\Response::json({ name: Core\Request::query('name') as string });
 
 // 5. The value is kept in memory and sent again and again until the memory limit
 // stops the program.
+echo "step 5\n";
 array<int> $chunk = Core\Arr::fill(8192, 7);
 var $kept = Core\Out::capture(fn (): void => {
     uint $written = 0;

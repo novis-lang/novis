@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program takes very large sets away from each other, and a set away from itself.
 // It keeps every result until memory runs out. The program should stop at its memory limit and must not crash.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -68,6 +68,7 @@ $self->remove($self);
 echo '4: ', $rest->count(), ' ', $rest->has($self) ? 'y' : 'n', "\n";
 
 // 5. Every result of a large `diff` is kept, until the memory limit stops the program.
+echo "step 5\n";
 array<Core\ObjectSet<Node>> $kept = [];
 while (true) {
     $kept[] = $left->diff($none);

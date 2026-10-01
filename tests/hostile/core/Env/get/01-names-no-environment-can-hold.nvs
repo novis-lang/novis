@@ -2,7 +2,7 @@
 // Attack: a program asks for variables with names no environment can hold, and then
 // keeps every value it reads until nothing is left. Each strange name should return
 // `null`. The program must stop at its memory limit with an error.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '32M');
@@ -35,6 +35,7 @@ echo 'rounds done: ', $round, "\n";
 
 // 4. Every value read is kept, so nothing can be freed. This step ends the program at
 // its memory limit.
+echo "step 4\n";
 array<?tainted string> $kept = [];
 while (true) {
     foreach ($names as string $name) {

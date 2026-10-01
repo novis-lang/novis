@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program ends with an error that has a very long message and a very deep call stack.
 // `nvs run` should write the error to standard error and stop with status 1. It must not crash.
-// hostile: ends-early
+// hostile: ends-early 3 RuntimeError
 
 class Deep
 {
@@ -25,4 +25,5 @@ try {
 }
 
 // 3. The same error is not caught. It ends the program with status 1.
+echo "step 3\n";
 Deep::down(1000, $message);

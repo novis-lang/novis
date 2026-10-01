@@ -3,7 +3,7 @@
 // broken one. Each step should print the right result or throw an error. The last step should stop
 // at the memory limit, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 7 FATAL
 
 class Walk
 {
@@ -72,6 +72,7 @@ if ($text != null) {
 }
 
 // 7. The program keeps every node of a long document. It should stop at its memory limit.
+echo "step 7\n";
 Core\Xml\Reader $long = Core\Xml::reader('<r>' . Core\Str::repeat('<e a="1">t</e>', 3000000) . '</r>');
 array<Core\Xml\Node> $kept = [];
 ?Core\Xml\Node $node = $long->read();

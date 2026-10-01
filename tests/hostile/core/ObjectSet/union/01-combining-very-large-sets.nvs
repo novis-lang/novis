@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program combines very large sets, combines a set with itself many times,
 // and keeps every result until memory runs out. The program should stop at its memory limit and must not crash.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -65,6 +65,7 @@ while ($i < 1000000) {
 echo '4: ', $total, "\n";
 
 // 5. Every result of a large union is kept, until the memory limit stops the program.
+echo "step 5\n";
 array<Core\ObjectSet<Node>> $kept = [];
 while (true) {
     $kept[] = $left->union($right);

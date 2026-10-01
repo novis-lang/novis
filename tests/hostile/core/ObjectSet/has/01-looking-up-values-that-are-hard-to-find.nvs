@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program looks up values that are huge, deeply nested, equal but not the same, or the set
 // itself. Each `has` should give the right answer, and the program must not crash.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -64,6 +64,7 @@ $set->add($set);
 echo $set->has($set) ? 'y' : 'n', "\n";
 
 // 6. New objects are added and looked up until the memory limit stops the program.
+echo "step 6\n";
 while (true) {
     Node $fresh = new Node(0);
     $set->add($fresh);

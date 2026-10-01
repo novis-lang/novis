@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program hashes empty data, very large data and then more digests than memory can
 // keep. Every digest should be computed. The program must stop at its memory limit with an error.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -35,6 +35,7 @@ echo 'chain done: ', Core\Bytes::length($chain), " bytes\n";
 
 // 4. Every digest is kept, so nothing can be freed. This step ends the program at
 // its memory limit.
+echo "step 4\n";
 array<bytes> $kept = [];
 while (true) {
     $kept[] = Core\Hash::of($chain, Core\Digest::Sha512);

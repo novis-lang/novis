@@ -4,7 +4,7 @@
 // Every step should finish, and the last one should stop the program at its
 // memory limit. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. The array uses the largest whole number there is as a key. That key
 // belongs to an entry that stays, so the result still has it.
@@ -42,6 +42,7 @@ echo 'step 4: ', Core\Arr::count($shrinking), "\n";
 
 // 5. Every result is kept, so the copies add up. The program should stop at
 // its memory limit.
+echo "step 5\n";
 array<mixed> $kept = [];
 array<int> $long = $wide;
 int $step = 0;

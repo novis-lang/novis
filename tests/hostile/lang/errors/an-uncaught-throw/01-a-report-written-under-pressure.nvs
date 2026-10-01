@@ -2,7 +2,7 @@
 // Attack: the report for an uncaught throw is written when the program is
 // already failing. This gives it a message of a million characters, a call
 // stack hundreds of frames deep, and two hooks that throw while it is written.
-// hostile: ends-early
+// hostile: ends-early 3 RuntimeError
 // hostile: timeout-ms 30000
 
 // Step 1: a very long message. This one is caught, so the program carries on.
@@ -30,6 +30,7 @@ try {
 
 // Step 3: both hooks throw while the runtime reports the failure. Neither may
 // replace the failure, and neither may run twice.
+echo "step 3\n";
 Core\Fatal::onUncaughtThrow(fn (Throwable $failure): void => {
     throw new LogicError('the uncaught handler throws as well');
 });

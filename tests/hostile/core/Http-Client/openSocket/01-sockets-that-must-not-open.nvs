@@ -2,7 +2,7 @@
 // Attack: WebSocket URLs try to reach this server's own network, and options try to
 // remove every time limit. Every call must throw an error before a connection opens.
 // The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -108,6 +108,7 @@ echo 'step 4: ', $i, "\n";
 
 // 5. Every refused URL is kept in a list with its error message, and never freed.
 //    This step ends the program at its memory limit.
+echo "step 5\n";
 array<string> $kept = [];
 uint $n = 0;
 while (true) {

@@ -2,7 +2,7 @@
 // Attack: a program escapes very long texts in which every byte needs an escape, so the
 // result is three times as long. Each call should return the text or throw an error.
 // The last one should stop at the memory limit before the result is built.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 class Encode
 {
@@ -43,4 +43,5 @@ echo $done, "\n";
 
 // 6. 200 million slashes. The result would need 600 MB.
 // The program stops here with a memory limit error.
+echo "step 6\n";
 echo Encode::length(Core\Str::repeat('/', 200000000)), "\n";

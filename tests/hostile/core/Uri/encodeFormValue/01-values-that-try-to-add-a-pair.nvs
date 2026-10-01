@@ -2,7 +2,7 @@
 // Attack: a program escapes form values that try to add their own pairs, and very long values
 // in which every byte needs an escape. Each call should return the text or throw an error.
 // The last one should stop at the memory limit before the result is built.
-// hostile: ends-early
+// hostile: ends-early 8 FATAL
 
 class Encode
 {
@@ -49,4 +49,5 @@ echo $done, "\n";
 
 // 8. 200 million `=` signs. The result would need 600 MB.
 // The program stops here with a memory limit error.
+echo "step 8\n";
 echo Encode::length(Core\Str::repeat('=', 200000000)), "\n";

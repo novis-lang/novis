@@ -4,7 +4,7 @@
 // times, then asks for more bytes than the machine has. The program must not
 // crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // 1. A finished stream takes no more pieces. `add` must throw a `RuntimeError`.
 var $ended = Core\Compress::compressor(Core\Codec::Gzip);
@@ -30,6 +30,7 @@ echo 'step 2 added ', $added, " pieces\n";
 
 // 3. The same buffer two thousand times, then the block. `finish` joins two
 //    gibibytes, so the program stops at its memory limit on the last line.
+echo "step 3\n";
 var $joined = Core\Compress::compressor(Core\Codec::Gzip);
 uint $pieces = 0;
 while ($pieces < 2000) {

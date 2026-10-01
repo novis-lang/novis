@@ -3,7 +3,7 @@
 // almost matches everywhere. Each call should finish quickly. The last call asks for more parts
 // than the memory limit allows, and the program should stop there with an error.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 class Attack
 {
@@ -53,6 +53,7 @@ class Attack
     /// 6. Splits 64 MiB of commas. The parts need far more memory than the limit allows.
     public static function morePartsThanTheLimit(): uint
     {
+        echo "step 6\n";
         string $text = Core\Str::repeat(',', 67108864);
         return Core\Arr::count(Core\Str::split($text, ','));
     }

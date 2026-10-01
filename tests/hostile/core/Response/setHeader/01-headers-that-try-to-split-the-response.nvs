@@ -2,7 +2,7 @@
 // Attack: a program tries to add a second header through a newline, to set `Content-Type`,
 // and to set very many headers. Each bad header should throw an error, and the program
 // should stop at its memory limit without crashing.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 60000
 
 // 1. Values with a newline, a carriage return, a zero byte, a tab and a non-ASCII letter.
@@ -31,6 +31,7 @@ foreach ($names as string $name) {
 Core\Response::setHeader('X-Long', Core\Str::repeat('a', 1000000));
 
 // 4. A new header name again and again, until the memory limit stops the program.
+echo "step 4\n";
 uint $n = 0;
 while ($n < 100000000) {
     Core\Response::setHeader('X-Header-' . ($n as string), Core\Str::repeat('v', 1000));

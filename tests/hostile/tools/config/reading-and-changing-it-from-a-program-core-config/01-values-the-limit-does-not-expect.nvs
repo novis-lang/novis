@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program sends `Core\Config::set` values it does not expect, and then sets and restores
 // the memory limit many times. The limit should never go above 128M, and the program should stop there.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Values that are not a size, or are far too large.
 // Each call should return `false`, or set a limit that is not above 128M.
@@ -39,6 +39,7 @@ echo Core\Arr::count(Core\Config::all()), "\n";
 
 // 4. Raise the limit to the highest value, then restore it to 64M.
 // Then ask for 100M of text. The program should stop at its memory limit.
+echo "step 4\n";
 Core\Config::set('memory', '128M');
 Core\Config::restore('memory');
 echo Core\Config::get('memory'), "\n";

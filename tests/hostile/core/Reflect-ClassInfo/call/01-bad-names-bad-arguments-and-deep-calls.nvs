@@ -2,7 +2,7 @@
 // Attack: `call` gets names and argument lists that do not fit the method, and a
 // method calls itself through `call` until the stack is full. Each step should
 // throw an error or stop the program cleanly, and must not crash.
-// hostile: ends-early
+// hostile: ends-early 6 RecursionError
 
 class Target
 {
@@ -87,4 +87,5 @@ while ($i < 100000) {
 echo $refused, "\n";
 
 // 6. A method that calls itself through `call` with no end.
+echo "step 6\n";
 echo $target->down(0), "\n";

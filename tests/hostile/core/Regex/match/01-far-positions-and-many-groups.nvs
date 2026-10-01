@@ -2,7 +2,7 @@
 // Attack: a program searches with start positions far outside the text, in a very
 // long text, and with a pattern of many groups. Each search should return a match,
 // return `null` or throw an error. The last one should stop at the memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Search
 {
@@ -45,4 +45,5 @@ echo Search::at('xx' . Core\Str::repeat('a', 40) . 'b', '(a|a?)+\1$', 2), "\n";
 
 // 5. A pattern with 5000 groups. Searching with it needs more memory than the
 // program may use, so the program stops here with a memory limit error.
+echo "step 5\n";
 echo Search::at(Core\Str::repeat('a', 5000), Core\Str::repeat('(a)', 5000), 0), "\n";

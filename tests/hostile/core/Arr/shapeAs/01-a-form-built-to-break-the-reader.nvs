@@ -4,7 +4,7 @@
 // a value nested far deeper than any form. The last step should stop at the
 // request's memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 type Small = {a: int, b: string};
 
@@ -44,6 +44,7 @@ try {
 
 // 4. One list that doubles in size, read as a list of shapes after every
 // step. That needs more memory than the program has, so it stops here.
+echo "step 4\n";
 array<mixed> $rows = Core\Arr::fill(1000, ['n' => 1]);
 uint $k = 0;
 while ($k < 40) {

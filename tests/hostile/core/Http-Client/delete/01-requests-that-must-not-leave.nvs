@@ -2,7 +2,7 @@
 // Attack: `DELETE` requests try to reach this server's own network, or to add a second
 // request inside a header. Every one must throw an error before anything is sent. The
 // last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -73,6 +73,7 @@ echo 'step 3: ', $i, "\n";
 
 // 4. Every refused URL is kept in a list with its error message, and never freed.
 //    This step ends the program at its memory limit.
+echo "step 4\n";
 array<string> $kept = [];
 uint $n = 0;
 while (true) {

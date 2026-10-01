@@ -2,7 +2,7 @@
 // Attack: `Core\Str::wrap` gets long texts, a width of 1 and long breaks, so the result is far longer than the text.
 // The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 class Attack
 {
@@ -53,6 +53,7 @@ class Attack
     /// The result would be 400 MB, and the memory limit stops the program here.
     public static function tooLarge(uint $words): uint
     {
+        echo "step 6\n";
         string $text = Core\Str::repeat('a ', $words);
         return Core\Str::length(Core\Str::wrap($text, 1, { breakWith: Core\Str::repeat('-', 200) }));
     }

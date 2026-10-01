@@ -3,7 +3,7 @@
 // and a file name that points outside the upload folder. Each file should arrive whole.
 // The program then keeps a part after the loop and copies it without end.
 // It should throw errors and stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. Asks for the files twice. The second call throws a `LogicError`.
 Core\Request\Files $walk = Core\Request::files();
@@ -46,6 +46,7 @@ try {
 
 // 6. Makes large copies of the last file and keeps all of them.
 //    This stops at the memory limit.
+echo "step 6\n";
 array<tainted bytes> $copies = [];
 while (true) {
     $copies[] = Core\Bytes::repeat($kept[Core\Arr::count($kept) - 1], 100000);

@@ -3,7 +3,7 @@
 // node after its document is gone. Each step should print the right count. The last step should
 // stop at the memory limit, and must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Count
 {
@@ -62,5 +62,6 @@ while ($n < 200000) {
 echo $roots, "\n";
 
 // 5. Ten million comments in one element. The program should stop at its memory limit.
+echo "step 5\n";
 Core\Xml\Node $huge = Core\Xml::parse('<r>' . Core\Str::repeat('<!--x-->', 10000000) . '</r>');
 echo Count::of($huge, Core\Xml\NodeKind::Comment), "\n";

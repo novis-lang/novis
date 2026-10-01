@@ -2,7 +2,7 @@
 // Attack: a program builds replacements that repeat the match many times, over very
 // long texts. Each call should return a text or throw an error. The last one should
 // stop at the memory limit before the new text is built.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 class Replace
 {
@@ -43,4 +43,5 @@ echo $done, "\n";
 
 // 6. A match of 100000 characters is repeated 100000 times. The new text would need
 // about 10 GB, so the program stops here with a memory limit error.
+echo "step 6\n";
 echo Replace::length(Core\Str::repeat('a', 100000), '.+', Core\Str::repeat('$0', 100000)), "\n";

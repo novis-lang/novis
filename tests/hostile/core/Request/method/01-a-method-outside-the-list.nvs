@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a client sends `CONNECT`, a method that is not a case of `Core\Http\Method`.
 // Every call to `method` should throw a `LogicError`. The program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Reads the method once. `CONNECT` has no case, so `method` throws a `LogicError`.
 try {
@@ -27,6 +27,7 @@ while ($i < 100000) {
 echo 'errors thrown: ', $thrown, "\n";
 
 // 4. Keeps every error without end. This stops at the memory limit.
+echo "step 4\n";
 array<LogicError> $kept = [];
 while (true) {
     try {

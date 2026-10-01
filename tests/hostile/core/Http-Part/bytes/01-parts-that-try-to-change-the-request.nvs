@@ -2,7 +2,7 @@
 // Attack: file names and media types try to add their own lines to an upload. Large parts
 // try to fill the memory. Every bad name must throw an error before anything is sent.
 // The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -94,6 +94,7 @@ while ($round < 5) {
 echo 'step 4: ', $round, "\n";
 
 // 5. Every part is kept in a list and never freed. This step ends the program at its memory limit.
+echo "step 5\n";
 array<Core\Http\Part> $kept = [];
 uint $n = 0;
 while (true) {

@@ -3,7 +3,7 @@
 // is measured. Only the person who runs the server may set them, so every write
 // below should fail.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Tries the `[metrics]` and `[trace]` keys and keys that are almost the same.
 array<string> $names = [
@@ -90,6 +90,7 @@ echo 'exporter on duty: ', Core\Config::get('metrics.exporter') ?? '(nothing wri
 
 // 4. Lowers the memory limit to `8M` and builds strings until it is used up.
 //    The server should report the failure and keep running.
+echo "step 4\n";
 Core\Config::set('limits.memory', '8M');
 array<string> $hoard = [];
 uint $i = 0;

@@ -3,7 +3,7 @@
 // no order. Other entries cost as much as possible to compare. The last step
 // should stop at the memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 final class Boastful implements Comparable
 {
@@ -69,6 +69,7 @@ echo "boasts compared\n";
 
 // 6. A list of long texts that doubles in size, with the largest read after
 // every step. That needs more memory than the program has, so it stops here.
+echo "step 6\n";
 array<string> $growing = [$prefix, $prefix . 'a', $prefix . 'b'];
 uint $k = 0;
 while ($k < 40) {

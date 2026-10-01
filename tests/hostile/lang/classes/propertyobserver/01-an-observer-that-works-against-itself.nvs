@@ -3,7 +3,7 @@
 // the property it was just told about, reads a property while reporting a read,
 // and keeps every write it ever saw. The runtime should stay standing.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 LogicError
 // covers: lang:classes/propertyobserver
 
 final class Endless implements PropertyObserver
@@ -96,6 +96,7 @@ echo '3: wrote ', $written, ' times, holding ', Core\Arr::count($hoarder->seen),
 
 // 4. An observer throws on every write, and nothing catches this one, so the
 //    program ends here.
+echo "step 4\n";
 var $refuser = new Refuser();
 $refuser->n = 1;
 echo "4: BAD, the program is still running\n";

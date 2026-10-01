@@ -4,7 +4,7 @@
 // for a copy it should not be able to make. The last step should stop the
 // program at its memory limit, and the runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. The largest whole number there is, as the key of the entry that goes.
 // The entry that stays keeps its own key.
@@ -39,6 +39,7 @@ echo 'step 4: ', Core\Arr::count(Core\Arr::withoutLast($wideKeys)), "\n";
 
 // 5. Every result is kept, so the copies add up. The program should stop at
 // its memory limit.
+echo "step 5\n";
 array<mixed> $kept = [];
 array<int> $long = $wide;
 int $step = 0;

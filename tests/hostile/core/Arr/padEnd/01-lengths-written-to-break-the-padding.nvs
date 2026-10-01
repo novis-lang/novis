@@ -4,7 +4,7 @@
 // result no machine can hold. Every step should finish, and the last one
 // should stop the program at its memory limit. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. The largest length there is. The program should catch an error.
 array<int> $small = [1, 2, 3];
@@ -29,6 +29,7 @@ echo 'step 4: ', Core\Arr::count(Core\Arr::padEnd($small, 400000, 0)), "\n";
 
 // 5. Every result is kept, so the copies add up. The program should stop at
 // its memory limit.
+echo "step 5\n";
 array<mixed> $kept = [];
 int $round = 0;
 while ($round < 400000) {

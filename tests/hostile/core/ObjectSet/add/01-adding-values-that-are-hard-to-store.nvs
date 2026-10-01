@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program adds the same value many times, huge and deeply nested values, and new values
 // without end. Each `add` should store the value or stop at the memory limit, and must not crash or leak.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -57,6 +57,7 @@ $set->clear();
 echo '5: ', $set->count(), "\n";
 
 // 6. New objects are added until the memory limit stops the program.
+echo "step 6\n";
 while (true) {
     $set->add(new Node());
 }

@@ -2,7 +2,7 @@
 // Attack: a program asks for headers with unusual names, and a server sends thousands of
 // headers and one header on very many lines. `header()` must return the right value or
 // throw an error. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -75,6 +75,7 @@ echo 'step 4: done', "\n";
 
 // 5. The joined value of that header is kept in a list and never freed.
 //    This step ends the program at its memory limit.
+echo "step 5\n";
 array<tainted string> $kept = [];
 while (true) {
     $kept[] = $tall->header('x-tall') ?? '';

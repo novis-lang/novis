@@ -2,7 +2,7 @@
 // Attack: `Core\Str::normalize` gets very long texts, and characters whose normal form is much longer.
 // The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Attack
 {
@@ -42,6 +42,7 @@ class Attack
     /// The memory limit stops the program here.
     public static function tooLarge(uint $size): uint
     {
+        echo "step 5\n";
         return Core\Str::length(Core\Str::normalize(Core\Str::repeat('ﷺ', $size), Core\NormalForm::Nfkd));
     }
 }

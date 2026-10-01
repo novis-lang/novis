@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program stores huge values, deeply nested keys, and new keys without end.
 // Each `set` should store the value or stop at the memory limit, and must not crash or leak.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -49,6 +49,7 @@ $map->clear();
 echo '4: ', $map->count(), "\n";
 
 // 5. New keys are added until the memory limit stops the program.
+echo "step 5\n";
 while (true) {
     $map->set(new Node(), Core\Str::repeat('x', 1000));
 }

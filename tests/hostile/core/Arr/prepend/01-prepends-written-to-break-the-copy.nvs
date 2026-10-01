@@ -4,7 +4,7 @@
 // Every step should finish, and the last one should stop the program at its
 // memory limit. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. The array uses the largest whole number there is as a key. Every key is
 // renumbered here, so the result is a list of two entries.
@@ -36,6 +36,7 @@ echo 'step 4: ', Core\Arr::count(Core\Arr::prepend($words, Core\Str::repeat('a',
 
 // 5. Fifty thousand rounds, each putting the array in front of itself. The
 // copies grow with every round, so the program should stop at its memory limit.
+echo "step 5\n";
 array<mixed> $nested = ['a'];
 int $depth = 0;
 while ($depth < 50000) {

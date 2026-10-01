@@ -2,7 +2,7 @@
 // Attack: `get` gets names that are not properties, hidden properties and wrong
 // objects, and a `get` hook reads itself through `get` until the stack is full.
 // Each step should throw an error or stop the program cleanly, and must not crash.
-// hostile: ends-early
+// hostile: ends-early 6 RecursionError
 
 class Target
 {
@@ -84,4 +84,5 @@ while ($i < 100000) {
 echo $refused, "\n";
 
 // 6. A `get` hook that reads its own property through `get`, with no end.
+echo "step 6\n";
 echo $target->loop, "\n";

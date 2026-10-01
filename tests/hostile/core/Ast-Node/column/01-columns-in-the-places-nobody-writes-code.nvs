@@ -4,7 +4,7 @@
 // spaces. Then it keeps a list of columns that doubles in size. The last step
 // should stop at the request's memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. 20,000 statements on one line. The last one starts far along that line,
 // so its column is a large number.
@@ -28,6 +28,7 @@ echo 'behind a million spaces the column is ', $behind[0]->column(), "\n";
 
 // 4. A list of columns that doubles in size. That soon needs more memory than
 // the request may hold, so the program stops here.
+echo "step 4\n";
 array<mixed> $columns = [$last->column(), $bottom->column(), $behind[0]->column()];
 uint $k = 0;
 while ($k < 40) {

@@ -2,7 +2,7 @@
 // Attack: a program tries to add its own headers through the content type, and then
 // writes a body without end. Each bad content type should throw an error, and the
 // program should stop at its memory limit without crashing.
-// hostile: ends-early
+// hostile: ends-early 8 FATAL
 // hostile: timeout-ms 60000
 
 uint $refused = 0;
@@ -55,6 +55,7 @@ Core\Response::bytes(Core\Encoding::fromHex('00ff80c3281b5b306d'), 'application/
 
 // 8. The body is kept in memory and written again and again until the memory limit
 // stops the program.
+echo "step 8\n";
 bytes $chunk = Core\Str::repeat('b', 65536) as bytes;
 var $kept = Core\Out::capture(fn (): void => {
     uint $written = 0;

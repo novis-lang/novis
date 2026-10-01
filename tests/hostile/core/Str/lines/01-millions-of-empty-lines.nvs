@@ -2,7 +2,7 @@
 // Attack: `Core\Str::lines` gets texts with millions of lines, mixed line breaks, and one line with no end.
 // The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Attack
 {
@@ -42,6 +42,7 @@ class Attack
     /// The result would need many gigabytes, so the memory limit stops the program here.
     public static function tooManyLines(uint $count): uint
     {
+        echo "step 5\n";
         return Core\Arr::count(Core\Str::lines(Core\Str::repeat("\n", $count)));
     }
 }

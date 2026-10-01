@@ -1,7 +1,7 @@
 <?nvs
 // Attack: very long texts, control characters and thousands of direction controls are escaped.
 // No step may crash the runtime. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -26,6 +26,7 @@ string $mixed = "a\u{0000}b\u{001B}[31mred\u{202C}<&>";
 echo 'step 4: ', Core\Str::length(Core\Html::toSource(Core\Html::escape($mixed), 'measuring the escaped text')), "\n";
 
 // 5. Escaped texts are kept in a list and never freed. This step ends the program at its memory limit.
+echo "step 5\n";
 array<Core\Html\Markup> $kept = [];
 string $chunk = Core\Str::repeat('<&>', 10000);
 int $n = 0;

@@ -3,7 +3,7 @@
 // fifty million characters, a class whose `parse` calls itself, and two hundred
 // thousand refusals in a row. The runtime should stay standing.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 ParseError
 // covers: lang:classes/parses
 
 final class Sku implements Parses
@@ -63,5 +63,6 @@ while ($i < 200000) {
 echo '3: refused ', $refused, " times\n";
 
 // 4. One more refusal, with nothing to catch it, so the program ends here.
+echo "step 4\n";
 var $last = Sku::parse('nope');
 echo "5: BAD, the program is still running\n";

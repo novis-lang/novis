@@ -2,7 +2,7 @@
 // Attack: a server sends one header on very many lines, and a program asks for names that
 // are empty, very long or contain line breaks. `headers()` must return every line once,
 // or an empty list. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -53,6 +53,7 @@ echo 'step 3: done', "\n";
 
 // 4. Every list is kept and never freed.
 //    This step ends the program at its memory limit.
+echo "step 4\n";
 array<array<tainted string>> $kept = [];
 while (true) {
     $kept[] = $many->headers('set-cookie');

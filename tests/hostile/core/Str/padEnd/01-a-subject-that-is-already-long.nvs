@@ -2,7 +2,7 @@
 // Attack: `Core\Str::padEnd` gets very long texts, the largest length a `uint` can have, and paddings that do
 // not fit a whole number of times. Each call should return a string or throw an error. The last step should stop the program at its memory limit.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Attack
 {
@@ -52,6 +52,7 @@ class Attack
     /// The memory limit stops the program here.
     public static function tooLarge(uint $size): uint
     {
+        echo "step 5\n";
         return Core\Str::length(Core\Str::padEnd('x', $size, 'é'));
     }
 }

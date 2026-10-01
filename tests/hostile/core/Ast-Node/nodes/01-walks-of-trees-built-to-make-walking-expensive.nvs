@@ -4,7 +4,7 @@
 // statements, and are walked once per node. The last step should stop at the
 // request's memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Forty `if` blocks inside each other. The walk goes down every level, so it
 // must reach the bottom of the tree.
@@ -30,6 +30,7 @@ echo 'a walk from every node saw ', $seen, " nodes\n";
 
 // 4. Every walk of the wide file kept, one after another. That soon needs more
 // memory than the request may hold, so the program stops here.
+echo "step 4\n";
 array<mixed> $kept = [];
 uint $k = 0;
 while ($k < 100000) {

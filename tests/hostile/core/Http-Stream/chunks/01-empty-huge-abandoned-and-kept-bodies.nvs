@@ -2,7 +2,7 @@
 // Attack: a server sends an empty body, a very large body, and many bodies that the
 // program stops reading or never frees. `chunks()` must give every byte exactly once,
 // or throw an error. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -61,6 +61,7 @@ echo 'step 4: done', "\n";
 
 // 5. Every piece of every stream is kept in a list and never freed.
 //    This step ends the program at its memory limit.
+echo "step 5\n";
 array<tainted bytes> $kept = [];
 uint $m = 0;
 while (true) {

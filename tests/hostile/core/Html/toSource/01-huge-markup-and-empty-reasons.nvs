@@ -2,7 +2,7 @@
 // Attack: a huge HTML value, many empty reasons and a reason made of control
 // characters are passed to `Core\Html::toSource`. No step may crash the runtime. The last step stops the
 // program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -37,6 +37,7 @@ echo 'step 3: ', Core\Html::toSource('<p>ok</p>' as Core\Html\Markup, "\u{0000}\
 
 // 4. The texts are kept in a list and never freed, each one joined to a number.
 //    This step ends the program at its memory limit.
+echo "step 4\n";
 array<string> $kept = [];
 uint $n = 0;
 while (true) {

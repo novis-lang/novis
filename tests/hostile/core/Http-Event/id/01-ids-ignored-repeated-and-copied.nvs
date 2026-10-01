@@ -2,7 +2,7 @@
 // Attack: a server sends ids that must be ignored, very many ids without events, and
 // one very long id that every later event gets. Each `id()` call must return the id
 // the stream should have. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -45,6 +45,7 @@ echo 'step 2: ', $events, "\n";
 
 // 3. One id of 65000 characters, then 100000 small events that all get this id. The
 //    events are kept in a list. This step ends the program at its memory limit.
+echo "step 3\n";
 Core\Test::answerHttp('https://feed.example.com/long-id', 200, { body: 'id: ' . Core\Str::repeat('i', 65000) . "\n" . Core\Str::repeat("data: x\n\n", 100000) });
 var $copied = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/long-id');
 array<Core\Http\Event> $kept = [];

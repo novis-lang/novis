@@ -4,7 +4,7 @@
 // repeated byte, and a hundred thousand small calls in a row. Every call must
 // either return bytes or stop with an error, and the program must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Nothing at all, under every format. An empty input is still a frame, so
 //    each call returns a few bytes of header.
@@ -39,6 +39,7 @@ echo 'step 3 wrote ', Core\Bytes::length(Core\Compress::compress($flat, Core\Cod
 
 // 4. Buffers that keep doubling, from 16 mebibytes upward. The program runs
 //    out of memory in this loop and stops there. Nothing after it runs.
+echo "step 4\n";
 bytes $growing = $flat;
 uint $doubled = 0;
 while ($doubled < 20) {

@@ -3,7 +3,7 @@
 // cuts characters, a file that ends inside a character, and handles that cannot read.
 // Each step must work or throw an error. The last one must stop the program cleanly.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 7 FATAL
 
 string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-read');
 Core\IO::makeDir($dir);
@@ -95,6 +95,7 @@ echo 'step 6: done', "\n";
 
 // 7. A read asks for 4 TB from a file of 32 MB. This program may use 16 MB,
 // so `read` must stop the program at its memory limit.
+echo "step 7\n";
 string $megabyte = Core\Str::repeat('x', 1048576);
 Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
 $i = 0;

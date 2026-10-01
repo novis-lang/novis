@@ -4,7 +4,7 @@
 // thousand characters, and a condition runs a recursion with no end. The last
 // condition throws with nothing to catch it.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 5 RuntimeError
 // covers: lang:statements/if-elseif-else
 
 class Attack
@@ -104,6 +104,7 @@ try {
 
 // 5. The last condition throws and nothing catches it. The program ends with
 // status 1.
+echo "step 5\n";
 if (Attack::boom()) {
     echo "never\n";
 }

@@ -2,7 +2,7 @@
 // Attack: a program keeps values it read with `peek` after the heap removes or frees them.
 // Every value read must stay readable, and `peek` on an empty heap must only throw.
 // The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Task
 {
@@ -55,6 +55,7 @@ echo 'step 3: ', $total, "\n";
 
 // 4. The top value is read and kept, and a new smaller value is added each time.
 // Nothing is freed, so this step ends the program at its memory limit.
+echo "step 4\n";
 var $growing = new Core\Heap<int>();
 array<string> $kept = [];
 int $next = 0;

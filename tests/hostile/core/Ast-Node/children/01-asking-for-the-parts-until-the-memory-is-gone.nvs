@@ -4,7 +4,7 @@
 // last step should stop at the request's memory limit with an error, and must
 // not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // 1. Brackets nested deeper and deeper, each tree that parses walked down to
 // its deepest node. The parser stops at its own limit, and that error is caught.
@@ -42,6 +42,7 @@ echo 'asked a million times, saw ', $seen, " parts\n";
 
 // 3. A large file parsed, then a list of its nodes' parts that doubles in
 // size. The request runs out of memory here, so the program stops.
+echo "step 3\n";
 string $body = Core\Str::repeat("echo 1 + 2;\n", 20000);
 Core\Ast\Node $big = Core\Ast::parse("<?nvs\n" . $body);
 array<mixed> $kept = [$big->children(), $file->children()];

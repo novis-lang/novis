@@ -3,7 +3,7 @@
 // nests them, and then keeps more copies than the computer can hold. The last
 // step should stop with an error, and the program must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Build
 {
@@ -46,6 +46,7 @@ echo 'loop done ', $seen, "\n";
 
 // 4. Copies of the two hundred thousand level tower, all kept at once. No
 // computer has that much memory, so the program stops here with an error.
+echo "step 4\n";
 array<mixed> $kept = [];
 uint $k = 0;
 while ($k < 1000) {

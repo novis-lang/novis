@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a request changes the array that `captures()` returned, then reads the captures again.
 // The mount should still return its own captures, and the program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Changes the array it got, and adds a capture to it. A new read still returns "Acme" alone.
 Core\Request\Mount $mount = Core\Request::mount();
@@ -39,6 +39,7 @@ while ($i < 200000) {
 echo 'same answer: ', $same, "\n";
 
 // 4. Keeps every array it reads, without end. This stops at the memory limit.
+echo "step 4\n";
 array<array<tainted string>> $kept = [];
 while (true) {
     $kept[] = $mount->captures();

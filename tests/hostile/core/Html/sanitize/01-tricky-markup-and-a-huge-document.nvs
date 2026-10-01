@@ -3,7 +3,7 @@
 // No step may crash the runtime, and no step may return a script. The last step stops
 // the program at its memory limit.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -46,4 +46,5 @@ Check::clean('step 2', Core\Html::sanitize(Core\Str::repeat('<a href="javascript
 
 // 3. A document with ten million paragraphs. The tree is larger than the memory limit,
 // so this step ends the program at the limit.
+echo "step 3\n";
 Check::clean('step 3', Core\Html::sanitize(Core\Str::repeat('<p>x', 10000000)));

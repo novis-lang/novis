@@ -3,7 +3,7 @@
 // read each other. Two `set` hooks write each other. A `set` hook builds a
 // large string on every one of a million writes. The runtime should stay
 // standing.
-// hostile: ends-early
+// hostile: ends-early 4 LogicError
 // covers: lang:classes/property-hooks
 
 final class Knot
@@ -82,5 +82,6 @@ echo '3: wrote ', $written, ' times, holding ', Core\Str::length($grower->text),
 
 // 4. A `set` hook throws on every write, and nothing catches this one, so the
 //    program ends here.
+echo "step 4\n";
 $grower->always = 1;
 echo "4: BAD, the program is still running\n";

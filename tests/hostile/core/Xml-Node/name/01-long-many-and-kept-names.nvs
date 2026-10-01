@@ -3,7 +3,7 @@
 // name kept after its document is gone. Each step should print the right result. The last step
 // should stop at the memory limit, and must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. An element name of one million characters. This prints 1000000.
 string $long = Core\Str::repeat('n', 1000000);
@@ -57,6 +57,7 @@ $big = Core\Xml::parse('<u/>');
 echo Core\Str::length($kept), "\n";
 
 // 6. The program keeps one million changed copies of the long name. It should stop at its memory limit.
+echo "step 6\n";
 array<tainted string> $copies = [];
 int $n = 0;
 while ($n < 1000000) {

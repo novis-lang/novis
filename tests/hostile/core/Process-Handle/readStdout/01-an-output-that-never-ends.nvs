@@ -2,7 +2,7 @@
 // Attack: a program's output never ends, and the reader keeps every part of it. The memory limit
 // should stop the program with an error. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -75,6 +75,7 @@ $short->wait();
 
 // 4. Every part of an output that never ends is kept in an array. The memory limit stops the
 // program here.
+echo "step 4\n";
 var $flood = Attack::endless();
 array<bytes> $kept = [];
 ?bytes $next = $flood->readStdout();

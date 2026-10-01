@@ -2,7 +2,7 @@
 // Attack: broken, mixed-up and very large certificate files are read as a client
 // identity. Each broken file must throw a `LogicError`, and memory must not grow
 // between reads. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -88,6 +88,7 @@ echo 'step 5: ', $i, "\n";
 
 // 6. Every identity is kept in a list and never freed. Each chain has the certificate
 //    two hundred times. This step ends the program at its memory limit.
+echo "step 6\n";
 string $chainOf200 = Core\Str::repeat($leaf, 200);
 array<Core\Http\Identity> $kept = [];
 while (true) {

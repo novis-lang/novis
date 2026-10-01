@@ -3,7 +3,7 @@
 // match, and letters whose lower case has a different size. It also builds a result far larger
 // than its text. Each call should return a string. The last step should stop at the memory limit.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 class Attack
 {
@@ -61,6 +61,7 @@ class Attack
     /// The memory limit stops the program here.
     public static function tooLarge(): uint
     {
+        echo "step 6\n";
         string $text = Core\Str::repeat('a', 1048576);
         return Core\Str::length(Core\Str::replaceAll($text, ['a' => Core\Str::repeat('x', 1024)]));
     }

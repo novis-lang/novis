@@ -2,7 +2,7 @@
 // Attack: `Core\Str::lowerFirst` gets a letter that grows in lower case, and very long texts behind it.
 // The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Attack
 {
@@ -40,6 +40,7 @@ class Attack
     /// The three texts do not fit together, so the memory limit stops the program here.
     public static function tooLarge(uint $size): uint
     {
+        echo "step 5\n";
         string $text = Core\Str::repeat('İ', $size);
         string $once = Core\Str::lowerFirst($text);
         string $twice = Core\Str::lowerFirst($once);

@@ -2,7 +2,7 @@
 // Attack: `Core\Str::join` gets very long lists, a very long separator, and a result far larger than the memory limit.
 // The last step should stop the program at its memory limit with an error, and nothing may crash or hang.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -48,6 +48,7 @@ class Attack
     /// The result would need ten gigabytes, so the memory limit stops the program here.
     public static function aResultTooLarge(uint $count): uint
     {
+        echo "step 4\n";
         string $large = Core\Str::repeat('x', 1000000);
         array<string> $parts = [];
         uint $i = 0;

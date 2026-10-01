@@ -4,7 +4,7 @@
 // million characters. The runtime should run all of it and stay standing, and
 // the last step should throw an error that nobody catches.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 5 RuntimeError
 // covers: lang:statements/switch
 
 class Attack
@@ -91,6 +91,7 @@ echo $rounds, "\n";
 
 // 5. The subject is a call that throws. Nothing catches it, so the program
 // ends here.
+echo "step 5\n";
 switch (Attack::subject()) {
     case 1:
         echo "never\n";

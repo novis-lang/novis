@@ -4,7 +4,7 @@
 // a function written to break that walk. Every step should finish, and the last
 // one should stop the program at its memory limit. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -55,5 +55,6 @@ echo 'step 3: ', $sum, "\n";
 
 // 4. The carried text doubles in length on every entry. The program should stop
 // at its memory limit.
+echo "step 4\n";
 string $doubled = Core\Arr::reduce($wide, fn(string $carry, int $n) => $carry . $carry, 'aa');
 echo 'step 4: ', Core\Str::length($doubled), "\n";

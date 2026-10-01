@@ -3,7 +3,9 @@
 // It decodes a document of only brackets, and then keeps every error in memory.
 // The memory limit should stop the program before it uses up the server.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 1 FATAL
+
+echo "step 1\n";
 
 uint $round = 0;
 uint $seen = 0;

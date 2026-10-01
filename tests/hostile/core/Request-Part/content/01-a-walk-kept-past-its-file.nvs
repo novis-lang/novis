@@ -2,7 +2,7 @@
 // Attack: a program keeps the content of a file after the loop moved to the next file,
 // and reads one file twice. Reading content that is gone should throw a `LogicError`.
 // The program then copies a piece without end. It should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 array<Core\Request\Part> $parts = [];
 array<Core\Request\PartContent> $walks = [];
@@ -44,6 +44,7 @@ try {
 }
 
 // 5. Copies the last piece and keeps every copy. This stops at the memory limit.
+echo "step 5\n";
 array<tainted bytes> $copies = [];
 while (true) {
     $copies[] = Core\Bytes::repeat($pieces[Core\Arr::count($pieces) - 1], 100000);

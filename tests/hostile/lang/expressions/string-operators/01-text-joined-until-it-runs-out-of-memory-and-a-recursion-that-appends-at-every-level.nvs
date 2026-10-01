@@ -4,7 +4,7 @@
 // level, and a text is appended to itself until no memory is left. The
 // program should stop with an error, and must not crash or hang.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -59,6 +59,7 @@ class Attack
     // fastest way there is to ask for more memory than the machine has.
     public static function untilItIsGone(uint $rounds): uint
     {
+        echo "step 4\n";
         string $grown = 'novis';
         uint $i = 0;
         while ($i < $rounds) {

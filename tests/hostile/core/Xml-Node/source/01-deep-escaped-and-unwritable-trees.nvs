@@ -3,7 +3,7 @@
 // trees that XML cannot write. Each step should print its result or catch a `LogicError`. The last
 // step should stop at the memory limit, and must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. A tree 1000 elements deep is written out. This prints 7000.
 Core\Xml\Node $deep = Core\Xml::parse(Core\Str::repeat('<a>', 1000) . Core\Str::repeat('</a>', 1000));
@@ -39,6 +39,7 @@ foreach ($broken as string $html) {
 }
 
 // 5. The program keeps many copies of a long escaped tree. It should stop at its memory limit.
+echo "step 5\n";
 Core\Xml\Node $wide = Core\Xml::parse('<t>' . Core\Str::repeat('&lt;&gt;', 2000000) . '</t>');
 array<tainted string> $copies = [];
 int $n = 0;

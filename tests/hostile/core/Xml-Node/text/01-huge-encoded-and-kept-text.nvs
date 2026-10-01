@@ -3,7 +3,7 @@
 // document is gone. Each step should print the right length. The last step should stop at the
 // memory limit, and must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. One text node of ten million characters, read 10 times. This prints 100000000.
 Core\Xml\Node $long = Core\Xml::parse('<t>' . Core\Str::repeat('a', 10000000) . '</t>');
@@ -56,6 +56,7 @@ try {
 }
 
 // 6. The program keeps one million copies of a long text. It should stop at its memory limit.
+echo "step 6\n";
 array<tainted string> $copies = [];
 foreach ($long->children() as Core\Xml\Node $t) {
     foreach ($t->children() as Core\Xml\Node $text) {

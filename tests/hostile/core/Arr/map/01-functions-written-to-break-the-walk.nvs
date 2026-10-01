@@ -4,7 +4,7 @@
 // break that walk. Every step should finish, and the last one should stop the
 // program at its memory limit. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -54,5 +54,6 @@ echo 'step 3: ', Core\Arr::count($padded), "\n";
 
 // 4. Every entry is replaced by a text of ten million characters. The program
 // should stop at its memory limit.
+echo "step 4\n";
 array<string> $huge = Core\Arr::map($wide, fn(int $n) => Core\Str::repeat('b', 10000000));
 echo 'step 4: ', Core\Arr::count($huge), "\n";

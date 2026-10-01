@@ -4,7 +4,7 @@
 // the parser allows, and holds a hundred thousand statements. The last step
 // should stop at the request's memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. Source whose own text is full of construct names. The name comes from the
 // grammar, so the text must not reach it.
@@ -48,6 +48,7 @@ echo 'a hundred thousand statements gave ', $echoes, " echoes\n";
 
 // 5. A list of names that doubles in size. That soon needs more memory than the
 // request may hold, so the program stops here.
+echo "step 5\n";
 array<mixed> $names = [];
 foreach (Core\Ast::parse($liar)->nodes() as Core\Ast\Node $node) {
     $names = Core\Arr::append($names, $node->kind());

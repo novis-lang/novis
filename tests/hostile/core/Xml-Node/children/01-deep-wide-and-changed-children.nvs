@@ -3,7 +3,7 @@
 // it gets, and keeps a node after the document is gone. Each step should give the right count or
 // throw a `ParseError`. The last step should stop at the memory limit, and must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 7 FATAL
 
 // 1. Elements nested 1024 deep, which is the most `Core\Xml::parse` allows. The loop walks down
 // through `children` to the last one. This prints 1024.
@@ -65,5 +65,6 @@ while ($n < 200000) {
 echo $count, "\n";
 
 // 7. One element with ten million children. The program should stop at its memory limit.
+echo "step 7\n";
 Core\Xml\Node $huge = Core\Xml::parse('<list>' . Core\Str::repeat('<i/>', 10000000) . '</list>');
 echo Core\Arr::count($huge->children()), "\n";

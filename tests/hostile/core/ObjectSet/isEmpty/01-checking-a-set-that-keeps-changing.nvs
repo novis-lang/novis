@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program checks if a set is empty while it fills it, empties it and adds it to itself many
 // times. Each `isEmpty` should give the right answer, and the program must not crash or leak.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -68,6 +68,7 @@ while ($i < 100000) {
 echo '3: ', $wrong, "\n";
 
 // 4. New objects are added and the set is checked until the memory limit stops the program.
+echo "step 4\n";
 while (true) {
     $set->add(new Node(0));
     $set->isEmpty();

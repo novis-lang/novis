@@ -4,7 +4,7 @@
 // characters, and then grows until it no longer fits in memory. The last step
 // should stop at the request's memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. 100,000 brackets inside each other. The parser stops at its own nesting
 // limit and throws an error, which is caught here so the next step still runs.
@@ -44,6 +44,7 @@ try {
 
 // 4. A program that doubles in size, parsed again after every step. That soon
 // needs more memory than the request may hold, so the program stops here.
+echo "step 4\n";
 string $body = Core\Str::repeat("echo 1;\n", 100000);
 uint $k = 0;
 while ($k < 20) {

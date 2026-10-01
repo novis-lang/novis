@@ -2,7 +2,7 @@
 // Attack: a server answers with every possible status code, and a program calls `status()`
 // very often. `status()` must return each code exactly and must not use more memory.
 // The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -56,6 +56,7 @@ echo 'step 3: done', "\n";
 
 // 4. Every stream is kept in a list and never freed.
 //    This step ends the program at its memory limit.
+echo "step 4\n";
 Core\Test::answerHttp('https://kept.example.com/*', 200, { body: Core\Str::repeat('k', 60000) });
 array<Core\Http\Stream> $kept = [];
 uint $n = 0;

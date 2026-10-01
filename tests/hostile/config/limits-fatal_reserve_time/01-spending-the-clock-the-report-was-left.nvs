@@ -3,7 +3,7 @@
 // for the `Core\Fatal::onLimit` handler. Every attempt should fail. The program
 // then uses up its CPU time, and the handler should still run.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 Core\Fatal::onLimit(fn (): void => {
     echo "the handler still had a clock to run on\n";
@@ -79,6 +79,7 @@ while ($round < 1000) {
 
 // 4. Print both reserves, lower the CPU limit to 20ms, and use it all up.
 //    This loop does not end, so the program stops with a fatal error.
+echo "step 4\n";
 echo 'clock held back: ', Core\Config::get('limits.fatal_reserve_time') ?? '(nothing)', "\n";
 echo 'heap held back:  ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing)', "\n";
 echo 'my own ceiling:  ', Core\Config::set('limits.cpu_time', '20ms') ? 'lowered' : 'refused', "\n";

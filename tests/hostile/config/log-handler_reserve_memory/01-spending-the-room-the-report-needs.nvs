@@ -3,7 +3,9 @@
 // out of memory with a handler that uses more memory. Every write should fail.
 // The server should report the failure or stop the request, and must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 1 FATAL
+
+echo "step 1\n";
 
 array<string> $names = [
     'log.handler_reserve_memory',

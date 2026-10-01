@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a list of one million pieces is joined, and a result is joined with itself until it is huge.
 // No step may crash the runtime. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -29,6 +29,7 @@ echo 'step 3: ', Core\Html::join($self, $piece), "\n";
 
 // 4. A result is joined with itself again and again, so its length doubles each time.
 // This step ends the program at its memory limit.
+echo "step 4\n";
 var $grow = '<b>ab</b>' as Core\Html\Markup;
 array<Core\Html\Markup> $pair = [];
 while (true) {

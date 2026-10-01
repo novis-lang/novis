@@ -2,7 +2,7 @@
 // Attack: a program builds arrays from key lists that are far too long. The
 // last step should stop with an error, and the program must not crash.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // 1. One key of a million characters. The result holds one entry.
 string $long = Core\Str::repeat('k', 1000000);
@@ -17,6 +17,7 @@ echo 'duplicates ', Core\Arr::count($collapsed), "\n";
 
 // 3. Eight million keys. The list of keys fits in memory, and the line below
 // prints its length. The array built from it stops at the memory limit.
+echo "step 3\n";
 array<int> $many = Core\Arr::range(1, 8000000);
 echo 'keys ', Core\Arr::count($many), "\n";
 Core\Arr::fillKeys($many, 'v');

@@ -2,7 +2,7 @@
 // Attack: a test reads very large bodies many times, and one request writes text until
 // it reaches its memory limit. The program should stop at that limit and must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 use Core\Http\Method;
 use Core\Test;
@@ -52,6 +52,7 @@ try {
     echo "empty bodies add nothing\n";
 
     // 4. The request writes without end. It reaches its memory limit, and the program stops.
+    echo "step 4\n";
     var $endless = Test::request(Method::Get, '/without-end');
     echo 'reached ', Core\Str::length($endless->body()), "\n";
 }

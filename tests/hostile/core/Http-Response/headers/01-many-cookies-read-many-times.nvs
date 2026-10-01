@@ -2,7 +2,7 @@
 // Attack: a server sets a very large number of cookies, and the program reads
 // them many times with very long or broken names. Each call must return an array.
 // The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 3 FATAL
 
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
@@ -35,6 +35,7 @@ echo 'step 2: empty', "\n";
 
 // 3. Every cookie is read again and again, and every array is kept. This step
 //    ends the program at its memory limit.
+echo "step 3\n";
 array<array<tainted string>> $kept = [];
 while (true) {
     $kept[] = $response->headers('set-cookie');

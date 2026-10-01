@@ -2,7 +2,7 @@
 // Attack: a server sends a line with no end, a line that is too long, very many empty lines
 // and a line that is not text. `lines()` must give each line once, or throw an error.
 // The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -85,6 +85,7 @@ try {
 
 // 6. Every line of every stream is kept in a list and never freed.
 //    This step ends the program at its memory limit.
+echo "step 6\n";
 array<tainted string> $kept = [];
 uint $n = 0;
 while (true) {

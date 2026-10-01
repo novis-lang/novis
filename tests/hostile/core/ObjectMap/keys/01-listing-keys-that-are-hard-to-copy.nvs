@@ -2,7 +2,7 @@
 // Attack: a program lists the keys of a large map many times and keeps a list after the map is
 // gone. Then it lists keys until memory runs out. Each `keys` should work or stop at the memory
 // limit, and must not crash or leak.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 20000
 
 final class Node
@@ -47,6 +47,7 @@ $grown[] = new Node();
 echo '4: ', $map->count(), ' ', Core\Arr::count($grown), "\n";
 
 // 5. The key list of a large map is kept again and again until the memory limit stops the program.
+echo "step 5\n";
 $i = 0;
 while ($i < 100000) {
     $map->set(new Node(), $i);

@@ -4,7 +4,7 @@
 // The runtime should count through them, throw an error where a number no
 // longer fits, and stay standing.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 6 ArithmeticError
 // covers: lang:statements/for
 
 // 1. Fifty million rounds, with two counters in the step list.
@@ -56,6 +56,7 @@ try {
 
 // 6. The last loop pushes its counter past the largest `int`. Nothing catches
 // that error, so the program ends here.
+echo "step 6\n";
 for (int $n = 9223372036854775800; true; $n++) {
     $acc = $n;
 }

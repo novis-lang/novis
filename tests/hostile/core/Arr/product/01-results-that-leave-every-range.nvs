@@ -3,7 +3,7 @@
 // type. Other arrays hold entries with no common type. The last step should
 // stop at the memory limit with an error, and must not crash.
 // hostile: timeout-ms 30000
-// hostile: ends-early
+// hostile: ends-early 7 FATAL
 
 // 1. Nothing at all. The result of no entries is 1, so this prints 1.
 array<int> $empty = [];
@@ -58,6 +58,7 @@ try {
 
 // 7. One array of zeros that doubles in size, with its result read after every
 // step. That needs more memory than the program has, so it stops here.
+echo "step 7\n";
 array<int> $growing = Core\Arr::fill(1000, 0);
 uint $k = 0;
 while ($k < 40) {

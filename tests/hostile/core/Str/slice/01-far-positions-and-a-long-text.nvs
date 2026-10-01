@@ -3,7 +3,7 @@
 // made of many accents, and many short slices of a very long text. Each call should return a
 // string. The last step keeps copies of a long slice until the memory limit stops the program.
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -48,6 +48,7 @@ class Attack
     /// The memory limit stops the program here.
     public static function keptCopies(): uint
     {
+        echo "step 4\n";
         string $text = Core\Str::repeat('x', 2097152);
         array<string> $kept = [];
         uint $i = 0;

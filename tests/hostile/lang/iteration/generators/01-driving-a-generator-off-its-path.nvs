@@ -5,7 +5,7 @@
 // fills the memory and stops the program, and the runtime should stay standing.
 // covers: lang:iteration/generators
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 class Gen
 {
@@ -134,6 +134,7 @@ try {
 
 // 5. A generator with no end doubles its value every time, and the loop keeps every one.
 // The strings fill the memory, so this step ends the program.
+echo "step 5\n";
 array<string> $kept = [];
 int $n = 0;
 foreach (Gen::text('0123456789abcdef') as string $chunk) {

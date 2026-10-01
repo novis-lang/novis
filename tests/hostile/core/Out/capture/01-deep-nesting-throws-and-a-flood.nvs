@@ -2,7 +2,7 @@
 // Attack: captures are nested very deep, their functions throw, and one capture
 // collects output until the memory limit stops it. Nothing collected should leak
 // into the output, and the program should stop with an error, not crash.
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 final class Nest
 {
@@ -64,6 +64,7 @@ echo Core\Out::capture(
 
 // 6. A capture collects 1 MB at a time and never stops. The collected text is
 //    charged to the request, so the memory limit stops the program here.
+echo "step 6\n";
 string $block = Core\Str::repeat('a', 1048576);
 echo Core\Out::capture(fn (): void => {
     while (true) {

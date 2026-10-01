@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program feeds one stream a very large number of pieces, and feeds a finished stream.
 // The late piece should throw an error. The program must stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -38,6 +38,7 @@ try {
 
 // 4. A new piece every time, and the stream is never finished. The stream keeps every
 // piece, so this step ends the program at its memory limit.
+echo "step 4\n";
 Core\Hash\Stream $growing = Core\Hash::stream(Core\Digest::Sha256);
 uint $n = 0;
 while (true) {

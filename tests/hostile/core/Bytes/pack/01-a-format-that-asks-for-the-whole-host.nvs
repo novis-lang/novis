@@ -3,7 +3,7 @@
 // values that do not match it. Every step should stop with an error, and the
 // last one should stop the program at its memory limit.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 // 1. A count with more digits than any number the machine holds. This must stop
 //    with an error.
@@ -49,5 +49,6 @@ while ($round < 4) {
 
 // 6. A field four billion bytes wide. That is more than the request may hold,
 //    so the program stops here at its memory limit.
+echo "step 6\n";
 echo Core\Bytes::length(Core\Bytes::pack('a4294967295', 'x')), "\n";
 echo "never reached\n";

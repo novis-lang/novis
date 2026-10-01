@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program tries to use more memory than the `[[app]]` block for its file allows.
 // Every change below should fail, and the program should stop at `64M` with an error.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 
 // 1. Raise the limit above the block's ceiling, in every unit the value accepts.
 array<string> $above = ['65M', '512M', '1G', '67108865', '9223372036854775807', '-1'];
@@ -27,6 +27,7 @@ echo 'memory: ', Core\Config::get('memory') ?? '(unset)', "\n";
 echo '64M: ', Core\Config::set('memory', '64M') ? 'yes' : 'no', "\n";
 
 // 4. Allocate past the ceiling. The program must stop here with a memory error.
+echo "step 4\n";
 string $text = 'x';
 uint $round = 0;
 while ($round < 40) {

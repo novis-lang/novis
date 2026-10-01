@@ -2,7 +2,7 @@
 // Attack: a server sends events whose data is very large, empty, or full of unusual
 // characters. Each `data()` call must return exactly the data that was sent, or throw
 // an error. The last step stops the program at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 30000
 
 // A lower memory limit, so the last step reaches the limit quickly.
@@ -55,6 +55,7 @@ echo 'step 3: done', "\n";
 
 // 4. Each stream gives one event with 60000 characters of data. The data is kept
 //    in a list and never freed. This step ends the program at its memory limit.
+echo "step 4\n";
 Core\Test::answerHttp('https://big.example.com/*', 200, { body: 'data: ' . Core\Str::repeat('d', 60000) . "\n\n" });
 array<tainted string> $kept = [];
 uint $n = 0;

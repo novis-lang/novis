@@ -3,7 +3,7 @@
 // Then it reads a line that is not text, and one line larger than its memory limit.
 // Each step must work or throw an error. The last one must stop the program cleanly.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-read-line');
 Core\IO::makeDir($dir);
@@ -97,6 +97,7 @@ echo 'step 5: done', "\n";
 
 // 6. A file of 32 MB with no line break is one line of 32 MB. This program may use
 // 16 MB, so `readLine` must stop the program at its memory limit.
+echo "step 6\n";
 string $megabyte = Core\Str::repeat('x', 1048576);
 Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
 $i = 0;

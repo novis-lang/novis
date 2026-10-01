@@ -5,7 +5,7 @@
 // runtime should stay standing.
 // covers: lang:iteration/core-collections-are-iterable
 // hostile: timeout-ms 20000
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. A loop over a set that adds a new member on every round, trying never to end.
 try {
@@ -95,6 +95,7 @@ try {
 
 // 5. A set of two hundred thousand members walked at 256 levels of nesting at once.
 // The copies those loops hold fill the memory, so this step ends the program.
+echo "step 5\n";
 class Deep
 {
     public static function walk(Core\ObjectSet<int> $members, int $depth): int

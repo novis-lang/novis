@@ -3,7 +3,7 @@
 // stopped, and sends more than its memory limit allows. Each wrong write should throw `IOError`,
 // and the memory limit should stop the program at the end. The runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early
+// hostile: ends-early 6 FATAL
 
 class Attack
 {
@@ -67,6 +67,7 @@ echo 'write to a program that does not read: ', Attack::write($deaf, Core\Bytes:
 $deaf->wait();
 
 // 6. The data doubles in size before each write. The memory limit stops the program here.
+echo "step 6\n";
 var $flood = Attack::discarding();
 bytes $data = "start of a large input\n" as bytes;
 while (true) {

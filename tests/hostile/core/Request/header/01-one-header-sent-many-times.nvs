@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a client sends one header on many lines, and names that only look like `Content-Type`.
 // Only the real name should match, in any case. The program should stop at its memory limit.
-// hostile: ends-early
+// hostile: ends-early 5 FATAL
 
 // 1. Reads `X-Forwarded-For`, which arrived on many lines. The values are joined into one string.
 echo 'x-forwarded-for: ', Core\Str::length(Core\Request::header('x-forwarded-for') ?? ''), "\n";
@@ -29,6 +29,7 @@ foreach ($strange as string $name) {
 }
 
 // 5. Keeps every copy of the long joined header without end. This stops at the memory limit.
+echo "step 5\n";
 array<?tainted string> $kept = [];
 while (true) {
     $kept[] = Core\Request::header('X-Forwarded-For');
