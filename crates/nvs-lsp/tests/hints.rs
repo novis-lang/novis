@@ -64,6 +64,30 @@ fn an_inferred_var_declaration_carries_its_type_as_a_hint() {
     );
 }
 
+/// A `foreach` binding written `var` hides its type the way a `var` local
+/// does, so it gets the same hint after its name: `string` on an array's key,
+/// the element type on its value. The loop that wrote its types gets nothing.
+#[test]
+fn a_var_foreach_binding_is_hinted_with_its_inferred_type() {
+    let source = concat!(
+        "<?nvs\n",
+        "array<int> $a = [1, 2];\n",
+        "foreach ($a as var $k => var $v) {\n",
+        "    echo $v;\n",
+        "}\n",
+        "foreach ($a as string $key => int $value) {\n",
+        "    echo $value;\n",
+        "}\n",
+    );
+    assert_eq!(
+        hints(source),
+        vec![
+            (2, 21, ": string".to_owned(), InlayHintKind::TYPE),
+            (2, 31, ": int".to_owned(), InlayHintKind::TYPE),
+        ]
+    );
+}
+
 /// A literal argument is the one a reader cannot tell the meaning of, so it is
 /// the one that gets the parameter's name — joined through
 /// `nvs_types::ResolvedCall::arg_slots`, which is the checker's own answer to

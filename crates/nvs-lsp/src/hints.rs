@@ -9,19 +9,21 @@
 //!
 //! | Shape | Hint |
 //! |---|---|
-//! | `var $x = …` with no annotation (`rule:types/var-inference`) | `: T`, after the name |
+//! | `var $x = …` or a `foreach` binding written `var` (`rule:types/var-inference`) | `: T`, after the name |
 //! | a call argument written as a bare literal | `name:`, before the literal |
 //!
 //! There is no third, and a candidate is a decision rather than an addition:
-//! everything else an editor could annotate — a `foreach` binding, a chained
-//! call's intermediate type, a closure's return — is either written in the
-//! source already or is a claim about an idiom M5–M9 is still moving.
+//! everything else an editor could annotate — a `foreach` binding with its
+//! type written, a chained call's intermediate type, a closure's return — is
+//! either written in the source already or is a claim about an idiom M5–M9 is
+//! still moving.
 //!
 //! # Decision: a hint is read out of the type phase's table, never re-derived
 //!
 //! Both shapes are answered from what `nvs_types::check_program` already
-//! recorded and from nothing else. The declaration's type is the binding
-//! `crate::Analysed::local_ty` reads out of `ExprTypeTable::local_scopes`; the
+//! recorded and from nothing else. A local declaration's type is the binding
+//! `crate::Analysed::local_ty` reads out of `ExprTypeTable::local_scopes`, and a
+//! `foreach` binding's is `ExprTypeTable::declared_ty` at its `var` keyword; the
 //! parameter's name is `nvs_types::ResolvedCall::param_names`, reached through
 //! that same call's `arg_slots`, which is the checker's own answer to *which
 //! parameter did this written argument fill*. A site the table holds nothing
@@ -66,8 +68,9 @@
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel};
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
 use nvs_syntax::ast::{
-    Block, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, FnBody, FnExpr, ForInit, Param,
-    PropertyHook, PropertyHookBody, Stmt, StmtKind, TestOperand, Type,
+    Block, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, FnBody, FnExpr, ForInit,
+    ForeachBinding, ForeachBindingTy, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind,
+    TestOperand, Type,
 };
 use nvs_types::ExprInfo;
 use nvs_types::expr_table::ArgSlot;
@@ -160,7 +163,17 @@ impl Hinting<'_> {
                 self.exprs(step);
                 self.stmt(body);
             }
-            StmtKind::Foreach { subject, body, .. } => {
+            StmtKind::Foreach {
+                subject,
+                key,
+                value,
+                body,
+                ..
+            } => {
+                if let Some(key) = key {
+                    self.foreach_binding(key);
+                }
+                self.foreach_binding(value);
                 self.expr(subject);
                 self.stmt(body);
             }
@@ -406,6 +419,24 @@ impl Hinting<'_> {
         };
         let label = format!(": {}", self.analysed.interner.describe(inferred));
         self.push(name.end, label, InlayHintKind::TYPE, false);
+    }
+
+    /// The type a `foreach` binding written `var` was given, and nothing for
+    /// one that wrote its type out.
+    ///
+    /// Read from where the checker recorded it, under the keyword's span —
+    /// the lookup `nvs-ir`'s lowering makes — rather than by the binding's
+    /// name, which a later binding of the same name in another loop would
+    /// answer for as well.
+    fn foreach_binding(&mut self, binding: &ForeachBinding) {
+        let ForeachBindingTy::Var(var) = binding.ty else {
+            return;
+        };
+        let Some(inferred) = self.analysed.exprs.declared_ty(var) else {
+            return;
+        };
+        let label = format!(": {}", self.analysed.interner.describe(inferred));
+        self.push(binding.name.end, label, InlayHintKind::TYPE, false);
     }
 
     /// The parameter each bare-literal argument of this call fills.
