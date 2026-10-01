@@ -13615,7 +13615,7 @@
       "id": "nvs-types-a-core-class-is-a-conversion-target-and-object",
       "kind": "cargo-named",
       "stage": 1,
-      "name": "nvs-types (a Core class is a conversion target, and object/shape/callable still are not)",
+      "name": "nvs-types (a Core class is a conversion target, and object/callable still are not, and a shape is tested by its fields)",
       "args": [
         "test",
         "-p",
@@ -13623,7 +13623,8 @@
       ],
       "tests": [
         "a_core_class_is_a_checked_conversion_target",
-        "an_object_a_shape_and_a_callable_are_still_untestable_targets"
+        "an_object_and_a_callable_are_still_untestable_targets",
+        "a_shape_target_records_its_field_walk_only_where_the_operand_needs_one"
       ]
     },
     {
