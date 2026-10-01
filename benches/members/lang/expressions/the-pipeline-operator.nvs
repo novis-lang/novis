@@ -1,7 +1,6 @@
 <?nvs
-// A three-stage pipeline over a short label -- the shape a handler writes when
-// it normalises a field it was handed. The operator is substituted at parse
-// time, so what this measures is the nested spelling it stands for.
+// Measures a three-step pipeline that trims a label, makes it lower case and
+// counts its length. A request handler does this to clean up a form field.
 // bench: iterations 1000000
 
 class Bench {

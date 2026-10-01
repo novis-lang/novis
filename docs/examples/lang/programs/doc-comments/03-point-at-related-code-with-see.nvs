@@ -1,9 +1,8 @@
 <?nvs
-// Shows how a doc comment points at related code. `@see` names a class or a
-// member, and the compiler checks that the name exists.
+// Shows how a doc comment points at related code. `@see` names a class, a method
+// or a property, and the compiler checks that the name exists.
 
 /// One customer invoice. Every amount in it is in cents.
-///
 /// @see Invoice::total
 final class Invoice {
     /// The amount of each line of the invoice, in cents.
@@ -15,10 +14,6 @@ final class Invoice {
     }
 
     /// Adds up the lines and returns the total in cents.
-    ///
-    /// Tags go at the end of the comment, each on a line of its own. You can
-    /// write as many as the code needs.
-    ///
     /// @see Invoice::$lines
     public function total(): int {
         int $sum = 0;

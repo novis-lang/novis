@@ -1,9 +1,8 @@
 <?nvs
-// Attack: a program hammers everything that stands in for PHP's enum members.
-// It names cases millions of times, builds the list of every case again and
-// again, looks a case up by ten thousand characters of text, and walks the
-// steps of a workflow without end. Every answer should be the one the `match`
-// gives, and the runtime should stay standing.
+// Attack: a program calls the functions that replace PHP's enum methods millions
+// of times. It gets case names, builds the list of all cases and looks up long
+// strings. It also runs a workflow that never ends. Each result should be
+// correct, and the runtime should keep running.
 // covers: lang:enums/what-replaces-php-s-enum-members
 // hostile: timeout-ms 20000
 
@@ -38,7 +37,7 @@ class Levels
     }
 }
 
-// 1. Four million names, each for a case built from the round before it.
+// 1. Four million calls that get the name of a case made from the round number.
 class Names
 {
     public static function sweep(int $rounds): int
@@ -58,8 +57,8 @@ class Names
 
 echo '1: wrong names ', Names::sweep(4000000), "\n";
 
-// 2. Four hundred thousand copies of the list of every case, each one walked.
-// Nothing should be left behind by the copies.
+// 2. Four hundred thousand copies of the list of all cases, each read in a loop.
+// Memory use should not grow.
 class Lists
 {
     public static function sweep(int $rounds): int
@@ -78,8 +77,8 @@ class Lists
 
 echo '2: seen ', Lists::sweep(400000), "\n";
 
-// 3. A lookup by name, given ten thousand characters, an empty text and a name
-// that is one character short of a real one.
+// 3. Lookups by name with ten thousand characters, an empty string, and `war`.
+// `war` is one letter short of `warn`. No lookup should find a case.
 class Lookups
 {
     public static function sweep(int $rounds): int
@@ -105,7 +104,7 @@ class Lookups
 
 echo '3: found ', Lookups::sweep(50000), "\n";
 
-// 4. A step of a workflow that walks to the next step, with no end.
+// 4. A workflow step calls the next step, and this never ends.
 class Runaway
 {
     public static function next(Level $l): Level

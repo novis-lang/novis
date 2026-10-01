@@ -1,6 +1,6 @@
 <?nvs
-// Calls a method on a class that was found by its name rather than by its
-// file, which is how a program reaches nearly every class it uses.
+// Measures a call to a method of a class that `autoload` found by its namespace.
+// A program loads most of its classes this way.
 // bench: iterations 200000
 // bench: calls 1
 // bench: allocations 0

@@ -1,16 +1,14 @@
 <?nvs
-// Attack: the shapes a program opens with, handed input nobody would type. A
-// list far longer than a form could send, whole numbers at the very edge of
-// what fits, text that is not a number, a list nested thousands of levels
-// deep, and a list replaced while a loop is still walking it. Each step should
-// answer, refuse, or stop at a limit. A crash, a hang or a wrong total is what
-// must not happen.
+// Attack: a program gets input that nobody would type: a very long list, numbers
+// at the edge of `int`, strings that are not numbers and deeply nested lists.
+// Each step should give a correct result or throw an error. The program should
+// not crash, hang or print a wrong total.
 // hostile: timeout-ms 20000
 
 class Attack
 {
-    /// A list far longer than any form sends: built, put in order, and then
-    /// added up one entry at a time.
+    /// Builds a very long list of number strings, sorts it,
+    /// and adds up the numbers.
     public static function unboundedList(int $n): int
     {
         array<string> $amounts = [];
@@ -27,9 +25,8 @@ class Attack
         return $total;
     }
 
-    /// Every way a whole number can be written at the edge of what fits, and
-    /// several ways it cannot be written at all. Each one is either converted
-    /// or refused, and none of them may be guessed at.
+    /// Converts strings at the edge of the `int` range and strings that are not
+    /// whole numbers. Each one should convert exactly or throw an error.
     public static function textAtTheEdges(): int
     {
         array<string> $inputs = [
@@ -49,7 +46,7 @@ class Attack
         return $refused;
     }
 
-    /// A running total walked past the largest whole number there is.
+    /// Adds `1` to the largest `int` value, so the total is too large for an `int`.
     public static function totalOverflows(int $rounds): int
     {
         int $total = ('9223372036854775807' as int);
@@ -61,8 +58,7 @@ class Attack
         return $total;
     }
 
-    /// A list inside a list inside a list, thousands of levels down, handed to
-    /// the encoder that has to walk all of it.
+    /// Builds a list nested `$depth` levels deep and encodes it as JSON.
     public static function deeplyNested(int $depth): int
     {
         array<mixed> $deep = [];
@@ -74,8 +70,8 @@ class Attack
         return (Core\Str::length(Core\Json::encode($deep)) as int);
     }
 
-    /// The list a loop is walking is replaced on every turn, so what the loop
-    /// still holds and what the name now points at are two different lists.
+    /// The loop replaces `$amounts` on every turn. The `foreach` keeps reading
+    /// the old list, and `$amounts` is the new one.
     public static function rewrittenWhileWalked(int $rounds): int
     {
         array<string> $amounts = ['3', '11', '7'];
@@ -101,8 +97,8 @@ try {
     echo 'stopped: ', $e->message, "\n";
 }
 
-// The encoder stops at a documented depth, so ask for one level under it, one
-// level over it, and then far past it.
+// `Core\Json::encode` has a maximum depth. The first three depths are close to
+// that limit, and `5000` is far past it.
 array<int> $depths = [1021, 1022, 1023, 5000];
 foreach ($depths as int $depth) {
     try {

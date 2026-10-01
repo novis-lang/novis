@@ -1,8 +1,8 @@
 <?nvs
-// Attack: hoard memory, drive the call stack until it refuses, and then end
-// the program from deep inside clean-up blocks that never get their turn --
-// with a great deal of output still behind it, and a status far past the
-// largest one a shell can carry.
+// Attack: a program fills memory and calls a method until the stack runs out.
+// It then prints a lot of output and calls `exit` deep inside `finally` blocks.
+// The exit status is larger than a shell can store. The program should end
+// there, and the `finally` blocks should not run.
 // hostile: timeout-ms 20000
 // hostile: ends-early
 

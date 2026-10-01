@@ -1,12 +1,8 @@
 <?nvs
-// Attack: the whole operator lives in the parser, which keeps one slot for the
-// value waiting to be substituted -- so this goes after that slot. Pipelines
-// inside a pipeline's right side, inside a closure inside a right side, inside
-// a `match` arm on a right side, and a chain long enough that the tree it
-// builds is nothing a person would write. Then the same shapes with megabytes
-// flowing through them, to put the refcounts under load. Either every one of
-// these answers, or a limit says no; what must not happen is a panic, a wrong
-// substitution, or a parse that never ends.
+// Attack: a program puts pipelines inside a pipeline, a closure and a `match`.
+// It also writes a chain of forty-eight steps and sends megabytes through a chain.
+// Each `$_` should get the right value, or a limit should stop the program with
+// an error. The compiler should not crash or run forever.
 // hostile: timeout-ms 20000
 
 class Attack
@@ -16,15 +12,15 @@ class Attack
     public static function add(int $a, int $b): int
     { return $a + $b; }
 
-    /// A pipeline on the right side of a pipeline. The inner one takes the
-    /// slot, finishes, and the outer one's hole must still be waiting.
+    /// A pipeline on the right side of a pipeline.
+    /// Each `$_` should be the value of its own pipeline.
     public static function nestedRightSides(int $a, int $b): int
     {
         return $a |> Attack::add($b |> Attack::twice($_), $_);
     }
 
-    /// A closure written on a right side, with a pipeline of its own inside it.
-    /// The closure body is parsed while the outer hole is parked.
+    /// A closure on the right side of a pipeline, with its own pipeline inside.
+    /// The `$_` inside the closure should be `$x`.
     public static function holeUnderAClosure(array<int> $xs): int
     {
         return $xs
@@ -32,8 +28,8 @@ class Attack
             |> Core\Arr::sum($_) as int;
     }
 
-    /// A `match` in argument position on a right side: every arm is parsed
-    /// with the outer value still waiting, and one arm pipes on its own.
+    /// A `match` as an argument on the right side of a pipeline.
+    /// One arm of the `match` has its own pipeline.
     public static function holeUnderAMatch(int $n): int
     {
         return $n |> Attack::add(match ($n % 2) {
@@ -42,10 +38,8 @@ class Attack
         }, $_);
     }
 
-    /// Forty-eight stages on one expression, each wrapping the one before it.
-    /// A chain is a loop in the parser, so nothing charges its stages to the
-    /// recursion guard the nested spelling trips — what bounds the tree this
-    /// builds is the length of the line.
+    /// A chain of forty-eight steps. Each step adds `1` to the result of the
+    /// step before, so the result is `48`.
     public static function longChain(int $seed): int
     {
         return $seed
@@ -59,16 +53,15 @@ class Attack
             |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1);
     }
 
-    /// A right side nested sixteen deep in parentheses, each level a hole of
-    /// its own, so the substitution has to walk down to the innermost one.
+    /// A right side inside seventeen pairs of parentheses.
+    /// `$_` is in the innermost pair, so the result is `2`.
     public static function deepParentheses(int $seed): int
     {
         return $seed |> ((((((((((((((((($_ + 1))))))))))))))))) ;
     }
 
-    /// Megabytes through a chain, so the substituted tree is evaluated with
-    /// something the allocator notices. The result feeds the next round, so
-    /// nothing here can be folded away.
+    /// Sends megabytes of text through a chain of four steps. Each round adds
+    /// to the total, so the compiler cannot remove the loop.
     public static function bigStringsThroughAChain(uint $mib, uint $rounds): uint
     {
         var $chunk = Core\Str::repeat('a b ', 262144);
@@ -86,8 +79,8 @@ class Attack
         return $total;
     }
 
-    /// The refcount edge: the piped value is an array element, and the array is
-    /// rewritten while the pipeline that read it is still in flight.
+    /// The piped value is an array element. After each pipeline, the loop
+    /// replaces an element of that array with a new string.
     public static function pipedElementReplaced(uint $rounds): uint
     {
         array<string> $held = ['one', 'two', 'three'];

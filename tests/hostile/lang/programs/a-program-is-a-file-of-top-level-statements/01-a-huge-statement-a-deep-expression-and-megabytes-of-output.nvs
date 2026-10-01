@@ -1,16 +1,14 @@
 <?nvs
-// Attack: the file is the program, so this one is written the way nobody
-// writes a file. One statement holding dozens of values, an expression buried
-// dozens of brackets deep, a class that calls itself until it cannot, and
-// megabytes pushed out in one go and then a few bytes at a time. Every step
-// should finish or stop cleanly. A crash, a hang, or output that goes missing
-// is what must not happen.
+// Attack: a program has a statement with many values, a deeply nested expression
+// and a method that calls itself a million times. It also prints a megabyte at
+// once, and then one byte at a time. Each step should finish or stop with an
+// error. No output should be lost.
 // hostile: timeout-ms 20000
 
 class Attack
 {
-    /// A method that calls itself far past any depth a program means to
-    /// reach. Something has to stop it, and the program has to survive that.
+    /// Calls itself `$n` times. For a very large `$n`, the runtime should stop it
+    /// with an error, and the program should keep running.
     public static function down(int $n): int
     {
         if ($n <= 0) {
@@ -19,7 +17,7 @@ class Attack
         return 1 + Attack::down($n - 1);
     }
 
-    /// A megabyte written in a single go.
+    /// Prints about a megabyte with one `echo`.
     public static function oneBigWrite(): uint
     {
         string $big = Core\Str::repeat('novis ', 174763);
@@ -27,8 +25,7 @@ class Attack
         return Core\Str::length($big);
     }
 
-    /// The same bytes again, one at a time, so the sink is asked a hundred
-    /// thousand times instead of once.
+    /// Prints one byte at a time, `$rounds` times.
     public static function manySmallWrites(int $rounds): int
     {
         int $written = 0;
@@ -42,19 +39,18 @@ class Attack
     }
 }
 
-// One statement holding far more values than anybody writes by hand.
+// One `echo` statement with forty numbers.
 echo 1, ' ', 2, ' ', 3, ' ', 4, ' ', 5, ' ', 6, ' ', 7, ' ', 8, ' ', 9, ' ',
      10, ' ', 11, ' ', 12, ' ', 13, ' ', 14, ' ', 15, ' ', 16, ' ', 17, ' ',
      18, ' ', 19, ' ', 20, ' ', 21, ' ', 22, ' ', 23, ' ', 24, ' ', 25, ' ',
      26, ' ', 27, ' ', 28, ' ', 29, ' ', 30, ' ', 31, ' ', 32, ' ', 33, ' ',
      34, ' ', 35, ' ', 36, ' ', 37, ' ', 38, ' ', 39, ' ', 40, "\n";
 
-// One value buried sixteen brackets deep. There is a depth past which the
-// program is not read at all and is told so, so this stays under it: what is
-// being attacked here is what runs, not what refuses to start.
+// One value inside sixteen pairs of parentheses. This is under the nesting
+// limit, so the program compiles and prints `2`.
 echo ((((((((((((((((1 + 1)))))))))))))))), "\n";
 
-// A statement that throws, caught here so the statements under it still run.
+// This conversion throws an error. The `catch` lets the statements below it run.
 try {
     echo ('not a number' as int), "\n";
 } catch (Throwable $e) {

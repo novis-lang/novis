@@ -7,10 +7,8 @@ class Greeting {
     /// Greets `$name` by name.
     /// The name is used as it arrives, so capitalise it before you pass it in.
     public static function forName(string $name): string {
-        //// ----------------------------------------------------
-        //// Four slashes or more is an ordinary note, so a
-        //// divider like this one is not part of the docs.
-        //// ----------------------------------------------------
+        //// Four or more slashes make an ordinary comment.
+        //// Your editor does not show it as documentation.
         return "Hello, " . $name . "!";
     }
 }

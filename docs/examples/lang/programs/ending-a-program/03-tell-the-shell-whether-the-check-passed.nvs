@@ -1,8 +1,7 @@
 <?nvs
-// The number handed to `exit` is the status the shell reads once the program
-// is over, so a program that checks something can answer with it: zero when
-// everything was in order, and the number of problems when it was not. Every
-// address below is complete, so this run ends with a status of zero.
+// The number you pass to `exit` is the exit status that the shell reads.
+// This program checks some addresses and exits with the number of problems.
+// Every address below has an `@`, so the exit status is `0`.
 
 array<string> $addresses = ['ada@example.com', 'grace@example.com'];
 

@@ -1,9 +1,8 @@
 <?nvs
-// Attack: a program declares enums that are as large and as extreme as a
-// declaration can be. One has a hundred cases, one puts its cases at the ends
-// of the number ranges, and one gives many cases the same number. Every number
-// read should be the number the declaration gives, and the runtime should stay
-// standing.
+// Attack: a program declares enums at the limits of what a declaration allows.
+// One has a hundred cases, one uses the smallest and largest numbers, and one
+// gives four cases the same number. Each case should have its declared number,
+// and the runtime should keep running.
 // covers: lang:enums/declaring-an-enum
 // hostile: timeout-ms 20000
 
@@ -30,8 +29,8 @@ enum Wide: uint
 enum Same
 { First = 7, Second = 7, Third = 7, Fourth = 7 }
 
-// 1. Four million rounds read the first, the middle and the last case of the
-// hundred, and count every number that is not the one counting gives.
+// 1. Four million rounds read the first, middle and last of the hundred cases.
+// The number of each case should be its position, starting at `0`.
 class Hundred
 {
     public static function sweep(int $rounds): int
@@ -56,8 +55,8 @@ class Hundred
 
 echo '1: wrong numbers ', Hundred::sweep(4000000), "\n";
 
-// 2. The same sweep over the smallest and the largest numbers an `int` and a
-// `uint` can hold, and over the case counted on from the smallest one.
+// 2. The same check for cases with the smallest and largest numbers
+// of `int` and `uint`.
 class Ends
 {
     public static function sweep(int $rounds): int
@@ -85,7 +84,7 @@ class Ends
 
 echo '2: wrong numbers ', Ends::sweep(4000000), "\n";
 
-// 3. Four cases carry one number, so every pair of them should be equal.
+// 3. Four cases have the same number, so every pair of them should be equal.
 class Aliases
 {
     public static function sweep(int $rounds): int
@@ -107,8 +106,7 @@ class Aliases
 
 echo '3: different pairs ', Aliases::sweep(4000000), "\n";
 
-// 4. A method that reads a case of the hundred and then calls itself, with no
-// end.
+// 4. A method reads one of the hundred cases and then calls itself without end.
 class Runaway
 {
     public static function down(Row $r): int

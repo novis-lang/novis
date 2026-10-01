@@ -10,7 +10,7 @@ use Core\Json\Field;
 class Article {
     public string $title;
 
-    // The document says `published_at`, and your code says `$publishedAt`.
+    // The JSON key is `published_at`, and the property is `$publishedAt`.
     #[Field(name: "published_at")]
     public string $publishedAt;
 
@@ -29,8 +29,7 @@ class Article {
 // This prints {"title":"Novis 1.0","published_at":"2026-03-01"}.
 echo Json::encode(new Article("Novis 1.0", "2026-03-01")), "\n";
 
-// Both options apply to a decode as well. The document uses the new key, and the
-// skipped property gets the value the constructor gives it. This prints
-// `2026-03-01 0`.
+// Decoding reads the `published_at` key, and `$viewCount` gets the value the
+// constructor sets. This prints `2026-03-01 0`.
 var $article = Json::decodeAs<Article>("{\"title\":\"Novis 1.0\",\"published_at\":\"2026-03-01\"}");
 echo $article->publishedAt, " ", $article->viewCount, "\n";

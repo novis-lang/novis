@@ -1,7 +1,7 @@
 <?nvs
-// Your program can have a class called `Json` of its own. A name with a `\`
-// in it is read from the very beginning, so `Core\Json` still means the one
-// Novis ships, and the short name still means yours.
+// Your program can have its own class called `Json`. A name that contains a `\`
+// starts from the top namespace. So `Core\Json` is the built-in class, and
+// `Json` is yours.
 
 namespace App\Billing;
 

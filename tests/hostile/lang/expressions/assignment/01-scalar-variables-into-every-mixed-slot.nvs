@@ -1,5 +1,7 @@
 <?nvs
-// Attack: write an `int`, `float` and `bool` *variable* — never a literal — into every kind of `mixed` slot the language has, at size, and read every one of them back.
+// Attack: a program writes `int`, `float` and `bool` variables into every kind of
+// `mixed` place: array elements, properties and `inout` parameters. It does this
+// thousands of times. Every value read back should be the value that was written.
 // hostile: timeout-ms 30000
 // covers: lang:expressions/assignment
 
@@ -40,20 +42,20 @@ while ($i < $n) {
     $iv = $i * 3;
     $fv = ($i as float) / 2.0;
     $bv = $i % 2 == 0;
-    // Element writes: append, keyed, nested, appended-row-then-keyed.
+    // Writes into array elements: appended, by key, nested, and a new row by key.
     $flat[] = $iv;
     $flat[] = $fv;
     $flat[] = $bv;
     $keyed[$iv as string] = $fv;
     $grid[0][] = $iv;
     $grid[][0] = $bv;
-    // Property and inout slots, the latter both a scalar and an array holder.
+    // Writes into properties and into `inout` parameters of type `mixed` and `array<mixed>`.
     $box->held = $fv;
     $box->rows[] = $iv;
     Box::into(inout $slot, $iv);
     Box::push(inout $flat, $fv);
     Box::push(inout $box->rows, $fv);
-    // And the same values read back, so a wrong tag or a wrong count shows.
+    // Reads two values back. A wrong type or a wrong count changes the output.
     if ($slot == $iv && $box->held == $fv) {
         $sum = $sum + 1;
     }

@@ -2,14 +2,13 @@
 // Shows how to document a class. Three slashes write a doc comment, and it
 // belongs to the declaration on the line under it.
 
-/// A price in cents, so that no rounding can creep in.
+/// A price in cents. A whole number of cents never needs rounding.
 final class Price {
     /// The lowest price a shop may set.
     public const int MIN = 0;
 
     /// Doubles a price.
-    /// A run of `///` lines above one declaration is a single comment, so this
-    /// sentence and the one above it are one note.
+    /// Several `///` lines in a row make one doc comment.
     public static function double(int $cents): int {
         return $cents * 2;
     }

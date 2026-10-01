@@ -1,7 +1,7 @@
 <?nvs
-// A file of the sort you would really write. The namespace, the class, the
-// two prices and the loop below each use the spelling their kind takes, so
-// somebody reading this can tell what every name is without looking it up.
+// Shows a typical file that follows the naming rules. The namespace, the class,
+// the two constants and the variables each use the casing for their kind.
+// A reader can see what each name is from the way it is written.
 
 namespace App\Billing;
 

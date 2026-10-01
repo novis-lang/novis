@@ -1,15 +1,14 @@
 <?nvs
-// Attack: names taken to both ends of what a name is allowed to be. One name
-// hundreds of characters long, names that differ only in the case of a letter
-// in the middle, names that are a single letter, and names that are one
-// letter followed by nothing but digits. Every one of these is legal, so the
-// program has to compile and run all the way to the end.
+// Attack: a program uses names at the limits of what a name may be. Some are
+// hundreds of characters long, and some differ only in the case of a letter.
+// Others are one letter, or one letter and digits. All of them are allowed,
+// so the program should compile and run to the end.
 // hostile: timeout-ms 20000
 
 namespace ANamespaceSegmentThatIsItselfFarLongerThanAnybodyWouldEverTypeByHandAndKeepsGoingForQuiteSomeTimeAfterThatAsWell\AndASecondSegmentJustAsLongAgainSoThatTheWholeNameIsLongerStill;
 
-// A class name of several hundred characters, with the method and the
-// constant inside it just as long.
+// A class name hundreds of characters long, with a method and a constant
+// whose names are just as long.
 class TheLongestClassNameThisProgramCanThinkOfWhichKeepsGoingAndGoingAndGoingPastEveryPointWhereAReasonablePersonWouldHaveStoppedAndThenGoesOnFurtherStillBecauseNothingInTheLanguageSaysItHasToStopHereOrAnywhereElseForThatMatterAndSoItCarriesOnRightToTheVeryEndOfThisLine
 {
     public const int A_CONSTANT_NAME_MADE_OF_A_GREAT_MANY_SHORT_WORDS_EACH_OF_THEM_SEPARATED_FROM_THE_NEXT_ONE_BY_AN_UNDERSCORE_AND_ALL_OF_THEM_IN_CAPITALS_FROM_THE_FIRST_LETTER_TO_THE_LAST_ONE = 3;
@@ -21,8 +20,8 @@ class TheLongestClassNameThisProgramCanThinkOfWhichKeepsGoingAndGoingAndGoingPas
     }
 }
 
-// Three classes whose names differ only in the case of letters in the middle.
-// They are three different classes and the program has to keep them apart.
+// Three classes whose names differ only in the case of some letters.
+// They are three different classes, and each returns its own number.
 class HTTPClient
 {
     public static function ask(): int
@@ -47,7 +46,7 @@ class HtTpClIeNt
     }
 }
 
-// The shortest name there is, next to the longest one.
+// A class with a one-letter name.
 class A
 {
     public static function b(): int

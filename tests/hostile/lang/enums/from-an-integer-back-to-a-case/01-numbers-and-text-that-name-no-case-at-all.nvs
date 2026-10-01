@@ -1,9 +1,8 @@
 <?nvs
-// Attack: a program converts numbers and text that name no case, as fast as it
-// can and for as long as it can. It throws and catches hundreds of thousands of
-// errors, converts numbers at the ends of the ranges, and hands the conversion
-// ten thousand digits of text. Every failed conversion should give `null` or
-// throw an error, and the runtime should stay standing.
+// Attack: a program converts numbers and strings that match no case of an enum.
+// It throws and catches many errors and converts numbers at the ends of the
+// ranges. It also converts a string of ten thousand digits. Each conversion
+// should give `null` or throw an error, and the runtime should keep running.
 // covers: lang:enums/from-an-integer-back-to-a-case
 // hostile: timeout-ms 20000
 
@@ -13,8 +12,8 @@ enum Level: int
 enum Wide: uint
 { None = 0, All = 18446744073709551615 }
 
-// 1. Two hundred thousand conversions that throw, each one caught. Nothing the
-// throws leave behind should pile up.
+// 1. Two hundred thousand conversions that throw an error, and each error is
+// caught. Memory use should not grow.
 class Thrown
 {
     public static function sweep(int $rounds): int
@@ -36,8 +35,8 @@ class Thrown
 
 echo '1: caught ', Thrown::sweep(200000), "\n";
 
-// 2. Four million conversions with `as ?Level` over numbers no case carries.
-// Every one of them should be `null`.
+// 2. Four million conversions with `as ?Level` of numbers that match no case.
+// Every result should be `null`.
 class Missing
 {
     public static function sweep(int $rounds): int
@@ -57,9 +56,8 @@ class Missing
 
 echo '2: not null ', Missing::sweep(4000000), "\n";
 
-// 3. The numbers at the ends of the ranges. A negative number cannot even
-// become the `uint` behind `Wide`, and the largest `uint` names no case of
-// `Level`.
+// 3. Numbers at the ends of the ranges. Only the largest `uint` matches a case,
+// `Wide::All`. Every other result should be `null`.
 class Ends
 {
     public static function sweep(int $rounds): int
@@ -89,8 +87,8 @@ class Ends
 
 echo '3: unexpected ', Ends::sweep(1000000), "\n";
 
-// 4. Text the conversion has to read as a number first: ten thousand digits,
-// an empty text, and text that holds no digits at all.
+// 4. Strings of ten thousand digits, an empty string, and a string with no digits.
+// Every result should be `null`.
 class Text
 {
     public static function sweep(int $rounds): int
@@ -116,7 +114,7 @@ class Text
 
 echo '4: found ', Text::sweep(100000), "\n";
 
-// 5. A method that converts a number and then calls itself, with no end.
+// 5. A method converts a number and then calls itself without end.
 class Runaway
 {
     public static function down(int $n): int

@@ -1,9 +1,8 @@
 <?nvs
-// Attack: a program treats the enums that come with Novis as roughly as it can.
-// It compares and converts their cases millions of times, converts numbers that
-// name no case, hands a case to a member again and again, and carries a case
-// into a call that never ends. Every answer should be the one the enum gives,
-// and the runtime should stay standing.
+// Attack: a program compares and converts the cases of built-in enums millions
+// of times. It converts numbers that match no case, and it calls a method that
+// never stops calling itself. Each result should be correct, and the runtime
+// should keep running.
 // covers: lang:enums/core-enums
 // hostile: timeout-ms 20000
 
@@ -30,9 +29,8 @@ class Values
 
 echo '1: wrong ', Values::sweep(4000000), "\n";
 
-// 2. Numbers no case of `Core\Order` names, at the ends of the range. The
-// checked conversion should throw every time and `as ?Core\Order` should give
-// `null` every time.
+// 2. Numbers that match no case of `Core\Order`. `as ?Core\Order` should give
+// `null`, and `as Core\Order` should throw an error.
 class Outside
 {
     public static function sweep(int $rounds): int
@@ -61,8 +59,8 @@ class Outside
 
 echo '2: caught ', Outside::sweep(200000), "\n";
 
-// 3. A case handed to a member two hundred thousand times, with the direction
-// changing every round.
+// 3. A case is passed to `Core\Arr::sort` two hundred thousand times.
+// The sort order changes every round.
 class Handed
 {
     public static function sweep(int $rounds): int
@@ -81,7 +79,7 @@ class Handed
 
 echo '3: sum of firsts ', Handed::sweep(200000), "\n";
 
-// 4. A method that carries a case and then calls itself, with no end.
+// 4. A method takes a case and then calls itself without end.
 class Runaway
 {
     public static function down(Core\Order $o): int

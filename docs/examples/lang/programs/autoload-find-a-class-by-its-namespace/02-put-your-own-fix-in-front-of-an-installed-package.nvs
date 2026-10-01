@@ -1,8 +1,7 @@
 <?nvs
-// One prefix may name several folders. They are searched in the order you
-// wrote them and the first file found wins, so a folder holding your own fixes
-// can sit in front of the one you installed. Anything you have not patched is
-// still found where it was installed.
+// One prefix can list several folders. `autoload` searches them in order and
+// uses the first file it finds. Put the folder with your own fixes first.
+// A class you did not fix is still loaded from the installed package.
 
 autoload 'Acme' from './fixes', './vendor';
 

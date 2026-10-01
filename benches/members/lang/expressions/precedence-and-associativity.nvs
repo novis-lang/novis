@@ -1,6 +1,6 @@
 <?nvs
-// Measures one expression that mixes six levels of precedence, as a program does when it works out
-// a line total and then decides something from it.
+// Measures one expression that mixes six levels of operator precedence. Real code writes
+// this when it works out a line total and then makes a decision from it.
 // bench: iterations 400000
 // bench: allocations 0
 

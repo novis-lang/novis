@@ -1,6 +1,6 @@
 <?nvs
-// What comments are for at work: writing down why a line says what it says,
-// and putting a line aside for a while without losing it.
+// Shows two common uses of a comment. One says why a line is written this way.
+// The other turns off a line for a while without deleting it.
 
 array<int> $basketCents = [1299, 450, 9900];
 
@@ -9,16 +9,14 @@ foreach ($basketCents as int $price) {
     $total = $total + $price;
 }
 
-// Baskets over 100 euro ship for free. That number comes from the shipping
-// contract rather than from us, so it is written down beside the code that
-// uses it.
+// Baskets of 100 euro or more ship for free.
+// The shipping contract sets this limit.
 int $shippingCents = 495;
 if ($total >= 10000) {
     $shippingCents = 0;
 }
 
-// Put aside while finance checks the new rate. Not deleted, because it is
-// coming back.
+// This line is turned off until finance checks the new rate.
 // $shippingCents = $shippingCents * 2;
 
 echo "Items:    ", $total, "\n";

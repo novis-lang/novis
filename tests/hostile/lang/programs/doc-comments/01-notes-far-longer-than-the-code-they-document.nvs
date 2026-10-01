@@ -1,20 +1,20 @@
 <?nvs
-// Attack: doc comments written the way nobody writes them. A note far longer
-// than the class under it, and one line longer than any screen. Markers that
-// look like the end of the note, and tag names in the middle of a sentence.
-// The program has to compile and still run.
+// Attack: a program has doc comments that nobody would write. One is much longer
+// than the class under it, and one of its lines is very long. The doc comments contain
+// markers that look like their end, and tag names in the middle of sentences. The
+// program should still compile and run.
 // hostile: timeout-ms 20000
 
-/// A class whose note is a hundred times its own size.
+/// A class whose doc comment is a hundred times longer than its code.
 ///
-/// The first thing this note does is carry every marker that means something
-/// somewhere else: */ and /* and ?> and <?nvs and "an open string and 'another
-/// one and a backslash \ and $name and a semicolon; and a closing brace } and
-/// a <?= too. None of it ends this note. Only the end of the line does.
+/// This doc comment has markers that mean something elsewhere: */ and /* and ?> and
+/// <?nvs and "an open string and 'another one and a backslash \ and $name and a
+/// semicolon; and a closing brace } and a <?= too.
+/// None of them ends this doc comment. Only the end of the line does.
 ///
-/// The body is Markdown, so it can hold anything Markdown can hold:
+/// The text is Markdown, so it can contain anything Markdown can contain:
 ///
-/// # A heading inside a note
+/// # A heading inside a doc comment
 /// ## And a second level
 /// ### And a third
 ///
@@ -32,7 +32,7 @@
 /// | and rows | that never end |
 ///
 /// ```
-/// A fenced block inside the note, holding code that would not compile:
+/// A code block inside the doc comment, with code that does not compile:
 /// class 1 { *&^%$ } ?> <?nvs */ /* and a fence that never closes: ```
 /// ```
 ///
@@ -40,16 +40,16 @@
 /// > > inside a quotation
 /// > > > inside a quotation
 ///
-/// A tag name only counts at the start of a line. In the middle of a sentence
-/// it is text, so this note may say @param and @return as often as it likes,
-/// and @throws and @deprecated and @internal with it. An address such as
-/// name@example.com is text too, and even @see written here, in the middle of
-/// a sentence, names nothing.
+/// A tag name only counts at the start of a line.
+/// In the middle of a sentence it is text, so this line can say @param and @return.
+/// It can also say @throws, @deprecated and @internal.
+/// An address such as name@example.com is text too.
+/// And @see in the middle of a sentence names nothing.
 ///
-/// Text that is not plain ASCII belongs here too: Grüße, καλημέρα, こんにちは,
-/// 🇦🇹 and an e with its own accent added on top: é.
+/// Text that is not ASCII: Grüße, καλημέρα, こんにちは,
+/// 🇦🇹 and an accented letter: é.
 ///
-/// One line far longer than any line a person writes by hand: this is the sort of thing that arrives when somebody pastes a whole paragraph of documentation onto one line and never breaks it up, and it keeps going, and going, and it still has to end at the newline and nowhere else, and it is still going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and it ends here.
+/// One very long line follows. It should end at the newline and nowhere else. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It ends here.
 ///
 /// @see Attack::WRAP
 /// @see Attack::$seen
@@ -65,17 +65,17 @@
 /// @see Attack::run
 final class Attack
 {
-    /// The number every round is folded back into.
+    /// Each round adds the remainder of a division by this number.
     ///
     /// @see Attack::run
     public const int WRAP = 7;
 
-    /// What the last round left behind.
+    /// The running total of all calls to `run`.
     ///
     /// @see Attack::WRAP
     public int $seen;
 
-    /// Builds a counter that has seen nothing yet.
+    /// Creates a counter that starts at `0`.
     public function constructor()
     {
         $this->seen = 0;
@@ -83,9 +83,9 @@ final class Attack
 
     /// Runs `$rounds` rounds and returns the running total.
     ///
-    /// Each line of the loop feeds the next one, so none of it can be dropped.
-    /// The note above this method is longer than the method, which is the
-    /// whole point of it.
+    /// Each line of the loop uses the result of the line before.
+    /// So the compiler cannot remove any of them.
+    /// This doc comment is longer than the method.
     ///
     /// @see Attack::WRAP
     /// @see Attack::$seen
@@ -100,15 +100,15 @@ final class Attack
     }
 }
 
-/// Every case of this enum carries a note of its own, and each note carries a
-/// marker that means something somewhere else.
+/// Each case of this enum has its own doc comment with a marker that means
+/// something elsewhere.
 enum Marker
 {
-    /// A case documented with */ in its note.
+    /// A case with */ in its doc comment.
     First,
-    /// A case documented with /* in its note.
+    /// A case with /* in its doc comment.
     Second,
-    /// A case documented with ?> in its note.
+    /// A case with ?> in its doc comment.
     Third
 }
 

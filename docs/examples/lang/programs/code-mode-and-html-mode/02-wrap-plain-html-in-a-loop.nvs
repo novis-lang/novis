@@ -1,6 +1,6 @@
 <?nvs
-// A block can start in code and finish in code with page text in between, so
-// the HTML stays HTML instead of becoming quoted text inside your program.
+// Shows a loop that starts and ends in code, with plain HTML in between.
+// The HTML is not written as strings inside the program.
 array<string> $products = ["pen", "ink", "paper"];
 ?>
 <ul>

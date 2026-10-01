@@ -1,20 +1,19 @@
 <?nvs
-// A working loop with a note on almost every line of it, the way carefully
-// explained code is written. Comments are read once, when the program is
-// compiled, and never while it runs, so this should cost the same as the
-// very same loop with the notes taken out.
+// Measures a loop with a comment on almost every line, as in well-explained code.
+// Comments are read only when the program is compiled. This loop should run
+// as fast as the same loop without comments.
 // bench: iterations 4000000
 // bench: allocations 0
 
-int $a = 1; // the value last round left behind
-int $b = 2; # both spellings of a line note are trivia
+int $a = 1; // the value from the last round
+int $b = 2; # a line comment can also start with #
 int $total = 0;
 int $i = 0;
 
-/* A block note, right where the work starts. */
+/* A block comment before the loop. */
 while ($i < 4000000) {
-    $a = $total + 1; // each line feeds the next one
-    $b = $a + $a; /* so none of it can be dropped */
+    $a = $total + 1; // each line uses the result of the line before
+    $b = $a + $a; /* so the compiler cannot remove any of them */
     // The remainder keeps the running sum small.
     $total = $total + ($b % 7);
     $i = $i + 1; # and on to the next round

@@ -1,16 +1,15 @@
 <?nvs
-// Attack: name classes so the search lands somewhere the rule does not allow.
-// One asks for a folder that is really on disk under different capitals, one
-// asks for a file that is really on disk in a folder no rule points at. Both
-// have to be refused.
+// Attack: a program uses class names that would load a file `autoload` does not
+// allow. One name has the wrong capitals for a folder. The other names a file in
+// a folder that the `autoload` line does not list. Both should fail to load.
 // hostile: expect-refusal
 
 autoload 'App' from './app';
 
-// The folder is `Text`. On a computer that does not care about capitals this
-// would otherwise find the file.
+// The folder is `Text`, so `App\text` should not load. Some file systems
+// ignore capitals, and this name should still fail there.
 echo App\text\Greeter::hello('first'), "\n";
 
-// `outside/Text/Secret.nvs` exists and names exactly this class, but the rule
-// points at `app` and the search has to stop there.
+// `outside/Text/Secret.nvs` exists and declares this class. The `autoload` line
+// lists only `./app`, so this class should not load.
 echo App\Text\Secret::hello('second'), "\n";
