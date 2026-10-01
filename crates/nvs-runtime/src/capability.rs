@@ -133,10 +133,10 @@ fn relative_refusal(path: &Path, member: &str) -> Result<(), Fault> {
 
 /// [`relative_refusal`]'s message as data: `None` for a path that starts at a root.
 ///
-/// For the places a program names the script an isolate runs — `spawn script`,
-/// `Core\Socket::upgrade` and `Core\Sse::upgrade` — which ask it before they hand the path to
-/// [`crate::script::resolve`]. `resolve` itself does not ask, because it also serves the scripts a
-/// queue worker, a `[[schedule]]` entry and a `[log] handler` name, which no source file wrote.
+/// For the places that name the script an isolate runs. `spawn script`, `Core\Socket::upgrade`
+/// and `Core\Sse::upgrade` ask it first so the throw names their own member, and
+/// [`crate::script::resolve`] asks it again for every caller, so a queued job, a `[[schedule]]`
+/// entry and a `[log] handler` whose path arrived relative are refused too.
 #[must_use]
 pub fn relative(path: &Path, member: &str) -> Option<String> {
     if path.has_root() {

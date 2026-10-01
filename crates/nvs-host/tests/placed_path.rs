@@ -26,12 +26,13 @@ use nvs_runtime::host::{Completion, Entry, Narrowing, Output, Placement};
 use nvs_runtime::script::{Program, Resolver, SharedResolver, publish};
 use nvs_runtime::{ClassTable, Ctx, ErrorClass, FieldDefault, OutputSink, TaskRoot, Value};
 
-/// The one path [`Scripts`] compiles.
-const CHILD: &str = "child.nvs";
+/// The one path [`Scripts`] compiles. Absolute, because `script::resolve`
+/// refuses a relative path before any resolver is asked.
+const CHILD: &str = "/srv/child.nvs";
 
 /// A path it does not, which is what a resolver refusing one looks like from the
 /// far core: the program never exists, so no line of the child runs.
-const MISSING: &str = "gone.nvs";
+const MISSING: &str = "/srv/gone.nvs";
 
 /// One test at a time, because what they arrange is process-wide: the published
 /// resolver is one slot for the process, and a guard dropped while another

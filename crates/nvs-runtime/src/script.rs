@@ -170,8 +170,8 @@ pub enum ResolveError {
     /// The resolver tried and could not: an unreadable path, or a file that
     /// does not compile. Already rendered for a person to read.
     Refused(String),
-    /// The configuration does not grant `script.spawn` for this path —
-    /// `rule:security/denial-is-a-runtime-error`
+    /// The path is relative, or the configuration does not grant
+    /// `script.spawn` for it — `rule:security/denial-is-a-runtime-error`
     /// 's message, written by `crate::capability` and carried out through
     /// here rather than re-worded, so every denial reads the same whichever
     /// door produced it.
@@ -408,12 +408,25 @@ fn published_slot() -> MutexGuard<'static, Option<SharedResolver>> {
 ///
 /// # Errors
 ///
-/// [`ResolveError::Denied`] when the configuration does not grant
-/// `script.spawn` for `path`, [`ResolveError::NoResolver`] when nothing is
-/// installed here, and [`ResolveError::Refused`] carrying the implementor's own
-/// message otherwise. The capability is asked **first**: a path outside the
-/// grant is refused whether or not it names a file that compiles.
+/// [`ResolveError::Denied`] when `path` is relative or the configuration does
+/// not grant `script.spawn` for it, [`ResolveError::NoResolver`] when nothing
+/// is installed here, and [`ResolveError::Refused`] carrying the implementor's
+/// own message otherwise. The path is judged **first**: a relative path and a
+/// path outside the grant are refused whether or not they name a file that
+/// compiles.
+///
+/// A relative path is refused rather than looked up in the working directory
+/// (`rule:programs/path-literals-resolve-from-their-file`). Every caller hands
+/// over an absolute path — the compiler joined a literal to its file's folder,
+/// a door refused a relative value the program built, and the configuration
+/// joined `[[schedule]] script` and `[log] handler` to their file's folder — so
+/// a relative one arriving here is a defect upstream, reported with the door's
+/// own message.
 pub fn resolve(ctx: &Ctx, path: &str) -> Result<Program, ResolveError> {
+    if let Some(message) = crate::capability::relative(std::path::Path::new(path), "`spawn script`")
+    {
+        return Err(ResolveError::Denied(message));
+    }
     if let Some(message) = crate::capability::refusal(
         ctx,
         Cap::ScriptSpawn,
@@ -611,7 +624,7 @@ mod tests {
         // than the path failing to compile.
         let installed = install_fixed();
         let ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
-        let Err(ResolveError::Denied(message)) = resolve(&ctx, "child.nvs") else {
+        let Err(ResolveError::Denied(message)) = resolve(&ctx, "/srv/child.nvs") else {
             panic!("an unconfigured context grants no `script.spawn`");
         };
         assert!(
@@ -620,7 +633,25 @@ mod tests {
         );
         // And the grant is what turns it into the resolver's answer, on the
         // same path and the same resolver: nothing but the configuration moved.
-        assert!(resolve(&granting(), "child.nvs").is_ok());
+        assert!(resolve(&granting(), "/srv/child.nvs").is_ok());
+        drop(installed);
+    }
+
+    #[test]
+    fn a_relative_path_is_refused_before_the_grant_and_the_resolver_are_asked() {
+        // `rule:programs/path-literals-resolve-from-their-file`: every caller
+        // hands over an absolute path, so a relative one is a defect upstream
+        // and is never looked up in the working directory. The context grants
+        // everything and the resolver would answer, so the path alone is what
+        // refuses it.
+        let installed = install_fixed();
+        let Err(ResolveError::Denied(message)) = resolve(&granting(), "jobs/report.nvs") else {
+            panic!("a relative path is refused whatever the grant");
+        };
+        assert!(
+            message.contains("needs an absolute path") && message.contains("jobs/report.nvs"),
+            "the doors' own message, naming the path: {message}"
+        );
         drop(installed);
     }
 
@@ -628,7 +659,7 @@ mod tests {
     fn with_nothing_installed_a_path_is_refused_without_a_resolver_being_invented() {
         assert!(!is_installed());
         assert_eq!(
-            resolve(&granting(), "child.nvs").err(),
+            resolve(&granting(), "/srv/child.nvs").err(),
             Some(ResolveError::NoResolver)
         );
     }
@@ -638,9 +669,9 @@ mod tests {
         let installed = install_fixed();
         assert!(is_installed());
         let mut ctx = granting();
-        let program = resolve(&ctx, "abc.nvs").expect("the fixed resolver answers");
+        let program = resolve(&ctx, "/abc.nvs").expect("the fixed resolver answers");
         let answer = program(&mut ctx, Value::null());
-        assert_eq!(answer.as_int(), Some(7));
+        assert_eq!(answer.as_int(), Some(8));
         drop(installed);
         assert!(!is_installed());
     }
@@ -648,7 +679,7 @@ mod tests {
     /// The length of the path the two cross-thread cases resolve, which is what
     /// [`Fixed`] answers with and therefore the proof that the *far* thread's
     /// resolver is the one that ran.
-    const RESOLVED: Option<i64> = Some(8);
+    const RESOLVED: Option<i64> = Some(9);
 
     #[test]
     fn a_shared_handle_crosses_to_a_thread_and_answers_there() {
@@ -664,7 +695,7 @@ mod tests {
             );
             mine.scoped(|| {
                 let mut ctx = granting();
-                let program = resolve(&ctx, "abcd.nvs").expect("the shared resolver answers");
+                let program = resolve(&ctx, "/abcd.nvs").expect("the shared resolver answers");
                 program(&mut ctx, Value::null()).as_int()
             })
         })
@@ -687,7 +718,7 @@ mod tests {
             let handle = published().expect("the process published a handle");
             handle.scoped(|| {
                 let mut ctx = granting();
-                let program = resolve(&ctx, "abcd.nvs").expect("the published resolver answers");
+                let program = resolve(&ctx, "/abcd.nvs").expect("the published resolver answers");
                 program(&mut ctx, Value::null()).as_int()
             })
         })
@@ -712,12 +743,12 @@ mod tests {
 
         let installed = install_fixed();
         let mut ctx = granting();
-        let entry = Entry::Path("abc.nvs".to_owned());
+        let entry = Entry::Path("/abc.nvs".to_owned());
         assert!(!entry.is_method());
         let program = entry
             .program(&ctx)
             .expect("the path form asks this thread's resolver");
-        assert_eq!(program(&mut ctx, Value::null()).as_int(), Some(7));
+        assert_eq!(program(&mut ctx, Value::null()).as_int(), Some(8));
         drop(installed);
     }
 
@@ -750,14 +781,14 @@ mod tests {
         {
             let inner = install(&REFUSING);
             assert!(matches!(
-                resolve(&ctx, "child.nvs"),
+                resolve(&ctx, "/srv/child.nvs"),
                 Err(ResolveError::Refused(_))
             ));
             drop(inner);
         }
         // The outer one is back, which is what a scheduler driven from inside
         // another embedder's task depends on.
-        assert!(resolve(&ctx, "child.nvs").is_ok());
+        assert!(resolve(&ctx, "/srv/child.nvs").is_ok());
         drop(outer);
     }
 
@@ -770,7 +801,7 @@ mod tests {
         assert!(!is_installed());
         let answered = scoped(&stack, || {
             assert!(is_installed());
-            resolve(&ctx, "abc.nvs").is_ok()
+            resolve(&ctx, "/abc.nvs").is_ok()
         });
         assert!(answered);
         assert!(!is_installed());
@@ -781,9 +812,9 @@ mod tests {
         let ctx = granting();
         let outer = install(&REFUSING);
         let stack = Fixed;
-        scoped(&stack, || assert!(resolve(&ctx, "child.nvs").is_ok()));
+        scoped(&stack, || assert!(resolve(&ctx, "/srv/child.nvs").is_ok()));
         assert!(matches!(
-            resolve(&ctx, "child.nvs"),
+            resolve(&ctx, "/srv/child.nvs"),
             Err(ResolveError::Refused(_))
         ));
         drop(outer);
@@ -792,10 +823,10 @@ mod tests {
     #[test]
     fn a_refusal_carries_the_implementors_own_message() {
         let installed = install(&REFUSING);
-        let Err(error) = resolve(&granting(), "notes.txt") else {
+        let Err(error) = resolve(&granting(), "/srv/notes.txt") else {
             panic!("the refusing resolver refuses");
         };
-        assert_eq!(error.to_string(), "`notes.txt` is not a script");
+        assert_eq!(error.to_string(), "`/srv/notes.txt` is not a script");
         drop(installed);
     }
 }

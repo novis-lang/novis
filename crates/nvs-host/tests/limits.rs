@@ -775,8 +775,10 @@ fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling()
     // `Buffer` rather than `breached`'s `Sink`, because the handler's own output joins this
     // stream at the join and a discarded one cannot be read back.
     let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+    // The handler is written absolute because [`snapshot_of`] does not join a relative one to a
+    // file's folder, and `script::resolve` refuses a relative path.
     ctx.set_config(snapshot_of(
-        "[limits]\nmemory = '1M'\n\n[log]\nhandler = 'report.nvs'\nhandler_reserve_memory = '32M'\n\n[capabilities.script]\nspawn = true\n",
+        "[limits]\nmemory = '1M'\n\n[log]\nhandler = '/srv/report.nvs'\nhandler_reserve_memory = '32M'\n\n[capabilities.script]\nspawn = true\n",
     ));
     // Held to the end of the case: a hog freed early is a byte off the reading that puts this
     // request over, which is the whole premise.
@@ -809,7 +811,7 @@ fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling()
             .expect("no test panics holding this")
             .take()
             .as_deref(),
-        Some("report.nvs"),
+        Some("/srv/report.nvs"),
         "resolved from `[log] handler`, through the spawn door the grant above opens",
     );
     assert_eq!(
