@@ -25,6 +25,7 @@ import {
   LanguageStatusItem,
   LanguageStatusSeverity,
   OutputChannel,
+  Uri,
   commands,
   languages,
   window,
@@ -44,6 +45,7 @@ import * as ast from "./ast";
 import { binary, install as installCopies, runnable } from "./binary";
 import * as format from "./format";
 import * as imports from "./imports";
+import { revealing } from "./links";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
 import { Stamp, Watch, stamp } from "./shadow";
@@ -295,11 +297,12 @@ async function launch(context: ExtensionContext, command: string): Promise<Langu
   // server version, which is `stubs.ts`'s reasoning; the server takes whatever arrives and falls
   // back to a cache directory only for a client that sent nothing at all.
   //
-  // The one middleware is an ordering and not a rewrite: nothing here changes a request, an answer
-  // or a notification. `redactions.opened` asks what a document conceals, and it is called from
-  // behind the `didOpen` it belongs to because the server answers nothing for a document it has not
-  // been told about and this client holds that answer — `redactions.ts` § `opened` is why that
-  // order is the difference between a concealed `secret` and one in cleartext.
+  // Two middlewares. The first is an ordering: `redactions.opened` asks what a document conceals,
+  // and it is called from behind the `didOpen` it belongs to because the server answers nothing for
+  // a document it has not been told about and this client holds that answer — `redactions.ts`
+  // § `opened` is why that order is the difference between a concealed `secret` and one in
+  // cleartext. The second is the one rewrite of an answer: a link to a directory cannot open in an
+  // editor tab, so `links.ts` turns it into a command that reveals the directory in the Explorer.
   const options: LanguageClientOptions = {
     documentSelector: SELECTOR,
     outputChannel: channel,
@@ -311,6 +314,17 @@ async function launch(context: ExtensionContext, command: string): Promise<Langu
       didOpen: async (document, next) => {
         await next(document);
         redactions.opened(document);
+      },
+      provideDocumentLinks: async (document, token, next) => {
+        const answered = await next(document, token);
+        for (const link of answered ?? []) {
+          const command = link.target === undefined ? undefined : revealing(link.target);
+          if (command !== undefined) {
+            link.target = Uri.parse(command);
+            link.tooltip = "Reveal in Explorer";
+          }
+        }
+        return answered;
       },
     },
   };
