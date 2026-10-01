@@ -81,8 +81,12 @@ export function skipReason(source: string): string | null {
 const TIMEOUT_RE = /(?:\/\/|#)\s*hostile:\s*timeout-ms\s+([0-9]+)/;
 /** `// hostile: expect-refusal`: this attack passes when the compiler refuses it. */
 const REFUSAL_EXPECTED_RE = /(?:\/\/|#)\s*hostile:\s*expect-refusal/;
-/** `// hostile: ends-early`: this attack's last step ends the program, so a non-zero status is expected. */
-const ENDS_EARLY_RE = /(?:\/\/|#)\s*hostile:\s*ends-early/;
+/** `// hostile: ends-early 4 FATAL`: this attack's last step, 4, ends the program with `FATAL`. */
+const ENDS_EARLY_RE = /(?:\/\/|#)\s*hostile:\s*ends-early\b([^\r\n]*)/;
+/** A step comment: `// 4.`, `/// 4.` above a method, or `// Step 4:`. */
+const STEP_RE = /^\s*\/\/\/?\s*(?:Step\s+)?([0-9]+)[.:](?:\s|$)/i;
+/** What an attack may end with: `FATAL` for a limit, `exit` for a non-zero `exit`, or a thrown class. */
+const ENDING_RE = /^(?:FATAL|exit|[A-Za-z_][A-Za-z0-9_]*(?:\\[A-Za-z_][A-Za-z0-9_]*)*)$/;
 /** `// proof: exit 1` in an example: the exact status it ends with. */
 const EXAMPLE_EXIT_RE = /(?:\/\/|#)\s*proof:\s*exit\s+([0-9]+)/;
 /** A compile diagnostic. An uncaught throw is a log line and does not look like this. */
@@ -319,6 +323,73 @@ export function hostileLimitMs(source: string): number {
   return m ? Number(m[1]) : HOSTILE_TIMEOUT_MS;
 }
 
+/** The step an attack's `ends-early` names, and the ending it names for it. */
+export interface Ending {
+  step: number;
+  ending: string;
+}
+
+/** Each step comment as its 1-based line and the number it carries, in file order. */
+function stepComments(source: string): [number, number][] {
+  const steps: [number, number][] = [];
+  source.split("\n").forEach((text, i) => {
+    const m = STEP_RE.exec(text);
+    if (m) steps.push([i + 1, Number(m[1])]);
+  });
+  return steps;
+}
+
+/**
+ * The ending an attack declares, null when it declares none, and what is wrong with the marker when
+ * something is. The step must be the file's last; a file with no step comment is one attack, step `1`.
+ */
+export function declaredEnding(source: string): Ending | string | null {
+  const m = ENDS_EARLY_RE.exec(source);
+  if (!m) return null;
+  const said = (m[1] ?? "").trim();
+  const [number, ending, ...more] = said.split(/\s+/).filter(Boolean);
+  if (number === undefined || ending === undefined || more.length > 0 || !/^[0-9]+$/.test(number) || !ENDING_RE.test(ending)) {
+    return `\`ends-early\` must name its step and its ending, as \`// hostile: ends-early 4 FATAL\`, and it says \`${said}\``;
+  }
+  const step = Number(number);
+  const last = Math.max(1, ...stepComments(source).map(([, n]) => n));
+  if (step !== last) return `\`ends-early\` names step ${step}, which is not the file's last step, ${last}`;
+  return { step, ending };
+}
+
+/**
+ * How a program that stopped early ended, and the line of `path` the error report's outermost frame
+ * names. The first report is the throw that ended the program; a hook that throws while it is reported
+ * writes a report of its own after it.
+ */
+function observedEnding(out: Ran, path: string): { ending: string; line: number | null } {
+  if (/^FATAL: /m.test(out.stderr)) return { ending: "FATAL", line: null };
+  const own = path.replace(/\\/g, "/");
+  for (const text of out.stderr.split(/\r?\n/)) {
+    if (!text.startsWith("{")) continue;
+    let report: { fields?: { class?: unknown }; nodes?: { file?: string; line?: number }[] };
+    try {
+      report = JSON.parse(text);
+    } catch {
+      continue;
+    }
+    const cls = report.fields?.class;
+    if (typeof cls !== "string") continue;
+    const frames = (report.nodes ?? []).filter((n) => typeof n.line === "number" && n.file?.replace(/\\/g, "/").endsWith(own));
+    return { ending: cls, line: frames.at(-1)?.line ?? null };
+  }
+  // The plaintext rendering of the report carries the class as a field of its own.
+  const plain = /^\s*class[=:]\s*"?([A-Za-z_][A-Za-z0-9_\\]*)/m.exec(out.stderr);
+  return { ending: plain?.[1] ?? "exit", line: null };
+}
+
+/** The step whose comment is the last one at or above `line`, or null when none is. */
+function stepAt(source: string, line: number): number | null {
+  let step: number | null = null;
+  for (const [at, n] of stepComments(source)) if (at <= line) step = n;
+  return step;
+}
+
 /**
  * An attack passes when the runtime survives it. A throw, a limit, a clean fatal and a clean run all pass.
  * A panic, a hang, a crash-shaped status and a definite leak do not. Two failures look like a pass, and
@@ -341,11 +412,13 @@ async function runHostile(nvs: string, path: string, valgrind: boolean, unlogged
   } catch (e) {
     return ["fail", `could not run: ${e instanceof Error ? e.message : String(e)}`];
   }
-  return [...judgeHostile(source, out, limit, valgrind), out];
+  return [...judgeHostile(path, source, out, limit, valgrind), out];
 }
 
 /** An attack's verdict from one run of it under `limit`. */
-function judgeHostile(source: string, out: Ran, limit: number, valgrind: boolean): [Verdict, string] {
+export function judgeHostile(path: string, source: string, out: Ran, limit: number, valgrind: boolean): [Verdict, string] {
+  const declared = declaredEnding(source);
+  if (typeof declared === "string") return ["fail", declared];
   if (out.timedOut) return ["fail", `still running after ${Math.round(limit / 1000)}s -- unbounded${reached(out.stdout)}`];
   const blob = out.stderr + out.stdout;
   for (const marker of CRASH_MARKERS) {
@@ -363,16 +436,25 @@ function judgeHostile(source: string, out: Ran, limit: number, valgrind: boolean
   if (valgrind && out.code === 97) return ["fail", "valgrind reports a definite leak or an invalid access"];
   // A negative status is a signal; anything past 255 on Windows is a structured exception.
   if (out.code < 0 || out.code > 255) return ["fail", `crash-shaped exit status ${out.code}`];
-  const endsEarly = ENDS_EARLY_RE.test(source);
-  if (out.code !== 0 && !endsEarly) {
+  if (out.code !== 0 && !declared) {
     const first = out.stderr.split(/\r?\n/).find((l) => l.trim()) ?? "";
     return [
       "fail",
       `ended before its last line (exit ${out.code}), so the steps behind that point never ran -- catch what ` +
-        `stopped it, or make that step the last one and declare \`ends-early\`: ${[...first].slice(0, 120).join("")}`,
+        `stopped it, or make that step the last one and declare \`ends-early <step> <ending>\`: ${[...first].slice(0, 120).join("")}`,
     ];
   }
-  if (out.code === 0 && endsEarly) return ["fail", "declares `ends-early`, but ran to its last line -- remove the marker"];
+  if (out.code === 0 && declared) return ["fail", "declares `ends-early`, but ran to its last line -- remove the marker"];
+  if (!declared) return ["ok", ""];
+  const seen = observedEnding(out, path);
+  const wants = `declares step ${declared.step} with ${declared.ending}`;
+  // The step's line ends with `step N`. Output before it, such as a response body, may not end its own line.
+  if (!new RegExp(`step ${declared.step}\\r?$`, "m").test(out.stdout)) {
+    const at = seen.line === null ? null : stepAt(source, seen.line);
+    const where = at === null || at === declared.step ? `before step ${declared.step}` : `at step ${at}`;
+    return ["fail", `stopped ${where} with ${seen.ending}, ${wants}`];
+  }
+  if (seen.ending !== declared.ending) return ["fail", `stopped at step ${declared.step} with ${seen.ending}, ${wants}`];
   return ["ok", ""];
 }
 
