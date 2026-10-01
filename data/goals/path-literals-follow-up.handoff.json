@@ -1,28 +1,28 @@
 {
-  "state": "**Goal `path-literals-follow-up`: Stages 1 to 4's checks pass; Stage 5 is next.** Stage 1's floor is goal `plain-comments`'s list.\n\nADR 0248 is on disk: `Core\\Path::fromCwd`'s parameter is `Qual::Launder`, so its answer is a plain `string` and a path from `Core\\Cli::arguments` reaches every path door. `rule:security/launderers-are-sink-named` states it as that rule's one exception, and `rule:programs/path-literals-resolve-from-their-file` gained 0248 in its `because`. Both Stage 4 checks pass: `nvs-stdlib`'s `from_cwd_returns_a_string_without_tainted`, and the two `.nvst` cases. The attack under `tests/hostile/core/Path/fromCwd/` has step 6 (a request's own path throws at `fromCwd`). `Core\\Path`'s perf figures were measured again after `path.rs` changed.\n\nStage 4's example 01 is only half done. It now declares the answer a `string`, but it does not read the file yet: the example runner (`tools/nv/proofs/run.ts` `spawnProof`) starts every example from the repository root with no arguments, so the file beside the example is not under the working directory.\n\nNot this goal's: another agent's packaging work (ADRs 0246 and 0247, `docs/rules/packaging/`, the `ext-*` goals) is uncommitted. `bun nv rules --render` rewrote `docs/rules/security.md`, `docs/ground-rules.md`, `website/src/data/rules.json` and the website's security pages with that agent's rules and 0248's text mixed together. Those generated files are left uncommitted for that agent's commit. ADR slots left: Stages 5 and 6, so check `docs/decisions/` right before claiming each (0249 or higher).",
+  "state": "**Goal `path-literals-follow-up`: Stages 1 to 4's checks pass, and Stage 5's three code checks are on disk; Stage 5's feature proofs and Stage 6 are next.** Stage 1's floor is goal `plain-comments`'s list.\n\nADR 0249 is on disk: `Core\\Path::thisFile()` and `thisDir(?string $join)` are folded while compiling by `nvs_types::paths::fold_this` into the path-literal table under the call's span, and `nvs-ir`'s static-call arm lowers them to a `ConstStr`. A `$join` that is not a relative string literal is `E0837`. `rule:programs/path-literals-resolve-from-their-file` gained 0249 and a paragraph. `E0319`'s card and help, and the `__DIR__` row of `docs/reference/tools/30-php-differences.md`, name the two members. Stage 4's `nvs-stdlib` check now has both of its tests: `from_cwd_throws_while_a_request_is_answered` was split out of `from_cwd_returns_a_string_without_tainted`.\n\nStage 4's example 01 is only half done. It declares the answer a `string`, but it does not read the file yet: the example runner (`tools/nv/proofs/run.ts` `spawnProof`) starts every example from the repository root with no arguments, so the file beside the example is not under the working directory.\n\nAt this commit `bun nv proofs --id 'Core\\Path::thisDir'` still says \"no feature\", while `fromCwd` is found: the roster reads something verify did not rebuild (not checked which). If it still says so, find where `tools/nv/cmd/proofs.ts` reads the roster before writing a proof by hand.\n\nADR slot left: Stage 6, so check `docs/decisions/` right before claiming it (0250 or higher).",
   "next": {
     "stage": 5,
-    "title": "`thisFile` and `thisDir`",
+    "title": "`thisFile` and `thisDir` feature proofs",
     "files": [],
-    "note": "one file set: `Core\\Path`'s descriptor table, `nvs-types`' path-literal fold, the expression table and the IR lowering.",
+    "note": "one file set: the two members' trees under `docs/examples/core/Path/`, `tests/hostile/core/Path/` and `benches/members/core/Path/`, beside the cards in `Core\\Path`'s descriptor table.",
     "items": [
       {
         "done": false,
-        "text": "**The record for Stage 5** (goal § *Stage 5*, one ADR slot): names ADR 0241's rejected `__DIR__` constant and says why a folded `Core` member is not that alternative. It `modifies` `rule:programs/path-literals-resolve-from-their-file`. The rows go beside `fromCwd` at `crates/nvs-stdlib/src/path.rs:196`."
+        "text": "**`thisFile`'s proofs** (`rule:testing/feature-proofs`): `about.md`, three examples, one attack, one bench. `bun nv proofs --id 'Core\\Path::thisFile'` prints the paths; its card is at `crates/nvs-stdlib/src/path.rs:462`. An example cannot print an absolute path, so print `Core\\Path::basename` and compare with `dirname`, as the conformance case does."
       },
       {
         "done": false,
-        "text": "**The fold** (`rule:programs/path-literals-resolve-from-their-file`): record the call as `resolve_literal` records a literal, at `crates/nvs-types/src/paths.rs:144`, with the base from `crates/nvs-types/src/paths.rs:183` and the table at `crates/nvs-types/src/expr_table.rs:1905`. A `$join` that is not a relative literal gets one new code (next free `E0837`). Test `this_file_folds_to_the_absolute_path_of_the_file_that_wrote_it` in `nvs-types`."
+        "text": "**`thisDir`'s proofs**, the same set; its card is at `crates/nvs-stdlib/src/path.rs:476`. The attack tries `..` joins that climb out of the folder and a first-class callable `Core\\Path::thisDir(...)`, which is not folded and throws (ADR 0249 § *Consequences*)."
       },
       {
         "done": false,
-        "text": "**The lowering**: a string constant and no call, beside the path literal's arm at `crates/nvs-ir/src/lower/expr.rs:190`. Test `this_file_and_this_dir_lower_to_a_string_constant` in `nvs-ir`, then the case `tests/conformance/core/path-this-file-and-this-dir-name-the-file-that-wrote-them.nvst`."
+        "text": "**Stage 4's example 01 reads its file** (`rule:programs/path-literals-resolve-from-their-file`): either the example passes a path under the repository root, or `spawnProof` at `tools/nv/proofs/run.ts:1` gains an argument directive. Decide in the session; prefer the example change."
       }
     ]
   },
   "backlog": [
-    "Stage 4's example 01 at `docs/examples/core/Path/fromCwd/01-a-file-name-from-the-command-line.nvs` should read the file its user typed and print its first line. The runner's working directory is the repository root and it passes no arguments (`tools/nv/proofs/run.ts` `spawnProof`). The example needs a default the reader understands, and an `nvs.toml` beside it with an `fs.read` grant, which then applies to all three examples in that folder. Owner: goal § *Stage 4*.",
-    "A queued job and a spawned isolate answer no request, so `fromCwd` runs there on any text they were handed. The `fs` grants bound the file. ADR 0248 § *Consequences* records it, and no check pins it yet.",
-    "Stage 6 (`'X' as class<T>`) and Stage 7 (the perf records for `thisFile` and `thisDir`) are untouched."
+    "Stage 6, `'X' as class<T>` decided while compiling — goal § *Stage 6*, one ADR slot.",
+    "Stage 7's perf records: `Core\\Path`'s figures are stale again, since `path.rs` changed — `benches/members/README.md`.",
+    "`Core\\Path::thisDir(...)` as a first-class callable is not folded and throws — ADR 0249 § *Consequences*; refuse it while compiling if an attack shows it matters."
   ]
 }
