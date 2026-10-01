@@ -14,9 +14,8 @@ class Product {
 
 var $info = Core\Reflect::forObject(new Product());
 
-// `target` returns the property or method name. A property name has no `$`.
-// For the class itself, `target` returns an empty string.
-// This prints `<class>`, then `name`, then `price`.
+// `target` returns the property or method name, without a `$`. For the class itself, it
+// returns an empty string, so this prints `<class>`, then `name`, then `price`.
 foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
     echo $attribute->target() == "" ? "<class>" : $attribute->target(), "\n";
 }
