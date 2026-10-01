@@ -1,0 +1,10 @@
+{
+  "title": "An attack that ends early names the step and the ending it stops with, and stopping anywhere else fails it",
+  "status": "accepted",
+  "scope": "What `// hostile: ends-early` declares, how the proof runner checks it, and what an\nattack that ends early prints. Which endings count as a pass at all is unchanged.",
+  "dependsOn": [
+    "0134"
+  ],
+  "dependsOnText": "[0134](0134.md) (the hostile-case contract).",
+  "validatedBy": "`tools/nv/test/hostile-ending.test.ts`."
+}

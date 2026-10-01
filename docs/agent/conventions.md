@@ -173,7 +173,7 @@ line** — are not. Every step that can be caught is caught; the one that cannot
 // stop at its memory limit with an error, and must not crash.
 // hostile: timeout-ms 20000     (optional; 10s otherwise)
 // hostile: expect-refusal       (only when being refused IS the assertion)
-// hostile: ends-early           (only when the last step ends the program: a memory limit, `exit`)
+// hostile: ends-early 3 FATAL   (only when the last step ends the program; it prints `step 3` first)
 ```
 
 **A bench** — `benches/members/<path>.nvs`, one file, iterations declared, inputs chained so no

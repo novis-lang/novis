@@ -47,16 +47,25 @@ has said nothing about them. So:
 
 - **Catch everything that can be caught**, and say in the comment that it is caught so the attack
   after it still runs. A `RecursionError`, a `LogicError`, a `ParseError` — each goes in a `try`.
-- **What cannot be caught goes last.** A memory limit and `exit` end the program whatever is
-  wrapped around them, so the step that reaches one is the file's final step, and the case says so:
+- **What cannot be caught goes last.** A limit and `exit` end the program whatever is wrapped
+  around them, so the step that reaches one is the file's final step. The case names that step and
+  how it ends, and the step prints that it started:
 
-      // hostile: ends-early
+      // hostile: ends-early 4 FATAL
+      ...
+      // 4. Lowers the memory limit to `8M` and fills it.
+      echo "step 4\n";
 
+  The ending is `FATAL` for any limit, `exit` for an `exit` with a non-zero status, and the class the
+  error report names for an uncaught throw. Read both off a run of the case, never off a guess.
 - A feature that deserves two endings gets two files. `02-slug.nvs` costs nothing.
 
 A non-zero exit status without the marker fails the case as *ended before its last line*. With the
-marker, running to the last line is what fails it — the ending it declares did not happen, and the
-marker comes off or the attack is made to land.
+marker, the case passes only when `step <N>` was printed and the program then stopped with the
+ending it names. Running to the last line, stopping before step `<N>` and stopping with another
+ending all fail it, and so does a marker with no step, no ending, or a step that is not the last.
+Moving the marker to the step the program really stops in is softening the attack: the attack is
+fixed so its last step runs.
 
 ## What to write
 
@@ -109,7 +118,8 @@ weakened to go green is worse than no case: it reports that a thing was tried an
 
     // hostile: timeout-ms 4000     how long it may run before it counts as unbounded (default 10s)
     // hostile: expect-refusal      the compiler saying no is this case's assertion
-    // hostile: ends-early          the last step ends the program, and that ending is the attack
+    // hostile: ends-early 4 FATAL  step 4, the last, ends the program with that ending, and that
+                                    ending is the attack; step 4 prints `step 4` first
     // hostile: comment-payload     the comment block directly under it is the payload, not prose,
                                     so `bun nv proofs --comments` does not judge it
     // proof: gap <gap id>          it breaks something; the gap record says what, not this file

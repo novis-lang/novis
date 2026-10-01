@@ -2,7 +2,8 @@
   "title": "A hostile case passes when nothing came apart, and a compile diagnostic is never a pass",
   "status": "shipped",
   "because": [
-    "0134"
+    "0134",
+    "0244"
   ],
   "seeAlso": [
     "testing/feature-proofs",
