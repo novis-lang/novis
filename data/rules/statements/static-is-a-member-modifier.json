@@ -8,7 +8,7 @@
     "0211",
     "0231"
   ],
-  "divergesFromPhp": "`self::m()` and `parent::m()` inside a closure set the called class to the class the closure is written in, where PHP forwards the enclosing method's called class",
+  "divergesFromPhp": "`self::m()` and `parent::m()` inside a closure set the called class to the class the closure is written in, where PHP forwards the enclosing method's called class; `self::m()` in a method body on an `abstract static` `m` runs the subclass's body, where PHP throws",
   "seeAlso": [
     "statements/no-function-static-and-no-global",
     "statements/a-closure-binds-this-only-where-it-uses-it",
@@ -22,6 +22,8 @@
     "tests/conformance/reject/a-redeclared-constant-keeps-its-type.nvst",
     "tests/conformance/reject/static-names-no-class-inside-a-closure.nvst",
     "tests/conformance/closures/self-and-parent-in-a-closure-call-the-class-the-closure-is-written-in.nvst",
+    "tests/conformance/closures/self-calls-an-abstract-static-method-on-the-called-class-outside-a-closure.nvst",
+    "tests/conformance/reject/an-abstract-static-method-is-not-called-on-a-class-fixed-while-compiling.nvst",
     "tests/conformance/lang/new-static-through-two-levels-returns-the-called-class.nvst",
     "tests/conformance/class/a-static-return-must-be-the-called-class.nvst",
     "tests/conformance/reject/this-is-not-read-in-a-static-method.nvst",

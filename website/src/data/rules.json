@@ -1108,7 +1108,7 @@
               "title": "`static` marks a class member and names a class-relative type, and nothing else",
               "status": "shipped",
               "href": "/docs/rules/statements/where-state-lives/#static-is-a-member-modifier",
-              "diverges": "`self::m()` and `parent::m()` inside a closure set the called class to the class the closure is written in, where PHP forwards the enclosing method's called class"
+              "diverges": "`self::m()` and `parent::m()` inside a closure set the called class to the class the closure is written in, where PHP forwards the enclosing method's called class; `self::m()` in a method body on an `abstract static` `m` runs the subclass's body, where PHP throws"
             },
             {
               "id": "statements/no-function-static-and-no-global",

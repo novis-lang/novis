@@ -5241,6 +5241,20 @@ pub mod code {
          closure, and use that variable inside it.",
     );
 
+    /// A call to an `abstract static` method on a class fixed while compiling
+    /// — a written class name, or `self::`/`parent::` inside a closure body —
+    /// where no class from that one upwards declares the method with a body.
+    ///
+    /// Such a call sets the class it dispatches on, so no subclass's override
+    /// can be reached, and the dispatch would find no body to run. Refused
+    /// where it is written, because at run time it is an internal error.
+    pub const E_ABSTRACT_STATIC_CALLED: Code = Code::new("E0835").card(
+        "This method is `abstract`, so it has no body, and this call names a class that does not \
+         give it one. Call the method on a class that is not `abstract`. Inside a method, \
+         `static::` calls the class the method was called on. Inside a closure, read the value \
+         into a variable outside the closure, and use that variable inside it.",
+    );
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901").card(

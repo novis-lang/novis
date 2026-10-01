@@ -3334,8 +3334,46 @@ class Blob extends Shape {
 does not declare `area`, which `Shape` requires
 ```
 
-`new` on an abstract class is not refused while compiling; calling one of its abstract methods
-on that instance is a fatal internal error. Do not write it.
+An `abstract static` method has no body either, so a call to it must reach a subclass. Inside a
+method, `self::title()` and `static::title()` call the class the method was called on, so
+`Blog::heading()` runs `Blog`'s `title`. A call that names the class itself is a compile error
+(`E0835`): `Page::title()`, where `Page` gives `title` no body, and `self::title()` inside a closure,
+which calls the class the closure is written in. Call the method on a class that is not `abstract`,
+or call it outside the closure and use the result inside it.
+
+```nvs
+<?nvs
+abstract class Page {
+    public abstract static function title(): string;
+
+    public static function heading(): string {
+        return "Title: " . self::title();
+    }
+}
+
+final class Blog extends Page {
+    public static function title(): string {
+        return "Blog";
+    }
+}
+
+echo Blog::heading(), "\n";
+```
+```output
+Title: Blog
+```
+
+```nvs error
+<?nvs
+abstract class Page {
+    public abstract static function title(): string;
+}
+
+echo Page::title(), "\n";
+```
+```output
+is `abstract`, so it has no body to call
+```
 
 #### `final`
 

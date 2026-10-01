@@ -284,6 +284,14 @@ subclass the enclosing method was called on. An instance method reached that way
 closure's `$this`, which the call captures, and reads `$this`'s class as `static` as it does everywhere.
 PHP keeps the enclosing method's called class in the closure and forwards it.
 
+A site that sets the called class leaves no late binding to reach an override, so a call from one to an
+`abstract static` method is refused where it is written (`E0835`) unless the class it names, or a class
+or interface above it, declares the method with a body. That is `Page::title()` on the abstract class
+that declares `title`, and `self::title()` inside a closure in `Page`'s methods. `self::`, `static::` and
+`parent::` in a method body forward the called class and are not refused, so an inherited static method
+calling `self::title()` runs the subclass's body. PHP throws at run time for every `self::` call to an
+abstract method, in a method body as well as in a closure, and accepts only `static::`.
+
 A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
 declaring `static` as its return type may not return the declaring class, since a subclass call site is
 promised its own.

@@ -1,0 +1,32 @@
+--TEST--
+A call to an `abstract static` method is refused where the class it is called on is fixed while compiling — a written class name, and `self::` inside a closure — because no override can be reached from there, `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+abstract class Page {
+    public abstract static function title(): string;
+
+    public static function heading(): string {
+        callable $f = fn (): string => self::title();
+        return $f() as string;
+    }
+}
+
+final class Blog extends Page {
+    public static function title(): string {
+        return "Blog";
+    }
+}
+
+echo Page::title(), "\n";
+// covers: lang:classes/inheritance
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0835]: `Page::title()` is `abstract`, so it has no body to call
+  --> case.nvs:6:40
+%A
+error[E0835]: `Page::title()` is `abstract`, so it has no body to call
+   --> case.nvs:17:6
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

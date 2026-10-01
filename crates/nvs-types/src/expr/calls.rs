@@ -358,6 +358,11 @@ pub(crate) fn infer_static_call(
                 }),
             _ => None,
         };
+    if let Some((owner, name, sig)) = &resolved
+        && !matches!(args, CallArgs::FirstClassCallable)
+    {
+        reject_abstract_static_call(expr.span, class, owner, name, sig, ctx, env);
+    }
     let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
     let label = resolved
         .as_ref()
@@ -601,6 +606,86 @@ fn called_class_set_at(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QNa
         ExprKind::SelfExpr | ExprKind::ParentExpr if ctx.in_closure => ctx.current_class.cloned(),
         _ => None,
     }
+}
+
+/// `E_ABSTRACT_STATIC_CALLED`: a call to a static method with no body, made
+/// on a class the site fixes while compiling ([`called_class_set_at`]).
+///
+/// A bodiless target dispatches on the called class when it runs, and a site
+/// that sets the called class leaves no late binding that could reach a
+/// subclass's override. So the call has a body to run only when the called
+/// class, or a class or interface above it, declares the method with one —
+/// the same chain the run-time dispatch walks. `self::`, `static::` and
+/// `parent::` outside a closure forward the called class and are not asked.
+/// A `Class::method(...)` reference is not a call and is not asked
+/// either: an attribute retrieval names an abstract method that way.
+fn reject_abstract_static_call(
+    span: Span,
+    class: &Expr,
+    owner: &QName,
+    name: &str,
+    sig: &MethodSig,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if !sig.is_static || sig.has_body {
+        return;
+    }
+    let Some(called) = called_class_set_at(class, ctx, env) else {
+        return;
+    };
+    if declares_a_body(&called, name, env) {
+        return;
+    }
+    let in_closure = !matches!(class.kind, ExprKind::ConstFetch(_));
+    let (label, help) = if in_closure {
+        (
+            format!("inside a closure, this calls `{called}` itself, not a subclass"),
+            "name a class that is not `abstract`, or call it with `static::` outside the closure \
+             and use the result inside it"
+                .to_owned(),
+        )
+    } else {
+        (
+            format!("called on `{called}`, which does not give it a body"),
+            format!(
+                "call it on a class that is not `abstract`, or, inside a method of `{owner}`, \
+                 write `static::{name}()` to call the class the method was called on"
+            ),
+        )
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ABSTRACT_STATIC_CALLED,
+            format!("`{owner}::{name}()` is `abstract`, so it has no body to call"),
+        )
+        .with_primary(span, label)
+        .with_help(help),
+    );
+}
+
+/// Whether `qname`, or any class or interface it extends or implements,
+/// declares `name` with a body — what a dispatch on `qname` can find.
+fn declares_a_body(qname: &QName, name: &str, env: &Env<'_>) -> bool {
+    let mut seen = FxHashSet::default();
+    let mut queue = vec![qname.clone()];
+    while let Some(current) = queue.pop() {
+        if !seen.insert(current.clone()) {
+            continue;
+        }
+        if env
+            .signatures
+            .get(&current)
+            .and_then(|found| found.methods.get(name))
+            .is_some_and(|found| found.has_body)
+        {
+            return true;
+        }
+        if let Some(links) = env.graph.get(&current) {
+            queue.extend(links.extends.iter().chain(links.implements.iter()).cloned());
+        }
+    }
+    false
 }
 
 /// `new Target(...)` — [`super::infer`]'s `ExprKind::New` arm.
