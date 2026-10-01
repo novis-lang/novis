@@ -133,9 +133,9 @@
 //!   inside an enum ([`expr::class_of_ctx`], [`lower`]'s `resolve_special`)
 //!   and a case access recover [`ty::Ty::Enum`] rather than
 //!   [`ty::Ty::Class`], and `rule:enums/closed-integer-type`'s two refusals —
-//!   an arithmetic or bitwise operator applied directly to an enum operand,
+//!   an arithmetic or bitwise operator over a value that can be an enum case,
 //!   and a conversion from one enum type to a different one — are [`expr`]'s
-//!   `reject_enum_operand`/`reject_enum_to_enum_conversion`.
+//!   `report_enum_operand`/`reject_enum_to_enum_conversion`.
 //! - **Equality-operand compatibility is one pass over one table.**
 //!   [`expr::operators`]'s `types_are_disjoint` partitions every modeled type
 //!   into `rule:expressions/disjoint-comparison-refused`'s domains and refuses

@@ -1297,9 +1297,11 @@ pub mod code {
         "`var` cannot find the type of an array literal. Write the type instead, as in \
          `array<int> $ids = [1, 2];`.",
     );
-    /// An arithmetic or bitwise operator applied directly to an enum-typed
-    /// operand — neither is defined on an enum type; convert to its
-    /// underlying `int`/`uint` with `as` first. See `rule:types/conversion`.
+    /// An arithmetic or bitwise operator — binary, prefix `-`, `+` and `~`, or
+    /// `++`/`--` — whose operand can be an enum case: an enum, a case-subset
+    /// type, or a union with either in it, such as `?Size`. A case is not a
+    /// number; `as int`/`as uint`, or `as ?int` for a nullable value, gives
+    /// the integer behind it. See `rule:types/arithmetic`.
     pub const E_ENUM_ARITHMETIC_UNSUPPORTED: Code = Code::new("E0415").card(
         "Arithmetic and bitwise operators do not work on an enum value. Convert it to its number \
          first, as in `$level as int`.",
@@ -3100,8 +3102,9 @@ pub mod code {
     // target file's own script frame and keeping what it hands back
     // (`nvs_ir::lower::Lowering::lower_expr`).
     /// `-`, `+` or `~` over an operand `rule:types/arithmetic`'s arithmetic table has no
-    /// row for — a `string`, a `bytes`, an `array<T>`, a `bool`, `null`, a
-    /// `callable` or an enum case. The sibling of [`E_INCREMENT_NOT_NUMERIC`]
+    /// row for — a `string`, a `bytes`, an `array<T>`, a `bool`, `null` or a
+    /// `callable`. An enum value takes [`E_ENUM_ARITHMETIC_UNSUPPORTED`]
+    /// instead, as it does under every other operator. The sibling of [`E_INCREMENT_NOT_NUMERIC`]
     /// one operator over, and it exists for the same reason: PHP answers each
     /// of these by *converting* the operand first, and `rule:types/conversion` has no
     /// implicit conversion for that to be — so unary `+`, which is the

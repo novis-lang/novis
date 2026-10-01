@@ -31,7 +31,7 @@ mixed $d = $cell * $cell;
 // A `bytes` and an `array<T>` are on no row either.
 mixed $e = $raw + $raw;
 mixed $g = $xs / $xs;
-// An enum keeps `rule:types/conversion`'s own diagnostic rather than joining this one.
+// An enum value has a diagnostic of its own, the one every operator over it reports.
 mixed $h = $mode * $mode;
 // `%` is the one refusal both operands are numbers for: PHP converts to an
 // integer and answers one, § 4's float row would answer a `float`, and the
@@ -53,7 +53,7 @@ error[E0716]: `+` has no meaning for `bytes`
 %A
 error[E0716]: `/` has no meaning for `array<int>`
 %A
-error[E0415]: no arithmetic or bitwise operator is defined on an enum type directly
+error[E0415]: `*` has no meaning for `Mode`
 %A
 error[E0717]: `%` has no meaning for `float`
 %A

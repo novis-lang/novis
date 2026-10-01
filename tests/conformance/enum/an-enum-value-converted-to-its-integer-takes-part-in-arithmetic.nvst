@@ -1,0 +1,29 @@
+--TEST--
+a case is not a number, so arithmetic on one converts it with `as int` first, and `as` binds tighter than prefix `-` — `rule:types/arithmetic`, `rule:types/conversion`
+--FILE--
+<?nvs
+enum Size: int { Small = 1, Large = 2 }
+
+Size $s = Size::Large;
+?Size $n = 1 as ?Size;
+
+// `-$s as int` is `-($s as int)`.
+echo -$s as int, "\n";
+echo ($s as int) + 1, "\n";
+echo (Size::Large as int) | 4, "\n";
+echo ~(Size::Small as int), "\n";
+// A nullable enum converts with `as ?int`, which keeps `null`.
+echo ($n as ?int) * 10, "\n";
+echo -$n as ?int, "\n";
+// `-1` is no case of `Size`, so the conversion gives `null`.
+int $minus = -1;
+?Size $none = $minus as ?Size;
+echo $none == null ? "null" : "a case", "\n";
+--EXPECT--
+-2
+3
+6
+-2
+10
+-1
+null

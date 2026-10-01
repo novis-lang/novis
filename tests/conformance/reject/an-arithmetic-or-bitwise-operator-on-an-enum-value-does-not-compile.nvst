@@ -1,0 +1,41 @@
+--TEST--
+every arithmetic and bitwise operator refuses an enum operand, whether the enum is nullable, a single case or plain, because a case is not a number — `rule:types/arithmetic`, `rule:types/conversion`
+--FILE--
+<?nvs
+enum Size: int { Small = 1, Large = 2 }
+
+Size $s = Size::Small;
+?Size $n = 2 as ?Size;
+Size::Large $only = Size::Large as Size::Large;
+
+// A prefix operator on a plain enum value.
+mixed $a = -$s;
+// A binary operator on a case written in place.
+mixed $b = Size::Small + 1;
+// `as` binds tighter than prefix `-`, so this is `-(1 as ?Size)`: a minus on a nullable enum.
+mixed $c = -1 as ?Size;
+// A nullable enum is refused on either side of a binary operator.
+mixed $d = 2 * $n;
+// The bitwise operators refuse it the same way.
+mixed $e = ~$n;
+// A variable whose type is one case is still an enum value.
+mixed $f = $only | 1;
+// `++` is `+ 1`, so it is refused too.
+$n++;
+--EXPECTF-ERROR--
+error[E0415]: `-` has no meaning for `Size`
+%A
+error[E0415]: `+` has no meaning for `Size`
+%A
+error[E0415]: `-` has no meaning for `null|Size`
+%A
+error[E0415]: `*` has no meaning for `null|Size`
+%A
+error[E0415]: `~` has no meaning for `null|Size`
+%A
+error[E0415]: `|` has no meaning for `Size::Large`
+%A
+error[E0415]: `++`/`--` has no meaning for `null|Size`
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

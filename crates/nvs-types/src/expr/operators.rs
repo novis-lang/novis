@@ -332,6 +332,23 @@ pub(crate) fn binary_result(
     if let Some(mixed) = reject_void_operand(op, lhs, rhs, span, env) {
         return mixed;
     }
+    let arithmetic_or_bitwise = matches!(
+        op,
+        BinaryOp::Add
+            | BinaryOp::Sub
+            | BinaryOp::Mul
+            | BinaryOp::Div
+            | BinaryOp::Mod
+            | BinaryOp::Pow
+            | BinaryOp::BitAnd
+            | BinaryOp::BitOr
+            | BinaryOp::BitXor
+            | BinaryOp::Shl
+            | BinaryOp::Shr
+    );
+    if arithmetic_or_bitwise && let Some(mixed) = reject_enum_operand(op, lhs, rhs, span, env) {
+        return mixed;
+    }
     match op {
         // `rule:security/taint-propagation` / `rule:security/secret-propagation`: concatenating a qualified operand with
         // an unqualified one poisons the result on that axis, the same
@@ -941,9 +958,9 @@ fn reject_unordered_operand(
 /// so the pair became an `iadd` over the `i8` a `bool` is stored in and
 /// `echo true + true` printed `1` where PHP prints `2`.
 ///
-/// An **enum** operand passes through to [`reject_enum_operand`], which fires
-/// one level down with `rule:types/conversion`'s own wording, so a type never draws two
-/// codes for one rule. Scoped exactly like [`reject_bitwise_operand`]: an
+/// An **enum** operand never reaches here: [`binary_result`] refuses it first
+/// through [`reject_enum_operand`], so a type never draws two codes for one
+/// rule. Scoped exactly like [`reject_bitwise_operand`]: an
 /// operand whose type is not yet known ([`equality_domain`] answering `None` —
 /// `mixed`, a union, the `int|float` a division returns) passes through, and
 /// its answer comes from its runtime tag instead (`Helper::ValueAdd`). Returns
@@ -960,21 +977,14 @@ fn reject_unrowed_arithmetic_operand(
     // once and names the side written first.
     let (offender, domain) = [lhs, rhs].into_iter().find_map(|ty| {
         let domain = match equality_domain(env.interner.get(ty))? {
-            // The table's own operands, and the one type with a diagnostic of
-            // its own already waiting one level down.
+            // The table's own operands, and the one type [`binary_result`]
+            // has already refused with a diagnostic of its own.
             EqDomain::Numeric | EqDomain::Enum(_) => return None,
             other => other,
         };
         Some((ty, domain))
     })?;
-    let spelling = match op {
-        BinaryOp::Add => "+",
-        BinaryOp::Sub => "-",
-        BinaryOp::Mul => "*",
-        BinaryOp::Div => "/",
-        BinaryOp::Mod => "%",
-        _ => "**",
-    };
+    let spelling = binary_operator_spelling(op);
     let help = match domain {
         EqDomain::Bool => {
             "`rule:types/arithmetic`'s arithmetic rows are the numeric types; PHP converts a `bool` to an \
@@ -1062,9 +1072,6 @@ fn reject_float_modulo(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) 
 }
 
 pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
-    if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
-        return mixed;
-    }
     if let Some(mixed) = reject_decimal_float_operands(lhs, rhs, span, env) {
         return mixed;
     }
@@ -1159,34 +1166,79 @@ fn carrier_of(ty: TypeId, env: &Env<'_>) -> Option<&'static str> {
         .find(|carrier| *carrier == name)
 }
 
-/// `rule:types/conversion`: "No arithmetic or bitwise operator is defined on an enum
-/// type directly" — `Permission::Read | Permission::Write` must be diagnosed
-/// naming `as uint`/`as int` as the fix rather than silently falling through
-/// to [`arithmetic_result`]/[`bitwise_result`]'s existing `_ => mixed` arm,
-/// which would otherwise swallow the mistake with no diagnostic at all.
-/// Returns `Some(mixed)` when either operand is `Ty::Enum` (already
-/// diagnosed), `None` for every other operand pair so the caller's own table
+/// `rule:types/arithmetic` names no enum among its operands: a case is not a
+/// number, so `Permission::Read | Permission::Write` and `-$level` are
+/// refused naming `as int`/`as uint` as the fix. Called by [`binary_result`]
+/// ahead of every arithmetic and bitwise row, so no table below it ever sees
+/// an enum operand.
+///
+/// Returns `Some(mixed)` once diagnosed, naming the left operand when both
+/// are enum values, and `None` for every other pair so the caller's own table
 /// runs unchanged.
-pub(crate) fn reject_enum_operand(
+fn reject_enum_operand(
+    op: BinaryOp,
     lhs: TypeId,
     rhs: TypeId,
     span: Span,
     env: &mut Env<'_>,
 ) -> Option<TypeId> {
-    let lhs_enum = matches!(env.interner.get(lhs), Ty::Enum(..));
-    let rhs_enum = matches!(env.interner.get(rhs), Ty::Enum(..));
-    if !lhs_enum && !rhs_enum {
-        return None;
+    let offender = [lhs, rhs]
+        .into_iter()
+        .find(|ty| carries_an_enum_value(*ty, env))?;
+    report_enum_operand(binary_operator_spelling(op), offender, span, env);
+    Some(env.interner.mixed())
+}
+
+/// Whether a value of `ty` can be an enum case: an enum, a case-subset type,
+/// or a union with either among its members — `?Size` is the one written
+/// most. A union has to be refused here rather than answered from its runtime
+/// tag the way `rule:types/arithmetic` answers other unions, because a case
+/// carries its backing integer's tag (`rule:enums/representation`), so at run
+/// time `-$size` would negate the integer and give a value that is no case.
+fn carries_an_enum_value(ty: TypeId, env: &Env<'_>) -> bool {
+    let is_enum = |ty: &Ty| matches!(ty, Ty::Enum(..) | Ty::EnumCase(..));
+    match env.interner.get(ty) {
+        Ty::Union(members) => members.iter().any(|m| is_enum(env.interner.get(*m))),
+        other => is_enum(other),
     }
+}
+
+/// The one diagnostic every operator over an enum value reports — the binary
+/// rows through [`reject_enum_operand`], `-`, `+` and `~` through
+/// [`reject_unary_arith_operand`], and `++`/`--` through
+/// [`reject_increment_on_non_numeric`] — so all of them agree on the code and
+/// the wording.
+fn report_enum_operand(spelling: &str, ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let described = env.interner.describe(ty);
     env.diags.report(
         Diagnostic::error(
             code::E_ENUM_ARITHMETIC_UNSUPPORTED,
-            "no arithmetic or bitwise operator is defined on an enum type directly",
+            format!("`{spelling}` has no meaning for `{described}`"),
         )
-        .with_primary(span, "enum operand used here")
-        .with_help("convert to the underlying type first: `... as int`/`... as uint`"),
+        .with_primary(span, "an enum case is not a number")
+        .with_help(
+            "to compute with the integer behind a case, convert it first: `$x as int` \
+             (`$x as uint` for an enum backed by `uint`), or `$x as ?int` when the value can \
+             be `null`",
+        ),
     );
-    Some(env.interner.mixed())
+}
+
+/// How `op` is written, for the diagnostics that name it.
+fn binary_operator_spelling(op: BinaryOp) -> &'static str {
+    match op {
+        BinaryOp::Add => "+",
+        BinaryOp::Sub => "-",
+        BinaryOp::Mul => "*",
+        BinaryOp::Div => "/",
+        BinaryOp::Mod => "%",
+        BinaryOp::Pow => "**",
+        BinaryOp::BitAnd => "&",
+        BinaryOp::BitOr => "|",
+        BinaryOp::BitXor => "^",
+        BinaryOp::Shl => "<<",
+        _ => ">>",
+    }
 }
 
 /// `rule:types/array-combination`: binary `+` and `+=` with an array operand are a compile error naming
@@ -1225,9 +1277,6 @@ fn reject_array_combination(
 }
 
 pub(crate) fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
-    if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
-        return mixed;
-    }
     if let Some(mixed) = reject_decimal_float_operands(lhs, rhs, span, env) {
         return mixed;
     }
@@ -1265,9 +1314,6 @@ pub(crate) fn bitwise_result(
     span: Span,
     env: &mut Env<'_>,
 ) -> TypeId {
-    if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
-        return mixed;
-    }
     if let Some(mixed) = reject_bitwise_operand(op, lhs, rhs, span, env) {
         return mixed;
     }
@@ -1315,13 +1361,7 @@ fn reject_bitwise_operand(
     span: Span,
     env: &mut Env<'_>,
 ) -> Option<TypeId> {
-    let spelling = match op {
-        BinaryOp::BitAnd => "&",
-        BinaryOp::BitOr => "|",
-        BinaryOp::BitXor => "^",
-        BinaryOp::Shl => "<<",
-        _ => ">>",
-    };
+    let spelling = binary_operator_spelling(op);
     // The left operand first, so a pair that is wrong on both sides reports
     // once and names the side written first.
     let offender = [lhs, rhs]
@@ -1427,9 +1467,13 @@ pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// operand (including `Ty::Enum`, `mixed`, and a scalar) and for an
 /// unmodeled `Core` class, the same scoping [`object_comparison_result`] and
 /// [`check_property_access`] already use.
-/// Reports the two ways `-`, `+` or `~` can be handed an operand `rule:types/arithmetic`
+/// Reports the three ways `-`, `+` or `~` can be handed an operand `rule:types/arithmetic`
 /// tabulates no row for. One call site, because it is one question asked of
 /// one operand and a program is owed one diagnostic for it.
+///
+/// **An enum value** — a plain enum, a case-subset type, or a union with
+/// either in it, `?Size` included — takes `E_ENUM_ARITHMETIC_UNSUPPORTED`,
+/// the code the binary operators report for it too ([`report_enum_operand`]).
 ///
 /// **An object** takes `E_TYPE_MISMATCH`: Novis has no operator overloading, so
 /// there is no arithmetic an object can take part in — and the first place a
@@ -1467,6 +1511,13 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
         UnaryOp::Plus => "+",
         _ => "~",
     };
+    // An enum value, nullable or not, takes the code every operator over one
+    // reports — `rule:enums/representation` gives a case its backing
+    // integer's tag, so a `?Size` operand cannot be answered at run time.
+    if carries_an_enum_value(ty, env) {
+        report_enum_operand(spelling, ty, span, env);
+        return;
+    }
     if matches!(
         env.interner.get(ty),
         Ty::Class(..) | Ty::Object | Ty::Shape(_)
@@ -1522,11 +1573,17 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
 /// of `rule:types/arithmetic`'s numeric types — the module doc above owns the decision,
 /// including why PHP's string increment is not among them.
 ///
-/// Scoped exactly the way the refusals around it are: only a type whose
-/// [`equality_domain`] is known *and* is not the numeric one is refused, so
-/// `mixed`, a union (`int|float` is what `7 / 2` produces), a type variable
-/// and an error placeholder all pass through and are settled below.
+/// An enum value, a nullable one included, takes `E_ENUM_ARITHMETIC_UNSUPPORTED`
+/// instead, through [`report_enum_operand`]. Everything else is scoped exactly
+/// the way the refusals around it are: only a type whose [`equality_domain`]
+/// is known *and* is not the numeric one is refused, so `mixed`, a union
+/// (`int|float` is what `7 / 2` produces), a type variable and an error
+/// placeholder all pass through and are settled below.
 pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    if carries_an_enum_value(ty, env) {
+        report_enum_operand("++`/`--", ty, span, env);
+        return;
+    }
     let refused = {
         let resolved = env.interner.get(ty);
         !matches!(equality_domain(resolved), None | Some(EqDomain::Numeric))
