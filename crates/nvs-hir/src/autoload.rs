@@ -119,6 +119,8 @@ pub enum SiteKind {
     Prefix {
         /// The namespace prefix, written without a trailing separator.
         prefix: String,
+        /// The prefix's literal, quotes included.
+        literal: Span,
         /// The roots, in declaration order, each with the span of the literal
         /// that wrote it, quotes included.
         roots: Vec<(String, Span)>,
@@ -132,10 +134,25 @@ pub enum SiteKind {
     },
 }
 
+/// One root of a prefix declaration, as [`Site::roots`] resolves it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Root {
+    /// The root's literal, quotes included.
+    pub literal: Span,
+    /// The directory a name under the prefix is probed in.
+    pub dir: PathBuf,
+    /// [`dir`](Self::dir) the way `nvs check --autoload-map` prints it:
+    /// relative to the declaring file's directory, `/`-separated.
+    pub shown: String,
+    /// Whether [`dir`](Self::dir) exists.
+    pub exists: bool,
+}
+
 impl Site {
-    /// Each path literal this declaration wrote, paired with the directory it
-    /// names: a root, or the directory a `discover` glob lists, which is the
-    /// part before its `*` segment.
+    /// Each literal this declaration wrote, paired with the directory it
+    /// names: a root, the directory a `discover` glob lists, which is the part
+    /// before its `*` segment, and for the prefix the first of its roots that
+    /// exists, which is the first directory a name under it is probed in.
     ///
     /// The paths come from the functions [`AutoloadMap::build`] resolves with,
     /// [`canonical`] and [`glob_base`], so an editor's link and the map can
@@ -149,13 +166,15 @@ impl Site {
     #[must_use]
     pub fn directories(&self) -> Vec<(Span, PathBuf)> {
         match &self.kind {
-            SiteKind::Prefix { roots, .. } => roots
-                .iter()
-                .filter_map(|(root, literal)| {
-                    let dir = canonical(&self.base_dir, root);
-                    is_dir(&dir).then_some((*literal, dir))
-                })
-                .collect(),
+            SiteKind::Prefix { literal, .. } => {
+                let roots: Vec<(Span, PathBuf)> = self
+                    .roots()
+                    .into_iter()
+                    .filter_map(|root| root.exists.then_some((root.literal, root.dir)))
+                    .collect();
+                let first = roots.first().map(|(_, dir)| (*literal, dir.clone()));
+                first.into_iter().chain(roots).collect()
+            }
             SiteKind::Discover { glob, literal } => {
                 let parts = glob_parts(glob);
                 star_segment(&parts)
@@ -167,6 +186,52 @@ impl Site {
                     .unwrap_or_default()
             }
         }
+    }
+
+    /// Each root of a prefix declaration, in probe order, as
+    /// [`AutoloadMap::build`] resolves it. Empty for a `discover` glob.
+    ///
+    /// A missing root is kept, because an editor shows it beside the roots
+    /// that exist, the way `nvs check --autoload-map` lists it under
+    /// `missing`. Like [`Self::directories`], nothing calls this while
+    /// compiling.
+    #[must_use]
+    pub fn roots(&self) -> Vec<Root> {
+        let SiteKind::Prefix { roots, .. } = &self.kind else {
+            return Vec::new();
+        };
+        nvs_footprint::exists(&self.base_dir);
+        let base = self
+            .base_dir
+            .canonicalize()
+            .unwrap_or_else(|_| self.base_dir.clone());
+        roots
+            .iter()
+            .map(|(root, literal)| {
+                let dir = canonical(&self.base_dir, root);
+                Root {
+                    literal: *literal,
+                    shown: show(&dir, &base),
+                    exists: is_dir(&dir),
+                    dir,
+                }
+            })
+            .collect()
+    }
+
+    /// The namespace a prefix declaration maps, one segment per segment it
+    /// wrote, with a `{..}` segment replaced by the name of the directory it
+    /// reaches. `None` for a `discover` glob and for a prefix of the wrong
+    /// shape, which is already [`code::E_AUTOLOAD_PREFIX_SHAPE`].
+    ///
+    /// This is the function [`AutoloadMap::build`] reads the prefix with, so an
+    /// editor shows the namespace the map holds.
+    #[must_use]
+    pub fn namespace(&self) -> Option<Vec<String>> {
+        let SiteKind::Prefix { prefix, .. } = &self.kind else {
+            return None;
+        };
+        prefix_segments(&self.base_dir, prefix, self.span).ok()
     }
 }
 
@@ -328,7 +393,7 @@ impl AutoloadMap {
             .collect();
 
         for &(site, is_borrowed) in &ordered {
-            let SiteKind::Prefix { prefix, roots } = &site.kind else {
+            let SiteKind::Prefix { prefix, roots, .. } = &site.kind else {
                 continue;
             };
             let segments = match prefix_segments(&site.base_dir, prefix, site.span) {

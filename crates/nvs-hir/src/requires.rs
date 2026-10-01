@@ -1108,8 +1108,11 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
 fn record_autoload(decl: &AutoloadDecl, src: &SourceFile, out: &mut Harvest) {
     let cook = |span: Span| cook_quoted(src, span);
     let kind = match &decl.kind {
-        AutoloadKind::Prefix { prefix, roots } => {
-            let Some(prefix) = cook(*prefix) else {
+        AutoloadKind::Prefix {
+            prefix: literal,
+            roots,
+        } => {
+            let Some(prefix) = cook(*literal) else {
                 return;
             };
             let roots: Vec<(String, Span)> = roots
@@ -1119,7 +1122,11 @@ fn record_autoload(decl: &AutoloadDecl, src: &SourceFile, out: &mut Harvest) {
             if roots.is_empty() {
                 return;
             }
-            autoload::SiteKind::Prefix { prefix, roots }
+            autoload::SiteKind::Prefix {
+                prefix,
+                literal: *literal,
+                roots,
+            }
         }
         AutoloadKind::Discover { glob: literal } => {
             let Some(glob) = cook(*literal) else {
@@ -2233,6 +2240,7 @@ class Unreached {}
         let roots: Vec<String> = roots.iter().map(|r| (*r).to_owned()).collect();
         move |span| autoload::SiteKind::Prefix {
             prefix,
+            literal: span,
             roots: roots.into_iter().map(|root| (root, span)).collect(),
         }
     }
@@ -2724,19 +2732,56 @@ class Unreached {}
         let at = |start: u32, end: u32| Span::new(id, start, end);
 
         // A root that exists names its directory under its own literal's span.
-        // A missing root is allowed and names nothing.
+        // A missing root is allowed and names nothing. The prefix names the
+        // first root that exists.
         let roots = Site {
             base_dir: dir.path.clone(),
             kind: autoload::SiteKind::Prefix {
                 prefix: "App".to_owned(),
+                literal: at(9, 14),
                 roots: vec![
-                    ("./src".to_owned(), at(20, 27)),
-                    ("./gone".to_owned(), at(29, 37)),
+                    ("./gone".to_owned(), at(20, 28)),
+                    ("./src".to_owned(), at(30, 37)),
                 ],
             },
             span: at(0, 38),
         };
-        assert_eq!(roots.directories(), vec![(at(20, 27), canonical("src"))]);
+        assert_eq!(
+            roots.directories(),
+            vec![
+                (at(9, 14), canonical("src")),
+                (at(30, 37), canonical("src"))
+            ]
+        );
+        // `roots` keeps the missing root, in probe order.
+        let probed: Vec<(Span, String, bool)> = roots
+            .roots()
+            .into_iter()
+            .map(|root| (root.literal, root.shown, root.exists))
+            .collect();
+        assert_eq!(
+            probed,
+            vec![
+                (at(20, 28), "gone".to_owned(), false),
+                (at(30, 37), "src".to_owned(), true)
+            ]
+        );
+        assert_eq!(roots.namespace(), Some(vec!["App".to_owned()]));
+
+        // A `{..}` segment is the name of the directory its steps reach.
+        let braced = Site {
+            base_dir: canonical("modules/Shop/src"),
+            kind: autoload::SiteKind::Prefix {
+                prefix: "App\\{..}".to_owned(),
+                literal: at(9, 19),
+                roots: vec![(".".to_owned(), at(25, 28))],
+            },
+            span: at(0, 29),
+        };
+        assert_eq!(
+            braced.namespace(),
+            Some(vec!["App".to_owned(), "Shop".to_owned()])
+        );
 
         // A glob names the directory it lists, the part before its `*`.
         let glob = site(&dir, id, discover("./modules/*/src"));
