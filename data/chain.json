@@ -183,6 +183,7 @@
     "var-array-literal",
     "program-enumeration",
     "coalesce-assign",
+    "completion-files",
     "ci-green",
     "goal-closeout",
     "performance-pass",

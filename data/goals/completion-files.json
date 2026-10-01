@@ -1,0 +1,217 @@
+{
+  "title": "the JSON files in a `.novis/completion/` folder offer their values at the string parameters they name",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-lsp/src/lib.rs",
+      "crates/nvs-lsp/src/completion.rs",
+      "crates/nvs-lsp/src/arguments.rs",
+      "crates/nvs-lsp/tests/completion.rs",
+      "crates/nvs-types/src/expr_table.rs"
+    ],
+    "rules": [
+      "ide/completion-offers-only-what-the-compiler-derived",
+      "ide/completion-files-offer-values-at-named-parameters",
+      "ide/completion-is-asked-where-a-spelling-ends",
+      "ide/the-server-is-synchronous"
+    ],
+    "adrs": [],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the files are found, read, reloaded and checked",
+      "summary": "Finds every `.novis/completion/` folder, loads its JSON files into one table, reloads a changed file, and reports a file or an entry that is wrong.",
+      "context": {
+        "rules": [
+          "ide/diagnostics-are-phase-gated"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A diagnostic"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "completion offers the values",
+      "summary": "Offers a parameter's values inside a string argument at it, with every field the file gives, and opens the list on the quote.",
+      "context": {
+        "rules": [
+          "ide/a-completion-row-reads-as-a-declaration"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "the VS Code client",
+      "summary": "Ships a JSON schema for completion files, so a person writing one by hand gets the editor's own JSON completion and validation.",
+      "context": {
+        "rules": [
+          "ide/contributions-are-frozen-and-only-ever-added"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 5,
+      "title": "the feature proofs",
+      "summary": "Adds the description, tests, examples, bench, attack and help the feature owes.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-lsp-completion-files-are-found-read-and-reloaded",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-lsp (completion files are found under every `.novis` folder and in `vendor/`, merged, and read again only when they change)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "a_completion_file_is_found_under_every_novis_folder_and_in_vendor",
+        "a_json_file_outside_a_completion_folder_is_not_read",
+        "two_files_for_one_parameter_merge_and_the_first_value_is_kept",
+        "a_set_defined_in_one_file_attaches_in_another",
+        "a_changed_completion_file_is_read_again_and_an_unchanged_one_is_not",
+        "the_server_registers_a_watcher_for_completion_files_when_the_client_can"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-wrong-completion-file-is-reported",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-lsp (a completion file that is not valid, or names a method, parameter or set that does not exist, is reported on its own URI)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "a_completion_file_with_an_unknown_field_contributes_nothing_and_is_reported",
+        "a_completion_file_that_is_not_json_contributes_nothing_and_is_reported",
+        "an_attachment_to_a_missing_method_or_parameter_is_reported_and_the_rest_of_the_file_is_kept",
+        "an_attachment_to_a_class_the_index_does_not_declare_is_a_hint",
+        "an_attachment_to_a_parameter_that_is_not_a_string_is_reported",
+        "an_attachment_to_a_set_no_file_defines_is_reported",
+        "a_completion_file_under_vendor_is_not_reported"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-named-parameter-offers-its-values",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-lsp (a string argument at a parameter a completion file names offers its values, each changing only that string)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "a_string_argument_at_a_named_parameter_offers_the_files_values",
+        "an_inherited_method_is_reached_through_its_declaring_class",
+        "an_item_carries_every_field_the_file_gives",
+        "an_item_replaces_the_string_and_escapes_for_its_quote",
+        "an_item_carries_no_command_and_no_other_edit",
+        "a_relative_link_in_documentation_resolves_against_the_completion_file",
+        "a_quote_opens_the_list_at_a_named_parameter",
+        "a_path_parameter_with_a_completion_file_offers_both_lists",
+        "every_completion_source_names_a_compiler_table",
+        "no_completion_source_reads_a_directory_layout_or_the_network"
+      ]
+    },
+    {
+      "id": "vscode-completion-files-have-a-schema",
+      "kind": "contains",
+      "stage": 4,
+      "name": "the VS Code extension validates completion files against the schema it ships",
+      "file": "editors/vscode/package.json",
+      "want": [
+        "**/.novis/completion/**/*.json",
+        "schemas/completion-file.json"
+      ]
+    },
+    {
+      "id": "vscode-completion-file-schema-exists",
+      "kind": "min-bytes",
+      "stage": 4,
+      "name": "the completion file schema is shipped",
+      "file": "editors/vscode/schemas/completion-file.json",
+      "minBytes": 400
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-completion-files",
+      "kind": "command",
+      "stage": 5,
+      "name": "proofs: the whole roster owes nothing with completion files in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}
