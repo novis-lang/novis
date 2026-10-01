@@ -16,13 +16,14 @@ create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) 
 SQL;
 $db->execute($jobs, []);
 
-// `Queue::push` saves the job and returns at once.
-// A worker runs the file `jobs/send-welcome.nvs` later, with this data.
+// `Queue::push` saves the job and returns at once. A worker runs the file
+// `jobs/send-welcome.nvs` in the folder of this file later, with this data.
 Queue::push("jobs/send-welcome.nvs", {queue: "mail", args: ["user" => 42]});
 
-// The job is a row in the `nvs_jobs` table.
-// This prints the file the worker runs and the data it receives.
+// The job is a row in the `nvs_jobs` table, with the full path of the file.
+// This prints the last folder and name of that file, and the data the worker receives.
 foreach ($db->query("select script, args from nvs_jobs", []) as Row $row) {
-    echo $row->string("script") ?? "", "\n";
+    string $script = $row->string("script") ?? "";
+    echo Core\Path::basename(Core\Path::dirname($script)), "/", Core\Path::basename($script), "\n";
     echo $row->string("args") ?? "", "\n";
 }
