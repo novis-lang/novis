@@ -3009,7 +3009,11 @@ pub mod code {
     /// Parentheses are **not** a temporary: `($a)["0"] = "y"` writes `$a["0"]`
     /// here exactly as it does in PHP, because
     /// `nvs_syntax::ast::Expr::unparenthesized` is what finds the root.
-    pub const E_ELEMENT_WRITE_ROOT_NOT_A_PLACE: Code = Code::new("E0700");
+    pub const E_ELEMENT_WRITE_ROOT_NOT_A_PLACE: Code = Code::new("E0700").card(
+        "An array element can only be written through a variable or a property. Here the array \
+         comes from a call or another value that is not stored anywhere, so the write would be \
+         lost. Store the array in a variable, write the element there, and assign it back.",
+    );
     /// A reference assignment, `$a = &$b;`.
     ///
     /// PHP binds the two names to one slot, so a later write through either
@@ -3021,7 +3025,10 @@ pub mod code {
     /// that is missing, it is a thing the language does not have. `inout $x` at a
     /// *call site* stays, because a parameter's write-back is a copy in and a
     /// copy out rather than a shared slot.
-    pub const E_ASSIGN_BY_REFERENCE: Code = Code::new("E0701");
+    pub const E_ASSIGN_BY_REFERENCE: Code = Code::new("E0701").card(
+        "Novis has no references, so `$a = &$b` is not allowed. Remove the `&` to assign a copy. \
+         If a function must change a variable, declare that parameter `inout`.",
+    );
     /// An argument binding an `inout` parameter, written without the marker.
     ///
     /// `rule:statements/inout-is-written-at-the-call` writes the word at both ends, and this is the half a
@@ -3030,7 +3037,10 @@ pub mod code {
     /// and only one of them writes to its caller's storage. The marker is
     /// deliberately not inference-assisted — a marker the compiler supplies
     /// is not a marker — so the omission is an error rather than a lint.
-    pub const E_INOUT_ARG_MISSING: Code = Code::new("E0713");
+    pub const E_INOUT_ARG_MISSING: Code = Code::new("E0713").card(
+        "This argument fills an `inout` parameter, so the call must say so. Write `inout` before \
+         the argument, as in `bump(inout $n)`. The function writes a new value back into it.",
+    );
     /// `inout` written at an argument that binds a by-value parameter, or at
     /// one that binds nothing a signature can name — a spread's entries, or
     /// any argument of a call through a `callable`.
@@ -3046,7 +3056,11 @@ pub mod code {
     /// the runtime dispatch refuses such a callee outright: an `inout`
     /// parameter list is packed and written back at the *call site*, which is
     /// the one thing a call whose callee is unknown until it runs cannot do.
-    pub const E_INOUT_ARG_UNEXPECTED: Code = Code::new("E0714");
+    pub const E_INOUT_ARG_UNEXPECTED: Code = Code::new("E0714").card(
+        "`inout` is written before an argument whose parameter is not `inout`. Remove `inout`, or \
+         declare the parameter `inout`. A `...` argument and a call through a `callable` or a \
+         `mixed` value never take `inout`.",
+    );
     /// `::class` written on a side that carries no class — `rule:types/class-constant`.
     ///
     /// `::class` answers the class the value *is*, so the operand has to carry
@@ -3071,7 +3085,11 @@ pub mod code {
     /// [`E_UNDEFINED_CLASS`]'s `E0303`, the same mistake `new Undeclared()`
     /// takes, because `rule:types/class-constant`'s fold leaves it nowhere later to be
     /// caught.
-    pub const E_CLASS_NAME_CONST_NOT_STATIC: Code = Code::new("E0702");
+    pub const E_CLASS_NAME_CONST_NOT_STATIC: Code = Code::new("E0702").card(
+        "`::class` needs a class name or a value that is always an object. For a `mixed` or \
+         nullable value, test it first with `if ($v is Foo)`. For a `class<T>` value, write \
+         `$c as string`.",
+    );
     // `E0703` is retired and is never reused: `spawn script` lowers through
     // `nvs-ir`, so there is nothing left for it to refuse.
     // `E0704` is retired and is never reused: `require` used for its
@@ -3091,7 +3109,10 @@ pub mod code {
     /// `nvs_types::expr::operators::reject_unary_arith_operand`: "Novis has no
     /// operator overloading" is the sentence that author needs, not "convert
     /// it first".
-    pub const E_UNARY_ARITH_NOT_NUMERIC: Code = Code::new("E0705");
+    pub const E_UNARY_ARITH_NOT_NUMERIC: Code = Code::new("E0705").card(
+        "Unary `-`, `+` and `~` work only on numbers. Novis does not convert the operand to a \
+         number by itself. Convert it first, as in `-($x as int)`.",
+    );
     /// `&`, `|`, `^`, `<<`, `>>` or `~` over an operand `rule:types/arithmetic`'s bitwise
     /// row has no entry for — that row is `int` and `uint` and nothing else,
     /// so a `float`, a `decimal`, a `string`, a `bool`, `null`, an `array<T>`,
@@ -3108,7 +3129,10 @@ pub mod code {
     /// own representation makes `1.5 & 1.5` answer `1.5`, where PHP answers
     /// the `int` `1`, and a `decimal` operand reaches no row of `nvs-ir`'s
     /// `rule:types/arithmetic` table at all.
-    pub const E_BITWISE_NOT_INTEGER: Code = Code::new("E0706");
+    pub const E_BITWISE_NOT_INTEGER: Code = Code::new("E0706").card(
+        "The bitwise operators `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. \
+         Convert the operand to a whole number first, as in `($x as int) & 1`.",
+    );
     /// A `bytes`, an `array<T>`, an enum case or a `void` call used where a
     /// `string` is produced *implicitly* — `.`, `.=`, an interpolated piece,
     /// `echo`/`print`. `rule:types/conversion`'s "anything → `string`" row is "total for
@@ -3124,7 +3148,11 @@ pub mod code {
     /// `null` is **not** here: it renders as the empty string, which is both
     /// PHP's answer and the one a `?string` holding `null` already gets at run
     /// time — `nvs_ir::lower::expr`'s `concat_operand` owns that row.
-    pub const E_NO_STRING_FORM: Code = Code::new("E0707");
+    pub const E_NO_STRING_FORM: Code = Code::new("E0707").card(
+        "This value has no text form, so it cannot be joined with `.`, put in a string or printed. \
+         Convert `bytes` with `$b as string`, an enum case with `$case as int`, and an array with \
+         `Core\\Json::encode($a)`.",
+    );
     /// An `expr as T` whose operand and target name no row of `rule:types/conversion`'s
     /// conversion table, nor of the ADRs that table delegates rows to —
     /// `rule:types/conversion`'s `string` ↔ `bytes` pair, `rule:types/conversion`'s `decimal` ones
@@ -3140,7 +3168,10 @@ pub mod code {
     /// that one is `rule:expressions/nullable-conversion-availability`'s *written* `as ?T` sugar, and a plain
     /// `as SomeClass` is the missing row rather than the withdrawn parse
     /// roster. The two never fire on the same expression.
-    pub const E_NO_CONVERSION: Code = Code::new("E0708");
+    pub const E_NO_CONVERSION: Code = Code::new("E0708").card(
+        "`as` cannot convert this type to that type. Novis has a fixed list of conversions, and \
+         this pair is not on it. The help under the error shows the way to write what you meant.",
+    );
     /// An `expr as ?T` whose row cannot fail, which `rule:expressions/nullable-conversion-availability` makes a
     /// compile error naming `as T`.
     ///
@@ -3155,7 +3186,10 @@ pub mod code {
     /// [`E_NO_CONVERSION`] for a pair naming no row at all, asked of the `T`
     /// inside the sugar, and [`E_CLASS_CONVERSION_TARGET`] for a class
     /// target. No two of them ever fire on the same expression.
-    pub const E_NULLABLE_CONVERSION_CANNOT_FAIL: Code = Code::new("E0709");
+    pub const E_NULLABLE_CONVERSION_CANNOT_FAIL: Code = Code::new("E0709").card(
+        "This `as ?T` conversion can never fail, so its result is never `null`. Write `as T` \
+         instead.",
+    );
     /// A `Core`-owned class rendered as text where the spec gives it no
     /// `toString` — an `echo`, an interpolation, a `.` operand or an
     /// `as string`.
@@ -3171,7 +3205,10 @@ pub mod code {
     /// The sibling for a user class is [`E_STRINGABLE_REQUIRED`], which asks
     /// the class graph the same question; the two never fire together,
     /// because a class is `Core`-owned or it is not.
-    pub const E_CORE_CLASS_NOT_STRINGABLE: Code = Code::new("E0710");
+    pub const E_CORE_CLASS_NOT_STRINGABLE: Code = Code::new("E0710").card(
+        "This `Core` class has no text form, so it cannot be printed, joined with `.` or converted \
+         with `as string`. Call one of its methods that returns the text you want.",
+    );
     /// An `expr as T` into an object target that names **no testable class** —
     /// plain `object`, a shape, `callable`, or a `Core`-owned class — from an
     /// operand that is not already an object.
@@ -3197,7 +3234,10 @@ pub mod code {
     /// [`E_NO_CONVERSION`], which refuses the pair sharing no value at all;
     /// the two never fire together, because a target names a testable class or
     /// it does not.
-    pub const E_UNTESTABLE_CONVERSION_TARGET: Code = Code::new("E0711");
+    pub const E_UNTESTABLE_CONVERSION_TARGET: Code = Code::new("E0711").card(
+        "`as` can only convert a value to a class it can test the value against. `object`, a \
+         shape and `callable` name no class. Name a class instead, as in `$v as User`.",
+    );
 
     /// A `name:` argument at a call through a `callable`.
     ///
@@ -3221,7 +3261,10 @@ pub mod code {
     /// runtime class, whose method row carries the callee's arity and
     /// parameter tags and — for a closure value's reason — never its parameter
     /// names.
-    pub const E_NAMED_ARG_THROUGH_CALLABLE: Code = Code::new("E0712");
+    pub const E_NAMED_ARG_THROUGH_CALLABLE: Code = Code::new("E0712").card(
+        "A call through a `callable` or a `mixed` value cannot use named arguments. The compiler \
+         does not know the parameter names there. Pass the arguments by position.",
+    );
 
     /// `<`, `<=`, `>`, `>=` or `<=>` over an operand `rule:types/arithmetic` gives no
     /// ordering row for.
@@ -3243,7 +3286,11 @@ pub mod code {
     /// conversion to be exact — the row is left out of `rule:types/arithmetic`'s table
     /// because that table is about the numeric widenings, not because two
     /// `bool`s are unordered.
-    pub const E_ORDERING_HAS_NO_ROW: Code = Code::new("E0715");
+    pub const E_ORDERING_HAS_NO_ROW: Code = Code::new("E0715").card(
+        "`<`, `<=`, `>`, `>=` and `<=>` compare numbers, and objects of a class that implements \
+         `Comparable`. They do not compare strings, arrays, enum cases or `null`. Use \
+         `Core\\Str::compare` for text, and `as int` for an enum case.",
+    );
 
     /// `+`, `-`, `*`, `/`, `%` or `**` over an operand `rule:types/arithmetic` gives no
     /// arithmetic row for.
@@ -3264,7 +3311,10 @@ pub mod code {
     /// `iadd` over the `i8` a `bool` is stored in. An enum case keeps
     /// [`E_ENUM_ARITHMETIC_UNSUPPORTED`], so "this operand has no arithmetic"
     /// reads as one diagnostic per rule rather than per type.
-    pub const E_ARITHMETIC_HAS_NO_ROW: Code = Code::new("E0716");
+    pub const E_ARITHMETIC_HAS_NO_ROW: Code = Code::new("E0716").card(
+        "The arithmetic operators work only on `int`, `uint`, `float` and `decimal`. Novis does \
+         not convert the operand to a number by itself. Convert it with `as` first.",
+    );
 
     /// `%` with a `float` operand.
     ///
@@ -3281,7 +3331,10 @@ pub mod code {
     ///
     /// `decimal % float` is [`E_DECIMAL_FLOAT_ARITHMETIC`] instead: that pair
     /// has no common arithmetic type at all, which is the earlier objection.
-    pub const E_FLOAT_MODULO: Code = Code::new("E0717");
+    pub const E_FLOAT_MODULO: Code = Code::new("E0717").card(
+        "`%` does not work on a `float`. For a whole-number remainder, write \
+         `($a as int) % ($b as int)`. For a floating-point remainder, call `Core\\Math::mod($a, $b)`.",
+    );
     /// A call that returns `void` used as an operator's operand.
     ///
     /// Every other refusal in this band is "this type names no row of
@@ -3300,7 +3353,10 @@ pub mod code {
     ///
     /// A `void` call in a *condition* is neither of these two and takes
     /// [`E_VOID_IS_NOT_A_CONDITION`] instead.
-    pub const E_VOID_IS_NOT_AN_OPERAND: Code = Code::new("E0718");
+    pub const E_VOID_IS_NOT_AN_OPERAND: Code = Code::new("E0718").card(
+        "This call returns `void`, so it has no value to use with an operator. Give the function a \
+         return type and `return` a value, or call it as its own statement.",
+    );
     /// A call that returns `void` tested for truth.
     ///
     /// `rule:expressions/truthy-positions` makes a condition the one place a value is tested without
@@ -3321,7 +3377,10 @@ pub mod code {
     /// lowers a `void` call to no value, so its truthy slice panics on a
     /// representation the table has no row for, naming a bug in the compiler
     /// for what is a mistake in the program.
-    pub const E_VOID_IS_NOT_A_CONDITION: Code = Code::new("E0719");
+    pub const E_VOID_IS_NOT_A_CONDITION: Code = Code::new("E0719").card(
+        "This call returns `void`, so it has no value to test in a condition. Give the function a \
+         return type and `return` a value, or call it as its own statement.",
+    );
     /// An `implements I by $field;` clause whose `$field` cannot answer `I` —
     /// `rule:classes/delegation-by-field` bullet 1.
     ///
@@ -3339,7 +3398,10 @@ pub mod code {
     /// any `by $field` clause at all would be exempt from
     /// [`E_INTERFACE_METHOD_MISSING`] entirely; with it, the field is judged
     /// here and every member the delegation does not supply is judged there.
-    pub const E_DELEGATE_TYPE_MISMATCH: Code = Code::new("E0720");
+    pub const E_DELEGATE_TYPE_MISMATCH: Code = Code::new("E0720").card(
+        "In `implements I by $field`, `$field` must be a property of this class. Its type must be \
+         a class or interface that implements `I`, and it cannot be nullable.",
+    );
     /// A member of a delegated interface whose shape `rule:classes/delegation-by-field`'s
     /// synthesized forward cannot express: a `static` member, a variadic
     /// parameter list, or an `inout` parameter.
@@ -3358,7 +3420,10 @@ pub mod code {
     /// for a program the front end accepted. The help names the way out:
     /// write the member on the class by hand, which § 4 already allows and
     /// which the forward would have lost to.
-    pub const E_DELEGATE_MEMBER_NOT_FORWARDABLE: Code = Code::new("E0721");
+    pub const E_DELEGATE_MEMBER_NOT_FORWARDABLE: Code = Code::new("E0721").card(
+        "`implements I by $field` cannot forward a `static` method, or a method with a `...` or \
+         `inout` parameter. Write that method on the class yourself.",
+    );
     /// A visibility keyword on a parameter of a method that is not the
     /// `constructor` — `rule:classes/delegation-by-field`'s own backlog line.
     ///
@@ -3375,7 +3440,11 @@ pub mod code {
     /// ordinary method has no allocation to promote *into*: a property is a
     /// slot on an instance, armed once at `new`, and a method that may be
     /// called any number of times has no such moment.
-    pub const E_PROMOTED_PARAM_OUTSIDE_CONSTRUCTOR: Code = Code::new("E0722");
+    pub const E_PROMOTED_PARAM_OUTSIDE_CONSTRUCTOR: Code = Code::new("E0722").card(
+        "Only a `constructor` parameter can have `public`, `protected` or `private`, because the \
+         keyword declares a property. Remove the keyword here. To declare a property, write it on \
+         the class.",
+    );
     /// A `foreach` key binding over an `array<T>` declared as anything but
     /// `string` — `rule:types/arrays`'s "every key is a `string`" read at the one
     /// place a program can name a key's type.
@@ -3394,7 +3463,11 @@ pub mod code {
     /// `$a["8"]` at the subscript rather than converted, and there is no
     /// matching normalisation on the way *out* of a `foreach` — which is why
     /// the binding is refused instead of being given the conversion.
-    pub const E_FOREACH_KEY_TY: Code = Code::new("E0723");
+    pub const E_FOREACH_KEY_TY: Code = Code::new("E0723").card(
+        "Array keys are always strings, so the key variable of a `foreach` must be `string`. \
+         Write `foreach ($a as string $k => $v)`, and convert `$k` inside the loop if you need \
+         another type.",
+    );
 
     /// `rule:security/secret-sinks-refuse`'s debug-dump sink, as
     /// `rule:errors/record-transformations`'s redaction row states it: a `secret`-qualified value written at a
@@ -3412,7 +3485,11 @@ pub mod code {
     /// along: a `secret`-typed **property** of a dumped object is a Redacted
     /// node rather than a refusal, so the help distinguishes the value the
     /// author handed over from the value a record redacts for them.
-    pub const E_SECRET_DEBUG_ARGUMENT: Code = Code::new("E0724");
+    pub const E_SECRET_DEBUG_ARGUMENT: Code = Code::new("E0724").card(
+        "A `secret` value cannot be passed to `Core\\Debug::dump` or `Core\\Debug::render`, \
+         because a person reads that output. If you really need to show it, call \
+         `Core\\Secret::reveal($value, \"reason\")` first.",
+    );
     /// An attribute payload's field value is not a compile-time constant —
     /// `rule:attributes/payload-is-a-compile-time-constant`. The whole literal is resolved once, at compile time, into the
     /// unit's constant pool, the same storage class an enum case's backing
@@ -3420,7 +3497,10 @@ pub mod code {
     /// step at class-definition time for a variable, a call or a `new` to be
     /// evaluated *in*, which is what PHP's lazily-constructed attribute
     /// object has and this one deliberately does not.
-    pub const E_ATTRIBUTE_VALUE_NOT_CONSTANT: Code = Code::new("E0725");
+    pub const E_ATTRIBUTE_VALUE_NOT_CONSTANT: Code = Code::new("E0725").card(
+        "An attribute value must be known when the program compiles. Write a literal, a class \
+         constant or an enum case. A variable, a function call or `new` is not allowed.",
+    );
     /// The named form of an attribute names something that is not a
     /// shape-typed `type` alias —
     /// `rule:attributes/attach-sites-and-forms`. `Name` there is never a class and never a new namespace of
@@ -3435,7 +3515,10 @@ pub mod code {
     /// thing: a class (the spelling PHP's attributes would have instantiated),
     /// an interface, an enum, or a `type` alias for something that is not a
     /// shape.
-    pub const E_ATTRIBUTE_NAME_NOT_A_SHAPE: Code = Code::new("E0726");
+    pub const E_ATTRIBUTE_NAME_NOT_A_SHAPE: Code = Code::new("E0726").card(
+        "The name of an attribute must be a `type` alias for a shape. This name is a class, an \
+         interface, an enum or another kind of type. Declare a shape `type` and use its name.",
+    );
     /// A `secret`-qualified class constant reaches an attribute payload —
     /// `rule:security/secret-sinks-refuse`
     /// 's attribute-payload sink, the one that exists *because* of
@@ -3454,7 +3537,10 @@ pub mod code {
     /// this one has nothing, `reveal` being a call and a payload admitting
     /// none — so the help names the fix that exists, which is to keep the
     /// secret out of the metadata entirely.
-    pub const E_SECRET_ATTRIBUTE_PAYLOAD: Code = Code::new("E0727");
+    pub const E_SECRET_ATTRIBUTE_PAYLOAD: Code = Code::new("E0727").card(
+        "A `secret` class constant cannot be used in an attribute. Attribute values are stored in \
+         the compiled program, where any code can read them. Keep the secret out of the attribute.",
+    );
     /// A `Core\Attributes::get<T>` whose target carries more than one attached
     /// literal satisfying `T` — `rule:attributes/retrieval-folds-while-checking`.
     ///
@@ -3462,14 +3548,20 @@ pub mod code {
     /// did I get?" is a question this compiler answers rather than one a test
     /// run answers. `::all<T>` is the member that wants every match, and the
     /// help names it.
-    pub const E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS: Code = Code::new("E0728");
+    pub const E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS: Code = Code::new("E0728").card(
+        "More than one attribute on this declaration matches the shape, so `get` cannot choose \
+         one. Make the shape more specific, or call `Core\\Attributes::all` to get every match.",
+    );
     /// The `<T>` written at a `Core\Attributes::get`/`all` call site is not a
     /// shape type — `rule:attributes/structural-retrieval`.
     ///
     /// Retrieval is *structural*: `T` is what an attached literal is matched
     /// against under `rule:types/shape-type`'s width subtyping, so a `T` that is not a
     /// shape names nothing an attribute payload could ever satisfy.
-    pub const E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE: Code = Code::new("E0729");
+    pub const E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE: Code = Code::new("E0729").card(
+        "The type argument of an attribute lookup must be a shape. Write an inline shape `{...}`, \
+         or the name of a `type` alias for one.",
+    );
     /// The `$target` of a `Core\Attributes::get`/`all` call does not name a
     /// declaration this unit holds — `rule:attributes/structural-retrieval`.
     ///
@@ -3478,7 +3570,10 @@ pub mod code {
     /// its `constructor`'s. Retrieval is resolved entirely at compile time, so
     /// the reference is *inspected* where it is written rather than evaluated
     /// — anything else has no declaration to read an attribute list off.
-    pub const E_ATTRIBUTE_TARGET_NOT_A_DECLARATION: Code = Code::new("E0730");
+    pub const E_ATTRIBUTE_TARGET_NOT_A_DECLARATION: Code = Code::new("E0730").card(
+        "The target of `Core\\Attributes::get` or `all` must name a declaration. Write \
+         `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself.",
+    );
     /// An attached literal satisfies the `T` a `Core\Attributes` retrieval
     /// asked for, but holds a value this compiler cannot materialize.
     ///
@@ -3491,7 +3586,10 @@ pub mod code {
     /// residue: a class constant whose *own* declaration folded to no value,
     /// which is [`E_CLASS_CONST_NO_CONSTANT_FORM`]'s gap surfacing at the one
     /// site that needs the value rather than the name.
-    pub const E_ATTRIBUTE_PAYLOAD_UNFOLDABLE: Code = Code::new("E0731");
+    pub const E_ATTRIBUTE_PAYLOAD_UNFOLDABLE: Code = Code::new("E0731").card(
+        "This attribute uses a class constant whose value the compiler cannot compute. Write the \
+         value in the attribute directly, or give that constant a literal value.",
+    );
     /// The first-class callable spelling `$m->method(...)` written on a
     /// `mixed` receiver.
     ///
@@ -4938,9 +5036,6 @@ mod tests {
     /// it: it lands with its card. Goal `core-class-cards` is what empties the
     /// list.
     const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0700", "E0701", "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709",
-        "E0710", "E0711", "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721",
-        "E0722", "E0723", "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731",
         "E0732", "E0733", "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741",
         "E0742", "E0743", "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751",
         "E0752", "E0753", "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761",
