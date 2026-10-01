@@ -100,11 +100,10 @@ One file set: `crates/nvs-types/src/program.rs`, `crates/nvs-hir/src/hierarchy.r
 - **`interface_of` accepts a class.** It becomes the one function that returns the selected type's
   name for an interface or a class, and reports `E0743` for everything else, with a message that says
   "an interface or a class". `implementors` needs no change unless a test shows otherwise.
-- **The scan opt-in names every enumeration member.** `crates/nvs-hir/src/requires.rs:@is_program_scan`
-  compares the member to `"implementing"` alone, and every `implementingWith` test and example
-  declares its classes in the same file, so a program that calls only `implementingWith` over
-  autoloaded classes is expected to miss them. A test pins that; the member list becomes a constant
-  slice holding `implementing`, `implementingWith` and `constructors`, like `ROUTER_SCAN_MEMBERS`.
+- **`constructors` joins the scan opt-in.** It is added to `PROGRAM_SCAN_MEMBERS` in
+  `crates/nvs-hir/src/requires.rs`, beside `implementing` and `implementingWith`, and
+  `constructors_alone_opts_the_program_into_the_scan` pins it the way
+  `implementing_with_alone_opts_the_program_into_the_scan` pins `implementingWith`.
 - **Pinned by** the Stage 2 checks below, and
   `tests/conformance/core/program-implementing-takes-a-class-and-lists-every-concrete-subclass.nvst`
   (an abstract base, a concrete base with subclasses, and a class two levels down; prints the order),
