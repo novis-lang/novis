@@ -1248,6 +1248,7 @@ pub(crate) fn resolved_call(
         method: name,
         overridden,
         arg_slots,
+        param_text: sig.param_text.clone(),
         param_tys: sig.params.clone(),
         param_names: sig.param_names.clone(),
         inout: sig.inout.clone(),

@@ -234,6 +234,34 @@ pub struct ResolvedCall {
     /// access to — so the mapping is settled once, here, by the checker that
     /// already had to do it to type the arguments at all.
     pub arg_slots: Vec<ArgSlot>,
+    /// What each parameter's text names, positionally —
+    /// [`crate::signatures::MethodSig::param_text`], read through
+    /// [`Self::text_at`]. Empty when no parameter is marked.
+    ///
+    /// Recorded for an editor rather than for `nvs-ir`: the checker has
+    /// already resolved every path literal it applies to
+    /// (`Self::path_literal`'s table), and a language server holds the call
+    /// site and no signature table, so it reads the mark here to offer file
+    /// names at a path parameter and class names at a class-name one. An
+    /// empty vector does not allocate, so a call to an unmarked method costs
+    /// nothing.
+    pub param_text: Vec<nvs_stdlib::registry::ParamText>,
+}
+
+impl ResolvedCall {
+    /// What the text of the parameter filled by parameter index `index`
+    /// names — [`crate::signatures::MethodSig::text_at`]'s answer, kept with
+    /// the call.
+    #[must_use]
+    pub fn text_at(&self, index: usize) -> nvs_stdlib::registry::ParamText {
+        if self.variadic
+            && !self.param_text.is_empty()
+            && index >= self.param_text.len().saturating_sub(1)
+        {
+            return self.param_text.last().copied().unwrap_or_default();
+        }
+        self.param_text.get(index).copied().unwrap_or_default()
+    }
 }
 
 /// Which parameter one written argument fills — [`ResolvedCall::arg_slots`].
