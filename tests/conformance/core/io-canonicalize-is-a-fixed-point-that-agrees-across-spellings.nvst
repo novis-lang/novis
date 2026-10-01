@@ -82,7 +82,13 @@ try {
     Core\IO::within("tree", "nested/../../outside.txt");
     echo "within admitted it\n";
 } catch (RuntimeError $left) {
-    echo "within refused it\n";
+    // The second argument is joined to `tree`, not to this file's folder, so
+    // the refusal is the containment check's own.
+    if (Core\Str::contains($left->message, "must stay inside the base")) {
+        echo "within refused it\n";
+    } else {
+        echo "within threw something else: ", $left->message, "\n";
+    }
 }
 --FILE tree/one.txt--
 one

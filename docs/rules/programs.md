@@ -394,7 +394,8 @@ Core\IO::read('/srv/shop/rates.json');   // absolute: unchanged
 file on disk — `Core\IO`'s path members, `Core\Process::run`/`spawn`, `Core\Response::sendFile`,
 `Core\Http\Part::file`, both `saveTo` members, `Core\Net::connectLocal`/`listenLocal`,
 `Core\Zip::extract`'s destination and `Db\Settings`' `path`. `Core\Path`'s own members work on path
-text and are not marked. A method marks its own parameter with `#[Core\Path]`, which takes no payload
+text and are not marked, and neither is `Core\IO::within`'s `$path`, which names a file under its
+`$base`. A method marks its own parameter with `#[Core\Path]`, which takes no payload
 and is allowed only on a parameter whose type is a `string`, alone or with `null` (`E0836`
 elsewhere). A default value of such a parameter resolves against the file that declares it.
 
