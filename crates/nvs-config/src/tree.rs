@@ -473,7 +473,9 @@ pub struct Io {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Log {
-    /// Tier 3: a `.nvs` invoked as a `spawn script` isolate with one `ErrorReport` argument.
+    /// Tier 3: a `.nvs` invoked as a `spawn script` isolate with one `ErrorReport` argument. A
+    /// relative path is joined to the folder of the file that wrote it while the configuration is
+    /// read.
     pub handler: Option<String>,
     /// The memory reserved for that handler, sized once per core so the tier that reports an
     /// out-of-memory is not itself out of memory.
@@ -1050,8 +1052,9 @@ pub struct Schedule {
     pub name: Option<String>,
     /// Five-field cron, and nothing more (§ 2).
     pub cron: Option<String>,
-    /// The `.nvs` to fire, resolved against the `script.spawn` roots and prefix-checked. A path
-    /// outside them is a *boot* error, not a first-fire one.
+    /// The `.nvs` to fire. A relative path is joined to the folder of the file that wrote it while
+    /// the configuration is read, and then checked against the `script.spawn` roots. A path outside
+    /// them is a *boot* error, not a first-fire one.
     pub script: Option<String>,
     /// Required, no default: `fleet` or `host`.
     pub scope: Option<String>,

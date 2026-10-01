@@ -372,6 +372,10 @@ pub fn resolve(
     // relative root means the directory of the file that wrote it, and only the merge knows which
     // file that was. Before the `[[app]]` roster below, which keys `app.<n>` on the same indexes.
     crate::capability::anchor(&mut resolved.config, &mut resolved.table, &origins);
+    // `[[schedule]] script` and `[log] handler`, by the same rule: each names a script an isolate
+    // runs, and a fire or an escalation must run the file beside the configuration that named it.
+    crate::schedule::anchor(&mut resolved.config, &mut resolved.table, &origins);
+    crate::log::anchor(&mut resolved.config, &mut resolved.table, &origins);
     // `rule:security/db-pool-reset-is-a-boundary`'s pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;

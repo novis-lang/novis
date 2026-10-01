@@ -1301,6 +1301,76 @@ fn entry(scope: &str) -> String {
     )
 }
 
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` for a scheduled script:
+/// the tree holds the joined path, in the typed configuration and in the table a fire reads, so the
+/// script a fire runs does not depend on the folder the server was started in.
+#[test]
+fn a_schedule_script_resolves_against_the_folder_of_its_file() {
+    let fs = scheduling(&entry("scope = \"host\"\n"));
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let want = p("etc/jobs/report.nvs");
+
+    assert_eq!(
+        resolved.config.schedule[0].script.as_deref(),
+        Some(want.to_string_lossy().as_ref())
+    );
+    assert_eq!(
+        resolved.table["schedule"][0]["script"].as_str(),
+        Some(want.to_string_lossy().as_ref())
+    );
+}
+
+/// The same rule for `[log] handler`, the script the escalation ladder runs. The ladder reads it
+/// out of the table, so the table half is the one that decides which file runs.
+#[test]
+fn a_log_handler_resolves_against_the_folder_of_its_file() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[log]\nhandler = \"hooks/report.nvs\"\n"),
+        ("etc/hooks/report.nvs", "<?nvs\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let want = p("etc/hooks/report.nvs");
+
+    assert_eq!(
+        resolved
+            .config
+            .log
+            .as_ref()
+            .and_then(|log| log.handler.as_deref()),
+        Some(want.to_string_lossy().as_ref())
+    );
+    assert_eq!(
+        resolved.table["log"]["handler"].as_str(),
+        Some(want.to_string_lossy().as_ref())
+    );
+}
+
+/// A `[[schedule]]` entry written in an included file starts at *that* file, and not at the root
+/// that included it: the entry and its script move together when the include is moved.
+#[test]
+fn a_schedule_script_in_an_included_file_resolves_against_that_file() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[capabilities]\nscript.spawn = [\"conf.d\"]\n\n[[include]]\npath = \"conf.d/jobs.toml\"\n",
+        ),
+        (
+            "etc/conf.d/jobs.toml",
+            "[[schedule]]\nname = \"nightly\"\ncron = \"0 3 * * *\"\nscript = \"report.nvs\"\n\
+             scope = \"host\"\n",
+        ),
+        ("etc/conf.d/report.nvs", "<?nvs\n"),
+        ("etc/report.nvs", "<?nvs\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let want = p("etc/conf.d/report.nvs");
+
+    assert_eq!(
+        resolved.table["schedule"][0]["script"].as_str(),
+        Some(want.to_string_lossy().as_ref())
+    );
+}
+
 /// `rule:config/scheduled-work-is-a-config-block` and `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`: `scope` has no default, so an entry without one refuses the boot rather than
 /// having this file pick a coordination model for the operator. Asserted on both sides and with the
 /// third answer beside them — a check that only refused the *absent* key would pass just as well if

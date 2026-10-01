@@ -85,6 +85,42 @@ const MONTHS: [&str; 12] = [
 ];
 const DAYS: [&str; 7] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
+/// Makes every `[[schedule]] script` absolute against the file that wrote it —
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`, as
+/// [`crate::db::canonicalize`] does for a `[db]` path.
+///
+/// By index, because an appended entry's script resolves against the file that wrote that entry.
+/// The joined path replaces the written one in the typed tree and in the table, so every fire runs
+/// the file [`validate`] checked against the `script.spawn` roots, whatever the working directory.
+pub fn anchor(
+    config: &mut Config,
+    table: &mut toml::value::Table,
+    origins: &BTreeMap<String, Origin>,
+) {
+    for (index, entry) in config.schedule.iter_mut().enumerate() {
+        let Some(written) = entry
+            .script
+            .as_deref()
+            .filter(|written| !written.is_empty() && !Path::new(written).has_root())
+        else {
+            continue;
+        };
+        let base = crate::db::written_in(origins, &format!("schedule.{index}.script"));
+        let script = crate::resolve::absolute(base, Path::new(written))
+            .to_string_lossy()
+            .into_owned();
+        if let Some(block) = table
+            .get_mut("schedule")
+            .and_then(toml::Value::as_array_mut)
+            .and_then(|entries| entries.get_mut(index))
+            .and_then(toml::Value::as_table_mut)
+        {
+            block.insert("script".to_owned(), toml::Value::String(script.clone()));
+        }
+        entry.script = Some(script);
+    }
+}
+
 /// § 1–§ 3's boot questions, asked of every `[[schedule]]` entry in the merged tree.
 ///
 /// # Errors
@@ -207,14 +243,10 @@ pub fn validate(
         }
 
         let script = required(entry, index, "script", entry.script.as_deref(), origins)?;
-        let written_in = origins.get(&format!("schedule.{index}.script"));
-        // § 5 of `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: relative to the file that wrote it, the same rule an `[[include]]`, a
-        // `password_file` and an `[[app]]` key follow.
-        let base = written_in
-            .and_then(|origin| origin.path.parent())
-            .unwrap_or(Path::new("."));
-        let named = crate::resolve::absolute(base, Path::new(script));
-        if !granted.allows(Cap::ScriptSpawn, Scope::Path(&named), files) {
+        // [`anchor`] has already joined a relative script to the folder of the file that wrote it,
+        // so this checks the path every fire will run.
+        let named = Path::new(script);
+        if !granted.allows(Cap::ScriptSpawn, Scope::Path(named), files) {
             return Err(refusal(
                 index,
                 entry,

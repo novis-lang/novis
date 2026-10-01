@@ -29,6 +29,7 @@
 //! and nothing at all per record — the runtime resolves its target once per context.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_render::Level;
@@ -128,6 +129,61 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
         }
     }
     Ok(())
+}
+
+/// Makes every `[log] handler` absolute against the file that wrote it —
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`, as
+/// [`crate::db::canonicalize`] does for a `[db]` path.
+///
+/// The global block and each `[[app]]`'s own, for [`validate`]'s reason. The joined path replaces
+/// the written one in the typed tree and in the table, because `Snapshot::retype` reads the tree
+/// back out of the table and the escalation ladder reads `log.handler` from that. It is arithmetic
+/// on a string and cannot fail: whether the script exists and is granted is asked when it runs.
+pub fn anchor(
+    config: &mut Config,
+    table: &mut toml::value::Table,
+    origins: &BTreeMap<String, Origin>,
+) {
+    if let Some(log) = config.log.as_mut() {
+        anchor_block(log, table.get_mut("log"), "log", origins);
+    }
+    for (index, app) in config.app.iter_mut().enumerate() {
+        let Some(log) = app.log.as_mut() else {
+            continue;
+        };
+        let written = table
+            .get_mut("app")
+            .and_then(toml::Value::as_array_mut)
+            .and_then(|blocks| blocks.get_mut(index))
+            .and_then(toml::Value::as_table_mut)
+            .and_then(|block| block.get_mut("log"));
+        anchor_block(log, written, &format!("app.{index}.log"), origins);
+    }
+}
+
+/// One block's `handler`, joined to the folder of the file that wrote it, under the prefix it was
+/// merged as.
+fn anchor_block(
+    log: &mut Log,
+    table: Option<&mut toml::Value>,
+    prefix: &str,
+    origins: &BTreeMap<String, Origin>,
+) {
+    let Some(written) = log
+        .handler
+        .as_deref()
+        .filter(|written| !written.is_empty() && !Path::new(written).has_root())
+    else {
+        return;
+    };
+    let base = crate::db::written_in(origins, &format!("{prefix}.handler"));
+    let handler = crate::resolve::absolute(base, Path::new(written))
+        .to_string_lossy()
+        .into_owned();
+    if let Some(block) = table.and_then(toml::Value::as_table_mut) {
+        block.insert("handler".to_owned(), toml::Value::String(handler.clone()));
+    }
+    log.handler = Some(handler);
 }
 
 /// Both spelled values of one `[log]` block, under the prefix it was merged as.
