@@ -12,7 +12,8 @@ stand-in.
 
 ## Why here
 
-**Last on the chain, behind every generated goal, by the user's decision of 2026-09-18.** This was
+**Behind every generated goal, by the user's decision of 2026-09-18,** and in front of goals
+`goal-closeout` and `performance-pass`, which the user added behind it on 2026-10-01. This was
 goal `gap-zero`'s stage 4, and it held the run: GitHub starts no job on this private repository while
 the account's payments fail, and nothing in the tree changes that. A check that cannot go green is
 not traded or rewritten to pass, so it moved — whole — to the one place where holding costs nothing,

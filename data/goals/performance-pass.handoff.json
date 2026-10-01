@@ -1,0 +1,37 @@
+{
+  "state": "**Goal `performance-pass` — one performance pass over everything, and no work that grows faster than linear — has just started; nothing of it has landed yet.** No floor is carried: goal `goal-closeout` made a finished goal deleted, and the suites and `nv verify` are the floor.\n\nThe design is settled and is the user's: linear growth is correct and a little steeper is fine, quadratic and steeper is a defect; no micro-optimizations; an API change is ordinary work; a large tradeoff is written under *Decisions for you* in `docs/perf/performance-pass.md` and not built. The goal file's § *Standing decisions* answers every call a session meets.\n\nThe existing size check is `// bench: complexity` with a `.scale.nvs` sibling, read by `tools/nv/proofs/perf.ts`; only a few benches use it. Nothing measures growth over iterations or over input size across the tree yet.",
+  "next": {
+    "stage": 2,
+    "title": "the growth tool",
+    "files": [
+      "tools/nv/cmd/scaling.ts",
+      "tools/nv/proofs/perf.ts",
+      "benches/scaling/README.md"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**`bun nv scaling --iterations`** — `tools/nv/cmd/scaling.ts`, reusing the counting run in `tools/nv/proofs/perf.ts`: every bench under `benches/members/` at N and 4N iterations from a copy under `.agent-tmp/`, per-operation counts compared, the bounds in the module doc."
+      },
+      {
+        "done": false,
+        "text": "**The ladder runner** — `// scaling: sizes` and `// scaling: expect`, the five kinds (`run`, `compile`, `lsp`, `fmt`, `serve`), the slope fit over counts and clock, `--check`, `--areas` and `--areas --reviewed`, and `benches/scaling/README.md`."
+      },
+      {
+        "done": false,
+        "text": "**The tool's tests** — `tools/nv/test/scaling.test.ts`: a made-up linear ladder passes, a made-up quadratic one fails, a `proposal` ladder is reported and does not fail."
+      },
+      {
+        "done": false,
+        "text": "**The first run of `--iterations`** — every bench whose per-operation counts rise becomes a gap owned by `performance-pass`."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: the ladders** — one area per group, subagents may write and run ladders in parallel; `app` last, because it reuses what the others found.",
+    "**Stage 4: the review** — one read-only subagent per area; the session writes the gaps and `docs/perf/performance-review.md`.",
+    "**Stage 5: the fixes** — grouped by crate; perf figures recorded again in the slice that made them stale.",
+    "**Stage 6: the summary** — `docs/perf/performance-pass.md`, plain and short, for the user.",
+    "When this goal's last check goes green the chain is complete."
+  ]
+}

@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 182 goals. 176 are walked (120 of them retired), `plain-comments` is live at 177 of 182, and 5 are ahead.
+The chain holds 184 goals. 176 are walked (120 of them retired), `plain-comments` is live at 177 of 184, and 7 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -195,3 +195,5 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 180 | [`program-enumeration`](goals/program-enumeration.md) | `Core\Program` enumerates by base class, and hands back typed constructors | ahead, pinned last |  | **2** the class selector · **3** `constructors<T, C>()` · **4** the proofs |
 | 181 | [`coalesce-assign`](goals/coalesce-assign.md) | `??=` works as PHP's does, and `??+=`, `??-=` and `??.=` start from a default | ahead, pinned last |  | **2** `??=` as PHP's · **3** the three operators · **4** the proofs |
 | 182 | [`ci-green`](goals/ci-green.md) | CI is green on `main`, for the commit the run stands on | ahead, pinned last |  | **2** ci is green |
+| 183 | [`goal-closeout`](goals/goal-closeout.md) | every old goal is closed, its decisions are kept, and the goals are deleted | ahead, pinned last |  | **2** the registers · **3** every old goal is read · **4** finished in place · **5** deletion becomes the rule · **6** the old goals are deleted |
+| 184 | [`performance-pass`](goals/performance-pass.md) | one performance pass over everything, and no work that grows faster than linear | ahead, pinned last |  | **2** the growth tool · **3** the ladders, area by area · **4** the review · **5** the fixes · **6** the summary |

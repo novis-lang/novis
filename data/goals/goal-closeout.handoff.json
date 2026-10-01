@@ -1,0 +1,33 @@
+{
+  "state": "**Goal `goal-closeout` — every old goal is closed, its decisions are kept, and the goals are deleted — has just started; nothing of it has landed yet.** Goal `ci-green`'s whole carried list is this goal's Stage 1 floor.\n\nThe design is settled and is the user's: the audit finishes what it finds, a finished goal is deleted from this goal on and never before it, nothing is carried as a floor afterwards, and `docs/agent/goal-decisions.md` keeps what only a goal's prose held without binding anybody. The goal file's § *Standing decisions* answers every call a session meets.\n\nGoal `ci-green`'s own check in the floor turns red at this goal's first commit that is not bookkeeping and stays red until Stage 6 deletes its record. That is expected; no session asks for a push because of it.",
+  "next": {
+    "stage": 2,
+    "title": "the registers",
+    "files": [
+      "tools/nv/cmd/owners.ts",
+      "docs/implementation-plan.md",
+      "docs/plan/"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The gap register** — `bun nv owners --check` and `bun nv owners --deferrals`; anything not owned by a milestone at M9 or later inside its plan file's scope becomes a gap owned by `goal-closeout`."
+      },
+      {
+        "done": false,
+        "text": "**The other registers** — `bun nv owners --registers`, then read `docs/agent/carried-refusals.md`, `crates/nvs-stdlib/tests/*-outstanding.txt`, `docs/agent/guard-name-debt.md` and the playbook bullets with an `until` naming a tree state. Owed work with no future milestone becomes a gap owned by `goal-closeout`."
+      },
+      {
+        "done": false,
+        "text": "**The plan** — `bun nv proofs --gate`, the `Open now` and `Blocking` fields of `docs/implementation-plan.md`, and `bun nv plan --show M0:verify` through `M8:verify` against the tree."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: every old goal is read** — one read-only subagent per batch of about fifteen goals, in chain order; the session writes the gaps and `docs/agent/goal-decisions.md` from their reports.",
+    "**Stage 4: finished in place** — every gap owned by `goal-closeout`, grouped by crate, and the tests Stage 3 found missing.",
+    "**Stage 5: deletion becomes the rule** — the record modifying `rule:tooling/the-chain-names-its-live-goal`, then `tools/nv/cmd/loop.ts:@advance`, `tools/nv/lib/chain.ts:@goalPlan`, `tools/nv/driver/accept.ts`, `tools/nv/cmd/chain.ts`, `tools/nv/cmd/owners.ts`, and the new `tools/nv/test/switch.test.ts`.",
+    "**Stage 6: the old goals are deleted** — files and links in one slice, then the plain-text citations by file set until `bun nv chain --check` is green.",
+    "When this goal's last check goes green the driver deletes it and takes goal `performance-pass`."
+  ]
+}

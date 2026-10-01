@@ -111,7 +111,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [var-array-literal](var-array-literal.md) | `rule:types/var-inference`, one new record — `position: last` | `crates/nvs-types/src/expr/literals.rs`, `nvs-types/src/locals.rs`, `nvs-lsp/src/hints.rs`, `docs/reference/lang/` — `var $ids = [1, 2, 3];` is an `array<int>`, and a literal whose elements differ is still refused with the type to write |
 | [program-enumeration](program-enumeration.md) | `rule:programs/implementing`, one new record — `position: last` | `crates/nvs-types/src/program.rs`, `nvs-hir/src/requires.rs`, `nvs-stdlib/src/program.rs` — `implementing<T>` takes a base class, and `constructors<T, callable(...): T>()` returns typed constructors, so an enumerated class may take constructor arguments |
 | [coalesce-assign](coalesce-assign.md) | `rule:php-migration/absent-storage-is-never-a-zero-value`, one new record — `position: last` | `crates/nvs-types/src/expr/assign.rs`, `nvs-ir/src/lower/stmt.rs`, `nvs-syntax/src/lexer.rs` — `??=` writes an absent key and is typed as the value it wrote, and `??+=`, `??-=` and `??.=` update a target that starts from the zero of its type when it is `null` or absent |
-| [ci-green](ci-green.md) | post-parity, no ADR — `position: last` | `tools/nv/cmd/ci-green.ts`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
+| [ci-green](ci-green.md) | post-parity, no ADR — `position: last` | `tools/nv/cmd/ci-green.ts`, `.github/workflows/ci.yml` — the last goal of the program, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
+| [goal-closeout](goal-closeout.md) | post-parity, one new record — a finished goal is deleted from this goal on — `position: last` | `tools/nv/cmd/owners.ts`, `tools/nv/cmd/loop.ts`, `tools/nv/lib/chain.ts`, `docs/plan/` — every old goal proven finished, its unhomed decisions kept in `docs/agent/goal-decisions.md`, the switch made to delete a walked goal, and every goal in front of it deleted |
+| [performance-pass](performance-pass.md) | post-parity, a record only if a fix changes a rule — `position: last` | `bun nv scaling` (new), `benches/scaling/` (new), every crate a finding names — one pass over everything: no work that grows faster than linear, the big problems fixed at the root, and a plain summary in `docs/perf/performance-pass.md` |
 
 ## The chain contract
 
@@ -219,7 +221,8 @@ A red gate holds the goal open, and `bun nv orient` prints the finding from `.lo
 
 ## What stops the run
 
-- **The last goal goes green** — goal `ci-green`, behind the last *generated* one, which is every group on
+- **The last goal goes green** — goal `performance-pass`. In front of it, goal `ci-green` closes the
+  program the chain was written for: it sits behind the last *generated* one, which is every group on
   `rule:testing/feature-proofs`'s roster owing nothing, `bun nv proofs --gate` exiting 0 over the whole language.
   The parity program's own gate — goals `core-depth` through `server`, PHP core feature parity — is
   still that goal's final check:
