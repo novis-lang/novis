@@ -94,6 +94,30 @@ impl Server {
     ///
     /// As [`Server::start`] does, and when that first command fails.
     fn start_after(case: &str, config: &str, files: &[(&str, &str)], first: &[&str]) -> Self {
+        Self::boot(case, config, files, first, false)
+    }
+
+    /// [`Server::start`], with the server's working directory an empty folder
+    /// inside the program's directory. `--config` names `nvs.toml` and the
+    /// program is named by its absolute path, so nothing the server runs is
+    /// found through the working directory.
+    ///
+    /// # Panics
+    ///
+    /// As [`Server::start`] does.
+    fn start_elsewhere(case: &str, config: &str, files: &[(&str, &str)]) -> Self {
+        Self::boot(case, config, files, &[], true)
+    }
+
+    /// [`Server::start_after`], started from the folder [`Server::start_elsewhere`]
+    /// names when `elsewhere` is set.
+    fn boot(
+        case: &str,
+        config: &str,
+        files: &[(&str, &str)],
+        first: &[&str],
+        elsewhere: bool,
+    ) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("live-config-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -121,9 +145,21 @@ impl Server {
             );
         }
 
-        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
-            .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
-            .current_dir(&dir)
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        if elsewhere {
+            let cwd = dir.join("elsewhere");
+            std::fs::create_dir_all(&cwd).expect("the working directory is created");
+            command
+                .arg("--config")
+                .arg(dir.join("nvs.toml"))
+                .arg("serve")
+                .arg(dir.join("app.nvs"))
+                .current_dir(cwd);
+        } else {
+            command.args(["serve", "app.nvs"]).current_dir(&dir);
+        }
+        let mut child = command
+            .args(["--listen", "127.0.0.1:0"])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -1078,15 +1114,77 @@ fn a_changed_schedule_roster_is_armed_from_the_next_tick() {
         report.contains("applied: schedule\n"),
         "the reload did not name `schedule` as applied: {report}"
     );
-    let fired = "the scheduled entry `minutely` threw";
+    ticks(&server, "the entry a reload added");
+}
+
+/// Waits until `server` reports that `jobs/tick.nvs` ran for the entry
+/// `minutely` and threw.
+///
+/// # Panics
+///
+/// When it does not within a minute more than [`BOUND`]. The message names
+/// `entry` and carries what the server wrote.
+fn ticks(server: &Server, entry: &str) {
+    let fired = "the scheduled entry `minutely` threw RuntimeError: ticked";
     let started = Instant::now();
     while !server.said().contains(fired) {
         assert!(
             started.elapsed() <= BOUND + Duration::from_secs(60),
-            "the entry a reload added did not fire within a minute; the server wrote: {}",
+            "{entry} did not fire within a minute; the server wrote: {}",
             server.said()
         );
         thread::sleep(POLL * 10);
+    }
+}
+
+/// `[[schedule]] script` is written relative in `nvs.toml`, and names the file
+/// beside that configuration. The server is started from another folder, and
+/// the entry still runs that file.
+#[test]
+fn a_schedule_script_beside_the_configuration_runs_from_any_working_directory() {
+    let server = Server::start_elsewhere(
+        "schedule-elsewhere",
+        &scheduling(MINUTELY),
+        &[("app.nvs", PLAIN), ("jobs/tick.nvs", TICKING)],
+    );
+    ticks(&server, "the entry beside the configuration");
+}
+
+/// A `[log] handler` that writes `jobs/reported.txt` beside itself.
+fn reporting() -> String {
+    format!(
+        "{}\n[capabilities.fs]\nwrite = [\"jobs/\"]\n\n[log]\nhandler = \"jobs/report.nvs\"\n",
+        scheduling("")
+    )
+}
+
+/// A program that throws, so every request it answers reaches the handler.
+const FAILING: &str = "<?nvs\nthrow new RuntimeError(\"broke\");\n";
+
+/// The handler `reporting` names. Its literal path resolves beside this file.
+const REPORT: &str = "<?nvs\nCore\\IO::write('reported.txt', 'reported');\n";
+
+/// `[log] handler` is written relative in `nvs.toml`, and names the file beside
+/// that configuration. The server is started from another folder, a request
+/// throws, and the handler still runs.
+#[test]
+fn a_log_handler_beside_the_configuration_runs_from_any_working_directory() {
+    let server = Server::start_elsewhere(
+        "handler-elsewhere",
+        &reporting(),
+        &[("app.nvs", FAILING), ("jobs/report.nvs", REPORT)],
+    );
+    let failed = server.get("/");
+    assert_eq!(failed.status, 500, "the throwing program did not fail");
+    let report = server.dir.join("jobs").join("reported.txt");
+    let started = Instant::now();
+    while !report.exists() {
+        assert!(
+            started.elapsed() <= BOUND,
+            "the handler beside the configuration did not run; the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(POLL);
     }
 }
 
