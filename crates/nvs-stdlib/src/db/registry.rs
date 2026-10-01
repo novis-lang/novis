@@ -112,7 +112,7 @@ pub(super) const SETTINGS: &[&[CoreField]] = &[
         },
         CoreField {
             name: "path",
-            ty: CoreTy::Text(Qual::Sink),
+            ty: CoreTy::Path(Qual::Sink),
             default: None,
         },
         CoreField {

@@ -375,7 +375,7 @@ A third array shape that fits neither half is the thing that would reopen this.
 `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`
 
 Every path-valued directive — `opcache.file_cache_dir`, `capabilities.script.spawn`, `debug.trace`,
-`[[extension]] path`, `[[server.mount]] root`, `[db.<name>] path`, `password_file`, an `[[app]]`
+`[[extension]] path`, `[[server.mount]] root`, `[db.<name>] path`, `[storage.<name>] root`, `password_file`, an `[[app]]`
 block's `root` or `entry`, and `[[include]]`'s own `path` and `dir` — resolves relative to the
 directory of the file the value appears in. A path given on the **command line** resolves against the
 working directory, because that is what a shell argument means.
@@ -395,7 +395,7 @@ being copied or relocated whole. The resolved absolute path is what the boot log
 print, so the rule never has to be applied in a reader's head — and a block in an included file names
 a database beside *that* file, not beside the running program.
 
-<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0175](../decisions/0175.md).</sub>
+<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0175](../decisions/0175.md), [0241](../decisions/0241.md).</sub>
 
 <a id="config-any-file-in-the-tree-may-set-any-directive"></a>
 

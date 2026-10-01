@@ -571,6 +571,13 @@ An instance method called this way uses the closure's `$this`.
 same way as the type `Page::Meta`. A mistake inside `#[...]` is reported once, and the declaration
 after it is still read.
 
+**Path literals are relative to their file**
+
+`Core\IO::read('data/x.json')` reads `data/x.json` beside the file that contains the call, in a
+terminal, under `nvs serve` and as a service alike. A relative path built while the program runs
+throws; `Core\Path::join` or `Core\Path::fromCwd` makes it absolute. Mark your own path parameter
+with `#[Core\Path]` to get the same resolution.
+
 ## Security and isolation
 
 The decisions that exist because the code and the data are not trusted: qualifiers on values, what a request can reach, what an extension may do, what the doors are.

@@ -278,6 +278,22 @@ pub enum CoreTy {
     Text(Qual),
     /// A `bytes` parameter carrying its classification — [`Self::Text`]'s twin.
     Blob(Qual),
+    /// A `string` parameter whose text is a **file path**, carrying its
+    /// classification — [`Self::Text`] with one more fact, which is
+    /// [`ParamText::Path`]'s: `rule:programs/path-literals-resolve-from-their-file`
+    /// resolves a relative literal written here against the directory of the
+    /// file that wrote it, and an editor offers file names at it.
+    ///
+    /// A mark on the type rather than a roster beside the rows, for
+    /// [`Self::Entry`]'s reason: a member that takes a path gets the rule in
+    /// the edit that writes its signature, and there is no second table to
+    /// forget. It interns as plain `string`, exactly as [`Self::Text`] does, so
+    /// nothing about what a caller may pass changes.
+    Path(Qual),
+    /// A `string` parameter whose text is a **class name** — [`Self::Path`]'s
+    /// twin for [`ParamText::ClassName`]. It changes nothing a checker or the
+    /// runtime does; it is there so an editor can offer class names at it.
+    ClassName(Qual),
     /// An **isolate entry** —
     /// [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
     /// operand, written as a parameter.
@@ -1171,6 +1187,8 @@ impl CoreTy {
     pub const fn classification(&self) -> Option<Qual> {
         match self {
             Self::Text(qual)
+            | Self::Path(qual)
+            | Self::ClassName(qual)
             | Self::Blob(qual)
             | Self::SecretBlob(qual)
             | Self::SecretText(qual) => Some(*qual),
@@ -1258,7 +1276,9 @@ impl CoreTy {
             // it also accepts is a *written shape* rather than a second type, so
             // spelling it as a union here would document a `callable` variable as
             // accepted where `nvs_types::expr::isolate` refuses one.
-            Self::Str | Self::Text(_) | Self::Entry => "string".into(),
+            Self::Str | Self::Text(_) | Self::Path(_) | Self::ClassName(_) | Self::Entry => {
+                "string".into()
+            }
             Self::Bytes | Self::Blob(_) => "bytes".into(),
             Self::SecretBytes | Self::SecretBlob(_) => "secret bytes".into(),
             Self::SecretStr | Self::SecretText(_) => "secret string".into(),
@@ -1341,6 +1361,8 @@ impl CoreTy {
             Self::Str
                 | Self::Bytes
                 | Self::Text(_)
+                | Self::Path(_)
+                | Self::ClassName(_)
                 | Self::Blob(_)
                 | Self::SecretBytes
                 | Self::SecretBlob(_)
@@ -1348,6 +1370,43 @@ impl CoreTy {
                 | Self::SecretText(_)
         )
     }
+
+    /// What this parameter's text names — [`ParamText::Path`] for
+    /// [`Self::Path`], [`ParamText::ClassName`] for [`Self::ClassName`], and
+    /// [`ParamText::Plain`] for every other type. `?T` answers what `T` does.
+    ///
+    /// The one place the question is answered, so the checker and an editor
+    /// read the same mark: [`CoreMethod::param_text`] asks it of one
+    /// parameter, and `nvs_types` asks it of each field of a shape.
+    #[must_use]
+    pub const fn param_text(&self) -> ParamText {
+        match self {
+            Self::Path(_) => ParamText::Path,
+            Self::ClassName(_) => ParamText::ClassName,
+            Self::Nullable(inner) => inner.param_text(),
+            _ => ParamText::Plain,
+        }
+    }
+}
+
+/// What a `string` parameter's text names, beyond being text.
+///
+/// Read by two consumers. The type checker resolves a relative string literal
+/// written at a [`Self::Path`] parameter against the directory of the file
+/// that wrote it (`rule:programs/path-literals-resolve-from-their-file`). An
+/// editor offers file names at a [`Self::Path`] parameter and class names at a
+/// [`Self::ClassName`] one. A `Core` row states it with [`CoreTy::Path`] or
+/// [`CoreTy::ClassName`]; a user method states [`Self::Path`] with the
+/// `#[Core\Path]` attribute on the parameter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum ParamText {
+    /// Ordinary text, and every parameter that is not a `string` at all.
+    #[default]
+    Plain,
+    /// A file path.
+    Path,
+    /// A fully-qualified class name.
+    ClassName,
 }
 
 impl CoreMethod {
@@ -1397,6 +1456,20 @@ impl CoreMethod {
         match self.options() {
             Some(_) => &self.params[..self.params.len() - 1],
             None => self.params,
+        }
+    }
+
+    /// What the text of the positional parameter at `index` names —
+    /// [`CoreTy::param_text`] of that parameter, aligned to [`Self::names`],
+    /// and [`ParamText::Plain`] past the end. A variadic tail answers for its
+    /// element. An option of a trailing bag is asked through its own
+    /// [`CoreOption::ty`] instead, since it has no position.
+    #[must_use]
+    pub fn param_text(&self, index: usize) -> ParamText {
+        match self.positional().get(index) {
+            Some(CoreTy::Variadic(elem)) => elem.param_text(),
+            Some(param) => param.param_text(),
+            None => ParamText::Plain,
         }
     }
 }
@@ -5992,6 +6065,8 @@ mod tests {
                 CoreTy::Str
                 | CoreTy::Bytes
                 | CoreTy::Text(_)
+                | CoreTy::Path(_)
+                | CoreTy::ClassName(_)
                 | CoreTy::Blob(_)
                 | CoreTy::TaintedStr
                 | CoreTy::TaintedBytes => true,

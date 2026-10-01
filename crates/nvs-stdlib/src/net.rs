@@ -257,7 +257,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // not a host is what makes it a second member rather than a wider
             // first one — `rule:security/a-path-is-not-a-url` holding by
             // construction.
-            params: &[CoreTy::Text(Qual::Sink), WITHIN],
+            params: &[CoreTy::Path(Qual::Sink), WITHIN],
             defaults: &[],
             return_ty: CoreTy::Instance(STREAM_NAME),
             symbol: "nvs_core_net_connect_local",
@@ -269,7 +269,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `listen`'s classification over the other transport: the path
             // decides who on this host can reach the program, and a tainted one
             // is how a surface its operator never chose gets exposed.
-            params: &[CoreTy::Text(Qual::Sink)],
+            params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Instance(LISTENER_NAME),
             symbol: "nvs_core_net_listen_local",

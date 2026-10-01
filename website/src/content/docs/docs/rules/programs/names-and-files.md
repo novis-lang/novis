@@ -16,9 +16,9 @@ next:
 
 <p class="nv-section-lead">How a name reaches the file that declares it — while compiling, with no loader running anywhere.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">10</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">7</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#implementing"><code>Core\Program::implementing&lt;T&gt;()</code> is the one enumeration, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#implementing-with"><code>Core\Program::implementingWith&lt;I, T&gt;($member)</code> joins the enumeration with one attribute per class, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#compile-target">A compile target changes the host context, never the language</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#no-runtime-autoload">A name reaches its file while compiling; there is no runtime loader of any kind</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#autoload"><code>autoload</code> maps a prefix to roots, resolved relative to the file that declares it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-declaration-per-autoloaded-file">A file reached by autoload declares exactly one thing, under the name the map finds it by</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#path-case">A <code>require</code> path is compared against the on-disk entry exactly, on every OS</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#program-id"><code>Core\Program::id()</code> is 64 hex characters naming this program's code and environment</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#bundle-trust-domain">A bundled executable is one trust domain: a program, never a service</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#implementing"><code>Core\Program::implementing&lt;T&gt;()</code> is the one enumeration, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#implementing-with"><code>Core\Program::implementingWith&lt;I, T&gt;($member)</code> joins the enumeration with one attribute per class, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#compile-target">A compile target changes the host context, never the language</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#no-runtime-autoload">A name reaches its file while compiling; there is no runtime loader of any kind</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#autoload"><code>autoload</code> maps a prefix to roots, resolved relative to the file that declares it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-declaration-per-autoloaded-file">A file reached by autoload declares exactly one thing, under the name the map finds it by</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#path-case">A <code>require</code> path is compared against the on-disk entry exactly, on every OS</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#path-literals-resolve-from-their-file">A relative path literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#program-id"><code>Core\Program::id()</code> is 64 hex characters naming this program's code and environment</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#bundle-trust-domain">A bundled executable is one trust domain: a program, never a service</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="implementing">
 
@@ -307,6 +307,58 @@ Three properties keep the check honest:
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0062.md">record 0062</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0021.md">record 0021</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-hir/src/requires.rs"><code>crates/nvs-hir/src/requires.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst"><code>tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="path-literals-resolve-from-their-file">
+
+## A relative path literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#path-literals-resolve-from-their-file"><code>programs/path-literals-resolve-from-their-file</code></a>
+</div>
+
+A relative string literal passed to a path parameter is joined to the folder of the source file that
+contains it, while compiling, the way `require` resolves its path. The program runs with the absolute
+path in the literal's place, so `Core\IO::read('data/x.json')` reads the same file from a terminal,
+under `nvs serve` and as a service.
+
+```nvs
+// src/Report.nvs
+Core\IO::read('data/rates.json');        // -> <folder of src/Report.nvs>/data/rates.json
+Core\IO::read('/srv/shop/rates.json');   // absolute: unchanged
+```
+
+**A path parameter** is one whose text is marked as a path. `Core` marks every parameter that names a
+file on disk — `Core\IO`'s path members, `Core\Process::run`/`spawn`, `Core\Response::sendFile`,
+`Core\Http\Part::file`, both `saveTo` members, `Core\Net::connectLocal`/`listenLocal`,
+`Core\Zip::extract`'s destination and `Db\Settings`' `path`. `Core\Path`'s own members work on path
+text and are not marked. A method marks its own parameter with `#[Core\Path]`, which takes no payload
+and is allowed only on a parameter whose type is a `string`, alone or with `null` (`E0836`
+elsewhere). A default value of such a parameter resolves against the file that declares it.
+
+**A literal** is a plain string literal written as the argument itself. A class constant, a
+concatenation of literals and a variable are values built while the program runs. The join is
+lexical: `.` and `..` are removed from the text and nothing on disk is read, so the answer does not
+depend on whether the file exists yet. The capability check still canonicalizes the absolute path
+before it compares it with a grant ([`security/path-scope-canonicalise-then-prefix`](/docs/rules/security/scopes-and-denial/#path-scope-canonicalise-then-prefix "A path scope is canonicalise-then-prefix over whole components, and a path that does not exist yet is its deepest existing ancestor")). Inside a
+bundled executable the file's folder maps to the same folder beside the executable.
+
+**A relative path that reaches a `Core` door at run time throws** a `RuntimeError` naming the member
+and the path, before any grant is asked. `Core\Path::join` builds an absolute path from a folder the
+program holds, and `Core\Path::fromCwd` joins a path typed on a command line to the working directory.
+`fromCwd` throws while a request is being answered, because a server's working directory is not the
+app's. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
+that file's folder, names the same files as a literal in a program beside it.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>PHP resolves a relative <code>fopen</code> path against the process's working directory; here a literal resolves against its own source file, and nothing resolves against the working directory implicitly</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#path-case" title="A require path is compared against the on-disk entry exactly, on every OS"><code>programs/path-case</code></a> <a href="/docs/rules/security/scopes-and-denial/#path-scope-canonicalise-then-prefix" title="A path scope is canonicalise-then-prefix over whole components, and a path that does not exist yet is its deepest existing ancestor"><code>security/path-scope-canonicalise-then-prefix</code></a> <a href="/docs/rules/config/includes-and-ownership/#a-relative-path-resolves-against-the-file-it-is-written-in" title="A relative path resolves against the directory of the file it is written in; a command-line path against the working directory"><code>config/a-relative-path-resolves-against-the-file-it-is-written-in</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0241.md">record 0241</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/paths.rs"><code>crates/nvs-types/tests/paths.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/path-a-relative-literal-resolves-from-the-file-that-wrote-it.nvst"><code>tests/conformance/core/path-a-relative-literal-resolves-from-the-file-that-wrote-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/path-a-relative-path-built-at-run-time-throws.nvst"><code>tests/conformance/core/path-a-relative-path-built-at-run-time-throws.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/path-from-cwd-joins-the-working-directory.nvst"><code>tests/conformance/core/path-from-cwd-joins-the-working-directory.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/path-from-cwd-throws-while-a-request-is-answered.nvst"><code>tests/conformance/core/path-from-cwd-throws-while-a-request-is-answered.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/the-path-marker-is-only-for-a-string-parameter.nvst"><code>tests/conformance/reject/the-path-marker-is-only-for-a-string-parameter.nvst</code></a></dd></div></dl>
 
 </div>
 

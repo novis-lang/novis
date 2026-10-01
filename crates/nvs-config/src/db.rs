@@ -114,6 +114,42 @@ pub fn canonicalize(
     Ok(())
 }
 
+/// Makes every `[storage.<name>] root` absolute against the file that wrote it —
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`, as [`canonicalize`]
+/// does for a `[db]` path.
+///
+/// A disk's objects are opened through the same doors as any other path, and those doors refuse a
+/// relative one (`rule:programs/path-literals-resolve-from-their-file`), so a root left relative
+/// would make every object on the disk unreachable. Like a `path`, it is arithmetic on a string and
+/// cannot fail: whether the directory exists is the disk's own question, asked when it is used.
+pub fn canonicalize_storage(
+    config: &mut Config,
+    table: &mut toml::value::Table,
+    origins: &BTreeMap<String, Origin>,
+) {
+    for (name, disk) in &mut config.storage {
+        let Some(written) = disk.root.as_deref().filter(|written| {
+            let path = Path::new(written);
+            !written.is_empty() && !path.has_root() && !path.is_absolute()
+        }) else {
+            continue;
+        };
+        let base = written_in(origins, &format!("storage.{name}.root"));
+        let root = crate::resolve::absolute(base, Path::new(written))
+            .to_string_lossy()
+            .into_owned();
+        if let Some(block) = table
+            .get_mut("storage")
+            .and_then(toml::Value::as_table_mut)
+            .and_then(|disks| disks.get_mut(name))
+            .and_then(toml::Value::as_table_mut)
+        {
+            block.insert("root".to_owned(), toml::Value::String(root.clone()));
+        }
+        disk.root = Some(root);
+    }
+}
+
 /// The directory `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` resolves a relative key against: the one the key was written in.
 ///
 /// A key with no origin cannot have been written in a file anywhere, so there is nothing but the

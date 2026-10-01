@@ -707,8 +707,8 @@ context have nothing left to be.
 | `chown` | dropped | same, and ownership additionally requires a privilege the runtime declines to hold |
 | `chgrp` | dropped | same |
 | `umask` | dropped | it mutates **process-global** state, so one request's call changes every core's writes — unsound for the same reason `putenv` and `setlocale` are gone |
-| `chdir` | dropped | the working directory is process-global too. A path is absolute, or is joined onto a directory the program was configured with, using `Core\Path::join` |
-| `getcwd` | dropped | with nothing able to change it, the working directory is not a request-visible fact; a program that wants a base directory is given one in `nvs.toml` |
+| `chdir` | dropped | the working directory is process-global too, and nothing resolves a path against it. A relative string literal at a path parameter is joined to the folder of the file that wrote it; a path built at run time is made absolute with `Core\Path::join` (`rule:programs/path-literals-resolve-from-their-file`) |
+| `getcwd` | member | `Core\Path::fromCwd('.')`, in a command-line program, where the working directory is the one its user started it from. It throws while a request is answered, because a server's working directory is not the app's |
 | `is_uploaded_file` | dropped | there is no temporary file to interrogate: an upload is never written to one. `Core\Request::files` yields the parts, and a part is a part by construction (`rule:http-server/an-upload-is-received-only-through-files`) |
 | `move_uploaded_file` | member | `Core\IO::writeStream`, given a part from `Core\Request::files` — the part goes to its destination directly, and a write that fails mid-stream removes the partial file (`rule:core-classes/io-write-stream`) |
 | `get_include_path` | dropped | there is no runtime include and so no search path: a program's units are resolved while compiling |

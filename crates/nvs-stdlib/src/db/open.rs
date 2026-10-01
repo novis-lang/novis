@@ -923,15 +923,16 @@ nvs_runtime::nvs_helper! {
 /// database lives at — is answered here by `fs.read`/`fs.write`, which is the
 /// grant an operator writes about a path.
 ///
-/// **A relative path stays relative to the process**, and that is the deliberate
-/// asymmetry with a `[db.<name>] path`, which `nvs_config::db`'s `canonicalize`
-/// resolves against the configuration file that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`). There
-/// is no file to resolve against here: the program computed this string, and
-/// resolving it against a configuration file it never named would make the
-/// meaning of a program's own path depend on where the operator keeps `nvs.toml`.
-/// So the base is the working directory, which is the base every other path a
-/// program hands `Core\Fs` already has, and the grant list is where an operator
-/// bounds it.
+/// **A relative path resolves against the program's own source, never against
+/// `nvs.toml`.** A `[db.<name>] path` resolves against the configuration file
+/// that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`),
+/// and a `path` written in a program resolves against the program file that
+/// wrote it: `Db\Settings`' `path` is a path field, so the compiler joins a
+/// relative literal to that file's folder
+/// (`rule:programs/path-literals-resolve-from-their-file`). A path the program
+/// built at run time arrives here as it was built, and a relative one is
+/// refused by the capability check below, as at every other door. The grant
+/// list is where an operator bounds what is left.
 ///
 /// # Errors
 ///
@@ -952,17 +953,23 @@ pub(super) fn sqlite_settings(
     })?;
 
     let file = std::path::Path::new(path);
+    // SQLite's names for a database with no file of its own — `:memory:`, the
+    // empty string, a `file:` URI — are not paths, so the refusal of a
+    // relative path does not apply to them; the grants are asked as before.
+    let named = path.is_empty() || path == ":memory:" || path.starts_with("file:");
     for cap in [
         nvs_config::Cap::DbOpen,
         nvs_config::Cap::FsRead,
         nvs_config::Cap::FsWrite,
     ] {
-        nvs_runtime::capability::require(
-            ctx,
-            cap,
-            nvs_config::capability::Scope::Path(file),
-            OPEN,
-        )?;
+        let scope = nvs_config::capability::Scope::Path(file);
+        if named {
+            if let Some(message) = nvs_runtime::capability::refusal(ctx, cap, scope, OPEN) {
+                return Err(Fault::thrown(message));
+            }
+        } else {
+            nvs_runtime::capability::require(ctx, cap, scope, OPEN)?;
+        }
     }
 
     // § 9's declared zone, and § 13's key hashes it for [`nvs_core_db_open`]'s
@@ -1856,7 +1863,7 @@ mod tests {
     #[test]
     fn a_sqlite_open_asks_db_open_before_it_reads_the_path() {
         let mut ctx = Ctx::buffered();
-        let absent = "no-such-directory-here/notes.sqlite";
+        let absent = "/no-such-directory-here/notes.sqlite";
         let mut args = [Value::null(); 12];
         args[PATH_ARG] = Value::str(NvsStr::new(absent.as_bytes()));
         args[OPEN_SHARED_ARG] = Value::bool(true);

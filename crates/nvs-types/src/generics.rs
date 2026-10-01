@@ -405,6 +405,7 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
                             ty: substitute(field.ty, bindings, interner),
                             required: field.required,
                             qual: field.qual,
+                            text: field.text,
                         })
                         .collect::<Vec<_>>()
                 };

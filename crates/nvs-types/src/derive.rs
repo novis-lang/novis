@@ -64,10 +64,10 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
 /// module's, `#[Test]` is [`crate::testing`]'s, `#[Command]`/`#[Option]` are
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
-/// [`crate::routes`]'.
+/// [`crate::routes`]', and `#[Core\Path]` is [`crate::paths`]'.
 pub const ATTRIBUTES: &[&str] = [
     DERIVE, FIELD, DB_DERIVE, DB_FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY,
-    ACCESS, API,
+    ACCESS, API, PATH,
 ]
 .as_slice();
 
@@ -390,6 +390,13 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
                 about what the route does.",
         site: "a method with a route",
     },
+    AttributeDoc {
+        name: PATH,
+        fields: &[],
+        short: "Says that this parameter is a file path. A relative path written as a string \
+                literal in a call is joined to the folder of the file that contains the call.",
+        site: "a `string` parameter",
+    },
 ];
 
 /// `#[Json\Derive]` — `rule:core-classes/derive-attribute`'s opt-in, on a class.
@@ -493,6 +500,16 @@ pub const ACCESS: &str = r"Core\Access";
 /// `use Core\Api;`. [`crate::routes`] owns the payload and the four
 /// contradictions.
 pub const API: &str = r"Core\Api";
+
+/// `#[Core\Path]` — `rule:programs/path-literals-resolve-from-their-file`'s
+/// per-parameter marker, on a `string` parameter of a method, and it carries
+/// nothing: what it says is the parameter's own
+/// [`ParamText::Path`](nvs_stdlib::registry::ParamText::Path), the mark a
+/// `Core` row writes as `CoreTy::Path`. It shares its name with the
+/// `Core\Path` class, as [`TEST`] and [`COMMAND`] share theirs, so the `use
+/// Core\Path;` that reaches `Path::join` also places the attribute.
+/// [`crate::paths`] owns what it means and where it may be written.
+pub const PATH: &str = r"Core\Path";
 
 /// One of `rule:core-classes/derive-attribute`'s two derived formats — the only thing this pass
 /// branches on.

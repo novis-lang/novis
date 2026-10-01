@@ -330,7 +330,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "forClass",
             names: &["name"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[CoreTy::ClassName(Qual::Neutral)],
             defaults: &[],
             // `?ClassInfo`, and the `null` is what replaces `class_exists`:
             // a name the running program declares no class for is an absence

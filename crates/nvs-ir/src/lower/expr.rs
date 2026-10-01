@@ -115,8 +115,14 @@ impl<'a> Lowering<'a> {
             // A fresh `Ty::Str` value with exactly one natural owner — see
             // `Self::bind_local`'s doc comment for why a value produced here
             // never needs a retain of its own, only whatever consumes it.
+            // A relative path at a path parameter is the absolute path the
+            // checker joined it to (`rule:programs/path-literals-resolve-from-their-file`):
+            // the same constant, with different bytes, and nothing at run time.
             ExprKind::Str(span) => {
-                let s = cook_str_literal(self.src, *span);
+                let s = match self.exprs.path_literal(*span) {
+                    Some(path) => path.to_owned(),
+                    None => cook_str_literal(self.src, *span),
+                };
                 self.emit(*cur, Ty::Str, InstKind::ConstStr(s))
             }
             // A double-quoted- or heredoc-sourced `Interpolated` both lower

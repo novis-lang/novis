@@ -2371,10 +2371,12 @@ mod tests {
             .iter()
             .flat_map(|class| class.members().map(move |method| (class.name, method)))
             .filter(|(_, method)| {
-                method
-                    .params
-                    .iter()
-                    .any(|param| matches!(param, CoreTy::Text(Qual::Launder)))
+                method.params.iter().any(|param| {
+                    matches!(
+                        param,
+                        CoreTy::Text(Qual::Launder) | CoreTy::Path(Qual::Launder)
+                    )
+                })
             })
             .map(|(class, method)| {
                 let answers_carrier = match method.return_ty {

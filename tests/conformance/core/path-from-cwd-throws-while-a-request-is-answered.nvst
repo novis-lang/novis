@@ -1,0 +1,19 @@
+--TEST--
+`Core\Path::fromCwd` throws a `RuntimeError` while a request is being answered, for a relative path and an absolute one alike, because a server's working directory is not the app's — `rule:programs/path-literals-resolve-from-their-file`
+--GET--
+file=report.txt
+--FILE--
+<?nvs
+array<string> $paths = ['report.txt', '/srv/report.txt'];
+foreach ($paths as string $path) {
+    try {
+        echo Core\Path::fromCwd($path), "\n";
+    } catch (RuntimeError $error) {
+        echo $error->message, "\n";
+    }
+}
+--EXPECT--
+Core\Path::fromCwd cannot be used while answering a request, because a server's working directory is not the app's folder
+help: write the path as a string literal, which is relative to the file that contains it, or build it with `Core\Path::join`
+Core\Path::fromCwd cannot be used while answering a request, because a server's working directory is not the app's folder
+help: write the path as a string literal, which is relative to the file that contains it, or build it with `Core\Path::join`

@@ -255,7 +255,12 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
     let throwable = interner.class(QName::parse(ROOT));
     let null = interner.null();
     let previous = interner.make_union([throwable, null]);
-    let options = interner.options(vec![("previous".to_owned(), previous, None)]);
+    let options = interner.options(vec![(
+        "previous".to_owned(),
+        previous,
+        None,
+        nvs_stdlib::registry::ParamText::Plain,
+    )]);
     [(
         "constructor".to_owned(),
         MethodSig {
@@ -276,6 +281,7 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             // Synthesized here rather than registered, so there is no row to
             // carry a classification — see `MethodSig::param_quals`.
             param_quals: Vec::new(),
+            param_text: Vec::new(),
             variadic: false,
             defaults: vec![
                 None,
@@ -354,7 +360,12 @@ mod tests {
         // orders its members by type id, so the rendering is not stable.
         assert_eq!(
             sig.params[1],
-            interner.options(vec![("previous".to_owned(), previous, None)])
+            interner.options(vec![(
+                "previous".to_owned(),
+                previous,
+                None,
+                nvs_stdlib::registry::ParamText::Plain,
+            )])
         );
         assert_eq!(sig.required(), 1);
         assert_eq!(

@@ -671,7 +671,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["body", "expected"],
             params: &[
                 CoreTy::CallableSig(&[], &CoreTy::Mixed),
-                CoreTy::Text(Qual::Neutral),
+                CoreTy::ClassName(Qual::Neutral),
                 CoreTy::Options(MESSAGE),
             ],
             defaults: &[],

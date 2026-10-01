@@ -63,7 +63,9 @@ use crate::{Fault, ThrownClass};
 ///
 /// [`Fault::thrown`] — a `RuntimeError`, catchable, naming the capability in the spelling `nvs.toml`
 /// grants it under and, for a scoped check, the argument that fell outside the grant, over a second
-/// line naming the file and the table that grant is written in ([`denial`]). It is never a
+/// line naming the file and the table that grant is written in ([`denial`]). A path scope that does
+/// not start at a root throws the same class first, before any grant is read
+/// ([`relative_refusal`]). It is never a
 /// `FATAL`: a denial is known before any work is done and leaves nothing behind, so a program that
 /// degrades when a capability is missing is a reasonable program (`rule:security/denial-is-a-runtime-error`).
 pub fn require(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Result<(), Fault> {
@@ -94,20 +96,83 @@ pub fn require_as(
     class: ThrownClass,
     member: &str,
 ) -> Result<(), Fault> {
+    if let Scope::Path(path) = scope {
+        relative_refusal(path, member)?;
+    }
     match refusal(ctx, cap, scope, member) {
         Some(message) => Err(Fault::thrown_as(class, message)),
         None => Ok(()),
     }
 }
 
+/// `rule:programs/path-literals-resolve-from-their-file`'s run-time half: a path that does not
+/// start at a root throws before any grant is asked about it.
+///
+/// Nothing resolves a path against the process's working directory. Under `nvs serve` that
+/// directory is shared by every mounted app and is the system folder under a service manager, so
+/// a relative path would name a different file depending on how the server was started. A
+/// relative **literal** never reaches here: the compiler has already joined it to the folder of the
+/// file that wrote it. What arrives relative is a value the program built, and the message says
+/// the two ways to make it absolute.
+///
+/// "Starts at a root" is [`Path::has_root`], the test the compiler's join makes, so the two halves
+/// agree on which paths need no resolving. On Windows it accepts `\data` (the root of the current
+/// drive) and refuses `C:data`, which is relative to that drive's own working directory.
+///
+/// **Cost:** one scan of the path's first component per door call.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` naming `member` and the path.
+fn relative_refusal(path: &Path, member: &str) -> Result<(), Fault> {
+    if path.has_root() {
+        return Ok(());
+    }
+    Err(Fault::thrown(format!(
+        "{member} needs an absolute path, and `{}` is relative\nhelp: build the path with \
+         `Core\\Path::join` from a folder you know, or with `Core\\Path::fromCwd` for a path \
+         typed on the command line",
+        path.display()
+    )))
+}
+
+/// The process's working directory, for `Core\Path::fromCwd` — the one way a program reads it,
+/// and only outside a request.
+///
+/// A command-line program is started from a directory its user chose, and a path typed on its
+/// command line means a file in that directory, so the program needs to read it. A request has no
+/// such directory: under `nvs serve` every mounted app shares the server's, and under a service
+/// manager it is a system folder. So a context answering a request throws instead of answering.
+///
+/// No grant is asked. The answer names a directory and reads nothing in it; every door that then
+/// opens a path under it still asks its own capability.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` naming `member` when `ctx` is answering a request, or [`io_failure`]'s
+/// `IOError` when the operating system cannot say what the directory is — it was deleted while the
+/// process was in it.
+pub fn working_dir(ctx: &Ctx, member: &str) -> Result<PathBuf, Fault> {
+    if ctx.inbound().is_some() {
+        return Err(Fault::thrown(format!(
+            "{member} cannot be used while answering a request, because a server's working \
+             directory is not the app's folder\nhelp: write the path as a string literal, which is \
+             relative to the file that contains it, or build it with `Core\\Path::join`"
+        )));
+    }
+    std::env::current_dir().map_err(|err| io_failure(member, Path::new("."), &err))
+}
+
 /// [`require`]'s answer as data: `None` when the capability covers `scope`, and § 5's message
 /// otherwise.
 ///
-/// For the one door that cannot hand back a [`Fault`] — [`crate::script::resolve`] owns an error
-/// type of its own, because a spawn's other ways of failing are not capability questions. It
-/// asks this rather than re-deriving the sentence, so the message a denial prints has exactly one
-/// author whichever door produced it.
-pub(crate) fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Option<String> {
+/// For the doors [`require`] does not fit. [`crate::script::resolve`] cannot hand back a [`Fault`]:
+/// it owns an error type of its own, because a spawn's other ways of failing are not capability
+/// questions. `Core\Db::open` asks a path-scoped grant about SQLite's `:memory:`, which is a name
+/// and not a file, so [`relative_refusal`] has nothing to say about it. Both ask this rather than
+/// re-deriving the sentence, so the message a denial prints has exactly one author whichever door
+/// produced it.
+pub fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Option<String> {
     if granted(ctx, cap, scope) {
         return None;
     }
@@ -1198,9 +1263,10 @@ fn private_builder() -> std::fs::DirBuilder {
 /// by the same `execve` that already has the split argv — because a refusal that exists on one
 /// platform only is a behaviour no test on the other can pin.
 ///
-/// **A bare name is a path here and never a `PATH` search**, which is [`spawn_target`]'s whole job:
-/// the capability was asked about a name resolved in the current directory, so a search would start
-/// a program from a directory no grant named.
+/// **A program is named by a path and never found by a `PATH` search.** [`require`] throws for a
+/// path that does not start at a root, so a bare name stops there; [`spawn_target`] still spells
+/// one against a directory, so that no caller of this door can reach a search by skipping that
+/// check.
 ///
 /// The capability is asked **first**, before the target's kind, so the rule every other door here
 /// states holds without an exception: the grant is consulted before anything else is looked at.
@@ -1289,7 +1355,7 @@ mod tests {
     use super::{
         Cap, Ctx, Fault, PINNED_ADDRESSES, Path, Scope, ThrownClass, exec, granted,
         install_resolver, pin_host, pin_host_addresses, require, shell_target, spawn_target,
-        temp_dir,
+        temp_dir, working_dir,
     };
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
@@ -1544,6 +1610,53 @@ mod tests {
         }
     }
 
+    /// `rule:programs/path-literals-resolve-from-their-file`'s run-time half: a relative path throws
+    /// at every path door before a grant is read, and the message names the path and both ways to
+    /// make it absolute. A path that starts at a root reaches the grant check instead.
+    #[test]
+    fn a_relative_path_throws_before_any_grant_is_asked() {
+        let ctx = Ctx::buffered();
+        for cap in [Cap::FsRead, Cap::FsWrite, Cap::ProcessExec, Cap::NetLocal] {
+            let refused = require(&ctx, cap, Scope::Path(Path::new("data/note.txt")), MEMBER)
+                .expect_err("a relative path is never resolved against the working directory");
+            let Fault::Thrown(class, message) = refused else {
+                panic!("the refusal is a catchable throw");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            assert!(message.contains("`data/note.txt` is relative"), "{message}");
+            assert!(message.contains("Core\\Path::join"), "{message}");
+            assert!(message.contains("Core\\Path::fromCwd"), "{message}");
+            assert!(
+                !message.contains(cap.name()),
+                "the grant was not asked about: {message}"
+            );
+        }
+        let denied = require(
+            &ctx,
+            Cap::FsRead,
+            Scope::Path(Path::new("/data/note.txt")),
+            MEMBER,
+        )
+        .expect_err("a context with no configuration grants nothing");
+        let Fault::Thrown(_, message) = denied else {
+            panic!("the denial is a catchable throw");
+        };
+        assert!(message.contains("fs.read"), "{message}");
+    }
+
+    /// A context answering no request reads the working directory; the
+    /// answer is the process's own.
+    #[test]
+    fn the_working_directory_is_read_outside_a_request() {
+        let ctx = Ctx::buffered();
+        let found = working_dir(&ctx, "Core\\Path::fromCwd").expect("no request is being answered");
+        assert_eq!(
+            Some(found),
+            std::env::current_dir().ok(),
+            "the process's own directory"
+        );
+    }
+
     /// The line above it does not move. Every scope's wording, character for character, because the
     /// conformance corpus compares this sentence against a literal a program built — so a refusal
     /// that gained a line is what this change is, and a refusal that gained a word is a break.
@@ -1561,8 +1674,8 @@ mod tests {
             ),
             (
                 Cap::FsRead,
-                Scope::Path(Path::new("./data/note.txt")),
-                "Core\\Process::run needs the capability `fs.read` for ./data/note.txt, which is not granted",
+                Scope::Path(Path::new("/data/note.txt")),
+                "Core\\Process::run needs the capability `fs.read` for /data/note.txt, which is not granted",
             ),
             (
                 Cap::NetConnect,
@@ -1609,15 +1722,15 @@ mod tests {
         require(
             &ctx,
             Cap::ProcessExec,
-            Scope::Path(Path::new("examples/process/say.bat")),
+            Scope::Path(Path::new("/srv/examples/process/say.bat")),
             MEMBER,
         )
         .expect("`exec = true` covers every program, this one included");
 
         for (target, named) in [
-            ("examples/process/say.bat", "bat"),
-            ("C:/deploy/RELEASE.CMD", "cmd"),
-            ("./build.ps1", "ps1"),
+            ("/srv/examples/process/say.bat", "bat"),
+            ("/deploy/RELEASE.CMD", "cmd"),
+            ("/srv/build.ps1", "ps1"),
         ] {
             let refused = exec(&ctx, Path::new(target), &[], MEMBER)
                 .expect_err("a second command-line parser is not a target this API has");

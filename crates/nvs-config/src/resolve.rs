@@ -361,6 +361,8 @@ pub fn resolve(
     // `[db]` block is resolved against the file that wrote it, and only the merge knows which of
     // them won.
     crate::db::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
+    // `[storage.<name>] root`, by the same rule and for the same reason as a `[db]` path.
+    crate::db::canonicalize_storage(&mut resolved.config, &mut resolved.table, &origins);
     // `[http.client.tls] roots`, immediately after the `[db]` bundles and through the same check:
     // the anchors an outbound call verifies against are a wider authority than one block's, so a
     // pass that resolved them anywhere but inside the trust boundary would be the one file in the

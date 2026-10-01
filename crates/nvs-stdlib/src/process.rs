@@ -143,7 +143,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // none is needed: `array<tainted string>` is not `array<string>`, so a
             // tainted element is refused by the ordinary argument check.
             params: &[
-                CoreTy::Text(Qual::Sink),
+                CoreTy::Path(Qual::Sink),
                 CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
             ],
             defaults: &[],
@@ -160,7 +160,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `there_is_no_shell_string_form_of_run_or_spawn` reads this row
             // the same way it reads `run`'s.
             params: &[
-                CoreTy::Text(Qual::Sink),
+                CoreTy::Path(Qual::Sink),
                 CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
             ],
             defaults: &[],
@@ -192,9 +192,9 @@ const RUN_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The program to start, as an absolute path or a path relative to the working \
-                   directory. `PATH` is not searched, so `ls` means a file named `ls` in the \
-                   working directory.",
+            desc: "The program to start, as an absolute path. A relative path must be a string \
+                   literal, and is joined to the folder of the file that contains it. `PATH` is \
+                   not searched, so `ls` means a file named `ls` in that folder.",
             shape: &[],
         },
         ParamDoc {
@@ -1148,11 +1148,11 @@ mod tests {
     /// what they do with the output, and this module's own docs own that reading.
     const SHELL_SPELLINGS: &[&str] = &["exec", "system", "shellExec", "passthru", "backtick"];
 
-    /// Whether a parameter is somewhere a command line could be written — both spellings of
-    /// `string`, since [`CoreTy::Str`] and [`CoreTy::Text`] differ in classification and not in
-    /// what a caller can put in one.
+    /// Whether a parameter is somewhere a command line could be written — every spelling of
+    /// `string` a row here uses, since [`CoreTy::Str`], [`CoreTy::Text`] and [`CoreTy::Path`]
+    /// differ in classification and marks and not in what a caller can put in one.
     fn is_text(ty: CoreTy) -> bool {
-        matches!(ty, CoreTy::Str | CoreTy::Text(_))
+        matches!(ty, CoreTy::Str | CoreTy::Text(_) | CoreTy::Path(_))
     }
 
     /// `rule:core-classes/process-run`, asserted over the whole roster rather than off `run`'s signature: **no member
@@ -1749,13 +1749,13 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
         for (target, named) in [
-            ("examples/process/say.bat", "bat"),
-            ("examples/process/SAY.BAT", "bat"),
-            ("C:/deploy/release.cmd", "cmd"),
-            ("C:/deploy/RELEASE.CMD", "cmd"),
-            ("./build.ps1", "ps1"),
-            ("./BUILD.PS1", "ps1"),
-            ("./Build.Ps1", "ps1"),
+            ("/srv/examples/process/say.bat", "bat"),
+            ("/srv/examples/process/SAY.BAT", "bat"),
+            ("/deploy/release.cmd", "cmd"),
+            ("/deploy/RELEASE.CMD", "cmd"),
+            ("/srv/build.ps1", "ps1"),
+            ("/srv/BUILD.PS1", "ps1"),
+            ("/srv/Build.Ps1", "ps1"),
         ] {
             let refused = nvs_runtime::capability::exec(&ctx, Path::new(target), &[], RUN_MEMBER)
                 .expect_err("a second command-line parser is not a target this API has");
@@ -1778,7 +1778,7 @@ mod tests {
         // kind reaches the spawn, so the refusals are about the kind and not about the door being
         // shut. Nothing is at this path, so what comes back is the operating system's answer.
         let missing =
-            nvs_runtime::capability::exec(&ctx, Path::new("./say.bat.gz"), &[], RUN_MEMBER)
+            nvs_runtime::capability::exec(&ctx, Path::new("/srv/say.bat.gz"), &[], RUN_MEMBER)
                 .expect_err("nothing is at that path");
         let Fault::Thrown(class, message) = missing else {
             panic!("a failed spawn is catchable too — `rule:security/denial-is-a-runtime-error`");

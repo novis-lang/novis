@@ -3022,13 +3022,13 @@
       "section": "Manipulation, directories and links",
       "php": "chdir",
       "outcome": "dropped",
-      "novis": "the working directory is process-global too. A path is absolute, or is joined onto a directory the program was configured with, using `Core\\Path::join`"
+      "novis": "the working directory is process-global too, and nothing resolves a path against it. A relative string literal at a path parameter is joined to the folder of the file that wrote it; a path built at run time is made absolute with `Core\\Path::join` (`rule:programs/path-literals-resolve-from-their-file`)"
     },
     {
       "section": "Manipulation, directories and links",
       "php": "getcwd",
-      "outcome": "dropped",
-      "novis": "with nothing able to change it, the working directory is not a request-visible fact; a program that wants a base directory is given one in `nvs.toml`"
+      "outcome": "member",
+      "novis": "`Core\\Path::fromCwd('.')`, in a command-line program, where the working directory is the one its user started it from. It throws while a request is answered, because a server's working directory is not the app's"
     },
     {
       "section": "Manipulation, directories and links",

@@ -175,7 +175,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["archive", "destination", "maxBytes", "maxRatio"],
             params: &[
                 CoreTy::Blob(Qual::Neutral),
-                CoreTy::Text(Qual::Sink),
+                CoreTy::Path(Qual::Sink),
                 CoreTy::Uint,
                 CoreTy::Uint,
             ],

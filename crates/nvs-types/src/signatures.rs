@@ -39,7 +39,7 @@
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};
-use nvs_stdlib::registry::Qual;
+use nvs_stdlib::registry::{ParamText, Qual};
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind, Type,
     TypeAtom, TypeKind, Visibility,
@@ -121,6 +121,16 @@ pub struct MethodSig {
     /// deliberately not carried: no registry row writes one there, and the
     /// checker asks this question of a whole argument.
     pub param_quals: Vec<Option<Qual>>,
+    /// What each parameter's text names, positionally — `rule:programs/path-literals-resolve-from-their-file`'s
+    /// mark, read through [`Self::text_at`]. **Empty** means every parameter is
+    /// [`ParamText::Plain`], which is the answer for every signature that
+    /// marks nothing.
+    ///
+    /// A `Core` row fills it from `nvs_stdlib::registry::CoreMethod::param_text`;
+    /// a user method marks a parameter [`ParamText::Path`] with `#[Core\Path]`.
+    /// `crate::paths` is the one reader: it resolves a relative string literal
+    /// written at a [`ParamText::Path`] parameter.
+    pub param_text: Vec<ParamText>,
     /// The type parameters a **call site** must write, in the order its
     /// `<...>` list binds them — `["T"]` for `Core\Json::decodeAs<T>`, and
     /// empty for everything else.
@@ -306,6 +316,21 @@ impl MethodSig {
             return self.param_quals.last().copied().flatten();
         }
         self.param_quals.get(index).copied().flatten()
+    }
+
+    /// What the text of the parameter filled by argument position `index`
+    /// names — [`Self::param_text`]'s entry, with a variadic tail answering for
+    /// every position from its own onward, and [`ParamText::Plain`] wherever
+    /// the vector says nothing.
+    #[must_use]
+    pub fn text_at(&self, index: usize) -> ParamText {
+        if self.variadic
+            && !self.param_text.is_empty()
+            && index >= self.param_text.len().saturating_sub(1)
+        {
+            return self.param_text.last().copied().unwrap_or_default();
+        }
+        self.param_text.get(index).copied().unwrap_or_default()
     }
 
     /// Whether any parameter is declared `inout $x` — the cheap test a call site
@@ -1064,8 +1089,10 @@ fn collect_members(
                     .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
                     .collect();
                 let inout: Vec<bool> = m.params.iter().map(|p| p.inout).collect();
+                let param_text = crate::paths::declared_text(&m.params, ctx, env);
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
-                let defaults = collect_defaults(&m.params, &params, ctx, env);
+                let mut defaults = collect_defaults(&m.params, &params, ctx, env);
+                crate::paths::resolve_defaults(&m.params, &param_text, &mut defaults, env);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
                 let returns_static = writes_static_return(m.return_type.as_ref());
                 let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
@@ -1095,6 +1122,7 @@ fn collect_members(
                         // and nothing classifies a user-declared one — see
                         // `MethodSig::param_quals`.
                         param_quals: Vec::new(),
+                        param_text,
                         // `rule:types/declaration`: a user-declared method
                         // has no type parameters to write.
                         type_params: Vec::new(),

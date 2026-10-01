@@ -5,7 +5,10 @@
 //! disk**, so this module has no dependency at all — not `std::path`, whose
 //! `Path`/`PathBuf` are a *host* abstraction that resolves differently on each
 //! target and would drag `OsStr`'s non-UTF-8 question into a type `rule:types/bytes`
-//! guarantees is text. Everything here is `&str` arithmetic.
+//! guarantees is text. Everything here is `&str` arithmetic. One member reads
+//! the process rather than the disk: [`nvs_core_path_from_cwd`] asks
+//! `nvs_runtime::capability::working_dir` for the working directory and then
+//! joins with the same grammar as everything else.
 //!
 //! # One grammar on every platform
 //!
@@ -87,8 +90,8 @@ use crate::registry::{
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
-/// `Core\Path`'s registry rows, in the spec's own order — all nine of § 8's
-/// members, plus the `SEPARATOR` constant on [`CONSTANTS`].
+/// `Core\Path`'s registry rows, in the spec's own order — every member of
+/// § 8, plus the `SEPARATOR` constant on [`CONSTANTS`].
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Path",
     doc: Some(&CARD),
@@ -188,6 +191,19 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_path_relative_to",
             doc: Some(&RELATIVE_TO_DOC),
+        },
+        CoreMethod {
+            name: "fromCwd",
+            names: &["path"],
+            // Plain text and not a path parameter: a path parameter's literal
+            // is joined to the file that wrote it, and the whole point of this
+            // member is the other base. Contagious, since the answer is the
+            // caller's bytes behind a directory.
+            params: &[CoreTy::Text(Qual::Contagious)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_path_from_cwd",
+            doc: Some(&FROM_CWD_DOC),
         },
     ],
     instance: &[],
@@ -391,6 +407,25 @@ const RELATIVE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Path::fromCwd`'s reference card — `rule:core-api/reference-card`.
+const FROM_CWD_DOC: MethodDoc = MethodDoc {
+    short: "Joins `$path` to the folder the program was started from, and returns the full \
+            path. Use it for a path that a user typed on the command line.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The path. A relative path is joined to the working folder. A full path is \
+               returned as it is, with its `.` and `..` parts removed.",
+        shape: &[],
+    }],
+    ret: "A full path, written with `Core\\Path::SEPARATOR`, with its `.` and `..` parts \
+          removed. The method does not check that the file exists.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The program is answering a web request. A server has no working folder that \
+               belongs to the app.",
+    }],
+};
+
 /// `Core\Path::basename`'s `{withoutExtension?: bool}` — `pathinfo`'s
 /// `PATHINFO_FILENAME` as an option rather than as a second member, since it
 /// asks the same question of the same path.
@@ -440,6 +475,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_path_normalize" => (nvs_core_path_normalize as *const ()).cast(),
         "nvs_core_path_is_absolute" => (nvs_core_path_is_absolute as *const ()).cast(),
         "nvs_core_path_relative_to" => (nvs_core_path_relative_to as *const ()).cast(),
+        "nvs_core_path_from_cwd" => (nvs_core_path_from_cwd as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1065,6 +1101,42 @@ nvs_runtime::nvs_helper! {
             None => Ok(Value::null()),
             Some(components) => produced(&relative(&components)),
         }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Path::fromCwd(string $path): string` — `realpath`'s use in a
+    /// command-line tool, without the disk: a path the user typed, made
+    /// absolute against the directory the program was started from.
+    ///
+    /// **The one member of this class that reads the process**, and it reads
+    /// it through `nvs_runtime::capability::working_dir`, which throws while
+    /// a request is being answered. The working directory is read first, so a
+    /// request throws whatever the argument is. `rule:programs/path-literals-resolve-from-their-file`
+    /// owns why nothing else resolves against that directory.
+    ///
+    /// The join is this module's grammar: the directory's text and the
+    /// argument are one path to [`parse`], and [`resolved`] removes `.` and
+    /// `..`, exactly as `normalize` does. An argument that begins at a root
+    /// replaces the directory, as a second `join` segment would not.
+    fn nvs_core_path_from_cwd(ctx, args: [1]) {
+        const MEMBER: &str = r"Core\Path::fromCwd";
+
+        let path = text(&args[0], "fromCwd", "the path")?;
+        let cwd = nvs_runtime::capability::working_dir(ctx, MEMBER)?;
+        if begins_at_root(path) {
+            let parts = parse(path);
+            return produced(&render(&parts, &resolved(&parts)));
+        }
+        let Some(cwd) = cwd.to_str() else {
+            return Err(Fault::thrown(format!(
+                "{MEMBER} cannot read the working directory as text, because its name is not \
+                 valid UTF-8"
+            )));
+        };
+        let joined = format!("{cwd}{SEPARATOR}{path}");
+        let parts = parse(&joined);
+        produced(&render(&parts, &resolved(&parts)))
     }
 }
 

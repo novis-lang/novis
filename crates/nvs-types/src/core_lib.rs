@@ -164,6 +164,12 @@ fn method_sig(
         // function — but it is code, so a call never needs to go
         // looking for an override.
         has_body: true,
+        // `CoreMethod::param_text` is the row's answer, read once per
+        // positional parameter; a trailing bag's options are marked on the
+        // shape's fields instead (`CoreShapeField::text`).
+        param_text: (0..method.positional().len())
+            .map(|index| method.param_text(index))
+            .collect(),
     }
 }
 
@@ -454,7 +460,10 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // because their text arm is written that way —
         // `nvs_stdlib::registry::CoreTy::Union` owns that rule and what two
         // disagreeing arms answer.
-        CoreTy::Str | CoreTy::Text(_) => interner.string(),
+        // A path or a class name is a mark on the text and not a second type:
+        // `nvs_stdlib::registry::ParamText` owns what reads it, and none of
+        // that changes what a caller may pass.
+        CoreTy::Str | CoreTy::Text(_) | CoreTy::Path(_) | CoreTy::ClassName(_) => interner.string(),
         // `rule:security/isolate-shares-nothing`'s entry operand accepts two written shapes and is a
         // *syntactic* rule over them, so there is no declared type that states
         // it: `string` would report the accepted `Chat::run(...)` as a
@@ -635,6 +644,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
                         option.name.to_owned(),
                         lower(&option.ty, interner),
                         qual_of(&option.ty),
+                        option.ty.param_text(),
                     )
                 })
                 .collect();
@@ -709,6 +719,9 @@ fn merge_shape_arms(
             // registry row writes one, and `SETTINGS`' shared `driver`,
             // `timeZone` and `timeout` classify nothing at all.
             qual: qual_of(&declared[0].ty),
+            // The first arm's for the classification's reason: a name marked
+            // two ways would be one slot with two readings.
+            text: declared[0].ty.param_text(),
         });
     }
     merged
@@ -731,6 +744,7 @@ fn lower_arm(
             ty: lower(&field.ty, interner),
             required: field.default.is_none(),
             qual: qual_of(&field.ty),
+            text: field.ty.param_text(),
         })
         .collect()
 }
@@ -2432,7 +2446,12 @@ mod tests {
         let four = interner.int_literal(4);
         let six = interner.int_literal(6);
         let version = interner.make_union([four, six]);
-        let expected = interner.options(vec![("version".to_owned(), version, None)]);
+        let expected = interner.options(vec![(
+            "version".to_owned(),
+            version,
+            None,
+            nvs_stdlib::registry::ParamText::Plain,
+        )]);
         assert_eq!(sig.params[1], expected);
         // A literal is its own type, not the `int` it erases to — the whole
         // point of `rule:types/literal-types` at this position.

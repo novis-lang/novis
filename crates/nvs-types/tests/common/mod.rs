@@ -349,7 +349,11 @@ impl TempDir {
     }
 
     fn write(&self, name: &str, contents: &str) {
-        std::fs::write(self.path.join(name), contents).expect("write fixture");
+        let path = self.path.join(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("create the fixture's folder");
+        }
+        std::fs::write(path, contents).expect("write fixture");
     }
 }
 
