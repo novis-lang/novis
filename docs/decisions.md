@@ -545,6 +545,12 @@ A closure in a method can call `self::m()` and `parent::m()`. If `m` is a static
 inside it is the class the closure is written in. PHP uses the class the outer method was called on.
 An instance method called this way uses the closure's `$this`.
 
+**An attribute can name a `type` alias declared in an interface or class**
+
+`#[Page::Meta(title: "Home")]` names the alias `Meta` declared inside `Page`. It is resolved the
+same way as the type `Page::Meta`. A mistake inside `#[...]` is reported once, and the declaration
+after it is still read.
+
 ## Security and isolation
 
 The decisions that exist because the code and the data are not trusted: qualifiers on values, what a request can reach, what an extension may do, what the doors are.
@@ -1510,6 +1516,25 @@ constant as `NAME = value`, and a class with its namespace in brackets after the
 longer carries a description for every row: each row carries a small key, and the editor asks for
 the description of the one row it is showing, the same text hovering the name shows. Accepting a
 method writes its parentheses. Every `Core` class now carries a one-sentence card.
+
+**`nvs doc` names a class's parent class and interfaces**
+
+`nvs meta --json app.nvs` now gives each class an `extends` key with its parent class and an
+`implements` key with its interfaces. Each name is written in full, with its namespace. `nvs doc`
+prints both at the top of the class page, and writes `static` in front of a static method.
+
+**An override uses the doc comment of the method it replaces**
+
+`nvs check --strict-docs` no longer reports a method that implements a documented interface method
+or overrides a documented parent method. That method uses the parent's `///` comment. `nvs doc`
+shows that comment on the method and names the class or interface it comes from.
+
+**Test coverage reports for CI**
+
+`nvs test --coverage-lcov <FILE>` writes which lines your tests ran, in the lcov format.
+`--coverage-clover <FILE>` writes the same lines as Clover XML, the format PHPUnit writes. Every
+line a statement starts on is listed with the number of times it ran. A line no test reached reads
+`0`. Coverage costs nothing in a run that does not ask for it.
 
 ## Engineering decisions
 

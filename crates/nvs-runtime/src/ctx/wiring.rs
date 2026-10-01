@@ -183,7 +183,7 @@ impl Ctx {
             status: None,
             headers: DeclaredHeaders::default(),
             inbound: None,
-            stmt_hits: Vec::new(),
+            stmt_hits: None,
             counted_stmts: 0,
             counted_calls: 0,
             trace: Vec::new(),

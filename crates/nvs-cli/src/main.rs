@@ -132,6 +132,7 @@ mod cache;
 mod check;
 mod config;
 mod control;
+mod coverage;
 mod ctl;
 #[cfg_attr(
     all(not(test), not(windows)),
@@ -481,14 +482,28 @@ enum Command {
         /// Rewrite each failed `Core\Test::assertMatchesInline` snapshot in
         /// the source that wrote it.
         ///
-        /// This is the only spelling under which `nvs test` writes to a file at
-        /// all, and what it writes is the `$expected` literal and nothing else:
-        /// a run without it never touches the tree, and a run with it never
-        /// touches a passing snapshot. A `.nvst` tree has no snapshot to
+        /// This is the only spelling under which `nvs test` writes to a source
+        /// file, and what it writes is the `$expected` literal and nothing
+        /// else: a run without it never touches the program, and a run with it
+        /// never touches a passing snapshot. A `.nvst` tree has no snapshot to
         /// update, so naming it there is refused rather than ignored.
         // `rule:testing/inline-snapshots`.
         #[arg(long)]
         update: bool,
+        /// Write the run's line coverage to this file in the lcov format.
+        ///
+        /// Every line a statement starts on is listed with the number of
+        /// times it ran, `0` for a line no test reached. A `.nvst` tree has no
+        /// coverage to report, so naming it there is refused.
+        // `rule:testing/debug-probes`; `crate::coverage` owns how the counts are taken.
+        #[arg(long, value_name = "FILE", conflicts_with = "list")]
+        coverage_lcov: Option<PathBuf>,
+        /// Write the run's line coverage to this file as Clover XML.
+        ///
+        /// The same lines and counts as `--coverage-lcov`, in the format
+        /// PHPUnit's `--coverage-clover` writes. Both can be given in one run.
+        #[arg(long, value_name = "FILE", conflicts_with = "list")]
+        coverage_clover: Option<PathBuf>,
         /// Report which `#[Test]` methods the program declares, and where each
         /// one is written, without running any of them.
         ///
@@ -1494,6 +1509,8 @@ fn main() -> ExitCode {
             jobs,
             format,
             update,
+            coverage_lcov,
+            coverage_clover,
             list,
             cases,
             record,
@@ -1503,8 +1520,11 @@ fn main() -> ExitCode {
             php,
             jobs,
             format,
-            update,
-            list,
+            runner::Flags { update, list },
+            &coverage::Requested {
+                lcov: coverage_lcov,
+                clover: coverage_clover,
+            },
             cases,
             record,
             &cli.config,
@@ -3066,13 +3086,14 @@ fn run_test(
     php: PathBuf,
     jobs: Option<std::num::NonZeroUsize>,
     format: runner::Format,
-    update: bool,
-    list: bool,
+    flags: runner::Flags,
+    coverage: &coverage::Requested,
     cases: Option<PathBuf>,
     record: Option<PathBuf>,
     config: &[PathBuf],
     init: config::Init,
 ) -> ExitCode {
+    let runner::Flags { update, list } = flags;
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs` file or a directory holding `.nvs` files
     // (`rule:testing/a-directory-of-programs-is-one-test-program`), a
@@ -3130,7 +3151,7 @@ fn run_test(
         // `--filter` reaches both suites, and means the same thing in each:
         // `runner::selected` owns the rule and why it is the `.nvst` tree's.
         return match program.front_end() {
-            Ok(checked) => runner::run(checked, &snapshot, format, filter, update, list),
+            Ok(checked) => runner::run(checked, &snapshot, format, filter, flags, coverage),
             Err(code) => code,
         };
     }
@@ -3155,6 +3176,14 @@ fn run_test(
         // from sharing a summary — so a machine format over a `.nvst` tree
         // names a document this subcommand does not produce.
         eprintln!("error: `--format` reports a program's `#[Test]` methods, not a `.nvst` tree");
+        return ExitCode::FAILURE;
+    }
+    if coverage.any() {
+        // The counts come from the probes of the one program this process
+        // compiles, and a `.nvst` case runs as a process of its own.
+        eprintln!(
+            "error: `--coverage-lcov` and `--coverage-clover` measure a program's `#[Test]` methods, not a `.nvst` tree"
+        );
         return ExitCode::FAILURE;
     }
 

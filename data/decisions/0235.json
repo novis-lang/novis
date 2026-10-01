@@ -1,0 +1,17 @@
+{
+  "title": "`nvs test` writes line coverage as lcov and Clover, counted into one table every context of the run shares",
+  "status": "accepted",
+  "scope": "the first coverage report `nvs test` writes: line coverage of a `#[Test]` run, its two formats and\nthe two flags that ask for them, how the statement probe numbers a statement across a whole program,\nand how the counts reach the runner from every context the run makes. Branch coverage, per-test\ncoverage, a third format and the editor's coverage view are left to a later goal.",
+  "dependsOn": [
+    "0018",
+    "0079",
+    "0041"
+  ],
+  "dependsOnText": "[0018](0018.md) and [0041](0041.md) (the statement probe is compiled into every unit and checks one\nflag word), [0079](0079.md) (every test runs in an isolate of its own).",
+  "validatedBy": "`crates/nvs-cli/tests/test_coverage.rs`, `crates/nvs-codegen/tests/probes.rs` and the\n`StmtHits` cases in `crates/nvs-runtime/src/ctx/trace.rs`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "Test coverage reports for CI",
+    "body": "`nvs test --coverage-lcov <FILE>` writes which lines your tests ran, in the lcov format.\n`--coverage-clover <FILE>` writes the same lines as Clover XML, the format PHPUnit writes. Every\nline a statement starts on is listed with the number of times it ran. A line no test reached reads\n`0`. Coverage costs nothing in a run that does not ask for it."
+  }
+}

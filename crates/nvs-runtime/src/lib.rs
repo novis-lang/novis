@@ -300,8 +300,9 @@ pub use ctx::{
     OutputSink, PlacedIsolate, RequestBody, SAFEPOINT_OFFSET, SPAN_EVENT_CEILING, STACK_CEILING,
     STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET, SafepointFlags, SafepointView, Scheme,
     Session, SnapshotMismatch, SocketAnswer, SocketFrame, SpawnForm, SpecBody, SpecPart, SseSlot,
-    TraceEvent, TraceKind, TreeState, Upgrade, UpgradeSlot, is_carrier, nvs_probe_call_enter,
-    nvs_probe_call_exit, nvs_probe_stmt, nvs_safepoint, nvs_stack_check, stack_pointer,
+    StmtHits, TraceEvent, TraceKind, TreeState, Upgrade, UpgradeSlot, is_carrier,
+    nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_stmt, nvs_safepoint, nvs_stack_check,
+    stack_pointer,
 };
 pub use decimal::{Decimal, NotDecimal};
 pub use dispatch::{

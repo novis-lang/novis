@@ -1228,20 +1228,11 @@ pub struct Ctx {
     /// allocation holding an [`Inbound`] — itself a few short allocations — for
     /// one that does.
     inbound: Option<Box<Inbound>>,
-    /// `rule:testing/debug-probes`'s statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
-    ///
-    /// Written only from [`nvs_probe_stmt`], which compiled code reaches only
-    /// when the [`DebugFlags`] word above is non-zero — so a request with no
-    /// probe enabled never touches this vector and never allocates it.
-    ///
-    /// **A stand-in, not the final shape.** `nvs_ir::StmtId` numbers from zero
-    /// within *each* function, so two functions' statements collide in this
-    /// one table. `rule:testing/debug-probes` wants path → line → count, which needs the unit and
-    /// function a statement belongs to; that qualification arrives with
-    /// `Core\Debug` and the Clover/lcov exporters in M10. What this table is
-    /// for now is proving the mechanism: the probe fires at exactly the
-    /// statements a request executed, and nowhere else.
-    stmt_hits: Vec<u64>,
+    /// The run's shared [`StmtHits`] table, which [`DebugFlags::COVERAGE`]
+    /// counts into. `None` unless the host installed one, which only
+    /// `nvs test --coverage-lcov` and `--coverage-clover` do; a child context
+    /// gets a clone of the handle together with the flags.
+    stmt_hits: Option<std::sync::Arc<StmtHits>>,
     /// `rule:testing/bench-counters`'s two counts, kept only under
     /// [`DebugFlags::COUNT`]: statements executed and compiled call sites
     /// entered. Two words rather than `stmt_hits` and `trace`, because a bench
@@ -1263,8 +1254,7 @@ pub struct Ctx {
     /// nothing. A request that is neither recorded nor traced never touches
     /// this vector and never allocates it.
     ///
-    /// **The call half is a stand-in, not the final shape**, for the reason
-    /// `stmt_hits` is one, plus a second: `rule:testing/debug-probes` has trace
+    /// **The call half is a stand-in, not the final shape.** `rule:testing/debug-probes` has trace
     /// and profile data *stream to a sink* rather than accumulate, precisely
     /// because a long-running request's call trace is call-count-proportional.
     /// That unbounded half is why `TRACE` is a debugging surface a served

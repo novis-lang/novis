@@ -20,11 +20,12 @@
 //! compiled unchanged.
 //!
 //! Ids are scoped to one [`crate::ir::Function`], not process-wide: two
-//! different functions each start counting from zero. Nothing today needs an
-//! id that survives outside its own function, and a global counter would
-//! make an unrelated edit elsewhere in the file perturb every id after it —
-//! the numbering-order instability this module exists to avoid, not
-//! something it needs to also avoid at file scope.
+//! different functions each start counting from zero, so an edit in one
+//! function never renumbers another. The coverage probe needs one number per
+//! statement in the whole program, and codegen makes it by adding a
+//! per-function base when it emits the probe
+//! ([`Program::stmt_spans`](crate::Program::stmt_spans)), which leaves these
+//! ids as they are.
 
 use nvs_diagnostics::Span;
 

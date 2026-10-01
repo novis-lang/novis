@@ -2106,14 +2106,26 @@ impl<M: Module> UnitBuilder<M> {
             self.shapes
                 .insert(function.name.clone(), MethodShape::of(&function.params));
         }
+        let mut stmt_base = 0_u32;
         for function in &program.functions {
-            self.compile_function(function)?;
+            self.compile_function(function, stmt_base)?;
+            stmt_base = u32::try_from(function.stmt_spans.len())
+                .ok()
+                .and_then(|count| stmt_base.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 statements"))?;
         }
         Ok(())
     }
 
-    /// Emits one already-declared function's body.
-    fn compile_function(&mut self, function: &nvs_ir::Function) -> Result<(), CodegenError> {
+    /// Emits one already-declared function's body. `stmt_base` is the
+    /// program-wide number of the function's first statement: the count of
+    /// statements in every function before it in `program.functions`, which is
+    /// the order `nvs_ir::Program::stmt_spans` lists them in.
+    fn compile_function(
+        &mut self,
+        function: &nvs_ir::Function,
+        stmt_base: u32,
+    ) -> Result<(), CodegenError> {
         let id =
             *self
                 .functions
@@ -2137,6 +2149,7 @@ impl<M: Module> UnitBuilder<M> {
                 classes: &self.classes,
                 statics: &self.statics,
                 literals: &mut self.literals,
+                stmt_base,
             },
             function,
         );

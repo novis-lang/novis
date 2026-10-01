@@ -302,6 +302,7 @@ impl Ctx {
         // Request-wide, and therefore shared or copied.
         child.statics = self.statics;
         child.debug = self.debug;
+        child.stmt_hits = self.stmt_hits.clone();
         child.origin = self.origin.clone();
         // The effective configuration, overlay included — see the doc above for
         // why the copy goes this way round and not through the snapshot alone.
@@ -394,6 +395,7 @@ impl Ctx {
         // it stays null until this context is armed with the child unit's own
         // defaults, which is the difference this constructor exists for.
         isolate.debug = self.debug;
+        isolate.stmt_hits = self.stmt_hits.clone();
         isolate.origin = self.origin.clone();
         // The configuration **including the parent's overlay**, so a child
         // starts from the values in force where it was spawned rather than from
@@ -567,6 +569,7 @@ impl Ctx {
         let remains = self.remains();
         PlacedIsolate {
             debug: self.debug,
+            stmt_hits: self.stmt_hits.clone(),
             origin: self.origin.clone(),
             config: self.config.clone(),
             grant_filter: self.grant_filter.clone(),
@@ -795,6 +798,7 @@ impl Ctx {
 #[derive(Debug)]
 pub struct PlacedIsolate {
     debug: DebugFlags,
+    stmt_hits: Option<std::sync::Arc<StmtHits>>,
     origin: Option<Box<str>>,
     config: Option<nvs_config::Request>,
     grant_filter: Option<std::sync::Arc<[nvs_config::capability::Cap]>>,
@@ -853,6 +857,7 @@ impl PlacedIsolate {
         };
         let mut child = Ctx::new(output);
         child.debug = self.debug;
+        child.stmt_hits = self.stmt_hits;
         child.origin = self.origin;
         child.config = self.config;
         child.grant_filter = self.grant_filter;

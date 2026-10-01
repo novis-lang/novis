@@ -131,6 +131,10 @@ pub(crate) struct UnitTables<'a> {
     pub statics: &'a FxHashMap<(String, String), u32>,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     pub literals: &'a mut usize,
+    /// The program-wide number of this function's first statement, which every
+    /// coverage probe in it adds to its own `StmtId` — see
+    /// `nvs_ir::Program::stmt_spans`.
+    pub stmt_base: u32,
 }
 
 /// Emits `f` into `ctx.func`, which the caller has already given the ABI
@@ -148,6 +152,7 @@ pub(crate) fn emit_function(
         classes,
         statics,
         literals,
+        stmt_base,
     } = tables;
     let target_config = module.target_config();
     let mut b = FunctionBuilder::new(&mut ctx.func, fn_ctx);
@@ -219,6 +224,7 @@ pub(crate) fn emit_function(
         classes,
         statics,
         literals,
+        stmt_base,
         f,
         values: FxHashMap::default(),
         blocks,
@@ -387,6 +393,8 @@ struct Emitter<'a, 'f> {
     /// Every `static` property the unit declares — see [`crate::UnitBuilder::statics`].
     statics: &'a FxHashMap<(String, String), u32>,
     literals: &'a mut usize,
+    /// See [`UnitTables::stmt_base`].
+    stmt_base: u32,
     f: &'a Function,
     /// Every SSA value defined so far, with the representation it was defined
     /// at — the IR carries that on the defining instruction, and an operand
@@ -496,7 +504,13 @@ impl Emitter<'_, '_> {
 
     fn emit_inst(&mut self, cur: Block, inst: &Inst) -> Result<Block, CodegenError> {
         match &inst.kind {
-            InstKind::StmtMarker(stmt) => return self.emit_stmt_probe(cur, stmt.index()),
+            InstKind::StmtMarker(stmt) => {
+                let stmt = self
+                    .stmt_base
+                    .checked_add(stmt.index())
+                    .ok_or_else(|| internal("a unit with more than 2^32 statements"))?;
+                return self.emit_stmt_probe(cur, stmt);
+            }
             InstKind::Safepoint => return self.emit_safepoint(cur),
             InstKind::ConstBool(v) => {
                 let v = self.b.ins().iconst(types::I8, i64::from(*v));
@@ -1135,7 +1149,8 @@ impl Emitter<'_, '_> {
     ///
     /// Emitted unconditionally, in every compiled unit, whether or not any
     /// request ever sets a bit — that is the entire mechanism, and the reason
-    /// coverage can be switched on for a request already running.
+    /// coverage can be switched on for a request already running. `stmt` is the
+    /// program-wide number `nvs_ir::Program::stmt_spans` indexes.
     fn emit_stmt_probe(&mut self, _cur: Block, stmt: u32) -> Result<Block, CodegenError> {
         let offset = i32::try_from(DEBUG_FLAGS_OFFSET)
             .map_err(|_| internal("the debug-flags word sits past a 2 GiB offset"))?;

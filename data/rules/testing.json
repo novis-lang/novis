@@ -25,6 +25,7 @@
     "testing/mutation-testing",
     "testing/runner-is-strict",
     "testing/report-formats",
+    "testing/coverage-report",
     "testing/nvst-is-separate",
     "testing/a-directory-of-programs-is-one-test-program",
     "testing/one-slice-is-one-feature",

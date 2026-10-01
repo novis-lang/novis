@@ -33,6 +33,26 @@ pub struct Program {
     pub enums: Vec<Enum>,
 }
 
+impl Program {
+    /// The source span of every statement in the program, indexed by the
+    /// number a compiled coverage probe passes to `nvs_runtime::nvs_probe_stmt`.
+    ///
+    /// A [`StmtId`] numbers from zero within each function. Codegen adds the
+    /// function's base to it, which is the count of statements in every
+    /// function before it in [`Self::functions`], so a number names one
+    /// statement in the whole program. This list is the same functions in the
+    /// same order, so its length is the size an `nvs_runtime::StmtHits` table
+    /// for this program needs. It reads only the IR, so it holds for a unit
+    /// loaded from the compile cache too.
+    #[must_use]
+    pub fn stmt_spans(&self) -> Vec<Span> {
+        self.functions
+            .iter()
+            .flat_map(|function| function.stmt_spans.iter().copied())
+            .collect()
+    }
+}
+
 /// One declared `enum`'s whole shape, on its way to
 /// `nvs_runtime::ClassTable::define_enum`.
 ///

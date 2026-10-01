@@ -11,6 +11,39 @@ use common::*;
 /// poll and a back-edge poll and nothing else that reads the context.
 const A_LOOP: &str = "<?nvs\nint $i = 0;\nwhile ($i < 3) {\n    $i = $i + 1;\n}\necho $i;\n";
 
+/// Runs `source` with `flags` on and a hit table sized for its program, and
+/// returns one `(line, hits)` pair per statement the probes can count, sorted
+/// by line. A statement that never ran is in the list with `0`.
+fn covered_with(ctx: &mut Ctx, flags: DebugFlags, source: &str) -> Vec<(usize, u64)> {
+    let program = lower(source);
+    let spans = program.stmt_spans();
+    let hits = std::sync::Arc::new(nvs_runtime::StmtHits::new(spans.len()));
+    ctx.set_stmt_hits(Some(std::sync::Arc::clone(&hits)));
+    ctx.set_debug_flags(flags);
+    let unit = nvs_codegen::compile(&program).expect("the fixture compiles");
+    unit.install_in(ctx);
+    unit.script()
+        .expect("the script frame was compiled")
+        .call(ctx)
+        .expect("the script ran");
+    // `lower` names its one file `test.nvs`, so the same map gives every span
+    // the same file id.
+    let mut map = nvs_diagnostics::SourceMap::new();
+    map.add("test.nvs", source);
+    let mut lines: Vec<(usize, u64)> = spans
+        .iter()
+        .zip(hits.counts())
+        .map(|(span, count)| (map.file(span.file).line_col(span.start).0 + 1, count))
+        .collect();
+    lines.sort_unstable();
+    lines
+}
+
+/// [`covered_with`] with coverage on, on a fresh context.
+fn covered(source: &str) -> Vec<(usize, u64)> {
+    covered_with(&mut Ctx::buffered(), DebugFlags::COVERAGE, source)
+}
+
 /// One function's Cranelift IR out of the text `nvs_codegen::clif` renders,
 /// which heads each function with `; <name>`.
 fn section<'a>(text: &'a str, name: &str) -> &'a str {
@@ -131,17 +164,33 @@ fn a_cleared_safepoint_request_lets_the_script_continue() {
 fn the_debug_probe_costs_nothing_observable_with_every_bit_off() {
     // `rule:testing/debug-probes`'s check is emitted unconditionally at every statement
     // boundary. With no bit set it must not reach `nvs_probe_stmt` at all.
-    let mut ctx = Ctx::buffered();
-    run_with(&mut ctx, "<?nvs\necho \"a\";\necho \"b\";\n").expect("the script ran");
-    assert!(ctx.stmt_hits().is_empty());
+    let lines = covered_with(
+        &mut Ctx::buffered(),
+        DebugFlags::empty(),
+        "<?nvs\necho \"a\";\necho \"b\";\n",
+    );
+    assert_eq!(lines, [(2, 0), (3, 0)]);
 }
 
 #[test]
 fn turning_coverage_on_records_one_hit_per_executed_statement() {
-    let mut ctx = Ctx::buffered();
-    ctx.set_debug_flags(DebugFlags::COVERAGE);
-    run_with(&mut ctx, "<?nvs\necho \"a\";\necho \"b\";\necho \"c\";\n").expect("the script ran");
-    assert_eq!(ctx.stmt_hits(), [1, 1, 1]);
+    assert_eq!(
+        covered("<?nvs\necho \"a\";\necho \"b\";\necho \"c\";\n"),
+        [(2, 1), (3, 1), (4, 1)]
+    );
+}
+
+/// Two functions each number their statements from zero. The probe adds each
+/// function's base, so the method's line and the script's lines are counted
+/// apart, and the method that never ran reads `0`.
+const TWO_METHODS: &str = "<?nvs\nclass Math {\n    public static function double(int $n): int {\n        return $n + $n;\n    }\n    public static function never(): int {\n        return 0;\n    }\n}\nint $n = Math::double(2);\nint $m = Math::double($n);\necho $m;\n";
+
+#[test]
+fn every_function_counts_into_its_own_part_of_the_table() {
+    assert_eq!(
+        covered(TWO_METHODS),
+        [(4, 2), (7, 0), (10, 1), (11, 1), (12, 1)]
+    );
 }
 
 /// A retrieval the checker answers whole — `rule:attributes/retrieval-folds-while-checking`'s
@@ -162,10 +211,7 @@ fn a_statement_holding_a_folded_intrinsic_call_is_still_reported_covered() {
     // name a body that aborts the process on entry (`nvs_stdlib::attributes`'s
     // `folded_at_compile_time`), so a script that returns at all is one whose retrieval never
     // became a call.
-    let mut ctx = Ctx::buffered();
-    ctx.set_debug_flags(DebugFlags::COVERAGE);
-    run_with(&mut ctx, A_FOLDED_CALL).expect("the script ran");
-    assert_eq!(ctx.stmt_hits(), [1, 1, 1]);
+    assert_eq!(covered(A_FOLDED_CALL), [(6, 1), (7, 1), (8, 1)]);
 }
 
 /// A statement path and a call path in one script, so `rule:testing/debug-probes`'s probe units
@@ -196,14 +242,14 @@ fn no_probe_is_added_to_the_measured_path() {
             ));
             ctx.set_inbound(inbound);
         }
-        ctx.set_debug_flags(flags);
-        run_with(&mut ctx, MEASURED).expect("the script ran");
-        (ctx.stmt_hits().to_vec(), ctx.trace().len())
+        let lines = covered_with(&mut ctx, flags, MEASURED);
+        let hits: u64 = lines.iter().map(|(_, count)| count).sum();
+        (hits, ctx.trace().len())
     };
 
     // With `rule:testing/debug-probes`'s bits off, the identity is on the context and reaches
     // neither path.
-    assert_eq!(sites(true, DebugFlags::empty()), (Vec::new(), 0));
+    assert_eq!(sites(true, DebugFlags::empty()), (0, 0));
 
     // With them on, what fires is exactly `rule:testing/debug-probes`'s own set, identity or not.
     let on = DebugFlags::COVERAGE | DebugFlags::TRACE;
@@ -229,16 +275,11 @@ fn a_loop_and_a_branch_run_through_their_phis() {
 
 #[test]
 fn coverage_counts_a_looping_statement_once_per_iteration() {
-    let mut ctx = Ctx::buffered();
-    ctx.set_debug_flags(DebugFlags::COVERAGE);
-    run_with(
-        &mut ctx,
-        "<?nvs\nint $i = 0;\nwhile ($i < 2) {\n    $i = $i + 1;\n}\n",
-    )
-    .expect("the script ran");
-
-    // s0 the declaration, s1 the `while` statement itself, s2 the body block,
-    // s3 the body's one statement — the body's two run twice, the two before
-    // the loop once each.
-    assert_eq!(ctx.stmt_hits(), [1, 1, 2, 2]);
+    // The declaration on line 2 and the `while` statement on line 3 run once.
+    // The body block also starts on line 3 and runs twice, and the body's one
+    // statement on line 4 runs twice.
+    assert_eq!(
+        covered("<?nvs\nint $i = 0;\nwhile ($i < 2) {\n    $i = $i + 1;\n}\n"),
+        [(2, 1), (3, 1), (3, 2), (4, 2)]
+    );
 }

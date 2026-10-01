@@ -12,7 +12,7 @@
 
 use super::*;
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
 /// The moment this process first timed a spawn, so that the events two requests
@@ -247,24 +247,26 @@ impl Ctx {
         self.trace_context.sampled() && self.trace.len() < SPAN_EVENT_CEILING
     }
 
-    /// Counts one hit for the statement `stmt` names — [`nvs_probe_stmt`]'s
-    /// whole effect under [`DebugFlags::COVERAGE`].
-    pub fn record_stmt_hit(&mut self, stmt: u32) {
-        let index = stmt as usize;
-        if self.stmt_hits.len() <= index {
-            self.stmt_hits.resize(index + 1, 0);
+    /// Counts one hit for the statement `stmt` names in this context's
+    /// [`StmtHits`] table — [`nvs_probe_stmt`]'s whole effect under
+    /// [`DebugFlags::COVERAGE`]. A context with no table counts nothing.
+    pub fn record_stmt_hit(&self, stmt: u32) {
+        if let Some(hits) = &self.stmt_hits {
+            hits.record(stmt);
         }
-        self.stmt_hits[index] += 1;
     }
 
-    /// The per-statement hit counters gathered so far, indexed by
-    /// `nvs_ir::StmtId` — empty for a request that ran with
-    /// [`DebugFlags::COVERAGE`] off throughout. See the field's own doc
-    /// comment for why this is a stand-in for `rule:testing/debug-probes`'s path → line → count
-    /// shape rather than that shape itself.
+    /// Gives this context the table [`DebugFlags::COVERAGE`] counts into, or
+    /// takes it away with `None`. Every child context made from this one
+    /// afterwards shares the same table.
+    pub fn set_stmt_hits(&mut self, hits: Option<Arc<StmtHits>>) {
+        self.stmt_hits = hits;
+    }
+
+    /// The table [`DebugFlags::COVERAGE`] counts into, when one was given.
     #[must_use]
-    pub fn stmt_hits(&self) -> &[u64] {
-        &self.stmt_hits
+    pub fn stmt_hits(&self) -> Option<&Arc<StmtHits>> {
+        self.stmt_hits.as_ref()
     }
 
     /// The statements executed and the compiled call sites entered while
@@ -540,6 +542,55 @@ pub struct Counted {
     pub calls: u64,
 }
 
+/// `rule:testing/debug-probes`'s statement hit counters for one run, indexed by
+/// the program-wide statement number codegen passes to [`nvs_probe_stmt`]
+/// (`nvs_ir::Program::stmt_spans` is the table that says which source span each
+/// number is).
+///
+/// **One table for every context the run makes.** A child copies its parent's
+/// handle the way it copies [`DebugFlags`] ([`Ctx::isolate`], [`Ctx::child`],
+/// [`Ctx::placed_isolate`]), so a statement a test's isolate ran is still
+/// counted after that isolate is gone, and the host that installed the table
+/// reads the whole run from it. Novis code has no way to read it, so sharing it
+/// across an isolate boundary gives the program nothing it could observe
+/// (`rule:security/isolate-shares-nothing`). The counters are atomic because a
+/// placed isolate runs on another core.
+///
+/// **What it spends:** one `u64` per statement in the program, once per run
+/// that asks for coverage, allocated by whoever installs it. A run that does
+/// not ask allocates nothing.
+#[derive(Debug)]
+pub struct StmtHits(Box<[std::sync::atomic::AtomicU64]>);
+
+impl StmtHits {
+    /// A table of `statements` counters, all zero.
+    #[must_use]
+    pub fn new(statements: usize) -> Self {
+        Self(
+            (0..statements)
+                .map(|_| std::sync::atomic::AtomicU64::new(0))
+                .collect(),
+        )
+    }
+
+    /// Counts one hit for statement `stmt`. A number past the table's end is
+    /// ignored: it can only come from a unit the table was not sized for.
+    pub fn record(&self, stmt: u32) {
+        if let Some(counter) = self.0.get(stmt as usize) {
+            counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Every counter's value, in statement order.
+    #[must_use]
+    pub fn counts(&self) -> Vec<u64> {
+        self.0
+            .iter()
+            .map(|counter| counter.load(std::sync::atomic::Ordering::Relaxed))
+            .collect()
+    }
+}
+
 /// Reads a callee label a compiled call site passed as a pointer/length pair
 /// into the unit's own data section.
 ///
@@ -763,29 +814,60 @@ mod tests {
     #[test]
     fn a_probe_with_coverage_off_records_nothing() {
         let mut ctx = Ctx::buffered();
+        let hits = Arc::new(StmtHits::new(4));
+        ctx.set_stmt_hits(Some(Arc::clone(&hits)));
         for stmt in 0..4 {
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
             unsafe {
                 nvs_probe_stmt(&raw mut ctx, stmt);
             }
         }
-        assert!(ctx.stmt_hits().is_empty());
+        assert_eq!(hits.counts(), [0, 0, 0, 0]);
     }
 
     #[test]
     fn a_probe_counts_a_hit_per_statement_once_coverage_is_on() {
         let mut ctx = Ctx::buffered();
+        let hits = Arc::new(StmtHits::new(3));
+        ctx.set_stmt_hits(Some(Arc::clone(&hits)));
         ctx.set_debug_flags(DebugFlags::COVERAGE);
-        for stmt in [2_u32, 0, 2] {
+        for stmt in [2_u32, 0, 2, 7] {
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
             unsafe {
                 nvs_probe_stmt(&raw mut ctx, stmt);
             }
         }
-        // Statement 1 never ran; 2 ran twice. The table is dense, so an
-        // unexecuted statement between two executed ones reads back as zero
-        // rather than as absent.
-        assert_eq!(ctx.stmt_hits(), [1, 0, 2]);
+        // Statement 1 never ran and reads back as zero; 2 ran twice. 7 is past
+        // the table's end and is ignored.
+        assert_eq!(hits.counts(), [1, 0, 2]);
+    }
+
+    #[test]
+    fn coverage_with_no_table_counts_nothing_and_does_not_fail() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::COVERAGE);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            nvs_probe_stmt(&raw mut ctx, 0);
+        }
+        assert!(ctx.stmt_hits().is_none());
+    }
+
+    /// A child context counts into its parent's table, so what an isolate ran
+    /// is still in the table after the isolate is gone.
+    #[test]
+    fn an_isolate_counts_into_the_table_its_parent_was_given() {
+        let mut parent = Ctx::buffered();
+        let hits = Arc::new(StmtHits::new(2));
+        parent.set_stmt_hits(Some(Arc::clone(&hits)));
+        parent.set_debug_flags(DebugFlags::COVERAGE);
+        let mut child = parent.isolate(OutputSink::Sink);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            nvs_probe_stmt(&raw mut child, 1);
+        }
+        drop(child);
+        assert_eq!(hits.counts(), [0, 1]);
     }
 
     #[test]
@@ -912,6 +994,8 @@ mod tests {
         // `rule:testing/debug-probes`'s whole argument for a runtime-checked flag over a second
         // compiled tier: a harness brackets one test inside a running request.
         let mut ctx = Ctx::buffered();
+        let hits = Arc::new(StmtHits::new(3));
+        ctx.set_stmt_hits(Some(Arc::clone(&hits)));
         let probe = |ctx: &mut Ctx, stmt: u32| {
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
             unsafe {
@@ -925,7 +1009,7 @@ mod tests {
         ctx.set_debug_flags(DebugFlags::empty());
         probe(&mut ctx, 2);
 
-        assert_eq!(ctx.stmt_hits(), [0, 1]);
+        assert_eq!(hits.counts(), [0, 1, 0]);
     }
 
     /// `rule:testing/bench-counters`'s counting mode is its own bit: it counts
@@ -934,6 +1018,8 @@ mod tests {
     #[test]
     fn count_totals_statements_and_calls_and_files_nothing() {
         let mut ctx = Ctx::buffered();
+        let hits = Arc::new(StmtHits::new(2));
+        ctx.set_stmt_hits(Some(Arc::clone(&hits)));
         let name = b"Math::double";
         let probes = |ctx: &mut Ctx| {
             #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
@@ -962,7 +1048,7 @@ mod tests {
                 calls: 2
             }
         );
-        assert!(ctx.stmt_hits().is_empty(), "counting is not coverage");
+        assert_eq!(hits.counts(), [0, 0], "counting is not coverage");
         assert!(ctx.trace().is_empty(), "counting is not tracing");
     }
 

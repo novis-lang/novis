@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 1018,
-    "shipped": 783,
+    "total": 1019,
+    "shipped": 784,
     "designed": 235,
-    "diverging": 590
+    "diverging": 591
   },
   "topics": [
     {
@@ -3672,10 +3672,10 @@
       "url": "/docs/rules/testing/",
       "single": false,
       "counts": {
-        "total": 56,
-        "shipped": 43,
+        "total": 57,
+        "shipped": 44,
         "designed": 13,
-        "diverging": 16
+        "diverging": 17
       },
       "sections": [
         {
@@ -3778,10 +3778,10 @@
           "blurb": "Structural doubles, a fixed clock and seed, property tests, inline snapshots — and a runner that refuses to call nothing green.",
           "url": "/docs/rules/testing/doubles-and-the-runner/",
           "counts": {
-            "total": 13,
-            "shipped": 11,
+            "total": 14,
+            "shipped": 12,
             "designed": 2,
-            "diverging": 6
+            "diverging": 7
           },
           "rules": [
             {
@@ -3887,6 +3887,14 @@
               "status": "shipped",
               "href": "/docs/rules/testing/doubles-and-the-runner/#report-formats",
               "diverges": null
+            },
+            {
+              "id": "testing/coverage-report",
+              "slug": "coverage-report",
+              "title": "`nvs test` writes line coverage as lcov and Clover, from one hit table every context of the run counts into",
+              "status": "shipped",
+              "href": "/docs/rules/testing/doubles-and-the-runner/#coverage-report",
+              "diverges": "there is no coverage driver to install; the probes are already in every compiled unit, and the flags are PHPUnit's `--coverage-clover` with `--coverage-lcov` beside it"
             }
           ]
         },

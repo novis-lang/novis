@@ -296,14 +296,19 @@ fn declared_at(span: nvs_diagnostics::Span, map: &nvs_diagnostics::SourceMap) ->
 /// The verdicts are the same either way — a run that rewrote a snapshot still
 /// reports the test that produced it as failed, because it did, and the
 /// re-run is what says the new snapshot is the one the author meant.
+///
+/// `coverage` names the line-coverage files to write after the suite
+/// (`crate::coverage` owns how the counts are taken). Asking for none leaves
+/// the run exactly as it is without the flags.
 pub(crate) fn run(
     checked: crate::Checked,
     snapshot: &nvs_config::Snapshot,
     format: Format,
     filter: Option<String>,
-    update: bool,
-    list: bool,
+    flags: Flags,
+    coverage: &crate::coverage::Requested,
 ) -> ExitCode {
+    let Flags { update, list } = flags;
     // Answered before the compile below, rather than beside the run: what
     // discovery reads is the checked program's own test table, so a listing
     // costs no lowering and can say nothing about how a test would come out.
@@ -341,13 +346,17 @@ pub(crate) fn run(
     // program lower the same `nvs_ir::Program` through the same entry label, so
     // they share an artifact and whichever ran first pays for it.
     let cache = crate::cache::from_config(&snapshot.config);
-    let unit = match compile(&checked, cache.as_ref()) {
-        Ok(unit) => unit,
+    let (unit, spans) = match compile(&checked, cache.as_ref(), coverage.any()) {
+        Ok(both) => both,
         Err(error) => {
             eprintln!("error: {error}");
             return ExitCode::FAILURE;
         }
     };
+    // Resolved to file lines here, because `checked` and its source map move
+    // into the suite's task below.
+    let sites = crate::coverage::Sites::of(&spans, &checked.map);
+    drop(spans);
 
     // The module doc owns why a machine format sends the program's own output
     // to stderr: stdout is the document, and nothing else may be written to it.
@@ -356,6 +365,14 @@ pub(crate) fn run(
         Format::Json | Format::Junit => nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Stderr),
     };
     unit.install_in(&mut ctx);
+    // Every context the suite makes from this one copies the flag and shares
+    // the table, so the table holds the whole run when the suite returns.
+    let hits = coverage.any().then(|| {
+        let hits = std::sync::Arc::new(nvs_runtime::StmtHits::new(sites.len()));
+        ctx.set_stmt_hits(Some(std::sync::Arc::clone(&hits)));
+        ctx.set_debug_flags(ctx.debug_flags() | nvs_runtime::DebugFlags::COVERAGE);
+        hits
+    });
     // The tree's snapshot goes on the suite's context before anything runs, as
     // `nvs run` puts it on the script's: every test's isolate is built from this
     // context and asks it for its grants, so a `[capabilities]` block reaches a
@@ -368,7 +385,7 @@ pub(crate) fn run(
     // it is dropped: the rows are the compiler's and the run cannot produce
     // them. Nothing is read at all for a run that was not asked to update, so
     // an ordinary suite pays one `bool`.
-    let sites = match update {
+    let snapshot_rows = match update {
         true => snapshot_sites(&checked),
         false => Vec::new(),
     };
@@ -404,7 +421,7 @@ pub(crate) fn run(
     // it necessary. It is the one thing `nvs test` writes to a file, and it
     // does not touch the verdicts above.
     if update {
-        update_snapshots(&sites, &cases);
+        update_snapshots(&snapshot_rows, &cases);
     }
     match format {
         Format::Human => println!(
@@ -417,6 +434,23 @@ pub(crate) fn run(
         ),
         Format::Json => print!("{}", json_document(&cases, counts, started.elapsed())),
         Format::Junit => print!("{}", junit_document(&cases, counts, started.elapsed())),
+    }
+    if let Some(hits) = hits {
+        match crate::coverage::write(coverage, &sites, &hits.counts()) {
+            // The summary line is the human format's. A machine format's
+            // stdout is its document, and the files say the same thing.
+            Ok(summary) if format == Format::Human => println!(
+                "  {} of {} lines run ({:.1}%)",
+                summary.hit,
+                summary.lines,
+                percent(summary.hit, summary.lines)
+            ),
+            Ok(_) => {}
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
     }
 
     if let Some(code) = exited {
@@ -636,10 +670,15 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 /// none — every way it can fail to answer is a cold compile and nothing a
 /// verdict can see, which is why the [`crate::cache::Provenance`] this drops is
 /// dropped rather than reported.
+///
+/// With `coverage`, it also returns `nvs_ir::Program::stmt_spans` of the program,
+/// which a unit loaded from the cache numbers the same way; without it, the
+/// list is empty and nothing is read for it.
 fn compile(
     checked: &crate::Checked,
     cache: Option<&crate::cache::Cache>,
-) -> Result<Rc<nvs_codegen::Unit>, String> {
+    coverage: bool,
+) -> Result<(Rc<nvs_codegen::Unit>, Vec<nvs_diagnostics::Span>), String> {
     let files = checked.program_files();
     let program = nvs_ir::lower::lower_program(
         nvs_ir::lower::ENTRY_SCRIPT_LABEL,
@@ -649,9 +688,33 @@ fn compile(
         &checked.enums,
         &checked.layouts,
     );
+    let spans = match coverage {
+        true => program.stmt_spans(),
+        false => Vec::new(),
+    };
     crate::cache::unit_for(&program, crate::cache::program_digest(&files), cache)
-        .map(|(unit, _)| Rc::new(unit))
+        .map(|(unit, _)| (Rc::new(unit), spans))
         .map_err(|error| error.to_string())
+}
+
+/// `hit` as a percentage of `of`, and `100` for a report with no lines.
+fn percent(hit: usize, of: usize) -> f64 {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a line count is far below 2^52, and the figure is printed to one decimal"
+    )]
+    match of {
+        0 => 100.0,
+        _ => hit as f64 * 100.0 / of as f64,
+    }
+}
+
+/// The two switches of [`run`] that change what a run does rather than how it
+/// reports: `--update` and `--list`.
+#[derive(Clone, Copy)]
+pub(crate) struct Flags {
+    pub(crate) update: bool,
+    pub(crate) list: bool,
 }
 
 /// A whole run's verdict, before any of § 22's renderings has been chosen —
@@ -1032,7 +1095,7 @@ fn run_the_test(
     // nothing has run.
     let served = match wants_server(case) {
         false => None,
-        true => match TestServer::bind(unit, routes, Door::of(ctx)) {
+        true => match TestServer::bind(unit, routes, Door::of(ctx), ctx.stmt_hits().cloned()) {
             Ok(server) => Some(server),
             Err(refused) => {
                 return Outcome::Failed(vec![format!(
@@ -1354,10 +1417,16 @@ impl TestServer {
     /// The message to report against the test: the address could not be bound,
     /// its own name could not be read back, or there was no task to spawn the
     /// accept loop onto.
+    ///
+    /// `hits` is the run's coverage table, or `None` when the run does not
+    /// measure coverage. Each request's own context gets it in
+    /// [`answer_on_the_wire`], because the server starts every connection
+    /// from a fresh context that copies nothing from this one.
     fn bind(
         unit: &Rc<nvs_codegen::Unit>,
         routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
         door: Door,
+        hits: Option<std::sync::Arc<nvs_runtime::StmtHits>>,
     ) -> Result<Self, String> {
         let wanted = std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0));
         let mut listener = nvs_host::NvsListener::bind(wanted)
@@ -1370,7 +1439,7 @@ impl TestServer {
         let handler = Rc::new(
             move |request: nvs_server::Request<nvs_server::Incoming>,
                   origin: nvs_server::Origin| {
-                answer_on_the_wire(&held, &carried, &door, request, origin)
+                answer_on_the_wire(&held, &carried, &door, hits.as_ref(), request, origin)
             },
         );
         let serving = nvs_server::Serving::new(
@@ -1489,6 +1558,7 @@ fn answer_on_the_wire(
     held: &std::rc::Weak<nvs_codegen::Unit>,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
     door: &Door,
+    hits: Option<&std::sync::Arc<nvs_runtime::StmtHits>>,
     request: nvs_server::Request<nvs_server::Incoming>,
     origin: nvs_server::Origin,
 ) -> nvs_server::Reply {
@@ -1541,11 +1611,16 @@ fn answer_on_the_wire(
         }
     };
     let carried = std::sync::Arc::clone(routes);
+    let hits = hits.cloned();
     let program: nvs_runtime::script::Program =
         Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
             unit.install_in(ctx);
             if !carried.rows().is_empty() {
                 ctx.set_routes(std::sync::Arc::clone(&carried));
+            }
+            if let Some(hits) = hits {
+                ctx.set_stmt_hits(Some(hits));
+                ctx.set_debug_flags(ctx.debug_flags() | nvs_runtime::DebugFlags::COVERAGE);
             }
             let Some(entry) = unit.script() else {
                 ctx.set_pending("the program under test has no script frame");
@@ -2074,7 +2149,7 @@ fn json_string(text: &str, out: &mut String) {
 /// *representable* in XML 1.0 at all — not even as a numeric reference — so it
 /// is replaced rather than escaped, which is the only lossless-looking option
 /// this format leaves.
-fn xml_text(text: &str, out: &mut String) {
+pub(crate) fn xml_text(text: &str, out: &mut String) {
     for ch in text.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
@@ -2319,7 +2394,7 @@ mod tests {
         // No cache: a fixture's verdicts are about the runner, and a suite that
         // read one would be asserting against whatever a previous test run left
         // in this account's cache directory.
-        let unit = compile(&checked, None).expect("the fixture compiles");
+        let (unit, _) = compile(&checked, None, false).expect("the fixture compiles");
         unit.install_in(&mut ctx);
         // Through the same entry `run` takes, scheduler and all: a suite run
         // off a bare stack would be a different runner from the one shipped,
@@ -2357,7 +2432,7 @@ mod tests {
     fn ran(name: &str) -> super::Suite {
         let path = fixture(name);
         let checked = crate::front_end(&path).expect("the fixture is a program");
-        let unit = compile(&checked, None).expect("the fixture compiles");
+        let (unit, _) = compile(&checked, None, false).expect("the fixture compiles");
         let mut ctx = crate::script::granting_ctx();
         unit.install_in(&mut ctx);
         let (suite, _ctx) = run_suite_in_a_task(
@@ -2928,7 +3003,17 @@ mod tests {
         // Never otherwise: the shipped entry, with the flag off, over a suite
         // whose every snapshot fails.
         let checked = crate::front_end(&program).expect("the copy is a program");
-        let _ = super::run(checked, &uncached, Format::Json, None, false, false);
+        let _ = super::run(
+            checked,
+            &uncached,
+            Format::Json,
+            None,
+            super::Flags {
+                update: false,
+                list: false,
+            },
+            &crate::coverage::Requested::default(),
+        );
         assert_eq!(
             std::fs::read_to_string(&program).expect("the copy is still there"),
             template,
@@ -2937,7 +3022,17 @@ mod tests {
 
         // When asked.
         let checked = crate::front_end(&program).expect("the copy is a program");
-        let _ = super::run(checked, &uncached, Format::Json, None, true, false);
+        let _ = super::run(
+            checked,
+            &uncached,
+            Format::Json,
+            None,
+            super::Flags {
+                update: true,
+                list: false,
+            },
+            &crate::coverage::Requested::default(),
+        );
         let updated = std::fs::read_to_string(&program).expect("the copy is still there");
         assert_ne!(updated, template, "the update rewrote the source");
         assert!(

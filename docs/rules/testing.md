@@ -3,7 +3,7 @@
 
 # Testing
 
-*13 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 57 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -542,6 +542,28 @@ its verdicts would make a consumer tell the two documents apart by a key's absen
 `--update` and a `.nvst` tree are each refused beside it rather than ignored.
 
 <sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0040](../decisions/0040.md), [0172](../decisions/0172.md).</sub>
+
+<a id="testing-coverage-report"></a>
+
+## `nvs test` writes line coverage as lcov and Clover, from one hit table every context of the run counts into
+
+`rule:testing/coverage-report`
+
+`nvs test --coverage-lcov <FILE>` and `--coverage-clover <FILE>` write which lines a program's
+`#[Test]` run reached, and a run may write both. Every line a statement starts on is listed with the
+largest count of the statements starting on it; every function is compiled, so a line no test reached
+reads `0`. A file not on disk is left out, and a file is named relative to the directory the run
+started in, with `/` between parts. The flags are refused beside a `.nvst` tree and beside `--list`,
+and under a machine `--format` stdout is still that format's document alone.
+
+The counts come from [`testing/debug-probes`](testing.md#testing-debug-probes)'s statement probe. Codegen adds a per-function base to
+each `StmtId`, so the number a probe passes names one statement in the whole program, and
+`nvs_ir::Program::stmt_spans` is the table of where each is written. The runner turns
+`DebugFlags::COVERAGE` on and gives the suite's context one `StmtHits` table; every context the run
+makes from it — each test's isolate, a fixture, an in-process request, a request a `server: true` test
+sends — counts into that one table. Novis code cannot read it. A run that does not ask makes no table.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0235](../decisions/0235.md).</sub>
 
 <a id="testing-nvst-is-separate"></a>
 
