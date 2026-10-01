@@ -1113,8 +1113,10 @@ pub(crate) fn report_class_keyword_outside_class(
     // `static` inside a closure body: the enclosing class exists, and still
     // nothing in the closure's own frame names the class the call was made on
     // — `nvs_ir::lower`'s `Lowering::lsb` panics on the spelling — so it is
-    // refused here, at every site that asks this question. `self` and
-    // `parent` are folded and need no frame.
+    // refused here, at every site that asks this question. `self` and `parent`
+    // name a class without that frame: a constant or `::class` read is folded,
+    // and a `self::m()`/`parent::m()` call sets the called class to the class
+    // the closure is written in (`calls::called_class_set_at`).
     if keyword == "static" && ctx.in_closure {
         env.diags.report(
             Diagnostic::error(

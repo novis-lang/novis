@@ -208,6 +208,12 @@ pub(crate) fn lower_closure(
         if ty.is_refcounted() {
             low.emit_retain(entry, v);
         }
+        // A captured `$this` is this frame's receiver: a `self::m()` call to
+        // an instance method with no body dispatches on its class, through
+        // `Lowering::lsb`, as it does in the method that made the closure.
+        if name == "this" {
+            low.this = Some(v);
+        }
         env.insert(name.clone(), (v, *ty));
     }
 

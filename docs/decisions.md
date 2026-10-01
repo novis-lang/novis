@@ -539,6 +539,12 @@ Converting a `class<T>` value to a string is that same read. The operand must be
 class while building: `mixed`, a nullable type and a scalar are refused, with a pointer to what
 answers instead.
 
+**`self::` in a closure calls the class the closure is written in**
+
+A closure in a method can call `self::m()` and `parent::m()`. If `m` is a static method, `static`
+inside it is the class the closure is written in. PHP uses the class the outer method was called on.
+An instance method called this way uses the closure's `$this`.
+
 ## Security and isolation
 
 The decisions that exist because the code and the data are not trusted: qualifiers on values, what a request can reach, what an extension may do, what the doors are.

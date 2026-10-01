@@ -154,18 +154,20 @@ pub struct ResolvedCall {
     /// here means [`Self::class`] names no compiled function at all, so the
     /// call has to dispatch on the receiver's runtime class.
     pub has_body: bool,
-    /// The class the call site *named*, resolved — `Some` only for a static
-    /// call written with an explicit class (`LeafRegistry::make()`), `None`
-    /// for an instance call, for `self::`/`static::`/`parent::`, and for
-    /// `new`'s own constructor invocation.
+    /// The called class the call site *sets*, resolved — `Some` for a static
+    /// call written with an explicit class (`LeafRegistry::make()`) and for
+    /// `self::`/`parent::` inside a closure body, `None` for an instance call,
+    /// for `self::`/`static::`/`parent::` in a method body, and for `new`'s
+    /// own constructor invocation.
     ///
     /// Distinct from [`Self::class`], which is where the method is *declared*:
     /// `LeafRegistry::make()` resolves to `Registry::make`, and late static
     /// binding needs both — the declaring class to know which code to call,
-    /// and the named class because that is what `static` means inside it.
-    /// PHP's own rule, and the reason `self::`/`parent::`/`static::` record
-    /// `None`: those three forward the caller's called class rather than
-    /// setting a new one.
+    /// and the called class because that is what `static` means inside it.
+    /// In a method body `self::`/`parent::`/`static::` forward the frame's
+    /// called class, which is PHP's rule. A closure's frame holds no called
+    /// class, so there `self::` and `parent::` set the class the closure is
+    /// written in (`rule:statements/static-is-a-member-modifier`).
     ///
     /// Recorded rather than left to `nvs-ir` for [`ExprInfo::TypeTest`]'s
     /// reason: resolving a bare `LeafRegistry` against the active namespace

@@ -4175,8 +4175,13 @@ impl<'a> Lowering<'a> {
             .values;
         let kind = if late_bound {
             // `static::m()` — the target is whichever class this frame
-            // was *called* on, which is only known at run time.
-            let lsb = self.lsb();
+            // was *called* on, which is only known at run time. A static
+            // target dispatches on the called class its receiver slot
+            // already holds, which is the named class where the site set one.
+            let lsb = match receiver {
+                Some(called) if is_static => called,
+                _ => self.lsb(),
+            };
             InstKind::CallVirtual {
                 lsb,
                 method,

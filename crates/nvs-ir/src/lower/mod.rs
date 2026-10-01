@@ -1639,9 +1639,10 @@ pub(crate) struct Lowering<'a> {
     /// thing that sets it after [`lower_method`] seeds a `static` method's
     /// parameter 0 here.
     lsb: Option<ValueId>,
-    /// This frame's `$this`, for an *instance* method — the value
-    /// [`Self::lsb`] loads the late-static-binding class out of. `None` for a
-    /// static method and for the script frame.
+    /// This frame's `$this`, for an *instance* method and for a closure that
+    /// captured one — the value [`Self::lsb`] loads the late-static-binding
+    /// class out of. `None` for a static method, for the script frame and for
+    /// a closure with no `$this`.
     this: Option<ValueId>,
     /// The block [`Self::lsb`] appends its one load to. Always the function's
     /// entry block, so the value dominates every use no matter which block
@@ -2136,9 +2137,11 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for a frame with neither — the script frame. `nvs_types` refuses
-    /// `static::`/`new static()` outside a class (`E_UNDEFINED_CLASS`), so
-    /// lowering never reaches this on one.
+    /// Panics for a frame with neither — the script frame, or a closure that
+    /// captured no `$this`. `nvs_types` refuses `static::`/`new static()`
+    /// outside a class (`E_UNDEFINED_CLASS`) and inside a closure (`E0834`),
+    /// and records the called class of every `self::`/`parent::` call in a
+    /// closure, so lowering never reaches this on one.
     pub(crate) fn lsb(&mut self) -> ValueId {
         if let Some(v) = self.lsb {
             return v;

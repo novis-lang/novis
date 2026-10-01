@@ -345,6 +345,13 @@ pub(crate) fn infer_static_call(
                             // write through the wrong layout rather than a
                             // diagnostic. See `ExprInfo::ClassRefCall`.
                             report_instance_method_called_statically(expr.span, owner, &name, env);
+                        } else if scope.holds_receiver() {
+                            // The call, or the `(...)` reference, forwards
+                            // `$this`, so it reads it: inside a closure this
+                            // records the capture the closure's frame needs to
+                            // have one to forward, and in a method body it
+                            // records nothing.
+                            let _ = scope.declared_ty("this");
                         }
                     }
                     found
@@ -465,9 +472,7 @@ pub(crate) fn infer_static_call(
             && !reject_unforwardable_first_class_callable(qname, name, sig, expr.span, env)
         {
             let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
-            if matches!(class.kind, ExprKind::ConstFetch(_)) {
-                call.static_class = resolve_class_expr(class, ctx, env);
-            }
+            call.static_class = called_class_set_at(class, ctx, env);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
             let held = first_class_callable_type(sig, env);
             env.exprs.record_callable_value(expr.span, held);
@@ -533,12 +538,9 @@ pub(crate) fn infer_static_call(
         && let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
     {
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
-        // Late static binding: an explicitly named class *sets* the called
-        // class, while `self`/`static`/`parent` forward the caller's. See
-        // `ResolvedCall::static_class`.
-        if matches!(class.kind, ExprKind::ConstFetch(_)) {
-            call.static_class = resolve_class_expr(class, ctx, env);
-        }
+        // Late static binding: which spellings set the called class and which
+        // forward the caller's is [`called_class_set_at`]'s.
+        call.static_class = called_class_set_at(class, ctx, env);
         if let Some((target, list)) =
             written_class_of(qname, name, &written, type_args, expr.span, env)
         {
@@ -578,6 +580,25 @@ fn called_class_of(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> 
             ctx.current_class.cloned()
         }
         ExprKind::ConstFetch(_) => resolve_class_expr(class, ctx, env),
+        _ => None,
+    }
+}
+
+/// The called class a `Class::method()` site *sets*, recorded as
+/// `ResolvedCall::static_class` — `None` where the site forwards the called
+/// class of the frame it is written in.
+///
+/// A written class name sets its own. `self::` and `parent::` forward, except
+/// inside a closure body: a closure is a frame of its own that holds no called
+/// class to forward, so both set the class the closure is written in
+/// (`rule:statements/static-is-a-member-modifier`). That is the lexical class
+/// for `parent::` as well — the parent is where the method is looked up, not
+/// the class the call is made on. `static::` in a closure is refused
+/// (`E0834`), so it forwards here, in a method frame that holds a called class.
+fn called_class_set_at(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> {
+    match &class.kind {
+        ExprKind::ConstFetch(_) => resolve_class_expr(class, ctx, env),
+        ExprKind::SelfExpr | ExprKind::ParentExpr if ctx.in_closure => ctx.current_class.cloned(),
         _ => None,
     }
 }

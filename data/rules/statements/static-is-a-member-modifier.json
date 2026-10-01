@@ -5,8 +5,10 @@
     "0008",
     "0007",
     "0144",
-    "0211"
+    "0211",
+    "0231"
   ],
+  "divergesFromPhp": "`self::m()` and `parent::m()` inside a closure set the called class to the class the closure is written in, where PHP forwards the enclosing method's called class",
   "seeAlso": [
     "statements/no-function-static-and-no-global",
     "statements/a-closure-binds-this-only-where-it-uses-it",
@@ -19,6 +21,7 @@
     "tests/conformance/reject/a-static-constant-read-needs-a-scalar-value.nvst",
     "tests/conformance/reject/a-redeclared-constant-keeps-its-type.nvst",
     "tests/conformance/reject/static-names-no-class-inside-a-closure.nvst",
+    "tests/conformance/closures/self-and-parent-in-a-closure-call-the-class-the-closure-is-written-in.nvst",
     "tests/conformance/lang/new-static-through-two-levels-returns-the-called-class.nvst",
     "tests/conformance/class/a-static-return-must-be-the-called-class.nvst",
     "tests/conformance/reject/this-is-not-read-in-a-static-method.nvst",

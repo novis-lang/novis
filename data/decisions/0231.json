@@ -1,0 +1,17 @@
+{
+  "title": "`self::m()` and `parent::m()` inside a closure call the class the closure is written in",
+  "status": "accepted",
+  "scope": "the called class of a `self::m()` or `parent::m()` call, or `(...)` reference, written inside a\nclosure body. `static::` in a closure stays refused ([0211](0211.md)'s `E0834`), and the same calls in\na method body still forward the method's called class.",
+  "dependsOn": [
+    "0008",
+    "0144",
+    "0211"
+  ],
+  "dependsOnText": "[0008](0008.md) (`static` marks a class member and keeps its PHP meanings),\n[0144](0144.md) (`static::class` is a run-time read of the called class a frame holds),\n[0211](0211.md) (`static::` in a closure is refused).",
+  "validatedBy": "`tests/conformance/closures/self-and-parent-in-a-closure-call-the-class-the-closure-is-written-in.nvst`.",
+  "summary": {
+    "group": "language",
+    "headline": "`self::` in a closure calls the class the closure is written in",
+    "body": "A closure in a method can call `self::m()` and `parent::m()`. If `m` is a static method,\n`static` inside it is the class the closure is written in. PHP uses the class the outer method was\ncalled on. An instance method called this way uses the closure's `$this`."
+  }
+}

@@ -373,6 +373,12 @@
           "headline": "`::class` names the class a value actually is",
           "body": "`Foo::class`, `self::class` and `parent::class` name a class the compiler can resolve, so they are compile-time constants. `static::class` and `$obj::class` cannot be folded: given `User $u = new Admin()`, `$u::class` must answer `Admin`, and `static::class` in an inherited method must answer the subclass, so both read the name at run time from a descriptor the frame already holds. Converting a `class<T>` value to a string is that same read. The operand must be known to carry a class while building: `mixed`, a nullable type and a scalar are refused, with a pointer to what answers instead.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0144.md"
+        },
+        {
+          "adr": "0231",
+          "headline": "`self::` in a closure calls the class the closure is written in",
+          "body": "A closure in a method can call `self::m()` and `parent::m()`. If `m` is a static method, `static` inside it is the class the closure is written in. PHP uses the class the outer method was called on. An instance method called this way uses the closure's `$this`.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0231.md"
         }
       ]
     },
