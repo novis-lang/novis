@@ -1,36 +1,34 @@
 {
-  "state": "**Goal `foreach-var`, Stage 2 is on disk: `var` parses and checks as a `foreach` binding's type, and a loop written that way runs.**\nADR 0251 is the record. It `modifies` `types/var-inference`, `iteration/foreach-subjects` and\n`types/declaration`, and the three fragments are rewritten with it.\n\n`ForeachBinding::ty` is now `ForeachBindingTy` — `Written(Type)`, `Var(Span)` or `Omitted` — and\n`ForeachBinding::written_ty()` is what a walker that only visits written types calls. The checker\nrecords a `var` binding's type under the keyword's span with `ExprTypeTable::record_type`, and\n`nvs-ir`'s `binding_ty` reads it back through `declared_ty`, so the lowering half already works. What\nStage 3 still owes is its proof tests and the editor.\n\nOne correction to the goal's Stage 2 text: the help line for a bare-literal subject names only a\ntyped local. \"Write the binding's type\" is not a fix, because a bare literal subject is checked with\nno target and gives `array<mixed>`, so `foreach ([1, 2] as int $x)` is already `E0401` (see Backlog).",
+  "state": "**Goal `foreach-var`, Stages 2 and 3 are on disk: `var` parses, checks, lowers and is hinted as a `foreach` binding's type.**\nADR 0251 is the record, and the three fragments it `modifies` are rewritten with it.\n\nStage 3's proofs pass: `nvs-ir`'s `foreach_var_binding_lowers_as_the_written_type_does` and\n`foreach_var_binding_over_a_cursor_lowers_as_the_written_type_does` assert that the two forms of one\nloop print the same IR. `nvs-lsp`'s `a_var_foreach_binding_is_hinted_with_its_inferred_type` pins the\n`: T` hint. `hints.rs` reads it from `ExprTypeTable::declared_ty` at the `var` keyword, the lookup\n`nvs-ir` makes. `semantic.rs` needs nothing, because it colours no `var` keyword, local or loop.\n`nvs fmt` leaves an `as var $k => var $v` header unchanged (checked by hand).\n\nThe `lang:statements` floor check was red because `docs/reference/lang/40-statements.md` changed in\nStage 2 and staled the perf records keyed to it. `bun nv proofs --record-perf --group lang:statements`\nmeasured them again. Stage 4 rewrites that chapter again, so it stales them again: re-run the same\ncommand after that edit, before the wrap.",
   "next": {
-    "stage": 3,
-    "title": "lowering and the editor",
+    "stage": 4,
+    "title": "the feature proofs and the reference",
     "files": [
-      "crates/nvs-ir/src/lower/tests.rs",
-      "crates/nvs-lsp/src/hints.rs",
-      "crates/nvs-lsp/src/semantic.rs",
-      "crates/nvs-lsp/tests/"
+      "docs/examples/lang/statements/foreach/",
+      "tests/hostile/lang/iteration/what-foreach-walks/",
+      "tests/conformance/reject/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The IR-equality tests** — `crates/nvs-ir/src/lower/tests.rs:2491`, beside its other `foreach` tests: `foreach_var_binding_lowers_as_the_written_type_does` (array subject, key and value) and `foreach_var_binding_over_a_cursor_lowers_as_the_written_type_does`. The code they pin is `crates/nvs-ir/src/lower/mod.rs:3327`. `rule:types/var-inference`."
+        "text": "**The new example** — `docs/examples/lang/statements/foreach/03-correcting-every-row-in-place.nvs:1` is the last one; add `04-…nvs` and its `.out`, whose subject is a call, so a type written nowhere in the file arrives on the `var` binding. Comments follow `AGENTS.md` § *Text an end user reads*; run `bun nv proofs --comments` over it. `rule:types/var-inference`."
       },
       {
         "done": false,
-        "text": "**The inlay hint** — `crates/nvs-lsp/src/hints.rs:163`, the `StmtKind::Foreach` arm: a `ForeachBindingTy::Var` key and value get the `: T` hint a `var` local gets. Test name: `a_var_foreach_binding_is_hinted_with_its_inferred_type`. `rule:types/var-inference`."
+        "text": "**The hostile step** — `tests/hostile/lang/iteration/what-foreach-walks/01-subjects-that-fight-the-loop.nvs:146` is step 5; add step 6: a `var` binding over a `tainted` element stays `tainted`. `rule:types/var-inference`."
       },
       {
         "done": false,
-        "text": "**The other walkers** — `crates/nvs-lsp/src/semantic.rs:614` could colour the `var` keyword in a `foreach` header the way it colours a `var` local's. `nvs-hir`'s `requires.rs` and `nvs-lsp`'s `definition.rs` already call `written_ty()`."
+        "text": "**The `covers:` marker** — `tests/conformance/reject/a-foreach-var-binding-refuses-a-bare-array-literal-subject.nvst:5` names only `lang:statements/foreach`; add `lang:iteration/what-foreach-walks`. `rule:iteration/foreach-subjects`."
       },
       {
         "done": false,
-        "text": "**`nvs fmt`** prints `as var $v` unchanged — `crates/nvs-fmt/src/brace.rs:68`. No code is expected to change; verify's `nvs-fmt` step over Stage 4's examples proves it."
+        "text": "**The reference and the three `about.md`** — `docs/reference/lang/40-statements.md:1` § *`foreach`* and the `about.md` of the three features the goal's Stage 4 names, then `bun nv reference` and `bun nv proofs --record-perf --group lang:statements`. `rule:types/declaration`."
       }
     ]
   },
   "backlog": [
-    "A bare array literal as a `foreach` subject is checked with no target, so `foreach ([1, 2] as int $x)` is `E0401` (`expected int, found mixed`). It predates this goal. Checking the literal against `array<T>` of a written value type would fix it — `crates/nvs-types/src/locals.rs`'s `StmtKind::Foreach` arm; owner: a goal the user picks. Not this goal's to widen.",
-    "Stage 4's sweep is the goal file's § Stage 0 list. `docs/reference/tools/30-php-differences.md:216` names `E0414` for the local only. The playbook bullet \"A `foreach` binding with no type is a syntax error\" now has two answers.",
-    "`E0414`'s card in `crates/nvs-diagnostics/src/lib.rs` now names the `foreach` fix. Stage 4's `about.md` text should agree with it."
+    "A bare array literal as a `foreach` subject with a written binding type is already `E0401`, because the literal is checked with no target and gives `array<mixed>`. That is why the `var` help line names only a typed local. Owned by `rule:types/var-inference`; no change is owed by this goal.",
+    "Stage 4's example sweep over `docs/examples/lang/iteration/` (one `var` and one written program per feature) and the closing `grep` the goal's Stage 4 names."
   ]
 }
