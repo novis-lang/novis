@@ -222,7 +222,9 @@ completes as the namespaces of the declarations the workspace index and the anal
 string converted with `as class<T>`, which completes as the classes the program declares that are a
 `T`, read through the hierarchy walk the checker answers that question with; a string argument at a
 parameter the registry marks as a class name, which completes as the classes the program declares, and
-as the ones that are a `Throwable` where the member expects an error; `#[Api]` fields and
+as the ones that are a `Throwable` where the member expects an error; a string argument at a parameter
+whose declared type is a union of string literal types ([`types/literal-types`](/docs/rules/types/text-and-literal-types/#literal-types "A string or int literal is its own type, and a union of them is a closed set")), which completes as
+those literals, read off the parameter types the checker records on the call it resolved; `#[Api]` fields and
 every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
@@ -249,7 +251,7 @@ completion source reads a directory or a file itself.
 <p>Framework-aware IntelliSense built from convention scans and annotation dialects has no counterpart; a route name or a directive completes from the table the compiler built, a value from outside the program completes from the JSON files in a <code>.novis/completion/</code> folder, which do the job of PhpStorm's <code>.phpstorm.meta.php</code>, and an ORM column or a view name has nothing to complete from because Novis has neither</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#completion-files-offer-values-at-named-parameters" title="A JSON file under a .novis/completion folder offers values at the string parameters it names, changes only the string the cursor is in, and is read and never run"><code>ide/completion-files-offer-values-at-named-parameters</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#three-of-four-item-shapes-insert-nothing" title="A PHP-name completion item takes one of four shapes, and three of them insert nothing"><code>ide/three-of-four-item-shapes-insert-nothing</code></a> <a href="/docs/rules/routing/declaring-a-route/#routes-are-compiled-not-registered" title="A route is a #[Route] compiled into the unit's table, and its three runtime bugs are compile errors"><code>routing/routes-are-compiled-not-registered</code></a> <a href="/docs/rules/routing/links-and-the-api-document/#link-name-and-params-are-checked" title="Core\Router::url is a launderer whose literal name and $params are checked against the compiled table"><code>routing/link-name-and-params-are-checked</code></a> <a href="/docs/rules/config/the-file-and-the-tree/#a-duplicate-key-is-an-error-and-so-is-an-unknown-one" title="A duplicate key is an error, and so is an unknown one — per file"><code>config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one</code></a> <a href="/docs/rules/routing/links-and-the-api-document/#api-document-is-generated-from-the-route-table" title="The API document is generated from the route table while compiling, so it cannot drift from the code"><code>routing/api-document-is-generated-from-the-route-table</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#every-php-builtin-is-a-completion-candidate" title="Every PHP built-in name is a completion candidate, and the migration table is what the item says"><code>php-migration/every-php-builtin-is-a-completion-candidate</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#an-item-inserts-only-a-registered-member" title="A PHP-name completion item inserts only a Core member the registry already holds"><code>php-migration/an-item-inserts-only-a-registered-member</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0111.md">record 0111</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0240.md">record 0240</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0242.md">record 0242</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#completion-files-offer-values-at-named-parameters" title="A JSON file under a .novis/completion folder offers values at the string parameters it names, changes only the string the cursor is in, and is read and never run"><code>ide/completion-files-offer-values-at-named-parameters</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#three-of-four-item-shapes-insert-nothing" title="A PHP-name completion item takes one of four shapes, and three of them insert nothing"><code>ide/three-of-four-item-shapes-insert-nothing</code></a> <a href="/docs/rules/routing/declaring-a-route/#routes-are-compiled-not-registered" title="A route is a #[Route] compiled into the unit's table, and its three runtime bugs are compile errors"><code>routing/routes-are-compiled-not-registered</code></a> <a href="/docs/rules/routing/links-and-the-api-document/#link-name-and-params-are-checked" title="Core\Router::url is a launderer whose literal name and $params are checked against the compiled table"><code>routing/link-name-and-params-are-checked</code></a> <a href="/docs/rules/config/the-file-and-the-tree/#a-duplicate-key-is-an-error-and-so-is-an-unknown-one" title="A duplicate key is an error, and so is an unknown one — per file"><code>config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one</code></a> <a href="/docs/rules/routing/links-and-the-api-document/#api-document-is-generated-from-the-route-table" title="The API document is generated from the route table while compiling, so it cannot drift from the code"><code>routing/api-document-is-generated-from-the-route-table</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#every-php-builtin-is-a-completion-candidate" title="Every PHP built-in name is a completion candidate, and the migration table is what the item says"><code>php-migration/every-php-builtin-is-a-completion-candidate</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#an-item-inserts-only-a-registered-member" title="A PHP-name completion item inserts only a Core member the registry already holds"><code>php-migration/an-item-inserts-only-a-registered-member</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0111.md">record 0111</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0240.md">record 0240</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0242.md">record 0242</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0243.md">record 0243</a></dd></div></dl>
 
 </div>
 
@@ -270,39 +272,59 @@ string argument at them. Nothing in it is run, by the language server or by any 
 
 **What a file says.** The top-level fields are `$schema`, `sets` and `parameters`, and the field set is
 closed at every level. A set is a name, shared across every completion file in the workspace, and a list
-of values. A value is a string, or an object whose one required field is `value`, the inserted text, with
-the optional fields `label`, `labelDetail`, `labelDescription`, `kind`, `title`, `documentation`,
-`deprecated`, `sortText`, `filterText` and `preselect`, each one field of an LSP completion item. An
-attachment is a `method` (`Class::method` with the class's whole name, a constructor as
-`Class::constructor`), a `parameter` named without its `$`, and a `set`, `values` or both.
+of values. A list is an array of values, or an object `{ "separator", "values" }` whose separator is
+`.`, `/` or `:`. A value is a string, or an object whose one required field is `value`, the inserted
+text, with the optional fields `label`, `labelDetail`, `labelDescription`, `kind`, `title`,
+`documentation`, `deprecated`, `sortText`, `filterText` and `preselect`, each one field of an LSP
+completion item, and two more: `location`, a `file` relative to the completion file's folder and a
+1-based `line`, and `replacement`, the value that replaces a deprecated one. An attachment is a `method`
+(`Class::method` with the class's whole name, a constructor as `Class::constructor`), a `parameter`
+named without its `$`, a `set`, a list in `values` or both, and two optional fields: `when`, a
+`parameter` of the same method and the string or strings its argument must `equals`, and `strict`.
 
 **Where it reaches.** An attachment is keyed by the declaration the checker resolved the call to, so an
 inherited method is reached through the class that declares it, and an override needs an attachment of
-its own. Every attachment for one parameter contributes, files in path order and entries in written
-order, and a repeated `value` keeps the first one read. Inside a string argument at such a parameter,
-`'` and `"` open the list, as they do at a path or class-name parameter.
+its own. An attachment with `when` applies at a call only when that call's argument for the named
+parameter is a string literal equal to one of its strings; when that argument is not a literal or is
+left out, only the attachments without `when` apply. Every applying attachment for one parameter
+contributes, files in path order and entries in written order, and a repeated `value` keeps the first
+one read. Inside a string argument at such a parameter, `'` and `"` open the list, as they do at a path
+or class-name parameter.
 
 **What an item may do.** Its one edit replaces the text of the string literal with `value`, escaped for
-the literal's quote style. No item carries a command, an edit outside the string or a snippet.
-`documentation` is untrusted Markdown, and a relative link or image in it resolves against the
-completion file's folder.
+the literal's quote style. In a list with a separator, completion offers the distinct segments that
+follow the text already typed, and an item's edit replaces only the segment being typed; the
+separator, `.` included, opens the next segment's list inside such a string. No item carries a command,
+an edit outside the string or a snippet. `documentation` is untrusted Markdown, and a relative link or
+image in it resolves against the completion file's folder.
+
+**What else reads it.** Hover on a string literal at an attached parameter whose text equals a value
+shows the value's `title` and `documentation`, and go-to-definition on it answers the value's
+`location`. A literal equal to a deprecated value gets a hint with the `Deprecated` tag, and when the
+value names a `replacement` the hint carries it as the suggestion its quick fix applies, rewriting only
+the string. A parameter is strict when any attachment for it says `"strict": true`, and the language
+server then warns on a string literal at it, in a `.nvs` file, whose text is not one of the values of
+the attachments that apply at that call. A value built at run time is not checked, nor a literal where
+a `when` cannot be decided, and `nvs check` reads no completion file. Without `strict`, nothing checks a
+program's string literals against the values, because the data they describe can change after the
+file is written.
 
 **How it stays current.** The server finds the files when it starts and registers a client watcher for
 `**/.novis/completion/**/*.json`. A file is read again when its modification time or size changes.
 
-**What is reported**, on the completion file's own URI and never for a file under `vendor/`: a file
+**What is reported** on the completion file's own URI, never for a file under `vendor/`: a file
 that is not valid JSON or has an unknown or mistyped field, which then contributes nothing; an
-attachment whose method or parameter the class does not have, for a class the workspace index declares;
-an attachment at a parameter that is not a string; a set no file defines; and, as a hint only, a class
-the index does not declare. Nothing checks a program's string literals against the values, because the
-data they describe can change after the file is written.
+attachment whose method or parameter, or whose `when` parameter, the class does not have, for a class
+the workspace index declares; an attachment at a parameter that is not a string; a set no file
+defines; a `location` whose file does not exist; a `replacement` on a value that is not deprecated;
+and, as a hint only, a class the index does not declare.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>PhpStorm's <code>.phpstorm.meta.php</code> is one PHP file it parses for the same purpose; a completion file is JSON, any number of them may sit in any <code>.novis/completion/</code> folder, and any program may write one</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived" title="The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network"><code>ide/completion-offers-only-what-the-compiler-derived</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#completion-is-asked-where-a-spelling-ends" title="A trigger character opens a list only where it finished -&gt;, ::, \, $ or &lt;?, or opened or extended a require or autoload literal, the string of as class&lt;T&gt; or a string argument at a path or class-name parameter, and $, a lone : and &lt;? each narrow what is offered"><code>ide/completion-is-asked-where-a-spelling-ends</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0242.md">record 0242</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived" title="The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network"><code>ide/completion-offers-only-what-the-compiler-derived</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#completion-is-asked-where-a-spelling-ends" title="A trigger character opens a list only where it finished -&gt;, ::, \, $ or &lt;?, or opened or extended a require or autoload literal, the string of as class&lt;T&gt; or a string argument at a path or class-name parameter, and $, a lone : and &lt;? each narrow what is offered"><code>ide/completion-is-asked-where-a-spelling-ends</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0242.md">record 0242</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0243.md">record 0243</a></dd></div></dl>
 
 </div>
 

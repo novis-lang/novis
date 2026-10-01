@@ -5,7 +5,8 @@
     "0108",
     "0111",
     "0240",
-    "0242"
+    "0242",
+    "0243"
   ],
   "divergesFromPhp": "framework-aware IntelliSense built from convention scans and annotation dialects has no counterpart; a route name or a directive completes from the table the compiler built, a value from outside the program completes from the JSON files in a `.novis/completion/` folder, which do the job of PhpStorm's `.phpstorm.meta.php`, and an ORM column or a view name has nothing to complete from because Novis has neither",
   "seeAlso": [

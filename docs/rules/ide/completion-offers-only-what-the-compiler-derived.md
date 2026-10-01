@@ -19,7 +19,9 @@ completes as the namespaces of the declarations the workspace index and the anal
 string converted with `as class<T>`, which completes as the classes the program declares that are a
 `T`, read through the hierarchy walk the checker answers that question with; a string argument at a
 parameter the registry marks as a class name, which completes as the classes the program declares, and
-as the ones that are a `Throwable` where the member expects an error; `#[Api]` fields and
+as the ones that are a `Throwable` where the member expects an error; a string argument at a parameter
+whose declared type is a union of string literal types (`rule:types/literal-types`), which completes as
+those literals, read off the parameter types the checker records on the call it resolved; `#[Api]` fields and
 every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 

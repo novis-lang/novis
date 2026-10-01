@@ -1,0 +1,15 @@
+{
+  "title": "A completion file's value may name where it is defined and what replaces it, an attachment may depend on another argument and may ask for a check, a list may be completed a segment at a time, and a parameter typed as a union of string literals completes its members",
+  "status": "accepted",
+  "scope": "Six additions to the completion files of [0242](0242.md): a value's source location, read by hover and go-to-definition; an\nattachment that applies only when another argument has a given value; a list of values completed one segment at a\ntime; an opt-in check of the string literals at a parameter; a replacement for a deprecated value, offered as a quick\nfix; and completion of a parameter whose declared type is a union of string literal types, which the compiler\nderives without a file. Whether `nvs check` reports the opt-in check is left to a later record.",
+  "dependsOn": [
+    "0242",
+    "0240"
+  ],
+  "dependsOnText": "[0242](0242.md) (the completion file, its loaded table and the guarantee that an item changes only the string the\ncursor is in), [0240](0240.md) (a string argument mapped to its parameter through `crate::arguments`, which also\nfinds the argument a `when` names).",
+  "summary": {
+    "group": "tooling",
+    "headline": "Completion values can show their source, depend on an argument and be checked",
+    "body": "A value in a completion file can name the file and line that define it. Hover shows its description, and\nctrl+click opens that line. A list can depend on another argument, so a translation method offers only the keys of\nthe domain you passed. Long keys such as `shop.cart.title` complete one part at a time. The editor can warn about a\nstring not in the list. A deprecated value can name its replacement, and the editor offers to change it. A\nparameter typed as fixed strings, such as `'paid'|'shipped'`, completes them without a file."
+  }
+}

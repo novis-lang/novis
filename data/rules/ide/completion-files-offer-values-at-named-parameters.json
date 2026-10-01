@@ -2,7 +2,8 @@
   "title": "A JSON file under a `.novis/completion` folder offers values at the string parameters it names, changes only the string the cursor is in, and is read and never run",
   "status": "designed",
   "because": [
-    "0242"
+    "0242",
+    "0243"
   ],
   "divergesFromPhp": "PhpStorm's `.phpstorm.meta.php` is one PHP file it parses for the same purpose; a completion file is JSON, any number of them may sit in any `.novis/completion/` folder, and any program may write one",
   "seeAlso": [

@@ -1587,6 +1587,15 @@ offers the values. Each value can have a label, an icon, a title and a Markdown 
 write the files by hand, or generate them with any script, for example from a dataset or an icon
 set. The editor reloads a file when it changes. The files are only read and never run.
 
+**Completion values can show their source, depend on an argument and be checked**
+
+A value in a completion file can name the file and line that define it. Hover shows its description,
+and ctrl+click opens that line. A list can depend on another argument, so a translation method
+offers only the keys of the domain you passed. Long keys such as `shop.cart.title` complete one part
+at a time. The editor can warn about a string not in the list. A deprecated value can name its
+replacement, and the editor offers to change it. A parameter typed as fixed strings, such as
+`'paid'|'shipped'`, completes them without a file.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

@@ -1108,6 +1108,12 @@
           "headline": "A project can add its own completion values for any string parameter",
           "body": "Put JSON files in a `.novis/completion/` folder anywhere in your project. Each file lists values and the method parameters they belong to. When you type a string at one of those parameters, the editor offers the values. Each value can have a label, an icon, a title and a Markdown description. You can write the files by hand, or generate them with any script, for example from a dataset or an icon set. The editor reloads a file when it changes. The files are only read and never run.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0242.md"
+        },
+        {
+          "adr": "0243",
+          "headline": "Completion values can show their source, depend on an argument and be checked",
+          "body": "A value in a completion file can name the file and line that define it. Hover shows its description, and ctrl+click opens that line. A list can depend on another argument, so a translation method offers only the keys of the domain you passed. Long keys such as `shop.cart.title` complete one part at a time. The editor can warn about a string not in the list. A deprecated value can name its replacement, and the editor offers to change it. A parameter typed as fixed strings, such as `'paid'|'shipped'`, completes them without a file.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0243.md"
         }
       ]
     },
