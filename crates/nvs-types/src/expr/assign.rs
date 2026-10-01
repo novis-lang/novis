@@ -686,7 +686,14 @@ pub(crate) fn check_return(
         );
         return;
     }
+    // A value that already reported an error inside it is one mistake, not
+    // two: its type is a stand-in, often with `mixed` in it, and a second
+    // `E_BAD_RETURN_TYPE` about that stand-in names no mistake of its own.
+    let errors_before = env.diags.error_count();
     let actual = infer(expr, Some(return_ty), live, scope, ctx, env);
+    if env.diags.error_count() != errors_before {
+        return;
+    }
     if !is_assignable(actual, return_ty, env.interner, env.graph, env.signatures) {
         let expected_desc = env.interner.describe(return_ty);
         let actual_desc = env.interner.describe(actual);
@@ -700,6 +707,8 @@ pub(crate) fn check_return(
             None => diag,
         };
         env.diags.report(diag);
+    } else {
+        note_float_widening(expr, actual, return_ty, env);
     }
 }
 
@@ -707,8 +716,6 @@ pub(crate) fn check_return(
 /// [`nvs_syntax::by_reference_assignment`], which the parser reports for the
 /// declaration spelling, `int $a = &$b;`.
 pub(crate) fn report_by_reference_assignment(span: Span, value: Span, env: &mut Env<'_>) {
-    } else {
-        note_float_widening(expr, actual, return_ty, env);
     let value_text = span_text(env.src, value).to_owned();
     env.diags
         .report(nvs_syntax::by_reference_assignment(span, &value_text));
@@ -1233,6 +1240,7 @@ pub(crate) fn check_compound_assign(
         report_mismatch(span, target_ty, result, env);
         return target_ty;
     }
+    note_float_widening_at(span, result, target_ty, env);
     // The operator's *result* is what lands in the element, and `.=` over a
     // `secret` operand produces a `secret` one (`rule:security/secret-propagation`),
     // so this spelling of the write owes the same refusal the plain one does.
@@ -1240,7 +1248,6 @@ pub(crate) fn check_compound_assign(
     target_ty
 }
 
-    note_float_widening_at(span, result, target_ty, env);
 pub(crate) fn check_read(
     name: &str,
     span: Span,

@@ -26,5 +26,5 @@ var $batch = $db->executeMany("insert into accounts (owner) values (?)", $sets);
 error[E0477]: `uint` names no class, so it has no method `lastId`
    --> case.nvs:19:17
 %A
-error: aborting due to 2 errors
+error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -938,13 +938,18 @@ Narrowing is flow-sensitive and **branch-local**, and there are four spellings o
 narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
 narrowing described the value that was there, not the slot.
 
+A ternary's two arms and the right operand of `&&` and `||` are branches too. The condition narrows
+`$c ? $a : $b` exactly as it narrows `if ($c)` and its `else`, `&&` narrows its right operand as the
+`if` block of its left, and `||` as the `else` block. Nothing it proves holds after the expression.
+
 `is` is the general one — it tests a value against any type a value can inhabit, and it is the only
 type test there is ([`types/type-test`](types.md#types-type-test)). Its value arm narrows too: `$x is $cls`, where `$cls` is
 a `class<T>`, narrows the subject to **`T`** on the true edge, which is sound because a `class<T>`
-holds `T` or an implementor of it ([`types/class-reference-sites`](types.md#types-class-reference-sites)). Every spelling narrows on the
-**true edge alone**. Subtracting a union member on the failing edge is deliberately not done by any of
-the four: it is a separable improvement, and one that has to be taken for all of them at once or not
-at all.
+holds `T` or an implementor of it ([`types/class-reference-sites`](types.md#types-class-reference-sites)). Every spelling narrows on
+**one edge alone**, the one where the fact it tests holds: `$x != null`, `$x is T` and `$x == 1` on
+their true edge, `$x == null` and `$x != 1` on their false edge, and a `!` in front swaps the two.
+Subtracting a union member on the other edge is deliberately not done by any of the four: it is a
+separable improvement, and one that has to be taken for all of them at once or not at all.
 
 Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
 leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a

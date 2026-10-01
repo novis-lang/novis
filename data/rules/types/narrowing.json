@@ -20,6 +20,8 @@
     "tests/conformance/lang/an-is-test-narrows-its-subject-on-the-true-edge.nvst",
     "tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst",
     "tests/conformance/lang/a-comparison-against-a-literal-narrows-its-subject.nvst",
+    "tests/conformance/lang/a-ternary-and-a-short-circuit-operand-are-narrowed-like-an-if.nvst",
+    "tests/conformance/reject/narrowing-in-a-ternary-or-an-and-stops-at-its-end.nvst",
     "crates/nvs-types/tests/narrowing.rs"
   ]
 }

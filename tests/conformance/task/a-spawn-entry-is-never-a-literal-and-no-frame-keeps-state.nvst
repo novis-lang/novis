@@ -26,5 +26,5 @@ global $shared;
 --EXPECTF-ERROR--
 error[E0802]: a `spawn script` entry is a path or a static method
 %A
-error: aborting due to 9 errors
+error: aborting due to 8 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -419,9 +419,10 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 ///
 /// These tests are what a *condition* proves, so every site that writes
 /// one reaches this: the `if`/`while` arms below, the guard clause
-/// [`check_block`] carries, and — through [`is_true_literal`] — each label of a
-/// `match (true)`/`switch (true)`, which is `rule:types/narrowing`'s fourth spelling and
-/// is a label only in where it is written.
+/// [`check_block`] carries, a ternary's two arms and the right operand of `&&`
+/// and `||` (`crate::expr::infer`), and — through [`is_true_literal`] — each
+/// label of a `match (true)`/`switch (true)`, which is `rule:types/narrowing`'s
+/// fourth spelling and is a label only in where it is written.
 pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
     let residue = match null_residue(cond, when, scope, env) {
         Some(found) => Some(found),
@@ -1571,8 +1572,8 @@ fn walk_destructure_target(
                                 guarded: false,
                             },
                         );
-                    } else {
                         crate::expr::note_float_widening_at(*span, elem_ty, declared, env);
+                    } else {
                         report_mismatch(*span, declared, elem_ty, env);
                     }
                 }
