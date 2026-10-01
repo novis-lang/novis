@@ -1,0 +1,21 @@
+--TEST--
+a parameter a program marks with `#[Core\Path]` is a path parameter like a `Core` member's, so a string literal written for it is offered the entries of the directory its text reaches — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+class Loader {
+    public static function load(#[Core\Path] string $file): string {
+        return Core\IO::read($file);
+    }
+}
+
+echo Loader::load('<|>');
+--FILE templates/page.html--
+<p></p>
+--FILE readme.txt--
+read me
+--REQUEST--
+completion
+--EXPECT--
+case.nvs file
+readme.txt file
+templates/ folder

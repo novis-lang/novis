@@ -19,16 +19,25 @@
 //!   which is the first directory a name under it is looked for in. A prefix
 //!   is a namespace and has no declaration to jump to, so the link is its
 //!   ctrl-click, and a hover lists every root (`crate::hover`).
+//! - **An argument at a path parameter links to the file or directory it
+//!   names** (`rule:programs/path-literals-resolve-from-their-file`). The
+//!   checker joined a relative literal to the folder of its file and kept the
+//!   result (`nvs_types::ExprTypeTable::path_literal`), and an absolute
+//!   literal names itself; [`crate::arguments::target`] reads the two. Unlike
+//!   a `require`, nothing was loaded through this edge, so whether the target
+//!   exists, and which kind it is, is asked of the disk when the link is made.
 //!
 //! **The entry file only**, on [`crate::symbols::for_document`]'s terms: a
 //! required file's own `require` is a link in *its* document.
 //!
 //! **What has no edge has no link**: a `require` path that is not a literal,
 //! one that resolves to nothing loadable, one that would close a cycle, an
-//! `autoload` root that does not exist, and a glob of the wrong shape or over a
-//! missing directory. Each is already a diagnostic, the dynamic fallback, or a
-//! root `rule:programs/autoload` allows to be missing, and an underline that
-//! opened nothing would be a second, quieter report of the same thing.
+//! `autoload` root that does not exist, a glob of the wrong shape or over a
+//! missing directory, and a path argument that names nothing on disk. Each is
+//! already a diagnostic, the dynamic fallback, a root `rule:programs/autoload`
+//! allows to be missing, or a file the program may be about to create, and an
+//! underline that opened nothing would be a second, quieter report of the
+//! same thing.
 //!
 //! **A directory is a target of its own kind.** An editor opens a file in a tab
 //! and cannot open a directory there, so [`PathLink::directory`] says which one
@@ -58,7 +67,8 @@ pub struct PathLink {
     /// What it names, as the analysis resolved it: absolute and canonical.
     pub target: PathBuf,
     /// Whether [`target`](Self::target) is a directory: an `autoload` root or
-    /// a `discover` glob's base, where a `require` names a file.
+    /// a `discover` glob's base, where a `require` names a file, and a path
+    /// argument either.
     pub directory: bool,
 }
 
@@ -98,6 +108,20 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Path
                 range: range_at(file, span, encoding),
                 target,
                 directory: true,
+            }),
+    );
+    links.extend(
+        crate::arguments::in_document(analysed)
+            .into_iter()
+            .filter(|argument| argument.text == nvs_stdlib::registry::ParamText::Path)
+            .filter_map(|argument| {
+                let target = crate::arguments::target(analysed, &argument)?;
+                let metadata = std::fs::metadata(&target).ok()?;
+                Some(PathLink {
+                    range: range_at(file, argument.span, encoding),
+                    target,
+                    directory: metadata.is_dir(),
+                })
             }),
     );
     links.sort_by_key(|link| link.range.start);

@@ -18,6 +18,9 @@
 //! `lsp_server::Connection::memory()` the way `tests/references.rs` drives its
 //! readers, because what they claim is that the answer crosses a `require` into
 //! a file the request never named.
+//!
+//! One hover is here too: a path argument's, which answers an absolute path a
+//! `.lspt` case cannot freeze because it names the machine the case ran on.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -184,6 +187,53 @@ fn signature_help_names_the_active_parameter_of_the_enclosing_call() {
             "the per-signature field a 3.16 client prefers disagrees with the one below it"
         );
     }
+}
+
+/// The Markdown a hover at the one `<|>` in `source` answers with.
+fn hovered(source: &str) -> (Analysed, Option<String>) {
+    let cursor = source.find(CURSOR).expect("a cursor is written");
+    let analysed = analysed(&source.replacen(CURSOR, "", 1));
+    let at = u32::try_from(cursor).expect("a test document is short");
+    let value = hover::at(&analysed, at, nvs_diagnostics::PositionEncoding::Utf8).map(|hover| {
+        let lsp_types::HoverContents::Markup(markup) = hover.contents else {
+            panic!("a hover is Markdown");
+        };
+        markup.value
+    });
+    (analysed, value)
+}
+
+/// A literal at a path parameter hovers as the absolute path the compiler
+/// resolved it to, and says whether a file or a directory is there. The path
+/// is absolute and depends on the machine, so a `.lspt` case cannot freeze it.
+#[test]
+fn a_path_argument_hovers_as_the_path_it_names_and_whether_it_exists() {
+    let (analysed, value) = hovered("<?nvs\necho Core\\IO::read('data/no<|>ne.json');");
+    let (_, joined) = analysed
+        .exprs
+        .path_literals()
+        .next()
+        .expect("the checker resolved the literal");
+    assert!(Path::new(joined).is_absolute() && joined.ends_with("none.json"));
+    assert_eq!(
+        value.as_deref(),
+        Some(format!("```text\n{joined}\n```\n\nNothing exists at this path.").as_str())
+    );
+
+    // An absolute literal names itself. The temporary directory exists.
+    let temp = std::env::temp_dir();
+    let written = temp.to_string_lossy().replace('\\', "/");
+    let (_, value) = hovered(&format!(
+        "<?nvs\nvar $names = Core\\IO::list('{written}<|>');"
+    ));
+    assert_eq!(
+        value,
+        Some(format!("```text\n{written}\n```\n\nThis directory exists.")),
+    );
+
+    // A literal at a parameter that is not a path is not answered as one.
+    let (_, value) = hovered("<?nvs\necho Core\\Str::length('data/no<|>ne.json');");
+    assert!(value.is_none_or(|value| !value.contains("exists")));
 }
 
 #[test]

@@ -96,6 +96,7 @@
 //! module.
 
 pub mod actions;
+mod arguments;
 mod capabilities;
 pub mod card;
 mod case;

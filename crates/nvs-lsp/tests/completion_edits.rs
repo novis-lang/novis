@@ -181,6 +181,59 @@ fn a_path_item_replaces_the_segment_being_written() {
     );
 }
 
+/// A literal at a path parameter is offered every file as well as each
+/// directory, and an absolute one lists the directory it names whatever
+/// directory the document sits in.
+#[test]
+fn a_path_argument_offers_every_file_and_an_absolute_one_completes_from_itself() {
+    let crate_dir = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
+    let elsewhere = std::env::temp_dir().join("nvs-path-argument-case.nvs");
+    let source = format!("<?nvs\necho Core\\IO::read('{crate_dir}/<|>');");
+    let items = offered_in(&elsewhere, EDITOR, &source);
+    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+        labels.contains(&"Cargo.toml") && labels.contains(&"src/"),
+        "an absolute literal lists the directory it names, files included: {labels:?}"
+    );
+
+    // The same text at a parameter that is not a path is a string like any
+    // other, and no entry of the directory is offered.
+    let source = format!("<?nvs\necho Core\\Str::length('{crate_dir}/<|>');");
+    let items = offered_in(&elsewhere, EDITOR, &source);
+    assert!(
+        items.iter().all(|item| item.label != "Cargo.toml"),
+        "a plain parameter offers no file"
+    );
+}
+
+/// `'`, `"` and `/` raise a request inside a literal at a path or class-name
+/// parameter, and inside one at a plain parameter they do not.
+#[test]
+fn a_quote_or_slash_at_a_marked_parameter_is_answered() {
+    for (source, answered) in [
+        ("<?nvs\necho Core\\IO::read('<|>');", true),
+        ("<?nvs\necho Core\\IO::read(\"<|>\");", true),
+        ("<?nvs\necho Core\\IO::read('data/<|>');", true),
+        ("<?nvs\n$info = Core\\Reflect::forClass('<|>');", true),
+        ("<?nvs\necho Core\\Str::length('<|>');", false),
+        ("<?nvs\necho Core\\Str::length('data/<|>');", false),
+    ] {
+        let cursor = source.find(CURSOR).expect("a cursor is written");
+        let text = source.replacen(CURSOR, "", 1);
+        let uri = uri_of(&std::env::temp_dir().join("nvs-completion-trigger-argument.nvs"))
+            .expect("a temp path is UTF-8");
+        let mut documents = Documents::new();
+        documents.open(uri.clone(), 1, text);
+        let analysis = analyse(&documents, &uri).expect("an open document analyses");
+        let at = u32::try_from(cursor).expect("a test document is short");
+        assert_eq!(
+            completion::continues_a_trigger(&analysis, at),
+            answered,
+            "`{source}`"
+        );
+    }
+}
+
 #[test]
 fn a_core_class_is_offered_by_its_short_name_and_accepting_it_writes_the_use_line() {
     let items = offered("<?nvs\nStr");

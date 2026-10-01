@@ -1,0 +1,15 @@
+--TEST--
+a string literal at a path parameter links to the file or directory the compiler resolved it to, against the document's own directory; one that names nothing on disk and one at a parameter that is not a path are no link — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+echo Core\IO::read('data/config.json');
+var $names = Core\IO::list('data');
+echo Core\IO::read('data/missing.json');
+echo Core\Str::length('data/config.json');
+--FILE data/config.json--
+{}
+--REQUEST--
+documentLink
+--EXPECT--
+2:20-2:38 -> data/config.json
+3:28-3:34 -> data/

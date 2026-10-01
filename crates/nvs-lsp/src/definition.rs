@@ -72,11 +72,13 @@
 //! because a body declaring two of them under one name is refused where the
 //! second is written (`rule:types/type-alias`).
 //!
-//! **A string can name a class too**, in one place: the operand of `as
-//! class<T>` (`rule:types/class-reference`). [`class_literal_at`] answers the
-//! class whose whole name the literal's text is, compared the way the run-time
-//! conversion compares it, so `'App\User' as class<Model>` jumps to `class
-//! User`. No other string is read as a name.
+//! **A string can name a class too**, in two places: the operand of `as
+//! class<T>` (`rule:types/class-reference`), and an argument at a parameter
+//! the registry marks as a class name, such as `Core\Reflect::forClass`'s
+//! (`crate::arguments`). [`class_literal_at`] answers the class whose whole
+//! name the literal's text is, compared the way the run-time conversion
+//! compares it, so `'App\User' as class<Model>` jumps to `class User`. No
+//! other string is read as a name.
 //!
 //! **A `use` line names a type too.** An import is a statement and no
 //! expression, so nothing above reaches it, and what it resolved to is already
@@ -586,10 +588,9 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// answer. [`type_member_at`] and [`type_name_at`] answer nothing for a cursor
 /// outside a written type, and the walk over the nodes then runs as before.
 ///
-/// **A class-reference literal is asked next**, for the same reason: the
-/// literal records no name, so the walk over the nodes would step out to
-/// whatever holds the conversion. [`class_literal_at`] answers the class the
-/// literal's text names.
+/// **A class-name literal is asked next**, for the same reason: the literal
+/// records no name, so the walk over the nodes would step out to whatever
+/// holds it. [`class_literal_at`] answers the class the literal's text names.
 ///
 /// A name no recorded expression covers is answered last, by the places a
 /// name is written outside an expression and outside a type: an `extends` or
@@ -953,34 +954,54 @@ pub(crate) fn type_member_at(analysed: &Analysed, offset: BytePos) -> Option<(Ta
     Some((target, *member))
 }
 
-/// A string literal written as the operand of `as class<T>` or `as
-/// ?class<T>`, which the cursor is inside.
-pub(crate) struct ClassLiteral<'a> {
+/// A string literal whose text the compiler or a `Core` member reads as a
+/// class's whole name, which the cursor is inside.
+pub(crate) struct ClassLiteral {
     /// The literal, quotes included.
     pub span: Span,
-    /// The `T` the conversion bounds the class by, as the checker resolved
-    /// it.
-    pub base: &'a QName,
+    /// Which classes the name may be.
+    pub bound: ClassBound,
 }
 
-/// The class-reference literal the cursor at `offset` is inside, if any.
+/// Which classes a [`ClassLiteral`] may name.
+pub(crate) enum ClassBound {
+    /// The operand of `as class<T>`: a `T`, as the checker resolved it.
+    Type(QName),
+    /// A class-name parameter, which takes any class.
+    Any,
+    /// A class-name parameter that names an error to expect: a `Throwable`.
+    Thrown,
+}
+
+/// The class-name literal the cursor at `offset` is inside, if any.
 ///
-/// `rule:types/class-reference`'s string row: `'App\User' as class<Model>`.
-/// The index has the literal and the conversion as nodes and the target type
-/// as neither, so the type is found the way [`written_type_at`] finds one —
-/// the type the conversion wrote, which ends where the conversion ends — and
-/// its `T` is read off the type the checker recorded for it. The cursor has
-/// to be between the quotes.
-pub(crate) fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<ClassLiteral<'_>> {
+/// Two literals are one. `rule:types/class-reference`'s string row is the
+/// first: `'App\User' as class<Model>`. The index has the literal and the
+/// conversion as nodes and the target type as neither, so the type is found
+/// the way [`written_type_at`] finds one — the type the conversion wrote,
+/// which ends where the conversion ends — and its `T` is read off the type the
+/// checker recorded for it. The second is an argument at a class-name
+/// parameter, `Core\Reflect::forClass('App\User')`, which
+/// [`crate::arguments`] finds. The cursor has to be between the quotes.
+pub(crate) fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<ClassLiteral> {
     let path = analysed.index.at(offset);
     let [string, conversion, ..] = path.nodes() else {
         return None;
     };
-    if string.kind != "Str"
-        || conversion.kind != "Conversion"
-        || !(string.span.start < offset && offset < string.span.end)
-    {
+    if string.kind != "Str" || !(string.span.start < offset && offset < string.span.end) {
         return None;
+    }
+    if conversion.kind != "Conversion" {
+        let argument = crate::arguments::at(analysed, offset)
+            .filter(|argument| argument.text == nvs_stdlib::registry::ParamText::ClassName)?;
+        return Some(ClassLiteral {
+            span: argument.span,
+            bound: if argument.thrown {
+                ClassBound::Thrown
+            } else {
+                ClassBound::Any
+            },
+        });
     }
     let entry = analysed
         .loaded
@@ -993,7 +1014,7 @@ pub(crate) fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<Clas
     let base = class_ref_base(&analysed.interner, analysed.exprs.declared_ty(ty.span)?)?;
     Some(ClassLiteral {
         span: string.span,
-        base,
+        bound: ClassBound::Type(base.clone()),
     })
 }
 

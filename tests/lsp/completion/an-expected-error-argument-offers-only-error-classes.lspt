@@ -1,0 +1,24 @@
+--TEST--
+the class `Core\Test::assertThrows` expects is an error, so its literal is offered the classes that are a `Throwable`: the error classes the language declares and the program's own, and no other class — `rule:types/class-reference`
+--FILE--
+<?nvs
+class Cart { }
+class OutOfStock extends RuntimeError { }
+
+Core\Test::assertThrows(fn (): void => { }, '<|>');
+--REQUEST--
+completion
+--EXPECT--
+ArithmeticError class
+Core\Cli\NotInteractive class
+Core\Db\DbError class
+Core\Db\RolledBack class
+Core\Test\Failure class
+IOError class
+LogicError class
+OutOfStock class
+ParseError class
+RecursionError class
+RuntimeError class
+Throwable class
+TimeoutError class

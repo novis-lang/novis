@@ -9,12 +9,15 @@
 //! on. They are tried in that order, so the most specific answer a cursor has
 //! is the one it gets and the type is what is left when nothing documented it.
 //!
-//! **Two string literals are answered as what they name.** An `autoload`
+//! **Some string literals are answered as what they name.** An `autoload`
 //! prefix's literal answers the namespace it maps and the directories a name
 //! under it is looked for in ([`autoload_prefix`]). The operand of `as
-//! class<T>` answers the class its text names, the way that class's name does
-//! ([`class_literal`]). Both are asked before the walk over the nodes, because
-//! a literal records no name and the walk would step out to what holds it.
+//! class<T>`, and an argument at a class-name parameter, answer the class
+//! their text names, the way that class's name does ([`class_literal`]). An
+//! argument at a path parameter answers the absolute path it names and
+//! whether anything is there ([`path_argument`]). Each is asked before the
+//! walk over the nodes, because a literal records no name and the walk would
+//! step out to what holds it.
 //!
 //! **The walk from the cursor to the declaration is
 //! [`crate::definition`]'s.** Hover and go-to-definition ask the same question
@@ -96,9 +99,7 @@ use nvs_syntax::{DOC_MARKER, IndexNode};
 use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
-use crate::definition::{
-    Target, attribute_at, class_literal_at, payload_path, site, target_of, text_of,
-};
+use crate::definition::{Target, attribute_at, class_literal_at, payload_path, site, target_of};
 use crate::document::Analysed;
 use crate::position::range_at;
 
@@ -118,6 +119,7 @@ pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> O
         .collect();
     let (value, node) = autoload_prefix(analysed, offset)
         .or_else(|| class_literal(analysed, offset))
+        .or_else(|| path_argument(analysed, offset))
         .or_else(|| answer_in(analysed, &nodes, offset))
         .or_else(|| answer_in(analysed, &payload_path(analysed, offset), offset))
         .or_else(|| attribute(analysed, offset))?;
@@ -199,7 +201,8 @@ pub fn help_at(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
 /// comparison is strict.
 ///
 /// **The arguments are spans the parser produced, not commas found here.** They
-/// are the call node's own children after [`opens_at`]'s parenthesis, so a
+/// are the call node's own children after
+/// [`crate::arguments::opens_at`]'s parenthesis, so a
 /// comma inside a string literal or inside a nested call is inside one of those
 /// spans and separates nothing. A variadic tail keeps the last parameter
 /// highlighted however many arguments follow it, because that parameter is what
@@ -210,13 +213,18 @@ fn active_parameter(
     offset: BytePos,
     call: &ResolvedCall,
 ) -> u32 {
-    let children = analysed.index.children_of(node);
-    let Some(open) = opens_at(analysed, node, &children) else {
+    let children: Vec<Span> = analysed
+        .index
+        .children_of(node)
+        .into_iter()
+        .map(|child| child.span)
+        .collect();
+    let Some(open) = crate::arguments::opens_at(analysed, node.span, &children) else {
         return 0;
     };
     let closed = children
         .iter()
-        .filter(|child| child.span.start >= open && child.span.end < offset)
+        .filter(|child| child.start >= open && child.end < offset)
         .count();
     let closed = if call.variadic {
         closed.min(call.param_tys.len().saturating_sub(1))
@@ -224,26 +232,6 @@ fn active_parameter(
         closed
     };
     u32::try_from(closed).unwrap_or(0)
-}
-
-/// Where the argument list of the call at `node` opens.
-///
-/// The first `(` in the call that none of its children covers. Every form that
-/// carries a `nvs_types::ResolvedCall` writes what it calls as a name or as an
-/// expression the index holds as a child — `$this->of()->take(`, `Str::take(`,
-/// `new User(` — so a parenthesis belonging to the callee is inside that
-/// child's span and the first one left over is the argument list's.
-///
-/// `None` for a call whose parenthesis the parser never saw, which is a call
-/// the reader is in the middle of writing: the first parameter is what the
-/// caller then shows, and it is right.
-fn opens_at(analysed: &Analysed, node: IndexNode, children: &[IndexNode]) -> Option<BytePos> {
-    let text = text_of(analysed.map.file(analysed.entry), node.span);
-    text.char_indices()
-        .filter(|(_, ch)| *ch == '(')
-        .filter_map(|(at, _)| u32::try_from(at).ok())
-        .map(|at| node.span.start + at)
-        .find(|at| !children.iter().any(|child| child.span.contains(*at)))
 }
 
 /// What the call's own declaration documents, as the popup beside its row.
@@ -386,6 +374,29 @@ fn is_name_byte(byte: u8) -> bool {
 fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
     let (target, span) = class_literal_at(analysed, offset)?;
     Some((run(analysed, &target)?, span))
+}
+
+/// The absolute path an argument at a path parameter names, and whether a
+/// file or a directory is there, for a cursor inside the literal, and the
+/// literal's span.
+///
+/// The path is [`crate::arguments::target`]'s: the checker's join for a
+/// relative literal, and the text itself for an absolute one. A relative
+/// literal the checker did not resolve answers nothing here, and the walk
+/// over the nodes answers instead.
+fn path_argument(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let argument = crate::arguments::at(analysed, offset)
+        .filter(|argument| argument.text == registry::ParamText::Path)?;
+    let target = crate::arguments::target(analysed, &argument)?;
+    let there = match std::fs::metadata(&target) {
+        Ok(metadata) if metadata.is_dir() => "This directory exists.",
+        Ok(_) => "This file exists.",
+        Err(_) => "Nothing exists at this path.",
+    };
+    Some((
+        format!("```text\n{}\n```\n\n{there}", target.display()),
+        argument.span,
+    ))
 }
 
 /// The namespace an `autoload` prefix maps and the directories a name under it

@@ -1,0 +1,13 @@
+--TEST--
+a cursor inside a string literal at a `Core` member's class-name parameter answers the declaration of the class whose whole name the string is — `rule:types/class-reference`
+--FILE--
+<?nvs
+namespace App;
+
+class User { }
+
+$info = \Core\Reflect::forClass('App\Us<|>er');
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:7
