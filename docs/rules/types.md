@@ -216,10 +216,15 @@ throws rather than wrapping ([`types/conversion`](types.md#types-conversion)).
 | `& \| ^ ~ <<` | the operand type, preserved | — |
 
 The arithmetic rows are a **closed** list. Their operands are `int`, `uint`, `float` and `decimal`, so
-a `bool`, a `string`, a `bytes`, an `array<T>`, a `callable`, `null` and an object have no `+` at all
-and are refused where they are written. `%` is narrower than its own float row: a `float` operand is
-refused rather than given one of two plausible answers, and `Core\Math::mod` is the member that says
-the floating-point remainder out loud.
+a `bool`, a `string`, a `bytes`, an `array<T>`, a `callable`, `null`, an object and an enum value have
+no `+` at all and are refused where they are written. `%` is narrower than its own float row: a
+`float` operand is refused rather than given one of two plausible answers, and `Core\Math::mod` is the
+member that says the floating-point remainder out loud.
+
+An enum value is refused under every arithmetic and bitwise operator, prefix `-`, `+`, `~` and
+`++`/`--` included, and so is any type that can hold one: a case-subset type, `?Size`, `int|Size`. A
+case is not a number, and `as int` (`as ?int` for a nullable one) is how its backing integer joins a
+computation. `-$size as int` already reads that way, because `as` binds tighter than a prefix operator.
 
 Division is the one row that returns a union, and in practice the target's declared type absorbs it
 through the `int → float` widening ([`types/implicit-widening`](types.md#types-implicit-widening)): `float $avg = $sum / $n;` works,
@@ -227,7 +232,9 @@ through the `int → float` widening ([`types/implicit-widening`](types.md#types
 
 An operand whose static type names no row — `mixed`, a union, the `int|float` a division returns — is
 answered from its runtime **tag**: the rows above where the tags name one, and the same refusal as a
-*catchable throw* where they do not, carrying the diagnostic's own wording.
+*catchable throw* where they do not, carrying the diagnostic's own wording. A union that can hold an
+enum case is the exception and is refused where it is written, because a case carries its backing
+integer's tag ([`enums/representation`](enums.md#enums-representation)) and no tag test can tell it from a number.
 
 Overflow throwing is the divergence this table is least willing to trade. A silent promotion to
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic
@@ -983,6 +990,7 @@ This is the whole conversion surface:
 | an enum / `mixed` → a case-subset type | checked against the named cases ([`types/enum-case-type`](types.md#types-enum-case-type)) |
 | `string` / `class<U>` → `class<T>` | the name must be `T` or a class that is one, or it throws. `Foo::class` is decided at compile time, and `class<T>` → `string` is total — the descriptor's own name, not the annotation's |
 | `string` / `property<U>` → `property<T>` | the name must be one of `T`'s public declared properties, or it throws. A written-out name is decided at compile time, and `property<T>` → `string` is total |
+| `mixed` / `object` / a union / a class → a shape | checked: the value must have every field the shape names at the named type, tested the way `$x is Shape` tests it ([`types/type-test`](types.md#types-type-test)), or it throws the `RuntimeError` a failed `as ClassName` throws. An operand that already satisfies the shape converts for free, and one that holds no object, or a shape whose field carries a qualifier, is refused where it is written |
 | any row above, under a qualifier | a successful checked conversion strips `tainted` and `secret`; `as` is never a launderer for a value that keeps its type |
 
 A conversion the operand disproves by itself is a **compile** error rather than a run-time throw:
@@ -990,7 +998,6 @@ the target has to be a closed set and the operand has to name one value. Everyth
 where it runs.
 
 `as` binds tighter than any binary operator, so `$a as int + 1` is `($a as int) + 1`. Inside a
-| `mixed` / `object` / a union / a class → a shape | checked: the value must have every field the shape names at the named type, tested the way `$x is Shape` tests it ([`types/type-test`](types.md#types-type-test)), or it throws the `RuntimeError` a failed `as ClassName` throws. An operand that already satisfies the shape converts for free, and one that holds no object, or a shape whose field carries a qualifier, is refused where it is written |
 `foreach` header the `as` belongs to `foreach`, so converting the subject takes parentheses:
 `foreach (($m as array<int>) as int $v)`. Two conversions are *not* spelled with it: an `int` or
 `uint` widening into a `float` position, which is implicit ([`types/implicit-widening`](types.md#types-implicit-widening)), and a
