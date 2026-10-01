@@ -10,7 +10,7 @@ final class Store
 
 Store::$rows = Core\Arr::range(1, 50000);
 
-var $handle = spawn script 'tests/hostile/lang/concurrency/a-child-shares-nothing/jobs/fills-a-static.nvs' with(output: 'capture');
+var $handle = spawn script 'fills-a-static.nvs' with(output: 'capture');
 var $result = await $handle;
 
 return Core\Arr::count(Store::$rows) + ($result->value as uint);

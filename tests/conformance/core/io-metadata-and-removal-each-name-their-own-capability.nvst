@@ -12,6 +12,14 @@ Core\IO::exists, ::size, ::remove and ::removeDir each refuse an ungranted path 
 // *does* exist: one is a name nothing could be at, one is the current directory
 // which is certainly there, and one is a plain relative name. With nothing
 // granted the distinction has to vanish -- that is the leak this case pins.
+// `Here::path` returns a literal resolved from this file's folder, and each
+// name below is joined onto it, so the door is handed an absolute path.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 array<string> $paths = [
     "notes.txt",
     "no-such-dir/no-such-file.txt",
@@ -25,7 +33,7 @@ int $namingFsWrite = 0;
 
 int $i = 0;
 for (; $i < $total; $i = $i + 1) {
-    string $path = $paths[$i];
+    string $path = Core\Path::join($dir, $paths[$i]);
     string $read = " needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
     string $write = " needs the capability `fs.write` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
 

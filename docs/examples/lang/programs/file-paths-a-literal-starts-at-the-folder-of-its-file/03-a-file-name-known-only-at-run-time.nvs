@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to build a path for a file name that the program only knows while
+// it runs.
+
+class Here {
+    // Returns a full path. The literal starts at the folder of this file.
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+
+string $name = "prices.txt";
+
+// A path built from text is not changed, so this one is relative.
+// A relative path throws a `RuntimeError`.
+try {
+    echo Core\IO::read("data/" . $name);
+} catch (RuntimeError $error) {
+    echo "a relative path throws an error\n";
+}
+
+// `Core\Path::join` adds the name to a full folder path, so this read works.
+string $folder = Here::path("data");
+echo Core\IO::read(Core\Path::join($folder, $name));

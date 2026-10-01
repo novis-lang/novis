@@ -25,7 +25,7 @@ foreach ($entries as string $name) {
         if (Core\Str::startsWith($proved, $root)) {
             $under = $under + 1;
         }
-        if ($proved == Core\IO::canonicalize("tree/" . $name)) {
+        if ($proved == Core\IO::canonicalize(Core\Path::join($root, $name))) {
             $sameAsJoining = $sameAsJoining + 1;
         }
     } catch (RuntimeError $left) {

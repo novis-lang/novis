@@ -2,11 +2,8 @@
 // Shows what you get when a script you started fails. `await` returns a result
 // with `ok` set to false, and `error` has the class name and the message.
 
-// A path starts at the folder where you run the program.
-string $jobs = "docs/examples/lang/concurrency/a-child-s-failure-is-a-value/jobs";
-string $path = $jobs . "/import-orders.nvs";
-
-var $handle = spawn script $path with(output: "capture");
+// The path starts at the folder of this file.
+var $handle = spawn script "jobs/import-orders.nvs" with(output: "capture");
 var $result = await $handle;
 
 echo "ok: ", $result->ok ? "true" : "false", "\n";

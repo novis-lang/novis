@@ -2,7 +2,14 @@
 // Attack: a program may write files in `data`, and it tries to use that right to change
 // its own configuration files. Every attempt should fail, and the settings should stay the same.
 
-string $dir = 'tests/hostile/tools/config/trust';
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 
 // 1. Write `nvs.toml` and a new file in `conf.d` through paths that start in `data`.
 array<string> $paths = [

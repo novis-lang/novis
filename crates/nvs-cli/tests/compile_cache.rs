@@ -133,6 +133,61 @@ fn a_program_loaded_from_the_cache_prints_what_the_compiled_one_printed() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// One program, the same name and the same text, in two folders: each run
+/// prints the path its own folder gives, because a relative path literal
+/// compiles to an absolute path joined to the file's folder
+/// (`rule:programs/path-literals-resolve-from-their-file`). Each is run as
+/// `nvs run main.nvs` from inside its folder, so the name a diagnostic prints
+/// is the same for both and only the folder tells the two compiles apart.
+// covers: tools:cli/the-compile-cache
+#[test]
+fn the_same_file_in_two_folders_is_two_cache_entries() {
+    let dir = private_scratch("moved");
+    let cache = dir.join("artifacts");
+    std::fs::create_dir(&cache).expect("the cache directory");
+    let config = dir.join("nvs.toml");
+    std::fs::write(
+        &config,
+        format!("[opcache]\nfile_cache_dir = '{}'\n", cache.display()),
+    )
+    .expect("the configuration is written");
+    let text = "<?nvs\nclass Here {\n    public static function path(#[Core\\Path] string $path): string {\n        return $path;\n    }\n}\necho Here::path('data.txt'), \"\\n\";\n";
+
+    let mut printed = Vec::new();
+    for folder in ["one", "two"] {
+        let home = dir.join(folder);
+        std::fs::create_dir(&home).expect("the program's folder");
+        std::fs::write(home.join("main.nvs"), text).expect("the program is written");
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--config")
+            .arg(&config)
+            .arg("run")
+            .arg("main.nvs")
+            .current_dir(&home)
+            .env_remove("NOVIS_NO_FILE_CACHE")
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "`nvs run` succeeds: {stderr}");
+        let stdout = String::from_utf8(out.stdout).expect("the output is UTF-8");
+        let expected = std::path::absolute(home.join("data.txt")).expect("an absolute path");
+        assert_eq!(
+            Path::new(stdout.trim_end()),
+            expected,
+            "the program in `{folder}` prints its own folder's path"
+        );
+        printed.push(stdout);
+    }
+    assert_ne!(printed[0], printed[1]);
+    assert_eq!(
+        artifacts(&cache).len(),
+        2,
+        "each folder stored its own compiled program"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// `[opcache] file_cache = false` turns the cache off: the directory is never
 /// created, and the program still runs.
 // covers: tools:cli/the-compile-cache

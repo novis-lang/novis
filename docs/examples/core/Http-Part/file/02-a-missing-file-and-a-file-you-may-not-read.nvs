@@ -1,11 +1,9 @@
 <?nvs
 // Shows the two errors `Core\Http\Part::file` throws, on the line that names the file.
 
-string $dir = "docs/examples/core/Http-Part/file/data";
-
 // There is no file with this name, so the call throws an `IOError`.
 try {
-    Core\Http\Part $missing = Core\Http\Part::file($dir . "/invoice-9999.txt");
+    Core\Http\Part $missing = Core\Http\Part::file("data/invoice-9999.txt");
     echo "part created\n";
 } catch (IOError $notThere) {
     echo "invoice-9999.txt: the file does not exist\n";
@@ -17,5 +15,6 @@ try {
     Core\Http\Part $config = Core\Http\Part::file("nvs.toml");
     echo "part created\n";
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    // The message names the full path of the file. This prints the part before it.
+    echo Core\Str::before($denied->message, " for "), "\n";
 }

@@ -2,6 +2,13 @@
 Core\IO::copy asks `fs.read` for its source and `fs.write` for its destination, and refuses naming whichever of the two is missing — a source it may not read and a destination it may not write are two different refusals over the same member — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
+// Each path below is a literal, so a refusal names it resolved from this
+// file's folder, and `Here::path` resolves the expected text the same way.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
 // The grant reads `source` and `scratch` and writes only `scratch`, so all
 // three answers are reachable in one program: a copy inside the grant, a source
 // outside the read half, and a destination outside the write half. A door that
@@ -20,7 +27,7 @@ try {
     Core\IO::copy("outside.txt", "scratch/from-outside.txt");
     echo "not reached\n";
 } catch (RuntimeError $denied) {
-    if ($denied->message == "Core\\IO::copy needs the capability `fs.read` for outside.txt, which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+    if ($denied->message == "Core\\IO::copy needs the capability `fs.read` for " . Here::path("outside.txt") . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
         echo "source outside the read grant: refused, naming fs.read\n";
     } else {
         echo "source outside the read grant: refused, saying ", $denied->message, "\n";
@@ -34,7 +41,7 @@ try {
     Core\IO::copy("source/note.txt", "source/second.txt");
     echo "not reached\n";
 } catch (RuntimeError $denied) {
-    if ($denied->message == "Core\\IO::copy needs the capability `fs.write` for source/second.txt, which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+    if ($denied->message == "Core\\IO::copy needs the capability `fs.write` for " . Here::path("source/second.txt") . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
         echo "destination outside the write grant: refused, naming fs.write\n";
     } else {
         echo "destination outside the write grant: refused, saying ", $denied->message, "\n";

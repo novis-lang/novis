@@ -637,6 +637,14 @@ pub(crate) fn entry_program(
     let Some(path) = entry.as_text() else {
         return method_program(ctx, entry, args, member);
     };
+    // `rule:programs/path-literals-resolve-from-their-file`, as at `spawn
+    // script`: a relative literal arrives joined to its file's folder, so a
+    // relative path here was built while the program ran.
+    if let Some(message) =
+        nvs_runtime::capability::relative(std::path::Path::new(path), &format!("`{member}`"))
+    {
+        return Err(Fault::thrown_as(ThrownClass::Runtime, message));
+    }
     // `rule:security/capability-check-at-the-door`'s door is inside `resolve` and not here, exactly as it is
     // for the sibling construct: a `Program` is what a spawn was after, so the
     // function that produces one is the effect the grant guards.
@@ -1700,7 +1708,7 @@ mod tests {
         let slot = UpgradeSlot::new();
         upgradable(&mut ctx, &slot);
 
-        let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
+        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
         let mine = a_room();
         nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, mine])
             .expect("an offered slot takes the upgrade");
@@ -1722,7 +1730,7 @@ mod tests {
         let mut connection = Ctx::buffered();
         assert_eq!(
             program(&mut connection, crossed).as_int(),
-            Some(16),
+            Some(17),
             "the slot holds a program for some other path"
         );
         release_crossed(mine);
@@ -1743,7 +1751,7 @@ mod tests {
         let mut ctx = granting();
         ctx.set_inbound(Inbound::new("GET", "/live/chat", ""));
 
-        let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
+        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
         nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, Value::null()])
             .expect_err("a request with no slot cannot upgrade");
         let reported = ctx
@@ -1770,7 +1778,7 @@ mod tests {
     /// never got would open a connection on nothing.
     #[test]
     fn an_entry_a_resolver_refuses_is_a_throw_the_program_catches() {
-        let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
+        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
         for installed in [true, false] {
             let refusing = installed.then(refusing);
             let mut ctx = granting();
@@ -1784,7 +1792,7 @@ mod tests {
                 .expect("the failure is on the context")
                 .into_owned();
             assert!(
-                reported.contains("`Core\\Socket::upgrade('sockets/chat.nvs')`"),
+                reported.contains("`Core\\Socket::upgrade('/sockets/chat.nvs')`"),
                 "the report did not name the member and the path: {reported}"
             );
             assert!(
@@ -1793,6 +1801,38 @@ mod tests {
             );
             drop(refusing);
         }
+        release_crossed(path);
+    }
+
+    /// `rule:programs/path-literals-resolve-from-their-file` at the upgrade: a
+    /// relative literal is joined to its file's folder while compiling, so a
+    /// relative path that arrives here was built while the program ran. It
+    /// throws, with a resolver installed that would have answered it and a
+    /// grant that covers every path, and the slot stays empty.
+    #[test]
+    fn a_relative_entry_path_throws_before_the_resolver_is_asked() {
+        let resolver = resolving();
+        let mut ctx = granting();
+        let slot = UpgradeSlot::new();
+        upgradable(&mut ctx, &slot);
+
+        let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
+        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, Value::null()])
+            .expect_err("a relative entry does not open a connection");
+        let reported = ctx
+            .pending()
+            .expect("the failure is on the context")
+            .into_owned();
+        assert!(
+            reported.contains("`Core\\Socket::upgrade` needs an absolute path")
+                && reported.contains("Core\\Path::join"),
+            "the report did not say the path is relative: {reported}"
+        );
+        assert!(
+            !slot.is_filled(),
+            "a relative path still left a program for the connection"
+        );
+        drop(resolver);
         release_crossed(path);
     }
 
@@ -1814,7 +1854,7 @@ mod tests {
         let slot = UpgradeSlot::new();
         upgradable(&mut ctx, &slot);
 
-        let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
+        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
         nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[path, Value::unset()])
             .expect_err("a value with no meaning on the other side does not cross");
         let reported = ctx
@@ -1857,7 +1897,7 @@ mod tests {
         let mut by_path = granting();
         let path_slot = UpgradeSlot::new();
         upgradable(&mut by_path, &path_slot);
-        let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
+        let path = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
         let path_args = a_room();
         nvs_runtime::call(nvs_core_socket_upgrade, &mut by_path, &[path, path_args])
             .expect("a path entry fills the slot");
@@ -1878,7 +1918,7 @@ mod tests {
         // `room` the entry was bound with. Each is its own entry's, and every
         // other fact below is asserted to be identical.
         for (form, slot, mine, answer) in [
-            ("a path", &path_slot, path_args, 16),
+            ("a path", &path_slot, path_args, 17),
             ("a static method", &method_slot, method_args, 7),
         ] {
             let (program, crossed) = slot
@@ -2000,8 +2040,8 @@ mod tests {
         let slot = UpgradeSlot::new();
         upgradable(&mut ctx, &slot);
 
-        let first = Value::str(NvsStr::new(b"sockets/chat.nvs"));
-        let second = Value::str(NvsStr::new(b"sockets/other-and-longer.nvs"));
+        let first = Value::str(NvsStr::new(b"/sockets/chat.nvs"));
+        let second = Value::str(NvsStr::new(b"/sockets/other-and-longer.nvs"));
         nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[first, Value::null()])
             .expect("the first upgrade fills the slot");
         nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[second, Value::null()])
@@ -2022,7 +2062,7 @@ mod tests {
         let mut connection = Ctx::buffered();
         assert_eq!(
             program(&mut connection, crossed).as_int(),
-            Some(16),
+            Some(17),
             "the second call overwrote the first upgrade"
         );
         release_crossed(first);

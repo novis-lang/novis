@@ -51,9 +51,9 @@ try {
 [capabilities.fs]
 read = ["."]
 write = ["."]
---EXPECT--
+--EXPECTF--
 skipped id,amount
 after the header [1:10][2:20][3:30]
 second walk 0
 rewound 3 ids 123
-closed: Core\Csv::rows: this handle is closed — ledger.csv
+closed: Core\Csv::rows: this handle is closed — %s%eledger.csv

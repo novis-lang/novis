@@ -56,7 +56,7 @@ try {
 [capabilities.fs]
 read = ["."]
 write = ["."]
---EXPECT--
+--EXPECTF--
 1: alpha
 2: beta
 3: gamma
@@ -66,4 +66,4 @@ lines: alpha|beta|gamma|delta|
 first: alpha
 then: be
 rest: ta
-after close: Core\IO\File::readLine: this handle is closed — mixed.txt
+after close: Core\IO\File::readLine: this handle is closed — %s%emixed.txt

@@ -8,9 +8,8 @@ class Report {
     }
 }
 
-// The first kind of entry is a file. A path starts at the folder where you run the program.
-string $path = "docs/examples/lang/concurrency/what-does-not-exist/scripts/count-orders.nvs";
-var $file = spawn script $path with(output: "capture");
+// The first kind of entry is a file. The path starts at the folder of this file.
+var $file = spawn script "scripts/count-orders.nvs" with(output: "capture");
 
 // The second kind is a static method, written `Class::method(...)`. `args:` gives it
 // the values its parameters need.

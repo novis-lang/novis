@@ -12,9 +12,17 @@ Core\IO::writeStream refuses an ungranted path naming `fs.write`, in every spell
 // Nothing is granted here, so the destination is never created either way --
 // what is being pinned is the message, which is the operator's half: the
 // capability's own name in the spelling `nvs.toml` grants it under.
+//
+// `Here::path` returns a literal resolved from this file's folder, so the path
+// held in a variable is absolute when it reaches the door.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
 array<bytes> $chunks = ["one " as bytes, "two" as bytes];
 array<bytes> $nothing = [];
-string $path = "stream.bin";
+string $path = Here::path("stream.bin");
 string $needs = "Core\\IO::writeStream needs the capability `fs.write` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
 
 int $calls = 0;

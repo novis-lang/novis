@@ -10,7 +10,15 @@ final class Store
     public static array<int> $rows = [];
 }
 
-string $jobs = 'tests/hostile/lang/concurrency/a-child-shares-nothing/jobs';
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+
+string $jobs = Here::path('jobs');
 Store::$rows = Core\Arr::range(1, 1000);
 uint $mine = Core\Arr::count(Store::$rows);
 

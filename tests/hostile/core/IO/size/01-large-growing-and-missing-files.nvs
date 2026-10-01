@@ -35,7 +35,6 @@ echo 'step 3: done', "\n";
 
 // 4. Names with no file at them. Each must throw an `IOError`.
 array<string> $bad = [
-    '',
     Core\Path::join($dir, 'missing.txt'),
     Core\Path::join($dir, "nul\0byte"),
     Core\Path::join($dir, Core\Str::repeat('n', 100000)),
@@ -47,5 +46,15 @@ foreach ($bad as string $badPath) {
         throw new LogicError('a path with no file had a size');
     } catch (IOError $refused) {
     }
+}
+// An empty name is not an absolute path, so it throws a `RuntimeError`.
+bool $emptyThrew = false;
+try {
+    Core\IO::size('');
+} catch (RuntimeError $relative) {
+    $emptyThrew = Core\Str::contains($relative->message, 'needs an absolute path');
+}
+if (!$emptyThrew) {
+    throw new LogicError('an empty name did not throw the relative-path error');
 }
 echo 'step 4: done', "\n";

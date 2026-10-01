@@ -3,17 +3,16 @@
 // The capability is granted, and the exact file is checked again when the
 // program opens it.
 
-string $dir = "docs/examples/core/Cap/has/data";
-
 // The deployment granted `fs.read`, so this prints yes.
 echo "read files: ", Core\Cap::has("fs.read") ? "yes" : "no", "\n";
 
 // A file inside the granted directory opens.
-echo Core\Str::trim(Core\IO::read($dir . "/hours.txt")), "\n";
+echo Core\Str::trim(Core\IO::read("data/hours.txt")), "\n";
 
-// A file outside that directory is refused, even though the answer above was yes.
+// A file outside that directory throws an error, even though the result above was yes.
+// The message continues with the path, so the program prints only its first part.
 try {
     Core\IO::read("nvs.toml");
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    echo Core\Str::before($denied->message, " for "), "\n";
 }

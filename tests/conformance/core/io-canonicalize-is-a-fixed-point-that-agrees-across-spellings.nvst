@@ -8,6 +8,16 @@
 // the member. What is the same everywhere is that every spelling of one file
 // resolves to the same answer, which is the one question this member exists to
 // let a program ask.
+//
+// A literal has its `.` and `..` removed while compiling, so each spelling is
+// joined onto this file's folder while the program runs and reaches the member
+// as written. `Here::path` returns a literal resolved from this file's folder.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 string $canonical = Core\IO::canonicalize("tree/one.txt");
 
 array<string> $spellings = [
@@ -20,7 +30,7 @@ array<string> $spellings = [
 
 int $agreed = 0;
 foreach ($spellings as string $spelling) {
-    if (Core\IO::canonicalize($spelling) == $canonical) {
+    if (Core\IO::canonicalize(Core\Path::join($dir, $spelling)) == $canonical) {
         $agreed = $agreed + 1;
     }
 }
@@ -64,7 +74,7 @@ try {
 // against -- while `within` is the member that refuses it. Reaching for the
 // resolver when the question was containment is the mistake `rule:security/launderers-are-sink-named`
 // exists to prevent, and this pair is what that mistake looks like.
-string $escape = Core\IO::canonicalize("tree/nested/../../outside.txt");
+string $escape = Core\IO::canonicalize(Core\Path::join($dir, "tree/nested/../../outside.txt"));
 if ($escape == Core\IO::canonicalize("outside.txt")) {
     echo "canonicalize resolved a path that leaves the base\n";
 }
@@ -72,7 +82,13 @@ try {
     Core\IO::within("tree", "nested/../../outside.txt");
     echo "within admitted it\n";
 } catch (RuntimeError $left) {
-    echo "within refused it\n";
+    // The second argument is joined to `tree`, not to this file's folder, so
+    // the refusal is the containment check's own.
+    if (Core\Str::contains($left->message, "must stay inside the base")) {
+        echo "within refused it\n";
+    } else {
+        echo "within threw something else: ", $left->message, "\n";
+    }
 }
 --FILE tree/one.txt--
 one

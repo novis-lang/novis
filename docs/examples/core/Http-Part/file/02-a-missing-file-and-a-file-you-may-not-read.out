@@ -1,3 +1,2 @@
 invoice-9999.txt: the file does not exist
-Core\Http\Part::file needs the capability `fs.read` for nvs.toml, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+Core\Http\Part::file needs the capability `fs.read`

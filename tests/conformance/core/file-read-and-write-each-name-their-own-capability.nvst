@@ -7,7 +7,14 @@ Core\IO::read and Core\IO::write refuse the same path under their own capability
 // *which* capability each one names. The path is identical in both calls on
 // purpose -- what differs between the two lines below is the verb, so a door
 // that checked one capability for both effects would print the same name twice.
-string $path = "report.txt";
+// `Here::path` returns a literal resolved from this file's folder, so the path
+// held in a variable is absolute when it reaches either door.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $path = Here::path("report.txt");
 
 try {
     string $content = Core\IO::read($path);
@@ -28,9 +35,9 @@ try {
 // separates a capability refusal from a limit breach, and it is asserted here
 // rather than in a comment because a `FATAL` would take the line with it.
 echo "still running\n";
---EXPECT--
-read: Core\IO::read needs the capability `fs.read` for report.txt, which is not granted
+--EXPECTF--
+read: Core\IO::read needs the capability `fs.read` for %s%ereport.txt, which is not granted
 help: grant it in nvs.toml under `[capabilities.fs]`
-write: Core\IO::write needs the capability `fs.write` for report.txt, which is not granted
+write: Core\IO::write needs the capability `fs.write` for %s%ereport.txt, which is not granted
 help: grant it in nvs.toml under `[capabilities.fs]`
 still running

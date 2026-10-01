@@ -6,7 +6,14 @@
 // separately, each of `isFile` and `isDir` looks right for the two cases anyone
 // checks; what only a table can catch is a member written as the negation of
 // the other, which answers `true` for the name that is neither and disagrees
-// with `exists` about the name that is nothing at all.
+// with `exists` about the name that is nothing at all. Each name is joined onto
+// this file's folder, which `Here::path` returns.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 array<string> $names = [
     "note.txt",
     "sub",
@@ -17,19 +24,20 @@ array<string> $names = [
 
 foreach ($names as string $name) {
     echo $name, ":";
+    string $path = Core\Path::join($dir, $name);
     // `exists` first, because the other two are a question about what it found
     // and the reading of a `false` from them depends on which side of it we are
     // on: absent means "no such kind" for a name that is there and "no such
     // name" for one that is not.
-    if (Core\IO::exists($name)) {
+    if (Core\IO::exists($path)) {
         echo " exists";
     } else {
         echo " absent";
     }
-    if (Core\IO::isFile($name)) {
+    if (Core\IO::isFile($path)) {
         echo " file";
     }
-    if (Core\IO::isDir($name)) {
+    if (Core\IO::isDir($path)) {
         echo " dir";
     }
     echo "\n";
@@ -44,7 +52,8 @@ foreach ($names as string $name) {
 array<string> $absent = ["gone.txt", "sub/gone.txt", "sub/deeper/gone.txt"];
 int $answered = 0;
 foreach ($absent as string $missing) {
-    if (!Core\IO::isFile($missing) && !Core\IO::isDir($missing)) {
+    string $gone = Core\Path::join($dir, $missing);
+    if (!Core\IO::isFile($gone) && !Core\IO::isDir($gone)) {
         $answered = $answered + 1;
     }
 }

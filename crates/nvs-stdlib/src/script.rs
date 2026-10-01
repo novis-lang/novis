@@ -825,6 +825,15 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
+        // `rule:programs/path-literals-resolve-from-their-file`: a relative
+        // literal arrives joined to its file's folder, so a relative path here
+        // was built while the program ran, and nothing resolves it from the
+        // working directory.
+        if let Some(message) =
+            nvs_runtime::capability::relative(std::path::Path::new(path), "`spawn script`")
+        {
+            return Err(Fault::thrown_as(ThrownClass::Runtime, message));
+        }
         let output = output_of(&args[2])?;
         let placement = placement_of(&args[3])?;
         let narrowing = narrowing_of(&args[4], &args[5])?;

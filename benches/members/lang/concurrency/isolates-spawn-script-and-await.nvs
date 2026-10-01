@@ -5,10 +5,16 @@
 // bench: iterations 2000
 
 class Bench {
+    // `here` returns its argument as a full path. A relative path in a string
+    // literal starts at the folder of this file.
+    private static function here(#[Core\Path] string $path): string {
+        return $path;
+    }
+
     public static function run(uint $rounds): uint {
         array<string> $scripts = [
-            "benches/members/lang/concurrency/isolates-spawn-script-and-await/returns-one.nvs",
-            "benches/members/lang/concurrency/isolates-spawn-script-and-await/returns-three.nvs",
+            Bench::here("isolates-spawn-script-and-await/returns-one.nvs"),
+            Bench::here("isolates-spawn-script-and-await/returns-three.nvs"),
         ];
         uint $total = 0;
         uint $i = 0;

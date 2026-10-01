@@ -2,28 +2,31 @@
 // Shows a program that may read one directory and nothing else.
 // `nvs.toml` grants `fs.read` for `data`, and every other file access fails.
 
-string $dir = "docs/examples/tools/config/capabilities";
-
+// A relative path in a string literal starts at the folder of this file.
 // The file is inside `data`, so this works. This prints `coffee 3.20`.
-echo Core\Str::trim(Core\IO::read($dir . "/data/prices.txt")), "\n";
+echo Core\Str::trim(Core\IO::read("data/prices.txt")), "\n";
 
 // `nvs.toml` is not inside `data`, so this throws a `RuntimeError`.
 try {
-    echo Core\IO::read($dir . "/nvs.toml");
+    echo Core\IO::read("nvs.toml");
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    echo "not allowed: nvs.toml\n";
 }
 
-// The path is checked after `..` is removed. It points to `nvs.toml` again, so it also fails.
+// `Core\IO::canonicalize` returns the full path of `data`.
+string $data = Core\IO::canonicalize("data");
+
+// `Core\Path::join` keeps the `..`. The path is checked after `..` is removed.
+// It points to `nvs.toml` again, so it also fails.
 try {
-    echo Core\IO::read($dir . "/data/../nvs.toml");
+    echo Core\IO::read(Core\Path::join($data, "../nvs.toml"));
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    echo "not allowed: data/../nvs.toml\n";
 }
 
 // Writing needs `fs.write`. It is not granted, not even for `data`.
 try {
-    Core\IO::write($dir . "/data/prices.txt", "coffee 9.90\n");
+    Core\IO::write("data/prices.txt", "coffee 9.90\n");
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    echo "not allowed to write: data/prices.txt\n";
 }

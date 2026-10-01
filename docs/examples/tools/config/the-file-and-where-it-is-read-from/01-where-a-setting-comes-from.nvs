@@ -1,21 +1,20 @@
 <?nvs
 // Shows where the settings of a program come from. They all come from one file, `nvs.toml`.
 
-string $dir = "docs/examples/tools/config/the-file-and-where-it-is-read-from";
-
 // `memory` is set in the file. This prints `64M`.
 echo Core\Config::get("memory"), "\n";
 
 // `wall_time` is not in the file, so `Core\Config::get` returns `null`. This prints `unset`.
 echo Core\Config::get("wall_time") ?? "unset", "\n";
 
-// The file allows reading `notes`. This path is relative to the file, not to the
-// working directory. So the program can read the `notes` folder next to the file.
-echo Core\IO::read($dir . "/notes/today.txt");
+// `nvs.toml` allows reading the `notes` folder next to it. A path in a string
+// literal starts at the folder of this program, which is the same folder.
+echo Core\IO::read("notes/today.txt");
 
-// `notes` in the working directory is a different folder. Reading it throws a `RuntimeError`.
+// `Core\Path::fromCwd` starts the path at the working directory.
+// `notes` there is a different folder. Reading it throws a `RuntimeError`.
 try {
-    Core\IO::read("notes/today.txt");
+    Core\IO::read(Core\Path::fromCwd("notes/today.txt"));
 } catch (RuntimeError $denied) {
     echo "not allowed\n";
 }

@@ -62,7 +62,15 @@ Core\Config::restore('limits.max_script_depth');
 // Prints the limit, then starts the endless chain from the other file. The
 // chain should stop at the limit, and this prints `yes`.
 echo 'the ceiling reads: ', Core\Config::get('limits.max_script_depth') ?? '(nothing)', "\n";
-var $chain = spawn script 'tests/hostile/config/limits-max_script_depth/01-a-chain-of-spawns-with-no-end.nvs' with(
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $endless = Here::path('01-a-chain-of-spawns-with-no-end.nvs');
+var $chain = spawn script $endless with(
     output: 'capture',
 );
 var $done = await $chain;

@@ -9,9 +9,8 @@ final class Orders {
 Orders::$counted = 7;
 echo "before: ", Orders::$counted, "\n";
 
-// A path starts at the folder where you run the program.
-string $path = "docs/examples/lang/concurrency/a-child-shares-nothing/scripts/count-orders.nvs";
-var $handle = spawn script $path with(output: "capture");
+// The path starts at the folder of this file.
+var $handle = spawn script "scripts/count-orders.nvs" with(output: "capture");
 var $result = await $handle;
 
 // The script printed two lines while it ran. With `capture` they come back as

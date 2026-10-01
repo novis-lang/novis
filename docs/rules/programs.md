@@ -393,8 +393,11 @@ Core\IO::read('/srv/shop/rates.json');   // absolute: unchanged
 **A path parameter** is one whose text is marked as a path. `Core` marks every parameter that names a
 file on disk — `Core\IO`'s path members, `Core\Process::run`/`spawn`, `Core\Response::sendFile`,
 `Core\Http\Part::file`, both `saveTo` members, `Core\Net::connectLocal`/`listenLocal`,
-`Core\Zip::extract`'s destination and `Db\Settings`' `path`. `Core\Path`'s own members work on path
-text and are not marked. A method marks its own parameter with `#[Core\Path]`, which takes no payload
+`Core\Zip::extract`'s destination and `Db\Settings`' `path`. The script an isolate runs is a path
+too: the operand of `spawn script` and the entry of `Core\Socket::upgrade` and `Core\Sse::upgrade`,
+when it is a path and not a static method. `Core\Path`'s own members work on path
+text and are not marked, and neither is `Core\IO::within`'s `$path`, which names a file under its
+`$base`. A method marks its own parameter with `#[Core\Path]`, which takes no payload
 and is allowed only on a parameter whose type is a `string`, alone or with `null` (`E0836`
 elsewhere). A default value of such a parameter resolves against the file that declares it.
 

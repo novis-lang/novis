@@ -3,6 +3,15 @@
 --FILE--
 <?nvs
 // covers: Core\Zip::extract
+// `Here::path` returns a literal resolved from this file's folder.
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
+        return $path;
+    }
+}
+
 class Archive
 {
     // An archive with one empty file, stored uncompressed. An empty file has
@@ -31,7 +40,7 @@ class Archive
 string $deepest = Core\Str::repeat("d/", 64) . "f.txt";
 echo Core\Arr::count(Core\Zip::entries(Archive::one($deepest))), "\n";
 echo Core\Zip::extract(Archive::one($deepest), "out"), "\n";
-echo Core\IO::exists(Core\Path::join("out", $deepest)) ? "written\n" : "missing\n";
+echo Core\IO::exists(Core\Path::join(Here::path("out"), $deepest)) ? "written\n" : "missing\n";
 
 // One folder more is refused when the archive is read, so every member refuses
 // it. The message shows only the start of the name.

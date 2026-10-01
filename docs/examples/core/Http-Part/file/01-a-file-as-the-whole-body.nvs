@@ -1,11 +1,9 @@
 <?nvs
 // Shows how to send a file as the whole body of a request.
 
-string $dir = "docs/examples/core/Http-Part/file/data";
-
 // `Core\Http\Part::file` checks that the file exists and returns a part.
-// It does not read the file yet.
-Core\Http\Part $invoice = Core\Http\Part::file($dir . "/invoice-1042.txt", {contentType: "text/plain"});
+// It does not read the file yet. The path starts at the folder of this file.
+Core\Http\Part $invoice = Core\Http\Part::file("data/invoice-1042.txt", {contentType: "text/plain"});
 echo "part created\n";
 
 // The file is read while the request is sent. 10.0.0.7 is a private address,

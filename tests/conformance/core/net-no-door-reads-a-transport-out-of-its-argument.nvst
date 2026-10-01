@@ -38,9 +38,10 @@ try {
     echo $refused->message, "\n";
 }
 
-// The two that do take a path take it as a path — scheme and all, which is why
-// the grant they ask is asked about the whole string. This deployment granted
-// them nothing, so what comes back names the capability and not the transport.
+// The two that do take a path take it as a path — scheme and all. Read as a
+// path, the whole string does not start at a root, so each throws the
+// relative-path error naming the whole string, before any grant is asked and
+// without naming a transport.
 try {
     Core\Net::connectLocal($written, 1s);
     echo "connected locally", "\n";
@@ -64,7 +65,7 @@ listen = true
 Core\Net::connect refuses `unix:/run/novis/app.sock`: a socket path is not something this door can authorize, since the address policy `net.connect` carries has no address to read — the grant that answers a socket path is `net.local`, and it is asked by the member that takes a path rather than by this one, which takes a host
 Core\Net::listen: `unix:/run/novis/app.sock` is not an address literal — a bind names an endpoint, and a hostname is not one
 Core\Net::bindDatagram: `unix:/run/novis/app.sock` is not an address literal — a bind names an endpoint, and a hostname is not one
-Core\Net::connectLocal needs the capability `net.local` for unix:/run/novis/app.sock, which is not granted
-help: grant it in nvs.toml under `[capabilities.net]`
-Core\Net::listenLocal needs the capability `net.local` for unix:/run/novis/app.sock, which is not granted
-help: grant it in nvs.toml under `[capabilities.net]`
+Core\Net::connectLocal needs an absolute path, and `unix:/run/novis/app.sock` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
+Core\Net::listenLocal needs an absolute path, and `unix:/run/novis/app.sock` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line

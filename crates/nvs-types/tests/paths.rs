@@ -32,6 +32,7 @@ fn count(diags: &Diagnostics, want: nvs_diagnostics::Code) -> usize {
 
 /// A relative literal at a `Core\IO` path parameter becomes an absolute path
 /// under the folder of the file that wrote it. `.` and `..` are removed.
+// covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
 #[test]
 fn a_relative_literal_at_a_core_path_parameter_is_joined_to_its_file() {
     let (diags, exprs) = check_program_table(&[(
@@ -46,6 +47,32 @@ fn a_relative_literal_at_a_core_path_parameter_is_joined_to_its_file() {
     assert!(path.ends_with(&tail(&["data", "x.json"])), "{path}");
     assert!(!path.contains(".."), "{path}");
     assert!(!path.starts_with(r"\\?\"), "{path}");
+}
+
+/// The script an isolate runs is a path position: the operand of `spawn
+/// script` and the entry of both upgrades. A method entry is not a string
+/// literal, so it records nothing.
+#[test]
+fn a_relative_literal_naming_an_isolates_script_is_joined_to_its_file() {
+    let (diags, exprs) = check_program_table(&[(
+        "spawns.nvs",
+        "<?nvs\nclass Chat {\n  public static function run(): void {}\n}\n\
+         var $job = spawn script 'jobs/child.nvs';\n\
+         var $other = spawn script Chat::run(...);\n\
+         Core\\Socket::upgrade('sockets/chat.nvs', null);\n\
+         Core\\Sse::upgrade('streams/feed.nvs', null);\n",
+    )]);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let paths = resolved(&exprs);
+    assert_eq!(paths.len(), 3, "{paths:?}");
+    for (path, want) in paths.iter().zip([
+        tail(&["jobs", "child.nvs"]),
+        tail(&["sockets", "chat.nvs"]),
+        tail(&["streams", "feed.nvs"]),
+    ]) {
+        assert!(Path::new(path).has_root(), "{path}");
+        assert!(path.ends_with(&want), "{path} does not end with {want}");
+    }
 }
 
 /// A literal in a file reached through `require` is joined to *that* file's

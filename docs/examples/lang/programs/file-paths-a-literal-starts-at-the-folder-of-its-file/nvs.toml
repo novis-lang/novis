@@ -1,0 +1,3 @@
+# The examples read the files in this folder.
+[capabilities.fs]
+read = ["."]

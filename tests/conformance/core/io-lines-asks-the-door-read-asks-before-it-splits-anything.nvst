@@ -11,6 +11,14 @@ Core\IO::lines refuses an ungranted path exactly as ::read does, naming `fs.read
 // The agreement with `read` is the other half. They share `slurp`, so a
 // refusal that differed between them could only mean one of the two had grown
 // a door of its own.
+// `Here::path` returns a literal resolved from this file's folder, and each
+// name below is joined onto it, so the door is handed an absolute path.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 array<string> $paths = [
     "note.txt",
     "no-such-dir/no-such-file.txt",
@@ -24,7 +32,7 @@ int $linesSeen = 0;
 
 int $i = 0;
 for (; $i < $total; $i = $i + 1) {
-    string $path = $paths[$i];
+    string $path = Core\Path::join($dir, $paths[$i]);
     string $needs = " needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
 
     try {

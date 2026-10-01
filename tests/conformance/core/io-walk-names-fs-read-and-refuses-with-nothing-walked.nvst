@@ -34,8 +34,8 @@ four
 --FILE nvs.toml--
 [capabilities.fs]
 read = ["open"]
---EXPECT--
+--EXPECTF--
 open: 3
-shut: Core\IO::walk needs the capability `fs.read` for shut, which is not granted
+shut: Core\IO::walk needs the capability `fs.read` for %s%eshut, which is not granted
 help: grant it in nvs.toml under `[capabilities.fs]`
 entries seen before the refusal: 0

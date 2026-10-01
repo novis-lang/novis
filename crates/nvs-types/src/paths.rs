@@ -13,6 +13,13 @@
 //! `crate::expr::args::check_options_arg` hands each written field to
 //! [`resolve_literal`].
 //!
+//! The script an isolate runs is a path position too. `spawn script <path>` is
+//! a construct rather than a call, so `crate::expr::isolate`'s `check_entry`
+//! hands its operand to [`resolve_literal`] itself. `Core\Socket::upgrade` and
+//! `Core\Sse::upgrade` mark their entry `nvs_stdlib::registry::CoreTy::Entry`,
+//! whose [`ParamText`] is [`ParamText::Path`], so they arrive through
+//! [`resolve_args`] like any other `Core` row.
+//!
 //! # What is a literal
 //!
 //! **A plain string literal, written at the argument itself** — `'data/x.json'`,
@@ -166,6 +173,15 @@ pub fn resolved(src: &SourceFile, text: &str) -> Option<String> {
     joined
         .has_root()
         .then(|| joined.to_string_lossy().into_owned())
+}
+
+/// The folder every relative literal in `src` is joined to, as text, or `None`
+/// for a source with no folder. A compiled program embeds paths built from
+/// it, so a cache of compiled programs keys on it beside the file's text: the
+/// same file in another folder compiles to other paths.
+#[must_use]
+pub fn base_folder(src: &SourceFile) -> Option<String> {
+    base_dir(src).map(|dir| dir.to_string_lossy().into_owned())
 }
 
 /// The folder a relative literal in `src` is joined to: the one that holds the

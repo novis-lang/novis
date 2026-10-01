@@ -337,7 +337,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // sink like every other; `$path` is the untrusted half the member
             // exists to accept, and `rule:security/launderers-are-sink-named` makes a launderer's answer the
             // plain, unqualified type.
-            params: &[CoreTy::Path(Qual::Sink), CoreTy::Path(Qual::Launder)],
+            //
+            // Only `$base` is a path parameter. `$path` is relative to
+            // `$base` by design, so a literal written there is not joined to
+            // the calling file's folder
+            // (`rule:programs/path-literals-resolve-from-their-file`): it is
+            // text, and the body joins it to `$base`.
+            params: &[CoreTy::Path(Qual::Sink), CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_io_within",
@@ -1087,8 +1093,10 @@ const WITHIN_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "path",
             desc: "The name to resolve against `$base` — the untrusted half, which is the whole \
-                   point of the member. An absolute path is no escape hatch: it is resolved and \
-                   then fails the same containment check.",
+                   point of the member. A relative `$path` is joined to `$base`, also when it is \
+                   written as a literal: it is not joined to the folder of the file that calls \
+                   `within`. An absolute path is no escape hatch: it is resolved and then fails \
+                   the same containment check.",
             shape: &[],
         },
     ],

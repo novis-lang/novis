@@ -5,14 +5,21 @@ Core\IO::isReadable predicts whether ::read succeeds for both a file that is the
 // The agreement first, counted rather than read off a line: for each of a name
 // that is there and a name that is not, the guard and the operation say the
 // same thing. A member that answered plausibly for the present file alone
-// still fails this.
+// still fails this. Each name is joined onto this file's folder, which
+// `Here::path` returns.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 array<string> $paths = ["seed.txt", "missing.txt"];
 int $n = Core\Arr::count($paths) as int;
 
 int $agree = 0;
 int $i = 0;
 for (; $i < $n; $i = $i + 1) {
-    string $path = $paths[$i];
+    string $path = Core\Path::join($dir, $paths[$i]);
     bool $guard = Core\IO::isReadable($path);
     bool $read = true;
     try {

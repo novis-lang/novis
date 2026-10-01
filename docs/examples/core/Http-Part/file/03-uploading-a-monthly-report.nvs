@@ -2,11 +2,9 @@
 // Shows a monthly job that uploads a sales report to an accounting service,
 // as a form with one text field and one file.
 
-string $report = "docs/examples/core/Http-Part/file/data/sales-2026-09.csv";
-
 // `filename` is the name the accounting service sees. Without it, the name would be
 // `sales-2026-09.csv`, the last part of the path.
-Core\Http\Part $file = Core\Http\Part::file($report, {filename: "shop-sales-september.csv", contentType: "text/csv"});
+Core\Http\Part $file = Core\Http\Part::file("data/sales-2026-09.csv", {filename: "shop-sales-september.csv", contentType: "text/csv"});
 
 bool $uploaded = false;
 try {

@@ -86,12 +86,12 @@ var $job = spawn script "child.nvs" with(output: "capture");
 var $done = await $job;
 echo "ok=", $done->ok ? "true" : "false", "\n";
 echo $done->output;
---EXPECT--
+--EXPECTF--
 parent read note
 parent refused
 ok=true
 child read note
-child: Core\IO::read needs the capability `fs.read` for ./secret.txt, which is not granted
+child: Core\IO::read needs the capability `fs.read` for %s%esecret.txt, which is not granted
 help: grant it in nvs.toml under `[capabilities.fs]`
 child set = false
 child still refused

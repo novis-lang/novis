@@ -1021,7 +1021,7 @@ mod tests {
         let cell = SseSlot::new();
         served(&mut ctx, &cell);
 
-        let path = Value::str(NvsStr::new(b"streams/feed.nvs"));
+        let path = Value::str(NvsStr::new(b"/streams/feed.nvs"));
         let mine = a_room();
         nvs_runtime::call(nvs_core_sse_upgrade, &mut ctx, &[path, mine])
             .expect("an offered cell takes the stream");
@@ -1043,7 +1043,7 @@ mod tests {
         let mut connection = Ctx::buffered();
         assert_eq!(
             program(&mut connection, crossed).as_int(),
-            Some(16),
+            Some(17),
             "the cell holds a program for some other path"
         );
         release_crossed(mine);
@@ -1060,11 +1060,11 @@ mod tests {
         let cell = SseSlot::new();
         served(&mut ctx, &cell);
 
-        let first = Value::str(NvsStr::new(b"streams/feed.nvs"));
+        let first = Value::str(NvsStr::new(b"/streams/feed.nvs"));
         nvs_runtime::call(nvs_core_sse_upgrade, &mut ctx, &[first, Value::null()])
             .expect("an offered cell takes the first stream");
 
-        let second = Value::str(NvsStr::new(b"streams/other-feed.nvs"));
+        let second = Value::str(NvsStr::new(b"/streams/other-feed.nvs"));
         nvs_runtime::call(nvs_core_sse_upgrade, &mut ctx, &[second, Value::null()])
             .expect_err("one request opens at most one event stream");
 
@@ -1074,7 +1074,7 @@ mod tests {
         let mut connection = Ctx::buffered();
         assert_eq!(
             program(&mut connection, crossed).as_int(),
-            Some(16),
+            Some(17),
             "the second call displaced the first stream's program"
         );
     }

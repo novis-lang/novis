@@ -32,7 +32,17 @@ class Attempt
     }
 }
 
-string $dir = 'tests/hostile/tools/install/windows';
+class Here
+{
+    // Returns the literal as an absolute path, resolved from the folder of this file.
+    public static function path(#[Core\Path] string $path): string
+    {
+        return $path;
+    }
+}
+
+// The folder of this file, as an absolute path. Every path below is built from it.
+string $dir = Here::path('.');
 string $log = $dir . '/logs/nvs.log';
 string $config = $dir . '/config/limits.toml';
 string $system = 'C:\\Windows\\System32\\';

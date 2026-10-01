@@ -300,6 +300,44 @@ autoload 'App\{..}' from '../src';                 // `{..}` is the name of the 
 - The same map answers `Core\Program::implementing<I>()` — every non-abstract class implementing
   an interface, found through the autoload roots even when nothing names it.
 
+# File paths: a literal starts at the folder of its file
+
+A relative string literal passed to a file path parameter is joined to the folder of the file that
+contains it, while compiling. The program reads the same file from a terminal, under `nvs serve` and
+as a service.
+
+```nvs skip
+// This is /srv/shop/src/Report.nvs.
+Core\IO::read('data/rates.json');          // reads /srv/shop/src/data/rates.json
+Core\IO::read('/srv/shop/rates.json');     // a full path is used as written
+
+class Files {
+    // `#[Core\Path]` makes this parameter a file path too.
+    public static function load(#[Core\Path] string $path): string {
+        return Core\IO::read($path);
+    }
+}
+Files::load('data/rates.json');            // reads /srv/shop/src/data/rates.json
+
+string $name = 'rates.json';
+Core\IO::read('data/' . $name);            // throws RuntimeError: the path is relative
+```
+
+- Every `Core` parameter that names a file is a file path parameter: `Core\IO`'s path methods,
+  `Core\Process::run`, `Core\Response::sendFile`, the script of `spawn script`,
+  `Core\Socket::upgrade` and `Core\Sse::upgrade`, and others. `Core\Path`'s own methods work on
+  text and are not.
+- `#[Core\Path]` on a `string` or `?string` parameter of your own method makes it one. A default
+  value of that parameter starts at the folder of the file that declares it. On anything else the
+  attribute does not compile (`E0836`).
+- Only a literal written as the argument itself is joined. A variable, a class constant and a
+  concatenation are values the program builds while it runs.
+- A relative path built while the program runs throws `RuntimeError` when it reaches a file
+  operation. Build it with `Core\Path::join` from a full path, or with `Core\Path::fromCwd` for a
+  path typed on the command line.
+- `Core\Path::fromCwd` joins a path to the folder the program was started from. It throws while a
+  request is being answered, because a server's working directory is not the app's folder.
+
 # Ending a program
 
 A program ends when its last top-level statement has run, with exit status 0. `exit;` ends it

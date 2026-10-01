@@ -7,7 +7,14 @@ Core\IO::makeDir creates a whole chain in one call while Core\IO::removeDir take
 // path the grant was just checked for, and a recursive *removal* would be one
 // grant check standing in for a tree of destructions. `capability::create_dir`
 // and `capability::remove_dir` each own their half of that in their own doc.
-array<string> $levels = ["tree/a/b", "tree/a", "tree"];
+// `Here::path` returns a literal resolved from this file's folder, so each
+// level held in the array is absolute.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+array<string> $levels = [Here::path("tree/a/b"), Here::path("tree/a"), Here::path("tree")];
 int $n = Core\Arr::count($levels) as int;
 
 // One call, three levels.

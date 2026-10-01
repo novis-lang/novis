@@ -532,6 +532,44 @@ autoload 'App\{..}' from '../src';                 // `{..}` is the name of the 
 - The same map answers `Core\Program::implementing<I>()` — every non-abstract class implementing
   an interface, found through the autoload roots even when nothing names it.
 
+### File paths: a literal starts at the folder of its file
+
+A relative string literal passed to a file path parameter is joined to the folder of the file that
+contains it, while compiling. The program reads the same file from a terminal, under `nvs serve` and
+as a service.
+
+```nvs skip
+// This is /srv/shop/src/Report.nvs.
+Core\IO::read('data/rates.json');          // reads /srv/shop/src/data/rates.json
+Core\IO::read('/srv/shop/rates.json');     // a full path is used as written
+
+class Files {
+    // `#[Core\Path]` makes this parameter a file path too.
+    public static function load(#[Core\Path] string $path): string {
+        return Core\IO::read($path);
+    }
+}
+Files::load('data/rates.json');            // reads /srv/shop/src/data/rates.json
+
+string $name = 'rates.json';
+Core\IO::read('data/' . $name);            // throws RuntimeError: the path is relative
+```
+
+- Every `Core` parameter that names a file is a file path parameter: `Core\IO`'s path methods,
+  `Core\Process::run`, `Core\Response::sendFile`, the script of `spawn script`,
+  `Core\Socket::upgrade` and `Core\Sse::upgrade`, and others. `Core\Path`'s own methods work on
+  text and are not.
+- `#[Core\Path]` on a `string` or `?string` parameter of your own method makes it one. A default
+  value of that parameter starts at the folder of the file that declares it. On anything else the
+  attribute does not compile (`E0836`).
+- Only a literal written as the argument itself is joined. A variable, a class constant and a
+  concatenation are values the program builds while it runs.
+- A relative path built while the program runs throws `RuntimeError` when it reaches a file
+  operation. Build it with `Core\Path::join` from a full path, or with `Core\Path::fromCwd` for a
+  path typed on the command line.
+- `Core\Path::fromCwd` joins a path to the folder the program was started from. It throws while a
+  request is being answered, because a server's working directory is not the app's folder.
+
 ### Ending a program
 
 A program ends when its last top-level statement has run, with exit status 0. `exit;` ends it
@@ -5737,10 +5775,13 @@ var $job = spawn script 'jobs/report.nvs' with(
 var $result = await $job;
 ```
 
-- The entry is either a **path** — any `string` expression naming a file, relative to the working
-  directory, so a variable or a computed path is fine — or a **static method**, written
+- The entry is either a **path** — any `string` expression naming a file — or a **static method**,
+  written
   `Class::method(...)`. An `fn` literal is refused (`E0802`): an isolate shares nothing but compiled
   code, and a literal would carry the scope around it across that boundary.
+- A path written as a string literal starts at the folder of the file that contains it. A
+  relative path built while the program runs throws a `RuntimeError`: build it with
+  `Core\Path::join` from a full path (§ *File paths: a literal starts at the folder of its file*).
 - `with(…)` is optional. `output: 'capture'` collects what the child writes into the result;
   `output: 'inherit'` lets the child write straight to the parent's standard output, interleaved
   with the parent's own lines in whatever order the two run — only after `await` is all of it
@@ -5879,7 +5920,7 @@ echo "output=", $failed->output, "\n";
 try {
     spawn script "no-such-child.nvs";
 } catch (RuntimeError $missing) {
-    echo "parent's mistake: ", $missing->message, "\n";
+    echo "parent's mistake: ", Core\Str::contains($missing->message, "could not be compiled") ? "no such script" : "other", "\n";
 }
 echo "parent still running\n";
 ```
@@ -5888,7 +5929,7 @@ ok=false
 class=RuntimeError
 message=the child could not finish
 output=child got this far
-parent's mistake: `spawn script 'no-such-child.nvs'`: `no-such-child.nvs` could not be compiled; see the errors above
+parent's mistake: no such script
 parent still running
 ```
 
@@ -5904,12 +5945,12 @@ try {
     var $job = spawn script "child.nvs";
     var $done = await $job;
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    // The message goes on with the full path of `child.nvs`.
+    echo Core\Str::before($denied->message, " for "), "\n";
 }
 ```
 ```output
-`spawn script` needs the capability `script.spawn` for child.nvs, which is not granted
-help: grant it in nvs.toml under `[capabilities.script]`
+`spawn script` needs the capability `script.spawn`
 ```
 
 ### What does not exist
@@ -6108,6 +6149,7 @@ class Home {
 - `#[Core\Query]`
 - `#[Core\Access]`
 - `#[Core\Api]`
+- `#[Core\Path]`
 
 `#[Core\Test]`, `#[Core\Test\Fixture]` and `#[Core\Test\TestWith]` belong to [testing](#lang-testing).
 The rest are below.
@@ -11366,7 +11408,7 @@ Reads `$b` back through `$format`, as `unpack` does, over `pack`'s code table in
 <a id="core-core-path"></a>
 ### `Core\Path`
 
-Keywords: basename, dirname, pathinfo, PATHINFO_EXTENSION, PATHINFO_BASENAME, realpath, DIRECTORY_SEPARATOR, explode(DIRECTORY_SEPARATOR), path, file extension, absolute path, relative path, normalize, .., basename, dirname, extension, withExtension, join, split, normalize, isAbsolute, relativeTo
+Keywords: basename, dirname, pathinfo, PATHINFO_EXTENSION, PATHINFO_BASENAME, realpath, DIRECTORY_SEPARATOR, explode(DIRECTORY_SEPARATOR), path, file extension, absolute path, relative path, normalize, .., basename, dirname, extension, withExtension, join, split, normalize, isAbsolute, relativeTo, fromCwd
 
 `Core\Path` is string algebra over path text: no member reads the disk, so nothing here needs a
 capability, follows a symlink or checks that a file exists — that is `Core\IO`. Both `/` and `\`
@@ -11416,6 +11458,7 @@ none
 | [`Core\Path::normalize`](#core-core-path-normalize) | `normalize(string $path): string` |
 | [`Core\Path::isAbsolute`](#core-core-path-isabsolute) | `isAbsolute(string $path): bool` |
 | [`Core\Path::relativeTo`](#core-core-path-relativeto) | `relativeTo(string $path, string $base): ?string` |
+| [`Core\Path::fromCwd`](#core-core-path-fromcwd) | `fromCwd(string $path): string` |
 | `Core\Path::SEPARATOR` | `string` = `"/" ("\" on Windows)` — The separator this platform's paths are rendered with — `\` on Windows and `/` everywhere else, as `DIRECTORY_SEPARATOR` is; every member emits it and accepts both. |
 
 <a id="core-core-path-basename"></a>
@@ -11560,6 +11603,23 @@ Returns the path that leads from the folder `$base` to `$path`. The `.` and `..`
 
 **Returns** `?string` — A relative path, written with `Core\Path::SEPARATOR`. It is `.` when both paths name the same place. It is `null` when no relative path exists: one path is absolute and the other is not, the paths start at different roots, or `$base` starts with more `..` parts than `$path` does. Folder names are compared byte for byte. A drive letter and a server name ignore upper and lower case.
 
+<a id="core-core-path-fromcwd"></a>
+#### `Core\Path::fromCwd`
+
+```nvs skip
+Core\Path::fromCwd(string $path): string
+```
+
+Joins `$path` to the folder the program was started from, and returns the full path. Use it for a path that a user typed on the command line.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` | The path. A relative path is joined to the working folder. A full path is returned as it is, with its `.` and `..` parts removed. |
+
+**Returns** `string` — A full path, written with `Core\Path::SEPARATOR`, with its `.` and `..` parts removed. The method does not check that the file exists.
+
+**Throws** `RuntimeError` — The program is answering a web request. A server has no working folder that belongs to the app.
+
 <a id="core-core-io"></a>
 ### `Core\IO`
 
@@ -11650,7 +11710,7 @@ The whole content of a file, as text — `file_get_contents`. Needs the `fs.read
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to read, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `string` — The file's content as a `string`, with nothing stripped. The content must be UTF-8 text; `readText` reads a file written in another charset.
 
@@ -11667,7 +11727,7 @@ Replaces a file's whole content, creating it if it does not exist — `file_put_
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to write, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to write. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 | `$content` | `string` (neutral) | The bytes to write. They become the file's entire content; `append` is the member that adds to what is already there. |
 
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
@@ -11685,7 +11745,7 @@ Adds to the end of a file, creating it if it is not there — `file_put_contents
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to add to, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to add to. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 | `$content` | `string` (neutral) | The bytes to add. Whatever the file already holds is kept and these follow it; the end is found by the operating system at the write, not read beforehand. |
 
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
@@ -11723,7 +11783,7 @@ Reports whether anything is at `$path` — `file_exists`, and true for a directo
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The name to look for, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The name to look for. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` if the name resolves to something, `false` if it resolves to nothing. Absence is an answer here and not a failure, which is what separates this from `size`.
 
@@ -11740,7 +11800,7 @@ Reports whether `$path` names a regular file — `is_file`. Symbolic links are f
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The name to ask about, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` for a regular file, `false` for a directory, for anything else the operating system holds at that name, and for a name that is not there at all. Absence answers `false` here rather than throwing, because the question is what kind of thing is at the name and *nothing* is a complete answer to it.
 
@@ -11757,7 +11817,7 @@ Reports whether `$path` names a directory — `is_dir`. Symbolic links are follo
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The name to ask about, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` for a directory, `false` for a file, for anything else, and for a name that is not there. With `isFile` it partitions what `exists` answers `true` for into the two kinds this class has separate members for, and a name can satisfy neither.
 
@@ -11774,7 +11834,7 @@ Whether this process could read what is at `$path` right now — `is_readable`. 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file or directory to ask about, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` if the operating system would allow a read, `false` if it would not — including for a name that is not there. The answer is about the instant it was asked and nothing holds it still, so a read that follows it can still fail.
 
@@ -11791,7 +11851,7 @@ Whether this process could write what is at `$path` right now — `is_writable`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file or directory to ask about, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` if the operating system would allow a write, `false` if it would not — including for a name that is not there. A snapshot, exactly as `isReadable` is.
 
@@ -11808,7 +11868,7 @@ The size of the file at `$path` in bytes, as the operating system reports it —
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to measure, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `uint` — The byte count as a `uint`. For a text file this is bytes and not characters — a `string`'s own length is `Core\Str::length`, which counts what § 1 says it counts.
 
@@ -11825,7 +11885,7 @@ When the file at `$path` was last written, as a `Core\Time\Instant` — `filemti
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file or directory to ask about, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `Core\Time\Instant` — The modification time as an absolute point on the timeline, with no zone of its own — `->in($zone)` is what gives it a calendar.
 
@@ -11842,7 +11902,7 @@ Everything one `stat` answers about `$path`, as a `Core\IO\Metadata` — `stat`,
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file or directory to measure, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file or directory to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `Core\IO\Metadata` — A `Core\IO\Metadata` — a snapshot, not a live view: it answers about the moment the call was made, and says nothing about the file afterwards.
 
@@ -11993,7 +12053,7 @@ The absolute path `$path` resolves to, with every `.`, `..` and symbolic link fo
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The name to resolve, absolute or relative to the working directory. Every component must exist, including the last one. |
+| `$path` | `string` (sink) | The name to resolve. A relative path must be a string literal, and is joined to the folder of the file that contains it. Every component must exist, including the last one. |
 
 **Returns** `string` — The resolved absolute path. Passing the answer back in resolves to itself, so the result is a fixed point and a program may compare two of them for equality — which is the one use this member has that `Core\Path::normalize` cannot serve, since two different spellings of one file normalize differently and canonicalize the same.
 
@@ -12011,7 +12071,7 @@ Resolves `$path` against `$base` and then **proves** the answer is still under i
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$base` | `string` (sink) | The directory the answer must stay under. It has to exist, since containment is proved against its canonical spelling. |
-| `$path` | `string` (launder) | The name to resolve against `$base` — the untrusted half, which is the whole point of the member. An absolute path is no escape hatch: it is resolved and then fails the same containment check. |
+| `$path` | `string` (launder) | The name to resolve against `$base` — the untrusted half, which is the whole point of the member. A relative `$path` is joined to `$base`, also when it is written as a literal: it is not joined to the folder of the file that calls `within`. An absolute path is no escape hatch: it is resolved and then fails the same containment check. |
 
 **Returns** `string` — The resolved absolute path, as a plain `string`. Every `..`, every symlink and every separator is already gone, so what the caller holds is a name the operating system agrees with rather than one it still has to be trusted about.
 
@@ -12028,7 +12088,7 @@ The whole content of a file, decoded from the charset it is written in — `file
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to read, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 | `{charset: …}` | `Core\Charset` (default `Core\Charset::Utf8`) | The encoding the file's octets are in. `Core\Charset::Utf8` when it is not given, which is the decode that is the identity on text already written the way Novis spells it. |
 
 **Returns** `string` — The file's content as a `string`, converted from `$charset` — never with a replacement character in it, because a conversion that cannot be exact throws instead.
@@ -12046,7 +12106,7 @@ Every line of a file, without its terminator — `file()` and the `fgets` loop t
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to read, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 
 **Returns** `Core\IO\Lines` — An `Iterable<string>` a `foreach` walks in file order, and walks again as often as it is asked. `\n`, `\r\n` and a lone `\r` each end a line; a trailing terminator does not open an empty last one, and an empty file has no lines at all.
 
@@ -12063,7 +12123,7 @@ Opens a file and answers the handle every later read and write goes through — 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to open, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to open. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 | `$mode` | `Core\IO\FileMode` | What the handle may do, as a `Core\IO\FileMode` case. |
 
 **Returns** `Core\IO\File` — An open `Core\IO\File`. It is closed by `close`, and by the end of the request if the program never calls it.
@@ -12326,7 +12386,7 @@ Runs the program at `$path` with the arguments in `$argv`, and waits until it en
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The program to start, as an absolute path or a path relative to the working directory. `PATH` is not searched, so `ls` means a file named `ls` in the working directory. |
+| `$path` | `string` (sink) | The program to start, as an absolute path. A relative path must be a string literal, and is joined to the folder of the file that contains it. `PATH` is not searched, so `ls` means a file named `ls` in that folder. |
 | `$argv` | `array<string>` | The arguments, one in each element: `["-n", "1", $host]`. An element with a space, a quote or a `;` in it is still one argument, on every platform. |
 
 **Returns** `Core\Process\Result` — A `Core\Process\Result` with the exit code and everything the program wrote to its output and to its error output. The program cannot write to this program's own output, so the two never mix.
@@ -23076,7 +23136,7 @@ A body, or one field of a multipart body, read from the file at `$path` while th
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to send, absolute or relative to the working directory. |
+| `$path` | `string` (sink) | The file to send. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
 | `{filename: …}` | `string` (default `null`, neutral) | The name the other end is told, defaulting to the path's last component. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type this part is sent under. Omitted, a multipart field is sent as `application/octet-stream` and a whole body under the call's own `contentType`. |
 

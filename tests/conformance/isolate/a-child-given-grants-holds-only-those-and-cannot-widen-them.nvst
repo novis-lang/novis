@@ -62,11 +62,11 @@ echo $strange->output;
 // And the parent kept everything it narrowed for its children: a `grants:` is
 // the child's list, never an edit of the list it was spawned from.
 echo "parent still reads ", Core\IO::read('./note.txt');
---EXPECT--
+--EXPECTF--
 parent read note
 reader ok=true
 reader read note
-reader: `spawn script` needs the capability `script.spawn` for note.nvs, which is not granted
+reader: `spawn script` needs the capability `script.spawn` for %s%enote.nvs, which is not granted
 help: grant it in nvs.toml under `[capabilities.script]`
 stranger ok=true
 stranger refused

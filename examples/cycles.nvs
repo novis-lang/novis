@@ -92,7 +92,7 @@ echo 'built=', $built, "\n";
 // returned is never the only reference to it; the source-to-destination move
 // itself is pinned in Rust, by `nvs-runtime`'s
 // `an_adopted_object_moves_to_the_destinations_live_list`.
-var $child = spawn script 'examples/cycles/child.nvs' with(
+var $child = spawn script 'cycles/child.nvs' with(
     args: new Node('crossed'),
     output: 'capture',
 );

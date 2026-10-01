@@ -125,15 +125,29 @@ pub fn require_as(
 ///
 /// A catchable `RuntimeError` naming `member` and the path.
 fn relative_refusal(path: &Path, member: &str) -> Result<(), Fault> {
-    if path.has_root() {
-        return Ok(());
+    match relative(path, member) {
+        Some(message) => Err(Fault::thrown(message)),
+        None => Ok(()),
     }
-    Err(Fault::thrown(format!(
+}
+
+/// [`relative_refusal`]'s message as data: `None` for a path that starts at a root.
+///
+/// For the places a program names the script an isolate runs — `spawn script`,
+/// `Core\Socket::upgrade` and `Core\Sse::upgrade` — which ask it before they hand the path to
+/// [`crate::script::resolve`]. `resolve` itself does not ask, because it also serves the scripts a
+/// queue worker, a `[[schedule]]` entry and a `[log] handler` name, which no source file wrote.
+#[must_use]
+pub fn relative(path: &Path, member: &str) -> Option<String> {
+    if path.has_root() {
+        return None;
+    }
+    Some(format!(
         "{member} needs an absolute path, and `{}` is relative\nhelp: build the path with \
          `Core\\Path::join` from a folder you know, or with `Core\\Path::fromCwd` for a path \
          typed on the command line",
         path.display()
-    )))
+    ))
 }
 
 /// The process's working directory, for `Core\Path::fromCwd` — the one way a program reads it,
@@ -1613,6 +1627,7 @@ mod tests {
     /// `rule:programs/path-literals-resolve-from-their-file`'s run-time half: a relative path throws
     /// at every path door before a grant is read, and the message names the path and both ways to
     /// make it absolute. A path that starts at a root reaches the grant check instead.
+    // covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
     #[test]
     fn a_relative_path_throws_before_any_grant_is_asked() {
         let ctx = Ctx::buffered();
@@ -1646,6 +1661,7 @@ mod tests {
 
     /// A context answering no request reads the working directory; the
     /// answer is the process's own.
+    // covers: Core\Path::fromCwd
     #[test]
     fn the_working_directory_is_read_outside_a_request() {
         let ctx = Ctx::buffered();

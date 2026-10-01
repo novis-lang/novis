@@ -1493,13 +1493,18 @@ impl Cache {
 /// A unit is that graph and not one file (`front_end`'s own doc), so a key over the entry file
 /// alone would answer a stale artifact for a program whose `require`d file was the one edited —
 /// § 3's verification cannot catch that, because such a payload is this toolchain's and its
-/// checksum is correct. Each file goes in as its name and its text, both behind their lengths, so
-/// no two file sets can hash alike by running together and a file *renamed* moves the key: a
-/// diagnostic's path and a throw's frame name it, which makes it observable.
+/// checksum is correct. Each file goes in as its name, its text and its folder, each behind its
+/// length, so no two file sets can hash alike by running together. A file *renamed* moves the key,
+/// because a diagnostic's path and a throw's frame name it. A file *moved* moves the key too: a
+/// relative path literal compiles to an absolute path joined to the file's folder
+/// (`rule:programs/path-literals-resolve-from-their-file`), so the folder is a compile input like
+/// the text. The folder is [`nvs_types::paths::base_folder`]'s, the exact one the join used — inside
+/// a bundled executable, the folder beside it.
 pub(crate) fn program_digest(files: &[nvs_types::ProgramFile<'_>]) -> Digest {
     let mut bytes = Vec::new();
     for file in files {
-        for part in [file.src.name(), file.src.text()] {
+        let folder = nvs_types::paths::base_folder(file.src).unwrap_or_default();
+        for part in [file.src.name(), file.src.text(), folder.as_str()] {
             bytes.extend_from_slice(&u64::try_from(part.len()).unwrap_or(u64::MAX).to_le_bytes());
             bytes.extend_from_slice(part.as_bytes());
         }

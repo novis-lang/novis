@@ -5,7 +5,15 @@
 // it may still be held once the program has read the result.
 // hostile: timeout-ms 60000
 
-string $jobs = 'tests/hostile/lang/concurrency/a-child-s-failure-is-a-value/jobs';
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+
+string $jobs = Here::path('jobs');
 
 // Step 1: twenty large failures, one after another. Only the count is kept, so
 // memory that grows here is memory the runtime did not free.

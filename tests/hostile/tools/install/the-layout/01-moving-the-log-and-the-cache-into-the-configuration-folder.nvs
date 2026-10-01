@@ -2,7 +2,17 @@
 // Attack: a program tries to move the log file and the cache folder into the configuration folder.
 // Only `nvs.toml` may set these folders, so every attempt should fail and the files in `config` should stay the same.
 
-string $dir = 'tests/hostile/tools/install/the-layout';
+class Here
+{
+    // Returns the literal as an absolute path, resolved from the folder of this file.
+    public static function path(#[Core\Path] string $path): string
+    {
+        return $path;
+    }
+}
+
+// The folder of this file, as an absolute path. Every path below is built from it.
+string $dir = Here::path('.');
 string $config = $dir . '/config/limits.toml';
 
 // 1. Make the configuration file the log file. Each call should return `false`.

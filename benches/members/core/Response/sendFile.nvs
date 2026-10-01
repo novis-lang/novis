@@ -3,9 +3,14 @@
 // bench: iterations 20000
 
 class Bench {
+    // A path in a string literal starts at the folder of this file.
+    // `Bench::file` returns that full path.
+    public static function file(#[Core\Path] string $path): string {
+        return $path;
+    }
+
     public static function run(uint $rounds): uint {
-        string $folder = "benches/members/core/Response/";
-        array<string> $paths = [$folder . "text.nvs", $folder . "json.nvs", $folder . "html.nvs"];
+        array<string> $paths = [Bench::file("text.nvs"), Bench::file("json.nvs"), Bench::file("html.nvs")];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
@@ -19,6 +24,6 @@ class Bench {
 }
 
 // The result chooses the file that is sent last, so the loop cannot be skipped.
-array<string> $names = ["text.nvs", "json.nvs", "html.nvs"];
+array<string> $files = [Bench::file("text.nvs"), Bench::file("json.nvs"), Bench::file("html.nvs")];
 int $last = (Bench::run(20000) % 3) as int;
-Core\Response::sendFile("benches/members/core/Response/" . $names[$last]);
+Core\Response::sendFile($files[$last]);

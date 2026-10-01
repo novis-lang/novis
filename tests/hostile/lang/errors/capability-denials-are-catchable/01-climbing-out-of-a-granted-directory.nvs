@@ -4,7 +4,14 @@
 // the runtime deny the same read fifty thousand times. Every attempt fails.
 // hostile: timeout-ms 30000
 
-string $dir = 'tests/hostile/lang/errors/capability-denials-are-catchable/data';
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('data');
 
 // Step 1: the read the grant allows, so the steps below test the boundary and
 // not an empty grant.

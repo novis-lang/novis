@@ -1,11 +1,9 @@
 <?nvs
 // Shows how a request opens an event stream that runs another file.
 
-// A path starts at the folder where you run the program.
-string $script = "docs/examples/core/Sse/upgrade/streams/orders.nvs";
-
+// The path starts at the folder of this file.
 // The stream starts when this request ends.
-Core\Sse::upgrade($script);
+Core\Sse::upgrade("streams/orders.nvs");
 
 // The `.nvse` file beside this example publishes two updates on `orders`.
 // `orders.nvs` then prints one `order` event for each update.

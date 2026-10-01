@@ -5,7 +5,15 @@
 // reach its last line.
 // hostile: timeout-ms 60000
 
-string $jobs = 'tests/hostile/lang/concurrency/isolates-spawn-script-and-await/jobs';
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+
+string $jobs = Here::path('jobs');
 string $small = $jobs . '/does-nothing.nvs';
 
 // Step 1: a thousand files started and never collected. Nothing here waits for

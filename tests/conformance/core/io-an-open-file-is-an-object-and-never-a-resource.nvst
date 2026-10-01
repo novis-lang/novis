@@ -46,10 +46,10 @@ try {
 [capabilities.fs]
 read = ["."]
 write = ["."]
---EXPECT--
+--EXPECTF--
 wrote 12
 first: hello
 rest:  world
 eof: 0
-after close: Core\IO\File::read: this handle is closed — note.txt
-closed twice: Core\IO\File::close: this handle is closed — note.txt
+after close: Core\IO\File::read: this handle is closed — %s%enote.txt
+closed twice: Core\IO\File::close: this handle is closed — %s%enote.txt

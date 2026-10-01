@@ -7,7 +7,14 @@
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
 
-string $dir = 'tests/hostile/core/Http-Part/file/data';
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('data');
 
 // 1. Each path tries to leave the `data` directory, or names no file. Each call must throw
 //    a `RuntimeError` or an `IOError`. If a part is created, a `LogicError` stops the program.
@@ -18,7 +25,7 @@ array<string> $escapes = [
     $dir . '/./././../../../../../../Cargo.toml',
     $dir . "/note.txt\x00/../../../../../../nvs.toml",
     $dir . '/missing.txt',
-    'nvs.toml',
+    Here::path('../../../../../nvs.toml'),
     '/etc/passwd',
     'C:\\Windows\\win.ini',
     '',
@@ -29,8 +36,7 @@ foreach ($escapes as string $path) {
         Core\Http\Part $part = Core\Http\Part::file($path);
         throw new LogicError(Core\Str::format('a part was created for a path outside the grant: %s', $path));
     } catch (RuntimeError $error) {
-        $refused = $refused + 1;
-    }
+        $refused = $refused + 1;    }
 }
 echo 'step 1: ', $refused, "\n";
 

@@ -10,7 +10,15 @@ Core\IO::read and Core\IO::write refuse every spelling of a path with no grant b
 //
 // The forms are the ones a path arrives in: bare, dot-prefixed, nested, and one
 // walking out through `..`, which is the spelling `rule:security/path-scope-canonicalise-then-prefix`'s canonicalise-
-// then-prefix rule exists for once a root *is* granted.
+// then-prefix rule exists for once a root *is* granted. Each is joined onto this
+// file's folder while the program runs, so the door is handed every form whole
+// and absolute, `..` included.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 array<string> $paths = [
     "notes.txt",
     "./notes.txt",
@@ -27,7 +35,7 @@ int $writesNamingFsWrite = 0;
 
 int $i = 0;
 for (; $i < $total; $i = $i + 1) {
-    string $path = $paths[$i];
+    string $path = Core\Path::join($dir, $paths[$i]);
 
     try {
         string $content = Core\IO::read($path);
