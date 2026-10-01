@@ -1,0 +1,18 @@
+<?nvs
+// Turns a typed file name into a full path, as a command-line tool does for each file name it is given.
+// bench: iterations 100000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $names = ["report.csv", "logs/../exports/2026-09.csv"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Path::fromCwd($names[($total % 2) as int]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000) > 0 ? "done" : "empty", "\n";

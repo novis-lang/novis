@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a command-line tool turns a file name the user typed into a full
+// path. Start it with `nvs run 01-a-file-name-from-the-command-line.nvs notes.txt`.
+
+array<tainted string> $words = Core\Cli::arguments();
+tainted string $typed = Core\Arr::first($words) ?? "notes.txt";
+
+// `fromCwd` joins the name to the folder the user started the program from.
+// The result is a full path, so this prints `true`.
+tainted string $path = Core\Path::fromCwd($typed);
+echo Core\Path::isAbsolute($path) ? "true" : "false", "\n";
+
+// The file name is still the last part of the path. This prints `notes.txt`.
+echo Core\Path::basename($path), "\n";

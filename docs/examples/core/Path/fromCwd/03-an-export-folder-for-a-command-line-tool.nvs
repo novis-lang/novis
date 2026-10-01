@@ -1,0 +1,14 @@
+<?nvs
+// Shows a command-line tool that puts its export files in a folder below the
+// folder the user started it from.
+
+string $exports = Core\Path::fromCwd("exports");
+
+// `Core\Path::join` adds one file name per month to the folder.
+array<string> $months = ["2026-08", "2026-09"];
+foreach ($months as string $month) {
+    string $file = Core\Path::join($exports, $month . ".csv");
+    // Each path is full. This prints the folder name and the file name.
+    echo Core\Path::isAbsolute($file) ? "full: " : "relative: ";
+    echo Core\Path::basename(Core\Path::dirname($file)), " ", Core\Path::basename($file), "\n";
+}

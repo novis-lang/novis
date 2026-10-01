@@ -2,6 +2,7 @@
 `#[Core\Path]` on a parameter that is not a `string`, or on a declaration that takes no argument, is refused rather than ignored, and on a `string` or `?string` parameter it is accepted — `rule:programs/path-literals-resolve-from-their-file`
 --FILE--
 <?nvs
+// covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
 // The marker says that a string literal passed to the parameter is a file
 // path. An `int` parameter is never passed one.
 class Counter {
@@ -26,10 +27,10 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0836]: `#[Core\Path] $by` is on a parameter of type `int`
-  --> case.nvs:5:35
+  --> case.nvs:6:35
 %A
 error[E0836]: `#[Core\Path]` is on a property
-   --> case.nvs:10:7
+   --> case.nvs:11:7
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

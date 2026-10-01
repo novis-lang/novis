@@ -21,6 +21,7 @@ class Runner {
 }
 --FILE--
 <?nvs
+// covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
 require './jobs/Runner.nvs';
 
 Runner::run();

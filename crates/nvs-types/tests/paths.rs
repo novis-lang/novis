@@ -32,6 +32,7 @@ fn count(diags: &Diagnostics, want: nvs_diagnostics::Code) -> usize {
 
 /// A relative literal at a `Core\IO` path parameter becomes an absolute path
 /// under the folder of the file that wrote it. `.` and `..` are removed.
+// covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
 #[test]
 fn a_relative_literal_at_a_core_path_parameter_is_joined_to_its_file() {
     let (diags, exprs) = check_program_table(&[(

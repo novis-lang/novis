@@ -2,6 +2,7 @@
 a relative path literal at a path parameter is joined to the folder of the file that wrote it — a file reached through `require` from a subfolder reads its own folder, a `#[Core\Path]` parameter resolves the caller's literal, an absolute literal is unchanged, and a relative grant in `nvs.toml` covers the same files — `rule:programs/path-literals-resolve-from-their-file`
 --FILE--
 <?nvs
+// covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
 require 'lib/reader.nvs';
 
 // The literal is joined to this file's folder.

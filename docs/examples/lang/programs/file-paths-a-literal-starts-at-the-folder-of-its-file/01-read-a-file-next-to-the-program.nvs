@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to read a file that is stored next to the program.
+
+// The path starts at the folder of this file. `nvs run` gives the same result
+// from any folder. This prints the two lines of `data/prices.txt`.
+echo Core\IO::read("data/prices.txt");

@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request says how many folders to climb, and the program builds a
+// relative path from that number. Each relative path should throw an error. The
+// server's working folder should never be used to find a file.
+
+// `as uint` converts the header to a whole number. The request sends 4.
+uint $depth = (Core\Request::header("x-depth") ?? "4") as uint;
+string $name = Core\Str::repeat("../", $depth) . "nvs.toml";
+
+// 1. A path that climbs out of the app with `..`.
+try {
+    echo Core\IO::read($name);
+} catch (RuntimeError $error) {
+    echo "1: ", Core\Str::before($error->message, "\n"), "\n";
+}
+
+// 2. A file name alone, as if it were in the working folder.
+try {
+    echo Core\IO::exists(Core\Str::replace($name, "../", "")) ? "2: found\n" : "2: not found\n";
+} catch (RuntimeError $error) {
+    echo "2: ", Core\Str::before($error->message, "\n"), "\n";
+}
+
+// 3. A Windows path that starts at the working folder of drive C.
+try {
+    echo Core\IO::read("C:" . $name);
+} catch (RuntimeError $error) {
+    echo "3: ", Core\Str::before($error->message, "\n"), "\n";
+}
+
+// 4. An empty path.
+try {
+    echo Core\IO::read(Core\Str::slice($name, 0, 0));
+} catch (RuntimeError $error) {
+    echo "4: ", Core\Str::before($error->message, "\n"), "\n";
+}
+
+// 5. `Core\Path::fromCwd` joins a path to the working folder. It throws while
+// a request is answered.
+try {
+    echo Core\Path::fromCwd($name), "\n";
+} catch (RuntimeError $error) {
+    echo "5: ", Core\Str::before($error->message, "\n"), "\n";
+}
+
+// 6. A script path built from the number.
+try {
+    spawn script "jobs/" . $name;
+} catch (RuntimeError $error) {
+    echo "6: ", Core\Str::before($error->message, "\n"), "\n";
+}
