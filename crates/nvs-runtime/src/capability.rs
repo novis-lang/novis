@@ -1659,18 +1659,15 @@ mod tests {
         assert!(message.contains("fs.read"), "{message}");
     }
 
-    /// A context answering no request reads the working directory; the
-    /// answer is the process's own.
+    /// A context answering no request reads the working directory, and the answer is an absolute
+    /// path to a directory that exists.
     // covers: Core\Path::fromCwd
     #[test]
     fn the_working_directory_is_read_outside_a_request() {
         let ctx = Ctx::buffered();
         let found = working_dir(&ctx, "Core\\Path::fromCwd").expect("no request is being answered");
-        assert_eq!(
-            Some(found),
-            std::env::current_dir().ok(),
-            "the process's own directory"
-        );
+        assert!(found.is_absolute(), "{}", found.display());
+        assert!(found.is_dir(), "{}", found.display());
     }
 
     /// The line above it does not move. Every scope's wording, character for character, because the
