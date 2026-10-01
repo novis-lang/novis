@@ -11,11 +11,11 @@
     "items": [
       {
         "done": false,
-        "text": "**`bun nv scaling --iterations`** — `tools/nv/cmd/scaling.ts`, reusing the counting run in `tools/nv/proofs/perf.ts`: every bench under `benches/members/` at N and 4N iterations from a copy under `.agent-tmp/`, per-operation counts compared, the bounds in the module doc."
+        "text": "**`bun nv scaling --iterations`** — `tools/nv/cmd/scaling.ts`, reusing the counting run in `tools/nv/proofs/perf.ts`: every bench under `benches/members/` from a copy under `.agent-tmp/`, never at its own `iterations N`: start with a small batch and double it until the last three batches agree on the growth, or a cap well below N is reached; per-operation counts compared; the start, the agreement test, the cap and the bounds in the module doc."
       },
       {
         "done": false,
-        "text": "**The ladder runner** — `// scaling: sizes` and `// scaling: expect`, the five kinds (`run`, `compile`, `lsp`, `fmt`, `serve`), the slope fit over counts and clock, `--check`, `--areas` and `--areas --reviewed`, and `benches/scaling/README.md`."
+        "text": "**The ladder runner** — `// scaling: start`, `max` and `expect`, the same doubling ramp as `--iterations`, the five kinds (`run`, `compile`, `lsp`, `fmt`, `serve`), the slope fit over counts and clock, `--check`, `--areas` and `--areas --reviewed`, and `benches/scaling/README.md`."
       },
       {
         "done": false,

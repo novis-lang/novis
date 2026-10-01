@@ -50,16 +50,28 @@ checks that the feature proofs and their perf figures are current.
 --count`: statements, calls, allocations, bytes) and its clock. It has two modes.
 
 - **`--iterations`, over the existing bench tree.** This is the user's suggestion: run the same code
-  with a different number of iterations. Every bench under `benches/members/` runs at its own
-  `// bench: iterations N` and at 4N. The tool rewrites the literal in the closing `echo Bench::run(N)`
-  line in a copy under `.agent-tmp/`. The per-operation counts must be the same at both sizes. A count
-  that rises per operation means each operation leaves something behind that the next one pays for:
-  a leak, or a structure that grows with every call. `.scale.nvs` siblings run in the same pass.
+  with a different number of iterations. **Small batches, never the bench's own count, by the user's
+  decision of 2026-10-01.** A bench's `// bench: iterations N` is sized for a stable clock reading,
+  and running every bench at N or above would take hours. The tool rewrites the literal in the
+  closing `echo Bench::run(N)` line in a copy under `.agent-tmp/`.
+  - **Start low and double until the pattern is clear, by the user's decision of 2026-10-01.** The
+    first batch is small, and each next batch is double the one before. The ramp stops once the last
+    three batches agree on the growth: their per-operation counts match, and their clock slope is
+    steady and clear of the noise of the empty program's start-up. The ramp also stops at a cap well
+    below N. A bench that reaches the cap without a clear pattern is reported, not judged. The start,
+    the agreement test and the cap are written in the tool's module doc, which is their one home.
+  - **The counts decide.** They are exact at any batch size, so the per-operation counts must be the
+    same in every batch. A count that rises per operation means each operation leaves something
+    behind that the next one pays for: a leak, or a structure that grows with every call. The clock
+    slope over the batches is the second signal, under the same bounds as a ladder.
+  - `.scale.nvs` siblings run in the same pass, with the same ramp.
 - **The ladders, over a new tree `benches/scaling/`.** One iteration count tells nothing about *input
   size*, and input size is where quadratic work hides. A ladder program takes its size in the same
-  closing line, `echo Bench::run(N)`, and declares `// scaling: sizes 1000 2000 4000 8000 16000`
-  (at least four sizes, the largest at least 16 times the smallest) and `// scaling: expect linear`.
-  The tool fits the slope of log cost against log size, for each count and for the clock.
+  closing line, `echo Bench::run(N)`, and declares `// scaling: start 100`, `// scaling: max
+  100000` and `// scaling: expect linear`. The size ramps the same way the batches do: it starts low
+  and doubles until the last three sizes agree on the slope, or the size reaches `max`. The tool fits
+  the slope of log cost against log size, for each count and for the clock. A ladder only grows as
+  far as it must to show its pattern, so it runs in seconds, not minutes.
 
 A ladder has a **kind**, because not every cost is a program running:
 

@@ -72,10 +72,10 @@
   ],
   "checks": [
     {
-      "id": "every-bench-costs-the-same-per-operation-at-four-times-its-iterations",
+      "id": "every-bench-costs-the-same-per-operation-in-every-batch",
       "kind": "command",
       "stage": 2,
-      "name": "every bench costs the same per operation at four times its iterations",
+      "name": "every bench costs the same per operation in every small batch",
       "argv": [
         "bun",
         "nv",
@@ -84,7 +84,7 @@
         "--check"
       ],
       "want": [
-        "every bench costs the same per operation at four times its iterations"
+        "every bench costs the same per operation in every batch"
       ],
       "memoize": true
     },
