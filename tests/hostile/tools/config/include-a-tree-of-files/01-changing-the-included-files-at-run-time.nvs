@@ -2,7 +2,14 @@
 // Attack: a program tries to change which configuration files are read, or to add one.
 // Every attempt should fail, and the settings from the included file should stay the same.
 
-string $dir = 'tests/hostile/tools/config/include-a-tree-of-files';
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 
 // 1. Change the list of included files at run time. Each call should return `false`.
 array<string> $keys = [

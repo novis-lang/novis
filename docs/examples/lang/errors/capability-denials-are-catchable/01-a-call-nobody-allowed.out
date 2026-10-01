@@ -1,3 +1,2 @@
-Core\IO::read needs the capability `fs.read` for orders.csv, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+Core\IO::read needs the capability `fs.read`
 still running

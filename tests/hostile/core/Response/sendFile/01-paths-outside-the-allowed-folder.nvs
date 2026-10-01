@@ -4,7 +4,17 @@
 // the folder should be sent.
 // hostile: timeout-ms 30000
 
-string $folder = 'tests/hostile/core/Response/sendFile';
+class Here
+{
+    // Returns the literal as an absolute path, resolved from the folder of this file.
+    public static function path(#[Core\Path] string $path): string
+    {
+        return $path;
+    }
+}
+
+// The folder of this file, as an absolute path. Every path below is built from it.
+string $folder = Here::path('.');
 uint $refused = 0;
 
 // 1. A path that climbs out of the folder with `..`.

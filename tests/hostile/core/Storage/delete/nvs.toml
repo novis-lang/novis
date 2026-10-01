@@ -1,6 +1,6 @@
 # The `files` disk keeps its files in the `disk` folder next to this attack.
 [storage.files]
-root = "tests/hostile/core/Storage/delete/disk"
+root = "disk"
 
 # The program may read and write files in that folder, and nowhere else.
 # A path in `[capabilities]` is relative to this file.

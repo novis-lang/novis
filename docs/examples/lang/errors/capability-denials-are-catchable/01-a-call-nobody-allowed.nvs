@@ -6,7 +6,9 @@
 try {
     echo Core\IO::read("orders.csv");
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    // The message names the method, the capability and the full path of the file.
+    // This prints the part before the path.
+    echo Core\Str::before($denied->message, " for "), "\n";
 }
 
 echo "still running\n";

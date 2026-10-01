@@ -1,7 +1,14 @@
 <?nvs
 // The attack in the folder above starts this script. It checks which settings it has.
 
-string $dir = 'tests/hostile/tools/config/the-file-and-where-it-is-read-from';
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file. Here `..` is the folder above `work`.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('..');
 
 // The memory limit comes from the parent's file. This prints `64M`.
 echo 'child memory: ', Core\Config::get('memory'), "\n";

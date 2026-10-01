@@ -44,10 +44,9 @@ if ($again != $expected) {
 }
 echo 'step 3: done', "\n";
 
-// 4. Paths with nothing at them: an empty text, a missing name, a missing folder,
+// 4. Paths with nothing at them: a missing name, a missing folder,
 // a file used as a folder, a NUL byte and a very long name. Each must throw.
 array<string> $bad = [
-    '',
     Core\Path::join($dir, 'missing.txt'),
     Core\Path::join($dir, 'no-such-dir/deeper/file.txt'),
     Core\Path::join($file, 'inside.txt'),
@@ -60,5 +59,15 @@ foreach ($bad as string $badPath) {
         throw new LogicError('a path with nothing at it was resolved');
     } catch (IOError $refused) {
     }
+}
+// An empty name is not an absolute path, so it throws a `RuntimeError`.
+bool $emptyThrew = false;
+try {
+    Core\IO::canonicalize('');
+} catch (RuntimeError $relative) {
+    $emptyThrew = Core\Str::contains($relative->message, 'needs an absolute path');
+}
+if (!$emptyThrew) {
+    throw new LogicError('an empty name did not throw the relative-path error');
 }
 echo 'step 4: done', "\n";

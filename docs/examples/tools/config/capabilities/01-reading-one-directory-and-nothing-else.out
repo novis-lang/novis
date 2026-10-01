@@ -1,7 +1,4 @@
 coffee 3.20
-Core\IO::read needs the capability `fs.read` for docs/examples/tools/config/capabilities/nvs.toml, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
-Core\IO::read needs the capability `fs.read` for docs/examples/tools/config/capabilities/data/../nvs.toml, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
-Core\IO::write needs the capability `fs.write` for docs/examples/tools/config/capabilities/data/prices.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+not allowed: nvs.toml
+not allowed: data/../nvs.toml
+not allowed to write: data/prices.txt

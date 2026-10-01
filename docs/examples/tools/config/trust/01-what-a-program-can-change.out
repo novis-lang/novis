@@ -2,5 +2,4 @@
 yes
 64M
 no
-Core\IO::write needs the capability `fs.write` for docs/examples/tools/config/trust/nvs.toml, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+not allowed to write nvs.toml

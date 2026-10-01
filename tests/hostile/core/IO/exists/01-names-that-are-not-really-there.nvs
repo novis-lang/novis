@@ -14,10 +14,9 @@ try {
 }
 echo 'step 1: done', "\n";
 
-// 2. Names that cannot be a file: empty, a NUL byte, 100000 letters, a file used as a folder.
+// 2. Names that cannot be a file: a NUL byte, 100000 letters, a file used as a folder.
 // Each must return `false` or throw an `IOError`.
 array<string> $bad = [
-    '',
     Core\Path::join($dir, "nul\0byte.txt"),
     Core\Path::join($dir, Core\Str::repeat('n', 100000)),
     Core\Path::join($file, 'inside.txt'),
@@ -29,6 +28,16 @@ foreach ($bad as string $badPath) {
         }
     } catch (IOError $refused) {
     }
+}
+// An empty name is not an absolute path, so it throws a `RuntimeError`.
+bool $emptyThrew = false;
+try {
+    Core\IO::exists('');
+} catch (RuntimeError $relative) {
+    $emptyThrew = Core\Str::contains($relative->message, 'needs an absolute path');
+}
+if (!$emptyThrew) {
+    throw new LogicError('an empty name did not throw the relative-path error');
 }
 // Far more `..` parts than the path has folders. The system stops at the root, so the result may be either.
 try {

@@ -37,7 +37,6 @@ echo 'step 2: done', "\n";
 string $plain = Core\Path::join($dir, 'plain.txt');
 Core\IO::write($plain, 'x');
 array<string> $bad = [
-    '',
     Core\Path::join($dir, "nul\0byte"),
     Core\Path::join($dir, Core\Str::repeat('n', 100000)),
     Core\Path::join($plain, 'inside'),
@@ -49,6 +48,16 @@ foreach ($bad as string $badPath) {
         }
     } catch (IOError $refused) {
     }
+}
+// An empty name is not an absolute path, so it throws a `RuntimeError`.
+bool $emptyThrew = false;
+try {
+    Core\IO::isReadable('');
+} catch (RuntimeError $relative) {
+    $emptyThrew = Core\Str::contains($relative->message, 'needs an absolute path');
+}
+if (!$emptyThrew) {
+    throw new LogicError('an empty name did not throw the relative-path error');
 }
 echo 'step 3: done', "\n";
 

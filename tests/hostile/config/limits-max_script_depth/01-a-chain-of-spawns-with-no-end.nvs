@@ -21,9 +21,18 @@ foreach ($asks as string $ask) {
     Core\Config::restore('limits.max_script_depth');
 }
 
-// Starts this same script one level deeper. The path is relative to the
-// repository root. `capture` keeps each child's output in its parent's memory.
-var $deeper = spawn script 'tests/hostile/config/limits-max_script_depth/01-a-chain-of-spawns-with-no-end.nvs' with(
+// `Here::path` returns its argument as a full path. A relative path in a string literal
+// starts at the folder of this file.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+
+// Starts this same script one level deeper.
+// `capture` keeps each child's output in its parent's memory.
+string $self = Here::path('01-a-chain-of-spawns-with-no-end.nvs');
+var $deeper = spawn script $self with(
     output: 'capture',
 );
 var $done = await $deeper;
