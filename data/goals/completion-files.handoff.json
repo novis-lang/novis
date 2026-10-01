@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `completion-files` — the JSON files in a `.novis/completion/` folder offer their values at the string parameters they name — has just started; nothing of it has landed yet.** Goal `coalesce-assign`'s whole list is this goal's Stage 1 floor.\n\nThe design is the user's and is recorded in ADR 0242, with the rule `ide/completion-files-offer-values-at-named-parameters` (designed). The goal file's § *Standing decisions* names which calls are the user's and which are the goal writer's, and no session re-decides one.\n\nThree facts about the tree as the goal was written. `crates/nvs-lsp/src/index.rs:603` skips `vendor/` and every dot-folder, so the completion files need a walk of their own. `crates/nvs-lsp/tests/completion.rs:@no_completion_source_reads_a_directory_layout_or_the_network` refuses `read_dir` and `std::fs` in a completion source, so the loader lives outside `completion.rs`. No `didChangeWatchedFiles` appears under `crates/nvs-lsp/src/`.",
+  "state": "**Goal `completion-files` — the JSON files in a `.novis/completion/` folder offer their values at the string parameters they name — has just started; nothing of it has landed yet.** Goal `coalesce-assign`'s whole list is this goal's Stage 1 floor.\n\nThe design is the user's and is recorded in ADR 0242 and ADR 0243, with the rule `ide/completion-files-offer-values-at-named-parameters` (designed) and the literal-union line of `ide/completion-offers-only-what-the-compiler-derived`. ADR 0243 adds a value's `location` for hover and go-to-definition, `when` on an attachment, lists completed by segment, the opt-in `strict` check, a deprecated value's `replacement` with a quick fix, and completion of a string literal union. The goal file's § *Standing decisions* names which calls are the user's and which are the writers', and no session re-decides one.\n\nFour facts about the tree as the goal was written. `crates/nvs-lsp/src/index.rs:603` skips `vendor/` and every dot-folder, so the completion files need a walk of their own. `crates/nvs-lsp/tests/completion.rs:@no_completion_source_reads_a_directory_layout_or_the_network` refuses `read_dir` and `std::fs` in a completion source, so the loader lives outside `completion.rs`. No `didChangeWatchedFiles` appears under `crates/nvs-lsp/src/`. Nothing under `crates/nvs-lsp/src/` reads a literal type, although `crates/nvs-types/src/expr_table.rs:@ResolvedCall` records `param_tys`.",
   "next": {
     "stage": 2,
     "title": "the files are found, read, reloaded and checked",
@@ -11,7 +11,7 @@
     "items": [
       {
         "done": false,
-        "text": "**The walk and the table** — a new module `crates/nvs-lsp/src/completion_files.rs`: the walk of ADR 0242 § 2, the format of § 3 parsed with `deny_unknown_fields`, and one table keyed by the triple `crates/nvs-types/src/expr_table.rs:@ResolvedCall` carries (class, method, parameter name)."
+        "text": "**The walk and the table** — a new module `crates/nvs-lsp/src/completion_files.rs`: the walk of ADR 0242 § 2, the format of § 3 with ADR 0243's fields (`location`, `replacement`, `when`, `strict`, and a list as `{ \"separator\", \"values\" }`) parsed with `deny_unknown_fields`, and one table keyed by the triple `crates/nvs-types/src/expr_table.rs:@ResolvedCall` carries (class, method, parameter name)."
       },
       {
         "done": false,
@@ -19,18 +19,20 @@
       },
       {
         "done": false,
-        "text": "**The diagnostics** — one `W1xxx` code per kind in ADR 0242 § *Diagnostics*, the next free numbers checked right before they are declared in `crates/nvs-diagnostics/src/lib.rs`; published on the completion file's URI, never under `vendor/`. First check whether VS Code shows a diagnostic for a URI outside the client's `documentSelector`."
+        "text": "**The diagnostics** — one `W1xxx` code per kind in ADR 0242 § *Diagnostics* and the completion-file kinds of ADR 0243 § *Diagnostics*, the next free numbers checked right before they are declared in `crates/nvs-diagnostics/src/lib.rs`; published on the completion file's URI, never under `vendor/`. First check whether VS Code shows a diagnostic for a URI outside the client's `documentSelector`."
       },
       {
         "done": false,
-        "text": "**The named tests** of the goal file's Stage 2 checks, each over a temporary workspace the test writes and deletes."
+        "text": "**The named tests** of the goal file's three Stage 2 checks, each over a temporary workspace the test writes and deletes."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: completion offers the values** — `crates/nvs-lsp/src/completion.rs` (`continues_a_trigger` at line 415), `crates/nvs-lsp/src/arguments.rs`, and the guard's `SOURCED` row in `crates/nvs-lsp/tests/completion.rs`. Then the Stage 0 rule edits.",
-    "**Stage 4: the VS Code client** — `editors/vscode/package.json`'s `jsonValidation` and `editors/vscode/schemas/completion-file.json`, and the by-hand image check.",
-    "**Stage 5: the feature proofs** — ask `bun nv proofs` what an editor feature owes first.",
+    "**Stage 3: completion offers the values** — `crates/nvs-lsp/src/completion.rs` (`continues_a_trigger` at line 415), `crates/nvs-lsp/src/arguments.rs`, `crates/nvs-lsp/src/capabilities.rs:218` (`.` joins the triggers), and the guard's `SOURCED` row in `crates/nvs-lsp/tests/completion.rs`; dependent values and segments. Then the Stage 0 edit to `ide/completion-is-asked-where-a-spelling-ends`.",
+    "**Stage 4: hover, go-to-definition, the strict check and the replacement** — `crates/nvs-lsp/src/hover.rs`, `definition.rs`, `diagnostics.rs`, `actions.rs`, and the two `.nvs`-side codes. Then the Stage 0 edits to `ide/the-request-set-is-closed` and `ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`.",
+    "**Stage 5: literal-union completion** — `crates/nvs-lsp/src/completion.rs` and `arguments.rs`, reading `ResolvedCall::param_tys`; `crates/nvs-types/src/expr_table.rs` is not changed.",
+    "**Stage 6: the VS Code client** — `editors/vscode/package.json`'s `jsonValidation` and `editors/vscode/schemas/completion-file.json` with ADR 0243's fields, and the by-hand image check.",
+    "**Stage 7: the feature proofs** — ask `bun nv proofs` what an editor feature owes first.",
     "When this goal's last check goes green the driver takes goal `ci-green`."
   ]
 }
