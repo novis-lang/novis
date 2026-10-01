@@ -7,7 +7,7 @@
 //! ```text
 //! extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
 //! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
-//! content_hash       = BLAKE3(source)
+//! content_hash       = BLAKE3(each file's name ‖ text ‖ folder, in program order)
 //! probe_hash         = BLAKE3(each path the unit's autoload resolution probed, in probe order)
 //! artifact_key       = BLAKE3(content_hash ‖ env_hash)
 //! program_id         = BLAKE3(content_hash of each unit, in program order ‖ env_hash)

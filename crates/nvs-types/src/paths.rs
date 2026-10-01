@@ -168,6 +168,15 @@ pub fn resolved(src: &SourceFile, text: &str) -> Option<String> {
         .then(|| joined.to_string_lossy().into_owned())
 }
 
+/// The folder every relative literal in `src` is joined to, as text, or `None`
+/// for a source with no folder. A compiled program embeds paths built from
+/// it, so a cache of compiled programs keys on it beside the file's text: the
+/// same file in another folder compiles to other paths.
+#[must_use]
+pub fn base_folder(src: &SourceFile) -> Option<String> {
+    base_dir(src).map(|dir| dir.to_string_lossy().into_owned())
+}
+
 /// The folder a relative literal in `src` is joined to: the one that holds the
 /// file, made absolute. Inside a bundled executable that folder is synthetic,
 /// and [`nvs_diagnostics::embedded::on_disk`] answers where it is on disk.
