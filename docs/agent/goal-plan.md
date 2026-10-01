@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 189 goals. 176 are walked (120 of them retired), `plain-comments` is live at 177 of 189, and 12 are ahead.
+The chain holds 189 goals. 177 are walked (120 of them retired), `path-literals-follow-up` is live at 178 of 189, and 11 are ahead.
 
 A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
 not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
@@ -189,8 +189,8 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 174 | [`the-description-is-owed`](goals/the-description-is-owed.md) | the description is owed | walked |  | **2** the description is owed |
 | 175 | [`limit-handler-reach`](goals/limit-handler-reach.md) | every resource FATAL reaches the program's onLimit handler | walked |  | **2** the handler runs · **3** a narrowed cpu_time is enforced |
 | 176 | [`core-class-cards`](goals/core-class-cards.md) | every Core class and every diagnostic code carries its card, and the binary's help reaches every feature | walked |  | **2** the cards · **3** the index entries · **4** the code cards · **5** help is owed |
-| 177 | [`plain-comments`](goals/plain-comments.md) | every landed comment reads plainly | **live**, pinned last |  | **2** the sweep · **3** the gate |
-| 178 | [`path-literals-follow-up`](goals/path-literals-follow-up.md) | every path a program names starts where it is written, and an attack stops where it says it does | ahead, pinned last |  | **2** an attack stops where it says · **3** scripts start at their file · **4** a path typed on the command line · **5** `thisFile` and `thisDir` · **6** a class name written as a literal · **7** the perf records |
+| 177 | [`plain-comments`](goals/plain-comments.md) | every landed comment reads plainly | walked, pinned last |  | **2** the sweep · **3** the gate |
+| 178 | [`path-literals-follow-up`](goals/path-literals-follow-up.md) | every path a program names starts where it is written, and an attack stops where it says it does | **live**, pinned last |  | **2** an attack stops where it says · **3** scripts start at their file · **4** a path typed on the command line · **5** `thisFile` and `thisDir` · **6** a class name written as a literal · **7** the perf records |
 | 179 | [`foreach-var`](goals/foreach-var.md) | `var` is a `foreach` binding's type wherever a local allows it | ahead, pinned last |  | **2** the binding · **3** lowering and the editor · **4** the proofs |
 | 180 | [`var-array-literal`](goals/var-array-literal.md) | `var` infers an array literal whose elements all have one type | ahead, pinned last |  | **2** the literal infers · **3** the later write, the editor and the lowering · **4** the proofs |
 | 181 | [`program-enumeration`](goals/program-enumeration.md) | `Core\Program` enumerates by base class, and hands back typed constructors | ahead, pinned last |  | **2** the class selector · **3** `constructors<T, C>()` · **4** the proofs |

@@ -1,5 +1,5 @@
 {
-  "live": "plain-comments",
+  "live": "path-literals-follow-up",
   "goals": [
     "core-depth",
     "concurrency",
