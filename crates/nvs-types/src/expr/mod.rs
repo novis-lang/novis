@@ -578,7 +578,22 @@ pub(crate) fn infer(
             // Resolved through the *owning* class so `rule:core-api/written-visibility`'s level test
             // reaches the static spelling too — `Foo::$secret` is the same
             // access as `$foo->secret` with the receiver written as a name.
-            let resolved = resolve_class_expr(class, ctx, env).and_then(|qname| {
+            let qname = resolve_class_expr(class, ctx, env);
+            // A `Core` class declares no static property, and `nvs-hir`'s member
+            // check passes every `Core` name on to this phase, so `E0309` is
+            // reported here. Left unreported, `Core\Path::$m()` reaches `nvs-ir`
+            // with nothing recorded and panics there.
+            if let Some(core) = qname.as_ref().filter(|q| q.is_core()) {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_UNDEFINED_MEMBER,
+                        format!("`{core}` has no static property named `{prop_name}`"),
+                    )
+                    .with_primary(class.span, "referenced here"),
+                );
+                return env.interner.mixed();
+            }
+            let resolved = qname.and_then(|qname| {
                 resolve_property_owned(&qname, &prop_name, env.signatures, env.graph)
             });
             match resolved {

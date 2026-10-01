@@ -1,0 +1,16 @@
+--TEST--
+`Core\Path::$m()` names a static property of a `Core` class, which no `Core` class declares, so it is `E0309` and not a method called by a name held in a variable
+--FILE--
+<?nvs
+// PHP calls the method named by `$m`. Here `Core\Path::$m` is a static
+// property, and a `Core` class has none.
+string $m = 'basename';
+echo Core\Path::$m('a/b'), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0309]: `Core\Path` has no static property named `m`
+  --> case.nvs:5:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
