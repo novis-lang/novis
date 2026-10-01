@@ -225,10 +225,13 @@ var $job = spawn script 'jobs/report.nvs' with(
 var $result = await $job;
 ```
 
-- The entry is either a **path** — any `string` expression naming a file, relative to the working
-  directory, so a variable or a computed path is fine — or a **static method**, written
+- The entry is either a **path** — any `string` expression naming a file — or a **static method**,
+  written
   `Class::method(...)`. An `fn` literal is refused (`E0802`): an isolate shares nothing but compiled
   code, and a literal would carry the scope around it across that boundary.
+- A path written as a string literal starts at the folder of the file that contains it. A
+  relative path built while the program runs throws a `RuntimeError`: build it with
+  `Core\Path::join` from a full path (§ *File paths: a literal starts at the folder of its file*).
 - `with(…)` is optional. `output: 'capture'` collects what the child writes into the result;
   `output: 'inherit'` lets the child write straight to the parent's standard output, interleaved
   with the parent's own lines in whatever order the two run — only after `await` is all of it
@@ -367,7 +370,7 @@ echo "output=", $failed->output, "\n";
 try {
     spawn script "no-such-child.nvs";
 } catch (RuntimeError $missing) {
-    echo "parent's mistake: ", $missing->message, "\n";
+    echo "parent's mistake: ", Core\Str::contains($missing->message, "could not be compiled") ? "no such script" : "other", "\n";
 }
 echo "parent still running\n";
 ```
@@ -376,7 +379,7 @@ ok=false
 class=RuntimeError
 message=the child could not finish
 output=child got this far
-parent's mistake: `spawn script 'no-such-child.nvs'`: `no-such-child.nvs` could not be compiled; see the errors above
+parent's mistake: no such script
 parent still running
 ```
 
@@ -392,12 +395,12 @@ try {
     var $job = spawn script "child.nvs";
     var $done = await $job;
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    // The message goes on with the full path of `child.nvs`.
+    echo Core\Str::before($denied->message, " for "), "\n";
 }
 ```
 ```output
-`spawn script` needs the capability `script.spawn` for child.nvs, which is not granted
-help: grant it in nvs.toml under `[capabilities.script]`
+`spawn script` needs the capability `script.spawn`
 ```
 
 # What does not exist
