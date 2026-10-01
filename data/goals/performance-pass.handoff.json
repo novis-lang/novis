@@ -31,7 +31,8 @@
     "**Stage 3: the ladders** — one area per group, subagents may write and run ladders in parallel; `app` last, because it reuses what the others found.",
     "**Stage 4: the review** — one read-only subagent per area; the session writes the gaps and `docs/perf/performance-review.md`.",
     "**Stage 5: the fixes** — grouped by crate; perf figures recorded again in the slice that made them stale.",
-    "**Stage 6: the summary** — `docs/perf/performance-pass.md`, plain and short, for the user.",
+    "**Stage 6: growth becomes a feature proof** — the record modifying `rule:testing/feature-proofs`, the ramp called from `tools/nv/proofs/perf.ts` in place of its one-ratio scale test, `// bench: complexity` written into every bench that lacks it (subagents, by area), `tools/nv/test/proof-growth.test.ts`, every bench's `iterations` lowered to about twice where its ramp found the pattern (`--sized`), and AGENTS.md rule 9, conventions.md and `benches/members/README.md` saying so.",
+    "**Stage 7: the summary** — `docs/perf/performance-pass.md`, plain and short, for the user.",
     "When this goal's last check goes green the chain is complete."
   ]
 }
