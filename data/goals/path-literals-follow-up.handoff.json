@@ -1,22 +1,28 @@
 {
-  "state": "**Goal `path-literals-follow-up`: Stage 3 is under way.** Stages 1 and 2 are on disk, and Stage 1's floor is goal `plain-comments`'s list.\n\nADR 0245 is on disk (`docs/decisions/0245.md`), and `rule:programs/path-literals-resolve-from-their-file` and `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` already state the whole Stage 3 behaviour.\n\nOn disk now: `[[schedule]] script` and `[log] handler` are joined to their file's folder while the configuration is read (`nvs_config::schedule::anchor`, `nvs_config::log::anchor`). `nvs_runtime::script::resolve` refuses a relative path with `capability::relative`'s message, as `ResolveError::Denied`, before the grant. `Core\\Queue::push`'s script is `CoreTy::Path(Qual::Sink)`, and the native throws a `RuntimeError` for a relative script before it reads anything else. A row already stored relative is refused by the worker's resolve and dead-lettered (ADR 0245 rejects rewriting it).\n\nGreen: the `nvs-types` check (`crates/nvs-types/tests/paths.rs`) and the `nvs-stdlib` check (`queue::tests` in `crates/nvs-stdlib/src/queue.rs`, one of them a real push into shared in-memory SQLite). The `nvs-cli` live tests that asserted \"`jobs/work.nvs` threw\" now match on the file name alone, because the worker names the absolute path.\n\nOpen in Stage 3: the `nvs-cli` pair below. Stages 4 to 7 are not started.",
+  "state": "**Goal `path-literals-follow-up`: Stages 1 to 3 are on disk; Stage 4 is next.** Stage 1's floor is goal `plain-comments`'s list.\n\nADR 0245 is on disk, and `rule:programs/path-literals-resolve-from-their-file` and `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` state the whole Stage 3 behaviour. All four Stage 3 checks pass: `nvs-config`, `nvs-types`, `nvs-stdlib` and `nvs-cli`. The `nvs-cli` pair in `crates/nvs-cli/tests/live_config.rs` starts `nvs --config <dir>/nvs.toml serve <dir>/app.nvs` from an empty folder (`Server::start_elsewhere`). The handler half observes a file the handler writes beside itself, because a served request's 500 discards the handler's output.\n\nThe queue examples' `Queue::push` literals are relative to their own file now (`'queue/receipt.nvs'`), which closed the floor's `examples/queue*.nvs` red. `Core\\Queue` and `Core\\Queue\\Stats` perf figures were measured again.\n\nNot this goal's: `bun nv rules --check` and `--render --check` are red on another agent's uncommitted packaging work (ADRs 0246 and 0247, `docs/rules/packaging/`). No session of this goal touches those files. The next free ADR number is 0248 or higher, so re-check `docs/decisions/` right before claiming Stage 4's.",
   "next": {
-    "stage": 3,
-    "title": "scripts start at their file",
+    "stage": 4,
+    "title": "a path typed on the command line",
     "files": [],
-    "note": "one file set, the live `nvs serve` tests: `crates/nvs-cli/tests/live_config.rs`.",
+    "note": "one file set: `Core\\Path::fromCwd`'s row and native, and the two `.nvst` cases.",
     "items": [
       {
         "done": false,
-        "text": "**The `nvs-cli` pair** (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`, ADR 0245 § 1) — `a_schedule_script_beside_the_configuration_runs_from_any_working_directory` and `a_log_handler_beside_the_configuration_runs_from_any_working_directory`: start the server with its working directory somewhere other than the configuration's folder (`crates/nvs-cli/tests/live_config.rs:360` is where `Server` sets `current_dir`), write the script and the handler relative in `nvs.toml` beside them, and assert each one runs. `scheduling` and `MINUTELY` at `crates/nvs-cli/tests/live_config.rs:1050` are the schedule fixture; a fire waits for the next whole minute."
+        "text": "**The record for Stage 4** (goal § *Standing decisions*, one ADR slot): `fromCwd` removes `tainted` and nothing else. Write `data/decisions/NNNN.json` and `docs/decisions/NNNN.md` with the tradeoffs, and append NNNN to `rule:programs/path-literals-resolve-from-their-file`'s `because`. The row is at `crates/nvs-stdlib/src/path.rs:196`."
       },
       {
         "done": false,
-        "text": "**Stage 4: `Core\\Path::fromCwd` returns a string without `tainted`** — the next stage's `nvs-stdlib` check `from_cwd_returns_a_string_without_tainted` and its `.nvst` case; `fromCwd`'s row is in `crates/nvs-stdlib/src/path.rs:1`."
+        "text": "**`from_cwd_returns_a_string_without_tainted`** (`rule:programs/path-literals-resolve-from-their-file`): the row's return qualifier at `crates/nvs-stdlib/src/path.rs:196`, the native at `crates/nvs-stdlib/src/path.rs:1122`, and a test that also pins the throw while a request is answered."
+      },
+      {
+        "done": false,
+        "text": "**The two `.nvst` cases**: `tests/conformance/core/path-from-cwd-gives-a-path-core-io-read-accepts.nvst` and `tests/conformance/reject/path-a-tainted-path-not-from-cwd-does-not-reach-io-read.nvst`. `Core\\IO::read`'s row is at `crates/nvs-stdlib/src/io.rs:101`."
       }
     ]
   },
   "backlog": [
-    "Stage 5 (`thisFile`, `thisDir`), Stage 6 (`'X' as class<T>`) and Stage 7 (perf records) — `docs/agent/goals/path-literals-follow-up.md`."
+    "Stage 5: `Core\\Path::thisFile` and `thisDir` (`nvs-types`, `nvs-ir`, one `.nvst`) — goal prose § Stage 5.",
+    "Stage 6: `'X' as class<T>` decided while compiling (`nvs-types`, `nvs-hir`, `nvs-lsp`, one `.nvst`) — goal prose § Stage 6.",
+    "Stage 7: the perf records for `thisFile` and `thisDir`, and `proofs --gate` green — goal prose § Stage 7."
   ]
 }

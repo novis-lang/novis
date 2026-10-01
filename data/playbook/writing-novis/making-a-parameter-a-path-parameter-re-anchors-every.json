@@ -1,0 +1,12 @@
+{
+  "lead": "Making a parameter a path parameter re-anchors every relative literal already passed to it, and `examples/` is where the driver's floor runs them.",
+  "body": "A literal that used to name a file from the repository root (`'examples/queue/receipt.nvs'`) now names one beside its own file (`examples/examples/queue/...`), and the fixture still exits `0` because its waits are bounded, so the sweep reports a wrong count line rather than an error. Before landing a `CoreTy::Path` row, `grep -rn \"<Member>('\" examples/ docs/examples/ benches/ tests/hostile/` and rewrite each literal relative to the file that writes it.",
+  "files": [
+    "examples/",
+    "crates/nvs-stdlib/src/io.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/io.rs:CoreTy::Path"
+  }
+}
