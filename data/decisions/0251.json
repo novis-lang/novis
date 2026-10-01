@@ -1,0 +1,12 @@
+{
+  "title": "A `foreach` binding may write `var` wherever a local declaration may, and means what it means there",
+  "status": "accepted",
+  "scope": "The type position of a `foreach` key and value binding, `inout` included: what `var` there gives\nthe binding, and the one subject it refuses. `catch`, destructuring, parameters, properties,\nconstants, closures and returns keep their written types, and are not decided here.",
+  "dependsOn": [
+    "0037",
+    "0053",
+    "0007"
+  ],
+  "dependsOnText": "[0037](0037.md) (`var` takes a local's type from its initializer),\n[0053](0053.md) (what a `foreach` subject may be, and what its bindings type as),\n[0007](0007.md) (every binding declares its type).",
+  "validatedBy": "the Stage 2 checks of goal `foreach-var`: three parser tests in\n`crates/nvs-syntax/src/parser/tests/stmt.rs`, seven checker tests in\n`crates/nvs-types/tests/locals.rs`, and the two `.nvst` cases named under *Verification*."
+}

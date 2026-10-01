@@ -32,8 +32,8 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 
 ## Types
 
-- **Every binding declares its type, and no binding's type ever changes** — Every binding site carries a written type. ([`types/declaration`](rules/types.md#types-declaration))
-- **`var` takes a local's type from its initializer and fixes it there for good** — `var $name = expr;` declares a local without writing its type. ([`types/var-inference`](rules/types.md#types-var-inference))
+- **Every binding declares its type, and no binding's type ever changes** — Every binding site carries a type, and only a local and a `foreach` binding may take theirs with `var` rather than writing it. ([`types/declaration`](rules/types.md#types-declaration))
+- **`var` takes a local's or a `foreach` binding's type from the expression that fills it, and fixes it there for good** — `var` stands in for a written type in two places — a local declaration and a `foreach` binding — and the binding takes its type from the expression it is filled from, then keeps it for good. ([`types/var-inference`](rules/types.md#types-var-inference))
 - **The type grammar is a closed set of atoms under unions and intersections** — Unions are canonicalised — flattened, de-duplicated, order-insensitive — so `int|string` and `string|int|int` are one type. ([`types/grammar`](rules/types.md#types-grammar))
 - **An integer literal is decimal, `0x`, `0o` or `0b`, and a leading zero is not a radix** — An integer literal is written decimal, `0x`, `0o` or `0b` — either case of the prefix letter, with `_` separators allowed between digits. ([`types/integer-literals`](rules/types.md#types-integer-literals))
 - **A numeric literal is untyped until it is placed, and `as T` is a placing position** — A numeric literal is **untyped until it is placed**, and takes its type from the position it appears in. ([`types/numeric-literal-placement`](rules/types.md#types-numeric-literal-placement))

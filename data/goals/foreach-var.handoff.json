@@ -1,44 +1,36 @@
 {
-  "state": "**Goal `foreach-var` — `var` is a `foreach` binding's type wherever a local allows it — has just started; nothing of it has landed yet.** Goal `plain-comments`'s whole list is this goal's Stage 1 floor.\n\nThe design is settled and is the user's, in one sentence: a `foreach` binding may write `var`\nwherever a local declaration may, and means what it means there. The goal file's § *Standing\ndecisions* answers every call a session meets, and no session re-decides one. `catch`,\ndestructuring and every other binding site keep their written types.\n\nTwo facts about the tree as the goal was written. The checker already holds the element type before\nit reaches the binding, so the checker half is small. `nvs-ir` does **not** — `binding_ty` lowers\nthe *written* type off the AST and panics without one — so Stage 3 is real work and not a\nformality.",
+  "state": "**Goal `foreach-var`, Stage 2 is on disk: `var` parses and checks as a `foreach` binding's type, and a loop written that way runs.**\nADR 0251 is the record. It `modifies` `types/var-inference`, `iteration/foreach-subjects` and\n`types/declaration`, and the three fragments are rewritten with it.\n\n`ForeachBinding::ty` is now `ForeachBindingTy` — `Written(Type)`, `Var(Span)` or `Omitted` — and\n`ForeachBinding::written_ty()` is what a walker that only visits written types calls. The checker\nrecords a `var` binding's type under the keyword's span with `ExprTypeTable::record_type`, and\n`nvs-ir`'s `binding_ty` reads it back through `declared_ty`, so the lowering half already works. What\nStage 3 still owes is its proof tests and the editor.\n\nOne correction to the goal's Stage 2 text: the help line for a bare-literal subject names only a\ntyped local. \"Write the binding's type\" is not a fix, because a bare literal subject is checked with\nno target and gives `array<mixed>`, so `foreach ([1, 2] as int $x)` is already `E0401` (see Backlog).",
   "next": {
-    "stage": 2,
-    "title": "the binding parses and checks",
+    "stage": 3,
+    "title": "lowering and the editor",
     "files": [
-      "crates/nvs-syntax/src/parser/stmt.rs",
-      "crates/nvs-syntax/src/ast.rs",
-      "crates/nvs-types/src/locals.rs",
-      "crates/nvs-types/src/expr/iteration.rs"
+      "crates/nvs-ir/src/lower/tests.rs",
+      "crates/nvs-lsp/src/hints.rs",
+      "crates/nvs-lsp/src/semantic.rs",
+      "crates/nvs-lsp/tests/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The decision record** — one new record, written first, from the goal's § *Standing decisions*; it `modifies` `types/var-inference`, `iteration/foreach-subjects` and `types/declaration`, and the three fragments are rewritten whole with it."
+        "text": "**The IR-equality tests** — `crates/nvs-ir/src/lower/tests.rs:2491`, beside its other `foreach` tests: `foreach_var_binding_lowers_as_the_written_type_does` (array subject, key and value) and `foreach_var_binding_over_a_cursor_lowers_as_the_written_type_does`. The code they pin is `crates/nvs-ir/src/lower/mod.rs:3327`. `rule:types/var-inference`."
       },
       {
         "done": false,
-        "text": "**`ForeachBinding` says which of three things was written** — `crates/nvs-syntax/src/ast.rs:@ForeachBinding`: a type, `var`, or nothing. `None` stops meaning two things."
+        "text": "**The inlay hint** — `crates/nvs-lsp/src/hints.rs:163`, the `StmtKind::Foreach` arm: a `ForeachBindingTy::Var` key and value get the `: T` hint a `var` local gets. Test name: `a_var_foreach_binding_is_hinted_with_its_inferred_type`. `rule:types/var-inference`."
       },
       {
         "done": false,
-        "text": "**The parser accepts `var`** — `crates/nvs-syntax/src/parser/stmt.rs:@parse_foreach_binding`, key and value, after `inout`; the diagnostic for a bare `as $v` names `var` as well as a type."
+        "text": "**The other walkers** — `crates/nvs-lsp/src/semantic.rs:614` could colour the `var` keyword in a `foreach` header the way it colours a `var` local's. `nvs-hir`'s `requires.rs` and `nvs-lsp`'s `definition.rs` already call `written_ty()`."
       },
       {
         "done": false,
-        "text": "**The checker takes the type from the subject** — `crates/nvs-types/src/locals.rs`'s `StmtKind::Foreach` arm and `crates/nvs-types/src/expr/iteration.rs:@check_foreach_key`: value is `ForeachSource::value_ty()`, key is `string`, no element type is `mixed`, and the result passes `reject_void_or_never_binding` as `crates/nvs-types/src/locals.rs`'s `var` local arm does."
-      },
-      {
-        "done": false,
-        "text": "**The bare-literal subject is refused** — `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, with a help line that fits a loop header."
-      },
-      {
-        "done": false,
-        "text": "**The two conformance cases and the named tests** of the goal file's Stage 2 checks."
+        "text": "**`nvs fmt`** prints `as var $v` unchanged — `crates/nvs-fmt/src/brace.rs:68`. No code is expected to change; verify's `nvs-fmt` step over Stage 4's examples proves it."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the loop lowers and the editor shows the type** — `crates/nvs-ir/src/lower/mod.rs:@binding_ty`, `crates/nvs-ir/src/lower/control.rs:@lower_foreach`, `crates/nvs-lsp/src/hints.rs`, and every other reader of `ForeachBinding::ty` (`bun nv peek --locate ForeachBinding` lists them). Shares no file with Stage 2 beyond `ast.rs`, so it is its own session.",
-    "**Stage 4: the feature proofs, and everything already on disk** — the new example and attack step, then the documents Stage 0 lists, the three features' `about.md` and examples, the regenerated `docs/novis.md`, and the closing search. Prose and programs only; no crate is open.",
-    "When this goal's last check goes green the driver takes goal `ci-green`."
+    "A bare array literal as a `foreach` subject is checked with no target, so `foreach ([1, 2] as int $x)` is `E0401` (`expected int, found mixed`). It predates this goal. Checking the literal against `array<T>` of a written value type would fix it — `crates/nvs-types/src/locals.rs`'s `StmtKind::Foreach` arm; owner: a goal the user picks. Not this goal's to widen.",
+    "Stage 4's sweep is the goal file's § Stage 0 list. `docs/reference/tools/30-php-differences.md:216` names `E0414` for the local only. The playbook bullet \"A `foreach` binding with no type is a syntax error\" now has two answers.",
+    "`E0414`'s card in `crates/nvs-diagnostics/src/lib.rs` now names the `foreach` fix. Stage 4's `about.md` text should agree with it."
   ]
 }

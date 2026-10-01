@@ -9,12 +9,14 @@
 
 `rule:types/declaration`
 
-Every binding site carries a written type. PHP's existing slots become mandatory — parameter, return
-(`void` and `never` included), property, promoted constructor parameter, class constant, closure
-parameter and closure return, `catch`, enum backing type — and four positions PHP has no slot for get
-one: a local at its declaration, a `foreach` key and value, a `for` header's init clause
-([`iteration/for-init-clause`](iteration.md#iteration-for-init-clause)), and a destructuring target. A local may write `var` instead
-([`types/var-inference`](types.md#types-var-inference)); nothing else may omit a type.
+Every binding site carries a type, and only a local and a `foreach` binding may take theirs with `var`
+rather than writing it. PHP's existing slots become mandatory — parameter, return (`void` and `never`
+included), property, promoted constructor parameter, class constant, closure parameter and closure
+return, `catch`, enum backing type — and four positions PHP has no slot for get one: a local at its
+declaration, a `foreach` key and value, a `for` header's init clause
+([`iteration/for-init-clause`](iteration.md#iteration-for-init-clause)), and a destructuring target. A local, a `for` init declaration and
+a `foreach` key or value may write `var` instead, which takes the type from the expression that fills
+the binding ([`types/var-inference`](types.md#types-var-inference)); nothing else may omit a type.
 
 The return slot is owed by every declaration a caller reads, an abstract method and an interface
 member included, and **the constructor is the one exception**: it answers with the instance rather
@@ -30,41 +32,50 @@ declaration, and there is no shadowing. Declaration is function-scoped as in PHP
 inside an `if` is visible after it — but *definite assignment is checked*: reading a binding on a path
 that may not have reached its initialiser is a compile error, not PHP's warning and a `null`.
 
-A declared type is then fixed for the binding's whole life. No assignment, operator or call changes
-it; `settype()` joins the rejected list with a diagnostic naming `as`
-([`types/conversion`](types.md#types-conversion)). An `inout` binding ties two names to one slot, so both sides declare the
-**same** type ([`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling)); an alias that widens or narrows
-is a diagnostic. There is no function-scope `static` and no global constant, so neither has a binding
-site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)).
+A declared type is then fixed for the binding's whole life, whether it was written or taken by `var`.
+No assignment, operator or call changes it; `settype()` joins the rejected list with a diagnostic
+naming `as` ([`types/conversion`](types.md#types-conversion)). An `inout` binding ties two names to one slot, so both sides
+declare the **same** type ([`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling)); an alias that widens
+or narrows is a diagnostic. There is no function-scope `static` and no global constant, so neither has
+a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)).
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0037](../decisions/0037.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0037](../decisions/0037.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0251](../decisions/0251.md).</sub>
 
 <a id="types-var-inference"></a>
 
-## `var` takes a local's type from its initializer and fixes it there for good
+## `var` takes a local's or a `foreach` binding's type from the expression that fills it, and fixes it there for good
 
 `rule:types/var-inference`
 
-`var $name = expr;` declares a local without writing its type. The type stored on the binding is
-`expr`'s own checked type, computed exactly as it is for any position with no expected type, and it is
-then fixed on the binding like a written one — [`types/declaration`](types.md#types-declaration)'s "no binding's type ever
-changes" is untouched.
+`var` stands in for a written type in two places — a local declaration and a `foreach` binding — and
+the binding takes its type from the expression it is filled from, then keeps it for good. In
+`var $name = expr;` that expression is `expr`. In `foreach ($subject as var $k => var $v)` it is the
+subject: `$v` takes the subject's element type, and `$k` takes `string`, the one type an array's key
+binding may have ([`types/arrays`](types.md#types-arrays)).
 
-The initializer is mandatory: `var $n;` is a parse error naming `=`. The inferred type is exact and
-honest — `var $n = 1;` gives `int`, and `var $id = Core\Request::query('id');` gives `mixed`, because
-that is what the initializer is.
+The type is computed exactly as it is for any position with no expected type, and it is then fixed on
+the binding like a written one — [`types/declaration`](types.md#types-declaration)'s "no binding's type ever changes" is
+untouched. It is exact and honest: `var $n = 1;` gives `int`, `var $id = Core\Request::query('id');`
+gives `mixed`, and a `var` value binding over a `mixed` or `iterable` subject gives `mixed`, because
+that is what the source expression is. A qualifier on the element type, such as `tainted`, arrives on
+the binding with it. `inout var $v` binds at the element type itself, so its two sides declare the same
+type by construction.
 
-One initializer shape is refused: a **bare array literal**. `var $x = [1, 2];` is
+A local's initializer is mandatory: `var $n;` is a parse error naming `=`. A `foreach` binding with
+neither a type nor `var` is the parse error it always was.
+
+One source shape is refused: a **bare array literal**. `var $x = [1, 2];` is
 `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, naming `array<T> $x = [1, 2];` as the fix, because an array literal
-is checked against a target rather than inferring one ([`types/arrays`](types.md#types-arrays)). The restriction is on
-the initializer's own top level only — `var $x = f([1, 2]);` is fine, since `f`'s parameter is the
-literal's target.
+is checked against a target rather than inferring one ([`types/arrays`](types.md#types-arrays)). A bare literal as the
+subject of a `var` value binding is the same code, and the fix is the same typed local, iterated. The
+restriction is on the expression's own top level only — `var $x = f([1, 2]);` and
+`foreach (f([1, 2]) as var $x)` are fine, since `f`'s parameter is the literal's target.
 
-Every other rule that applies to a typed local declaration — declare-once, definite assignment,
-redeclaration diagnostics — applies unchanged, because by the time those checks run `var` has already
-resolved to a concrete type.
+Every other rule that applies to a typed binding — declare-once, definite assignment, redeclaration
+diagnostics, the cursor's missing key — applies unchanged, because by the time those checks run `var`
+has already resolved to a concrete type.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md).</sub>
 
 <a id="types-grammar"></a>
 

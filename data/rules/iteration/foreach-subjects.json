@@ -3,7 +3,8 @@
   "status": "shipped",
   "because": [
     "0053",
-    "0007"
+    "0007",
+    "0251"
   ],
   "divergesFromPhp": "an object is iterable only by declaring `Iterable<T>` or `Iterator<T>`; walking an ordinary object's public properties does not compile",
   "seeAlso": [
@@ -15,6 +16,7 @@
     "tests/conformance/lang/a-foreach-subject-that-is-not-iterable-is-refused-where-it-is-written.nvst",
     "tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst",
     "tests/conformance/iter/foreach-over-an-iterable-object.nvst",
+    "tests/conformance/iter/a-foreach-binding-written-var-takes-its-type-from-the-subject.nvst",
     "crates/nvs-types/tests/foreach.rs"
   ]
 }
