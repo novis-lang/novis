@@ -57,10 +57,15 @@ checks that the feature proofs and their perf figures are current.
   closing `echo Bench::run(N)` line in a copy under `.agent-tmp/`.
   - **Start low and double until the pattern is clear, by the user's decision of 2026-10-01.** The
     first batch is small, and each next batch is double the one before. The ramp stops once the last
-    three batches agree on the growth: their per-operation counts match, and their clock slope is
-    steady and clear of the noise of the empty program's start-up. The ramp also stops at a cap well
-    below N. A bench that reaches the cap without a clear pattern is reported, not judged. The start,
-    the agreement test and the cap are written in the tool's module doc, which is their one home.
+    three batches agree on the growth. **Only the counts decide that**, because they are the same on
+    every run and on every machine, so a bench gets the same answer every time and noise can never
+    push its size up. The clock is read at every batch and reported, but it never makes the ramp go
+    further. The ramp also stops at a fixed ceiling (Stage 6 says why it is never raised). A bench that
+    reaches the ceiling without a clear pattern is reported, not judged. The start, the agreement test
+    and the ceiling are written in the tool's module doc, which is their one home.
+  - **Work the counts cannot see.** A Rust member that does its work without allocating shows the
+    same counts at any size. For such a bench the ramp uses `valgrind --tool=callgrind`'s instruction
+    count under WSL. It is the same on every run too, so it decides the same way the counts do.
   - **The counts decide.** They are exact at any batch size, so the per-operation counts must be the
     same in every batch. A count that rises per operation means each operation leaves something
     behind that the next one pays for: a leak, or a structure that grows with every call. The clock
@@ -70,7 +75,7 @@ checks that the feature proofs and their perf figures are current.
   size*, and input size is where quadratic work hides. A ladder program takes its size in the same
   closing line, `echo Bench::run(N)`, and declares `// scaling: start 100`, `// scaling: max
   100000` and `// scaling: expect linear`. The size ramps the same way the batches do: it starts low
-  and doubles until the last three sizes agree on the slope, or the size reaches `max`. The tool fits
+  and doubles until the last three sizes agree on the count slope, or the size reaches `max`. The tool fits
   the slope of log cost against log size, for each count and for the clock. A ladder only grows as
   far as it must to show its pattern, so it runs in seconds, not minutes.
 
@@ -222,6 +227,23 @@ base rule at once, with no later pass needed.
   N is larger than that. Lowering N moves no count per operation, and every clock figure is recorded
   again in the same slice. `benches/members/README.md`'s rule "Size it to run in well under a
   second" becomes "the smallest count that shows the growth".
+
+Three rules keep the bench tree from growing over time, by the user's decision of 2026-10-01. A noisy
+threshold must never be able to push iteration counts up.
+
+- **Only exact figures set a size.** Stage 2's ramp stops on the counts, or on callgrind's instruction
+  count for work the counts cannot see. The clock never sets N. So N is the same every time it is
+  computed.
+- **The ceiling is fixed.** The ramp's largest batch is a constant in `tools/nv/cmd/scaling.ts`. No
+  session raises it, and no check is made green by raising it. A bench that reaches the ceiling
+  without a clear pattern keeps its N and is listed in the summary. Raising the ceiling is the user's
+  call.
+- **The tree has a budget.** `bun nv scaling --budget` adds up the counted work of every bench at its
+  N. The total is stored in `docs/perf/bench-budget.json` and may only go down, with two exceptions.
+  A new bench adds its own share. A raised N on an existing bench needs a reason written beside its
+  `// bench: iterations` line. Growth in the budget is then an exact number in a diff, never a feeling
+  that the sweep got slower.
+
 - **The README.** `benches/members/README.md` § *What a bench declares* says what the growth proof
   asks and how to read a failure.
 
@@ -239,6 +261,10 @@ numbers, no internals. It has these sections:
   10,000 rows the page renders 40 times faster", "memory now stays flat after a million requests".
 - **Decisions for you** — every large tradeoff Stage 5 recorded and did not build, one short
   paragraph each.
+- **Benches to look at** — what the growth check itself turned up: every bench that reached the
+  ceiling without a clear pattern, every bench that needed callgrind because the counts could not see
+  its work, and anything that raised the bench budget. One line each, saying what happened. Write
+  "none" if there is nothing.
 - **What we checked and found fine** — the areas with no problem, in a few lines.
 
 `bun nv proofs --gate` must owe nothing at the end, so every figure a fix made stale is recorded again.
@@ -261,6 +287,10 @@ numbers, no internals. It has these sections:
   2026-10-01.** Large means one of these: a change to observable language behaviour, a memory cost that
   grows per request by more than a small constant, a new crate dependency, new `unsafe` code, or a
   weaker security or isolation property. The user decides all of them together when the goal is done.
+- **Nothing the pass finds stops the run, by the user's decision of 2026-10-01.** A finding is fixed,
+  or written into `docs/perf/performance-pass.md`. A large tradeoff goes under *Decisions for you*,
+  and a bench the growth check could not judge goes under *Benches to look at*. No session reports
+  `BLOCKED` for either. The user reads them all together when the goal is done.
 - **Counts decide and the clock confirms.** The machine runs other work, so a clock figure alone never
   fails a ladder and never proves a fix. A fix's before and after are read from counts where the
   counts see the work. For work inside a Rust member that only the clock sees, use the best of

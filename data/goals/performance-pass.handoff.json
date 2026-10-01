@@ -11,7 +11,7 @@
     "items": [
       {
         "done": false,
-        "text": "**`bun nv scaling --iterations`** — `tools/nv/cmd/scaling.ts`, reusing the counting run in `tools/nv/proofs/perf.ts`: every bench under `benches/members/` from a copy under `.agent-tmp/`, never at its own `iterations N`: start with a small batch and double it until the last three batches agree on the growth, or a cap well below N is reached; per-operation counts compared; the start, the agreement test, the cap and the bounds in the module doc."
+        "text": "**`bun nv scaling --iterations`** — `tools/nv/cmd/scaling.ts`, reusing the counting run in `tools/nv/proofs/perf.ts`: every bench under `benches/members/` from a copy under `.agent-tmp/`, never at its own `iterations N`: start with a small batch and double it until the last three batches agree on the growth, judged on the counts alone (callgrind's instruction count under WSL where the counts cannot see the work, never the clock), or a fixed ceiling is reached; per-operation counts compared; the start, the agreement test, the cap and the bounds in the module doc."
       },
       {
         "done": false,
@@ -31,7 +31,7 @@
     "**Stage 3: the ladders** — one area per group, subagents may write and run ladders in parallel; `app` last, because it reuses what the others found.",
     "**Stage 4: the review** — one read-only subagent per area; the session writes the gaps and `docs/perf/performance-review.md`.",
     "**Stage 5: the fixes** — grouped by crate; perf figures recorded again in the slice that made them stale.",
-    "**Stage 6: growth becomes a feature proof** — the record modifying `rule:testing/feature-proofs`, the ramp called from `tools/nv/proofs/perf.ts` in place of its one-ratio scale test, `// bench: complexity` written into every bench that lacks it (subagents, by area), `tools/nv/test/proof-growth.test.ts`, every bench's `iterations` lowered to about twice where its ramp found the pattern (`--sized`), and AGENTS.md rule 9, conventions.md and `benches/members/README.md` saying so.",
+    "**Stage 6: growth becomes a feature proof** — the record modifying `rule:testing/feature-proofs`, the ramp called from `tools/nv/proofs/perf.ts` in place of its one-ratio scale test, `// bench: complexity` written into every bench that lacks it (subagents, by area), `tools/nv/test/proof-growth.test.ts`, every bench's `iterations` lowered to about twice where its ramp found the pattern (`--sized`), the fixed ceiling and the tree budget in `docs/perf/bench-budget.json` (`--budget`), and AGENTS.md rule 9, conventions.md and `benches/members/README.md` saying so.",
     "**Stage 7: the summary** — `docs/perf/performance-pass.md`, plain and short, for the user.",
     "When this goal's last check goes green the chain is complete."
   ]

@@ -199,17 +199,33 @@
       "memoize": true
     },
     {
+      "id": "the-bench-tree-is-within-its-budget",
+      "kind": "command",
+      "stage": 6,
+      "name": "the bench tree's counted work is within its budget",
+      "argv": [
+        "bun",
+        "nv",
+        "scaling",
+        "--budget"
+      ],
+      "want": [
+        "the bench tree's counted work is within its budget"
+      ],
+      "memoize": true
+    },
+    {
       "id": "the-summary-is-written",
       "kind": "command",
       "stage": 7,
-      "name": "docs/perf/performance-pass.md has its four sections",
+      "name": "docs/perf/performance-pass.md has its five sections",
       "argv": [
         "bun",
         "-e",
-        "const t=require('fs').readFileSync('docs/perf/performance-pass.md','utf8');const m=['## What we found','## What got better','## Decisions for you','## What we checked and found fine'].filter(h=>!t.includes(h));if(m.length){console.log('missing: '+m.join(', '));process.exit(1)}console.log('the summary has its four sections')"
+        "const t=require('fs').readFileSync('docs/perf/performance-pass.md','utf8');const m=['## What we found','## What got better','## Decisions for you','## Benches to look at','## What we checked and found fine'].filter(h=>!t.includes(h));if(m.length){console.log('missing: '+m.join(', '));process.exit(1)}console.log('the summary has its five sections')"
       ],
       "want": [
-        "the summary has its four sections"
+        "the summary has its five sections"
       ]
     },
     {
