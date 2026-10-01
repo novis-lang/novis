@@ -15,9 +15,9 @@ program, a request, a compiler run or an editor session can make large.
 The pass has two halves. **Measuring:** every bench runs at more than one size, and the growth is read
 from the counts. **Reading:** the code is reviewed area by area for problems a bench does not show,
 above all the ones that appear only when a real program uses many features at once. Every problem
-either half finds is fixed in this goal. Then growth becomes part of every feature's perf proof, so a
-feature added later is checked the moment its bench runs. At the end, `docs/perf/performance-pass.md`
-tells the user in plain words what was found, what improved and by how much.
+either half finds is fixed in this goal. At the end, `docs/perf/performance-pass.md` tells the user in
+plain words what was found, what improved and by how much. Goal `growth-proof` comes next and turns
+the growth check into a feature proof.
 
 ## Why here
 
@@ -40,7 +40,7 @@ None.
 ## Stage 1 — the floor
 
 Nothing is carried. Goal `goal-closeout` makes a finished goal deleted, and the driver deletes it when
-this goal starts. The suites, the `.nvst` trees and `nv verify` are the floor. This goal's own Stage 7
+this goal starts. The suites, the `.nvst` trees and `nv verify` are the floor. This goal's own Stage 6
 checks that the feature proofs and their perf figures are current.
 
 ## Stage 2 — the growth tool, the keystone
@@ -60,12 +60,14 @@ checks that the feature proofs and their perf figures are current.
     three batches agree on the growth. **Only the counts decide that**, because they are the same on
     every run and on every machine, so a bench gets the same answer every time and noise can never
     push its size up. The clock is read at every batch and reported, but it never makes the ramp go
-    further. The ramp also stops at a fixed ceiling (Stage 6 says why it is never raised). A bench that
-    reaches the ceiling without a clear pattern is reported, not judged. The start, the agreement test
-    and the ceiling are written in the tool's module doc, which is their one home.
-  - **Work the counts cannot see.** A Rust member that does its work without allocating shows the
-    same counts at any size. For such a bench the ramp uses `valgrind --tool=callgrind`'s instruction
-    count under WSL. It is the same on every run too, so it decides the same way the counts do.
+    further. The ramp also stops at a fixed ceiling that no session raises. The start, the agreement
+    test and the ceiling are written in the tool's module doc, which is their one home.
+  - **Valgrind only when the ramp shows no clear growth, by the user's decision of 2026-10-01.** A
+    Rust member that does its work without allocating shows the same counts at any size, and its clock
+    may be too noisy to read. Only when the ramp reaches the ceiling without a clear pattern does the
+    tool run the same batches again under `valgrind --tool=callgrind` in WSL. Callgrind's instruction
+    count is the same on every run, so it decides the way the counts do. A bench that is still unclear
+    after that is reported, not judged.
   - **The counts decide.** They are exact at any batch size, so the per-operation counts must be the
     same in every batch. A count that rises per operation means each operation leaves something
     behind that the next one pays for: a leak, or a structure that grows with every call. The clock
@@ -190,64 +192,7 @@ into `docs/perf/performance-pass.md` under *Decisions for you*: the problem, wha
 measured figure, the fix, and what the fix would cost. It then marks the ladder `// scaling: proposal`
 and deletes the gap. The pass continues.
 
-## Stage 6 — growth becomes a feature proof
-
-**Does:** Makes every feature's perf proof check its own growth, so a feature added later is checked the moment its bench first runs.
-
-**By the user's decision of 2026-10-01, and only from this stage on.** The goals before this one
-never owed it. It lands after Stage 5 on purpose: by then every existing bench passes the ramp, so the
-new proof makes nothing owed when it is switched on. From then on it holds every new feature to the
-base rule at once, with no later pass needed.
-
-- **The record.** One new decision record, written first. It modifies `rule:testing/feature-proofs`:
-  **Perf** is one measured figure *and its growth*. The fragment is rewritten whole.
-  [AGENTS.md](../../../AGENTS.md) rule 9 and [conventions.md](../conventions.md) § *Feature proofs*
-  say "one bench, with its growth" where they say "one bench" today.
-- **What the proof asks.** The perf proof of a feature runs Stage 2's ramp over its bench. The
-  per-operation counts must stay the same as the batches double. Where the work depends on input
-  size, the cost must grow no faster than the bench's declared complexity, under the bounds in
-  `tools/nv/cmd/scaling.ts`'s module doc.
-- **`// bench: complexity` is required on every bench.** It may be `constant`, `linear`, `nlogn`, or a
-  named class an algorithm has. `quadratic` is never accepted. `constant` needs only the iteration
-  ramp. Any other class also needs a size ramp: the `.scale.nvs` sibling, which takes `start` and `max`
-  as a ladder does instead of its single `// bench: scale K`. The benches that do not declare it yet
-  get it in this stage, from what Stage 2's ramp measured over them. Subagents write them in batches,
-  by area.
-- **Where it runs.** `tools/nv/proofs/perf.ts` replaces its one-ratio scale test (`COMPLEXITY_RE`
-  and the `SCALE_TOLERANCE` check) with a call to the ramp, so `bun nv proofs --record-perf` and
-  `bun nv proofs --id '<feature>'` judge growth with no extra command. A failure is a failing proof,
-  and `rule:testing/a-failing-proof-is-fixed-or-recorded` names its two answers.
-- **Every code change checks itself.** A perf figure is measured again whenever its implementing
-  code moves (`rule:testing/member-perf-ledger`). The growth proof runs inside that measurement, so
-  a change to a feature's code checks the feature's growth again, as a new feature does.
-- **The iteration counts come down, by the user's decision of 2026-10-01.** A bench exists to catch
-  growth, not to use as much of the machine as it can. Once the growth proof is on, every bench's
-  `// bench: iterations N` is lowered to about twice the batch at which its ramp found a clear
-  pattern. N is then also the ramp's cap. `bun nv scaling --iterations --sized` fails while a bench's
-  N is larger than that. Lowering N moves no count per operation, and every clock figure is recorded
-  again in the same slice. `benches/members/README.md`'s rule "Size it to run in well under a
-  second" becomes "the smallest count that shows the growth".
-
-Three rules keep the bench tree from growing over time, by the user's decision of 2026-10-01. A noisy
-threshold must never be able to push iteration counts up.
-
-- **Only exact figures set a size.** Stage 2's ramp stops on the counts, or on callgrind's instruction
-  count for work the counts cannot see. The clock never sets N. So N is the same every time it is
-  computed.
-- **The ceiling is fixed.** The ramp's largest batch is a constant in `tools/nv/cmd/scaling.ts`. No
-  session raises it, and no check is made green by raising it. A bench that reaches the ceiling
-  without a clear pattern keeps its N and is listed in the summary. Raising the ceiling is the user's
-  call.
-- **The tree has a budget.** `bun nv scaling --budget` adds up the counted work of every bench at its
-  N. The total is stored in `docs/perf/bench-budget.json` and may only go down, with two exceptions.
-  A new bench adds its own share. A raised N on an existing bench needs a reason written beside its
-  `// bench: iterations` line. Growth in the budget is then an exact number in a diff, never a feeling
-  that the sweep got slower.
-
-- **The README.** `benches/members/README.md` § *What a bench declares* says what the growth proof
-  asks and how to read a failure.
-
-## Stage 7 — the summary
+## Stage 6 — the summary
 
 **Does:** Writes `docs/perf/performance-pass.md`, a short plain summary for the user, and re-records every stale perf figure.
 
@@ -261,10 +206,10 @@ numbers, no internals. It has these sections:
   10,000 rows the page renders 40 times faster", "memory now stays flat after a million requests".
 - **Decisions for you** — every large tradeoff Stage 5 recorded and did not build, one short
   paragraph each.
-- **Benches to look at** — what the growth check itself turned up: every bench that reached the
-  ceiling without a clear pattern, every bench that needed callgrind because the counts could not see
-  its work, and anything that raised the bench budget. One line each, saying what happened. Write
-  "none" if there is nothing.
+- **Benches to look at** — what the ramp itself turned up: every bench that reached the ceiling
+  without a clear pattern even under callgrind, and every bench that needed callgrind because the
+  ramp alone showed no clear growth. One line each, saying what happened. Write "none" if there is
+  nothing.
 - **What we checked and found fine** — the areas with no problem, in a few lines.
 
 `bun nv proofs --gate` must owe nothing at the end, so every figure a fix made stale is recorded again.
@@ -304,6 +249,6 @@ numbers, no internals. It has these sections:
   one file.
 - **Unix-only paths** run on the WSL leg. A ladder that needs Unix sockets declares `// requires: unix`
   as a bench does.
-- **ADR slots:** Stage 6 opens one new record, for the growth proof. A fix that changes what a rule
-  says opens one new record for it. Neither names a number in advance. The growth tool and the ladders need no record. `benches/scaling/README.md` and the
+- **ADR slots:** a fix that changes what a rule says opens one new record for it, and names no number
+  in advance. The growth proof is goal `growth-proof`'s, not this goal's. The growth tool and the ladders need no record. `benches/scaling/README.md` and the
   tool's module doc are their homes.

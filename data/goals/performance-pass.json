@@ -66,22 +66,6 @@
     },
     {
       "number": 6,
-      "title": "growth becomes a feature proof",
-      "summary": "Makes every feature's perf proof check its own growth, so a feature added later is checked the moment its bench first runs.",
-      "context": {
-        "rules": [
-          "testing/feature-proofs",
-          "testing/a-failing-proof-is-fixed-or-recorded"
-        ],
-        "shapes": [
-          "A decision record",
-          "A rule fragment",
-          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
-        ]
-      }
-    },
-    {
-      "number": 7,
       "title": "the summary",
       "summary": "Writes `docs/perf/performance-pass.md`, a short plain summary for the user, and re-records every stale perf figure."
     }
@@ -165,59 +149,9 @@
       "memoize": true
     },
     {
-      "id": "the-perf-proof-judges-growth",
-      "kind": "command",
-      "stage": 6,
-      "name": "the perf proof judges a feature's growth",
-      "argv": [
-        "bun",
-        "test",
-        "tools/nv/test/proof-growth.test.ts"
-      ],
-      "want": [
-        "a bench whose cost per operation rises as its batches double fails its perf proof",
-        "a bench that grows faster than its declared complexity fails its perf proof",
-        "a bench with no declared complexity fails its perf proof",
-        " 0 fail"
-      ]
-    },
-    {
-      "id": "every-bench-iteration-count-is-what-its-growth-check-needs",
-      "kind": "command",
-      "stage": 6,
-      "name": "every bench's iteration count is no larger than its growth check needs",
-      "argv": [
-        "bun",
-        "nv",
-        "scaling",
-        "--iterations",
-        "--sized"
-      ],
-      "want": [
-        "every bench's iteration count is no larger than its growth check needs"
-      ],
-      "memoize": true
-    },
-    {
-      "id": "the-bench-tree-is-within-its-budget",
-      "kind": "command",
-      "stage": 6,
-      "name": "the bench tree's counted work is within its budget",
-      "argv": [
-        "bun",
-        "nv",
-        "scaling",
-        "--budget"
-      ],
-      "want": [
-        "the bench tree's counted work is within its budget"
-      ],
-      "memoize": true
-    },
-    {
       "id": "the-summary-is-written",
       "kind": "command",
-      "stage": 7,
+      "stage": 6,
       "name": "docs/perf/performance-pass.md has its five sections",
       "argv": [
         "bun",
@@ -231,8 +165,8 @@
     {
       "id": "every-perf-figure-is-current",
       "kind": "command",
-      "stage": 7,
-      "name": "the whole roster owes nothing, perf figures and their growth included",
+      "stage": 6,
+      "name": "the whole roster owes nothing, perf figures included",
       "argv": [
         "bun",
         "nv",

@@ -1,0 +1,37 @@
+{
+  "state": "**Goal `growth-proof` — every feature checks its own growth, and a change reruns only the benches it reaches — has just started; nothing of it has landed yet.** No floor is carried: the driver deleted goal `performance-pass` when this goal started.\n\nGoal `performance-pass` built `bun nv scaling` and its doubling ramp, proved it over the whole bench tree, and fixed every bench that grew too fast. This goal moves that ramp into the perf proof. The design is settled and is the user's: valgrind is only the fallback when the ramp shows no clear growth, and only to find the threshold; it never runs in `nv verify` or an ordinary bench run; the counts decide and the clock reports; skipping never hides a degradation. The goal file's § *Standing decisions* answers every call a session meets.",
+  "next": {
+    "stage": 2,
+    "title": "growth is a feature proof",
+    "files": [
+      "tools/nv/proofs/perf.ts",
+      "tools/nv/cmd/scaling.ts",
+      "benches/members/README.md"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The record** — one new record modifying `rule:testing/feature-proofs`: **Perf** is one figure and its growth; AGENTS.md rule 9 and conventions.md § *Feature proofs* follow."
+      },
+      {
+        "done": false,
+        "text": "**The proof runs the ramp** — `tools/nv/proofs/perf.ts`'s `COMPLEXITY_RE` and `SCALE_TOLERANCE` test replaced by a call to `tools/nv/cmd/scaling.ts`'s ramp; `// bench: complexity` required; the valgrind fallback only when the ramp ends with no clear growth, setting N and marking the bench."
+      },
+      {
+        "done": false,
+        "text": "**The tests** — `tools/nv/test/proof-growth.test.ts`, the guard that `nv verify` never starts valgrind over a bench included."
+      },
+      {
+        "done": false,
+        "text": "**The backfill** — `// bench: complexity` in every bench that lacks it, from what goal `performance-pass`'s ramp measured; one subagent per area."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: small benches, and a budget** — `--sized`, the fixed ceiling, `docs/perf/bench-budget.json` and `--budget`, every N lowered and its clock figure recorded again.",
+    "**Stage 4: a change reruns the benches it reaches** — the record modifying `rule:testing/member-perf-ledger`, the `bench` atom in `tools/nv/select/atoms.ts`, its recording run beside `tools/nv/proofs/select.ts`'s, `bun nv affected` naming and rerunning benches, `tools/nv/test/bench-selection.test.ts`.",
+    "**Stage 5: skip what is already proven** — the ordering, the two-bench proof per changed item, the carried figure in the ledger, `tools/nv/test/bench-skip.test.ts`.",
+    "**Stage 6: what the user reads** — `## The growth proof` in `docs/perf/performance-pass.md`.",
+    "When this goal's last check goes green the chain is complete."
+  ]
+}
