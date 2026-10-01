@@ -6,7 +6,8 @@
     "0005",
     "0055",
     "0020",
-    "0095"
+    "0095",
+    "0246"
   ],
   "divergesFromPhp": "a decompression bomb is refused from its declared dimensions rather than discovered by exhausting memory",
   "seeAlso": [

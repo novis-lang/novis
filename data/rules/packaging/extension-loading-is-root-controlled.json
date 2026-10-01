@@ -4,7 +4,8 @@
   "because": [
     "0003",
     "0064",
-    "0078"
+    "0078",
+    "0246"
   ],
   "divergesFromPhp": "`extension=` in a `php.ini` names a file; an `[[extension]]` entry names a file and its digest, a project cannot add one, and a changed binary under its pin is refused rather than loaded",
   "seeAlso": [

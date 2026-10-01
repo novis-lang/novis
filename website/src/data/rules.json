@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 1021,
+    "total": 1028,
     "shipped": 785,
-    "designed": 236,
-    "diverging": 593
+    "designed": 243,
+    "diverging": 594
   },
   "topics": [
     {
@@ -4242,10 +4242,10 @@
       "url": "/docs/rules/security/",
       "single": false,
       "counts": {
-        "total": 88,
+        "total": 89,
         "shipped": 71,
-        "designed": 17,
-        "diverging": 29
+        "designed": 18,
+        "diverging": 30
       },
       "sections": [
         {
@@ -4840,10 +4840,10 @@
           "blurb": "An extension manifest may only tighten. Contagion is the default, and no spelling anywhere removes a qualifier.",
           "url": "/docs/rules/security/extensions-and-qualifiers/",
           "counts": {
-            "total": 6,
+            "total": 7,
             "shipped": 0,
-            "designed": 6,
-            "diverging": 0
+            "designed": 7,
+            "diverging": 1
           },
           "rules": [
             {
@@ -4853,6 +4853,14 @@
               "status": "designed",
               "href": "/docs/rules/security/extensions-and-qualifiers/#extension-manifest-only-tightens",
               "diverges": null
+            },
+            {
+              "id": "security/extension-grants-are-an-intersection",
+              "slug": "extension-grants-are-an-intersection",
+              "title": "An extension's files and outbound HTTP are the intersection of its entry's grant, its manifest's request and its caller's own grant",
+              "status": "designed",
+              "href": "/docs/rules/security/extensions-and-qualifiers/#extension-grants-are-an-intersection",
+              "diverges": "a PHP extension acts with the whole process's authority; a Novis extension holds only what three parties all grant"
             },
             {
               "id": "security/extension-contagion",
@@ -9152,9 +9160,9 @@
       "url": "/docs/rules/packaging/",
       "single": false,
       "counts": {
-        "total": 72,
+        "total": 78,
         "shipped": 35,
-        "designed": 37,
+        "designed": 43,
         "diverging": 42
       },
       "sections": [
@@ -9620,9 +9628,9 @@
           "blurb": "A third-party extension is a sandboxed WebAssembly component: fresh per request, no ambient authority, statically typed at the call.",
           "url": "/docs/rules/packaging/extensions/",
           "counts": {
-            "total": 12,
+            "total": 18,
             "shipped": 1,
-            "designed": 11,
+            "designed": 17,
             "diverging": 7
           },
           "rules": [
@@ -9640,6 +9648,22 @@
               "title": "Library and extension code sits at one of three tiers: built-in, sandboxed component, or statically linked native",
               "status": "designed",
               "href": "/docs/rules/packaging/extensions/#three-tiers",
+              "diverges": null
+            },
+            {
+              "id": "packaging/the-first-party-components-are-built-in",
+              "slug": "the-first-party-components-are-built-in",
+              "title": "The image and intl components are built into every `nvs` binary, sandboxed, and always present under `Novis\\`",
+              "status": "designed",
+              "href": "/docs/rules/packaging/extensions/#the-first-party-components-are-built-in",
+              "diverges": null
+            },
+            {
+              "id": "packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci",
+              "slug": "a-prebuilt-wasm-library-is-rebuilt-in-ci",
+              "title": "The prebuilt libwebp wasm library is committed beside its source hash, and CI rebuilds it and fails on a difference",
+              "status": "designed",
+              "href": "/docs/rules/packaging/extensions/#a-prebuilt-wasm-library-is-rebuilt-in-ci",
               "diverges": null
             },
             {
@@ -9675,6 +9699,14 @@
               "diverges": "a call into an extension is checked by `nvs check` like a call into `Core`, not dispatched by name at runtime"
             },
             {
+              "id": "packaging/a-value-crosses-as-its-wit-type",
+              "slug": "a-value-crosses-as-its-wit-type",
+              "title": "A value crosses into an extension as the WIT type one closed table gives its Novis type, copied whole",
+              "status": "designed",
+              "href": "/docs/rules/packaging/extensions/#a-value-crosses-as-its-wit-type",
+              "diverges": null
+            },
+            {
               "id": "packaging/values-cross-as-handles",
               "slug": "values-cross-as-handles",
               "title": "A value crosses the guest boundary as a bounds-checked handle, never as a pointer",
@@ -9691,11 +9723,27 @@
               "diverges": "a stateful PHP extension keeps its globals for the worker's lifetime; a guest starts pristine on every request and nothing it stored is there on the next one"
             },
             {
+              "id": "packaging/a-guest-call-yields-on-its-core",
+              "slug": "a-guest-call-yields-on-its-core",
+              "title": "A guest call runs on its request's core as an async call the request's coroutine polls, and yields at every epoch tick",
+              "status": "designed",
+              "href": "/docs/rules/packaging/extensions/#a-guest-call-yields-on-its-core",
+              "diverges": null
+            },
+            {
               "id": "packaging/a-guest-runs-under-the-requests-budget",
               "slug": "a-guest-runs-under-the-requests-budget",
               "title": "A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core",
               "status": "designed",
               "href": "/docs/rules/packaging/extensions/#a-guest-runs-under-the-requests-budget",
+              "diverges": null
+            },
+            {
+              "id": "packaging/a-guest-crash-throws",
+              "slug": "a-guest-crash-throws",
+              "title": "A guest's error result throws its mapped class, a trap throws `ExtensionError`, and only a CPU or memory limit is a `FATAL`",
+              "status": "designed",
+              "href": "/docs/rules/packaging/extensions/#a-guest-crash-throws",
               "diverges": null
             },
             {
@@ -9705,6 +9753,14 @@
               "status": "designed",
               "href": "/docs/rules/packaging/extensions/#a-guest-has-no-ambient-authority",
               "diverges": "native extension code calls `open()` and `connect()` directly; a guest reaches the filesystem and the network only through the same grants script code has"
+            },
+            {
+              "id": "packaging/nvs-ext-is-the-authoring-tool",
+              "slug": "nvs-ext-is-the-authoring-tool",
+              "title": "`nvs ext` creates, builds, inspects, tests, verifies and pins an extension, with Rust and C templates",
+              "status": "designed",
+              "href": "/docs/rules/packaging/extensions/#nvs-ext-is-the-authoring-tool",
+              "diverges": null
             },
             {
               "id": "packaging/the-boundary-is-the-cost",

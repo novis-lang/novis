@@ -2,7 +2,8 @@
   "title": "A value crosses the guest boundary as a bounds-checked handle, never as a pointer",
   "status": "designed",
   "because": [
-    "0003"
+    "0003",
+    "0246"
   ],
   "seeAlso": [
     "packaging/the-boundary-is-the-cost",

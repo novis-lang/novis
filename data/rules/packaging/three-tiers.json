@@ -3,7 +3,8 @@
   "status": "designed",
   "because": [
     "0003",
-    "0051"
+    "0051",
+    "0247"
   ],
   "seeAlso": [
     "core-api/five-placements",

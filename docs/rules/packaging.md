@@ -3,7 +3,7 @@
 
 # Packaging
 
-*37 of 72 rules below are **designed** rather than shipped, and are marked where they appear.*
+*43 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -451,17 +451,20 @@ the bundler's own surface at one input, one output and one footer.
 
 `rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload`
 
-A Tier 1 extension is one wasm component, portable across every target Novis ships for. If the
-program's `require` graph depends on one, `nvs build --compile` embeds the `.nvsx` file itself as an
-opaque entry in the same flat list as the source
-([`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts)). There is no target-matrix problem, because a
-`.nvsx` never had one.
+A Tier 1 extension is one wasm component, portable across every target Novis ships for.
+`nvs build --compile` embeds each `.nvsx` the build's configuration lists, with its pin, as an opaque
+entry in the same flat list as the source ([`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts)).
+There is no target-matrix problem, because a `.nvsx` never had one. The built-in components travel
+inside the host binary the bundle copies, so a bundle carries them with no entry at all
+([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)).
 
 An extension embedded in a bundle behaves identically to the same extension loaded from an
 `[[extension]]` entry for a plain `nvs run`: it is the same component, the same manifest and the same
 pin, read from a different byte source.
 
-<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0048](../decisions/0048.md), [0003](../decisions/0003.md).</sub>
+**Not on disk.** A bundle embeds source only.
+
+<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0048](../decisions/0048.md), [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-macos-bundle-is-ad-hoc-signed-at-build"></a>
 
@@ -1343,12 +1346,15 @@ uses, so the two coexist with one shared `cranelift-codegen`.
 What this buys: one binary for every platform; bindings generated for any language with a wasm target
 rather than C only; a crashing or malicious extension that harms one request and not the process; and
 calls that are type-checked at compile time ([`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed)).
-An extension doing I/O suspends the request's coroutine like any other Novis function — wasmtime's
-async support is the same stack switching the scheduler already uses, so there is no async colouring
-at the boundary. What it costs is [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), and an author who wants
-direct heap access cannot have it. That is the point.
+A guest call is a wasmtime async call that the request's coroutine polls on its own core, so a guest
+waiting on I/O or yielding at an epoch tick parks that coroutine like any other wait, with no async
+colouring at the boundary ([`packaging/a-guest-call-yields-on-its-core`](packaging.md#packaging-a-guest-call-yields-on-its-core)). What it costs is
+[`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), and an author who wants direct heap access cannot have it.
+That is the point.
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0052](../decisions/0052.md).</sub>
+**Not on disk.** wasmtime is used only by `benches/abi-probe`; nothing loads a component.
+
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0052](../decisions/0052.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-three-tiers"></a>
 
@@ -1365,6 +1371,9 @@ answer for a different class of code:
   class ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
 - **Tier 1 — a sandboxed `.nvsx` component.** The default and recommended path for third-party
   code, and where hostile-bytes parsers go ([`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
+  The two first-party components, image and intl, are Tier 1 built into the binary and always
+  present under `Novis\` ([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)); every other
+  component is loaded from an `[[extension]]` entry.
 - **Tier 2 — statically linked native.** A Rust crate compiled into the `nvs` binary, for
   first-party subsystems that need raw sockets, TLS termination or the heap: the database drivers,
   the regex engine, crypto. Safe because it is safe Rust, and built from source, which is exactly the
@@ -1374,7 +1383,59 @@ Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-a
 and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). The partition is not PHP's: `ctype` being an
 extension while `str_pad` is not tracks 1997 build engineering and nothing worth preserving.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md), [0247](../decisions/0247.md).</sub>
+
+<a id="packaging-the-first-party-components-are-built-in"></a>
+
+## The image and intl components are built into every `nvs` binary, sandboxed, and always present under `Novis\`  *(designed — not yet in the compiler)*
+
+`rule:packaging/the-first-party-components-are-built-in`
+
+The image component and the intl component are `.nvsx` bytes embedded in every `nvs` binary and loaded
+before any `[[extension]]` entry. They are always present: a program may `use Novis\Image` or
+`Novis\Intl` on any host, in any bundle and under any configuration, and no setting or Cargo feature
+removes them.
+
+They are still Tier 1. Each call runs in the sandbox with its own instance per request, under the
+request's CPU and memory caps, with an empty WASI and no grant
+([`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority)). The binary is their pin: their digest is computed
+at build time and folded into `env_hash` with the compiler's identity. The namespace `Novis\` is
+reserved for them, so a loaded extension declaring a class there does not load, and `Core\` stays
+reserved for Tier 0 ([`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present)).
+
+Nothing is paid until a program calls one. The embedded bytes are compiled on a component's first use
+in a process and stored in the artifact cache like any other module
+([`packaging/a-wasm-module-cache-reuses-the-artifact-cache`](packaging.md#packaging-a-wasm-module-cache-reuses-the-artifact-cache)). What it spends is the binary's size:
+mostly CLDR data and the codecs, on disk and in the page cache.
+
+A build script compiles their Rust crates, under `extensions/` and outside the workspace, for
+`wasm32-wasip2`, and packs each with the packer `nvs ext build` uses
+([`packaging/nvs-ext-is-the-authoring-tool`](packaging.md#packaging-nvs-ext-is-the-authoring-tool)). `rust-toolchain.toml` lists the target. The one C
+library is prebuilt ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
+
+**Not on disk.** Neither component exists.
+
+<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0247](../decisions/0247.md).</sub>
+
+<a id="packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci"></a>
+
+## The prebuilt libwebp wasm library is committed beside its source hash, and CI rebuilds it and fails on a difference  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`
+
+libwebp, the one C library inside a built-in component, is compiled with wasi-sdk by a `bun nv` tool
+into a wasm static library committed under `extensions/image/`, beside the hash of the source it was
+built from. CI rebuilds the library from that source on every change to it and fails when the bytes
+differ from the committed file.
+
+That keeps `cargo build` free of a C toolchain for every contributor — only a change to libwebp needs
+wasi-sdk — while the committed bytes stay a function of reviewable source rather than something a
+reviewer has to trust. The library runs only inside the sandbox, which is the condition under which
+[`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions) admits it.
+
+**Not on disk.** There is no `extensions/` tree and no such tool.
+
+<sub>See also [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in). Decided in [0247](../decisions/0247.md).</sub>
 
 <a id="packaging-an-nvsx-is-one-file-carrying-its-manifest"></a>
 
@@ -1383,22 +1444,33 @@ extension while `str_pad` is not tracks 1997 build engineering and nothing worth
 `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`
 
 A `.nvsx` is **one file**: a WebAssembly component implementing the versioned world `nvs:ext@1.0.0`,
-with an `nvs.manifest` custom section inside it. There is no archive, no sidecar manifest, and no
-per-platform variant — the same file loads on every host Novis runs on.
+with two custom sections inside it. There is no archive, no sidecar manifest, and no per-platform
+variant — the same file loads on every host Novis runs on.
 
-The manifest is what the host reads at load: the classes the extension declares, with their `static`
-methods and `const` members; the `nvs.toml` directives it wants; and the qualifier declarations of
-[`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Because the manifest travels inside the component,
-hashing an `[[extension]]` entry's pin covers everything the extension declares with no separate
-manifest hash — which is what lets the loaded set fold into every compiled unit's key
-([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
+- **`nvs.manifest`** is JSON, `{"manifest": 1, ...}`: the one class the extension declares, the
+  exported interface it maps, each export's Novis signature — parameter names, types, defaults, the
+  trailing options shape — with its qualifier declarations
+  ([`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens)), the class's `const` members, the settings block
+  `[ext.<name>]` it reads, the I/O it requests ([`security/extension-grants-are-an-intersection`](security.md#security-extension-grants-are-an-intersection)),
+  the largest linear memory it needs, and each method's help text.
+- **`nvs.source`** is the Novis source that builds on the class, as a flat list of
+  `(relative path, bytes)`, every file under the extension's own namespace
+  ([`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads)).
 
-The world is WIT, so an extension gets rich types — records, variants, lists, strings, results,
-resources — rather than everything marshalled through `i32`, and semantic versioning of the interface
-is part of the contract. A PHP extension must be recompiled for every minor engine release; an
-`.nvsx` compiled against `nvs:ext@1.0.0` is not.
+At load the host checks the manifest against the component's actual WIT exports through
+[`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)'s table, and a mismatch refuses the load. Because both
+sections travel inside the component, the `[[extension]]` entry's pin covers the code, the source and
+every declaration with no separate hash — which is what lets the loaded set fold into every compiled
+unit's key ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
 
-<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../decisions/0003.md), [0055](../decisions/0055.md).</sub>
+The world is WIT and versioned by semver. A host implementing `1.y` loads a component built against
+`1.x` for any `x ≤ y`, a minor version only adds imports and types, and a component built against a
+newer minor or another major is refused, naming both versions. A PHP extension must be recompiled for
+every minor engine release; an `.nvsx` compiled against `nvs:ext@1.0.0` is not.
+
+**Not on disk.** There is no world file, manifest reader or component loader in the tree.
+
+<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../decisions/0003.md), [0055](../decisions/0055.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-an-extension-package-carries-two-payloads"></a>
 
@@ -1406,17 +1478,20 @@ is part of the contract. A PHP extension must be recompiled for every minor engi
 
 `rule:packaging/an-extension-package-carries-two-payloads`
 
-An extension package may carry **two payloads**: the `.nvsx` wasm component, and Novis source that
-composes calls into it. Everything a program names is under one namespace, the component's manifest
-registers **exactly one class** whose static methods are the component's closed set of entry points,
-and every other class under that namespace is Novis source that calls them. `nvs/image` is the first
-package of this shape — `Novis\Image\Codec` is the manifest's class, and the builder above it is source
-([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)); `nvs/spreadsheet` follows it with `Novis\Spreadsheet\Engine`
+An extension may carry **two payloads in its one file**: the wasm component, and Novis source that
+composes calls into it, in the `nvs.source` section
+([`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest)). Everything a program names is under one
+namespace, the manifest registers **exactly one class** whose static methods are the component's closed
+set of entry points, and every other class under that namespace is Novis source that calls them.
+`Novis\Image` is the first of this shape — `Novis\Image\Codec` is the manifest's class, and the builder
+above it is source ([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)); `Novis\Spreadsheet\Engine` follows it
 ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
 
-Loading is unchanged: the `.nvsx` alone is what an `[[extension]]` pin governs
-([`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled)), and the source beside it is resolved exactly as
-a source package's is.
+Loading the extension makes its source resolvable by `autoload` with no line the program writes. The
+source compiles like any other Novis file and holds the authority of its own namespace, which is no
+grant unless the operator writes one. The one pin covers both payloads, so the source cannot be edited
+under a pinned component, and `nvs ext inspect --source` prints it. A package may carry a `.nvsx` once
+packages exist, and nothing here changes for that.
 
 The split is the point rather than a packaging convenience. Building a plan is data manipulation and
 costs nothing to do in Novis; the codecs belong inside the sandbox. A builder that lived in the guest
@@ -1424,7 +1499,9 @@ would spend a boundary crossing per method to append to an array
 ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)), and would hold plan state across calls in an instance
 whose whole premise is that state does not outlive a request.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../decisions/0120.md), [0081](../decisions/0081.md), [0123](../decisions/0123.md).</sub>
+**Not on disk.** There is no source section and no loader to read one.
+
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../decisions/0120.md), [0081](../decisions/0081.md), [0123](../decisions/0123.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-extension-loading-is-root-controlled"></a>
 
@@ -1433,29 +1510,40 @@ whose whole premise is that state does not outlive a request.
 `rule:packaging/extension-loading-is-root-controlled`
 
 An extension is loaded from an `[[extension]]` entry in the root-owned `nvs.toml`, and from nowhere
-else:
+else, and every entry carries its pin:
 
 ```toml
 [[extension]]
-path   = "image.nvsx"
-sha256 = "…"
+path   = "geo.nvsx"
+sha256 = "…"                      # required: 64 hexadecimal digits
 ```
 
 A project cannot cause code to be loaded. The pin is a field of the entry rather than a naming
 convention over a repeated key, which is one reason the configuration format has an array-of-tables
 shape ([`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables)); the entry lives
-where [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) puts every grant of authority.
+where [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) puts every grant of authority. An entry without a
+pin, or with one that is not 64 hexadecimal digits, is refused at boot and at reload, naming its file
+and line, and `nvs ext pin <file>` prints the entry ready to paste. Signatures are not offered: a pin
+of the exact bytes, written by root, is the stronger check for a file already on the disk.
+
+Load refuses, each naming the entry: a file whose digest differs from its pin, a component that does
+not validate, a manifest that is malformed or does not match the exports, an import outside the world,
+a class under `Core\` or `Novis\` ([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)), and a
+class name another loaded extension already declares.
 
 The set is reloadable, not boot-only. A reload re-verifies every pin against the file on disk, loads
-the manifests, and refuses the whole swap if any pin does not match — so a running server gains, loses
-or replaces an extension without dropping a request, and never on a binary that changed under its pin.
-Duplicate class names across extensions are refused at load, which is what makes the set's hash
-order-independent, and the set is folded into every compiled unit's key
-([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) so a changed set is a lazy recompile with no
-invalidation pass. A component is compiled once, into the same content-addressed artifact cache as
-Novis's own code, and the compiled module is shared across every core.
+the manifests, and refuses the whole swap if any entry fails — so a running server gains, loses or
+replaces an extension without dropping a request, and never on a binary that changed under its pin.
+Refusing duplicate class names is what makes the set's hash order-independent, and the set is folded
+into every compiled unit's key ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) so a changed set
+is a lazy recompile with no invalidation pass. A component is compiled once, into the same
+content-addressed artifact cache as Novis's own code, and the compiled module is shared across every
+core.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md).</sub>
+**Not on disk.** The entry parses and its pins fold into `env_hash`; both fields are optional, the pin
+is not checked, and nothing loads the file.
+
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-extension-calls-are-statically-typed"></a>
 
@@ -1463,21 +1551,69 @@ Novis's own code, and the compiled module is shared across every core.
 
 `rule:packaging/extension-calls-are-statically-typed`
 
-At load the host reads an extension's manifest — its declared classes, their `static` methods and
-`const` members, and any `nvs.toml` directives it contributes — and registers them into the compiler's
-symbol table. There is no function- or constant-shaped registration: an extension follows the same
+At load the host reads an extension's manifest — its declared class, its `static` methods and `const`
+members — and registers the class into a layer of the compiler's signature table that the loaded set
+writes. There is no function- or constant-shaped registration: an extension follows the same
 class-only shape [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants) requires of user code, and it may not
 register under `Core\` ([`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present)).
 
+The registered methods carry the manifest's qualifier declarations in the same signature fields a
+`Core` member's carry, so the call site is checked by the same code with no extension-specific branch
+([`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens)). `nvs check`, `nvs test` and the language server
+read the manifests of the resolved configuration's set and never instantiate a component.
+
 Consequently `nvs check` type-checks a call into an extension at compile time, and codegen emits a
-**direct call** to the extension's trampoline rather than a dynamic dispatch. PHP can do neither.
+**direct call** to a per-export trampoline that converts the arguments by
+[`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)'s table, rather than a dynamic dispatch. PHP can do
+neither.
 
 The direct call is why the loaded extension set is a codegen input: an artifact compiled against one set
 holds a jump into a trampoline that another set may have moved, so the set is part of every compiled
 unit's key and a changed set is an ordinary cache miss
 ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
 
-<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md).</sub>
+**Not on disk.** `Core` classes are a constant table seeded into the signature table; nothing
+registers a class a configuration names.
+
+<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
+
+<a id="packaging-a-value-crosses-as-its-wit-type"></a>
+
+## A value crosses into an extension as the WIT type one closed table gives its Novis type, copied whole  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-value-crosses-as-its-wit-type`
+
+Every parameter and return of an extension's export has a Novis type, and one closed table gives its
+WIT type. A value is copied whole in each direction by the canonical ABI, so an author receives native
+types from `wit-bindgen` and writes no marshalling code.
+
+| Novis | WIT |
+|---|---|
+| `bool`, `int`, `uint`, `float` | `bool`, `s64`, `u64`, `f64` |
+| `string` | `string` — UTF-8 both ways, and invalid UTF-8 from a guest traps |
+| `bytes` | `list<u8>` |
+| `array<T>` (a list) | `list<T>` |
+| `array<K, V>` | `list<tuple<K, V>>`, in order |
+| a shape `{a: T, b?: U}` | `record { a: T, b: option<U> }` |
+| an enum | `enum`, its cases in kebab-case |
+| `?T` | `option<T>` |
+| a closed union of shapes | `variant`, one case per shape |
+| a `Core` value class | the record `nvs:ext/types` defines for it |
+| `resource` | a resource the extension exports, alive until the request ends |
+| `mixed` | `borrow<value>` ([`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles)) |
+
+A type not in the table cannot appear in an extension signature, and a manifest naming one does not
+load. Every export returns `result<T, error>` on the WIT side, and the error throws the class
+[`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws) maps it to. `uint` is `u64` with no conversion, the same
+parametric signatures the built-ins use.
+
+What it costs is the copy: a guest that needs one field of a large array still receives the array,
+at about 12 ns per KiB. Coarse APIs are the rule already ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)),
+and `mixed` keeps the pull-only path for the case that needs it.
+
+**Not on disk.** There is no world file and no trampoline.
+
+<sub>See also [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-values-cross-as-handles"></a>
 
@@ -1485,22 +1621,26 @@ unit's key and a changed set is an ordinary cache miss
 
 `rule:packaging/values-cross-as-handles`
 
-Novis values stay in the host heap. The guest receives an opaque `value` resource — an index into a
-per-call handle table the host bounds-checks — and reads through host accessor functions. A guest
-cannot forge a host pointer; it can only present an index, which is validated, and a guest reading past
-the end of the host heap gets nothing rather than adjacent memory.
+A `mixed` parameter is the one value that crosses as a handle: the guest receives an opaque `value`
+resource — an index into a per-call handle table the host bounds-checks — and reads it through
+accessor functions. Every other type crosses as its WIT type, copied whole
+([`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)). A guest cannot forge a host pointer; it can only
+present an index, which is validated, and a guest reading past the end of the host heap gets nothing
+rather than adjacent memory.
 
 The host stays authoritative for refcounting and copy-on-write, and the guest never sees a refcount.
-Large arrays and strings are not copied wholesale — the guest pulls what it reads — and for byte
-strings it may request a bulk copy into its own linear memory, which is memcpy-bound at roughly 12 ns
-per KiB.
+Behind a handle a large array or string is not copied wholesale — the guest pulls what it reads — and
+for byte strings it may request a bulk copy into its own linear memory, which is memcpy-bound at
+roughly 12 ns per KiB.
 
 This is also why an extension exposes no per-pixel or per-element accessor across the boundary: each
 accessor call is a fixed cost, a bulk copy is nearly free, and the design that wins moves whole buffers
 a few times rather than words many times ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost),
 [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md).</sub>
+**Not on disk.** There is no extension boundary in the tree.
+
+<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-fresh-instance-per-request"></a>
 
@@ -1526,25 +1666,89 @@ because a guest re-instantiated per request loses them every time; such a client
 
 <sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget). Decided in [0003](../decisions/0003.md).</sub>
 
+<a id="packaging-a-guest-call-yields-on-its-core"></a>
+
+## A guest call runs on its request's core as an async call the request's coroutine polls, and yields at every epoch tick  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-guest-call-yields-on-its-core`
+
+A guest call runs on the calling request's own core, as a wasmtime async call that the request's
+coroutine polls. A pending call parks the coroutine exactly as a socket wait does, and the core's
+`RemoteWake` is its waker. wasmtime's fiber holds the wasm frames and saves its thread-local call chain
+when it suspends, which is what lets a second coroutine on the same thread enter wasm safely while the
+first is parked.
+
+A call suspends in two cases. A host import that waits — a granted file read on the blocking pool, a
+granted HTTP call through `Core\Http\Client` — returns a pending future. And an epoch ticker advances
+the engine's epoch about once a millisecond: at each tick the guest checks the request's CPU deadline,
+traps past it ([`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget)), and otherwise yields so the
+other tasks on that core run. A long encode slows its core's neighbours fairly and never freezes the
+core, and no call pays a thread handoff.
+
+A request has one instance per extension it calls ([`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request)). A
+component cannot be re-entered, so a second task of the same request calling the same extension waits
+until the first call returns.
+
+**Not on disk.** There is no guest call in the tree; `benches/abi-probe` proves epoch interruption on a
+plain thread only.
+
+<sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0246](../decisions/0246.md).</sub>
+
 <a id="packaging-a-guest-runs-under-the-requests-budget"></a>
 
 ## A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core  *(designed — not yet in the compiler)*
 
 `rule:packaging/a-guest-runs-under-the-requests-budget`
 
-Guest execution is tied to the request's own limits. Epoch interruption binds it to the per-request
-CPU cap, so a deliberately infinite guest loop traps rather than hanging a core; memory is capped
-through the store's limits. An extension therefore cannot starve its neighbours — a stronger guarantee
-than a built-in native function currently has, because it is enforced by the sandbox rather than by
-discipline.
+Guest execution spends the calling request's own budget. Its CPU time is the request's: at every
+epoch tick the guest checks the request's CPU deadline and traps past it, so a deliberately infinite
+guest loop stops rather than hanging a core ([`packaging/a-guest-call-yields-on-its-core`](packaging.md#packaging-a-guest-call-yields-on-its-core)). Its
+linear memory is the request's: each growth is charged to the request's memory accounting, and the
+store's limit is the least of what the request has left, the entry's optional `memory` ceiling and
+the manifest's declared maximum. An extension therefore cannot starve its neighbours — a stronger
+guarantee than a built-in native function currently has, because it is enforced by the sandbox rather
+than by discipline.
 
-A trapped guest is a resource-limit failure of the request that called it, and reaches that request
-the way any other limit does ([`errors/on-limit`](errors.md#errors-on-limit)); it never reaches the process. Together with
+A guest that reaches the request's CPU or memory limit ends the request with a resource-limit `FATAL`,
+which reaches [`errors/on-limit`](errors.md#errors-on-limit) like any other limit and never reaches the process. A trap that is
+not a limit throws ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)). Together with
 [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request), this is what makes a single-process server defensible
 with third-party code inside it: a crashing or malicious extension harms one request, not every request
 in flight.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../decisions/0003.md), [0020](../decisions/0020.md).</sub>
+What it spends: the guest's linear memory, charged to the calling request and freed when the request
+ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
+
+**Not on disk.** Neither the watchdog nor the memory accounting sees a guest.
+
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../decisions/0003.md), [0020](../decisions/0020.md), [0246](../decisions/0246.md).</sub>
+
+<a id="packaging-a-guest-crash-throws"></a>
+
+## A guest's error result throws its mapped class, a trap throws `ExtensionError`, and only a CPU or memory limit is a `FATAL`  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-guest-crash-throws`
+
+A guest's failure reaches the program in one of three ways, decided by what failed.
+
+| What happened | What the program sees |
+|---|---|
+| the export returned `err(invalid(m))`, `err(parse(m))` or `err(runtime(m))` | a `LogicError`, `ParseError` or `RuntimeError` with the message `m` |
+| the guest trapped — a panic, `unreachable`, an out-of-bounds access in its own memory, invalid UTF-8 | an `ExtensionError`, naming the extension, the export and the trap |
+| the guest reached the request's CPU or memory limit | a resource-limit `FATAL` ([`errors/on-limit`](errors.md#errors-on-limit)) |
+
+`ExtensionError` is a global class extending `RuntimeError`, so a handler that catches runtime errors
+catches it. A trap is contained by the sandbox and leaves the host's state intact, so the request goes
+on: the trapped instance is discarded, and the next call to that extension in the same request gets a
+fresh one. An application answers a crafted upload that crashed a decoder with a status code, as it
+answers one the decoder refused.
+
+A limit stays a `FATAL` because the request, not the extension, asked for too much, and a resource
+limit is not a `Throwable` ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)).
+
+**Not on disk.** `ExtensionError` does not exist.
+
+<sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-guest-has-no-ambient-authority"></a>
 
@@ -1552,21 +1756,53 @@ in flight.
 
 `rule:packaging/a-guest-has-no-ambient-authority`
 
-WASI is **not** granted to a guest by default. A component receives only Novis's own capability-checked
-host functions, so its filesystem and network access is governed by the same root-owned `nvs.toml`
-grants as script code ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door),
-[`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)). Native extension code calls `open()` and
-`connect()` directly and bypasses any capability system; a guest cannot, because it has no syscalls at
-all.
+A guest links WASI with an **empty context**: no preopened directory, no network, no environment and
+no arguments; stdout and stderr go to the request log, the clocks are the request's clock, and random
+bytes come from `Core\Random`. A toolchain that links WASI for its own libc — wasi-sdk, TinyGo, Zig —
+therefore builds a working component that holds no authority at all. Native extension code calls
+`open()` and `connect()` directly and bypasses any capability system; a guest cannot, because it has
+no syscalls.
 
-WASI is available as an opt-in world, and its preopens are derived from the capability grants rather
-than declared beside them — there is no second place authority is written.
+Two kinds of I/O can be granted, and no other: `wasi:filesystem` preopens, and `wasi:http`'s outgoing
+handler implemented by `Core\Http\Client`, so the outbound address policy, TLS trust and the proxy
+apply exactly as they do to script code. What a guest holds is the intersection the operator, the
+manifest and the calling code all allow ([`security/extension-grants-are-an-intersection`](security.md#security-extension-grants-are-an-intersection)), derived
+from the grants rather than declared beside them — there is no second place authority is written. A
+component importing any other interface does not load, and the refusal names the import.
 
 The same absence is what keeps an extension honest about qualifiers: with no ambient source and no
 sink of its own, it can declare what it consumes and produces but cannot launder
 ([`security/extension-cannot-launder`](security.md#security-extension-cannot-launder)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md).</sub>
+**Not on disk.** Nothing links WASI or any other import for a guest.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
+
+<a id="packaging-nvs-ext-is-the-authoring-tool"></a>
+
+## `nvs ext` creates, builds, inspects, tests, verifies and pins an extension, with Rust and C templates  *(designed — not yet in the compiler)*
+
+`rule:packaging/nvs-ext-is-the-authoring-tool`
+
+`nvs ext` is the one tool an extension author needs beyond their language's compiler:
+
+| Command | What it does |
+|---|---|
+| `nvs ext new --lang rust\|c <dir>` | writes a project that builds a component against `nvs:ext@1.0.0` |
+| `nvs ext build` | takes the author's built wasm module or component, componentizes it, writes the manifest from the project's `nvsx.toml`, embeds the Novis source, and checks the result loads |
+| `nvs ext inspect <file>` | prints the manifest and the I/O it requests; `--source` prints the source |
+| `nvs ext test` | runs the project's `.nvs` tests with the built file loaded and no `nvs.toml` |
+| `nvs ext verify <file>` | runs every load check on a file |
+| `nvs ext pin <file>` | prints the `[[extension]]` entry, with its `sha256`, ready to paste |
+
+Rust and C are the two templates because they are the two languages the first-party components prove.
+`nvs ext build` takes a module from any toolchain, so Zig, Go and every other language with a wasm
+target work by hand. The packer behind `nvs ext build` is the same code the binary's own build uses for
+the built-in components ([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)).
+
+**Not on disk.** There is no `nvs ext` subcommand.
+
+<sub>See also [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-the-boundary-is-the-cost"></a>
 

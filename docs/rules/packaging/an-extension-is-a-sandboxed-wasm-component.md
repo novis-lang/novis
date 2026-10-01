@@ -12,7 +12,10 @@ uses, so the two coexist with one shared `cranelift-codegen`.
 What this buys: one binary for every platform; bindings generated for any language with a wasm target
 rather than C only; a crashing or malicious extension that harms one request and not the process; and
 calls that are type-checked at compile time (`rule:packaging/extension-calls-are-statically-typed`).
-An extension doing I/O suspends the request's coroutine like any other Novis function — wasmtime's
-async support is the same stack switching the scheduler already uses, so there is no async colouring
-at the boundary. What it costs is `rule:packaging/the-boundary-is-the-cost`, and an author who wants
-direct heap access cannot have it. That is the point.
+A guest call is a wasmtime async call that the request's coroutine polls on its own core, so a guest
+waiting on I/O or yielding at an epoch tick parks that coroutine like any other wait, with no async
+colouring at the boundary (`rule:packaging/a-guest-call-yields-on-its-core`). What it costs is
+`rule:packaging/the-boundary-is-the-cost`, and an author who wants direct heap access cannot have it.
+That is the point.
+
+**Not on disk.** wasmtime is used only by `benches/abi-probe`; nothing loads a component.

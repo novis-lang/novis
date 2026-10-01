@@ -1,0 +1,14 @@
+{
+  "title": "An extension crosses typed WIT values, runs on its request's core under that request's budget, and holds only what its entry, its manifest and its caller all grant",
+  "status": "accepted",
+  "scope": "Everything 0003 left open about Tier 1: the WIT type of a value, the `nvs:ext@1.0.0` world's imports, the manifest and source sections, the required pin, how a call runs on a core and under which limits, what a failure throws, which I/O a guest may be granted and by whom, and `nvs ext`. The built-in components are 0247; the intl API and the WIT text are later work.",
+  "dependsOn": [
+    "0003",
+    "0055",
+    "0078",
+    "0120",
+    "0051"
+  ],
+  "dependsOnText": "[0003](0003.md) (the three tiers and the sandbox), [0055](0055.md) (the qualifier axis at the boundary), [0078](0078.md) (reload and `env_hash`), [0120](0120.md) (the image component's entry points), [0051](0051.md) (tier placement).",
+  "validatedBy": "The acceptance checks of the M9 goals `ext-host`, `ext-compiler`, `ext-grants` and `ext-tooling`, and `benches/abi-probe`'s `wasm-probe` guards."
+}

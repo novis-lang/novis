@@ -30,18 +30,20 @@ next:
 </div>
 
 Nothing outside Tier 0 may register a class under the `Core` namespace, and nothing whose presence a build
-flag can remove is registered there at all. A first-party sandboxed component is named like any other
-component, under its own namespace, so its tier is visible at the use site.
+flag can remove is registered there at all. The first-party sandboxed components are always present too,
+built into every binary under `Novis\` ([`packaging/the-first-party-components-are-built-in`](/docs/rules/packaging/extensions/#the-first-party-components-are-built-in "The image and intl components are built into every nvs binary, sandboxed, and always present under Novis\")), so
+their tier stays visible at the use site and their presence is never a deployment question.
 
 The failure this prevents is a program that compiles in development and fails to load in production because
-an optional subsystem was not built. That would make the reserved namespace
+an optional subsystem was not built or installed. That would make the reserved namespace
 ([`core-api/reserved-namespace`](/docs/rules/core-api/what-belongs-in-core/#reserved-namespace "The Core namespace is the compiler's: nothing may declare under it and its rosters are closed while compiling")) *conditional*, which is a worse outcome than an unfamiliar namespace:
 `Core\X` would stop meaning "always there" and start meaning "there if someone installed it", and every
 `use` of it would become a deployment question.
 
-Attempting it is a load-time diagnostic naming the class, not a silently missing symbol.
+Attempting either — a loaded extension declaring a class under `Core\` or `Novis\` — is a load-time
+diagnostic naming the class, not a silently missing symbol.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/what-belongs-in-core/#reserved-namespace" title="The Core namespace is the compiler's: nothing may declare under it and its rosters are closed while compiling"><code>core-api/reserved-namespace</code></a> <a href="/docs/rules/core-api/what-belongs-in-core/#tier-placement" title="A library candidate is placed by six ordered tests, not by PHP's extension list"><code>core-api/tier-placement</code></a> <a href="/docs/rules/core-api/what-belongs-in-core/#five-placements" title="A candidate lands in exactly one of five placements: Core, Native, Ext, Dropped or answered"><code>core-api/five-placements</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0051.md">record 0051</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0011.md">record 0011</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0003.md">record 0003</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/tier_boundary.rs"><code>crates/nvs-stdlib/tests/tier_boundary.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/what-belongs-in-core/#reserved-namespace" title="The Core namespace is the compiler's: nothing may declare under it and its rosters are closed while compiling"><code>core-api/reserved-namespace</code></a> <a href="/docs/rules/core-api/what-belongs-in-core/#tier-placement" title="A library candidate is placed by six ordered tests, not by PHP's extension list"><code>core-api/tier-placement</code></a> <a href="/docs/rules/core-api/what-belongs-in-core/#five-placements" title="A candidate lands in exactly one of five placements: Core, Native, Ext, Dropped or answered"><code>core-api/five-placements</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0051.md">record 0051</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0011.md">record 0011</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0003.md">record 0003</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0247.md">record 0247</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/tier_boundary.rs"><code>crates/nvs-stdlib/tests/tier_boundary.rs</code></a></dd></div></dl>
 
 </div>
 

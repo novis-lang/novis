@@ -7,6 +7,9 @@ answer for a different class of code:
   class (`rule:classes/no-free-functions-or-constants`).
 - **Tier 1 — a sandboxed `.nvsx` component.** The default and recommended path for third-party
   code, and where hostile-bytes parsers go (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`).
+  The two first-party components, image and intl, are Tier 1 built into the binary and always
+  present under `Novis\` (`rule:packaging/the-first-party-components-are-built-in`); every other
+  component is loaded from an `[[extension]]` entry.
 - **Tier 2 — statically linked native.** A Rust crate compiled into the `nvs` binary, for
   first-party subsystems that need raw sockets, TLS termination or the heap: the database drivers,
   the regex engine, crypto. Safe because it is safe Rust, and built from source, which is exactly the

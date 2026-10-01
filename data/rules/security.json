@@ -64,6 +64,7 @@
     "security/secret-in-a-test-report",
     "security/redaction-reaches-the-tools-own-renderings",
     "security/extension-manifest-only-tightens",
+    "security/extension-grants-are-an-intersection",
     "security/extension-contagion",
     "security/extension-declares-sink-or-source",
     "security/extension-cannot-launder",

@@ -1,0 +1,14 @@
+{
+  "title": "An extension's files and outbound HTTP are the intersection of its entry's grant, its manifest's request and its caller's own grant",
+  "status": "designed",
+  "because": [
+    "0246"
+  ],
+  "divergesFromPhp": "a PHP extension acts with the whole process's authority; a Novis extension holds only what three parties all grant",
+  "seeAlso": [
+    "packaging/a-guest-has-no-ambient-authority",
+    "security/capability-question-is-grant-and-scope",
+    "security/package-authority-is-granted-one-line-at-a-time"
+  ],
+  "guardedBy": []
+}

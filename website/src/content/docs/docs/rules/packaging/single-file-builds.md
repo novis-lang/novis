@@ -202,17 +202,20 @@ the bundler's own surface at one input, one output and one footer.
 <a class="nv-rule-id" href="#a-nvsx-dependency-embeds-in-the-same-payload"><code>packaging/a-nvsx-dependency-embeds-in-the-same-payload</code></a>
 </div>
 
-A Tier 1 extension is one wasm component, portable across every target Novis ships for. If the
-program's `require` graph depends on one, `nvs build --compile` embeds the `.nvsx` file itself as an
-opaque entry in the same flat list as the source
-([`packaging/a-bundle-carries-source-not-artifacts`](/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts "A bundle's payload is source, as a flat file list with no archive and no compression")). There is no target-matrix problem, because a
-`.nvsx` never had one.
+A Tier 1 extension is one wasm component, portable across every target Novis ships for.
+`nvs build --compile` embeds each `.nvsx` the build's configuration lists, with its pin, as an opaque
+entry in the same flat list as the source ([`packaging/a-bundle-carries-source-not-artifacts`](/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts "A bundle's payload is source, as a flat file list with no archive and no compression")).
+There is no target-matrix problem, because a `.nvsx` never had one. The built-in components travel
+inside the host binary the bundle copies, so a bundle carries them with no entry at all
+([`packaging/the-first-party-components-are-built-in`](/docs/rules/packaging/extensions/#the-first-party-components-are-built-in "The image and intl components are built into every nvs binary, sandboxed, and always present under Novis\")).
 
 An extension embedded in a bundle behaves identically to the same extension loaded from an
 `[[extension]]` entry for a plain `nvs run`: it is the same component, the same manifest and the same
 pin, read from a different byte source.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts" title="A bundle's payload is source, as a flat file list with no archive and no compression"><code>packaging/a-bundle-carries-source-not-artifacts</code></a> <a href="/docs/rules/packaging/extensions/#an-extension-is-a-sandboxed-wasm-component" title="A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with dlopen"><code>packaging/an-extension-is-a-sandboxed-wasm-component</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0003.md">record 0003</a></dd></div></dl>
+**Not on disk.** A bundle embeds source only.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts" title="A bundle's payload is source, as a flat file list with no archive and no compression"><code>packaging/a-bundle-carries-source-not-artifacts</code></a> <a href="/docs/rules/packaging/extensions/#an-extension-is-a-sandboxed-wasm-component" title="A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with dlopen"><code>packaging/an-extension-is-a-sandboxed-wasm-component</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0003.md">record 0003</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0246.md">record 0246</a></dd></div></dl>
 
 </div>
 

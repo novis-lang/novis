@@ -16,9 +16,9 @@ next:
 
 <p class="nv-section-lead">An extension manifest may only tighten. Contagion is the default, and no spelling anywhere removes a qualifier.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">6</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">6</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">1</span><span class="nv-count-label">differs from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#extension-manifest-only-tightens">Everything an extension manifest may declare is a restriction, so a hostile manifest cannot make a calling program less safe</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#extension-contagion">An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#extension-declares-sink-or-source">An extension manifest may declare exactly two things: a parameter that refuses <code>tainted</code>, and a return that is always <code>tainted</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#extension-cannot-launder">No extension may remove the <code>tainted</code> qualifier, in any manifest spelling</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#secret-does-not-cross-an-extension">A <code>secret</code> value is refused at every extension boundary, in either direction</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#image-component-declares-nothing">The image component declares no qualifier deviation and requests no capability</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#extension-manifest-only-tightens">Everything an extension manifest may declare is a restriction, so a hostile manifest cannot make a calling program less safe</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#extension-grants-are-an-intersection">An extension's files and outbound HTTP are the intersection of its entry's grant, its manifest's request and its caller's own grant</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#extension-contagion">An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#extension-declares-sink-or-source">An extension manifest may declare exactly two things: a parameter that refuses <code>tainted</code>, and a return that is always <code>tainted</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#extension-cannot-launder">No extension may remove the <code>tainted</code> qualifier, in any manifest spelling</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#secret-does-not-cross-an-extension">A <code>secret</code> value is refused at every extension boundary, in either direction</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#image-component-declares-nothing">The image component declares no qualifier deviation and requests no capability</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="extension-manifest-only-tightens">
 
@@ -46,6 +46,52 @@ no extension-specific relaxation, so the two cannot drift.
 qualifier axis in a world file — so none of this is enforced today.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/extensions-and-qualifiers/#extension-contagion" title="An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration"><code>security/extension-contagion</code></a> <a href="/docs/rules/security/extensions-and-qualifiers/#extension-declares-sink-or-source" title="An extension manifest may declare exactly two things: a parameter that refuses tainted, and a return that is always tainted"><code>security/extension-declares-sink-or-source</code></a> <a href="/docs/rules/security/extensions-and-qualifiers/#extension-cannot-launder" title="No extension may remove the tainted qualifier, in any manifest spelling"><code>security/extension-cannot-launder</code></a> <a href="/docs/rules/security/closed-doors/#no-ffi" title="No userland mechanism loads native code into the process"><code>security/no-ffi</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0055.md">record 0055</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0003.md">record 0003</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md">record 0088</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="extension-grants-are-an-intersection">
+
+## An extension's files and outbound HTTP are the intersection of its entry's grant, its manifest's request and its caller's own grant
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#extension-grants-are-an-intersection"><code>security/extension-grants-are-an-intersection</code></a>
+</div>
+
+What an extension may read, write or call at a given moment is the **intersection** of three sets,
+each of which only narrows: what the operator grants on the extension's own `[[extension]]` entry, what
+the extension's manifest declares it needs, and what the calling code's namespace holds at the call.
+
+```toml
+[[extension]]
+path   = "geo.nvsx"
+sha256 = "…"
+grants = { read = ["data/geo/"], write = [], connect = ["tiles.example.com"] }
+```
+
+`read` and `write` name filesystem roots under the `fs.read` and `fs.write` capabilities, and become
+`wasi:filesystem` preopens, opened read-only and read-write; `connect` names hosts under `net.connect`,
+and governs `wasi:http`'s outgoing handler. Relative roots resolve against the file the entry is
+written in ([`config/a-relative-path-resolves-against-the-file-it-is-written-in`](/docs/rules/config/includes-and-ownership/#a-relative-path-resolves-against-the-file-it-is-written-in "A relative path resolves against the directory of the file it is written in; a command-line path against the working directory")). No other
+capability can be granted to a guest.
+
+An entry with no `grants` holds no I/O, whatever its manifest requests, and `nvs ext inspect` prints
+what a manifest requests so the operator can read it before writing a grant. An extension never acts
+with more authority than the code that called it, so a request narrowed by an isolate or by its
+namespace stays narrowed through the extension. The preopens are computed per instance from the
+request's own configuration snapshot ([`security/capability-question-is-grant-and-scope`](/docs/rules/security/capabilities/#capability-question-is-grant-and-scope "A capability question is a grant and a scope, asked of the request's own configuration snapshot")), and a
+path is canonicalised and prefix-checked as every `Core\IO` door does
+([`security/path-scope-canonicalise-then-prefix`](/docs/rules/security/scopes-and-denial/#path-scope-canonicalise-then-prefix "A path scope is canonicalise-then-prefix over whole components, and a path that does not exist yet is its deepest existing ancestor")).
+
+**Not on disk.** The entry has no `grants` field, and no guest exists to hold one.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A PHP extension acts with the whole process's authority; a Novis extension holds only what three parties all grant</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/extensions/#a-guest-has-no-ambient-authority" title="A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked"><code>packaging/a-guest-has-no-ambient-authority</code></a> <a href="/docs/rules/security/capabilities/#capability-question-is-grant-and-scope" title="A capability question is a grant and a scope, asked of the request's own configuration snapshot"><code>security/capability-question-is-grant-and-scope</code></a> <a href="/docs/rules/security/scopes-and-denial/#package-authority-is-granted-one-line-at-a-time" title="A dependency's authority is granted by the application one line at a time, and a declaration grants nothing"><code>security/package-authority-is-granted-one-line-at-a-time</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0246.md">record 0246</a></dd></div></dl>
 
 </div>
 

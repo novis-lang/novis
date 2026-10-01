@@ -4,7 +4,8 @@
   "because": [
     "0003",
     "0011",
-    "0078"
+    "0078",
+    "0246"
   ],
   "divergesFromPhp": "a call into an extension is checked by `nvs check` like a call into `Core`, not dispatched by name at runtime",
   "seeAlso": [

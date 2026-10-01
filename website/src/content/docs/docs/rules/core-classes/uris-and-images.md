@@ -274,13 +274,13 @@ the application answers with a status code. A call may pass its own cap **only t
 same monotone rule extension manifests take.
 
 Bytes that are not an image the roster decodes throw a parse error; a codec fault beyond that is a
-trap the sandbox contains.
+trap the sandbox contains, and it throws `ExtensionError` ([`packaging/a-guest-crash-throws`](/docs/rules/packaging/extensions/#a-guest-crash-throws "A guest's error result throws its mapped class, a trap throws ExtensionError, and only a CPU or memory limit is a FATAL")).
 
 What it spends, per request that calls the component: the encoded input, at most two frames at the
-cap — source and result, 192 MB worst case at RGBA8 — and the encoded output, all inside the
-extension's own memory cap, which is sized from the pixel cap at load, and none of which outlives the
-request. There are no threads in a guest, so a bulk import parallelises across coroutines and cores
-rather than inside one call.
+cap — source and result, 192 MB worst case at RGBA8 — and the encoded output, all charged to the
+calling request's memory cap ([`packaging/a-guest-runs-under-the-requests-budget`](/docs/rules/packaging/extensions/#a-guest-runs-under-the-requests-budget "A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core")), and none of
+which outlives the request. There are no threads in a guest, so a bulk import parallelises across
+coroutines and cores rather than inside one call.
 
 **Not shipped.** No image component exists in the tree.
 
@@ -289,7 +289,7 @@ rather than inside one call.
 <p>A decompression bomb is refused from its declared dimensions rather than discovered by exhausting memory</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/uris-and-images/#image-pipeline" title="An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it"><code>core-classes/image-pipeline</code></a> <a href="/docs/rules/core-classes/pdf-and-spreadsheets/#pdf-page-is-an-image-source" title="A PDF page is a decode-only format of the image component: one page per open, priced by the pixel cap"><code>core-classes/pdf-page-is-an-image-source</code></a> <a href="/docs/rules/core-classes/pdf-and-spreadsheets/#spreadsheet-bulk-boundary" title="A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists"><code>core-classes/spreadsheet-bulk-boundary</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0120.md">record 0120</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0005.md">record 0005</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0055.md">record 0055</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0020.md">record 0020</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0095.md">record 0095</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/uris-and-images/#image-pipeline" title="An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it"><code>core-classes/image-pipeline</code></a> <a href="/docs/rules/core-classes/pdf-and-spreadsheets/#pdf-page-is-an-image-source" title="A PDF page is a decode-only format of the image component: one page per open, priced by the pixel cap"><code>core-classes/pdf-page-is-an-image-source</code></a> <a href="/docs/rules/core-classes/pdf-and-spreadsheets/#spreadsheet-bulk-boundary" title="A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists"><code>core-classes/spreadsheet-bulk-boundary</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0120.md">record 0120</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0005.md">record 0005</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0055.md">record 0055</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0020.md">record 0020</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0095.md">record 0095</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0246.md">record 0246</a></dd></div></dl>
 
 </div>
 

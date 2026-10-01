@@ -3,7 +3,8 @@
   "status": "designed",
   "because": [
     "0003",
-    "0052"
+    "0052",
+    "0246"
   ],
   "divergesFromPhp": "there is no `extension=` line and no `.so`; an extension is one portable `.nvsx` that cannot address host memory, and nothing loads native code at runtime",
   "seeAlso": [

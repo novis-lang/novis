@@ -4,7 +4,8 @@
   "because": [
     "0051",
     "0011",
-    "0003"
+    "0003",
+    "0247"
   ],
   "seeAlso": [
     "core-api/reserved-namespace",

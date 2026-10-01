@@ -1,0 +1,12 @@
+{
+  "title": "A guest call runs on its request's core as an async call the request's coroutine polls, and yields at every epoch tick",
+  "status": "designed",
+  "because": [
+    "0246"
+  ],
+  "seeAlso": [
+    "packaging/a-guest-runs-under-the-requests-budget",
+    "packaging/a-fresh-instance-per-request"
+  ],
+  "guardedBy": []
+}

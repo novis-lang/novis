@@ -3,7 +3,8 @@
   "status": "designed",
   "because": [
     "0003",
-    "0020"
+    "0020",
+    "0246"
   ],
   "seeAlso": [
     "errors/on-limit",

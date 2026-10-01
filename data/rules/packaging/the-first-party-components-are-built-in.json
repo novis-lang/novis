@@ -1,0 +1,13 @@
+{
+  "title": "The image and intl components are built into every `nvs` binary, sandboxed, and always present under `Novis\\`",
+  "status": "designed",
+  "because": [
+    "0247"
+  ],
+  "seeAlso": [
+    "core-api/core-means-always-present",
+    "packaging/three-tiers",
+    "core-api/tier-roster"
+  ],
+  "guardedBy": []
+}

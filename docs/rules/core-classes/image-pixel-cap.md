@@ -9,12 +9,12 @@ the application answers with a status code. A call may pass its own cap **only t
 same monotone rule extension manifests take.
 
 Bytes that are not an image the roster decodes throw a parse error; a codec fault beyond that is a
-trap the sandbox contains.
+trap the sandbox contains, and it throws `ExtensionError` (`rule:packaging/a-guest-crash-throws`).
 
 What it spends, per request that calls the component: the encoded input, at most two frames at the
-cap — source and result, 192 MB worst case at RGBA8 — and the encoded output, all inside the
-extension's own memory cap, which is sized from the pixel cap at load, and none of which outlives the
-request. There are no threads in a guest, so a bulk import parallelises across coroutines and cores
-rather than inside one call.
+cap — source and result, 192 MB worst case at RGBA8 — and the encoded output, all charged to the
+calling request's memory cap (`rule:packaging/a-guest-runs-under-the-requests-budget`), and none of
+which outlives the request. There are no threads in a guest, so a bulk import parallelises across
+coroutines and cores rather than inside one call.
 
 **Not shipped.** No image component exists in the tree.

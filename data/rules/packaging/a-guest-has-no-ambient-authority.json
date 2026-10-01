@@ -2,7 +2,8 @@
   "title": "A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked",
   "status": "designed",
   "because": [
-    "0003"
+    "0003",
+    "0246"
   ],
   "divergesFromPhp": "native extension code calls `open()` and `connect()` directly; a guest reaches the filesystem and the network only through the same grants script code has",
   "seeAlso": [

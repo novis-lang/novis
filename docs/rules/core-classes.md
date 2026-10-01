@@ -2030,17 +2030,17 @@ the application answers with a status code. A call may pass its own cap **only t
 same monotone rule extension manifests take.
 
 Bytes that are not an image the roster decodes throw a parse error; a codec fault beyond that is a
-trap the sandbox contains.
+trap the sandbox contains, and it throws `ExtensionError` ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
 
 What it spends, per request that calls the component: the encoded input, at most two frames at the
-cap — source and result, 192 MB worst case at RGBA8 — and the encoded output, all inside the
-extension's own memory cap, which is sized from the pixel cap at load, and none of which outlives the
-request. There are no threads in a guest, so a bulk import parallelises across coroutines and cores
-rather than inside one call.
+cap — source and result, 192 MB worst case at RGBA8 — and the encoded output, all charged to the
+calling request's memory cap ([`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget)), and none of
+which outlives the request. There are no threads in a guest, so a bulk import parallelises across
+coroutines and cores rather than inside one call.
 
 **Not shipped.** No image component exists in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0120](../decisions/0120.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0120](../decisions/0120.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 

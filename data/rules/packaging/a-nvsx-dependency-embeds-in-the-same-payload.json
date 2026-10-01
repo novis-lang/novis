@@ -3,7 +3,8 @@
   "status": "designed",
   "because": [
     "0048",
-    "0003"
+    "0003",
+    "0246"
   ],
   "seeAlso": [
     "packaging/a-bundle-carries-source-not-artifacts",

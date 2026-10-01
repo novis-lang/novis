@@ -1,0 +1,13 @@
+{
+  "title": "A value crosses into an extension as the WIT type one closed table gives its Novis type, copied whole",
+  "status": "designed",
+  "because": [
+    "0246"
+  ],
+  "seeAlso": [
+    "packaging/values-cross-as-handles",
+    "packaging/the-boundary-is-the-cost",
+    "packaging/extension-calls-are-statically-typed"
+  ],
+  "guardedBy": []
+}

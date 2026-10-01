@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*17 of 88 rules below are **designed** rather than shipped, and are marked where they appear.*
+*18 of 89 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1095,11 +1095,18 @@ a shell argument or a path, and a single catch-all invites exactly the false con
 exists to prevent. The roster grows by adding a named member to the class that owns the sink, never by
 widening an existing one.
 
+**One launderer checks nothing in the bytes: `Core\Path::fromCwd`**, for a file path typed on the
+command line. It throws while a request is being answered, so request data never passes through it.
+The user who typed the path can already open any file the process can, and the `fs` grants still
+bound every file its answer names. A request that opens a file named by its own data keeps
+`Core\IO::within($base, $path)`. `fromCwd` removes `tainted` and nothing else: a `secret` argument
+does not compile, as at every launderer.
+
 Which return type a launderer takes is a predicate rather than a per-member choice
 ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)). Where no built-in launderer fits, the way out is
 [`security/assert-trusted`](security.md#security-assert-trusted) — written, greppable, and carrying a reason — and never a silent cast.
 
-<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0055](../decisions/0055.md), [0248](../decisions/0248.md).</sub>
 
 <a id="security-launderer-answers-a-carrier"></a>
 
@@ -1525,6 +1532,41 @@ no extension-specific relaxation, so the two cannot drift.
 qualifier axis in a world file — so none of this is enforced today.
 
 <sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0003](../decisions/0003.md), [0088](../decisions/0088.md).</sub>
+
+<a id="security-extension-grants-are-an-intersection"></a>
+
+## An extension's files and outbound HTTP are the intersection of its entry's grant, its manifest's request and its caller's own grant  *(designed — not yet in the compiler)*
+
+`rule:security/extension-grants-are-an-intersection`
+
+What an extension may read, write or call at a given moment is the **intersection** of three sets,
+each of which only narrows: what the operator grants on the extension's own `[[extension]]` entry, what
+the extension's manifest declares it needs, and what the calling code's namespace holds at the call.
+
+```toml
+[[extension]]
+path   = "geo.nvsx"
+sha256 = "…"
+grants = { read = ["data/geo/"], write = [], connect = ["tiles.example.com"] }
+```
+
+`read` and `write` name filesystem roots under the `fs.read` and `fs.write` capabilities, and become
+`wasi:filesystem` preopens, opened read-only and read-write; `connect` names hosts under `net.connect`,
+and governs `wasi:http`'s outgoing handler. Relative roots resolve against the file the entry is
+written in ([`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in)). No other
+capability can be granted to a guest.
+
+An entry with no `grants` holds no I/O, whatever its manifest requests, and `nvs ext inspect` prints
+what a manifest requests so the operator can read it before writing a grant. An extension never acts
+with more authority than the code that called it, so a request narrowed by an isolate or by its
+namespace stays narrowed through the extension. The preopens are computed per instance from the
+request's own configuration snapshot ([`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)), and a
+path is canonicalised and prefix-checked as every `Core\IO` door does
+([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
+
+**Not on disk.** The entry has no `grants` field, and no guest exists to hold one.
+
+<sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="security-extension-contagion"></a>
 

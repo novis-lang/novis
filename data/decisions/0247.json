@@ -1,0 +1,12 @@
+{
+  "title": "The image and intl components are built into every `nvs` binary, sandboxed and always present under `Novis\\`",
+  "status": "accepted",
+  "scope": "Where the two first-party Tier 1 components live, how a build produces them, and what that costs. Loading, typing, limits and grants are 0246; the image component is 0120; the intl API is a later record.",
+  "dependsOn": [
+    "0051",
+    "0120",
+    "0246"
+  ],
+  "dependsOnText": "[0051](0051.md) (the tier roster, and the trade its Consequences made for intl), [0120](0120.md), [0246](0246.md).",
+  "validatedBy": "Goal `ext-image`'s and goal `ext-intl`'s acceptance checks."
+}
