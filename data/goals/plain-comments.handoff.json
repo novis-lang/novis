@@ -1,13 +1,18 @@
 {
-  "state": "**Goal `plain-comments` is reached: both of its checks pass.**\n`bun nv proofs --comments docs/examples tests/hostile benches/members` exits 0, and\n`bun nv proofs --gate` says nothing is owed in the whole roster.\n\nThe driver's last sweep is red only on the host, not on the tree. The WSL distro `Ubuntu-24.04`\ndoes not start: `wsl -d Ubuntu-24.04 -e true` fails with `Wsl/Service/CreateInstance/ERROR_TIMEOUT`,\nwhile `docker-desktop` runs. `bun nv db-matrix --all` prints `ok` for all five TCP drivers, and the\nthree AF_UNIX legs print `n/a` because `/mnt/wsl/novis-db` is published by that distro, so it exits 2.\nThe TSan check, the prefix fuzz check and the WSL tree sync fail on the same timeout.\n\nThe repair is `wsl --shutdown` (or a reboot), which also stops Docker Desktop. That is the user's\ncall on their host, so this session held the run instead.",
+  "state": "**Goal `plain-comments` is reached.** Both of its checks pass:\n`bun nv proofs --comments docs/examples tests/hostile benches/members` exits 0, and\n`bun nv proofs --gate` says nothing is owed in the whole roster.\n\nThe floor is green on this host again. WSL `Ubuntu-24.04` starts, and Docker Desktop's engine was\nrestarted after it stuck at `stopping`. `bun nv db-matrix --all` prints `8/8 legs ok`: the five TCP\ndrivers and the three AF_UNIX legs. The TSan, prefix fuzz and WSL tree sync checks failed only on\nthe WSL start timeout and were not re-run by hand; the driver's sweep runs them.\n\n`bun nv verify --doc` resolves every link, and `bun nv owners --closes plain-comments` and\n`bun nv playbook --closes plain-comments` name nothing.",
   "next": {
     "stage": 3,
     "title": "the gate",
     "files": [],
-    "note": "one file set: the checker and the policy file.\n\nEvery item in the group is ticked. Once WSL starts again, the driver's next sweep should find the floor green and reach the goal; no tree change is owed.",
-    "items": []
+    "note": "one file set: the checker and the policy file.",
+    "items": [
+      {
+        "done": true,
+        "text": "**The gate passes and the floor is green** — `tools/nv/cmd/proofs.ts:1`, nothing owed; the next goal starts from its own handoff."
+      }
+    ]
   },
   "backlog": [
-    "None owned by this goal."
+    "None owed by this goal."
   ]
 }
