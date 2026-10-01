@@ -3603,7 +3603,11 @@ pub mod code {
     /// is present at, not a value that outlives the site. Narrowing the
     /// receiver, or calling the member directly, is the fix; both are what the
     /// help names.
-    pub const E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER: Code = Code::new("E0732");
+    pub const E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER: Code = Code::new("E0732").card(
+        "A method reference like `$value->method(...)` needs a value of a known class, and this \
+         value is `mixed`. Narrow the value first with `is` or `as ClassName`, or call the method \
+         directly.",
+    );
     /// A `#[Test]` method whose declaration is not the shape `rule:testing/test-attribute`
     /// requires: `static`, not `public`, or returning anything but `void`.
     ///
@@ -3620,7 +3624,10 @@ pub mod code {
     /// is [`E_DUPLICATE_DECLARATION`] instead, being the same mistake the
     /// option written twice already draws, and the fifth (`skip: true`) is the
     /// option roster's own type check.
-    pub const E_TEST_METHOD_SHAPE: Code = Code::new("E0733");
+    pub const E_TEST_METHOD_SHAPE: Code = Code::new("E0733").card(
+        "A `#[Test]` method must be `public`, must not be `static`, and must return `void`. \
+         Write it as `public function name(): void`.",
+    );
     /// A `#[Test(retries: n)]` with no `because:` beside it.
     ///
     /// `rule:testing/runner-is-strict` grants retries and charges a written reason for them in
@@ -3630,7 +3637,10 @@ pub mod code {
     /// separate code from the option roster's own type check because nothing
     /// about `retries: 2` is ill-typed — the mistake is the option that is
     /// *absent*, which is the one thing an all-optional bag cannot say.
-    pub const E_TEST_RETRIES_WITHOUT_REASON: Code = Code::new("E0734");
+    pub const E_TEST_RETRIES_WITHOUT_REASON: Code = Code::new("E0734").card(
+        "A `#[Test]` with `retries:` must also give `because:`, a sentence that says why the test \
+         may fail. Write `#[Test(retries: 2, because: \"the server is slow to start\")]`.",
+    );
     /// A `#[Fixture]` method the runner could not build a value from.
     ///
     /// `rule:testing/fixtures` builds a fixture **once, in the parent isolate**, and
@@ -3649,7 +3659,10 @@ pub mod code {
     /// Two fixtures of one class returning one type is neither, and draws
     /// [`E_DUPLICATE_DECLARATION`]: § 8 resolves by type, so it is one
     /// declaration made twice.
-    pub const E_FIXTURE_METHOD_SHAPE: Code = Code::new("E0735");
+    pub const E_FIXTURE_METHOD_SHAPE: Code = Code::new("E0735").card(
+        "A `#[Fixture]` method must be `public` and `static`, and must return a value. A method \
+         cannot be a `#[Test]` and a `#[Fixture]` at the same time.",
+    );
     /// A `#[Test]` or `#[Fixture]` parameter whose type no `#[Fixture]` of the
     /// class supplies.
     ///
@@ -3661,7 +3674,11 @@ pub mod code {
     /// supplies this type. § 9's data rows are the other answer, and they
     /// fill a parameter **by name**, so this fires only where neither roster
     /// reaches it — which is why the help names both.
-    pub const E_FIXTURE_PARAMETER_UNSUPPLIED: Code = Code::new("E0736");
+    pub const E_FIXTURE_PARAMETER_UNSUPPLIED: Code = Code::new("E0736").card(
+        "No `#[Fixture]` of this class returns this parameter's type, and no `#[TestWith]` row \
+         gives it a value. Add a fixture that returns this type, or a row with this parameter's \
+         name.",
+    );
     /// A `#[Fixture]` that requires itself, directly or through others.
     ///
     /// `rule:testing/fixtures`'s last sentence: a fixture may declare fixture parameters
@@ -3669,7 +3686,10 @@ pub mod code {
     /// from [`E_FIXTURE_PARAMETER_UNSUPPLIED`] because every parameter on such
     /// a cycle *is* supplied — by a roster that cannot be built in any order,
     /// which is a fact about the chain rather than about any one parameter.
-    pub const E_FIXTURE_CYCLE: Code = Code::new("E0737");
+    pub const E_FIXTURE_CYCLE: Code = Code::new("E0737").card(
+        "These fixtures need each other in a circle, so none of them can be built first. Move the \
+         value they share into a fixture of its own to break the circle.",
+    );
     /// A `#[TestWith(...)]` data row that does not describe the method it is
     /// attached to.
     ///
@@ -3688,7 +3708,10 @@ pub mod code {
     /// **no** row names is not this code but
     /// [`E_FIXTURE_PARAMETER_UNSUPPLIED`], that being a question about the
     /// two rosters rather than about a row.
-    pub const E_TEST_ROW_FIELD: Code = Code::new("E0738");
+    pub const E_TEST_ROW_FIELD: Code = Code::new("E0738").card(
+        "A `#[TestWith]` row must give a value for each parameter of its `#[Test]` method, by the \
+         parameter's name and of its type. Every row of one method gives the same parameters.",
+    );
 
     /// A method declaring a return type other than `void` has a path that
     /// reaches the end of its body without returning or throwing.
@@ -3703,7 +3726,10 @@ pub mod code {
     /// The analysis behind it is `nvs_types::returns`, and it is deliberately
     /// asymmetric: every shape it cannot prove *falls through* is treated as
     /// exiting, so an unusual body is accepted rather than wrongly refused.
-    pub const E_MISSING_RETURN: Code = Code::new("E0739");
+    pub const E_MISSING_RETURN: Code = Code::new("E0739").card(
+        "This method declares a return type, but one path reaches the end of the body without a \
+         `return` or a `throw`. Add a `return` with a value or a `throw` at the end of that path.",
+    );
     /// The first-class callable spelling written on `new`: `new C(...)`.
     ///
     /// `rule:types/callable-is-a-closure`'s kept list is a list of *members* — `Class::method(...)`,
@@ -3718,7 +3744,10 @@ pub mod code {
     /// Separate from [`E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER`] because the
     /// two are opposite failures: that one resolves a member and has no class
     /// to bind it to, this one names a class and has no member.
-    pub const E_FIRST_CLASS_CALLABLE_NEW: Code = Code::new("E0740");
+    pub const E_FIRST_CLASS_CALLABLE_NEW: Code = Code::new("E0740").card(
+        "`new Foo(...)` cannot be used as a method reference, because a constructor is not a \
+         method. Write a closure instead: `fn (): Foo => new Foo()`.",
+    );
 
     /// A body declaring `static` returns a value that is not the called class.
     ///
@@ -3741,7 +3770,11 @@ pub mod code {
     /// `Base` and every later check reads a class label that was never there.
     /// `self` is the return type that was meant when the body really does
     /// answer the declaring class, and it is what the help names.
-    pub const E_STATIC_RETURN_NOT_CALLED_CLASS: Code = Code::new("E0741");
+    pub const E_STATIC_RETURN_NOT_CALLED_CLASS: Code = Code::new("E0741").card(
+        "A method with the return type `static` must return `$this`, `new static(...)`, or the \
+         result of another method that returns `static`. If the method always returns this exact \
+         class, declare the return type `self`.",
+    );
 
     /// `void` or `never` stands somewhere that is not a return type: a
     /// parameter, or the type a binding holds.
@@ -3763,7 +3796,10 @@ pub mod code {
     /// dies in `nvs-codegen` reading a value of representation `void`, and a
     /// binding defined by a `void` call leaves its name standing for nothing,
     /// which the IR reports as an operand used before it is defined.
-    pub const E_VOID_OR_NEVER_OUTSIDE_RETURN: Code = Code::new("E0742");
+    pub const E_VOID_OR_NEVER_OUTSIDE_RETURN: Code = Code::new("E0742").card(
+        "`void` and `never` are only allowed as a return type. A parameter or a variable cannot \
+         have either type, and a variable cannot store the result of a `void` call.",
+    );
 
     /// `Core\Program::implementing<T>()`'s type argument is not an interface.
     ///
@@ -3777,7 +3813,10 @@ pub mod code {
     ///
     /// Reported where the type argument is written, in the same pass that
     /// expands the call, because the expansion needs the answer anyway.
-    pub const E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE: Code = Code::new("E0743");
+    pub const E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE: Code = Code::new("E0743").card(
+        "The type argument of `Core\\Program::implementing` must be an interface. Write the \
+         interface that the classes implement, for example `implementing<Module>()`.",
+    );
 
     /// A class the enumeration would instantiate declares a constructor that
     /// takes arguments.
@@ -3793,7 +3832,11 @@ pub mod code {
     /// program being compiled is the one that asked for the enumeration, and
     /// the implementing class may be in a file this program only reached
     /// through § 3's scan. The class is named in the message and in the help.
-    pub const E_PROGRAM_IMPLEMENTOR_NEEDS_NO_ARGUMENT_CONSTRUCTOR: Code = Code::new("E0744");
+    pub const E_PROGRAM_IMPLEMENTOR_NEEDS_NO_ARGUMENT_CONSTRUCTOR: Code = Code::new("E0744").card(
+        "`Core\\Program::implementing` creates each class it finds with no arguments, and this \
+         class has a constructor that takes arguments. Remove the constructor's parameters, and \
+         pass those values through a method of the interface instead.",
+    );
 
     /// Two `#[Option]`s of one `#[Command]` claim the same short or long
     /// spelling.
@@ -3809,7 +3852,11 @@ pub mod code {
     /// its long spelling unless `long:` gives another, which is why
     /// `#[Option(long: "dryRun")] bool $force` collides with a plain
     /// `#[Option] bool $dryRun` beside it.
-    pub const E_OPTION_SPELLING_TAKEN: Code = Code::new("E0745");
+    pub const E_OPTION_SPELLING_TAKEN: Code = Code::new("E0745").card(
+        "Two `#[Option]` parameters of this command use the same option name. A parameter's name \
+         is its long option name unless `long:` gives another. Change the `short:` or `long:` of \
+         one of them.",
+    );
 
     /// An `#[Option]` is attached to a parameter whose declared type has no
     /// conversion from `string`.
@@ -3824,7 +3871,11 @@ pub mod code {
     /// The primary span is the parameter rather than the attribute: the
     /// attribute is written correctly and it is the declared type that cannot
     /// answer it.
-    pub const E_OPTION_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0746");
+    pub const E_OPTION_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0746").card(
+        "An option's value arrives as text, so an `#[Option]` parameter needs a type that text can \
+         be converted to. Use `string`, `int`, `uint`, `decimal`, `bool`, an enum, a union of \
+         literal types, or a class that implements `Parses`, like `Core\\Uuid`.",
+    );
 
     /// A `#[Route]` gives no `path`, no `method`, or neither.
     ///
@@ -3837,7 +3888,10 @@ pub mod code {
     ///
     /// Both missing fields are named in one diagnostic: an author who wrote
     /// neither wrote one empty attribute, not two mistakes.
-    pub const E_ROUTE_INCOMPLETE: Code = Code::new("E0747");
+    pub const E_ROUTE_INCOMPLETE: Code = Code::new("E0747").card(
+        "A `#[Route]` needs both a `path` and a `method`. Write for example \
+         `#[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]`.",
+    );
 
     /// Two `#[Route]`s declare the same verb and the same path shape.
     ///
@@ -3847,7 +3901,11 @@ pub mod code {
     /// all. A question about the whole enumeration rather than about one
     /// declaration, so it is reported once every file has been walked, at the
     /// declaration that arrives second in load order.
-    pub const E_DUPLICATE_ROUTE: Code = Code::new("E0748");
+    pub const E_DUPLICATE_ROUTE: Code = Code::new("E0748").card(
+        "Two routes have the same HTTP method and the same path. The names of captures do not \
+         count, so `/users/{id}` and `/users/{userId}` are the same path. Change or remove one of \
+         the routes.",
+    );
 
     /// Two `#[Route]`s claim the same `name`.
     ///
@@ -3856,7 +3914,10 @@ pub mod code {
     /// routes is a link with no answer. Reported at the second declaration,
     /// like [`E_DUPLICATE_ROUTE`], and at the `name:` field rather than at the
     /// whole attribute, because the rest of the attribute is fine.
-    pub const E_DUPLICATE_ROUTE_NAME: Code = Code::new("E0749");
+    pub const E_DUPLICATE_ROUTE_NAME: Code = Code::new("E0749").card(
+        "Two routes have the same `name`. `Core\\Router::url` finds a route by its name, so each \
+         name must be unique. Rename one of the routes.",
+    );
 
     /// A `#[Route]`'s `path` is not one `rule:routing/path-grammar`'s grammar admits.
     ///
@@ -3870,7 +3931,11 @@ pub mod code {
     /// § 2's "at most once" and "never in one path together" need no rule of
     /// their own: one segment is last, so a second trailing form is already
     /// in a position it is refused at.
-    pub const E_ROUTE_PATH_GRAMMAR: Code = Code::new("E0750");
+    pub const E_ROUTE_PATH_GRAMMAR: Code = Code::new("E0750").card(
+        "This route path has invalid syntax. A path starts with `/`, and each segment is plain \
+         text or one whole capture like `{id}`. A `{name?}` or `{name...}` capture is only allowed \
+         as the last segment.",
+    );
 
     /// A `{name}` capture names no parameter of the method it is attached to.
     ///
@@ -3880,7 +3945,10 @@ pub mod code {
     /// `rule:core-api/identifier-casing`, so
     /// `{userId}` and `$userid` are two names. The reverse is not an error: a
     /// parameter the path does not name is simply not the router's.
-    pub const E_ROUTE_CAPTURE_UNBOUND: Code = Code::new("E0751");
+    pub const E_ROUTE_CAPTURE_UNBOUND: Code = Code::new("E0751").card(
+        "A capture like `{id}` in a route path needs a method parameter with the same name, such \
+         as `$id`. Names must match exactly, including upper and lower case.",
+    );
 
     /// A capture's parameter is declared at a type no path segment converts
     /// to.
@@ -3895,7 +3963,11 @@ pub mod code {
     /// The primary span is the parameter, as with
     /// [`E_OPTION_TYPE_HAS_NO_CONVERSION`]: the path is written correctly and
     /// it is the declared type that cannot answer it.
-    pub const E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0752");
+    pub const E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0752").card(
+        "A route capture or a `#[Query]` value arrives as text, so its parameter needs a type \
+         that text can be converted to. Use a type like `string`, `int`, an enum or `Core\\Uuid`. \
+         A `{name...}` capture must be a `string`.",
+    );
 
     /// A `{name?}` capture is bound to a parameter with no default.
     ///
@@ -3905,7 +3977,10 @@ pub mod code {
     /// parameter whose type does not admit one. Both sites are named, the
     /// parameter first, because the fix is a default rather than a rewritten
     /// path.
-    pub const E_OPTIONAL_CAPTURE_NEEDS_DEFAULT: Code = Code::new("E0753");
+    pub const E_OPTIONAL_CAPTURE_NEEDS_DEFAULT: Code = Code::new("E0753").card(
+        "An optional capture like `{page?}` can be missing from the URL, so its parameter needs a \
+         default value. Write for example `int $page = 1`.",
+    );
 
     /// `Core\Router::url`/`urlAbsolute` names a route the table does not hold.
     ///
@@ -3915,7 +3990,10 @@ pub mod code {
     /// The table it is checked against is the whole program's, which is why
     /// the check runs after every file has been walked and not where the call
     /// is typed: the route may be declared in a file § 5's scan reaches later.
-    pub const E_UNKNOWN_ROUTE_NAME: Code = Code::new("E0754");
+    pub const E_UNKNOWN_ROUTE_NAME: Code = Code::new("E0754").card(
+        "No `#[Route]` has the name given to `Core\\Router::url` or `urlAbsolute`. Check the \
+         spelling against the `name:` of the route.",
+    );
 
     /// A `Core\Router::url` `$params` literal covers none of some capture the
     /// named route's path declares.
@@ -3926,7 +4004,10 @@ pub mod code {
     /// path writes needs a key of that name. A `$params` that is not an array
     /// literal is not checked at all: there are no keys to read, and § 4 asks
     /// nothing of a computed one.
-    pub const E_ROUTE_LINK_MISSING_PARAM: Code = Code::new("E0755");
+    pub const E_ROUTE_LINK_MISSING_PARAM: Code = Code::new("E0755").card(
+        "The `$params` of `Core\\Router::url` must have a key for each capture in the route's \
+         path. Add the missing key. Only an optional capture like `{page?}` may be left out.",
+    );
 
     /// A derived field's declared type is not in its format's type map.
     ///
@@ -3938,7 +4019,11 @@ pub mod code {
     /// unmapped types this names and not the reachable ones `nvs_stdlib::json`
     /// still owes a decoder; the two are told apart in `nvs_types::derive`,
     /// which owns that split.
-    pub const E_DERIVE_FIELD_NOT_CODEC_REACHABLE: Code = Code::new("E0756");
+    pub const E_DERIVE_FIELD_NOT_CODEC_REACHABLE: Code = Code::new("E0756").card(
+        "The derive attribute cannot convert a property of this type. For example, `bytes` can be \
+         a database column but has no JSON form. Change the property's type, or write the \
+         conversion methods yourself.",
+    );
 
     /// A class carrying a derive attribute hand-writes every codec half that
     /// attribute would generate.
@@ -3949,7 +4034,10 @@ pub mod code {
     /// mistake rather than a no-op. `Core\Db\Codec` declares `fromRow` alone,
     /// so for `#[Db\Derive]` one written member reaches the same conclusion.
     /// Reported at the attribute, which is the thing to delete.
-    pub const E_DERIVE_BOTH_HALVES: Code = Code::new("E0757");
+    pub const E_DERIVE_BOTH_HALVES: Code = Code::new("E0757").card(
+        "This class already writes every method the derive attribute would generate, so the \
+         attribute does nothing. Remove the attribute.",
+    );
 
     /// A class carrying a derive attribute contributes no field to the codec.
     ///
@@ -3958,7 +4046,10 @@ pub mod code {
     /// derives an empty wire contract. § 7's rule about an attribute with no
     /// effect applies unchanged, and the fix is either a property or no
     /// attribute.
-    pub const E_DERIVE_NO_FIELDS: Code = Code::new("E0758");
+    pub const E_DERIVE_NO_FIELDS: Code = Code::new("E0758").card(
+        "This class has no instance property for the derive attribute to convert. Add a property, \
+         or remove the attribute.",
+    );
 
     /// A `Core\Router::url` `$params` key names neither a capture of the route's
     /// path nor one of its declared `#[Query]` parameters.
@@ -3970,7 +4061,10 @@ pub mod code {
     /// capture with no key, this one a key with nothing to be. Only the first
     /// of the two is reported for one call, because a misspelled key is
     /// usually both.
-    pub const E_ROUTE_LINK_UNKNOWN_PARAM: Code = Code::new("E0759");
+    pub const E_ROUTE_LINK_UNKNOWN_PARAM: Code = Code::new("E0759").card(
+        "A key in the `$params` of `Core\\Router::url` is not a capture of the route and not one \
+         of its `#[Query]` parameters. The key is probably misspelled. Fix it, or remove it.",
+    );
 
     /// An `#[Access]` gives no `allow`.
     ///
@@ -3980,7 +4074,10 @@ pub mod code {
     /// than by the roster check, for [`E_ROUTE_INCOMPLETE`]'s reason — a
     /// roster says what a field may hold, and *required* is not a fact a
     /// roster can state.
-    pub const E_ACCESS_INCOMPLETE: Code = Code::new("E0760");
+    pub const E_ACCESS_INCOMPLETE: Code = Code::new("E0760").card(
+        "An `#[Access]` needs an `allow` value that says who may call the route. Write for \
+         example `#[Core\\Access(allow: Role::Admin)]`.",
+    );
 
     /// An `#[Access]`'s `allow` value is not an enum case or a class constant.
     ///
@@ -3990,7 +4087,10 @@ pub mod code {
     /// is that the value **names** something — a bare literal names nothing,
     /// so `allow: "admin"` is the magic string the attribute exists to
     /// replace, and § 2's whole guarantee is that the name resolves.
-    pub const E_ACCESS_ALLOW_NOT_A_NAME: Code = Code::new("E0761");
+    pub const E_ACCESS_ALLOW_NOT_A_NAME: Code = Code::new("E0761").card(
+        "The `allow` value of `#[Access]` must be an enum case or a class constant. Write \
+         `allow: Role::Admin`, not a string like `allow: \"admin\"`.",
+    );
 
     /// A `#[Route]` method carries no `#[Access]`.
     ///
@@ -4004,7 +4104,10 @@ pub mod code {
     ///
     /// The mirror of [`E_ACCESS_INCOMPLETE`]: that one is a decision that
     /// declares nothing, this one a route that declares no decision.
-    pub const E_ROUTE_WITHOUT_ACCESS: Code = Code::new("E0762");
+    pub const E_ROUTE_WITHOUT_ACCESS: Code = Code::new("E0762").card(
+        "Every `#[Route]` method needs an `#[Access]` that says who may call it. For a route \
+         anybody may call, write `#[Core\\Access(allow: Core\\Audience::Public)]`.",
+    );
 
     /// One method carries two `#[Access]` attributes.
     ///
@@ -5036,17 +5139,14 @@ mod tests {
     /// it: it lands with its card. Goal `core-class-cards` is what empties the
     /// list.
     const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0732", "E0733", "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741",
-        "E0742", "E0743", "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751",
-        "E0752", "E0753", "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761",
-        "E0762", "E0763", "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771",
-        "E0772", "E0775", "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785",
-        "E0786", "E0787", "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795",
-        "E0796", "E0797", "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807",
-        "E0808", "E0809", "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818",
-        "E0819", "E0820", "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828",
-        "E0829", "E0830", "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003",
-        "W1004", "W1005", "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
+        "E0763", "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772",
+        "E0775", "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786",
+        "E0787", "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796",
+        "E0797", "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808",
+        "E0809", "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819",
+        "E0820", "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829",
+        "E0830", "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004",
+        "W1005", "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
     ];
 
     /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
