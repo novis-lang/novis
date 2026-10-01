@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `plain-comments`: Stage 2 and Stage 3 are green, and the goal's two checks pass.**\n`bun nv proofs --comments docs/examples tests/hostile benches/members` exits 0 over 5421 programs, and\n`bun nv proofs --gate` says nothing is owed in the whole roster, with plain comments owed:\n`\"comments\": true` is under `owes.all` in `data/proofs/policy.json`.\n\nThe user decided how an attack's payload comment passes: a `// hostile: comment-payload` line skips\nthe one comment block directly under it, and `tests/hostile/README.md` lists it with the other\ndirectives. The doc-comments attack carries it on its class doc comment and on the `run` doc comment.\nA bare `///` line is now skipped the way a bare `//` line is.",
+  "state": "**Goal `plain-comments` is reached: both of its checks pass.**\n`bun nv proofs --comments docs/examples tests/hostile benches/members` exits 0 over 5463 programs, and\n`bun nv proofs --gate` says nothing is owed in the whole roster, with plain comments owed:\n`\"comments\": true` is under `owes.all` in `data/proofs/policy.json`.\n\nThe driver's last sweep found the gate red because 422 perf figures were stale. Commits that landed\nbeside this goal changed the implementing files of those features. Those were the class cards in\n`crates/nvs-stdlib/src/`, and the reference chapters under `docs/reference/lang/`.\n`bun nv proofs --record-perf` measured them again, and `docs/perf/members.ndjson` has the new records.\nThe `Core\\Test::request` description grew past its 200-word ceiling when `captures:` landed, and it\nis written again inside the band.\n\nAn attack's payload comment passes through a `// hostile: comment-payload` line, which skips the one\ncomment block directly under it (`tests/hostile/README.md`).",
   "next": {
     "stage": 3,
     "title": "the gate",
@@ -8,20 +8,11 @@
     "items": [
       {
         "done": true,
-        "text": "The payload directive in `tools/nv/proofs/collect.ts:126` and the doc-comments attack. `rule:testing/feature-proofs`."
-      },
-      {
-        "done": true,
-        "text": "`\"comments\": true` under `owes.all` in `data/proofs/policy.json`, read by `tools/nv/proofs/collect.ts:75`; `bun nv proofs --gate` is green."
+        "text": "**The gate stays green** — `tools/nv/proofs/collect.ts:466` owes a perf figure again whenever an implementing file changes, so a commit that edits one re-records its figures with `bun nv proofs --record-perf` in the same slice (`rule:testing/feature-proofs`)."
       }
     ]
   },
   "backlog": [
-    "`walk` in `tools/nv/proofs/collect.ts:197` skips every directory named `target`, so `--comments docs/examples` never opens `docs/examples/core/Reflect-AttributeInfo/target/`. The gate still judges those files through the feature. Owner: `tools/nv/proofs/collect.ts`.",
-    "`tests/hostile/core/Str/length/01-unbounded-and-degenerate-input.nvs`: `$hard[$total % 4]` gets stuck on one string after it reaches `\"cafe\\u{301}\"`, so the later rounds never count the emoji. Owner: `tests/hostile/README.md`.",
-    "`tests/hostile/config/http-csrf_key/01-choosing-which-forgeries-the-door-accepts.nvs`: `'\\u{0000}'` is single-quoted, and may be literal text and not null bytes. Not checked. Owner: `tests/hostile/README.md`.",
-    "`tests/hostile/config/http-client-tls/01-choosing-who-is-believed-from-inside-a-request.nvs` never reads back `roots` or `keylog`, the two keys it attacks. Owner: `tests/hostile/README.md`.",
-    "`docs/examples/config/http-client-tls/01-whose-certificates-an-outbound-call-believes.nvs`: the `speak older TLS:` line sets `min_version` to `'1.2'`, the value already in force. Owner: `docs/examples/README.md`.",
-    "`tests/hostile/lang/types/parameters/01-build-every-shape-of-argument-list-until-one-slips.nvs` step 4 says a throw stops the `inout` copy-back. Not checked. Owner: `tests/hostile/README.md`."
+    "None owned by this goal. The next goal on the chain starts from its own handoff record."
   ]
 }
