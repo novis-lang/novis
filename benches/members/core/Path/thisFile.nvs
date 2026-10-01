@@ -1,0 +1,17 @@
+<?nvs
+// Gets the path of the program's own file, as a tool does each time it names itself in a message.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Path::thisFile()) + $i % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000) > 0 ? "done" : "empty", "\n";

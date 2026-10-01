@@ -1,0 +1,11 @@
+<?nvs
+// Shows how a program gets the full path of its own source file.
+
+string $file = Core\Path::thisFile();
+
+// The path starts at a root, so this prints `true`.
+echo Core\Path::isAbsolute($file) ? "true" : "false", "\n";
+
+// `basename` gives the last part of the path.
+// This prints `01-the-name-of-this-file.nvs`.
+echo Core\Path::basename($file), "\n";

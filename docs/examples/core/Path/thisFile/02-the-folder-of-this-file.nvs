@@ -1,0 +1,12 @@
+<?nvs
+// Shows that the folder of `thisFile` is the folder that `thisDir` returns.
+
+string $folder = Core\Path::dirname(Core\Path::thisFile());
+
+// The file is in a folder named `thisFile`, so this prints `thisFile`.
+echo Core\Path::basename($folder), "\n";
+
+// `normalize` writes both paths the same way before they are compared.
+// This prints `same folder`.
+echo Core\Path::normalize($folder) == Core\Path::normalize(Core\Path::thisDir())
+    ? "same folder" : "different folder", "\n";

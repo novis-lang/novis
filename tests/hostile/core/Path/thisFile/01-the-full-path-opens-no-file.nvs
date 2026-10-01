@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program uses the full path from `Core\Path::thisFile` to read its own
+// source. A full path is only text, so each read should throw a `RuntimeError`.
+
+class Blog
+{
+    public static function file(): string
+    {
+        return Core\Path::thisFile();
+    }
+}
+
+// 1. Read the source file of this program.
+try {
+    echo Core\IO::read(Core\Path::thisFile()), "\n";
+} catch (RuntimeError $error) {
+    echo "1: throws\n";
+}
+
+// 2. Read it again with the path from a method and from a closure.
+try {
+    echo Core\IO::read(Blog::file()), "\n";
+} catch (RuntimeError $error) {
+    echo "2: throws\n";
+}
+callable $file = fn(): string => Core\Path::thisFile();
+try {
+    echo Core\IO::read(($file() as ?string) ?? ''), "\n";
+} catch (RuntimeError $error) {
+    echo "2: throws\n";
+}
+
+// 3. Read the file beside it, found from the folder of this file.
+try {
+    string $folder = Core\Path::dirname(Core\Path::thisFile());
+    echo Core\IO::read(Core\Path::join($folder, 'nvs.toml')), "\n";
+} catch (RuntimeError $error) {
+    echo "3: throws\n";
+}
+
+// 4. One hundred thousand calls in a loop. Each one should give the same path.
+uint $same = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Blog::file() == Core\Path::thisFile()) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo '4: ', $same, " of 100000 calls give the same path\n";
