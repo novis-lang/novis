@@ -1908,10 +1908,14 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "push",
             names: &["script"],
             params: &[
+                // A **path**, so a relative literal is joined to the folder of the file that wrote
+                // the call (`rule:programs/path-literals-resolve-from-their-file`), and the row
+                // stores the absolute path a worker in any folder runs.
+                //
                 // A **sink**, and for `rule:core-classes/process-is-argv-only`'s reason rather than `rule:security/tainted-qualifier`'s usual one: the argument
                 // selects which file a worker will execute, so a `tainted` one would let a request pick
                 // the program that runs on its behalf.
-                CoreTy::Text(Qual::Sink),
+                CoreTy::Path(Qual::Sink),
                 CoreTy::Options(&[
                     CoreOption {
                         name: "args",
@@ -2164,6 +2168,7 @@ const PUSH_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "script",
             desc: "The path of the file a worker runs, written the way `spawn script` writes one. \
+                   A relative path starts at the folder of the file that calls `push`. \
                    It is a file, not a class or a closure, so the job has no captured variables.",
             shape: &[],
         },
@@ -3321,6 +3326,14 @@ nvs_runtime::nvs_helper! {
                 ))
             })?
             .to_owned();
+        // `rule:programs/path-literals-resolve-from-their-file`: a relative literal arrives joined
+        // to its file's folder, so a relative script here was built while the program ran. It
+        // throws before any other argument is read, and the row only ever stores an absolute path.
+        if let Some(message) =
+            nvs_runtime::capability::relative(std::path::Path::new(&script), &format!("`{PUSH}`"))
+        {
+            return Err(Fault::thrown_as(ThrownClass::Runtime, message));
+        }
         let queue = args[QUEUE_ARG]
             .as_text()
             .ok_or_else(|| {
@@ -7299,6 +7312,95 @@ mod tests {
                  the deployment's own ceiling"
             );
         }
+    }
+
+    /// One `push` of `script` with every option left unwritten, as the call site fills them.
+    fn pushed(ctx: &mut nvs_runtime::Ctx, script: &str) -> Result<Value, i32> {
+        let mut args = [Value::null(); 13];
+        args[super::SCRIPT_ARG] = Value::str(nvs_runtime::NvsStr::new(script.as_bytes()));
+        args[super::QUEUE_ARG] = Value::str(nvs_runtime::NvsStr::new(b"default"));
+        let answered = nvs_runtime::call(super::nvs_core_queue_push, ctx, &args);
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the two references it made for the arguments, and the call \
+                      borrows rather than takes them"
+        )]
+        // SAFETY: nothing else points at the two strings this case built.
+        unsafe {
+            args[super::SCRIPT_ARG].release();
+            args[super::QUEUE_ARG].release();
+        }
+        answered
+    }
+
+    /// `rule:programs/path-literals-resolve-from-their-file`: the row a `push` writes holds the
+    /// script exactly as the call passed it, and the compiler has made a literal absolute, so a
+    /// worker started in any folder runs the same file.
+    ///
+    /// Over a real SQLite database, shared in memory with a connection this case keeps open so
+    /// the row can be read back after the push's own connection is gone.
+    #[test]
+    fn a_pushed_job_stores_an_absolute_script_path() {
+        const URI: &str = "file:queue-stores-an-absolute-script?mode=memory&cache=shared";
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(URI)),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("the block resolves");
+        let held = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        for step in migration(nvs_db::Driver::Sqlite) {
+            let mut ran = held
+                .query(&step.sql, Vec::new())
+                .expect("the migration runs");
+            while ran.next_row().is_some() {}
+        }
+
+        let script = std::env::temp_dir().join("jobs").join("report.nvs");
+        let script = script.to_str().expect("the temporary folder is UTF-8");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_config(crate::tests::granting(&format!(
+            "[db.jobs]\ndriver = \"sqlite\"\npath = \"{URI}\"\n\n[queue]\nconnection = \"jobs\"\n"
+        )));
+        let id = pushed(&mut ctx, script);
+        assert!(id.is_ok(), "the push lands a row: {:?}", ctx.take_pending());
+        // The id is the case's to release, as a program's local would be.
+        #[expect(unsafe_code, reason = "the case owns the id the push returned")]
+        // SAFETY: nothing else points at the id.
+        unsafe {
+            id.expect("checked above").release();
+        }
+        drop(ctx);
+
+        let mut stored = held
+            .query("select script from nvs_jobs", Vec::new())
+            .expect("the row can be read back");
+        let row = stored.next_row().expect("the push wrote one row");
+        assert_eq!(
+            row.first(),
+            Some(&nvs_db::SqliteValue::Text(script.to_owned())),
+            "the row stores the absolute path the call passed"
+        );
+    }
+
+    /// `rule:programs/path-literals-resolve-from-their-file`: a relative script built while the
+    /// program ran throws a `RuntimeError` at the push, before the configuration is read.
+    ///
+    /// The context has no configuration at all, so a push that read it first would throw a
+    /// sentence about the missing `[queue]` block instead.
+    #[test]
+    fn a_relative_script_built_at_run_time_throws_at_the_push() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        assert!(pushed(&mut ctx, "jobs/report.nvs").is_err());
+        let message = ctx
+            .take_pending()
+            .expect("a refusal is a throw, and it carries a sentence")
+            .into_owned();
+        assert!(
+            message.contains(r"`Core\Queue::push` needs an absolute path")
+                && message.contains("jobs/report.nvs"),
+            "the doors' own message, naming the member and the path: {message}"
+        );
     }
 
     /// `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`'s call-site half: what a

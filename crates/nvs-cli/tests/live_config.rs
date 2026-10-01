@@ -893,7 +893,8 @@ const READING: &str =
 /// moves `[queue] max_attempts`, and every push after it reads the new value.
 #[test]
 fn a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed() {
-    const THREW: &str = "`jobs/work.nvs` threw RuntimeError: visibility ";
+    // The worker names the job by the absolute path the pushed literal was joined to.
+    const THREW: &str = "work.nvs` threw RuntimeError: visibility ";
     let server = Server::start_after(
         "queue",
         &queue("5m", 1),
@@ -967,7 +968,8 @@ const SLOW: &str = "<?nvs\nCore\\Time::sleep(1s);\nthrow new RuntimeError(\"fini
 /// the reload, and the workers keep running where they were.
 #[test]
 fn a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job() {
-    const FINISHED: &str = "`jobs/slow.nvs` threw RuntimeError: finished";
+    // The worker names the job by the absolute path the pushed literal was joined to.
+    const FINISHED: &str = "slow.nvs` threw RuntimeError: finished";
     let server = Server::start_after(
         "crew",
         &crew("jobs", 1),

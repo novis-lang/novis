@@ -77,6 +77,8 @@ $db->execute($dead, []);
 var $receipt = Queue::push("jobs/send-receipt.nvs", {queue: "receipts"});
 echo "pending ", Queue::status($receipt) == State::Pending ? "yes" : "no", "\n";
 
+// The row stores the script as an absolute path, joined to this file's folder
+// (`rule:programs/path-literals-resolve-from-their-file`).
 // And this is where the row went — the operator's own connection to the same
 // `[db.jobs]` block reads what the enqueue wrote, which is the whole of a queue
 // being a table in a connection the operator named rather than a service the
@@ -104,7 +106,7 @@ path = "jobs.db"
 [queue]
 connection = "jobs"
 workers = 0
---EXPECT--
+--EXPECTF--
 pending yes
-row jobs/send-receipt.nvs
+row %s%ejobs%esend-receipt.nvs
 pending=1

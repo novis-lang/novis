@@ -688,7 +688,9 @@ fn a_queue_job_and_a_scheduled_fire_run_the_edited_code() {
         &["queue", "migrate"],
     );
     server.awaits_body("/", "pushed");
-    server.awaits_said("`jobs/work.nvs` threw RuntimeError: ran first");
+    // The pushed literal is joined to the folder of `app.nvs`, so the worker names the job by
+    // its absolute path, with this platform's separator.
+    server.awaits_said("work.nvs` threw RuntimeError: ran first");
 
     // One job per push, pushed until one runs the edit, far slower than
     // `POLL` so the queue never holds more than a few.
@@ -696,7 +698,7 @@ fn a_queue_job_and_a_scheduled_fire_run_the_edited_code() {
     let started = Instant::now();
     while !server
         .said()
-        .contains("`jobs/work.nvs` threw RuntimeError: ran second")
+        .contains("work.nvs` threw RuntimeError: ran second")
     {
         assert!(
             started.elapsed() <= BOUND,

@@ -75,6 +75,26 @@ fn a_relative_literal_naming_an_isolates_script_is_joined_to_its_file() {
     }
 }
 
+/// `Core\Queue::push`'s script is a path position too, so the row a worker
+/// reads stores the absolute path. A variable is left alone and checked when
+/// the push runs.
+#[test]
+fn queue_push_script_literal_resolves_from_the_file_that_wrote_it() {
+    let (diags, exprs) = check_program_table(&[(
+        "pushes.nvs",
+        "<?nvs\nCore\\Queue::push('jobs/../jobs/report.nvs');\n\
+         var $script = 'jobs/other.nvs';\n\
+         Core\\Queue::push($script);\n",
+    )]);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let paths = resolved(&exprs);
+    assert_eq!(paths.len(), 1, "{paths:?}");
+    let path = &paths[0];
+    assert!(Path::new(path).has_root(), "{path}");
+    assert!(path.ends_with(&tail(&["jobs", "report.nvs"])), "{path}");
+    assert!(!path.contains(".."), "{path}");
+}
+
 /// A literal in a file reached through `require` is joined to *that* file's
 /// folder, not to the entry file's.
 #[test]

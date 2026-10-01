@@ -1,27 +1,22 @@
 {
-  "state": "**Goal `path-literals-follow-up`: Stage 3 is under way.** Stages 1 and 2 are on disk, and Stage 1's floor is goal `plain-comments`'s list.\n\nADR 0245 is on disk (`docs/decisions/0245.md`). It modifies `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` and `rule:programs/path-literals-resolve-from-their-file`. Both fragments already state the whole Stage 3 behaviour: the queue half and `script::resolve`'s refusal are written there but not yet built.\n\n`[[schedule]] script` and `[log] handler` (global and `[app.log]`) are joined to the folder of their file while the configuration is read. `nvs_config::schedule::anchor` and `nvs_config::log::anchor` rewrite the typed tree and the table, beside `capability::anchor` in `resolve.rs`. `schedule::validate` checks the anchored value as held. The three `nvs-config` Stage 3 tests are in `crates/nvs-config/tests/resolve.rs`.\n\n`Core\\Http\\Socket`'s five perf figures were measured again after `socket.rs` changed, and `bun nv proofs --gate` owes nothing.",
+  "state": "**Goal `path-literals-follow-up`: Stage 3 is under way.** Stages 1 and 2 are on disk, and Stage 1's floor is goal `plain-comments`'s list.\n\nADR 0245 is on disk (`docs/decisions/0245.md`), and `rule:programs/path-literals-resolve-from-their-file` and `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` already state the whole Stage 3 behaviour.\n\nOn disk now: `[[schedule]] script` and `[log] handler` are joined to their file's folder while the configuration is read (`nvs_config::schedule::anchor`, `nvs_config::log::anchor`). `nvs_runtime::script::resolve` refuses a relative path with `capability::relative`'s message, as `ResolveError::Denied`, before the grant. `Core\\Queue::push`'s script is `CoreTy::Path(Qual::Sink)`, and the native throws a `RuntimeError` for a relative script before it reads anything else. A row already stored relative is refused by the worker's resolve and dead-lettered (ADR 0245 rejects rewriting it).\n\nGreen: the `nvs-types` check (`crates/nvs-types/tests/paths.rs`) and the `nvs-stdlib` check (`queue::tests` in `crates/nvs-stdlib/src/queue.rs`, one of them a real push into shared in-memory SQLite). The `nvs-cli` live tests that asserted \"`jobs/work.nvs` threw\" now match on the file name alone, because the worker names the absolute path.\n\nOpen in Stage 3: the `nvs-cli` pair below. Stages 4 to 7 are not started.",
   "next": {
     "stage": 3,
     "title": "scripts start at their file",
     "files": [],
-    "note": "one file set, the script resolver and the queue: `crates/nvs-runtime/src/script.rs`, `crates/nvs-runtime/src/capability.rs`, `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-cli/src/worker.rs`, `crates/nvs-host/tests/limits.rs`.",
+    "note": "one file set, the live `nvs serve` tests: `crates/nvs-cli/tests/live_config.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`script::resolve` refuses a relative path** (`rule:programs/path-literals-resolve-from-their-file`, ADR 0245 § 3) — ask `capability::relative` before the grant, in `crates/nvs-runtime/src/script.rs:416`, and rewrite the doc at `crates/nvs-runtime/src/capability.rs:134` that names three callers which skip it. Migrate the tests that hand it a relative handler: `crates/nvs-host/tests/limits.rs:779` (its `snapshot_of` at `crates/nvs-host/tests/limits.rs:1209` skips the anchor pass, so name the handler absolute), and check `crates/nvs-cli/tests/live_edit.rs:1` and `crates/nvs-cli/tests/live_config.rs:1231`."
+        "text": "**The `nvs-cli` pair** (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`, ADR 0245 § 1) — `a_schedule_script_beside_the_configuration_runs_from_any_working_directory` and `a_log_handler_beside_the_configuration_runs_from_any_working_directory`: start the server with its working directory somewhere other than the configuration's folder (`crates/nvs-cli/tests/live_config.rs:360` is where `Server` sets `current_dir`), write the script and the handler relative in `nvs.toml` beside them, and assert each one runs. `scheduling` and `MINUTELY` at `crates/nvs-cli/tests/live_config.rs:1050` are the schedule fixture; a fire waits for the next whole minute."
       },
       {
         "done": false,
-        "text": "**`Core\\Queue::push`'s script is a path parameter** (ADR 0245 § 2) — `CoreTy::Path(Qual::Sink)` at `crates/nvs-stdlib/src/queue.rs:1914`; a relative path built at run time throws at the push; the row stores the absolute path. Tests: `nvs-types`' `queue_push_script_literal_resolves_from_the_file_that_wrote_it` and `nvs-stdlib`'s `a_pushed_job_stores_an_absolute_script_path` and `a_relative_script_built_at_run_time_throws_at_the_push`. A stored relative row fails at `crates/nvs-cli/src/worker.rs:1379` (ADR 0245 § 4)."
-      },
-      {
-        "done": false,
-        "text": "**The `nvs-cli` pair** — `a_schedule_script_beside_the_configuration_runs_from_any_working_directory` and `a_log_handler_beside_the_configuration_runs_from_any_working_directory`, which start the server in a working directory that is not the configuration's folder; harness beside `crates/nvs-cli/tests/live_config.rs:1231`."
+        "text": "**Stage 4: `Core\\Path::fromCwd` returns a string without `tainted`** — the next stage's `nvs-stdlib` check `from_cwd_returns_a_string_without_tainted` and its `.nvst` case; `fromCwd`'s row is in `crates/nvs-stdlib/src/path.rs:1`."
       }
     ]
   },
   "backlog": [
-    "Stages 4 to 6 (`fromCwd`'s taint, `thisFile`/`thisDir`, `'X' as class<T>`) — goal prose § *Stage 4* onward.",
-    "Stage 7's perf records for `Core\\Path::thisFile` and `thisDir` once Stage 5 lands."
+    "Stage 5 (`thisFile`, `thisDir`), Stage 6 (`'X' as class<T>`) and Stage 7 (perf records) — `docs/agent/goals/path-literals-follow-up.md`."
   ]
 }

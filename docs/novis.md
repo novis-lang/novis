@@ -25759,7 +25759,7 @@ Adds a job that runs `$script` in the background. The job is a row in the databa
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$script` | `string` (sink) | The path of the file a worker runs, written the way `spawn script` writes one. It is a file, not a class or a closure, so the job has no captured variables. |
+| `$script` | `string` (sink) | The path of the file a worker runs, written the way `spawn script` writes one. A relative path starts at the folder of the file that calls `push`. It is a file, not a class or a closure, so the job has no captured variables. |
 | `{args: …}` | `mixed` (default `(omitted)`) | The data the job receives. It is copied into the row and decoded into the types the job declares. It is never passed by reference, because the worker usually runs in another process. |
 | `{queue: …}` | `string` (default `"default"`, neutral) | The name of the queue the job goes in. Each worker takes jobs from the queues it is configured for, so you can keep slow work and fast work apart. |
 | `{runAt: …}` | `Core\Time\Instant` (default `null`) | The earliest time a worker may start the job. The default is now. |
