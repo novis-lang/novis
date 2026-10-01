@@ -1,0 +1,16 @@
+--TEST--
+A `foreach` value binding written `var` refuses a bare array literal subject, as a `var` local refuses one — `rule:types/var-inference`
+--FILE--
+<?nvs
+// covers: lang:statements/foreach
+foreach ([1, 2, 3] as var $x) {
+    echo $x, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0414]: `var` cannot infer an array literal's element type
+  --> case.nvs:3:10
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

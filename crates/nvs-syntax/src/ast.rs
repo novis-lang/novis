@@ -1180,18 +1180,46 @@ pub struct Stmt {
     pub span: Span,
 }
 
-/// One binding of a `foreach` header (`rule:types/grammar`.2): a mandatory type and
+/// One binding of a `foreach` header (`rule:types/grammar`.2): a type or `var`, and
 /// a name. A reference marker only ever applies to the *value* binding, never
 /// the key, so it lives on [`StmtKind::Foreach`] rather than here.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForeachBinding {
-    /// The declared type, or `None` if omitted (a diagnostic was already
-    /// reported for the omission, mirroring [`Param::ty`]).
-    pub ty: Option<Type>,
+    /// What stands where the binding's type goes.
+    pub ty: ForeachBindingTy,
     /// The bound variable's name, `$`-sigil included.
     pub name: Span,
     /// The whole binding.
     pub span: Span,
+}
+
+impl ForeachBinding {
+    /// The type written on the binding — `None` for `var` and for an omitted
+    /// one alike, which is what every walker that only visits written types
+    /// wants.
+    #[must_use]
+    pub fn written_ty(&self) -> Option<&Type> {
+        match &self.ty {
+            ForeachBindingTy::Written(ty) => Some(ty),
+            ForeachBindingTy::Var(_) | ForeachBindingTy::Omitted => None,
+        }
+    }
+}
+
+/// The three things a `foreach` binding's type position can hold. `var` and an
+/// omission are told apart because they mean opposite things: `var` takes the
+/// subject's element type (`rule:types/var-inference`), and an omission is a
+/// parse error already reported, which the checker recovers from as `mixed`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ForeachBindingTy {
+    /// A written type.
+    Written(Type),
+    /// `var`, at the keyword's span. The checker records the type it gives the
+    /// binding under this span, so lowering reads it back the way it reads a
+    /// written type's.
+    Var(Span),
+    /// Nothing — `nvs_syntax`'s parser already reported the omission.
+    Omitted,
 }
 
 /// A `for` header's init clause, `rule:iteration/for-init-clause`. Either one typed local

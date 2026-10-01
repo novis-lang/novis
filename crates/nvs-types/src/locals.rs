@@ -107,7 +107,10 @@
 //! is why `nvs_ir::lower::stmt`'s dispatch does not carry an arm for it.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
-use nvs_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
+use nvs_syntax::ast::{
+    DestructureElement, DestructureTarget, Expr, ExprKind, ForeachBinding, ForeachBindingTy, Stmt,
+    StmtKind,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
@@ -1004,6 +1007,28 @@ fn check_exit_level(
     }
 }
 
+/// A `foreach` binding's type. A written one is lowered like any annotation.
+/// `var` takes `given`, the type the subject gives this binding, exactly as a
+/// `var` local takes its initializer's (`rule:types/var-inference`), and
+/// records it under the keyword's span, where `nvs-ir` reads a written type's
+/// back. An omitted one is the `mixed` the parser's diagnostic recovers as.
+fn foreach_binding_ty(
+    binding: &ForeachBinding,
+    given: TypeId,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    match &binding.ty {
+        ForeachBindingTy::Written(ty) => lower_type(ty, ctx, env),
+        ForeachBindingTy::Var(var) => {
+            let ty = reject_void_or_never_binding(given, *var, true, env);
+            env.exprs.record_type(*var, ty);
+            ty
+        }
+        ForeachBindingTy::Omitted => env.interner.mixed(),
+    }
+}
+
 /// `rule:types/grammar`: `void` and `never` are return-only, so neither names a
 /// binding either — a written one, or the type a `var` takes from a call that
 /// hands nothing back.
@@ -1164,17 +1189,34 @@ pub(crate) fn check_stmt(
             value_inout,
             body,
         } => {
+            if matches!(value.ty, ForeachBindingTy::Var(_))
+                && matches!(subject.kind, ExprKind::ArrayLiteral(_))
+            {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE,
+                        "`var` cannot infer an array literal's element type",
+                    )
+                    .with_primary(subject.span, "no target type to check this literal against")
+                    .with_help(
+                        "put the array in a typed local first — `array<T> $items = [...];` — \
+                         and iterate that",
+                    ),
+                );
+            }
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
             let source = crate::expr::foreach_source(subject_ty, subject.span, env);
             let mut body_live = live.clone();
             if let Some(k) = key {
-                let ty = lower_optional_type(k.ty.as_ref(), ctx, env);
+                let string = env.interner.string();
+                let ty = foreach_binding_ty(k, string, ctx, env);
                 crate::expr::check_foreach_key(&source, ty, k, env);
                 let name = strip_sigil(span_text(env.src, k.name)).to_owned();
                 declare_binding(scope, &name, ty, k.name, false, env);
                 body_live.insert(name);
             }
-            let value_ty = lower_optional_type(value.ty.as_ref(), ctx, env);
+            let element = source.value_ty().unwrap_or_else(|| env.interner.mixed());
+            let value_ty = foreach_binding_ty(value, element, ctx, env);
             crate::expr::check_foreach_value(&source, value_ty, value, env);
             if *value_inout {
                 crate::expr::check_foreach_inout(&source, subject, value_ty, value, env);

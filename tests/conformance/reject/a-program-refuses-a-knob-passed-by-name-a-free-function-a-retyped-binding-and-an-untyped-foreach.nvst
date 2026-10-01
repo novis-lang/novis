@@ -33,7 +33,7 @@ error[E0320]: `count` is not a function that exists
 %A
 error[E0401]: expected `int`, found `string`
 %A
-error[E0101]: expected a `foreach` binding's type
+error[E0101]: expected a `foreach` binding's type, or `var`
 %A
 error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

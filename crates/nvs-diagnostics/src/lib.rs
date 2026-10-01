@@ -1291,12 +1291,13 @@ pub mod code {
         "`unset()` does not work on a declared property, because a property always has a value. \
          If the type of the property is nullable, assign `null` instead.",
     );
-    /// `var $x = [...];` — a bare array literal has no target type to check
-    /// against, the one initializer shape `var` cannot infer from; see
-    /// `rule:types/var-inference`.
+    /// `var $x = [...];`, or `foreach ([...] as var $v)` — a bare array literal
+    /// has no target type to check against, the one shape `var` cannot infer
+    /// from; see `rule:types/var-inference`.
     pub const E_VAR_ARRAY_LITERAL_NEEDS_TYPE: Code = Code::new("E0414").card(
         "`var` cannot find the type of an array literal. Write the type instead, as in \
-         `array<int> $ids = [1, 2];`.",
+         `array<int> $ids = [1, 2];`. In a `foreach`, put the array in a variable like this \
+         first, and loop over the variable.",
     );
     /// An arithmetic or bitwise operator — binary, prefix `-`, `+` and `~`, or
     /// `++`/`--` — whose operand can be an enum case: an enum, a case-subset

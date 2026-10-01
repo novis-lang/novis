@@ -37,7 +37,7 @@ Stmt {
         },
         key: None,
         value: ForeachBinding {
-            ty: Some(
+            ty: Written(
                 Type {
                     kind: Atom(
                         Int,

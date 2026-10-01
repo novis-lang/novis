@@ -58,12 +58,12 @@ use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, AutoloadDecl, AutoloadKind,
     BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassDecl, ClassMember, ClassMemberKind,
     ConstMember, DestructureElement, DestructureTarget, DocComment, DocTag, DocTagKind, EnumCase,
-    EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding, ImplementsClause, IncDecOp,
-    InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name, NamespaceDecl, NewTarget,
-    ObjectLiteralField, Param, PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember,
-    ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
-    TestOperand, Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
-    WrittenModifier,
+    EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding, ForeachBindingTy,
+    ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name,
+    NamespaceDecl, NewTarget, ObjectLiteralField, Param, PropertyHook, PropertyHookBody,
+    PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt,
+    StmtKind, StringPart, SwitchCase, TestOperand, Type, TypeAliasDecl, TypeAtom, TypeKind,
+    UnaryOp, UseDecl, Visibility, WrittenModifier,
 };
 use crate::index::SyntaxIndex;
 use crate::lexer::Lexer;

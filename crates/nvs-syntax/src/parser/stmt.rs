@@ -625,29 +625,34 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// One `'inout'? type '$' identifier` binding — the shared tail of both
-    /// `foreach`-target alternatives (`rule:types/grammar`.2, `rule:statements/inout-is-the-by-reference-spelling`). The
-    /// marker is parsed here and reported back to the caller, since only the
-    /// *value* position may carry one; the key position never calls this
-    /// with a marker present without the caller first checking for one.
+    /// One `'inout'? (type | 'var') '$' identifier` binding — the shared tail
+    /// of both `foreach`-target alternatives (`rule:types/grammar`.2,
+    /// `rule:statements/inout-is-the-by-reference-spelling`,
+    /// `rule:types/var-inference`). The marker is parsed here and reported back
+    /// to the caller, since only the *value* position may carry one; the key
+    /// position never calls this with a marker present without the caller
+    /// first checking for one.
     pub(super) fn parse_foreach_binding(&mut self) -> (ForeachBinding, bool) {
         let start = self.peek().span;
         let inout = self.eat_keyword(Keyword::Inout).is_some();
-        let ty = if self.can_start_type() {
-            Some(self.parse_type())
+        let ty = if let Some(var) = self.eat_keyword(Keyword::Var) {
+            ForeachBindingTy::Var(var)
+        } else if self.can_start_type() {
+            ForeachBindingTy::Written(self.parse_type())
         } else {
             let span = self.peek().span.shrink_to_start();
             self.diags.report(
                 Diagnostic::error(
                     code::E_EXPECTED_TOKEN,
-                    "expected a `foreach` binding's type",
+                    "expected a `foreach` binding's type, or `var`",
                 )
                 .with_primary(
                     span,
-                    "every `foreach` binding declares a type (`rule:types/grammar`.2)",
+                    "a `foreach` binding writes its type, or `var` to take the subject's \
+                     element type (`rule:types/grammar`.2)",
                 ),
             );
-            None
+            ForeachBindingTy::Omitted
         };
         if let Some(amp) = self.eat(TokenKind::Amp) {
             self.report_by_reference_marker(amp, "write `inout` before the binding's type");

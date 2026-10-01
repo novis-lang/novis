@@ -44,7 +44,8 @@ use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};
 use nvs_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, CatchArm, Expr, ExprKind, FnBody, FnExpr,
-    ForeachBinding, MemberName, NewTarget, ObjectLiteralField, StringPart, Type, TypeKind, UnaryOp,
+    ForeachBinding, ForeachBindingTy, MemberName, NewTarget, ObjectLiteralField, StringPart, Type,
+    TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 

@@ -73,9 +73,9 @@ use nvs_render::Source;
 use nvs_syntax::ast::{
     ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassMemberKind,
     DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding,
-    IncDecOp, MatchArm, MemberName, MethodMember, Modifier, NamespaceDecl, NewTarget,
-    ObjectLiteralField, SpawnOption, SpawnOptionKey, Stmt, StmtKind, StringPart, SwitchCase,
-    TestOperand, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    ForeachBindingTy, IncDecOp, MatchArm, MemberName, MethodMember, Modifier, NamespaceDecl,
+    NewTarget, ObjectLiteralField, SpawnOption, SpawnOptionKey, Stmt, StmtKind, StringPart,
+    SwitchCase, TestOperand, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use nvs_types::EnumTable;
 use nvs_types::expr_table::{ArgSlot, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
@@ -3313,25 +3313,40 @@ fn int_literal_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> (u32, St
 ///
 /// # Panics
 ///
-/// Panics naming `which` binding it was for a header that declares no type at
-/// all. `rule:types/grammar`.2 makes both bindings' types mandatory and
-/// `nvs_syntax`'s parser already reported the omission (the `None` here is the
-/// error-recovery placeholder [`ForeachBinding::ty`]'s own doc comment
-/// describes), so lowering never runs on such a file.
+/// A written type lowers as any annotation does. A `var` binding's type is the
+/// one the checker gave it and recorded under the keyword's span, erased the
+/// way [`lower_decl_type`] erases a written annotation's recorded type, so the
+/// two spellings of one loop lower alike.
+///
+/// # Panics
+///
+/// Panics naming `which` binding it was for a header that writes neither a
+/// type nor `var` (`nvs_syntax`'s parser already reported the omission, see
+/// [`ForeachBindingTy::Omitted`]), or for a `var` binding the checker recorded
+/// no type for. Lowering never runs on such a file.
 fn binding_ty(
     binding: &ForeachBinding,
     which: &str,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
 ) -> Ty {
-    let ty = binding.ty.as_ref().unwrap_or_else(|| {
-        panic!(
+    match &binding.ty {
+        ForeachBindingTy::Written(ty) => lower_decl_type(ty, exprs, checked_types),
+        ForeachBindingTy::Var(var) => {
+            let id = exprs.declared_ty(*var).unwrap_or_else(|| {
+                panic!(
+                    "nvs-ir: a `foreach` {which} binding written `var` has no recorded type — \
+                     this program did not pass nvs_types::check_program with the same table"
+                )
+            });
+            erase_checked_ty(id, checked_types)
+        }
+        ForeachBindingTy::Omitted => panic!(
             "nvs-ir: a `foreach` {which} binding reached lowering with no declared type — \
              nvs_syntax already reports that omission, so this file should never have been \
              lowered"
-        )
-    });
-    lower_decl_type(ty, exprs, checked_types)
+        ),
+    }
 }
 
 /// Lowers a *declared* type straight off the AST — every scalar atom, plus

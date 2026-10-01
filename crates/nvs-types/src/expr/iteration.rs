@@ -128,7 +128,9 @@ pub(crate) enum ForeachSource {
 }
 
 impl ForeachSource {
-    fn value_ty(self) -> Option<TypeId> {
+    /// The element type the subject gives its value binding, or `None` for a
+    /// subject that carries none.
+    pub(crate) fn value_ty(self) -> Option<TypeId> {
         match self {
             Self::Array { value } | Self::Cursor { value, .. } => Some(value),
             Self::Unchecked => None,
@@ -346,7 +348,8 @@ pub(crate) fn check_foreach_inout(
 /// A binding that declared no type is left alone — `nvs_syntax`'s parser
 /// already reported the omission, and the `mixed` its absence lowers to is an
 /// error-recovery placeholder rather than something the author wrote (see
-/// [`nvs_syntax::ast::ForeachBinding::ty`]).
+/// [`nvs_syntax::ast::ForeachBindingTy::Omitted`]). A `var` key is `string`
+/// by construction, so it passes.
 pub(crate) fn check_foreach_key(
     source: &ForeachSource,
     declared: TypeId,
@@ -368,7 +371,7 @@ pub(crate) fn check_foreach_key(
             );
         }
         ForeachSource::Array { .. } => {
-            if binding.ty.is_none() {
+            if matches!(binding.ty, ForeachBindingTy::Omitted) {
                 return;
             }
             let string = env.interner.string();

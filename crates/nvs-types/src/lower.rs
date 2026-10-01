@@ -49,7 +49,7 @@ pub(crate) fn lower_type(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId 
 
 /// Lowers an optional declared type, e.g. a `foreach` binding or destructure
 /// leaf that omitted its type (already diagnosed elsewhere, per
-/// [`nvs_syntax::ast::ForeachBinding::ty`]'s own doc), defaulting to `mixed`.
+/// [`nvs_syntax::ast::ForeachBindingTy::Omitted`]'s own doc), defaulting to `mixed`.
 ///
 /// A plain `ty.map_or_else(|| env.interner.mixed(), |t| lower_type(t, ctx,
 /// env))` does not borrow-check: the two closures would each need their own

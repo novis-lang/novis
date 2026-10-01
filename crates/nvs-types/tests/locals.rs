@@ -78,6 +78,100 @@ fn var_rejects_a_bare_array_literal_initializer() {
     );
 }
 
+/// The codes `check` reported for one method `m` whose parameters are
+/// `params` and whose body is `body`.
+fn codes_in(params: &str, body: &str) -> Vec<nvs_diagnostics::Code> {
+    let src = format!("<?nvs\nclass T {{\n  function m({params}): void {{\n{body}  }}\n}}\n");
+    check_src(&src).iter().filter_map(|d| d.code).collect()
+}
+
+/// `rule:types/var-inference`: a `var` value binding takes the subject's
+/// element type, and that type is fixed like a written one.
+#[test]
+fn foreach_var_value_takes_the_element_type_and_fixes_it() {
+    let reads = codes_in(
+        "array<int> $rows",
+        "foreach ($rows as var $v) { int $n = $v; }\n",
+    );
+    assert!(reads.is_empty(), "{reads:?}");
+    let retyped = codes_in(
+        "array<int> $rows",
+        "foreach ($rows as var $v) { $v = 'x'; }\n",
+    );
+    assert_eq!(retyped, [code::E_TYPE_MISMATCH]);
+}
+
+#[test]
+fn foreach_var_key_is_a_string() {
+    let reads = codes_in(
+        "array<int> $rows",
+        "foreach ($rows as var $k => int $v) { string $s = $k; }\n",
+    );
+    assert!(reads.is_empty(), "{reads:?}");
+    let as_int = codes_in(
+        "array<int> $rows",
+        "foreach ($rows as var $k => int $v) { int $n = $k; }\n",
+    );
+    assert_eq!(as_int, [code::E_TYPE_MISMATCH]);
+}
+
+/// `var` is not a way to drop a qualifier: the element type arrives whole.
+#[test]
+fn foreach_var_keeps_the_element_types_qualifiers() {
+    let codes = codes_in(
+        "array<tainted string> $rows",
+        "foreach ($rows as var $r) { string $plain = $r; }\n",
+    );
+    assert_eq!(codes, [code::E_TYPE_MISMATCH]);
+}
+
+/// What a `var` local over a `mixed` initializer gets.
+#[test]
+fn foreach_var_over_a_mixed_subject_is_mixed() {
+    let accepts = codes_in("mixed $m", "foreach ($m as var $x) { $x = 'a'; $x = 1; }\n");
+    assert!(accepts.is_empty(), "{accepts:?}");
+    let narrows = codes_in("mixed $m", "foreach ($m as var $x) { string $s = $x; }\n");
+    assert_eq!(narrows, [code::E_TYPE_MISMATCH]);
+}
+
+/// The local's refusal, at the subject. A call around the literal gives it a
+/// target, as it does for `var $x = f([1, 2]);`.
+#[test]
+fn foreach_var_over_a_bare_array_literal_is_refused() {
+    let bare = codes_in("", "foreach ([1, 2] as var $x) { }\n");
+    assert_eq!(bare, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE]);
+    let called = check_src(
+        "<?nvs\nclass T {\n  static function same(array<int> $a): array<int> { return $a; }\n  \
+         function m(): void {\n    foreach (T::same([1, 2]) as var $x) { int $n = $x; }\n  }\n}\n",
+    );
+    assert!(!called.has_errors(), "{called:?}");
+}
+
+#[test]
+fn foreach_var_key_over_a_cursor_is_still_refused() {
+    let codes = codes_in(
+        "Iterator<int> $it",
+        "foreach ($it as var $k => var $v) { }\n",
+    );
+    assert_eq!(codes, [code::E_FOREACH_KEY_ON_CURSOR]);
+}
+
+/// `inout var` binds at the element type itself, so the exact-type obligation
+/// holds, and a write of another type is the ordinary mismatch.
+#[test]
+fn foreach_inout_var_is_the_element_type_exactly() {
+    let writes = codes_in(
+        "array<int> $rows",
+        "foreach ($rows as inout var $v) { $v = $v * 2; }\n",
+    );
+    assert!(writes.is_empty(), "{writes:?}");
+    let wrong = codes_in(
+        "array<int> $rows",
+        "foreach ($rows as inout var $v) { $v = 'x'; }\n",
+    );
+    assert_eq!(wrong, [code::E_TYPE_MISMATCH]);
+}
+
 #[test]
 fn reading_a_variable_assigned_on_only_one_if_branch_is_diagnosed() {
     let diags = check_in_method("bool $flag = true;\nint $n;\nif ($flag) { $n = 1; }\necho $n;\n");

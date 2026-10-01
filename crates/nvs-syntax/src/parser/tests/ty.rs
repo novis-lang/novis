@@ -604,7 +604,7 @@ fn tainted_qualifier_parses_in_every_declaration_slot() {
         panic!("expected a foreach: {s:?}");
     };
     assert!(matches!(
-        value.ty.as_ref().map(|t| &t.kind),
+        value.written_ty().map(|t| &t.kind),
         Some(TypeKind::Atom(TypeAtom::TaintedString))
     ));
 }
@@ -710,7 +710,7 @@ fn secret_qualifier_parses_in_every_declaration_slot() {
         panic!("expected a foreach: {s:?}");
     };
     assert!(matches!(
-        value.ty.as_ref().map(|t| &t.kind),
+        value.written_ty().map(|t| &t.kind),
         Some(TypeKind::Atom(TypeAtom::SecretString))
     ));
 }
@@ -777,7 +777,7 @@ fn shape_type_parses_in_every_declaration_slot() {
         panic!("expected a foreach: {s:?}");
     };
     assert!(matches!(
-        value.ty.as_ref().map(|t| &t.kind),
+        value.written_ty().map(|t| &t.kind),
         Some(TypeKind::Atom(TypeAtom::Shape(_)))
     ));
 

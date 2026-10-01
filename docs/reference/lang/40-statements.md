@@ -195,7 +195,7 @@ array<int> $a = [1];
 foreach ($a as $v) { echo $v; }
 ```
 ```output
-every `foreach` binding declares a type
+a `foreach` binding writes its type, or `var`
 ```
 
 # `switch`

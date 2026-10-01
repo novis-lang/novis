@@ -1284,10 +1284,10 @@ fn stmt_types<'a>(stmt: &'a Stmt, start: BytePos, end: BytePos, found: &mut Vec<
             ..
         } => {
             expr_types(subject, start, end, found);
-            if let Some(ty) = key.as_ref().and_then(|binding| binding.ty.as_ref()) {
+            if let Some(ty) = key.as_ref().and_then(|binding| binding.written_ty()) {
                 root(ty, start, end, found);
             }
-            if let Some(ty) = &value.ty {
+            if let Some(ty) = value.written_ty() {
                 root(ty, start, end, found);
             }
             stmt_types(body, start, end, found);

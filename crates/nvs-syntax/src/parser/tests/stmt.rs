@@ -223,7 +223,7 @@ fn foreach_with_typed_key_and_value() {
         panic!("expected a foreach: {s:?}");
     };
     assert!(key.is_some());
-    assert!(value.ty.is_some());
+    assert!(value.written_ty().is_some());
     assert!(!value_inout);
 }
 
@@ -251,6 +251,48 @@ fn foreach_key_and_by_reference_value() {
     };
     assert!(key.is_some());
     assert!(value_inout);
+}
+
+/// `rule:types/var-inference`: `var` stands where either binding's type goes.
+#[test]
+fn foreach_binding_accepts_var_for_the_key_and_the_value() {
+    let s = parse_stmt_ok("foreach ($stock as var $name => var $qty) { }");
+    let StmtKind::Foreach { key, value, .. } = s.kind else {
+        panic!("expected a foreach: {s:?}");
+    };
+    assert!(
+        matches!(key.map(|k| k.ty), Some(ForeachBindingTy::Var(_))),
+        "the key is `var`"
+    );
+    assert!(matches!(value.ty, ForeachBindingTy::Var(_)), "{value:?}");
+}
+
+#[test]
+fn foreach_binding_accepts_var_after_inout() {
+    let s = parse_stmt_ok("foreach ($items as inout var $v) { }");
+    let StmtKind::Foreach {
+        value, value_inout, ..
+    } = s.kind
+    else {
+        panic!("expected a foreach: {s:?}");
+    };
+    assert!(value_inout);
+    assert!(matches!(value.ty, ForeachBindingTy::Var(_)), "{value:?}");
+}
+
+/// Neither a type nor `var` is still the parse error it was, and the binding
+/// says so — the checker reads `Omitted` as recovery, never as `var`.
+#[test]
+fn foreach_binding_with_no_type_and_no_var_is_still_refused() {
+    let (s, diags) = parse_stmt_with_diags("foreach ($items as $v) { }");
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_EXPECTED_TOKEN)),
+        "{diags:?}"
+    );
+    let StmtKind::Foreach { value, .. } = s.kind else {
+        panic!("expected a foreach: {s:?}");
+    };
+    assert_eq!(value.ty, ForeachBindingTy::Omitted);
 }
 
 #[test]

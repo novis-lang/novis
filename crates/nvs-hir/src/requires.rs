@@ -987,7 +987,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
         } => {
             e!(subject);
             for binding in key.iter().chain(std::iter::once(value)) {
-                if let Some(ty) = &binding.ty {
+                if let Some(ty) = binding.written_ty() {
                     walk_type(ty, src, out);
                 }
             }
