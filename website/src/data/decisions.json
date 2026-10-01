@@ -1102,6 +1102,12 @@
           "headline": "Paths and class names complete and link in the editor",
           "body": "Inside the path of a `require` or an `autoload` declaration, the editor lists the folders and `.nvs` files in the folder the path reaches, and ctrl+click on a folder shows it in the Explorer. A path you pass to a function that reads or writes a file lists every file and folder, opens the file on ctrl+click and shows its full path on hover. An `autoload` prefix lists the namespaces your code declares. A class name in a string, in `'App\\User' as class<Model>` or `Core\\Reflect::forClass('App\\User')`, lists your classes and opens the class on ctrl+click.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0240.md"
+        },
+        {
+          "adr": "0242",
+          "headline": "A project can add its own completion values for any string parameter",
+          "body": "Put JSON files in a `.novis/completion/` folder anywhere in your project. Each file lists values and the method parameters they belong to. When you type a string at one of those parameters, the editor offers the values. Each value can have a label, an icon, a title and a Markdown description. You can write the files by hand, or generate them with any script, for example from a dataset or an icon set. The editor reloads a file when it changes. The files are only read and never run.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0242.md"
         }
       ]
     },

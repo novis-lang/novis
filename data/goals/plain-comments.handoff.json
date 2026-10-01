@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `plain-comments` is reached.** Both of its checks pass:\n`bun nv proofs --comments docs/examples tests/hostile benches/members` exits 0, and\n`bun nv proofs --gate` says nothing is owed in the whole roster.\n\nThe floor is green on this host again. WSL `Ubuntu-24.04` starts, and Docker Desktop's engine was\nrestarted after it stuck at `stopping`. `bun nv db-matrix --all` prints `8/8 legs ok`: the five TCP\ndrivers and the three AF_UNIX legs. The TSan, prefix fuzz and WSL tree sync checks failed only on\nthe WSL start timeout and were not re-run by hand; the driver's sweep runs them.\n\n`bun nv verify --doc` resolves every link, and `bun nv owners --closes plain-comments` and\n`bun nv playbook --closes plain-comments` name nothing.",
+  "state": "**Goal `plain-comments` is reached.** Both of its checks pass:\n`bun nv proofs --comments docs/examples tests/hostile benches/members` exits 0, and\n`bun nv proofs --gate` says nothing is owed in the whole roster.\n\nThe floor's three red checks — `bun nv decisions --gate` twice and `bun nv render --check` — were\nthe rendered files ADR 0242's commit did not regenerate: `docs/decisions.md`,\n`website/src/data/decisions.json`, `website/src/data/rules.json` and four rule pages under\n`website/src/content/docs/docs/rules/`. `bun nv decisions --render` and `bun nv render` wrote them,\nand both checks pass now.\n\n`bun nv verify --doc` resolves every link, and `bun nv owners --closes plain-comments` and\n`bun nv playbook --closes plain-comments` name nothing.",
   "next": {
     "stage": 3,
     "title": "the gate",
@@ -8,11 +8,12 @@
     "items": [
       {
         "done": true,
-        "text": "**The gate passes and the floor is green** — `tools/nv/cmd/proofs.ts:1`, nothing owed; the next goal starts from its own handoff."
+        "text": "**The rendered decision index and rule pages match ADR 0242** — `docs/decisions.md:1`"
       }
-    ]
+    ],
+    "after": "Every item in the group is ticked. The goal is reached; the next goal on the chain starts from its own handoff record."
   },
   "backlog": [
-    "None owed by this goal."
+    "None owned by this goal."
   ]
 }

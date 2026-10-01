@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 1020,
+    "total": 1021,
     "shipped": 785,
-    "designed": 235,
-    "diverging": 592
+    "designed": 236,
+    "diverging": 593
   },
   "topics": [
     {
@@ -2908,10 +2908,10 @@
       "url": "/docs/rules/ide/",
       "single": false,
       "counts": {
-        "total": 79,
+        "total": 80,
         "shipped": 19,
-        "designed": 60,
-        "diverging": 24
+        "designed": 61,
+        "diverging": 25
       },
       "sections": [
         {
@@ -3202,10 +3202,10 @@
           "blurb": "Two highlighting layers that ship names and no colours, and completion that offers only what the compiler already derived.",
           "url": "/docs/rules/ide/highlighting-and-completion/",
           "counts": {
-            "total": 14,
+            "total": 15,
             "shipped": 7,
-            "designed": 7,
-            "diverging": 6
+            "designed": 8,
+            "diverging": 7
           },
           "rules": [
             {
@@ -3251,10 +3251,18 @@
             {
               "id": "ide/completion-offers-only-what-the-compiler-derived",
               "slug": "completion-offers-only-what-the-compiler-derived",
-              "title": "The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network",
+              "title": "The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network",
               "status": "designed",
               "href": "/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived",
-              "diverges": "framework-aware IntelliSense built from convention scans, annotation dialects and an `ide.json` patch file has no counterpart; a route name or a directive completes from the table the compiler built, and an ORM column or a view name has nothing to complete from because Novis has neither"
+              "diverges": "framework-aware IntelliSense built from convention scans and annotation dialects has no counterpart; a route name or a directive completes from the table the compiler built, a value from outside the program completes from the JSON files in a `.novis/completion/` folder, which do the job of PhpStorm's `.phpstorm.meta.php`, and an ORM column or a view name has nothing to complete from because Novis has neither"
+            },
+            {
+              "id": "ide/completion-files-offer-values-at-named-parameters",
+              "slug": "completion-files-offer-values-at-named-parameters",
+              "title": "A JSON file under a `.novis/completion` folder offers values at the string parameters it names, changes only the string the cursor is in, and is read and never run",
+              "status": "designed",
+              "href": "/docs/rules/ide/highlighting-and-completion/#completion-files-offer-values-at-named-parameters",
+              "diverges": "PhpStorm's `.phpstorm.meta.php` is one PHP file it parses for the same purpose; a completion file is JSON, any number of them may sit in any `.novis/completion/` folder, and any program may write one"
             },
             {
               "id": "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",

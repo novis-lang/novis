@@ -1579,6 +1579,14 @@ ctrl+click and shows its full path on hover. An `autoload` prefix lists the name
 declares. A class name in a string, in `'App\User' as class<Model>` or
 `Core\Reflect::forClass('App\User')`, lists your classes and opens the class on ctrl+click.
 
+**A project can add its own completion values for any string parameter**
+
+Put JSON files in a `.novis/completion/` folder anywhere in your project. Each file lists values and
+the method parameters they belong to. When you type a string at one of those parameters, the editor
+offers the values. Each value can have a label, an icon, a title and a Markdown description. You can
+write the files by hand, or generate them with any script, for example from a dataset or an icon
+set. The editor reloads a file when it changes. The files are only read and never run.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.
