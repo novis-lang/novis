@@ -1,6 +1,6 @@
 <?nvs
-// length counts what a reader sees, not bytes: the accented e is one
-// grapheme even when written as two code points, and a family emoji built
-// from four code points joined by ZWJs is still one grapheme.
+// `Core\Str::length` counts graphemes (what a person sees as one character).
+// `héllo` has 5 graphemes, so the first line prints `5`. The family emoji is
+// four emoji joined together. It is one grapheme, so the second line prints `1`.
 echo Core\Str::length("héllo"), "\n";
 echo Core\Str::length("👩‍👩‍👧‍👦"), "\n";

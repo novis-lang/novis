@@ -1,22 +1,19 @@
 <?nvs
-// Deep nesting and long chains, one step under the parser's own limit -- the
-// document sized to hurt the front end a language server re-reads on every
-// keystroke. `nvs lsp` gave up incremental reparse, so what hurts it is depth
-// and length rather than size on disk. A `nvs run` is the same parse, the same
-// tree and the same offset index a cursor is answered out of, so what this
-// hopes to break is the deepest document the grammar still accepts.
+// Attack: deep nesting and a long chain of `.` that the parser still accepts.
+// The language server parses the whole file again after every key press.
+// `nvs run` parses the file the same way, so this program tests the same work.
+// The parser should finish, and nothing should crash.
 
-// Parentheses as deep as an expression may legally go. Every level is a frame
-// of the recursive-descent parser, and a cursor request walks out of all of
-// them to build its ancestor chain.
+// Parentheses nested 12 levels deep. The parser goes one level deeper for each
+// pair, and a request at the cursor goes back up through every level.
 var $deep = ((((((((((((7))))))))))));
 
-// Nesting the other way: a literal whose walk is recursive whatever walks it,
-// and whose innermost element is what an index lookup has to reach.
+// An array nested five levels deep. A lookup must go through every level
+// to reach `'leaf'`.
 array<array<array<array<array<string>>>>> $tree = [[[[['leaf']]]]];
 
-// A sixty-term chain: one left-leaning tree the type checker types at every
-// step, and the shape a half-typed line grows into as somebody keeps typing.
+// Sixty strings joined with `.`. The type checker checks the type at every step,
+// and a line you are still typing can grow like this.
 var $chain = 'a' . 'b' . 'c' . 'd' . 'e' . 'f' . 'g' . 'h' . 'i' . 'j'
     . 'k' . 'l' . 'm' . 'n' . 'o' . 'p' . 'q' . 'r' . 's' . 't'
     . 'u' . 'v' . 'w' . 'x' . 'y' . 'z' . '0' . '1' . '2' . '3'

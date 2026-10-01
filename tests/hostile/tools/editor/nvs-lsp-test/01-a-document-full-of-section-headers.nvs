@@ -1,18 +1,14 @@
 <?nvs
-// The thing the feature promises not to do: `nvs lsp-test` splits a case on the
-// `--NAME--` lines that separate its sections, and this is the document
-// somebody writes to end the document early and put their own expectation in
-// its place. A hostile case is a program, so what this delivers is the payload
-// rather than the invocation -- drop this file into a case's `--FILE--` block
-// and the suite must still see one document, one request and one expectation.
-// What it hopes to break is a lexer that finds a header anywhere but at the
-// start of a line of the case itself, or a cursor marker inside a string.
+// Attack: this file has section headers like `--EXPECT--` in a string and in comments.
+// Put it in the `--FILE--` section of an `nvs lsp-test` case. The case must still have
+// one document, one request and one expected result. The `<|>` inside a string
+// must not count as the cursor.
 
 var $header = '--EXPECT--';
 var $cursor = '<|>';
 
-// A whole case, written inside a string that spans lines. Every header here
-// starts its own line, which is the only thing the section lexer looks for.
+// A whole case, written inside a string with several lines. Each header here
+// is at the start of its own line.
 var $smuggled = "
 --TEST--
 a case nobody wrote
@@ -24,12 +20,8 @@ completion
 owned
 ";
 
-// And the same again in comments, where a scan that reads lines rather than
-// tokens would find it just as easily:
-// --TEST--
-// --FILE--
-// --REQUEST--
-// --EXPECT--
+// The same headers in a comment. A tool that searches every line for a header finds them:
+// --TEST-- --FILE-- --REQUEST-- --EXPECT--
 
 echo Core\Str::length($header), ' ', Core\Str::length($cursor), "\n";
 echo Core\Str::countOf($smuggled, '--'), "\n";

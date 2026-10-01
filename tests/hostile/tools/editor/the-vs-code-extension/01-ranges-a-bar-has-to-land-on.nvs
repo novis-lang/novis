@@ -1,55 +1,42 @@
 <?nvs
-// The document written to break what the extension *draws* over a `secret`,
-// rather than what the server decides about one. Every literal below is a range
-// the client converts from a protocol position into an editor position and then
-// covers: a bar one column short leaks the last character of a key, and a bar
-// one line off covers somebody's code while the key sits in the open.
-//
-// It compiles and runs on purpose. A refusal here would mean the attack was
-// never delivered (`rule:testing/hostile-case-contract`), and everything this
-// hopes to provoke happens after a clean parse — in the conversion, in the
-// partition of the answer, and in a decoration that outlives the document it
-// was drawn from.
+// Attack: the extension blurs each `secret` string, and this file puts them in hard places.
+// If a blur is one character short, the last character of a key is visible. If it is one
+// line off, it hides other code and the key is visible. The file compiles and runs, so
+// every case reaches the editor.
 
-// Characters outside the basic plane, before a secret on the same line. Each is
-// two UTF-16 code units and four UTF-8 bytes, so a client that converted with
-// the wrong unit puts the bar well to the left of the value it is hiding.
+// Emoji before a secret on the same line. Each emoji code point is two UTF-16 units and
+// four UTF-8 bytes. If the extension counts the wrong unit, the blur is too far left.
 string $flag = '🏴🇦🇶🧑🚀🛰️';
 secret string $afterAstral = 'sk-live-astral';
 
-// Combining marks and a zero-width joiner: one grapheme, several code points,
-// and a column count that disagrees with all of them.
+// Accent marks and a zero-width joiner. Here one grapheme has several code points,
+// and the editor column is different from both counts.
 string $marks = "é🇳🇴👩‍💻e\u{0301}";
 secret string $afterMarks = 'sk-live-combining';
 
-// A right-to-left override inside the value. The bytes are concealed either
-// way; what this asks is whether a client that renders the revealed text back
-// into a hover renders the rest of the line backwards with it.
+// A right-to-left override character inside the value. When the value is revealed,
+// the rest of the line must not be shown backwards.
 secret string $override = "sk-live-\u{202E}gnitset";
 
-// Two secrets on one line, touching. Revealing one must uncover exactly one:
-// the ranges are adjacent, so an off-by-one at either edge reveals both.
+// Two secrets on one line. Revealing one of them must show that one only.
 secret string $left = 'sk-live-left'; secret string $right = 'sk-live-right';
 
-// The empty literal: a range whose start is its end, which is a decoration with
-// no width and the shape most likely to be dropped, doubled, or drawn at the
-// beginning of the document instead.
+// An empty secret string. Its range starts and ends at the same position. The blur
+// must not be lost, drawn twice or drawn at the start of the file.
 secret string $empty = '';
 
-// A single line far past any editor's viewport, with the value at the end of
-// it. A client that only converts the visible region hides nothing here.
+// A line longer than the editor window, with the value at the end. The extension
+// must blur it even when that part of the line is not on the screen.
 secret string $long = 'sk-live-0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffff';
 
-// A value written across several physical lines. One logical range, and the
-// only one in the file whose start line and end line differ.
+// A value written across three lines. It is one range, and the only range in
+// this file that starts and ends on different lines.
 secret string $wrapped = 'sk-live-first'
     . '-second'
     . '-third';
 
-// Concealment is per document, and these declarations are inside a class rather
-// than at the top level: the client tracks which document each revealed range
-// belongs to, so a range revealed here must not uncover the same offsets in a
-// different file that happens to be open beside it.
+// A secret inside a class. The extension keeps revealed ranges for each file, so revealing
+// this one must not reveal the same position in another open file.
 final class Credentials
 {
     public secret string $token = 'unset';
@@ -63,8 +50,7 @@ final class Credentials
 var $credentials = new Credentials();
 $credentials->rotate();
 
-// Nothing above prints a secret: the checker refuses that, and this file is an
-// attack on the editor rather than on the type system. What it prints is the
-// count of things it declared, so a run that came apart is visibly shorter.
+// The program prints no secret, because the compiler does not allow that. It prints two
+// lengths and one line, so a run that stopped early has less output.
 echo Core\Str::length($flag), ' ', Core\Str::length($marks), "\n";
 echo "credentials rotated\n";

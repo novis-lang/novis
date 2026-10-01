@@ -8,17 +8,15 @@
 bytes $empty = '' as bytes;
 bytes $short = 'ab' as bytes;
 
-// 1. The smallest searches there are. An empty value is found in everything,
-//    and bytes longer than the value searched are found nowhere. This prints
-//    "true", "true", "true" and then "false".
+// 1. An empty value is found in every value. A longer value is never found.
+//    This prints "true", "true", "true" and then "false".
 echo Core\Bytes::contains($empty, $empty) ? 'true' : 'false', "\n";
 echo Core\Bytes::contains($short, $empty) ? 'true' : 'false', "\n";
 echo Core\Bytes::contains($short, $short) ? 'true' : 'false', "\n";
 echo Core\Bytes::contains($short, 'abc' as bytes) ? 'true' : 'false', "\n";
 
-// 2. Five million of the same byte, searched for 5000 of that byte followed by
-//    a different one. Every position matches for 5000 bytes and then fails, so
-//    the answer is "false".
+// 2. Five million `a` bytes are searched for 5000 `a` bytes and a `b`. Each
+//    position matches 5000 bytes and then fails, so this prints "false".
 bytes $flat = Core\Bytes::fill(5000000, 97);
 bytes $almost = Core\Bytes::join([Core\Bytes::fill(5000, 97), 'b' as bytes]);
 echo Core\Bytes::contains($flat, $almost) ? 'true' : 'false', "\n";
@@ -28,8 +26,8 @@ echo Core\Bytes::contains($flat, $almost) ? 'true' : 'false', "\n";
 bytes $ending = Core\Bytes::join([Core\Bytes::fill(4999999, 97), 'b' as bytes]);
 echo Core\Bytes::contains($ending, $almost) ? 'true' : 'false', "\n";
 
-// 4. A search that reads every byte of a smaller value, 200000 times over.
-//    The answer must be "false" every time, so this prints 0.
+// 4. A search that reads every byte of a 1000-byte value runs 200000 times.
+//    The result must be false every time, so this prints 0.
 bytes $page = Core\Bytes::fill(1000, 97);
 uint $found = 0;
 uint $i = 0;

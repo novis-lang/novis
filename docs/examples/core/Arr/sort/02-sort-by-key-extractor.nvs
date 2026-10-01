@@ -1,6 +1,6 @@
 <?nvs
-// {by:} takes a key-extractor closure — the thing most usort callbacks
-// are written to emulate.
+// `{by:}` takes a function that returns the key to sort by. Here the key is the
+// length of each word, so this prints `fig` first, then `banana` and `cherry`.
 array<string> $words = ["banana", "fig", "cherry"];
 
 var $byLength = Core\Arr::sort($words, {by: fn(string $w): uint => Core\Str::length($w)});

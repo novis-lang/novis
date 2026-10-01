@@ -1,25 +1,24 @@
 <?nvs
-// Attack: a value of ten million bytes is cut at positions and lengths taken
-// from the far ends of the number range, including a window that closes before
-// it opens. Every cut must answer, and the program must keep running.
+// Attack: the program cuts a value of ten million bytes with the largest and smallest
+// positions and lengths. One cut ends before it starts. Every cut should return
+// a value, and the program should keep running.
 // hostile: timeout-ms 30000
 
 bytes $big = Core\Bytes::fill(10000000, 97);
 
-// 1. Positions far outside the value, in both directions. The first is after
-//    the end, so it prints 0. The second is before the start, so it prints
-//    10000000.
+// 1. Positions far outside the value. The first is after the end, so it prints 0.
+//    The second is before the start, so it prints 10000000.
 echo Core\Bytes::length(Core\Bytes::slice($big, 9223372036854775807)), "\n";
 echo Core\Bytes::length(Core\Bytes::slice($big, -9223372036854775807)), "\n";
 
 // 2. A length larger than the whole value. This prints 10000000.
 echo Core\Bytes::length(Core\Bytes::slice($big, 0, 9223372036854775807)), "\n";
 
-// 3. A window that closes before it opens. This prints 0.
+// 3. The length -9000000 makes the slice end before it starts. This prints 0.
 echo Core\Bytes::length(Core\Bytes::slice($big, 5000000, -9000000)), "\n";
 
-// 4. Two hundred thousand cuts of a thousand bytes. Each copy must be freed
-//    while the loop runs. This prints 200000000.
+// 4. The program cuts 1000 bytes 200000 times. Each copy must be freed while
+//    the loop runs. This prints 200000000.
 uint $taken = 0;
 uint $i = 0;
 while ($i < 200000) {

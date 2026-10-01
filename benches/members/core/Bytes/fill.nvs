@@ -1,6 +1,6 @@
 <?nvs
-// Measures building a buffer of one byte repeated, as a program does when it
-// makes the padding that brings a record up to a fixed size.
+// Measures `Core\Bytes::fill`, which builds a buffer of one byte repeated.
+// A program uses it to pad a record up to a fixed size.
 // bench: iterations 200000
 // bench: calls 0
 
@@ -10,7 +10,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // The result of one round sets the size of the next buffer, so no
-            // round can be left out. The sizes run from 16 to 271 bytes.
+            // round can be skipped. The sizes go from 16 to 271 bytes.
             $total = $total + Core\Bytes::length(Core\Bytes::fill(16 + ($total % 256), 97));
             $i = $i + 1;
         }

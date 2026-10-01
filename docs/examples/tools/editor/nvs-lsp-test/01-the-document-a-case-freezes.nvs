@@ -1,6 +1,6 @@
 <?nvs
-// `nvs lsp-test` freezes what the editor answers about a document. This is the
-// document half of such a case, kept as a program so you can run it as well.
+// `nvs lsp-test` checks what the language server returns for a document.
+// This program is the document part of such a test. You can also run it.
 
 final class Cart
 {
@@ -17,14 +17,6 @@ var $cart = new Cart();
 $cart->items = 3;
 $cart->cents = 1250;
 
-// Put a cursor right after `$cart->` and ask a case for `completion`, and this
-// is the answer it freezes -- one line per member, sorted by name, with what
-// each one is and its type:
-//
-//     cents   property  int
-//     items   property  int
-//     summary method    (): string
-//
-// A case usually asks about a document that does not parse -- half a line, an
-// unclosed brace -- because that is what a buffer looks like while you type.
+// A `completion` test with the cursor after `$cart->` expects `cents`, `items` and `summary`.
+// The result has one line for each, sorted by name, with its kind and its type.
 echo $cart->summary(), "\n";

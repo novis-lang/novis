@@ -1,13 +1,8 @@
 <?nvs
 // hostile: expect-refusal
 //
-// Unbounded nesting: the same document as its sibling, taken far past the depth
-// the grammar accepts. A language server parses whatever is in the buffer, and
-// a buffer can hold anything somebody pasted into it, so the only safe answer
-// to arbitrary depth is a diagnostic at a named limit. The refusal is this
-// case's assertion: what it hopes to break is a recursive descent that runs out
-// of stack instead, which an editor would see as the server disappearing
-// mid-keystroke.
+// Attack: parentheses nested 98 levels deep, more than the parser allows. The parser
+// must stop with an error at its depth limit, and the language server must not crash.
 
 var $deep = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((7))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
 

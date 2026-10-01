@@ -1,7 +1,7 @@
 <?nvs
-// The floor: `nvs run` starting, compiling and exiting, with no work in it at all.
-// Every figure in the ledger has this subtracted, so a reading is the feature and not the CLI.
-// Do not add anything to this file -- what it measures is the absence of anything.
+// Measures how long `nvs run` takes to start, compile and exit a program that does nothing.
+// This time is subtracted from every other bench, so each result is the cost of its feature alone.
+// Do not add code to this file. Any code here would be measured as part of every other bench.
 // bench: iterations 1
 
 echo "";

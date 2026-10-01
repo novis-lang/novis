@@ -1,7 +1,7 @@
 <?nvs
-// Shows the everyday use: a producer that can stop early. It closes the channel
-// on both ways out, because a reader whose channel is never closed waits for a
-// value that nobody is going to send.
+// Shows a producer that can stop early. It closes the channel before each `return`.
+// The `foreach` that reads the channel ends only when the channel is closed.
+// If the channel is never closed, the reader waits forever.
 
 class Report
 {
@@ -15,7 +15,7 @@ Core\Task::all({
         array<string> $input = ["alice,3", "bob,5", "", "carol,2"];
         foreach ($input as string $line) {
             if ($line == "") {
-                // The empty line ends the input. This way out closes too.
+                // The empty line ends the input. The channel is closed here too.
                 $lines->close();
                 return 0;
             }

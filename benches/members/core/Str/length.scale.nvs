@@ -1,5 +1,6 @@
 <?nvs
-// The same count over labels ten times as long -- what `length.nvs` costs when the input grows.
+// Measures `Core\Str::length` on labels ten times as long as in `length.nvs`.
+// It shows how the cost of `length` grows when the input grows.
 // bench: iterations 100000
 // bench: scale 10
 

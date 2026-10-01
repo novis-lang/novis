@@ -1,8 +1,6 @@
 <?nvs
-// Attack: the first value is read from very large arrays, from an array whose
-// front is removed over and over, and from one that is emptied before the
-// value is used. Every step should finish or throw an error, and the runtime
-// must not crash.
+// Attack: the program reads the first value of very large arrays and of arrays that change.
+// Every step should finish or throw an error. The runtime should not crash.
 // hostile: timeout-ms 60000
 
 // 1. The first value of a list of 400000 entries.
@@ -14,7 +12,7 @@ while ($i < 400000) {
 }
 echo 'step 1: ', Core\Arr::first($long) ?? -1, '|', "\n";
 
-// 2. A first value of one million characters, read and dropped 1000 times.
+// 2. A first value of one million characters is read 1000 times and freed after each read.
 array<string> $wide = [Core\Str::repeat('v', 1000000)];
 uint $seen = 0;
 int $r = 0;

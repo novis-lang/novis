@@ -1,5 +1,7 @@
 <?nvs
-// Attack: hand the key sort every natural-order row at a size that reaches its radix route, with every corner value the row has — the `int` ends, both zeros and every NaN and infinity, empty and prefix strings with high bytes — then the shapes it recognises, then a subject it must decline.
+// Attack: the program sorts 200000 ints, floats, strings and bools that include extreme values.
+// These are the largest and smallest `int`, both zeros, NaN, infinity and empty strings.
+// Every sort should finish. Sorting an array with mixed types should throw an error.
 // hostile: timeout-ms 60000
 
 class Gen
@@ -14,8 +16,8 @@ int $n = 200000;
 int $seed = 1;
 int $pick = 0;
 
-// Ints: random with the extremes sprinkled through, then all equal, then
-// sorted and reversed — the two shapes the sort recognises without sorting.
+// Ints: random values that include the largest and smallest `int` and `0`. The program
+// sorts them in both orders, then sorts each sorted result again.
 array<int> $ints = [];
 int $i = 0;
 while ($i < $n) {
@@ -39,8 +41,8 @@ array<int> $back = Core\Arr::sort($reversedInts);
 array<int> $kept = Core\Arr::sort($ints, { preserveKeys: true, order: Core\Order::Desc });
 echo 'ints ', Core\Arr::count($sortedInts) as string, ' ', (Core\Arr::first($sortedInts) ?? 0) as string, ' ', (Core\Arr::last($again) ?? 0) as string, ' ', (Core\Arr::first($back) ?? 0) as string, ' ', Core\Arr::count($kept) as string, "\n";
 
-// Floats: NaN of both signs, both zeros, both infinities, subnormal-sized
-// values and ordinary ones, mixed at random.
+// Floats: NaN with both signs, `0.0` and `-0.0`, both infinities, the smallest
+// positive float and ordinary values, in random order.
 float $nan = Core\Math::fdiv(0.0, 0.0);
 float $inf = Core\Math::fdiv(1.0, 0.0);
 array<float> $floats = [];
@@ -71,8 +73,8 @@ array<float> $sortedFloats = Core\Arr::sort($floats);
 array<float> $reversedFloats = Core\Arr::sort($floats, { order: Core\Order::Desc });
 echo 'floats ', Core\Arr::count($sortedFloats) as string, ' ', Core\Arr::count($reversedFloats) as string, "\n";
 
-// Strings: empty, prefixes of one another, a 300-byte shared prefix, bytes
-// above 0x7F, and the numeral family the byte order interleaves.
+// Strings: empty strings, 300 `x` characters with and without one more letter,
+// strings with non-ASCII characters, and numbers written as strings.
 string $long = '';
 $i = 0;
 while ($i < 300) {
@@ -105,7 +107,7 @@ array<string> $sortedStrings = Core\Arr::sort($strings);
 array<string> $reversedStrings = Core\Arr::sort($strings, { order: Core\Order::Desc });
 echo 'strings ', Core\Arr::count($sortedStrings) as string, ' ', Core\Arr::count($reversedStrings) as string, "\n";
 
-// Bools and a keyed array through `sortByKey`, at size.
+// Bools, and a large array with string keys sorted by `Core\Arr::sortByKey`.
 array<bool> $bools = Core\Arr::map($ints, fn(int $v): bool => $v % 2 == 0);
 array<bool> $sortedBools = Core\Arr::sort($bools);
 array<int> $keyed = [];
@@ -119,11 +121,8 @@ array<int> $byKey = Core\Arr::sortByKey($keyed);
 array<int> $byKeyDesc = Core\Arr::sortByKey($keyed, { order: Core\Order::Desc });
 echo 'bools ', Core\Arr::count($sortedBools) as string, ' keyed ', Core\Arr::count($byKey) as string, ' ', Core\Arr::count($byKeyDesc) as string, "\n";
 
-// A subject the key sort must decline: one string among the ints, past the
-// small-sort threshold and at the end, where a sort that classified only a
-// prefix would miss it. The throw is the pass; a wrong answer or a panic is
-// not. (A literal rather than a loop: appending an `int` into an
-// `array<mixed>` is a compiler internal error today, which is its own bug.)
+// 41 ints and one string at the end. The sort must check every value to find the string.
+// `Core\Arr::sort` should throw an error, and the program catches it.
 array<mixed> $mixed = [
     31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
     20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 0, 32, 33, 34, 35, 36, 37, 38,

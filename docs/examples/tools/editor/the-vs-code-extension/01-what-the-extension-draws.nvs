@@ -1,32 +1,24 @@
 <?nvs
-// This file, opened in VS Code with the Novis extension installed. Every comment
-// points at something the editor is doing to the line under it — colour, a bar
-// over a value, a glyph after a name — and none of it is decided here: the
-// extension asks `nvs lsp` and draws the answer it gets back.
+// Open this file in VS Code with the Novis extension installed.
+// Each comment says what the editor shows on the line below it.
+// The extension gets this information from `nvs lsp`, the Novis language server.
 
-// A `secret` binding. The literal's bytes are behind a bar the moment the file
-// opens, because the extension asked which ranges to conceal and was told this
-// one. Hover the bar and "Reveal Secret" uncovers this range and no other, in
-// this window, until you close the editor. Turn the whole behaviour off with
-// `nvs.secrets.redact` if you are alone and it is in your way.
+// `$apiKey` is a `secret` variable. The editor blurs its string when the file opens.
+// Hover the string and click `Reveal` to read it. `nvs.secrets.redact` turns the blur off.
 secret string $apiKey = "sk-live-not-a-real-key";
 
-// A `tainted` binding: a value from outside that nothing has checked yet. It is
-// never concealed — reading it over someone's shoulder is not an incident — and
-// by default it carries only the token modifier your theme already styles. Set
-// `nvs.taint.mark` to `declaration` and a glyph appears after the name.
+// A `tainted` variable has a value from outside the program that is not checked yet.
+// The editor does not hide it. Set `nvs.taint.mark` to `declaration` to show a symbol after the name.
 tainted string $query = "shoes";
 
-// Colour arrives twice on this class. The TextMate grammar in the extension had
-// already coloured `final`, `class` and the string below before any process
-// started; the server then said that `Receipt` is a class and `$cents` is a
-// property, which is the half a regular expression cannot answer.
+// The extension colours `final`, `class` and the string in `line` as soon as the file opens.
+// Then `nvs lsp` tells it that `Receipt` is a class and `$cents` is a property.
 final class Receipt
 {
     public int $cents = 0;
 
-    // Hover `Core\Str::format` and the editor shows what it does, read out of
-    // the compiler itself. There is no stub file to install.
+    // Hover `Core\Str::format` to see what it does. The text comes from the compiler,
+    // so you do not install any extra files.
     public function line(): string
     {
         return Core\Str::format("%d cents", $this->cents);
@@ -36,7 +28,6 @@ final class Receipt
 var $receipt = new Receipt();
 $receipt->cents = 1250;
 
-// Nothing above ever reads `$apiKey`, and that is the point of the example: the
-// concealment is about what is on screen, and the value is still the plain bytes
-// in the file that the cursor, the selection and every edit address.
+// The blur only changes what the screen shows. The file still contains the real string,
+// so selecting, copying and editing it work as usual.
 echo $receipt->line(), "\n";

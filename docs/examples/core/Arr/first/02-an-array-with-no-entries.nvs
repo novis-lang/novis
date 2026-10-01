@@ -1,5 +1,5 @@
 <?nvs
-// Shows what `Core\Arr::first` gives you when there is no first entry.
+// Shows what `Core\Arr::first` returns for an array with no entries.
 
 array<string> $waiting = [];
 
@@ -9,12 +9,11 @@ if ($head == null) {
     echo "nobody is waiting\n";
 }
 
-// `??` names a value to use instead of `null`. This prints `nobody`.
+// `??` gives a value to use when the result is `null`. This prints `nobody`.
 echo Core\Arr::first($waiting) ?? 'nobody', "\n";
 
-// An array can hold `null` as a value. `Core\Arr::first` returns `null` here
-// too, and `Core\Arr::isEmpty` says that the entry is there. This prints
-// `one entry, and its value is null`.
+// `$holding` has one entry, and its value is `null`. `Core\Arr::first` returns `null` here too.
+// `Core\Arr::isEmpty` returns `false`, so this prints `one entry, and its value is null`.
 array<?string> $holding = [null];
 if (!Core\Arr::isEmpty($holding)) {
     echo "one entry, and its value is null\n";

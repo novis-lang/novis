@@ -1,6 +1,6 @@
 <?nvs
-// Measures one `select` inside a transaction that reads a few rows into objects
-// of a class, as a program does when it loads records before it writes them.
+// Measures `queryAs`, which runs one `select` in a transaction and reads the rows into objects.
+// A program does this when it loads records before it changes them.
 // bench: iterations 10000
 use Core\Db\Derive;
 
@@ -29,8 +29,8 @@ class Bench {
             uint $total = 0;
             uint $i = 0;
             while ($i < $rounds) {
-                // The objects built so far choose the value bound below, and
-                // each row read adds its number, so nothing is hoisted.
+                // The total so far sets the value for `?`, and each row adds its `n`
+                // to the total. So no round can be skipped or moved out of the loop.
                 var $rows = $tx->queryAs<Note>('select id, n from notes where n >= ? order by n', [($total % 10) as int]);
                 foreach ($rows->all() as Note $note) {
                     $total = $total + $note->n;

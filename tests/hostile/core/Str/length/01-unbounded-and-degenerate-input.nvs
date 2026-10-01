@@ -1,15 +1,13 @@
 <?nvs
-// Attack: make `length` walk something no caller would ever pass it -- a string
-// far larger than the input it was written for, then a string that is nothing
-// but degenerate grapheme material. Either the count comes back, or a limit
-// refuses it and says so; what must not happen is a panic, an abort, or a walk
-// that never ends.
+// Attack: `Core\Str::length` counts a 64 MiB string and one letter with 200000 accent marks.
+// Then it counts emoji 100000 times. Each count should return a number or stop at a
+// limit with an error. The program should not crash or run forever.
 // hostile: timeout-ms 20000
 
 class Attack
 {
-    /// One string of `$mib` mebibytes, counted. The count is a walk of every
-    /// character in it, so this is the allocator and the segmenter at once.
+    /// Builds a string of `$mib` mebibytes and counts it. `length` reads every
+    /// character, so the string must fit in memory and the count must finish.
     public static function big(uint $mib): uint
     {
         var $chunk = Core\Str::repeat('a', 1048576);
@@ -17,18 +15,16 @@ class Attack
         return Core\Str::length($s);
     }
 
-    /// A base character followed by a very long run of combining marks: one
-    /// grapheme, thousands of code points, and the shape a segmenter that
-    /// buffers a cluster is least happy about.
+    /// The letter `a` followed by `$marks` accent marks. This is one grapheme
+    /// with thousands of code points, so the result is `1`.
     public static function oneHugeCluster(uint $marks): uint
     {
         var $s = 'a' . Core\Str::repeat("\u{301}", $marks);
         return Core\Str::length($s);
     }
 
-    /// Every string this member is documented to count as one: a flag, a family
-    /// with zero-width joiners, a skin-toned profession. Asked a hundred
-    /// thousand times, so a leak of one cluster's working buffer shows up.
+    /// Counts emoji and an accented word 100000 times, so a memory leak grows with
+    /// each round. The total so far picks the next string.
     public static function repeatedlyOnHardInput(uint $rounds): uint
     {
         array<string> $hard = [

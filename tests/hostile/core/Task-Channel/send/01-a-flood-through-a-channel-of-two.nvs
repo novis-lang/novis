@@ -1,12 +1,12 @@
 <?nvs
-// Attack: a task sends far more than the channel can hold, and then sends into a
-// channel that is already closed. The memory the program uses must stay at the
+// Attack: a task sends many more values than the channel has room for. Then the
+// program sends into a channel that is already closed. Memory use must stay at the
 // size of the channel, and the last step must stop the program cleanly.
 // hostile: timeout-ms 60000
 // hostile: ends-early
 
-// 1. Two hundred thousand values through a channel that holds two. Only two may
-//    ever be queued, so this must run to the end.
+// 1. Two hundred thousand values go through a channel with room for two. At most
+//    two values wait in the channel, so this must run to the end.
 var $many = new Core\Task\Channel<int>(2);
 Core\Task::all({
     produce: fn(): int => {
@@ -28,16 +28,15 @@ Core\Task::all({
     },
 });
 
-// 2. A channel that says it holds four billion values. Nothing has been sent
-//    yet, so building it must cost almost nothing.
+// 2. A channel with room for about four billion values. It is empty when it is
+//    created, so creating it must use almost no memory.
 var $wide = new Core\Task\Channel<int>(4294967295);
 $wide->send(1);
 $wide->close();
 echo "step 2 built a very wide channel\n";
 
-// 3. Two hundred texts of one million characters each, through a channel that
-//    holds two. Only two of them exist at a time, so this must not run out of
-//    memory.
+// 3. Two hundred strings of one million characters go through a channel with room
+//    for two. Only a few exist at a time, so this must not run out of memory.
 var $big = new Core\Task\Channel<string>(2);
 Core\Task::all({
     produce: fn(): int => {

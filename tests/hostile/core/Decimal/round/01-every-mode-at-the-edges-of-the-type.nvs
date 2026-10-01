@@ -1,8 +1,7 @@
 <?nvs
-// Attack: every rounding mode is asked for scales no `decimal` holds, and is
-// given the widest and the narrowest values the type can write. Every attempt
-// should return an answer or throw an error. The runtime should still be
-// standing at the end.
+// Attack: every rounding mode gets scales that a `decimal` cannot have, and the
+// largest and smallest values of the type. Every call should return a value or
+// throw an error. The runtime should not crash.
 // hostile: timeout-ms 30000
 
 array<Core\RoundMode> $modes = [
@@ -14,9 +13,8 @@ array<Core\RoundMode> $modes = [
     Core\RoundMode::Down,
 ];
 
-// 1. One digit more than the 28 a `decimal` holds, under each mode. Every
-// mode refuses the scale. The errors are caught, so the steps after this one
-// still run.
+// 1. Scale 29 is one digit more than a `decimal` can have. Every mode throws an
+// error. The program catches each error, so the next steps still run.
 uint $refused = 0;
 foreach ($modes as Core\RoundMode $mode) {
     try {
@@ -27,8 +25,7 @@ foreach ($modes as Core\RoundMode $mode) {
 }
 echo 'step 1: ', $refused, " of 6 modes refused scale 29\n";
 
-// 2. The largest scale a whole number can be written as. The same refusal,
-// from the other end of the range.
+// 2. The largest `uint` as the scale. This should also throw an error.
 try {
     Core\Decimal::round(1.5, Core\RoundMode::HalfUp, 18446744073709551615);
     echo "step 2: the value was rounded\n";
@@ -36,13 +33,13 @@ try {
     echo 'step 2 stopped: ', $far->message, "\n";
 }
 
-// 3. The largest value a `decimal` holds, rounded to a whole number. It is
-// already whole, so every mode gives the value itself.
+// 3. The largest `decimal` value, rounded to a whole number. It is already
+// whole, so `Up` returns the same value.
 decimal $wide = 79228162514264337593543950335;
 echo 'step 3: ', Core\Decimal::round($wide, Core\RoundMode::Up), "\n";
 
-// 4. The same value asked for at 28 digits after the point. The digits before
-// the point and the digits after it do not fit in one number together.
+// 4. The same value rounded to 28 digits after the point. The digits before and
+// after the point together do not fit in a `decimal`.
 try {
     Core\Decimal::round($wide, Core\RoundMode::HalfEven, 28);
     echo "step 4: the value was rounded\n";
@@ -50,14 +47,14 @@ try {
     echo 'step 4 stopped: ', $doesNotFit->message, "\n";
 }
 
-// 5. The smallest value a `decimal` can write, and the same value below zero.
-// `Up` moves away from zero, so both grow into a whole unit.
+// 5. The smallest positive `decimal`, and the same value below zero. `Up` rounds
+// away from zero, so the results are a whole `1` and `-1`.
 decimal $tiny = 0.0000000000000000000000000001;
 echo 'step 5: ', Core\Decimal::round($tiny, Core\RoundMode::Up), ' ',
     Core\Decimal::round(-$tiny, Core\RoundMode::Up), "\n";
 
-// 6. A value of 28 nines, rounded at every scale from 28 down to 0. Each step
-// keeps one digit fewer, and the carry runs through all of them.
+// 6. A value with 28 nines is rounded at every scale from 28 down to 0. Each
+// step keeps one digit fewer. Rounding up carries 1 through all the nines.
 decimal $long = -0.9999999999999999999999999999;
 uint $scale = 29;
 while ($scale > 0) {
@@ -66,8 +63,8 @@ while ($scale > 0) {
 }
 echo 'step 6: ', $long, "\n";
 
-// 7. One million roundings in a row, each one rounding the answer the round
-// before it gave.
+// 7. One million roundings in a row. Each one rounds the result of the one
+// before it.
 decimal $carried = 0.0;
 decimal $added = 1.9995;
 uint $round = 0;

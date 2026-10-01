@@ -1,7 +1,6 @@
 <?nvs
-// Attack: the last value is read from very large arrays, and read again and
-// again from the same one, so that the work of finding it is paid every time.
-// Every step should finish or throw an error, and the runtime must not crash.
+// Attack: the program reads the last value of very large arrays, many times in a row.
+// Every step should finish or throw an error. The runtime should not crash.
 // hostile: timeout-ms 60000
 
 // 1. The last value of a list of 400000 entries.
@@ -28,7 +27,7 @@ while ($r < 200) {
 }
 echo 'step 2: ', $sum, '|', "\n";
 
-// 3. A last value of one million characters, read and dropped 1000 times.
+// 3. A last value of one million characters is read 1000 times and freed after each read.
 array<string> $wide = ['first', Core\Str::repeat('v', 1000000)];
 uint $seen = 0;
 int $w = 0;
