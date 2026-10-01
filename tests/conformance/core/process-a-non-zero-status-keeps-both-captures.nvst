@@ -22,9 +22,9 @@
 // ends a line its own way and one of them pads before a redirect.
 //
 // The two candidates are the platform shells named absolutely, for the reason
-// the status case states: § 1 makes a `PATH` lookup the caller's own, so the
-// one that is not this platform's has nothing at its path and the operating
-// system answers `IOError`.
+// the status case states: § 1 makes a `PATH` lookup the caller's own, and the
+// one that is not this platform's starts nothing — `IOError` on Windows,
+// `RuntimeError` for a path with no root on Unix.
 
 array<int> $statuses = [0, 1, 2, 42, 255];
 
@@ -63,7 +63,7 @@ foreach ($statuses as int $status) {
         $code = $windows->exitCode();
         $out = $windows->stdout();
         $err = $windows->stderr();
-    } catch (IOError $notWindows) {
+    } catch (RuntimeError $notWindows) {
     }
 
     bool $sameCode = $code == $status;

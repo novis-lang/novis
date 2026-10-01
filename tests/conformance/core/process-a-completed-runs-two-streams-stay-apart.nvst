@@ -21,7 +21,8 @@
 // The child is the platform's own shell, for the reason
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states —
 // § 1 makes a `PATH` lookup the caller's own, so each candidate is named
-// absolutely and the one that is not this platform's answers `IOError`.
+// absolutely, and the one that is not this platform's starts nothing —
+// `IOError` on Windows, `RuntimeError` for a path with no root on Unix.
 
 bytes $out = "" as bytes;
 bytes $err = "" as bytes;
@@ -40,7 +41,7 @@ try {
     $started = $started + 1;
     $out = $windows->stdout();
     $err = $windows->stderr();
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
 }
 
 echo "started=", $started, "\n";

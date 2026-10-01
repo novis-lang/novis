@@ -10,9 +10,10 @@
 //
 // Both children are this platform's own shell, named absolutely and started as
 // an ordinary program with a split argv, exactly as the `run` cases start one.
-// The two candidates are the two families this suite runs on; the one that is
-// not this platform's has nothing at its path, so the operating system answers
-// `IOError` and that block starts nothing.
+// The two candidates are the two families this suite runs on, and the one that
+// is not this platform's starts nothing: `IOError` on Windows, `RuntimeError`
+// for a path with no root on Unix, as
+// `process-a-completed-run-answers-the-status-the-child-chose.nvst` says.
 // covers: Core\Process\Handle::readStdout
 // covers: Core\Process\Handle::readStderr
 // covers: Core\Process\Handle::writeStdin
@@ -99,7 +100,7 @@ try {
 
     $talkStatus = $talkerOnWindows->wait()->exitCode();
     $talkerOnWindows->kill();
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
     $absent += 1;
 }
 

@@ -81,7 +81,7 @@ try {
     if ($afterOutOnWindows == null && $afterErrOnWindows == null) {
         $ended = "end";
     }
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
     $absent += 1;
 }
 

@@ -18,9 +18,14 @@
 // own to make, so there is no name here to look up, and § 4's refusal tells a
 // caller who wants an interpreter to "start that interpreter yourself if it is
 // what you mean" — what the ADR closes is a command line *Novis* builds, and
-// nothing here builds one. The two candidates are the two families CI runs on;
-// the one that is not this platform's has nothing at its path, so the operating
-// system answers `IOError` and that block starts nothing.
+// nothing here builds one. The two candidates are the two families CI runs on,
+// and the one that is not this platform's starts nothing. On Windows `/bin/sh`
+// starts at the drive's root and nothing is there, so the operating system
+// answers `IOError`. On Unix `C:\Windows\System32\cmd.exe` starts at no root, so
+// `Core\Process::run` throws the `RuntimeError` every relative path gets
+// (`rule:programs/path-literals-resolve-from-their-file`) before it reads a
+// grant. `IOError` is a `RuntimeError`, so the Windows block's one clause
+// catches both.
 
 // `-2` and not `-1`: a signalled child answers `-1`, so a sentinel spelled that
 // way could not be told apart from a real status.
@@ -45,7 +50,7 @@ try {
     $started = $started + 1;
     $success = $goodOnWindows->exitCode();
     $failure = $badOnWindows->exitCode();
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
     $absent = $absent + 1;
 }
 

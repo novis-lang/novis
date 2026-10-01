@@ -61,7 +61,7 @@ try {
     $secondErr = $windows->stderr();
     $firstCode = $windows->exitCode();
     $secondCode = $windows->exitCode();
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
 }
 
 echo "started=", $started, "\n";

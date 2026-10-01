@@ -24,8 +24,9 @@ Two `Core\Process\Result`s held at once each keep their own run's status and out
 //
 // The child is the platform's own shell, named absolutely, for the reason
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:
-// § 1 makes a `PATH` lookup the caller's own, so the candidate that is not
-// this platform's has nothing at its path and answers `IOError`.
+// § 1 makes a `PATH` lookup the caller's own, and the candidate that is not
+// this platform's starts nothing — `IOError` on Windows, `RuntimeError` for a
+// path with no root on Unix.
 
 // `-2` and not `-1`, again because a signalled child answers `-1`; the byte
 // sentinels are non-empty so that a run in which nothing started cannot print
@@ -55,7 +56,7 @@ try {
     $secondOut = $windowsSecond->stdout();
     $firstStatus = $windowsFirst->exitCode();
     $secondStatus = $windowsSecond->exitCode();
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
 }
 
 echo "started=", $started, "\n";

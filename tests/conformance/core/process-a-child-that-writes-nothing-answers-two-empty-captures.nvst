@@ -32,9 +32,9 @@
 //
 // The two candidates are the platform shells named absolutely, for the reason
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:
-// § 1 makes a `PATH` lookup the caller's own, so the one that is not this
-// platform's has nothing at its path and the operating system answers
-// `IOError`.
+// § 1 makes a `PATH` lookup the caller's own, and the one that is not this
+// platform's starts nothing — `IOError` on Windows, `RuntimeError` for a path
+// with no root on Unix, as that case says.
 
 // The sentinels are non-empty, and that is the whole point of them: a run in
 // which no child started at all would otherwise print the two zeroes this case
@@ -56,7 +56,7 @@ try {
     $started = $started + 1;
     $out = $windows->stdout();
     $err = $windows->stderr();
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
 }
 
 echo "started=", $started, "\n";

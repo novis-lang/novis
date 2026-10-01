@@ -35,10 +35,11 @@
 //
 // The two candidates are the platform shells named absolutely, for the reason
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:
-// § 1 makes a `PATH` lookup the caller's own, so the one that is not this
-// platform's has nothing at its path and the operating system answers
-// `IOError`. Each hands back exactly the size the sweep names — `printf` pads
-// to a field width in a single write, and `cmd` echoes whole thousands and then
+// § 1 makes a `PATH` lookup the caller's own, and the one that is not this
+// platform's starts nothing — `IOError` on Windows, `RuntimeError` for a path
+// with no root on Unix, as that case says. Each hands back exactly the size the
+// sweep names — `printf` pads to a field width in a single write, and `cmd`
+// echoes whole thousands and then
 // whatever is left over, each `echo` carrying its own CRLF — so the two legs
 // measure the same sizes rather than comparable ones. The counts are `>=` for
 // that reason and not `==`: what is being pinned is that nothing was lost, and
@@ -104,7 +105,7 @@ foreach ($sweep as int $size) {
         $started = $started + 1;
         $out = $windows->stdout();
         $err = $windows->stderr();
-    } catch (IOError $notWindows) {
+    } catch (RuntimeError $notWindows) {
     }
 
     bool $whole = Core\Bytes::length($out) >= $size && Core\Bytes::length($err) >= $size;

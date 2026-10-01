@@ -86,7 +86,7 @@ try {
     Core\Process\Handle $sinkOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "sort"]);
     $sinkOnWindows->writeStdin("dropped" as bytes);
     $sinkOnWindows->kill();
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
     $absent += 1;
 }
 

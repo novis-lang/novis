@@ -7,8 +7,9 @@
 // the Unix child here ignores `SIGPIPE`, so only a wait that ends the child
 // returns at all. A wait that only closed the pipe hung on it.
 //
-// The candidate that is not this platform's has nothing at its path, so the
-// operating system answers `IOError` and that block starts nothing.
+// The candidate that is not this platform's starts nothing: `IOError` on
+// Windows, `RuntimeError` for a path with no root on Unix, as
+// `process-a-completed-run-answers-the-status-the-child-chose.nvst` says.
 // covers: Core\Process\Handle::wait
 
 int $started = 0;
@@ -56,7 +57,7 @@ try {
         $err = "RuntimeError";
     }
     $small = Core\Str::trim(Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo fits"])->wait()->stdout() as string);
-} catch (IOError $notWindows) {
+} catch (RuntimeError $notWindows) {
     $absent += 1;
 }
 
