@@ -11617,9 +11617,9 @@ Joins `$path` to the folder the program was started from, and returns the full p
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` | The path. A relative path is joined to the working folder. A full path is returned as it is, with its `.` and `..` parts removed. |
+| `$path` | `string` (launder) | The path. A relative path is joined to the working folder. A full path is returned as it is, with its `.` and `..` parts removed. |
 
-**Returns** `string` — A full path, written with `Core\Path::SEPARATOR`, with its `.` and `..` parts removed. The method does not check that the file exists.
+**Returns** `string` — A full path, written with `Core\Path::SEPARATOR`, with its `.` and `..` parts removed. The method does not check that the file exists. The result is not `tainted`, so you can pass a path from `Core\Cli::arguments` to `Core\IO::read`.
 
 **Throws** `RuntimeError` — The program is answering a web request. A server has no working folder that belongs to the app.
 
