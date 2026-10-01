@@ -1,0 +1,49 @@
+--TEST--
+A shape-typed `type` alias declared in an autoloaded file checks an attribute's payload with its own field names and its own namespace — `rule:attributes/attach-sites-and-forms` and `rule:types/type-alias`
+--FILE--
+<?nvs
+// `Blog\Meta` names `Layout` with no prefix, which is `Blog\Layout` in
+// `lib/Meta.nvs`. The attribute on `Blog\Home` and the call below both read
+// the alias from that file.
+autoload 'Blog' from './lib';
+
+foreach (Core\Program::implementingWith<Blog\Page, Blog\Meta>("render") as {instance: Blog\Page, attribute: ?Blog\Meta} $row) {
+    echo $row->instance->render(), " ", $row->attribute?->path ?? "none", "\n";
+    echo $row->attribute?->layout == Blog\Layout::Wide ? "wide" : "other", "\n";
+}
+--FILE lib/Meta.nvs--
+<?nvs
+namespace Blog;
+
+type Meta = {path: string, method: Core\Http\Method, layout: Layout};
+--FILE lib/Layout.nvs--
+<?nvs
+namespace Blog;
+
+enum Layout {
+    Wide = 1,
+    Narrow = 2,
+}
+--FILE lib/Page.nvs--
+<?nvs
+namespace Blog;
+
+interface Page
+{
+    public function render(): string;
+}
+--FILE lib/Home.nvs--
+<?nvs
+namespace Blog;
+
+class Home implements Page
+{
+    #[Meta(path: "/", method: Core\Http\Method::Get, layout: Layout::Wide)]
+    public function render(): string
+    {
+        return "home";
+    }
+}
+--EXPECT--
+home /
+wide

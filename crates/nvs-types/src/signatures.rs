@@ -750,6 +750,7 @@ pub fn build_signatures(
             grants: None,
             src: file.src,
             stmts: file.stmts,
+            files,
             interner: &mut *interner,
             exprs: &mut placeholder_exprs,
             routes: &mut placeholder_routes,

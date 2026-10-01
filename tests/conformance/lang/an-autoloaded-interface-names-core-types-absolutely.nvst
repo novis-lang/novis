@@ -1,0 +1,27 @@
+--TEST--
+A qualified `Core\...` name in an autoloaded interface's method signatures is absolute, not relative to the file's namespace — `rule:programs/autoload`
+--FILE--
+<?nvs
+// `Blog\Page` is declared in namespace `Blog`, and its signatures name
+// `Core\Html\Markup` and `Core\Http\Method`. Both mean the `Core` types, so
+// this class implements the interface with the same names.
+autoload 'Blog' from './lib';
+
+class Home implements Blog\Page {
+    public function render(Core\Http\Method $method): Core\Html\Markup {
+        return html`<h1>Hello</h1>`;
+    }
+}
+
+Blog\Page $page = new Home();
+echo $page->render(Core\Http\Method::Get), "\n";
+--FILE lib/Page.nvs--
+<?nvs
+namespace Blog;
+
+interface Page
+{
+    public function render(Core\Http\Method $method): Core\Html\Markup;
+}
+--EXPECT--
+<h1>Hello</h1>

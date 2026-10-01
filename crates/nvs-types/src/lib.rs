@@ -415,6 +415,10 @@ pub(crate) struct Env<'a> {
     /// same statements [`ProgramFile::stmts`] hands the passes, kept beside
     /// [`Self::src`] so a diagnostic raised deep in a body can name the site.
     pub stmts: &'a [nvs_syntax::ast::Stmt],
+    /// Every file of the program, so a `type` alias's expansion is read in the
+    /// file that declares it ([`crate::lower::in_alias_site`]) when the file
+    /// being checked is another one.
+    pub files: &'a [ProgramFile<'a>],
     pub interner: &'a mut TypeInterner,
     /// Where a call's/`new`'s resolved target is persisted for `nvs-ir` to
     /// read back later — see [`crate::expr_table`]'s own module docs.

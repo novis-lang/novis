@@ -75,6 +75,55 @@ pub(crate) fn lower_optional_type(ty: Option<&Type>, ctx: &Ctx<'_>, env: &mut En
 ///    cycle check in alias resolution; this wording is a separate, smaller
 ///    fix.
 fn lower_type_at_depth(ty: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
+    let aliases = env.aliases;
+    if let Some(site) = aliases.site(ty.span) {
+        return in_alias_site(site, ty.span, env, |ctx, env| {
+            lower_node(ty, depth, ctx, env)
+        });
+    }
+    lower_node(ty, depth, ctx, env)
+}
+
+/// Runs `f` in the scope a `type` alias's right-hand side is written in: the
+/// declaring file's source and statements, its namespace and imports, and the
+/// body that owns it, if any. `span` is that right-hand side's root, which
+/// carries the declaring file.
+///
+/// An expansion is lowered wherever the alias is used, but its names and its
+/// shape keys are text in the declaring file. Read with the using file's text
+/// they come out empty, and resolved with the using file's namespace and
+/// imports an unqualified name means a different class. Every expansion is
+/// lowered through [`lower_type_at_depth`], which calls this at each subtree
+/// root [`nvs_hir::AliasTable::site`] knows, so an alias named inside another
+/// one is read in its own declaration's scope too.
+pub(crate) fn in_alias_site<'e, R>(
+    site: &nvs_hir::AliasSite,
+    span: Span,
+    env: &mut Env<'e>,
+    f: impl FnOnce(&Ctx<'_>, &mut Env<'e>) -> R,
+) -> R {
+    let inner = Ctx {
+        namespace: &site.namespace,
+        imports: &site.imports,
+        current_class: site.owner.as_ref(),
+        current_hook: None,
+        in_constructor: false,
+        generator_elem: None,
+        in_closure: false,
+    };
+    let files = env.files;
+    let Some(file) = files.iter().find(|file| file.src.id() == span.file) else {
+        return f(&inner, env);
+    };
+    let saved = (env.src, env.stmts);
+    env.src = file.src;
+    env.stmts = file.stmts;
+    let out = f(&inner, env);
+    (env.src, env.stmts) = saved;
+    out
+}
+
+fn lower_node(ty: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     if depth > MAX_ARRAY_DEPTH {
         env.diags.report(
             Diagnostic::error(
@@ -424,19 +473,26 @@ fn alias_left_of_member(text: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<nvs_
 /// else in the grammar, and a name written with type arguments is not one of
 /// these: an argument list means a generic class, whose members are not reached
 /// through the alias that named it.
-fn name_atom_of(ty: &Type, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<nvs_hir::QName> {
-    let mut kind = &ty.kind;
-    while let TypeKind::Paren(inner) = kind {
-        kind = &inner.kind;
+///
+/// `ty` is an alias's expansion, so the name is read in the scope of the
+/// declaration it was written in ([`in_alias_site`]), at every level.
+fn name_atom_of(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<nvs_hir::QName> {
+    let aliases = env.aliases;
+    if let Some(site) = aliases.site(ty.span) {
+        return in_alias_site(site, ty.span, env, |ctx, env| name_atom_in(ty, ctx, env));
     }
-    let TypeKind::Atom(TypeAtom::Name(name, args)) = kind else {
-        return None;
-    };
-    if !args.is_empty() {
-        return None;
+    name_atom_in(ty, ctx, env)
+}
+
+fn name_atom_in(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<nvs_hir::QName> {
+    match &ty.kind {
+        TypeKind::Paren(inner) => name_atom_of(inner, ctx, env),
+        TypeKind::Atom(TypeAtom::Name(name, args)) if args.is_empty() => {
+            let text = span_text(env.src, name.span);
+            Some(nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports))
+        }
+        _ => None,
     }
-    let text = span_text(env.src, name.span);
-    Some(nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports))
 }
 
 /// `E_UNKNOWN_MEMBER` for `Alias::Name` where the alias expands to something
@@ -979,6 +1035,7 @@ mod tests {
             grants: None,
             src: map.file(file),
             stmts: &stmts,
+            files: &files,
             interner: &mut interner,
             exprs: &mut exprs,
             routes: &mut crate::routes::RouteTable::default(),

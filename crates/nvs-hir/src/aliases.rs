@@ -81,10 +81,31 @@ impl std::fmt::Display for AliasKey {
 
 /// Every `type` alias's fully-substituted expansion: the file-scope ones by
 /// [`QName`], and the members a body owns by their owner and their own name.
+///
+/// An expansion is the declared [`Type`] tree, so its spans point into the
+/// file that declares the alias, and an alias named inside another one brings
+/// a subtree from its own declaration. [`Self::site`] says, for the root of
+/// each such subtree, which scope its names are read in.
 #[derive(Debug, Default)]
 pub struct AliasTable {
     by_name: FxHashMap<QName, Type>,
     by_owner: FxHashMap<QName, FxHashMap<String, Type>>,
+    sites: FxHashMap<Span, AliasSite>,
+}
+
+/// Where one alias's right-hand side is written: the namespace and `use`
+/// imports active at its declaration, and the body that owns it when it is a
+/// member. Its spans carry the declaring file, so the source text comes from
+/// [`Span::file`].
+#[derive(Debug)]
+pub struct AliasSite {
+    /// The namespace the declaration is written in.
+    pub namespace: Vec<String>,
+    /// The `use` imports active at the declaration.
+    pub imports: FxHashMap<String, QName>,
+    /// The class, interface or enum that declares the alias as a member, which
+    /// is what `self` and a bare member alias name mean inside it.
+    pub owner: Option<QName>,
 }
 
 impl AliasTable {
@@ -108,6 +129,15 @@ impl AliasTable {
     #[must_use]
     pub fn get_member(&self, owner: &QName, name: &str) -> Option<&Type> {
         self.by_owner.get(owner)?.get(name)
+    }
+
+    /// The declaration whose right-hand side is exactly `span`, if one is. A
+    /// node of an expansion with this span, and everything below it down to
+    /// the next node that has a site of its own, is read in this scope and in
+    /// this declaration's file, never in the scope of the file using it.
+    #[must_use]
+    pub fn site(&self, span: Span) -> Option<&AliasSite> {
+        self.sites.get(&span)
     }
 
     /// How many aliases were resolved, both sites together.
@@ -377,8 +407,19 @@ impl AliasResolver {
         for key in &self.order {
             resolve_one(key, &mut ctx);
         }
+        let resolved = ctx.resolved;
         let mut table = AliasTable::new();
-        for (key, ty) in ctx.resolved {
+        for pending in self.pending.into_values() {
+            table.sites.insert(
+                pending.ty.span,
+                AliasSite {
+                    namespace: pending.namespace,
+                    imports: pending.imports,
+                    owner: pending.owner,
+                },
+            );
+        }
+        for (key, ty) in resolved {
             match key {
                 AliasKey::Name(qname) => {
                     table.by_name.insert(qname, ty);

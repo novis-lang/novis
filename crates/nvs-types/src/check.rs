@@ -173,6 +173,7 @@ pub fn check_program_granted(
             grants,
             src: file.src,
             stmts: file.stmts,
+            files,
             interner: &mut *interner,
             exprs: &mut *exprs,
             routes: &mut routes,
