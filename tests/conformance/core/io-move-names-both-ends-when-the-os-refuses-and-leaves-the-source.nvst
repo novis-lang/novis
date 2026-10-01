@@ -5,7 +5,14 @@ A Core\IO::move the operating system refuses throws an IOError naming both ends 
 // The two ways a granted move fails, and one claim about each: nothing is lost,
 // and the message says which pair of paths it was about. A two-path member that
 // named one end would send half of the readers of this message to the wrong
-// file, which is why the door builds the `from -> to` spelling.
+// file, which is why the door builds the `from -> to` spelling. Each end is a
+// literal, so the door names it resolved from this file's folder, and
+// `Here::path` resolves the expected text the same way.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
 Core\IO::write("present.txt", "kept");
 
 int $refusals = 0;
@@ -18,7 +25,7 @@ try {
     echo "not reached\n";
 } catch (IOError $failed) {
     $refusals = $refusals + 1;
-    if (Core\Str::contains($failed->message, "present.txt -> no-such-dir/present.txt")) {
+    if (Core\Str::contains($failed->message, Here::path("present.txt") . " -> " . Here::path("no-such-dir/present.txt"))) {
         $namingBothEnds = $namingBothEnds + 1;
     }
 }
@@ -30,7 +37,7 @@ try {
     echo "not reached\n";
 } catch (IOError $failed) {
     $refusals = $refusals + 1;
-    if (Core\Str::contains($failed->message, "absent.txt -> wherever.txt")) {
+    if (Core\Str::contains($failed->message, Here::path("absent.txt") . " -> " . Here::path("wherever.txt"))) {
         $namingBothEnds = $namingBothEnds + 1;
     }
 }

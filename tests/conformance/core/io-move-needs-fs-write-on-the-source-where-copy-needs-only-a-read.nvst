@@ -7,8 +7,15 @@ Core\IO::move asks `fs.write` for the path it takes away, so the exact pair of p
 // move destroys the source and destruction is `fs.write` whatever the grant on
 // the destination says. A door that reused `copy`'s pair of checks for `move`
 // passes everything else written about either member and fails here.
-string $from = "source/note.txt";
-string $to = "scratch/note.txt";
+// `Here::path` returns a literal resolved from this file's folder, so both
+// paths held in variables are absolute.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $from = Here::path("source/note.txt");
+string $to = Here::path("scratch/note.txt");
 
 Core\IO::copy($from, $to);
 echo "copy, with the source readable: it ran\n";

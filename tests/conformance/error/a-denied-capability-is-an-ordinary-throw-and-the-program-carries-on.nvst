@@ -28,9 +28,9 @@ try {
 // A denial is known before any work is done and leaves nothing behind, so the
 // program is where it was: the next statement is the one after the `catch`.
 echo "still running\n";
---EXPECT--
-Core\IO::read needs the capability `fs.read` for orders.csv, which is not granted
+--EXPECTF--
+Core\IO::read needs the capability `fs.read` for %s%eorders.csv, which is not granted
 help: grant it in nvs.toml under `[capabilities.fs]`
-Core\IO::write needs the capability `fs.write` for orders.csv, which is not granted
+Core\IO::write needs the capability `fs.write` for %s%eorders.csv, which is not granted
 help: grant it in nvs.toml under `[capabilities.fs]`
 still running

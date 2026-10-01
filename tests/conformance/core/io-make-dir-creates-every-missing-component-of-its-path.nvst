@@ -5,7 +5,14 @@ Core\IO::makeDir creates every missing component of the path it is given, not on
 // `mkdir`'s `$recursive` is a parameter with a default that surprises everyone
 // who meets it; here it is the only behaviour, so this case asserts the chain
 // rather than the leaf. A member that created only the last component throws on
-// the very first call below.
+// the very first call below. Each level is joined onto this file's folder,
+// which `Here::path` returns.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 array<string> $chain = ["one", "one/two", "one/two/three"];
 int $n = Core\Arr::count($chain) as int;
 
@@ -14,7 +21,7 @@ Core\IO::makeDir("one/two/three");
 int $made = 0;
 int $i = 0;
 for (; $i < $n; $i = $i + 1) {
-    if (Core\IO::isDir($chain[$i])) {
+    if (Core\IO::isDir(Core\Path::join($dir, $chain[$i]))) {
         $made = $made + 1;
     }
 }

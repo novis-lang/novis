@@ -5,12 +5,18 @@
 // Every target below is granted and none of them is on disk. That is the
 // point: the refusal is about what kind of thing the name says it is, not
 // about what is on disk, so the whole sweep asks one question with the
-// filesystem held still. A bare name is a file in the current directory and
-// never a `PATH` search, which is the resolution the grant was compared
-// against, so a machine that ships a `say` of its own still has nothing at
-// any of these eight names. The three that are not shell targets reach the
-// operating system and are refused by it instead, which is the other side of
-// the same bound.
+// filesystem held still. Each name is joined onto this file's folder, which is
+// the folder the grant names, and a path is never a `PATH` search, so a
+// machine that ships a `say` of its own still has nothing at any of these
+// eight paths. The three that are not shell targets reach the operating
+// system and are refused by it instead, which is the other side of the same
+// bound. `Here::path` returns a literal resolved from this file's folder.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 array<string> $targets = [
     "say.bat", "say.cmd", "say.ps1",
     // The door lower-cases before it compares, and Windows resolves a name
@@ -27,7 +33,7 @@ int $byTheOs = 0;
 
 foreach ($targets as string $k => string $target) {
     try {
-        var $result = Core\Process::run($target, []);
+        var $result = Core\Process::run(Core\Path::join($dir, $target), []);
         $accepted = $accepted + 1;
         echo "accepted ", $target, ": exit=", $result->exitCode(),
              " out=", Core\Bytes::length($result->stdout()),

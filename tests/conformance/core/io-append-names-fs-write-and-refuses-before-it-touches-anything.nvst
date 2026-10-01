@@ -7,6 +7,14 @@ Core\IO::append names `fs.write` for an ungranted path and refuses at the door â
 // -- which is what an implementation that read a file to find its end would
 // need -- answers every question about content correctly and fails on this
 // line.
+// `Here::path` returns a literal resolved from this file's folder, and each
+// name below is joined onto it, so the door is handed an absolute path.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 array<string> $paths = ["fresh.txt", "seed.txt"];
 int $n = Core\Arr::count($paths) as int;
 string $needed = " needs the capability `fs.write` for ";
@@ -20,7 +28,7 @@ int $namingFsWrite = 0;
 
 int $i = 0;
 for (; $i < $n; $i = $i + 1) {
-    string $path = $paths[$i];
+    string $path = Core\Path::join($dir, $paths[$i]);
     try {
         Core\IO::append($path, "added");
         echo "append ran for ", $path, "\n";

@@ -5,6 +5,15 @@ Core\IO::copy of a file onto itself throws an IOError and leaves the file whole,
 // covers: Core\IO::copy
 // Two spellings of one destination, because a check that compared the text
 // of the two paths would catch the first and empty the file on the second.
+// Each is joined onto this file's folder while the program runs, so the `..`
+// reaches the member as written. `Here::path` returns a literal resolved from
+// this file's folder.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
 Core\IO::write("source.txt", "the content");
 Core\IO::makeDir("sub");
 array<string> $spellings = ["source.txt", "sub/../source.txt"];
@@ -12,7 +21,7 @@ array<string> $spellings = ["source.txt", "sub/../source.txt"];
 int $refused = 0;
 foreach ($spellings as string $to) {
     try {
-        Core\IO::copy("source.txt", $to);
+        Core\IO::copy("source.txt", Core\Path::join($dir, $to));
     } catch (IOError $e) {
         $refused = $refused + 1;
     }

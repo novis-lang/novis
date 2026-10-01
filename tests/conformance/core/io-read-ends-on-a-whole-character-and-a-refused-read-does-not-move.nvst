@@ -34,8 +34,8 @@ $in->close();
 [capabilities.fs]
 read = ["."]
 write = ["."]
---EXPECT--
+--EXPECTF--
 [caf] at 3
-too short: Core\IO\File::read: the character here is longer than the 1 byte(s) asked for, so nothing was read — menu.txt
+too short: Core\IO\File::read: the character here is longer than the 1 byte(s) asked for, so nothing was read — %s%emenu.txt
 still at 3
 [é ][cr][èm][e]

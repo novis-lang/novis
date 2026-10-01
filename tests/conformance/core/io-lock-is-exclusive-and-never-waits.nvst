@@ -31,7 +31,7 @@ echo "wrote: ", Core\IO::readText("shared.txt"), "\n";
 [capabilities.fs]
 read = ["."]
 write = ["."]
---EXPECT--
+--EXPECTF--
 held
-Core\IO\File::lock: another handle already holds the lock on shared.txt
+Core\IO\File::lock: another handle already holds the lock on %s%eshared.txt
 wrote: mine

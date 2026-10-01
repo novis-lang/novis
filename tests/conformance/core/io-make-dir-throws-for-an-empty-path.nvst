@@ -1,20 +1,22 @@
 --TEST--
-Core\IO::makeDir throws IOError for an empty path, because no directory exists there afterwards, and still accepts a directory that is already there — `rule:security/capability-check-at-the-door`
+Core\IO::makeDir and Core\IO::isDir throw a `RuntimeError` for an empty path, because an empty path does not start at a root, and makeDir still accepts a directory that is already there — `rule:programs/path-literals-resolve-from-their-file`, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The contract is that the directory exists after the call. An empty path
-// names no directory, so the call throws `IOError`. The grant is unscoped
-// because a grant scoped to "." already refuses "" with a `RuntimeError`.
+// names no directory and does not start at a root, so both members throw
+// before the filesystem or a grant is asked. The grant is unscoped, so the
+// throw cannot come from a grant.
 try {
     Core\IO::makeDir("");
     echo "empty: made\n";
-} catch (IOError $e) {
-    echo "empty: IOError\n";
+} catch (RuntimeError $e) {
+    echo "makeDir: ", $e->message, "\n";
 }
-if (Core\IO::isDir("")) {
-    echo "empty: a directory\n";
-} else {
-    echo "empty: not a directory\n";
+try {
+    bool $isDir = Core\IO::isDir("");
+    echo "empty: answered\n";
+} catch (RuntimeError $e) {
+    echo "isDir: ", $e->message, "\n";
 }
 
 // The accepted side: a directory already there is success, twice.
@@ -28,6 +30,8 @@ if (Core\IO::isDir("sub")) {
 read = true
 write = true
 --EXPECT--
-empty: IOError
-empty: not a directory
+makeDir: Core\IO::makeDir needs an absolute path, and `` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
+isDir: Core\IO::isDir needs an absolute path, and `` is relative
+help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
 sub: a directory

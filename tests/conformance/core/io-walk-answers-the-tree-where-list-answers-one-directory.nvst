@@ -7,7 +7,15 @@
 // makes the same choice for the same reason. The separator is normalized on the
 // way in, because only the *rendering* of a path is platform-dependent
 // (`Core\Path`'s module doc): a case that printed the native one would pass on
-// the WSL leg and fail on the Windows one.
+// the WSL leg and fail on the Windows one. `Here::path` returns a literal
+// resolved from this file's folder.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
+string $tree = Here::path('tree');
 array<string> $entries = [];
 foreach (Core\IO::walk("tree") as string $found) {
     $entries[] = Core\Str::replace($found, Core\Path::SEPARATOR, "/");
@@ -53,18 +61,18 @@ foreach ($entries as string $entry) {
 }
 echo "top entries `list` also names: ", $agreed as string, "\n";
 
-// Relative to the root, asserted from both ends at once: an entry resolves to
-// nothing on its own, and resolves to something once it is joined onto the
-// directory the walk started at. A member answering absolute paths would make
-// the first count 0, and one answering bare names would make the second one
-// wrong for everything below the top.
+// Relative to the root, asserted from both ends at once: an entry is a relative
+// path that names nothing when it is joined onto this file's folder, and names
+// something once it is joined onto the directory the walk started at. A member
+// answering absolute paths would make the first count 0, and one answering bare
+// names would make the second one wrong for everything below the top.
 int $relative = 0;
 int $resolving = 0;
 foreach ($entries as string $entry) {
-    if (!Core\IO::exists($entry)) {
+    if (!Core\Path::isAbsolute($entry) && !Core\IO::exists(Core\Path::join($dir, $entry))) {
         $relative = $relative + 1;
     }
-    if (Core\IO::exists("tree/" . $entry)) {
+    if (Core\IO::exists(Core\Path::join($tree, $entry))) {
         $resolving = $resolving + 1;
     }
 }

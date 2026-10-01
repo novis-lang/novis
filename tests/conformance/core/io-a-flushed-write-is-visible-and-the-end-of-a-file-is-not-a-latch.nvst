@@ -38,9 +38,9 @@ try {
 [capabilities.fs]
 read = ["."]
 write = ["."]
---EXPECT--
+--EXPECTF--
 1: first
 2: <end>
 3: second
 4: <end>
-after close: Core\IO\File::flush: this handle is closed — journal.txt
+after close: Core\IO\File::flush: this handle is closed — %s%ejournal.txt

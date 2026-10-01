@@ -5,7 +5,15 @@
 // The listing's order is the operating system's, so nothing here may depend on
 // it: every assertion below is a count or a sorted rendering. A case that
 // printed the raw listing would pass on one filesystem and fail on the next,
-// which is the failure mode this shape exists to avoid.
+// which is the failure mode this shape exists to avoid. `Here::path` returns a
+// literal resolved from this file's folder.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
+string $tree = Here::path('tree');
 array<string> $entries = Core\IO::list("tree");
 echo "entries: ", Core\Arr::count($entries) as string, "\n";
 
@@ -28,18 +36,18 @@ foreach ($entries as string $name) {
 }
 echo "dot entries: ", $dots as string, "\n";
 
-// A bare name and not a path, asserted from both ends at once: an entry
-// resolves to nothing on its own, and resolves to something once it is joined
-// onto the directory it came from. A member handing back `tree/one.txt` would
-// make the first count 0 and the second 0 as well, so neither half alone says
-// what the pair says.
+// A bare name and not a path, asserted from both ends at once: an entry joined
+// onto this file's folder names nothing, and joined onto the directory it came
+// from names something. A member handing back `tree/one.txt` would make the
+// first count 0 and the second 0 as well, so neither half alone says what the
+// pair says.
 int $bare = 0;
 int $joined = 0;
 foreach ($entries as string $name) {
-    if (!Core\IO::exists($name)) {
+    if (!Core\IO::exists(Core\Path::join($dir, $name))) {
         $bare = $bare + 1;
     }
-    if (Core\IO::exists("tree/" . $name)) {
+    if (Core\IO::exists(Core\Path::join($tree, $name))) {
         $joined = $joined + 1;
     }
 }
@@ -53,10 +61,10 @@ echo "names that resolve under the directory: ", $joined as string, "\n";
 int $files = 0;
 int $dirs = 0;
 foreach ($entries as string $name) {
-    if (Core\IO::isFile("tree/" . $name)) {
+    if (Core\IO::isFile(Core\Path::join($tree, $name))) {
         $files = $files + 1;
     }
-    if (Core\IO::isDir("tree/" . $name)) {
+    if (Core\IO::isDir(Core\Path::join($tree, $name))) {
         $dirs = $dirs + 1;
     }
 }
