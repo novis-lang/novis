@@ -1,7 +1,7 @@
 <?nvs
-// What this looks like at work: the header of a digest email, built from
-// settings a person may never have filled in. An empty setting falls back to
-// something sensible, and a line nobody would read is skipped.
+// This program builds the header of a summary email from a user's settings.
+// Some settings are empty. An empty name is replaced by the email address,
+// and an empty list prints no line.
 
 string $displayName = "";
 string $email = "ada@example.com";
@@ -9,12 +9,12 @@ array<string> $topics = [];
 array<string> $starred = ["billing", "outages"];
 int $unread = 0;
 
-// `?:` hands back the left value when it counts as something, and the right
-// one when it does not, so the address stands in for a missing name.
+// `?:` returns the left value if it counts as true, and the right value if not.
+// `$displayName` is empty, so the result is the email address.
 string $who = $displayName ?: $email;
 echo "To: ", $who, "\n";
 
-// A section with nothing in it is not worth a line.
+// An empty array counts as false, so the `Topics` line is not printed.
 if ($topics) {
     echo "Topics: ", Core\Str::join($topics, ", "), "\n";
 }
@@ -23,8 +23,8 @@ if ($starred) {
     echo "Starred: ", Core\Str::join($starred, ", "), "\n";
 }
 
-// `&&` stops as soon as the answer is settled, so the second question is only
-// asked when the first one counts as something.
+// `&&` checks `$starred` only if `$unread` counts as true.
+// `$unread` is `0`, which counts as false, so this prints `Nothing unread`.
 if ($unread && $starred) {
     echo "Unread mail in a starred topic\n";
 } else {

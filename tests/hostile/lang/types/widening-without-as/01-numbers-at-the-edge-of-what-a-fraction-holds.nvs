@@ -1,8 +1,7 @@
 <?nvs
-// Attack: push whole numbers from the far ends of their range into places
-// that want a fraction, round after round, and catch whatever comes back so
-// the program keeps going. Most of these cannot be held exactly and have to
-// be turned away.
+// Attack: the program passes very large and very small `int` values to a `float` parameter, many times.
+// If a `float` cannot store a value exactly, the call throws an `ArithmeticError`.
+// The program catches each error and continues.
 // hostile: timeout-ms 20000
 
 class Sink

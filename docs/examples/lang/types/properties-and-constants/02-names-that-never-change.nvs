@@ -1,8 +1,7 @@
 <?nvs
-// A constant is a name for a value fixed before the program runs. It is
-// written with the type it has, and reading it hands you that type — not a
-// wider one — so it can stand wherever that type is wanted, including as
-// another class's starting value.
+// A constant is a value that is fixed before the program runs. You declare it with a type.
+// Reading the constant gives a value of exactly that type.
+// So you can use it wherever that type is needed, also as a property's default value.
 
 class Limits
 {
@@ -31,6 +30,6 @@ $two->left = $two->left - 1;
 
 echo "first has ", $one->left, " attempts left, second has ", $two->left, "\n";
 
-// A static property belongs to the class rather than to any one object, so
-// both of those were counted in the same place.
+// A static property belongs to the class, not to one object.
+// Both constructors added 1 to the same `Delivery::$made`, so this prints `2`.
 echo "deliveries made: ", Delivery::$made, "\n";

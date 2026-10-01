@@ -1,9 +1,7 @@
 <?nvs
-// Every way of writing a number ends up as the same value before the program
-// starts, so this loop measures the adding and nothing else. That is the
-// figure worth keeping: writing `0x1F` costs what writing `31` costs. Each
-// round starts from the last round's total, so none of it can be worked out
-// in advance, and nothing here asks for memory.
+// Adds numbers written in hexadecimal, binary, octal and with `_` separators.
+// Each one is a plain number before the program starts, so `0x1F` costs the same as `31`.
+// Each round starts from the last round's total. The loop allocates no memory.
 // bench: iterations 400000
 // bench: allocations 0
 

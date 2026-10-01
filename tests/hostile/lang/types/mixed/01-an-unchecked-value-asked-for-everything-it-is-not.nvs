@@ -1,16 +1,14 @@
 <?nvs
-// Attack: the one unchecked position, asked for everything the value inside
-// it is not. Arithmetic over text, an array and nothing at all. A subscript
-// through a value that is not a table. A property read on something with no
-// properties. Numbers past the far end of every type they are converted
-// into. A table fifty thousand deep, carried as one unchecked value and
-// then dropped. A million values whose type changes every round.
+// Attack: the program uses `mixed` values in ways their real type does not allow.
+// It adds text, arrays and `null`, reads keys from values that are not arrays,
+// and converts numbers that are too large. It also nests arrays deeply and changes
+// types often. Each step should give a correct result or throw an error.
 // hostile: timeout-ms 60000
 
 class Poke
 {
-    // Every one of these is decided while the program runs, from whatever
-    // turned up, so each is a separate chance to come apart.
+    // Each method checks the types of its arguments while the program runs.
+    // If an operation is not allowed, the method catches the error and returns 'refused'.
     public static function add(mixed $a, mixed $b): string
     {
         try {
@@ -37,26 +35,25 @@ class Poke
     }
 }
 
-// Arithmetic against every kind of operand there is, including the ones that
-// have no arithmetic at all.
+// Adds a number to text, to an array and to `null`, and adds text to text.
 mixed $text = 'abc';
 mixed $table = ['k' => 'v'];
 mixed $nothing = null;
 mixed $number = 7;
 echo Poke::add($text, $number), ' ', Poke::add($table, $number), ' ', Poke::add($nothing, $number), ' ', Poke::add($text, $text), "\n";
 
-// A subscript through things that are not tables, and a key that is not a key.
+// Reads a key from values that are not arrays, and uses an array as a key.
 echo Poke::key($number, 'k'), ' ', Poke::key($text, 0), ' ', Poke::key($nothing, 'k'), ' ', Poke::key($table, $table), "\n";
 
-// The far ends of every conversion: the largest whole number written out, one
-// past it, and a float too big for any of them.
+// Converts to `int`: the largest `int` as text, the number one larger,
+// a very large `float` and a number with 100000 digits.
 mixed $huge = '9223372036854775807';
 mixed $past = '9223372036854775808';
 mixed $wide = 1.0e300;
 echo Poke::whole($huge), ' ', Poke::whole($past), ' ', Poke::whole($wide), ' ', Poke::whole(Core\Str::repeat('9', 100000)), "\n";
 
-// Fifty thousand tables inside one another, held as one unchecked value and
-// then released in one go, which is where a recursive release comes apart.
+// Fifty thousand arrays nested inside each other, in one `mixed` variable.
+// Then all of them are freed at once.
 mixed $deep = [];
 uint $depth = 0;
 while ($depth < 50000) {
@@ -66,8 +63,7 @@ while ($depth < 50000) {
 $deep = 0;
 echo "nested and released\n";
 
-// A million rounds whose operand is a different kind of thing every time, so
-// nothing about the last round can be assumed about this one.
+// A million loop rounds. The value in `$v` has a different type in each round.
 array<mixed> $rotation = [1, '2', 3.5, true, null, ['x'], 4];
 int $seen = 0;
 uint $i = 0;

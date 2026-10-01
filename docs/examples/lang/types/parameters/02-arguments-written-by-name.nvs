@@ -1,7 +1,7 @@
 <?nvs
-// An argument may be written with its parameter's name in front of it. That
-// lets a caller skip the defaults it is happy with, and it turns a row of
-// bare values into something you can read without looking the method up.
+// You can write an argument with its parameter's name in front of it.
+// You can then leave out any parameter that has a default value.
+// The call is also easier to read, because each value has its name beside it.
 
 class Slot
 {
@@ -13,15 +13,15 @@ class Slot
 
 echo Slot::book("Ada"), "\n";
 
-// Only the one setting that differs has to be written.
+// Only `minutes` is given. The other parameters use their default values.
 echo Slot::book("Ada", minutes: 60), "\n";
 
-// Named arguments may be written in any order, and the two here are not the
-// order the method declares them in.
+// You can write named arguments in any order. Here `time` comes before `day`,
+// but the method declares `day` first.
 echo Slot::book("Ada", time: "14:00", day: "Friday"), "\n";
 
-// Every plain argument comes before the first named one.
+// You can name every argument. An argument without a name must come before the named ones.
 echo Slot::book(who: "Ada", day: "Friday"), "\n";
 
-// The library's own methods take their names the same way.
+// Methods from `Core` accept named arguments too. This prints `007`.
 echo Core\Str::padStart("7", length: 3, padding: "0"), "\n";

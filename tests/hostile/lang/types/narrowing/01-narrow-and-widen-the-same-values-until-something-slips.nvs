@@ -1,9 +1,7 @@
 <?nvs
-// Attack: prove what a value is, use it, then take the proof away again —
-// hundreds of thousands of times, from every spelling at once. Objects are
-// dropped inside the very branch that proved them, so a reference counted twice
-// or forgotten shows up as growing memory, and a chain twenty thousand links
-// long is walked by a test that has to hold across every frame.
+// Attack: the program checks a value's type with `is`, uses the value, and then replaces it.
+// It does this hundreds of thousands of times. Each object should be freed exactly once,
+// so memory use stays flat. A recursive function also walks a chain of twenty thousand objects.
 // hostile: timeout-ms 20000
 
 class Leaf
@@ -73,7 +71,7 @@ while ($round < 40000) {
 
 echo $total, "\n";
 
-// The write inside the branch drops both the proof and the object it proved.
+// Inside the `if`, `$slot` gets a string, so the `Leaf` object it had is freed.
 uint $churn = 0;
 
 while ($churn < 200000) {

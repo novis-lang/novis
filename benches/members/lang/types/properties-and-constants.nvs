@@ -1,8 +1,7 @@
 <?nvs
-// Reading a slot off an object, writing one back and reading a name that
-// never changes are the three things a method body does between calls. Each
-// round reads what the round before it wrote, so none of the work can be
-// settled early.
+// This measures reading a property, writing a property and reading a class constant.
+// Most method bodies do these three things.
+// Each round reads what the round before wrote, so no work can be skipped.
 // bench: iterations 400000
 // bench: allocations 0
 
@@ -30,7 +29,7 @@ class Bench
         uint $i = 0;
 
         while ($i < $rounds) {
-            $counter->carried = ($counter->seen + Limits::STEP) % 1021;   // chained: last round's slot
+            $counter->carried = ($counter->seen + Limits::STEP) % 1021;   // chained: $counter->seen is last round's
             $counter->seen = $counter->carried + 1;
             $i = $i + 1;
         }

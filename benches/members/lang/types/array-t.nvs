@@ -1,8 +1,7 @@
 <?nvs
-// A running tally kept in a lookup table -- the loop a counting or grouping
-// report has, one worked-out key per round with a read and a write through
-// it. The key is a number every round, and turning a number into the text
-// key it names is work an array subscript does that nothing else does.
+// Keeps running totals in an array, with one read and one write per loop round.
+// A report that counts or groups rows uses a loop like this. The key is a number,
+// and each round computes it from the last round's result.
 // bench: iterations 300000
 // bench: allocations 0
 

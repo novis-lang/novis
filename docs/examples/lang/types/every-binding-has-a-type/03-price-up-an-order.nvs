@@ -1,8 +1,7 @@
 <?nvs
-// Pricing up an order, the way a small shop does it. Every place a value is
-// named says what it holds: the tax rate kept beside the class, the field on
-// the object, what the method takes and what it gives back, the names the loop
-// hands out each round, and the two totals at the end.
+// Prices an order the way a small shop does. Every value has a type: the constant,
+// the field, the method's parameter and return value, and the `foreach` variables.
+// `var $net` gets its type, `decimal`, from the value that `net` returns.
 
 class Order {
     public const int TAX_PERCENT = 20;

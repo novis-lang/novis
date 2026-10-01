@@ -1,9 +1,7 @@
 <?nvs
-// Nearly every request starts by asking whether something is there at all: a
-// setting, a list of rows, a line of text. This is what that question costs
-// when the kind of value is only settled while the program runs, which is the
-// one case that cannot be worked out ahead of time. Every round picks its
-// value from the round before it, so none of this can be skipped.
+// This measures `if ($value)` on a `mixed` value, whose type is known only at run time.
+// You use it to check if a setting, a list or a line of text is empty.
+// Each round picks its value from the round before, so no round can be skipped.
 // bench: iterations 400000
 // bench: allocations 0
 

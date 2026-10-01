@@ -1,10 +1,7 @@
 <?nvs
-// Attack: make and throw away objects faster than anything can tidy up after
-// them. Half a million of them carry a list each, so a slot that is handed
-// out instead of copied shows up as two objects sharing one list; a chain
-// fifty thousand links long is walked from one end to the other; and the
-// counter that belongs to the class rather than to any object is written to
-// by every single one of them.
+// Attack: the program creates and frees objects very fast, to make a property return a wrong value.
+// It walks a chain of 50,000 objects and checks that 20,000 objects do not share one array.
+// Then it creates and frees one million objects. Every one adds 1 to the static property `Node::$made`.
 // hostile: timeout-ms 20000
 
 class Limits
@@ -44,7 +41,7 @@ class Walk
     }
 }
 
-// A chain as long as the limit above, built one link at a time.
+// 1. Build a chain of `Limits::DEPTH` objects, then count them by following `$next`.
 Node $head = new Node(0);
 Node $cursor = $head;
 uint $built = 1;
@@ -58,8 +55,8 @@ while ($built < Limits::DEPTH) {
 
 echo Walk::length($head), "\n";
 
-// Every object starts with its own empty list. Writing into one must not
-// reach any other, however many of them are alive at once.
+// 2. Each object gets its own `$marks` array. Changing one array must not change
+// another, so `$shared` should be `0`.
 array<Node> $held = [];
 uint $made = 0;
 
@@ -80,8 +77,8 @@ foreach ($held as Node $node) {
 
 echo $shared, "\n";
 
-// Objects built and dropped inside the same loop, each one touching the slot
-// that belongs to the class.
+// 3. Create two objects in each round and free them in the next round.
+// Each constructor adds 1 to `Node::$made`.
 uint $churn = 0;
 
 while ($churn < 500000) {

@@ -1,13 +1,11 @@
 <?nvs
-// Attack: the machinery that hands every name a type, pushed on every side.
-// Recursion deep enough to run out of frames, with four names written down in
-// each one. A name written down inside a loop that runs a million times. A
-// closure that keeps a name alive after the frame that wrote it down is gone.
-// Forty names in one function, one of them spelled with a word of two hundred
-// letters. A name given a value in both arms of a branch nested deeply.
+// Attack: the program declares typed variables in hard places. Each step should give
+// a correct result or throw an error. The steps are deep recursion, a loop of a million
+// rounds and closures that keep large values. Then come a function with many variables,
+// a very long variable name, and a deeply nested `if`.
 // hostile: timeout-ms 60000
 
-// Four names per frame, as deep as the engine will let the stack go.
+// Each call declares four variables. The recursion is four million calls deep.
 class Deep
 {
     public static function down(uint $n): uint
@@ -28,7 +26,7 @@ try {
     echo 'recursion stopped: ', $e->message, "\n";
 }
 
-// A million rounds, each one writing the same three names down again.
+// A million loop rounds. Each round declares the same three variables again.
 uint $rounds = 0;
 uint $seen = 0;
 while ($rounds < 1000000) {
@@ -40,8 +38,8 @@ while ($rounds < 1000000) {
 }
 echo $seen, " names written down and dropped\n";
 
-// A thousand closures, each holding on to a big value the frame that made it
-// has long since left, all released in one go at the end.
+// A thousand closures. Each one keeps a large string from a loop round that has ended.
+// All of them are freed together at the end.
 array<callable> $kept = [];
 uint $made = 0;
 while ($made < 1000) {
@@ -53,7 +51,7 @@ uint $first = $kept[0]() as uint;
 $kept = [];
 echo $first, " held after the frame went\n";
 
-// Forty names in one function, including one nobody would type twice.
+// Many variables in one function. One of them has a very long name.
 class Wide
 {
     public static function many(): uint
@@ -108,8 +106,8 @@ class Wide
 }
 echo Wide::many(), " from forty names\n";
 
-// A name written down at the bottom of a deep nest of branches, given a value
-// in every arm, and read at the top.
+// `$verdict` is declared without a value. Every branch of the nested `if` gives it
+// a value, so the program can read it after the `if`.
 uint $depth = 0;
 string $verdict;
 if ($depth == 0) {

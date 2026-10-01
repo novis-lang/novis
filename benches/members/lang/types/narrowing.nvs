@@ -1,8 +1,7 @@
 <?nvs
-// Almost every real function starts by asking whether what it was handed is
-// there at all, and then using it — this is what that question plus the use
-// costs. Every round feeds the round before it back in, so nothing here can be
-// settled before the program runs. Nothing here asks for memory.
+// Checks whether a `?int` argument is `null`, then uses the value.
+// Most real functions start with a check like this.
+// Each round uses the last round's result. The loop allocates no memory.
 // bench: iterations 300000
 // bench: allocations 0
 

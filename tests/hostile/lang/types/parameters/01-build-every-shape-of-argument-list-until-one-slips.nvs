@@ -1,10 +1,7 @@
 <?nvs
-// Attack: build argument lists until one of them loses a value. Lists of a
-// million leftovers go in; calls stack twenty thousand deep, each one holding
-// a variable the one below it will write back into; and a method that throws
-// halfway through is called hundreds of thousands of times, since the write
-// back is the one step a throw is supposed to skip. A frame that forgets what
-// it was holding shows up as a wrong total at the end.
+// Attack: the program builds very large and very deep argument lists, to make a call lose a value.
+// It spreads one million values, nests 20,000 `inout` calls and throws from a method 300,000 times.
+// Every total it prints should be correct, and the program should not crash.
 // hostile: timeout-ms 20000
 
 class Collect
@@ -48,13 +45,13 @@ class Collect
     }
 }
 
-// A million leftovers, poured in from a list rather than written out.
+// 1. `...$many` spreads a list of one million values into the parameter `...$rest`.
 array<int> $many = Core\Arr::fill(1000000, 1);
 echo Collect::howMany(...$many), "\n";
 echo Collect::sum(1, 2, ...$many), "\n";
 
-// The same call, built every way a caller can build it, hundreds of
-// thousands of times over. Each round feeds the round before it back in.
+// 2. The same method is called with defaults, named arguments and extra arguments, 200,000 times.
+// Each round uses the result of the round before.
 int $rolling = 1;
 int $round = 0;
 
@@ -69,8 +66,8 @@ while ($round < 200000) {
 
 echo $rolling, "\n";
 
-// Twenty thousand frames, every one of them holding a cell the frame below
-// writes back into on the way out.
+// 3. 20,000 nested calls, each with an `inout` argument that the call below writes back into.
+// If the call depth limit stops it, the `RecursionError` is caught and step 4 still runs.
 int $carried = 0;
 
 try {
@@ -79,8 +76,8 @@ try {
     echo "the call depth limit held\n";
 }
 
-// A callee that throws is the one path that does not reach the write back,
-// and the cell it was handed has to survive being abandoned that often.
+// 4. `halfway` changes its `inout` argument and then throws an error, 300,000 times.
+// The error stops the method before the new value is copied back to `$abandoned`.
 int $abandoned = 7;
 int $attempt = 0;
 int $caught = 0;

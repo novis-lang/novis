@@ -1,10 +1,7 @@
 <?nvs
-// Attack: the four type names, each handed something it must not accept. Text
-// that names no class at all, and text naming a real class that has nothing
-// to do with the one asked for. A closure that calls itself far deeper than
-// the stack goes. An object built with fifty-two fields and checked against a
-// shape that wants two of them. Two hundred thousand instances made through
-// one class reference.
+// Attack: the program converts text that names no class, or the wrong class, to `class<Renders>`.
+// It also runs a closure that calls itself a million levels deep, and passes a large object
+// to a small shape. Each step should give a correct result or throw an error.
 // hostile: timeout-ms 40000
 
 interface Renders
@@ -25,7 +22,7 @@ class Unrelated
     public int $n = 0;
 }
 
-// The names are built at run time so nothing can decide them in advance.
+// The class names are text in an array. `as class<Renders>` checks each one while the program runs.
 array<string> $settings = ['NoSuchClassAnywhere', 'Unrelated', 'LinesReport'];
 
 foreach ($settings as string $setting) {
@@ -38,8 +35,8 @@ foreach ($settings as string $setting) {
     }
 }
 
-// A closure calling itself a million deep. Running out of stack is a fine
-// answer; coming apart is not.
+// A closure calls itself a million levels deep. An error that says the stack
+// is full is a correct result. A crash is not.
 callable $countDown = fn deeper(int $n): int => ($n <= 0) ? 0 : deeper($n - 1) + 1;
 try {
     echo $countDown(1000000) as int, "\n";
@@ -47,7 +44,7 @@ try {
     echo 'ran out: ', $e->message, "\n";
 }
 
-// An object with fifty-two fields, where the shape asks for two.
+// An object with fifty-two fields is passed as a `Pair`, which needs two fields.
 type Pair = {a: int, b: int};
 class Shapes
 {
@@ -66,8 +63,7 @@ var $fat = {
 };
 echo Shapes::add($fat), "\n";
 
-// One class reference, two hundred thousand instances through it, so nothing
-// gets to cache the answer once.
+// Creates two hundred thousand objects from one class reference.
 class<Renders> $once = $settings[2] as class<Renders>;
 uint $made = 0;
 uint $i = 0;

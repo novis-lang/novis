@@ -1,9 +1,7 @@
 <?nvs
-// What this looks like at work: the rules a job follows are constants, so
-// they are written down once and read by name; what the job is currently
-// doing is properties, so each job has its own. Nothing about a job can be
-// half filled in, because the constructor has to leave every slot holding
-// something.
+// This job retries a failed task. The rules for every job are constants in `Policy`.
+// The state of one job is in the properties of `Job`, so each job has its own.
+// The constructor must set every property that has no default value.
 
 class Policy
 {

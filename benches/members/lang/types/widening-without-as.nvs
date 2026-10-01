@@ -1,9 +1,7 @@
 <?nvs
-// A whole number moving into a place that wants a fraction is the one
-// conversion the language makes on its own, and this is what it costs. Every
-// round hands the last round's count to a method that wants a fraction, so
-// nothing here can be settled before the program starts. Nothing here asks
-// for memory.
+// This measures passing an `int` to a parameter of type `float`.
+// The value is converted without `as`. You meet this when you pass a count to a math method.
+// Each round passes the last round's total, so no round can be skipped.
 // bench: iterations 300000
 // bench: allocations 0
 

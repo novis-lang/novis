@@ -1,9 +1,7 @@
 <?nvs
-// A running money total stepped by a fraction of a cent -- the loop a pricing or
-// ledger routine writes. It is `decimal` rather than `int` or `float` because
-// that is the number type whose `+`, `-` and `*` are out-of-line helper calls
-// over a 96-bit mantissa instead of one native instruction, so this is the
-// figure that moves when that lowering does.
+// Adds a fraction of a cent to a `decimal` money total in a loop.
+// Pricing and accounting code does this. `decimal` arithmetic is slower than
+// `int` or `float` arithmetic, and this bench measures that cost.
 // bench: iterations 500000
 
 class Bench {

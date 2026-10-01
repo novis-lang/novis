@@ -1,9 +1,7 @@
 <?nvs
-// The shape a small family of record types takes at work: the base class
-// writes the loading once, and each kind still gets back its own type,
-// because `load` returns `static` — the class the call named. The failure
-// path says `never`, so anyone reading the signature knows it does not come
-// back and there is no answer to check.
+// The base class `Record` has one `load` method for every subclass.
+// `load` returns `static`, the class named in the call. So `Invoice::load` returns an `Invoice`.
+// `refuse` returns `never`, because it always throws an error.
 
 class Record {
     public function constructor(public uint $id) {}

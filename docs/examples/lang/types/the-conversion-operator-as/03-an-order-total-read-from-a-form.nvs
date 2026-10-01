@@ -1,8 +1,8 @@
 <?nvs
-// An order arrives as rows of text: how many, and what each one costs. The
-// quantity has to be a whole number that is not negative and the price has to
-// be exact money, so each is converted as it is read. A row that is not a
-// number at all is reported and left out, rather than guessed at.
+// An order is sent as rows of text: a quantity and a price.
+// `as uint` converts the quantity to a whole number that is not negative.
+// `as decimal` converts the price to an exact amount of money.
+// If a conversion fails, it throws an error. The program prints the row and skips it.
 
 class Order
 {
@@ -11,8 +11,8 @@ class Order
         uint $quantity = $row[0] as uint;
         decimal $price = $row[1] as decimal;
 
-        // `as` binds to the value next to it, so this is the quantity as a
-        // decimal, multiplied by the price.
+        // `as decimal` converts only `$quantity`, the value directly before it.
+        // The result is then multiplied by `$price`.
         return $quantity as decimal * $price;
     }
 }

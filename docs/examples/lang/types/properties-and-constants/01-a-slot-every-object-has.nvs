@@ -1,7 +1,7 @@
 <?nvs
-// A property is a typed slot on the object. One with a starting value is
-// ready the moment the object exists; one without has to be filled in by the
-// constructor, and the program will not compile until it is.
+// A property is a variable with a type that belongs to an object.
+// A property with a default value is set when the object is created.
+// The constructor must set every other property, or the program does not compile.
 
 class Ticket
 {
@@ -21,7 +21,7 @@ Ticket $first = new Ticket("printer is jammed");
 echo $first->subject, " [", $first->status, "]\n";
 echo "labels: ", Core\Arr::count($first->labels), ", assignee: ", $first->assignee ?? "nobody", "\n";
 
-// Each object has its own slots, so writing to one leaves the other alone.
+// Each object has its own properties. Changing `$second` does not change `$first`.
 Ticket $second = new Ticket("badge reader is offline");
 $second->status = "waiting";
 $second->labels = ["hardware"];

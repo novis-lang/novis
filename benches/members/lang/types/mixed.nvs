@@ -1,9 +1,7 @@
 <?nvs
-// A value that came from outside and is used without being converted first,
-// so every step has to be worked out while the program runs, from whatever
-// turned up. This is the cost the typed path does not pay, and the reason
-// to convert once near the edge. Each round carries the last round's value,
-// so nothing here can be settled ahead of time.
+// Does arithmetic on a `mixed` variable, as code does with request data it has not converted.
+// The type of a `mixed` value is checked at every step while the program runs.
+// Converting the value once, at the start, avoids that cost. Each round uses the last round's value.
 // bench: iterations 300000
 // bench: allocations 0
 

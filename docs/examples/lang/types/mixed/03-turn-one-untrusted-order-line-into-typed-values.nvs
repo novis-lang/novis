@@ -1,8 +1,7 @@
 <?nvs
-// The shape a real handler takes: convert everything once, at the edge, and
-// work with real types afterwards. A line that does not convert is reported
-// and skipped, and the rest of the order still goes through — nothing
-// half-converted ever reaches the total.
+// A handler converts each value once, at the start, and then works with typed values.
+// If a value does not convert, `as` throws an error. The program reports the line and skips it.
+// Only a line whose three values all converted is added to the total.
 
 array<mixed> $lines = [
     ["sku" => "A-1", "quantity" => "2", "price" => "9.95"],

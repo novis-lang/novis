@@ -1,8 +1,8 @@
 <?nvs
-// A day's order lines, totalled per department and answered as JSON.
-// An array whose values are arrays is how a grouped report is held. The
-// helper is handed the totals and works on its own copy, so the figures it
-// was given are still the ones printed at the end.
+// Totals a day's orders per department and prints the totals as JSON.
+// `array<array<int>>` is an array of arrays, which suits a grouped report.
+// `withServiceFee` gets a copy of `$totals` and changes only that copy.
+// So the first line of output shows the original totals.
 
 class Report {
     public static function withServiceFee(array<int> $totals): array<int> {

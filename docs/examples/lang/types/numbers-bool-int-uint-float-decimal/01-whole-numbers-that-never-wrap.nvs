@@ -1,8 +1,7 @@
 <?nvs
-// Whole numbers come in two kinds. An `int` can go below zero; a `uint`
-// cannot, and in exchange it counts twice as high. Neither of them quietly
-// wraps round when it runs out of room -- it stops with an error instead, so
-// a total that is too big is never silently a small one.
+// Whole numbers have two types. An `int` can be negative. A `uint` cannot be negative,
+// and it can count twice as high. If a result is too big for its type,
+// the program throws an `ArithmeticError`. The number does not wrap around to a small value.
 
 int $balance = -250;
 uint $stock = 18446744073709551615;

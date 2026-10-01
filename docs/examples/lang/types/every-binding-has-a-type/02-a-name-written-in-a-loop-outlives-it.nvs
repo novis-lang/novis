@@ -1,8 +1,7 @@
 <?nvs
-// A name belongs to the whole function, not to the block it stands in, so
-// the counter a loop header writes down can still be read after the loop.
-// Two of the places Novis asks for a kind have no room for one in PHP: that
-// counter, and the name a catch block gives the error it caught.
+// A variable belongs to the whole function, not only to the block where it is declared.
+// So you can read the loop counter `$i` after the loop ends.
+// Every variable needs a type. That includes the loop counter and the variable in `catch`.
 
 array<string> $entries = ["12", "nine", "30"];
 

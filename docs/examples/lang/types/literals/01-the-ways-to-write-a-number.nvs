@@ -1,7 +1,7 @@
 <?nvs
-// The same number can be written in more than one way. Underscores between
-// the digits are there for your eyes only, and a number can be given in base
-// sixteen, base two or base eight.
+// A number can be written in more than one way. Underscores between digits make
+// a long number easier to read, and the value stays the same. You can also write
+// a number in base sixteen (`0x`), base two (`0b`) or base eight (`0o`).
 
 int $seats = 1_000_000;
 int $mask = 0xFF;
@@ -10,9 +10,8 @@ int $mode = 0o644;
 
 echo $seats, " ", $mask, " ", $flags, " ", $mode, "\n";
 
-// A zero at the front is only a zero. `017` is seventeen here. In PHP and in
-// C the same digits mean fifteen, so this is worth knowing if you arrive
-// from either.
+// A zero at the front is only a zero, so `017` is seventeen.
+// PHP and C read `017` as base eight, which is fifteen.
 int $seventeen = 017;
 
 echo $seventeen, "\n";

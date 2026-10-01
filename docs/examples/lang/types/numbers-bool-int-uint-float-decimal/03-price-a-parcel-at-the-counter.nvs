@@ -1,9 +1,7 @@
 <?nvs
-// A parcel being priced up at the counter: how many things are in it, what
-// each one costs, and what the lot weighs. The count is a whole number, the
-// money is decimal so nothing drifts by a penny, and the weight is a float
-// because the scale is not exact either. Money and weights never end up in
-// the same sum.
+// Prices a parcel at a shop counter. The number of items is a `uint`.
+// The money is a `decimal`, so it stays exact to the cent.
+// The weight is a `float`, because a scale is not exact either.
 
 uint $items = 3;
 decimal $each = 12.75;

@@ -1,10 +1,8 @@
 <?nvs
-// Attack: names for types, piled up until resolving one is real work. A
-// chain thirty long, each name standing for the one before it. An array
-// nested six deep behind a single name. A set of five possible types whose
-// value is a different one of them every round, a million times over. A field
-// list a name stands for, built and thrown away a million times. A structure
-// a hundred thousand deep held behind one name and let go in one go.
+// Attack: the program declares many type aliases that refer to other aliases.
+// It uses a chain of 30 aliases, an array nested six levels deep and a union of five types.
+// It creates an object shape one million times and frees an array nested 100,000 levels deep.
+// Every step should finish, and the program should not crash.
 // hostile: timeout-ms 60000
 
 type C00 = int;
@@ -62,8 +60,8 @@ class Poke
     }
 }
 
-// Thirty names deep, a million times, each round carrying the last one's
-// answer so nothing about the chain can be folded away.
+// 1. Call a method typed with the chain of 30 aliases, one million times.
+// Each round uses the result of the round before.
 C29 $carried = 0;
 uint $i = 0;
 while ($i < 1000000) {
@@ -72,11 +70,11 @@ while ($i < 1000000) {
 }
 echo $carried ?? -1, " after a million turns through thirty names\n";
 
-// Six levels of array behind one name, read from the bottom.
+// 2. Read the innermost value of an array nested six levels deep.
 N6 $box = [[[[[[1, 2]]]]]];
 echo $box[0][0][0][0][0][1], " at the bottom of six\n";
 
-// Five possible types behind one name, a different one every round.
+// 3. A variable of the union type `Anything` gets a value of a different type each round.
 array<Anything> $rotation = [1, 'two', 3.5, true, null];
 uint $numbers = 0;
 uint $j = 0;
@@ -89,7 +87,7 @@ while ($j < 1000000) {
 }
 echo $numbers, " of a million were whole numbers\n";
 
-// A field list behind one name, built and dropped a million times.
+// 4. Create and free a value of the object shape `Wide` one million times.
 int $sum = 0;
 uint $k = 0;
 while ($k < 1000000) {
@@ -99,8 +97,8 @@ while ($k < 1000000) {
 }
 echo $sum, " after a million field lists\n";
 
-// A hundred thousand levels behind one name, released all at once, which is
-// where a recursive release comes apart.
+// 5. Build an array nested 100,000 levels deep, then free it at once.
+// Freeing it one level at a time with recursion could crash the program.
 Nest $tower = [];
 uint $depth = 0;
 while ($depth < 100000) {

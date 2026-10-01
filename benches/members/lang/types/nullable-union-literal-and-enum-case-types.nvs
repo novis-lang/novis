@@ -1,8 +1,8 @@
 <?nvs
-// The work a handler does at its edge: text turned into one of a closed set
-// of words, a number turned into one of an enum's cases, and a field that
-// may be missing turned into a number or a default. Each round picks its
-// input from the running total, so nothing here can be settled ahead of time.
+// Converts input to typed values, as a handler does with the data from a request.
+// Text is converted to one of two allowed words, and a number to an enum case.
+// Text that may not be a number is converted to `?uint`, with a default for `null`.
+// Each round picks its input from the running total.
 // bench: iterations 200000
 // bench: allocations 0
 // bench: calls 0

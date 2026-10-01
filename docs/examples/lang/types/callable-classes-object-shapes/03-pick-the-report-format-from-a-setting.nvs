@@ -1,8 +1,7 @@
 <?nvs
-// A report format chosen from a setting, where the setting is text and the
-// program needs a class. The text becomes a class reference once, and creating
-// the report, asking the class a question and testing what came back all go
-// through that reference afterwards.
+// Picks a report format from a setting. The setting is text, and the program needs a class.
+// `as class<Renders>` converts the text to a class reference once.
+// The program then uses `$format` to create the report and to call the static method `extension`.
 
 interface Renders {
     public function render(array<string> $rows): string;

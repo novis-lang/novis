@@ -1,7 +1,7 @@
 <?nvs
 // A basket of prices, shown one line at a time and then added up.
-// The list says once that it holds whole numbers, so everything put into it
-// afterwards is one, and the loop that reads it says the same thing.
+// `array<int>` is a list of whole numbers, so every value you add to it is an `int`.
+// The `foreach` loop gives each value the type `int` too.
 
 array<int> $prices = [1299, 450];
 $prices[] = 780;

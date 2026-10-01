@@ -1,8 +1,7 @@
 <?nvs
-// An alias can be a member of a class, and then it belongs to that class:
-// inside the body it is enough to write the short name, and everywhere else
-// it is reached through its owner. It is not handed down to subclasses — a
-// name that means one thing belongs to one place.
+// You can declare a type alias inside a class. Inside that class, you write
+// the short name `Lines`. Outside it, you write `Basket::Lines`.
+// A subclass does not inherit the alias.
 
 final class Basket {
     type Lines = array<string>;
@@ -11,12 +10,12 @@ final class Basket {
 
     public function add(string $line): Lines {
         $this->lines[] = $line;
-        return $this->lines;      // the short name, inside the owner
+        return $this->lines;      // inside the class: the short name
     }
 }
 
 class Printer {
-    public static function show(Basket::Lines $lines): void {      // and through the owner, outside
+    public static function show(Basket::Lines $lines): void {      // outside the class: the class name first
         foreach ($lines as string $line) {
             echo "- ", $line, "\n";
         }

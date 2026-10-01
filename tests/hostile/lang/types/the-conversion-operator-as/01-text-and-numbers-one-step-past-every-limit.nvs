@@ -1,9 +1,7 @@
 <?nvs
-// Attack: hand `as` the worst text a program can be given and values one step
-// past every limit, over and over, catching whatever comes back so the loop
-// keeps going. One of the strings is a million digits long, one chain
-// converts the same value through five types in a row, and the last conversion
-// tests every element of a large array at once.
+// Attack: `as` converts broken text and numbers just past every limit, many times.
+// One string has 200,000 digits, and one value is converted through five types in a row.
+// The last step converts an array of 200,000 values. Each error is caught, so the loop continues.
 // hostile: timeout-ms 20000
 
 class Attack

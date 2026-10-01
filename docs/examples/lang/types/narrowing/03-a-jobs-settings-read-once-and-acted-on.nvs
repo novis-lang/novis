@@ -1,8 +1,7 @@
 <?nvs
-// A job's settings are one of a few fixed words plus a mailbox that may not be
-// set. Both live on an object, and a test never proves anything about a value
-// reached through an arrow — so each one is put into a value of its own first,
-// and then asked about.
+// A job's settings are a mode, which is one of three words, and a mailbox that may be `null`.
+// Checking a field such as `$job->mode` does not narrow its type inside the `if`.
+// Checking a local variable does. So `plan` copies each field to a variable first.
 
 class Job
 {
@@ -24,8 +23,8 @@ class Runner
         }
 
         if ($mode == "admin") {
-            // Inside this branch the setting is that one word, so it fits a
-            // value declared to hold only that word.
+            // Inside this `if`, `$mode` can only be "admin". So it can be
+            // assigned to a variable of type "admin".
             "admin" $elevated = $mode;
             return "running as " . $elevated . "; " . $notify;
         }

@@ -1,9 +1,7 @@
 <?nvs
-// Every method call in a program builds an argument list, and this one is
-// built the three ways a caller can build it at once: a default left out, an
-// argument written by name, and one that writes back into the caller's own
-// variable. Each round starts from the round before it, so none of the calls
-// can be skipped.
+// This measures one method call with a default value left out, a named argument
+// and an `inout` argument. You meet these in almost every method call you write.
+// Each round uses the result of the round before, so no call can be skipped.
 // bench: iterations 400000
 // bench: allocations 0
 

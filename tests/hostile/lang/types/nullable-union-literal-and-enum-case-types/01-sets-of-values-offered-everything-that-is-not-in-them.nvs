@@ -1,11 +1,7 @@
 <?nvs
-// Attack: the four types that name a set of values, offered everything that
-// is not in the set. A megabyte of text held up against three short words,
-// and values that miss a member by one byte at either end. Numbers at both
-// far ends of their range offered to an enum with three cases. A million
-// turns whose value is a different member of a union each time. Optional
-// values that must answer nothing rather than stop the program, and a chain
-// of a hundred thousand of them built and then dropped in one go.
+// Attack: the program converts values that are not allowed to a set of words,
+// an enum, a `?uint` and a union. Each conversion should throw an error,
+// or give `null` for `?uint`. The values include huge text, near misses and extreme numbers.
 // hostile: timeout-ms 60000
 
 enum Action
@@ -13,8 +9,8 @@ enum Action
 
 class Poke
 {
-    // Each of these is a membership test against a small closed set, decided
-    // while the program runs from whatever turned up.
+    // Each method checks whether a value is in a small set of allowed values.
+    // The check happens while the program runs.
     public static function word(mixed $v): string
     {
         try {
@@ -34,7 +30,7 @@ class Poke
         }
     }
 
-    // The nullable form promises never to stop, whatever it is handed.
+    // `as ?uint` does not throw an error. It gives a number or `null`.
     public static function maybe(mixed $v): string
     {
         ?uint $n = $v as ?uint;
@@ -42,21 +38,19 @@ class Poke
     }
 }
 
-// A megabyte of text held up against a set of three short words, then the
-// near misses: one byte short, one byte long, and a member with a zero byte
-// buried in it.
+// One megabyte of text, then near misses: one byte short, one byte long,
+// a zero byte at the end, and capital letters.
 string $huge = Core\Str::repeat('read', 262144);
 echo Poke::word($huge), ' ', Poke::word('rea'), ' ', Poke::word('reads'), ' ', Poke::word("read\0"), ' ', Poke::word('READ'), "\n";
 
-// Everything that is not text at all, offered to a set of words.
+// Values that are not text, checked against the set of words.
 echo Poke::word(0), ' ', Poke::word(null), ' ', Poke::word(true), ' ', Poke::word(['read']), ' ', Poke::word(1.5), "\n";
 
-// Both far ends of the whole-number range, and the two numbers on either
-// side of the last case, offered to an enum that names three.
+// Converts to an enum with three cases: the smallest and largest `int`,
+// then `-1`, the last case `2`, and `3`.
 echo Poke::whichCase('-9223372036854775808'), ' ', Poke::whichCase('9223372036854775807'), ' ', Poke::whichCase('-1'), ' ', Poke::whichCase('2'), ' ', Poke::whichCase('3'), "\n";
 
-// The nullable form, handed every kind of thing there is. None of these may
-// stop the program; each is either a number or nothing.
+// Converts values of many types to `?uint`. Each one should give a number or `null`.
 array<mixed> $rotation = [1, '2', 3.5, true, null, ['x'], '-1', '99999999999999999999999'];
 uint $nothings = 0;
 uint $j = 0;
@@ -68,8 +62,7 @@ while ($j < 8) {
 }
 echo $nothings, " of eight answered nothing\n";
 
-// A million turns whose value is a different member of the union each round,
-// so nothing about the last round can be assumed about this one.
+// A million loop rounds. The value is an `int` in some rounds and a `string` in others.
 array<mixed> $ids = [1, 'one', 2, 'two', 3];
 uint $numbers = 0;
 uint $i = 0;
@@ -82,8 +75,8 @@ while ($i < 1000000) {
 }
 echo $numbers, " of a million were numbers\n";
 
-// A hundred thousand optional values inside one another, built and then let
-// go in one go, which is where a recursive release comes apart.
+// A hundred thousand arrays nested inside each other.
+// Then all of them are freed at once.
 mixed $chain = null;
 uint $depth = 0;
 while ($depth < 100000) {

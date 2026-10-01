@@ -1,8 +1,8 @@
 <?nvs
-// What a handler really does with a request: turn every untrusted field into
-// the exact type it will act on, once, at the top. The account is a number or
-// a name, the action is one of an enum's cases, and only two of those cases
-// may be granted here — the third cannot reach this method at all.
+// A handler converts each field of a request to the exact type it needs, once, at the top.
+// The account is an `int` or a `string`, and the action is a case of the enum `Action`.
+// `grant` accepts only `Action::Read` and `Action::Write`. Converting `Action::Delete`
+// to that type throws an error, so `grant` is never called with it.
 
 enum Action { Read, Write, Delete }
 

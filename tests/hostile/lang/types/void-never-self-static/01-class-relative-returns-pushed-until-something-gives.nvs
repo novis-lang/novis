@@ -1,10 +1,8 @@
 <?nvs
-// Attack: the class-relative return types pushed until something gives. A
-// million objects asked for by the class the call named, five levels below
-// the class that writes the building, each dropped at once. One object handed
-// back a million times in a row. A method that does not come back, reached
-// down a stack asked for more depth than there is. A call made only for its
-// effect, in the tightest loop there is.
+// Attack: the program uses the return types `static`, `self`, `void` and `never` until something breaks.
+// It creates and frees one million objects of a subclass five levels deep.
+// It returns one object one million times and throws from the bottom of a very deep stack.
+// Every step should finish or throw an error that is caught, and the program should not crash.
 // hostile: timeout-ms 60000
 
 class Node
@@ -31,8 +29,8 @@ class Node
         throw new RuntimeError($why);
     }
 
-    // Calls itself until the count runs out, then leaves through a method
-    // with no way back, so the unwind starts at the bottom of the stack.
+    // `dive` calls itself until `$left` is 0. Then it calls `stop`, which throws,
+    // so the error starts at the bottom of the stack.
     public static function dive(int $left): int
     {
         if ($left <= 0) {
@@ -53,8 +51,8 @@ class D extends C
 final class E extends D
 {}
 
-// A million objects, each asked for by the class the call named and let go
-// on the next turn.
+// 1. `E::make` returns `static`, so each call creates an `E`.
+// One million objects are created, and each is freed in the next round.
 int $sum = 0;
 uint $i = 0;
 while ($i < 1000000) {
@@ -64,8 +62,8 @@ while ($i < 1000000) {
 }
 echo "made a million\n";
 
-// One object handed back a million times, with a call made only for its
-// effect in between.
+// 2. `add` returns the same object one million times.
+// A call to the `void` method `nothing` runs between each one.
 E $one = E::make(0);
 uint $j = 0;
 while ($j < 1000000) {
@@ -75,10 +73,8 @@ while ($j < 1000000) {
 }
 echo $one->n, " after a million\n";
 
-// A deep stack that leaves through a method with no way back. Every other
-// round asks for more depth than there is, so half of these run out of stack
-// and half reach the bottom. Being refused is a fine answer; coming apart is
-// not.
+// 3. Every other round needs 1,000,000 nested calls, more than the stack allows.
+// Each round throws an error, which is caught. The program must not crash.
 uint $round = 0;
 uint $caught = 0;
 while ($round < 50) {

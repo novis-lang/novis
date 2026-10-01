@@ -1,7 +1,7 @@
 <?nvs
-// A setting that may simply not be there. `?uint` holds a whole number or
-// nothing, and `as ?uint` answers nothing where the text is not a number
-// instead of stopping the program, so one line can fall back to a default.
+// A setting may be missing. `?uint` is a whole number or `null`.
+// `as ?uint` converts text to a whole number. If the text is not a number,
+// the result is `null`, and `??` gives a default value.
 
 array<string> $settings = ["page" => "3", "limit" => "many"];
 
@@ -11,7 +11,7 @@ array<string> $settings = ["page" => "3", "limit" => "many"];
 echo "page ", $page ?? 1, "\n";
 echo "limit ", $limit ?? 20, "\n";
 
-// Nothing is a type of its own, so a name that is allowed to be empty says
-// so, and the reader of that line never has to guess.
+// A variable can be `null` only when its type allows it, as `?string` does.
+// So the reader can see on this line that `$note` may be empty.
 ?string $note = null;
 echo "note ", $note ?? "(none)", "\n";

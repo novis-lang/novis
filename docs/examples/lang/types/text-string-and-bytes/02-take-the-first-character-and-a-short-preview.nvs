@@ -1,8 +1,7 @@
 <?nvs
-// There is no `$title[0]`, because the first character of a title is not
-// always its first byte. Ask for a character by position, or for a run of
-// them, and what comes back is whole characters either way — an accent is
-// never cut in half.
+// The syntax `$title[0]` does not exist, because the first character is not always the first byte.
+// `Core\Str::at` returns one character, and `Core\Str::slice` returns several.
+// Both return whole characters. A letter like `ö` is never cut in half.
 
 array<string> $titles = ["Größenwahn", "Ölzweig", "Straße am Fluss"];
 

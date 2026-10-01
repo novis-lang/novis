@@ -1,7 +1,7 @@
 <?nvs
-// The type of this parameter is three words. Nothing else can be passed to
-// it, so the method below never needs to check what it was given, and a
-// fourth word is caught where it arrives rather than somewhere further down.
+// The type of `$order` is a set of three words. Only those words can be passed to `sortBy`,
+// so `sortBy` does not need to check its argument. For any other word, `as` throws
+// an error before the method is called.
 
 class Report {
     public static function sortBy("newest"|"oldest"|"name" $order): string {

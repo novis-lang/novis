@@ -1,9 +1,7 @@
 <?nvs
-// Attack: every number type asked for a value it cannot hold. One past the
-// top of an int and a uint, one below the bottom, a negation with no positive
-// twin, a division by zero in all four kinds, a power far past any range, a
-// decimal grown until it runs out of digits on both sides, and a float pushed
-// to infinity and then asked to become a whole number.
+// Attack: the program pushes `int`, `uint`, `float` and `decimal` past the ends of their range.
+// It uses overflow, division by zero and very large powers. Each step should throw
+// an error or give a correct value.
 // hostile: timeout-ms 40000
 
 int $top = 9223372036854775807;
@@ -47,7 +45,7 @@ try {
     echo 'int power: ', $e->message, "\n";
 }
 
-// Zero on the right of every kind of division and remainder there is.
+// Divides by zero with every number type, and takes a remainder by zero.
 int $zero = 0;
 try {
     echo $top / $zero, "\n";
@@ -72,8 +70,8 @@ try {
     echo 'decimal by zero: ', $e->message, "\n";
 }
 
-// A decimal grown until it runs out of room to the left, and then one grown
-// until it runs out of room to the right.
+// A `decimal` grows until it has too many digits before the point.
+// Another one shrinks until it has too many digits after the point.
 decimal $big = 1;
 uint $left = 0;
 try {
@@ -97,9 +95,8 @@ try {
     echo 'decimal right of the point: ', $e->message, "\n";
 }
 
-// A float taken past the largest one there is, which is the one type here
-// that answers with a value rather than stopping, and then asked to be a
-// whole number again.
+// A `float` grows past its largest value and becomes infinity, with no error.
+// Then the program converts infinity to `int`.
 float $huge = 1.0;
 uint $doubles = 0;
 while ($doubles < 5000) {
@@ -119,8 +116,8 @@ try {
     echo 'infinity minus itself: ', $e->message, "\n";
 }
 
-// Counting all the way up in a type that refuses to wrap, one step at a time,
-// from the last value that fits.
+// Adds 1 to a `uint` many times, starting just below its largest value.
+// The addition should throw an error when the result no longer fits.
 uint $step = 18446744073709551610;
 uint $taken = 0;
 try {

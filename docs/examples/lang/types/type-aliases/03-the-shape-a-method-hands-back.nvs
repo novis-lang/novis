@@ -1,9 +1,7 @@
 <?nvs
-// The set of fields a method hands back, given a name once. Without the name
-// the same field list would be written at every signature that passes it
-// along, and changing one of them would mean changing all of them. A field
-// list also cannot open a statement on its own, so naming it is what makes it
-// usable as a declared type at all.
+// `type Invoice` gives a name to the fields that these methods return.
+// Each method uses the name `Invoice`, so the fields are written only once.
+// To add a field, you change only this one line.
 
 type Invoice = {number: string, total: decimal, paid: bool};
 

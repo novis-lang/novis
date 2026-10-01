@@ -1,9 +1,7 @@
 <?nvs
-// Reading a whole number out of text is the conversion a program does most
-// often: a form, a query string or a line of a file hands you text, and the
-// work needs the number. Every round converts the text the round before it
-// chose, so nothing here can be worked out before the program runs. Nothing
-// here asks for memory.
+// This measures `as int`, which converts text to a whole number.
+// You use it on text from a form, a query string or a file.
+// Each round converts the text that the round before chose, so no round can be skipped.
 // bench: iterations 200000
 // bench: allocations 0
 

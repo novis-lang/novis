@@ -1,12 +1,9 @@
 <?nvs
-// Attack: a lookup table pushed past every edge it has. A key at the far end
-// of what a whole number can be, so the next append has nowhere to go. Keys
-// that look like the same number and are not. A table nested fifty thousand
-// deep and then thrown away in one go. Hundreds of thousands of entries,
-// copied while they are still being added to. A key that was never stored.
+// Attack: the program pushes an array past its limits with extreme keys, deep nesting
+// and many copies. Each step should give a correct result or throw an error.
 // hostile: timeout-ms 40000
 
-// The append counter is asked for the number after the largest one there is.
+// `$far[] = 2` needs a key one larger than the largest possible `int`.
 array<int> $far = [];
 $far[9223372036854775807] = 1;
 try {
@@ -16,7 +13,7 @@ try {
     echo 'refused: ', $e->message, "\n";
 }
 
-// Six keys a reader would call the same key. Only two of them are.
+// Six keys that look like the number 8. Only two of them are the same key.
 array<int> $lookalike = [];
 $lookalike[8] = 1;
 $lookalike['8'] = 2;
@@ -26,14 +23,14 @@ $lookalike[' 8'] = 5;
 $lookalike['8.0'] = 6;
 echo Core\Arr::count($lookalike), " distinct keys\n";
 
-// A key a megabyte long, and the table has to find it again.
+// A key that is one megabyte long. The array must find it again.
 string $huge = Core\Str::repeat('k', 1048576);
 array<int> $wide = [];
 $wide[$huge] = 7;
 echo Core\Arr::hasKey($wide, $huge) ? "found it\n" : "lost it\n";
 
-// Fifty thousand tables inside one another, built one at a time and then
-// dropped all at once, which is where a recursive release comes apart.
+// Fifty thousand arrays nested inside each other, built one at a time.
+// Then all of them are freed at once.
 array<mixed> $deep = [];
 uint $depth = 0;
 while ($depth < 50000) {
@@ -43,8 +40,8 @@ while ($depth < 50000) {
 $deep = [];
 echo "nested and released\n";
 
-// Half a million entries, with a copy taken every thousand rounds and written
-// to, so the table is forever splitting off from a copy of itself.
+// Adds half a million entries. Every thousand rounds, the program copies the array
+// and changes the copy. The original array must not change.
 array<string> $rows = [];
 uint $i = 0;
 uint $copies = 0;
@@ -59,7 +56,7 @@ while ($i < 500000) {
 }
 echo Core\Arr::count($rows), ' rows, ', $copies, " copies that never showed\n";
 
-// A key that was never stored, asked for on purpose.
+// Reads a key that was never stored.
 try {
     echo $rows['no such row'], "\n";
     echo "read a key that is not there\n";

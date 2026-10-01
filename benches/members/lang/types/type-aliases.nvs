@@ -1,9 +1,7 @@
 <?nvs
-// A loop written entirely through named types: a number, either-or, and an
-// array of those. The names are gone before anything runs, so this counts
-// exactly what the same loop with every type spelled out counts, and that
-// equality is the figure worth keeping. Each round starts from the last
-// round's total, so nothing here can be settled ahead of time.
+// This measures a loop that uses only type aliases: a number, a union and an array.
+// An alias costs nothing at run time, so this loop is as fast as one with the full types.
+// Each round starts from the last round's total, so no round can be skipped.
 // bench: iterations 300000
 // bench: allocations 0
 // bench: calls 0
