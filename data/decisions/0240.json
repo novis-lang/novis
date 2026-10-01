@@ -1,16 +1,17 @@
 {
-  "title": "A `require` or `autoload` literal and an `as class<T>` string complete, link and hover as the path or name the compiler reads, and a directory link reveals it in the Explorer",
+  "title": "A `require` or `autoload` literal, an `as class<T>` string and a string argument at a path or class-name parameter complete, link and hover as the path or name the compiler reads, and a directory link reveals it in the Explorer",
   "status": "accepted",
-  "scope": "Completion, links, hover and go-to-definition inside the literals of `require` and `autoload` and inside the string\noperand of `as class<T>`, the trigger characters that open those lists, and what the VS Code client does with a link to\na directory. Any other string is not decided here.",
+  "scope": "Completion, links, hover and go-to-definition inside the literals of `require` and `autoload`, inside the string\noperand of `as class<T>` and inside a string argument at a parameter marked as a path or a class name, the trigger\ncharacters that open those lists, and what the VS Code client does with a link to a directory. Any other string is not\ndecided here.",
   "dependsOn": [
     "0099",
-    "0193"
+    "0193",
+    "0241"
   ],
-  "dependsOnText": "[0099](0099.md) (the request set, and `documentLink` as a projection of the walk), [0193](0193.md)\n(trigger characters answered only where a spelling ends).",
-  "validatedBy": "`tests/lsp/completion/a-require-literal-offers-the-directories-and-nvs-files-its-text-reaches.lspt`,\n`tests/lsp/links/an-autoload-root-links-to-the-directory-it-names.lspt`,\n`tests/lsp/completion/an-autoload-prefix-offers-the-namespaces-the-workspace-declares.lspt`,\n`tests/lsp/completion/a-class-reference-literal-offers-the-classes-that-are-its-type.lspt`,\n`tests/lsp/hover/an-autoload-prefix-answers-its-namespace-and-its-roots.lspt`,\n`crates/nvs-lsp/tests/completion.rs`, `crates/nvs-lsp/tests/autoload.rs` and\n`editors/vscode/test/client/links.test.ts`.",
+  "dependsOnText": "[0099](0099.md) (the request set, and `documentLink` as a projection of the walk), [0193](0193.md)\n(trigger characters answered only where a spelling ends), [0241](0241.md) (the path and class-name marks, and the\nchecker's resolved path literals).",
+  "validatedBy": "`tests/lsp/completion/a-require-literal-offers-the-directories-and-nvs-files-its-text-reaches.lspt`,\n`tests/lsp/links/an-autoload-root-links-to-the-directory-it-names.lspt`,\n`tests/lsp/completion/an-autoload-prefix-offers-the-namespaces-the-workspace-declares.lspt`,\n`tests/lsp/completion/a-class-reference-literal-offers-the-classes-that-are-its-type.lspt`,\n`tests/lsp/hover/an-autoload-prefix-answers-its-namespace-and-its-roots.lspt`,\n`tests/lsp/completion/a-path-argument-offers-the-files-and-directories-its-text-reaches.lspt`,\n`tests/lsp/links/a-path-argument-links-to-the-file-or-directory-it-names.lspt`,\n`tests/lsp/completion/an-expected-error-argument-offers-only-error-classes.lspt`,\n`crates/nvs-lsp/tests/completion.rs`, `crates/nvs-lsp/tests/completion_edits.rs`,\n`crates/nvs-lsp/tests/navigation.rs`, `crates/nvs-lsp/tests/autoload.rs` and\n`editors/vscode/test/client/links.test.ts`.",
   "summary": {
     "group": "tooling",
-    "headline": "Paths complete and link in the editor",
-    "body": "Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the editor lists the\nfolders and `.nvs` files in the folder the path reaches so far. An `autoload` path lists folders only.\nCtrl+click on an `autoload` root or glob shows its folder in the Explorer. An `autoload` prefix lists the\nnamespaces your code declares, and its hover shows the folders it maps to. In `'App\\User' as class<Model>`,\nthe string lists the classes that are a `Model`, and ctrl+click opens the class."
+    "headline": "Paths and class names complete and link in the editor",
+    "body": "Inside the path of a `require` or an `autoload` declaration, the editor lists the folders and `.nvs` files in the\nfolder the path reaches, and ctrl+click on a folder shows it in the Explorer. A path you pass to a function\nthat reads or writes a file lists every file and folder, opens the file on ctrl+click and shows its full path on\nhover. An `autoload` prefix lists the namespaces your code declares. A class\nname in a string, in `'App\\User' as class<Model>` or `Core\\Reflect::forClass('App\\User')`, lists your classes and\nopens the class on ctrl+click."
   }
 }

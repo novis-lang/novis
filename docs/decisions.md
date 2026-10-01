@@ -1563,14 +1563,14 @@ shows that comment on the method and names the class or interface it comes from.
 line a statement starts on is listed with the number of times it ran. A line no test reached reads
 `0`. Coverage costs nothing in a run that does not ask for it.
 
-**Paths complete and link in the editor**
+**Paths and class names complete and link in the editor**
 
-Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the editor lists
-the folders and `.nvs` files in the folder the path reaches so far. An `autoload` path lists folders
-only. Ctrl+click on an `autoload` root or glob shows its folder in the Explorer. An `autoload`
-prefix lists the namespaces your code declares, and its hover shows the folders it maps to. In
-`'App\User' as class<Model>`, the string lists the classes that are a `Model`, and ctrl+click opens
-the class.
+Inside the path of a `require` or an `autoload` declaration, the editor lists the folders and `.nvs`
+files in the folder the path reaches, and ctrl+click on a folder shows it in the Explorer. A path
+you pass to a function that reads or writes a file lists every file and folder, opens the file on
+ctrl+click and shows its full path on hover. An `autoload` prefix lists the namespaces your code
+declares. A class name in a string, in `'App\User' as class<Model>` or
+`Core\Reflect::forClass('App\User')`, lists your classes and opens the class on ctrl+click.
 
 ## Engineering decisions
 

@@ -10,12 +10,15 @@ What that admits: route names and their parameters, from the route table
 `nvs.toml` and every file `[[include]]` pulls in, from the closed registry the runtime validates against
 (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`), so completion, hover with type and
 default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
-complete as paths — scoped to the workspace's config tree, never to every TOML file; a `require` path
-and an `autoload` root or `discover` glob, which complete as the entries of the one directory the text
-before the cursor reaches, read through the listing the compiler resolves a glob with; an `autoload`
-prefix, which completes as the namespaces of the declarations the workspace index and the analysis already
-hold; the string converted with `as class<T>`, which completes as the classes the program declares that
-are a `T`, read through the hierarchy walk the checker answers that question with; `#[Api]` fields and
+complete as paths — scoped to the workspace's config tree, never to every TOML file; a `require` path,
+an `autoload` root or `discover` glob, and a string argument at a parameter the registry or
+`#[Core\Path]` marks as a path, which complete as the entries of the one directory the text before the
+cursor reaches, read through the listing the compiler resolves a glob with; an `autoload` prefix, which
+completes as the namespaces of the declarations the workspace index and the analysis already hold; the
+string converted with `as class<T>`, which completes as the classes the program declares that are a
+`T`, read through the hierarchy walk the checker answers that question with; a string argument at a
+parameter the registry marks as a class name, which completes as the classes the program declares, and
+as the ones that are a `Throwable` where the member expects an error; `#[Api]` fields and
 every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 

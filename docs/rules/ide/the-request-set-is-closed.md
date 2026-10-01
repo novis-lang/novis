@@ -4,17 +4,24 @@ the answer. Each is named because
 "minimal" without a list is how scope grows: `publishDiagnostics` (the existing `nvs check` pipeline, at
 the negotiated encoding, `code` set, phase-gated per `rule:ide/diagnostics-are-phase-gated`); `hover`
 (the declared type, a `Core` member's registry signature row, a declaration's doc-comment run as
-Markdown, an `autoload` prefix's namespace and roots, and the class the string of `as class<T>` names);
+Markdown, an `autoload` prefix's namespace and roots, the class the string of `as class<T>` or a
+class-name argument names, and the absolute path a path argument names and whether anything is there);
 `definition` (the declaring span anywhere in the resolved `require`/`autoload` graph, the string of `as
-class<T>` included); `completion` (keywords by position, members off a resolved receiver including `Core`
-classes, enum cases after `Type::`, in-scope variables, inside a `require` or `autoload` path literal the
-entries of the directory its text reaches, inside an `autoload` prefix the namespaces the workspace
-declares, and inside the string of `as class<T>` the classes that are a `T` — no workspace symbol
+class<T>` and a class-name argument included); `completion` (keywords by position, members off a resolved
+receiver including `Core` classes, enum cases after `Type::`, in-scope variables, inside a `require` or
+`autoload` path literal or a path argument the entries of the directory its text reaches, inside an
+`autoload` prefix the namespaces the workspace declares, inside the string of `as class<T>` the classes
+that are a `T`, and inside a class-name argument the classes the program declares — no workspace symbol
 search); `semanticTokens/full`; `documentSymbol`; and three that are projections of data the tree already
 holds rather than features built on it — `selectionRange` (the index's ancestor list is the response),
 `foldingRange` (the same walk plus comment blocks out of the trivia layer) and `documentLink` (the
 resolved path literal of a `require`, each `autoload` root and `discover` glob, which name the directory
-each resolves to and list, and an `autoload` prefix, which names the first of its roots that exists).
+each resolves to and list, an `autoload` prefix, which names the first of its roots that exists, and a
+path argument, which names the file or directory the checker resolved it to). A path argument is a string
+literal at a parameter the registry marks `CoreTy::Path`, at one a program marks `#[Core\Path]`, or at a
+`Core` shape field with the same mark (`rule:programs/path-literals-resolve-from-their-file`); a
+class-name argument is one at a parameter marked `CoreTy::ClassName`. The mark is read off the call the
+checker resolved, so a literal at any other parameter is ordinary text.
 M4B's non-standard request is `nvs/redactions`
 (`rule:ide/redaction-ranges-come-from-the-server`), non-standard because LSP has no shape for "do not
 show this to the room".
