@@ -534,10 +534,16 @@ const SENT_BODY: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::N
 /// **`mount` defaults to `""` and not to [`Const::Null`]**, for the opposite
 /// reason: a request that reached no mount and one whose door stripped nothing
 /// are the same fact, which is what `rule:routing/a-request-reads-its-mount`
-/// makes `Core\Request::mount()` never-`null` for. The key is the prefix alone
-/// and not the mount's glob captures — a synthetic request describes the door
-/// a link is written under, and a capture is a second fact with a reader of its
-/// own.
+/// makes `Core\Request::mount()` never-`null` for.
+///
+/// **`captures` is `Core\Request\Mount::captures()`' shape**: a list of
+/// strings, `{1}` first, and the empty list for a mount whose prefix holds no
+/// glob. The prefix and its captures are two fields of one mount row
+/// (`nvs_runtime::InboundSpec::set_mount`), so `captures` without a `mount` is
+/// a request no door could have produced — the root has no glob to capture —
+/// and [`described`] throws a `LogicError` for it rather than handing a program
+/// captures under an empty prefix. Keys are not read: a map passed here is a
+/// defect too, and it is refused for the same reason.
 const REQUEST_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "headers",
@@ -553,6 +559,11 @@ const REQUEST_OPTIONS: &[CoreOption] = &[
         name: "mount",
         ty: CoreTy::Text(Qual::Neutral),
         default: Const::Str(""),
+    },
+    CoreOption {
+        name: "captures",
+        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        default: Const::EmptyArray,
     },
 ];
 
@@ -1184,18 +1195,33 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
                    of each link. The default is `\"\"`, which means the root.",
             shape: &[],
         },
+        ParamDoc {
+            name: "captures",
+            desc: "The parts of the prefix that the mount's pattern matched, in order. For the \
+                   pattern `/shops/{1}` and `mount: \"/shops/acme\"`, this is `[\"acme\"]`. \
+                   `Core\\Request::mount()->captures()` returns this list. The default is an \
+                   empty list. You need `mount` to give `captures`.",
+            shape: &[],
+        },
     ],
     ret: "A `Core\\Test\\Response`. `status()` returns the status the program set, or `200` if \
           it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` \
           decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the \
           program set. A path that no route matches still gets an answer, because your program \
           decides what to do with it.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "There is no program to answer, because the call is not in `nvs test` or \
-               `nvs run`. The call is also an error inside a request that `request` sent, \
-               because a request cannot send another request.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`captures` is not empty and `mount` is `\"\"`. The root has no pattern, so \
+                   it has no captures. `captures` is also an error when it is not a list.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "There is no program to answer, because the call is not in `nvs test` or \
+                   `nvs run`. The call is also an error inside a request that `request` sent, \
+                   because a request cannot send another request.",
+        },
+    ],
 };
 
 /// `Core\Test\Response::status`'s reference card — `rule:core-api/reference-card`.
@@ -2827,7 +2853,9 @@ fn verb_of(ordinal: i64) -> Option<String> {
 /// # Errors
 ///
 /// A [`Fault::fatal`] for a `headers` bag that is not `array<string>`, which
-/// `E0401` refuses a phase earlier and so is unreachable from source.
+/// `E0401` refuses a phase earlier and so is unreachable from source. A
+/// `LogicError` for `captures` given without a `mount`, and [`captures_of`]'s
+/// for `captures` that are not a list.
 fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::InboundSpec, Fault> {
     // Split exactly as the door does: everything after the first `?` is the
     // query, undecoded, and a target with none has an empty one rather than no
@@ -2854,12 +2882,67 @@ fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::In
     // `string` and defaults to `""`, so `E0401` refuses the rest a phase
     // earlier — and the path is the mount-stripped one either way, which is
     // what a `#[Route]` is declared against.
-    spec.set_mount(args[4].as_text().unwrap_or(""), &[]);
+    let mount = args[4].as_text().unwrap_or("");
+    let captures = captures_of(&args[5])?;
+    if !captures.is_empty() && mount.is_empty() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            "Core\\Test::request(): `captures` needs a `mount` — the captures are parts of the \
+             prefix a request came in under, and the root has no pattern to capture"
+                .to_owned(),
+        ));
+    }
+    spec.set_mount(mount, &captures);
     Ok(spec)
 }
 
+/// The `captures` option as the list `Core\Request\Mount::captures()` reads
+/// back, in order.
+///
+/// # Errors
+///
+/// A `LogicError` for an array that is not a list: the captures are positional
+/// — `{1}` is the first — so a key would name a position the reader never
+/// sees. A [`Fault::fatal`] for an argument or an element that is not text,
+/// unreachable from source because the option declares `array<string>`.
+fn captures_of(value: &Value) -> Result<Vec<String>, Fault> {
+    let Some(pointer) = value.array_ptr() else {
+        return Err(Fault::fatal(format!(
+            "Core\\Test::request expected an array for `captures`, got tag {}",
+            value.tag_byte()
+        )));
+    };
+    let array = crate::arr::borrowed(pointer);
+    if !crate::arr::is_list(&array) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            "Core\\Test::request(): `captures` must be a list — `{1}` is its first entry, so a \
+             key names nothing"
+                .to_owned(),
+        ));
+    }
+    let mut captures = Vec::with_capacity(array.count());
+    let mut from = 0_usize;
+    while let Some(slot) = array.next_slot(from) {
+        from = slot + 1;
+        let entry = array
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        // Unreachable from source: the option is `array<string>`, so `E0401`
+        // refuses any other element before this runs.
+        let text = entry.as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Test::request expected a `string` capture, got tag {}",
+                entry.tag_byte()
+            ))
+        })?;
+        captures.push(text.to_owned());
+    }
+    Ok(captures)
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string}): Core\Test\Response`
+    /// `Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string>}): Core\Test\Response`
     /// — `rule:testing/in-process-request`'s in-process request.
     ///
     /// **Neither the match nor the dispatch happens here.** `rule:routing/matched-once-before-the-handler`'s
@@ -2880,7 +2963,7 @@ nvs_runtime::nvs_helper! {
     /// every request alike. So a handler that forgets to launder a header fails
     /// its test rather than production, and the test that pins it says nothing
     /// about being synthetic.
-    fn nvs_core_test_request(ctx, args: [5]) {
+    fn nvs_core_test_request(ctx, args: [6]) {
         let ordinal = args[0].as_int().unwrap_or(-1);
         let Some(verb) = verb_of(ordinal) else {
             // Unreachable from source — the parameter is `CoreTy::Enum`, so
@@ -5576,15 +5659,16 @@ mod tests {
         );
         // The slots the ABI hands a member, of which this reading uses the bag's
         // alone: the verb is the caller's `verb_of` and the target is a
-        // parameter rather than a slot. The last is `mount`, written as the
-        // default an omitting call site passes, which describes a request served
-        // at the root.
+        // parameter rather than a slot. The last two are `mount` and
+        // `captures`, written as the defaults an omitting call site passes,
+        // which describe a request served at the root.
         let args = [
             Value::int(0),
             Value::str(nvs_runtime::NvsStr::new(b"/hooks?since=2")),
             Value::array(headers),
             Value::bytes(nvs_runtime::NvsStr::new(BODY)),
             Value::str(nvs_runtime::NvsStr::new(b"")),
+            Value::array(nvs_runtime::NvsArray::new()),
         ];
         let described =
             described("POST", "/hooks?since=2", &args).expect("this bag is what the row declares");
@@ -6084,8 +6168,9 @@ mod tests {
     /// `request` hands the unit under test one request built from its
     /// arguments, and returns a `Core\Test\Response` carrying the status and
     /// the bytes the unit wrote. A unit that declares no status gives `200`.
-    /// With no unit under test, and from inside a request, the call throws and
-    /// says why.
+    /// The mount's captures reach the request in order. Captures without a
+    /// mount, captures that are not a list, no unit under test and a request
+    /// from inside a request each throw and say why.
     // covers: Core\Test::request
     #[test]
     fn request_returns_the_units_status_and_bytes_and_throws_with_no_unit() {
@@ -6101,11 +6186,12 @@ mod tests {
                 inbound: Box<nvs_runtime::Inbound>,
             ) -> Result<nvs_runtime::host::Completion, String> {
                 let written = format!(
-                    "{} {} query={} mount={} headers={}",
+                    "{} {} query={} mount={} captures={} headers={}",
                     inbound.method(),
                     inbound.path(),
                     inbound.query(),
                     inbound.mount_prefix(),
+                    inbound.mount_captures().join(","),
                     inbound.headers().len(),
                 );
                 Ok(nvs_runtime::host::Completion {
@@ -6123,13 +6209,24 @@ mod tests {
             }
         }
 
-        fn asked(ctx: &mut Ctx, verb: &str, target: &str, mount: &str) -> Result<Value, i32> {
+        fn asked(
+            ctx: &mut Ctx,
+            verb: &str,
+            target: &str,
+            mount: &str,
+            captures: &[&str],
+        ) -> Result<Value, i32> {
+            let mut listed = nvs_runtime::NvsArray::new();
+            for capture in captures {
+                listed.append(Value::str(nvs_runtime::NvsStr::new(capture.as_bytes())));
+            }
             let args = [
                 Value::int(crate::router::method_case(verb).expect("a verb the roster names")),
                 Value::str(nvs_runtime::NvsStr::new(target.as_bytes())),
                 Value::array(nvs_runtime::NvsArray::new()),
                 Value::null(),
                 Value::str(nvs_runtime::NvsStr::new(mount.as_bytes())),
+                Value::array(listed),
             ];
             let answered = nvs_runtime::call(nvs_core_test_request, ctx, &args);
             for arg in args {
@@ -6152,29 +6249,62 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         let silent = nvs_runtime::inproc::scoped(&Echo(None), || {
-            asked(&mut ctx, "GET", "/users/7?tab=2", "/shop")
+            asked(
+                &mut ctx,
+                "GET",
+                "/users/7?tab=2",
+                "/shop/acme/eu",
+                &["acme", "eu"],
+            )
         })
         .expect("an installed unit answers");
         assert_eq!(
             read(silent),
             (
                 200,
-                "GET /users/7 query=tab=2 mount=/shop headers=0".to_owned()
+                "GET /users/7 query=tab=2 mount=/shop/acme/eu captures=acme,eu headers=0"
+                    .to_owned()
             ),
-            "the target splits at `?`, the mount crosses, and no status reads as `200`"
+            "the target splits at `?`, the mount and its captures cross in order, and no \
+             status reads as `200`"
         );
         let declared = nvs_runtime::inproc::scoped(&Echo(Some(201)), || {
-            asked(&mut ctx, "POST", "/orders", "")
+            asked(&mut ctx, "POST", "/orders", "", &[])
         })
         .expect("an installed unit answers");
         assert_eq!(
             read(declared),
-            (201, "POST /orders query= mount= headers=0".to_owned()),
+            (
+                201,
+                "POST /orders query= mount= captures= headers=0".to_owned()
+            ),
             "the status the unit declared is the one returned"
         );
 
+        let rootless =
+            nvs_runtime::inproc::scoped(&Echo(None), || asked(&mut ctx, "GET", "/", "", &["acme"]));
+        assert!(rootless.is_err(), "captures without a mount throw");
+        let message = ctx.take_pending().unwrap_or_default();
         assert!(
-            asked(&mut ctx, "GET", "/", "").is_err(),
+            message.contains("`captures` needs a `mount`"),
+            "the error names the missing mount: {message}"
+        );
+
+        let mut keyed = nvs_runtime::NvsArray::new();
+        keyed.set(
+            nvs_runtime::NvsStr::new(b"tenant"),
+            Value::str(nvs_runtime::NvsStr::new(b"acme")),
+        );
+        let keyed = Value::array(keyed);
+        let refused = captures_of(&keyed).expect_err("a map is not a list of captures");
+        dropped(keyed);
+        assert!(
+            format!("{refused:?}").contains("must be a list"),
+            "the error says what the option is: {refused:?}"
+        );
+
+        assert!(
+            asked(&mut ctx, "GET", "/", "", &[]).is_err(),
             "a run with no unit under test throws"
         );
         let message = ctx.take_pending().unwrap_or_default();
@@ -6185,7 +6315,7 @@ mod tests {
 
         ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/served", ""));
         let inside =
-            nvs_runtime::inproc::scoped(&Echo(None), || asked(&mut ctx, "GET", "/again", ""));
+            nvs_runtime::inproc::scoped(&Echo(None), || asked(&mut ctx, "GET", "/again", "", &[]));
         assert!(inside.is_err(), "a request made inside a request throws");
         let message = ctx.take_pending().unwrap_or_default();
         assert!(
@@ -6235,6 +6365,7 @@ mod tests {
                 Value::array(nvs_runtime::NvsArray::new()),
                 Value::null(),
                 Value::str(nvs_runtime::NvsStr::new(b"")),
+                Value::array(nvs_runtime::NvsArray::new()),
             ];
             let answered = nvs_runtime::inproc::scoped(unit, || {
                 nvs_runtime::call(nvs_core_test_request, ctx, &args)
@@ -6325,6 +6456,7 @@ mod tests {
             Value::array(nvs_runtime::NvsArray::new()),
             Value::null(),
             Value::str(nvs_runtime::NvsStr::new(b"")),
+            Value::array(nvs_runtime::NvsArray::new()),
         ];
         let answered = nvs_runtime::inproc::scoped(unit, || {
             nvs_runtime::call(nvs_core_test_request, ctx, &args)

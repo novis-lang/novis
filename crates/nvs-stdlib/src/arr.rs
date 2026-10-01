@@ -2998,8 +2998,8 @@ nvs_runtime::nvs_helper! {
 /// `rule:types/array-combination` states `overlayDeep`'s recursion rule in terms of it — two sides of a
 /// key merge only where both hold an array and **neither is a list** — so the
 /// member and the rule now read the same predicate rather than two spellings
-/// of it.
-fn is_list(subject: &NvsArray) -> bool {
+/// of it. `Core\Test::request` reads it too, for its positional `captures`.
+pub(crate) fn is_list(subject: &NvsArray) -> bool {
     let mut from = 0usize;
     let mut index = 0usize;
     while let Some(slot) = subject.next_slot(from) {

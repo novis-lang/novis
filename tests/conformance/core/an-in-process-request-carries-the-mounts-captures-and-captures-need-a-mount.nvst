@@ -1,0 +1,45 @@
+--TEST--
+an in-process request's `captures` reach `Core\Request::mount()->captures()` in order beside its `mount`, and `captures` without a `mount` or keyed by name throws a `LogicError` — `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// covers: Core\Test::request
+//
+// A mount's prefix and its pattern's captures are one row, so a test states
+// both or the prefix alone. The root has no pattern, so captures with no
+// mount describe a request no server could send.
+//
+// The `catch (LogicError ...)` is the parent: there is no request in its run.
+try {
+    Core\Request\Mount $mount = Core\Request::mount();
+    echo "prefix ", $mount->prefix(), " captures ", Core\Arr::count($mount->captures());
+    foreach ($mount->captures() as tainted string $part) {
+        echo " [", $part, "]";
+    }
+} catch (LogicError $noRequest) {
+    var $tenant = Core\Test::request(Core\Http\Method::Get, "/orders", {mount: "/acme/eu", captures: ["Acme", "eu"]});
+    echo $tenant->body(), "\n";
+
+    var $plain = Core\Test::request(Core\Http\Method::Get, "/orders", {mount: "/shop"});
+    echo $plain->body(), "\n";
+
+    var $root = Core\Test::request(Core\Http\Method::Get, "/orders");
+    echo $root->body(), "\n";
+
+    try {
+        Core\Test::request(Core\Http\Method::Get, "/orders", {captures: ["Acme"]});
+    } catch (LogicError $noMount) {
+        echo $noMount->message, "\n";
+    }
+
+    try {
+        Core\Test::request(Core\Http\Method::Get, "/orders", {mount: "/acme", captures: ["tenant" => "Acme"]});
+    } catch (LogicError $keyed) {
+        echo $keyed->message, "\n";
+    }
+}
+--EXPECT--
+prefix /acme/eu captures 2 [Acme] [eu]
+prefix /shop captures 0
+prefix  captures 0
+Core\Test::request(): `captures` needs a `mount` — the captures are parts of the prefix a request came in under, and the root has no pattern to capture
+Core\Test::request(): `captures` must be a list — `{1}` is its first entry, so a key names nothing

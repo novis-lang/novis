@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to test a program that the server mounts through a pattern, one shop for each name.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. The server mounts it at `/shops/{1}`,
+    // so `captures()[0]` is the name of the shop.
+    var $shop = Core\Request::mount()->captures()[0];
+    echo "Welcome to ", $shop;
+} catch (LogicError $noRequest) {
+    // `mount` is the prefix of this request. `captures` is the part of the
+    // prefix that `{1}` matched.
+    var $response = Test::request(Method::Get, "/", {mount: "/shops/blue", captures: ["blue"]});
+
+    // This prints `Welcome to blue`.
+    echo $response->body(), "\n";
+
+    // `captures` needs `mount`. This prints `captures need a mount`.
+    try {
+        Test::request(Method::Get, "/", {captures: ["blue"]});
+    } catch (LogicError $error) {
+        echo "captures need a mount\n";
+    }
+}

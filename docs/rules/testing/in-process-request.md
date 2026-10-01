@@ -6,9 +6,12 @@ answering it is the entry that asked, so a second would answer itself forever, a
 the door rather than at a depth ceiling that would report an engine limit instead of the mistake.
 
 The signature is `Core\Test::request(Core\Http\Method $method, string $path, {headers?:
-array<string>, body?: string|bytes, mount?: string}): Core\Test\Response`. A `?` in `$path` starts
-the query. A `body` that is not given is no body, which is not an empty one. `mount` is the prefix
-the request came in under, `""` for the root.
+array<string>, body?: string|bytes, mount?: string, captures?: array<string>}):
+Core\Test\Response`. A `?` in `$path` starts the query. A `body` that is not given is no body, which
+is not an empty one. `mount` is the prefix the request came in under, `""` for the root, and
+`captures` is the list `Core\Request\Mount::captures()` reads back, `{1}` first. The two are one
+mount row, so `captures` without a `mount`, or keyed by anything but position, is a `LogicError`:
+the root has no pattern to capture.
 
 The response is a `Core`-owned instance whose readings are members, so a status is `status()` and
 never a property: `status(): uint`, `body(): string`, `header(string $name): ?string`, `headers():

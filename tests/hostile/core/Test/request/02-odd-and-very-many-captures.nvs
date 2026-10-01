@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a test sends requests with very many, very long, empty and keyed captures, and with
+// captures but no mount. Each request should be answered or throw an error the test can catch.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    var $parts = Core\Request::mount()->captures();
+    echo Core\Arr::count($parts);
+} catch (LogicError $noRequest) {
+    // 1. 100000 captures in one request.
+    array<string> $many = [];
+    uint $n = 0;
+    while ($n < 100000) {
+        $many[] = "part{$n}";
+        $n = $n + 1;
+    }
+    echo 'many: ', Test::request(Method::Get, '/', { mount: '/a', captures: $many })->body(), "\n";
+
+    // 2. One capture of one megabyte, and empty captures.
+    array<string> $long = [Core\Str::repeat('x', 1048576)];
+    echo 'long: ', Test::request(Method::Get, '/', { mount: '/a', captures: $long })->body(), "\n";
+    array<string> $empty = ['', '', ''];
+    echo 'empty: ', Test::request(Method::Get, '/', { mount: '/a', captures: $empty })->body(), "\n";
+
+    // 3. Captures with no mount, and an empty mount. Each throws a `LogicError`,
+    // and it is caught so the next step still runs.
+    array<string> $one = ['a'];
+    try {
+        Test::request(Method::Get, '/', { captures: $one });
+    } catch (LogicError $noMount) {
+        echo "no mount: refused\n";
+    }
+    try {
+        Test::request(Method::Get, '/', { mount: '', captures: $one });
+    } catch (LogicError $emptyMount) {
+        echo "empty mount: refused\n";
+    }
+
+    // 4. Captures with string keys and with keys that skip a position.
+    array<string> $named = ['tenant' => 'a'];
+    array<string> $gap = [0 => 'a', 2 => 'c'];
+    array<array<string>> $bothKeyed = [$named, $gap];
+    foreach ($bothKeyed as array<string> $keyed) {
+        try {
+            Test::request(Method::Get, '/', { mount: '/a', captures: $keyed });
+        } catch (LogicError $notAList) {
+            echo "keyed: refused\n";
+        }
+    }
+
+    // 5. 1000 requests in a row, each with captures.
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 1000) {
+        $total = $total + Core\Str::length(Test::request(Method::Get, '/', { mount: '/a', captures: $one })->body());
+        $i = $i + 1;
+    }
+    echo 'repeated: ', $total, "\n";
+}
