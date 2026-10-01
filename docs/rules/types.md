@@ -250,7 +250,9 @@ size-computation bug. Code that wants unbounded magnitude declares `float`, or c
 
 Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
 position** — an argument, a return, an assignment, a field of an object literal, an element of an
-array literal, or the far side of an arithmetic operator. It never reaches the field of a shape value
+array literal, or the far side of an arithmetic operator. A position whose type is a union holding
+`float` is a `float` position for an `int` or `uint` value the union does not name, and a union value
+such as a `?int` converts by its run-time tag. It never reaches the field of a shape value
 or object that already exists, because that value is shared and its field is not converted
 ([`types/shape-type`](types.md#types-shape-type)). It never reaches the elements of an array that already exists either: they
 keep the representation they were stored with, so an `array<int>` is not an `array<float>`, and
@@ -264,7 +266,7 @@ Everything else is a diagnostic. `mixed` never absorbs implicitly in either dire
 ([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
 so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md), [0239](../decisions/0239.md).</sub>
 
 <a id="types-decimal"></a>
 

@@ -81,7 +81,7 @@ use self::{
 // the split: the same names, at the same path, whichever module now holds
 // them.
 pub(crate) use self::{
-    assign::{check_return, is_assignable, report_mismatch},
+    assign::{check_return, is_assignable, note_float_widening_at, report_mismatch},
     iteration::{check_foreach_inout, check_foreach_key, check_foreach_value, foreach_source},
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
     members::{
@@ -155,7 +155,9 @@ pub(crate) fn check_expr(
         if wants_callable && report_non_callable_value_if_applicable(expr, env) {
             return actual;
         }
-        if !is_assignable(actual, expected_id, env.interner, env.graph, env.signatures) {
+        if is_assignable(actual, expected_id, env.interner, env.graph, env.signatures) {
+            assign::note_float_widening(expr, actual, expected_id, env);
+        } else {
             report_mismatch(expr.span, expected_id, actual, env);
         }
     }

@@ -932,6 +932,7 @@ fn declared_shape(expected: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
                 .copied()
                 .filter(|member| matches!(env.interner.get(*member), Ty::Shape(_)));
             match (shapes.next(), shapes.next()) {
+                note_float_widening(&field.value, inferred, declared, env);
                 (Some(only), None) => Some(only),
                 _ => None,
             }

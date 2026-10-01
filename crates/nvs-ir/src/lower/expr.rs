@@ -60,6 +60,74 @@ impl<'a> Lowering<'a> {
         if let Some((v, ty)) = self.staged(expr.span) {
             return (v, ty);
         }
+        // A value the checker accepted at a union naming `float` only through
+        // the `int` → `float` row. Such a union is tagged, so the position's
+        // own `Self::coerce` would tag the integer as an integer; the
+        // conversion happens here instead, for every position at once.
+        if self.exprs.widens_to_float(expr.span) {
+            let (v, ty) = self.lower_expr_kind(expr, expected, env, cur);
+            return self.widen_marked_to_float(v, ty, env, *cur);
+        }
+        self.lower_expr_kind(expr, expected, env, cur)
+    }
+
+    /// The `int` or `uint` value `v` converted to a `float`, for a value
+    /// [`Self::lower_expr`] found marked by
+    /// `nvs_types::expr_table::ExprTypeTable::widens_to_float`. A static
+    /// integer takes [`Self::coerce`]'s own row, which throws above 2^53. A
+    /// [`Ty::Tagged`] value, from a union such as `?int`, takes
+    /// [`Helper::TaggedWidenToFloat`], which converts an integer tag the same
+    /// way and returns every other value unchanged, with the same reference.
+    /// Anything else is returned as it is.
+    fn widen_marked_to_float(
+        &mut self,
+        v: ValueId,
+        ty: Ty,
+        env: &mut Env,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
+        match ty {
+            Ty::Int | Ty::Uint => (self.coerce(cur, v, ty, Ty::Float, env), Ty::Float),
+            Ty::Tagged => self.emit_fallible(
+                cur,
+                Ty::Tagged,
+                InstKind::HelperCall {
+                    helper: Helper::TaggedWidenToFloat,
+                    args: vec![v],
+                },
+                env,
+            ),
+            _ => (v, ty),
+        }
+    }
+
+    /// [`Self::widen_marked_to_float`] for a binding that stores a value with
+    /// no expression of its own: a `foreach` value binding and a
+    /// destructuring leaf, marked at the binding's span. An unmarked binding
+    /// returns `v` and `ty` unchanged.
+    pub(crate) fn widen_marked_binding(
+        &mut self,
+        span: Span,
+        v: ValueId,
+        ty: Ty,
+        env: &mut Env,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
+        if self.exprs.widens_to_float(span) {
+            self.widen_marked_to_float(v, ty, env, cur)
+        } else {
+            (v, ty)
+        }
+    }
+
+    /// [`Self::lower_expr`]'s dispatch on the expression's kind.
+    fn lower_expr_kind(
+        &mut self,
+        expr: &Expr,
+        expected: Option<Ty>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
         match &expr.kind {
             // `(expr)` is fully transparent — `nvs_types::expr::check_expr`'s
             // own `ExprKind::Paren` arm just recurses with the same

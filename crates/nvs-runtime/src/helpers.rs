@@ -1743,6 +1743,33 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::TaggedWidenToFloat` — a value stored at a union that
+    /// names `float` and not the value's integer type. An `int` or `uint` is
+    /// converted as [`nvs_int_to_float`] and [`nvs_uint_to_float`] convert it,
+    /// and throws above 2^53. Every other value is returned as it is: the
+    /// result is the operand's own reference, so a refcounted payload is
+    /// neither retained nor released here.
+    fn nvs_tagged_widen_to_float(_ctx, args: [1]) {
+        let value = args[0];
+        match value.tag() {
+            Some(Tag::Int) => {
+                let n = value.as_int().unwrap_or_default();
+                row::int_to_float(n)
+                    .map(Value::float)
+                    .ok_or_else(|| numeric_does_not_fit(&format!("`int` {n}"), "float"))
+            }
+            Some(Tag::Uint) => {
+                let n = value.as_uint().unwrap_or_default();
+                row::uint_to_float(n)
+                    .map(Value::float)
+                    .ok_or_else(|| numeric_does_not_fit(&format!("`uint` {n}"), "float"))
+            }
+            _ => Ok(value),
+        }
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::ToIntOrNull` — `rule:expressions/nullable-conversion`'s non-throwing form of
     /// [`nvs_tagged_to_int`], sharing [`to_int`]'s one implementation of every
     /// row.
@@ -3061,6 +3088,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_tagged_to_int", address(nvs_tagged_to_int)),
         ("nvs_tagged_to_uint", address(nvs_tagged_to_uint)),
         ("nvs_tagged_to_float", address(nvs_tagged_to_float)),
+        (
+            "nvs_tagged_widen_to_float",
+            address(nvs_tagged_widen_to_float),
+        ),
         ("nvs_to_int_or_null", address(nvs_to_int_or_null)),
         ("nvs_to_uint_or_null", address(nvs_to_uint_or_null)),
         ("nvs_to_float_or_null", address(nvs_to_float_or_null)),

@@ -4094,6 +4094,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::TaggedToInt => "nvs_tagged_to_int",
         Helper::TaggedToUint => "nvs_tagged_to_uint",
         Helper::TaggedToFloat => "nvs_tagged_to_float",
+        Helper::TaggedWidenToFloat => "nvs_tagged_widen_to_float",
         Helper::TaggedToBytes => "nvs_tagged_to_bytes",
         Helper::ToArrayOf => "nvs_to_array_of",
         Helper::ToArrayOfOrNull => "nvs_to_array_of_or_null",

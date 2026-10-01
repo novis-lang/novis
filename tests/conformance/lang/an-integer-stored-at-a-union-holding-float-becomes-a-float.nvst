@@ -1,0 +1,135 @@
+--TEST--
+An `int` or `uint` stored where the declared type is a union that holds `float` but not the integer's own type becomes a `float`, at every storing position, and a union value converts by its run-time tag, stopping at 2^53 — `rule:types/implicit-widening`
+--FILE--
+<?nvs
+// covers: lang:types/widening-without-as
+
+type Size = {w: float, h: ?float};
+
+final class Shop
+{
+    public ?float $price = null;
+    public static ?float $rate = null;
+
+    public static function kind(mixed $value): string
+    {
+        return $value is float ? 'float' : ($value is int ? 'int' : 'other');
+    }
+
+    public static function nullable(?float $value): string
+    {
+        return self::kind($value);
+    }
+
+    public static function either(float|string $value): string
+    {
+        return self::kind($value);
+    }
+
+    public static function sized(float|Size $value): string
+    {
+        return self::kind($value);
+    }
+
+    public static function many(?float ...$values): string
+    {
+        string $out = '';
+        foreach ($values as ?float $value) {
+            $out .= self::kind($value) . ';';
+        }
+        return $out;
+    }
+
+    public static function back(): ?float
+    {
+        return 3;
+    }
+
+    public static function backEither(): float|string
+    {
+        return 4;
+    }
+}
+
+// A literal argument, at three kinds of union parameter, and through a variadic.
+echo Shop::nullable(3), ' ', Shop::either(3), ' ', Shop::sized(3), "\n";
+echo Shop::many(1, 2.5, null), "\n";
+
+// An `int` variable and a `uint` variable as arguments.
+int $count = 3;
+uint $small = 5;
+echo Shop::nullable($count), ' ', Shop::nullable($small), "\n";
+
+// A local declaration and a later assignment.
+?float $local = 3;
+$local = 4;
+echo Shop::kind($local), ' ', ($local ?? 0.0) / 8, "\n";
+
+// A property and a static property.
+Shop $shop = new Shop();
+$shop->price = 3;
+Shop::$rate = 6;
+echo Shop::kind($shop->price), ' ', Shop::kind(Shop::$rate), "\n";
+
+// A shape field and an array element, in a literal and by assignment.
+Size $size = {w: 1, h: 2};
+array<?float> $list = [1, null];
+$list[1] = 2;
+$list[] = 3;
+echo ($size->h ?? 0.0) / 4, ' ', Shop::kind($list[0]), ' ', Shop::kind($list[1]), ' ', Shop::kind($list[2]), "\n";
+
+// A returned literal, at `?float` and at `float|string`.
+echo Shop::kind(Shop::back()), ' ', Shop::kind(Shop::backEither()), "\n";
+
+// `??=` stores a float when the variable is `null`.
+?float $missing = null;
+$missing ??= 3;
+echo Shop::kind($missing), "\n";
+
+// A union value converts by its run-time tag. A string stays a string.
+?int $maybe = 3;
+int|string $word = 'w';
+int|string $number = 7;
+float|string $first = $word;
+float|string $second = $number;
+echo Shop::nullable($maybe), ' ', Shop::kind($first), ' ', Shop::kind($second), "\n";
+
+// A `foreach` binding and a destructuring leaf over an `array<int>`.
+array<int> $ints = [1, 2];
+foreach ($ints as ?float $each) {
+    echo Shop::kind($each), ' ';
+}
+[?float $left, ?float $right] = $ints;
+echo Shop::kind($left), ' ', Shop::kind($right), "\n";
+
+// A union that names `int` keeps the `int`.
+int|float $mixed = 3;
+echo Shop::kind($mixed), "\n";
+
+// Above 2^53 the conversion throws, for a literal and for a `?int` value.
+try {
+    ?float $big = 9007199254740993;
+    echo 'stored ', $big ?? 0.0, "\n";
+} catch (ArithmeticError $e) {
+    echo $e->message, "\n";
+}
+try {
+    ?int $large = 9007199254740993;
+    echo Shop::nullable($large), "\n";
+} catch (ArithmeticError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+float float float
+float;float;other;
+float float
+float 0.5
+float float
+0.5 float float float
+float float
+float
+float other float
+float float float float
+int
+cannot convert `int` 9007199254740993 to `float`
+cannot convert `int` 9007199254740993 to `float`

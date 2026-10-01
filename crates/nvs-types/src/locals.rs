@@ -1572,6 +1572,7 @@ fn walk_destructure_target(
                             },
                         );
                     } else {
+                        crate::expr::note_float_widening_at(*span, elem_ty, declared, env);
                         report_mismatch(*span, declared, elem_ty, env);
                     }
                 }
