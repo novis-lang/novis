@@ -1,7 +1,7 @@
 <?nvs
-// A whole number that will not fit is refused, never wrapped around into a small
-// or negative one. The message names the operation that could not answer, so a
-// log line says which step of the sum gave up rather than only that it did.
+// A whole number that is too large throws an `ArithmeticError`. It never wraps
+// around to a small or negative number. The message names the operation that
+// failed: here it is "Integer multiplication overflowed".
 
 int $bytesPerRow = 4000000000;
 array<int> $rowCounts = [2, 3000000000];

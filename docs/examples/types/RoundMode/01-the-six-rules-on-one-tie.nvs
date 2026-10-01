@@ -1,7 +1,7 @@
 <?nvs
-// A tie is a value with no nearer neighbour — 2.5 is as far from 2 as it is
-// from 3. Each of the six rules settles it differently, and this shows all six
-// on the same pair of numbers, one positive and one negative.
+// This program rounds the same numbers with all six rounding modes.
+// A tie is a value exactly halfway between two whole numbers. 2.5 is as far from 2 as from 3.
+// Each mode rounds a tie in its own way.
 
 class Rules {
     public static function label(Core\RoundMode $rule): string {
@@ -32,9 +32,8 @@ foreach ($rules as Core\RoundMode $rule) {
         "\n";
 }
 
-// A value that is not a tie has a nearer neighbour, and the four rules that
-// only decide ties all go there. The last two are not about ties at all, so
-// they move this one too.
+// 2.4 is not a tie, so the four `Half` modes all round it to 2.
+// `Up` always rounds away from zero, so it gives 3. `Down` always rounds toward zero.
 echo "\n";
 foreach ($rules as Core\RoundMode $rule) {
     echo Rules::label($rule), "  2.4 -> ", Core\Math::round(2.4, {mode: $rule}), "\n";

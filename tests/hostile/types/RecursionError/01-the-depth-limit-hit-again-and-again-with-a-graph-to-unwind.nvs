@@ -1,8 +1,7 @@
 <?nvs
-// Attack: reach the depth limit over and over, and make each one expensive to
-// undo. Every frame holds a new object, every frame has a finally block to run
-// on the way out, and the handler that catches the error goes straight back
-// down again from inside itself.
+// Attack: a program reaches the recursion limit many times. Each call creates an
+// object and has a `finally` block, so each unwind has a lot of work to do.
+// A `catch` block also starts the next deep recursion. The program should still finish.
 // hostile: timeout-ms 20000
 
 class Load
@@ -19,8 +18,8 @@ class Heavy
 {
     public static function down(uint $depth): uint
     {
-        // One object and one finally per frame, so unwinding the whole stack
-        // has thousands of releases and thousands of blocks to run.
+        // Each call creates one object and has one `finally` block. Unwinding
+        // the stack frees thousands of objects and runs thousands of blocks.
         var $held = new Load();
         try {
             return Heavy::down($depth + 1) + Core\Arr::count($held->rows);
@@ -40,8 +39,8 @@ while ($round < 200) {
 }
 echo "hit two hundred times\n";
 
-// The handler for one runaway starts the next one, so the limit is reached from
-// inside the unwinding of the last time it was reached.
+// The `catch` block starts the next deep recursion. So the limit is reached
+// again while the last error is still being handled.
 class Nested
 {
     public static function again(uint $left): void
@@ -59,9 +58,8 @@ class Nested
 Nested::again(50);
 echo "fifty of them inside each other\n";
 
-// Two classes calling each other, so no single function's frame is what the
-// limit counts, and a closure doing the same thing through a call it cannot
-// see the end of.
+// Two classes that call each other, so no single function calls itself.
+// After that, a closure that calls itself with no end.
 class Ping
 {
     public static function go(uint $depth): uint

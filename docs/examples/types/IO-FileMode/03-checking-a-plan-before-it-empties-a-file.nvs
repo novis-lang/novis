@@ -1,7 +1,7 @@
 <?nvs
-// Before a nightly job opens a list of files, this says which of them it is
-// about to empty and which of them have to exist already. Both of those are
-// decided by the mode alone, so you can check the plan without touching a disk.
+// This program checks a nightly job's files before the job opens them.
+// It prints which files will be emptied and which must already exist.
+// The mode alone decides both, so the check does not read the disk.
 
 class Plan {
     // `Write` empties the file as soon as it is opened, even if nothing is

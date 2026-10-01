@@ -1,7 +1,7 @@
 <?nvs
-// Five cases, and the first three of them are one compressed stream under
-// three different wrappers. Compressing the same text under each shows it:
-// the bare stream is what gzip and zlib each put a few more octets around.
+// Gzip, Zlib and Deflate contain the same compressed data. Gzip and Zlib add a
+// few bytes around it. This program compresses one text with each of them and
+// prints the difference in size.
 
 class Format {
     public static function name(Core\Codec $codec): string {
@@ -26,9 +26,8 @@ echo "Deflate is the stream with nothing around it\n";
 echo "Gzip is that same stream plus ", $gzip - $bare, " octets\n";
 echo "Zlib is that same stream plus ", $zlib - $bare, " octets\n";
 
-// Brotli and Zstd are other algorithms rather than other wrappers. What all
-// five have in common is the only thing that matters when you pick one: each
-// reads back exactly what went in, under its own case.
+// Brotli and Zstd are different compression algorithms. With each of the five
+// codecs, `decompress` returns exactly the original bytes.
 array<Core\Codec> $codecs = [
     Core\Codec::Gzip,
     Core\Codec::Zlib,

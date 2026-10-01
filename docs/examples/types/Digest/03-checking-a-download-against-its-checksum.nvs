@@ -1,13 +1,12 @@
 <?nvs
-// The everyday job: something published a SHA-256 beside a file, and you want
-// to know whether what you have is what they published. The algorithm is the
-// one they named, so it is read from their instructions rather than chosen.
+// A publisher gives a SHA-256 checksum with a file. This program checks that the
+// downloaded file has the same checksum. Always use the algorithm the publisher names.
 
-// What was downloaded, standing in for the file's contents here.
+// This string replaces the contents of the downloaded file.
 string $downloaded = "the release archive";
 
-// The checksum as the publisher wrote it — hex, because that is how a checksum
-// is written down for people to copy.
+// The checksum as the publisher wrote it. A checksum is usually written as hex,
+// so `Core\Encoding::fromHex` converts it to bytes below.
 string $published = "9287352f960eca8487b5cf180199b11a82306e1e6fff02b566d48a229a8ebe32";
 
 bytes $ours = Core\Hash::of($downloaded, Core\Digest::Sha256);
@@ -16,8 +15,8 @@ bytes $theirs = Core\Encoding::fromHex($published);
 if (Core\Hash::equals($ours, $theirs)) {
     echo "checksum matches, the file is the one they published\n";
 } else {
-    // Do not install it and do not try again quietly: either the download
-    // broke, or what is on the server is not what the publisher signed off.
+    // The file is damaged, or it is not the file the publisher released.
+    // Do not install it. Print both checksums so somebody can compare them.
     echo "checksum does not match\n";
     echo "  they published: ", $published, "\n";
     echo "  we have:        ", Core\Encoding::toHex($ours), "\n";

@@ -1,12 +1,10 @@
 <?nvs
-// The question somebody asks about every release: can this one go out on a
-// Tuesday afternoon? The answer is the worst grade anywhere in the plan, so the
-// whole release is judged by its riskiest single step.
+// This program checks whether a release can go out at any time. The answer
+// depends on the worst grade of any step in the release.
 
 class Release {
-    // The grades are compared through a number rather than directly, because a
-    // grade is a name for a kind of risk and this is the one place that treats
-    // them as a ladder.
+    // `rank` gives each grade a number, so two grades can be compared.
+    // A higher number means a riskier step.
     public static function rank(Core\Db\Plan\Grade $grade): int {
         return match ($grade) {
             Core\Db\Plan\Grade::Safe => 0,
@@ -41,7 +39,7 @@ array<Core\Db\Plan\Grade> $small = [
     Core\Db\Plan\Grade::Safe,
 ];
 
-// Next week's, which finally removes the column nothing reads any more.
+// Next week's release removes a column that no code reads.
 array<Core\Db\Plan\Grade> $cleanup = [
     Core\Db\Plan\Grade::Safe,
     Core\Db\Plan\Grade::Destructive,

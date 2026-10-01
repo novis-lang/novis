@@ -1,7 +1,7 @@
 <?nvs
-// A refusal carries more than a sentence. It says which rule was broken, and it
-// hands back the statement the program wrote — so one place can log both, and
-// nothing has to remember what it was doing when it asked.
+// When the database rejects a statement, it throws a `DbError`. Its `kind` says
+// which rule the statement broke, and its `sql` is the statement itself.
+// So one `catch` block can log both.
 
 use Core\Db;
 use Core\Db\DbError;

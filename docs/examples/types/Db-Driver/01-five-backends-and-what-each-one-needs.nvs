@@ -1,7 +1,7 @@
 <?nvs
-// The driver is the first thing a connection's settings name, and it decides
-// what the rest of them have to say. Four of the five are servers you reach
-// over the network. SQLite is a file on the machine your program runs on.
+// The driver is the first setting of a connection. It decides which other
+// settings the connection needs. Four of the five drivers connect to a server
+// over the network. SQLite uses a file on the machine your program runs on.
 
 class Backend {
     public static function label(Core\Db\Driver $driver): string {
@@ -34,9 +34,8 @@ foreach ($everything as Core\Db\Driver $driver) {
     echo Backend::label($driver), " takes ", Backend::needs($driver), "\n";
 }
 
-// MariaDB is a case of its own and not a flag on MySQL. The two log in
-// differently and report errors differently, so a program that treats one as
-// the other is right until the day it is not.
+// MariaDB has its own case, because it logs in and reports errors differently
+// from MySQL. The two cases are not equal, so this prints `no`.
 echo "MySQL and MariaDB are one case: ",
     Core\Db\Driver::MySql == Core\Db\Driver::MariaDb ? "yes" : "no",
     "\n";

@@ -1,9 +1,8 @@
 <?nvs
-// Attack: raise every class on this branch hundreds of thousands of times into
-// a single clause, carry a message of several megabytes on one failure, and
-// climb out of a deep chain that swaps the class at every level. The walk that
-// decides whether a clause matches, and whatever holds the message, are what
-// this is aimed at.
+// Attack: a script throws seven `RuntimeError` subclasses 400,000 times into one `catch` block.
+// It throws one error with a message of several megabytes. Then it throws through a deep
+// chain that changes the error class at every level. Every error should be caught,
+// and the script should finish without a crash.
 // hostile: timeout-ms 30000
 
 use Core\Cli\NotInteractive;
@@ -12,8 +11,7 @@ use Core\Db\RolledBack;
 
 final class Wide
 {
-    // Seven classes in turn, one clause for all of them, so every round makes
-    // the matcher walk a different distance to the same answer.
+    // 1. Throw seven different subclasses in turn. One `catch (RuntimeError ...)` must catch them all.
     public static function everyKind(int $rounds): uint
     {
         uint $caught = 0;
@@ -29,7 +27,7 @@ final class Wide
                 if ($which == 5) { throw new RolledBack('rolled back'); }
                 throw new DbError('db');
             } catch (RuntimeError $theWorld) {
-                // The message is read, so a run cannot pass by never building one.
+                // This reads the message, so every error must have a real message.
                 $caught = $caught + Core\Str::length($theWorld->message);
             }
             $i = $i + 1;
@@ -37,8 +35,7 @@ final class Wide
         return $caught;
     }
 
-    // One failure carrying megabytes of text, thrown across a frame and read on
-    // the other side.
+    // 2. Throw one error with a message of several megabytes, then catch it and read the message.
     public static function hugeMessage(uint $doublings): uint
     {
         string $text = 'the provider said no. ';
@@ -54,9 +51,8 @@ final class Wide
         }
     }
 
-    // Every level catches what the level under it threw and raises a different
-    // class of the same branch, so the chain holds a live failure per frame and
-    // no two neighbours are the same class.
+    // 3. Each level catches the error from the level below and throws a new one.
+    // Two levels next to each other never throw the same class.
     public static function swap(int $depth): string
     {
         if ($depth == 0) {
@@ -81,8 +77,8 @@ try {
     echo "the swap chain ended\n";
 }
 
-// And deeper than the call stack allows, so the limit fires with every one of
-// those frames still to unwind.
+// 4. Run the same chain deeper than the call stack allows.
+// The stack limit throws an error, and the `catch (Throwable ...)` below catches it.
 try {
     echo Wide::swap(200000), "\n";
 } catch (Throwable $gaveUp) {

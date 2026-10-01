@@ -1,7 +1,6 @@
 <?nvs
-// The everyday job: a form that takes a photo or a PDF and nothing else. The
-// check asks what the bytes are, so a file named `.png` that is really an
-// archive is refused — which is the whole reason to check this way.
+// An upload form that accepts only a photo or a PDF. The check reads the bytes,
+// not the file name. So `setup.png`, which is really a zip archive, is not accepted.
 
 class Upload {
     public static function accepted(Core\Mime\Type $found): bool {

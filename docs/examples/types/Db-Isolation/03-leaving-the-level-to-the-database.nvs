@@ -1,16 +1,14 @@
 <?nvs
-// Most of the time you name no level at all, and that is a choice rather than
-// an oversight: the transaction then runs at the level the people who set the
-// database up decided on. Naming one overrules them, so a piece of work that
-// does it should be able to say why.
+// If you do not pass an isolation level, the transaction uses the database's
+// default level. Pass a level only for work that needs a stricter one.
 
 class Checkout {
-    // A missing answer means "leave it alone", which is what the `isolation`
-    // option does when it is not passed.
+    // `levelFor` returns `null` for a step that uses the default level.
+    // This is the same as not passing the `isolation` option.
     public static function levelFor(string $step): ?Core\Db\Isolation {
         return match ($step) {
-            // The one step in a checkout that must not sell the same last item
-            // twice: it reads the stock and writes the order together.
+            // This step reads the stock and writes the order. It must not sell
+            // the last item twice, so it needs `Serializable`.
             "take the payment and reserve the stock" => Core\Db\Isolation::Serializable,
             default => null,
         };
@@ -28,9 +26,8 @@ foreach ($steps as string $step) {
     if ($level == null) {
         echo $step, ": whatever the database is set to\n";
     } else {
-        // There is one level worth asking for here, and it is asked for by
-        // name. The cases are not a ladder you can climb: a level either
-        // describes what this step needs or it does not.
+        // Only one step returns a level here, and that level is `Serializable`.
+        // The program names it directly.
         echo $step, ": Serializable, and nothing weaker will do\n";
     }
 }

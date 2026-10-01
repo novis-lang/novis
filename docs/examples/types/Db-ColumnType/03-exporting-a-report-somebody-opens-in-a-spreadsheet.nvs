@@ -1,13 +1,10 @@
 <?nvs
-// The export a support team asks for every month. The columns of the query
-// decide what goes in the file: dates get a plain format somebody's
-// spreadsheet understands, a stored file is named and not pasted in, and
-// everything else goes out as it reads.
+// This program plans an export to a file that somebody opens in a spreadsheet.
+// The type of each column decides how that column is written to the file.
 
 class Export {
-    // What this column becomes in the file. Deciding it from the column and
-    // not from the first row means an empty result still writes a correct
-    // header, and one odd row cannot change the shape of the file.
+    // `rule` returns how a column of this type is written. It uses the column
+    // type and not the first row, so an empty result still gets a correct header.
     public static function rule(Core\Db\ColumnType $type): string {
         return match ($type) {
             Core\Db\ColumnType::Bytes => "left out, with the size written instead",
@@ -20,8 +17,8 @@ class Export {
         };
     }
 
-    // A column the file cannot carry is worth saying out loud once, so the
-    // person who asked for the export is not left wondering where it went.
+    // `carried` returns `true` if the column goes into the file.
+    // The last line prints how many columns do. Here it prints `4 of 5`.
     public static function carried(Core\Db\ColumnType $type): bool {
         return $type != Core\Db\ColumnType::Bytes && $type != Core\Db\ColumnType::Other;
     }

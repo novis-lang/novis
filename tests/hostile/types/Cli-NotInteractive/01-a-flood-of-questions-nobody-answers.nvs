@@ -1,14 +1,13 @@
 <?nvs
-// Attack: ask hundreds of thousands of questions where there is nobody to
-// answer, ask one whose text is megabytes long, and then carry the refusal up
-// through a deep chain of calls. Anything kept per question — the text, the
-// terminal it tried to reach, the failure itself — grows without limit here.
+// Attack: call `Core\Cli::ask` many times with no terminal, then with a question
+// that is megabytes long. Then rethrow the error through a deep chain of calls.
+// The memory for each call should be freed, and the program should finish in time.
 // hostile: timeout-ms 30000
 
 final class Nobody
 {
-    // Every round asks and is refused. A run that held on to one handle, one
-    // message or one probe per question would not finish this.
+    // Each round calls `ask`, which throws `Core\Cli\NotInteractive`. The handle,
+    // the message and the terminal check of each round should be freed.
     public static function churn(int $rounds): uint
     {
         uint $kept = 0;
@@ -18,7 +17,7 @@ final class Nobody
                 tainted string $said = Core\Cli::ask('who is there?');
                 $kept = $kept + Core\Str::length($said);
             } catch (Core\Cli\NotInteractive $none) {
-                // The message is read, so a run cannot pass by never building one.
+                // The code reads the message, so every error must create its message.
                 if (Core\Str::length($none->message) > 0) {
                     $kept = $kept + 1;
                 }
@@ -28,9 +27,8 @@ final class Nobody
         return $kept;
     }
 
-    // One question of a few megabytes. The text is prepared for a terminal that
-    // is not there, so nothing should be written and nothing should be copied
-    // more than the once.
+    // One question of a few megabytes. There is no terminal, so `ask` should
+    // write nothing and copy the text at most once.
     public static function huge(int $doublings): uint
     {
         string $question = 'who is there? ';
@@ -47,9 +45,8 @@ final class Nobody
         }
     }
 
-    // Every frame catches what the frame under it was refused and throws a
-    // fresh refusal carrying the same message, so the chain holds as many live
-    // failures as it is deep.
+    // Each frame catches the error from the frame below it and throws a new one
+    // with the same message. A deep chain has one live error per frame.
     public static function rethrow(int $depth): bool
     {
         if ($depth == 0) {

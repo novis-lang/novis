@@ -1,7 +1,6 @@
 <?nvs
-// A route says which verb it answers, and the same path under another verb is
-// a different route. Asking the router for a verb and a path tells you which
-// one of your routes would be called.
+// Each route has one HTTP verb. The same path with another verb is a different route.
+// `Core\Router::match` takes a verb and a path and returns the route that would be called.
 
 class Pages {
     // Every route also says who may reach it. `Public` means anybody.
@@ -14,7 +13,7 @@ class Pages {
     public function create(): string { return "made"; }
 }
 
-// Reading a page. Asking does not call anything — you get the route back and
+// Reading a page. `match` does not call the route. It returns the route, and you
 // decide what to do with it.
 ?Core\Router\Match $read = Core\Router::match(Core\Http\Method::Get, "/pages/intro");
 if ($read != null) {
@@ -27,8 +26,8 @@ if ($made != null) {
     echo "post /pages       -> ", $made->name() ?? "unnamed", "\n";
 }
 
-// The right path under the wrong verb matches nothing. Nobody declared a
-// `Post` at `/pages/intro`, so there is no route to call.
+// The right path with the wrong verb matches nothing. No route is declared for
+// `Post` at `/pages/intro`, so the result is `null`.
 ?Core\Router\Match $wrong = Core\Router::match(Core\Http\Method::Post, "/pages/intro");
 if ($wrong == null) {
     echo "post /pages/intro -> no route\n";

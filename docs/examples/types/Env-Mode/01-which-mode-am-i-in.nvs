@@ -1,7 +1,7 @@
 <?nvs
-// Asks which deployment this program is running in and does something
-// different in each. Nothing is configured here, so the answer is production
-// — that is what a program gets until somebody asks for the other mode.
+// This program checks which mode it runs in and does something different in each.
+// Nothing is configured here, so `Core\Env::mode()` returns `Production`.
+// A program is in `Production` until somebody sets the other mode.
 
 Core\Env\Mode $mode = Core\Env::mode();
 
@@ -10,8 +10,7 @@ echo match ($mode) {
     Core\Env\Mode::Development => "development: show me everything\n",
 };
 
-// There are only two modes, so an `if` is enough when you care about one of
-// them and not the other.
+// There are only two modes. An `if` is enough when only one of them matters.
 if ($mode == Core\Env\Mode::Development) {
     echo "loading the sample customers\n";
 } else {

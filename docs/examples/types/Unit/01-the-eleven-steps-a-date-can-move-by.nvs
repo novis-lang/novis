@@ -1,7 +1,6 @@
 <?nvs
-// The eleven steps a date can move by, smallest first. Every line starts from
-// the same moment and moves it forward by one step, so the table says what
-// each step is worth.
+// This program adds one of each of the eleven units to the same date and time.
+// The units go from smallest to largest.
 
 var $utc = Core\Time\Zone::UTC;
 var $start = Core\Time::at(2024, 1, 31, $utc, {hour: 9, minute: 0});
@@ -27,6 +26,5 @@ foreach ($steps as string $name => Core\Unit $step) {
     echo "one ", $name, " later: ", $start->plus(1, $step)->format($fmt), "\n";
 }
 
-// The month line does not land on 31 February, because there is no such day:
-// the day number is clamped to the month it arrives in. The next example is
-// about that.
+// One month after 31 January is 29 February, because 31 February does not exist.
+// The day changes to the last day of the new month.

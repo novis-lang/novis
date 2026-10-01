@@ -1,7 +1,6 @@
 <?nvs
-// A heat map is drawn in shades of one colour. How many shades there are to
-// draw with is the one thing that changes with the terminal, so it is worth
-// asking. Here is what each of the four answers is worth.
+// This program picks how many shades of one colour a heat map uses for each
+// `Core\Cli\ColorDepth` case.
 
 class HeatMap {
     public static function shades(Core\Cli\ColorDepth $depth): int {
@@ -26,8 +25,7 @@ foreach ($everything as Core\Cli\ColorDepth $depth) {
     echo HeatMap::shades($depth), " shade(s)\n";
 }
 
-// In a real program only one of those four is yours, and this is where it
-// comes from. It goes to standard error, the stream for notes, because it is a
-// fact about the screen rather than part of the answer.
+// `Core\Cli::colorDepth()` returns the colour depth of the current terminal.
+// This note goes to standard error, because it is not part of the result.
 Core\Cli::write("this run has " . HeatMap::shades(Core\Cli::colorDepth()) . " shade(s)",
                 {stream: Core\Cli\Stream::Err, newline: true});

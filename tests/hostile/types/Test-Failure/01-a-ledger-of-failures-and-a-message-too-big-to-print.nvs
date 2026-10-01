@@ -1,9 +1,7 @@
 <?nvs
-// Attack: fail a check a hundred thousand times, then fail one with a message
-// megabytes long, then carry a failure up through a deep chain of frames that
-// each catch it and throw a fresh one. Every failed check both throws a value
-// that keeps its whole message and writes an entry into a ledger the test
-// cannot reach, so anything held per failure grows without limit here.
+// Attack: a test fails a check 100,000 times, then fails one with a message of several megabytes.
+// Then 20,000 levels each catch a failure and throw a new one. The test records every failure,
+// so memory could grow without a limit. The script should finish without a crash.
 // hostile: timeout-ms 60000
 
 use Core\Test;
@@ -11,9 +9,8 @@ use Core\Test\Failure;
 
 final class Pile
 {
-    // One failed check per round, caught and read. The ledger is the half no
-    // program can clear, so this is the question of what a test that fails a
-    // hundred thousand times costs the runner that has to report it.
+    // Fail one check per round and catch it. The catch does not clear the test's record,
+    // so the record grows by one failure each round.
     public static function churn(int $rounds): uint
     {
         uint $read = 0;
@@ -22,7 +19,7 @@ final class Pile
             try {
                 Test::assertTrue(false, { message: 'round after round' });
             } catch (Failure $failed) {
-                // Read, so a run cannot pass by never building the message.
+                // This reads the message, so every failure must have a real message.
                 if (Core\Str::length($failed->message) > 0) {
                     $read = $read + 1;
                 }
@@ -32,9 +29,8 @@ final class Pile
         return $read;
     }
 
-    // One failure whose own message is a few megabytes. The check puts the
-    // given text in front of its own, so this asks whether that text is kept
-    // once or copied at every step on the way out.
+    // Fail one check with a message of several megabytes. The check adds its own text
+    // after this message, and the long text should not be copied again at every step.
     public static function huge(int $doublings): uint
     {
         string $note = "and here is more about what went wrong\n";
@@ -51,9 +47,8 @@ final class Pile
         }
     }
 
-    // Every frame catches what the frame under it failed with and throws a
-    // fresh failure carrying the same message, so the chain holds as many live
-    // failures as it is deep.
+    // Each level catches the failure from the level below and throws a new one with the same message.
+    // Every level keeps its own failure until the chain ends.
     public static function rethrow(int $depth): bool
     {
         if ($depth == 0) {
@@ -67,9 +62,8 @@ final class Pile
         }
     }
 
-    // A body that fails is discharged from the ledger, so this removes as many
-    // entries as the loop above added and asks whether the two paths agree
-    // about what an entry is.
+    // Each `expectFailure` call records a failure and then removes it from the test's record.
+    // Adding and removing must stay correct over 100,000 rounds.
     public static function discharge(int $rounds): uint
     {
         uint $done = 0;

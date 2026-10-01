@@ -1,8 +1,7 @@
 <?nvs
-// Settings that arrived from somewhere outside your program land in a `mixed`,
-// because nobody can promise what is in them. Checking each one against the
-// kind you meant to read is a few lines, and it happens at startup instead of
-// at three in the morning.
+// Settings from outside your program are stored as `mixed`, because their types
+// are not known. This program checks each setting against the kind it should have.
+// You can run this check when the program starts.
 
 class Settings {
     public static function name(Core\Reflect\TypeKind $kind): string {
@@ -31,8 +30,7 @@ array<mixed> $arrived = [
     "unitPrice" => $priceAsWritten,
 ];
 
-// What each setting is read as further in. This is the part worth writing
-// down: it is the same list the rest of the program already assumes.
+// The kind that the rest of the program expects for each setting.
 array<Core\Reflect\TypeKind> $expected = [
     "port" => Core\Reflect\TypeKind::Int,
     "host" => Core\Reflect\TypeKind::Text,
@@ -54,6 +52,6 @@ foreach ($arrived as string $setting => mixed $value) {
     }
 }
 
-// `debug` is the one somebody typed by hand, and the word "yes" is text and
-// not a yes. Refusing to start beats starting with debugging quietly off.
+// `debug` is `"yes"`, which is text and not a `Bool`. This program only prints the count.
+// A real program can stop at startup when the count is not 0.
 echo "\n", $wrong, " setting(s) are not what this program reads\n";

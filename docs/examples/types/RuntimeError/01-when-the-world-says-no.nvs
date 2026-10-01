@@ -1,7 +1,7 @@
 <?nvs
-// A program raises this itself when something outside it refused. Here the
-// rate for a currency is not one the provider sends, which is nothing the code
-// can fix, so the caller is told rather than left with a wrong number.
+// This program throws a `RuntimeError` when something outside the program fails.
+// The rate feed has no rate for `SEK`. The code cannot fix that,
+// so it throws the error and the caller catches it.
 
 final class Rates {
     public static function forCurrency(string $code): int {

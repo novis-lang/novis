@@ -1,7 +1,6 @@
 <?nvs
-// A deployment reads the grade of every step and applies only the safe ones.
-// The rest are not skipped and not forgotten — they go to whoever is going to
-// watch them run.
+// A deployment reads the grade of every step and applies only the `Safe` steps.
+// It gives every other step to a person, who watches it run.
 
 array<{step: string, grade: Core\Db\Plan\Grade}> $plan = [
     {step: "create table invoices", grade: Core\Db\Plan\Grade::Safe},

@@ -1,9 +1,7 @@
 <?nvs
-// A key arrives in one encoding and leaves in another. A browser hands over
-// the bare point, the service that stores it keeps DER, and the page that
-// publishes it wants JSON — and it is one key the whole way through, because
-// each encoding is written from the key rather than from the octets that
-// carried it in.
+// A key can be read in one format and written in another. Each format is written
+// from the key itself, so the key stays the same. This program reads DER, writes
+// the raw point and JSON, and reads both back.
 
 string $der = "3059301306072a8648ce3d020106082a8648ce3d030107034200"
     . "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c49"
@@ -16,9 +14,8 @@ Core\Crypto\PublicKey $stored = Core\Crypto\PublicKey::read(
     Core\Crypto\KeyFormat::Spki
 );
 
-// Give the browser the encoding it asked for, and take it back again later in
-// that same encoding. Reading says which one the octets are in; there is
-// nothing to sniff and nothing to guess.
+// The browser gets the raw point and sends it back later. `PublicKey::read`
+// needs the format of the bytes as an argument.
 bytes $forTheBrowser = $stored->write(Core\Crypto\KeyFormat::Raw);
 Core\Crypto\PublicKey $returned = Core\Crypto\PublicKey::read(
     $forTheBrowser,
@@ -32,7 +29,7 @@ if (Core\Encoding::toHex($returned->write(Core\Crypto\KeyFormat::Spki)) == $der)
     echo "the raw point came back as another key", "\n";
 }
 
-// The same round through JSON, which a key published on the web takes.
+// The same test with JSON, the format for keys published on the web.
 Core\Crypto\PublicKey $viaJson = Core\Crypto\PublicKey::read(
     $stored->write(Core\Crypto\KeyFormat::Jwk),
     Core\Crypto\KeyKind::P256,

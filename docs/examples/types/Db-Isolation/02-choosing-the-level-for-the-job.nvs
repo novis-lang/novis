@@ -1,18 +1,18 @@
 <?nvs
-// Which level a piece of work asks for. The level is chosen from what the work
-// would get wrong if something changed underneath it, and the value below is
-// what you would pass as the `isolation` option of a transaction.
+// `Work::levelFor` picks an isolation level for each kind of work. The choice
+// depends on what could go wrong if another transaction changed the same data.
+// You pass the result as the `isolation` option of a transaction.
 
 class Work {
     public static function levelFor(string $job): Core\Db\Isolation {
         return match ($job) {
-            // Both halves of a transfer have to agree, so nothing may slip in
-            // between the two of them.
+            // A transfer changes two accounts. No other transaction may
+            // change them between the two updates.
             "moving money between accounts" => Core\Db\Isolation::Serializable,
-            // A long report reads many tables, and one steady picture of them
-            // is worth more than a fresh one per statement.
+            // A long report reads many tables. Every statement in it must
+            // see the same data.
             "the month-end report" => Core\Db\Isolation::RepeatableRead,
-            // Everything else only needs numbers somebody has committed.
+            // Other work only needs to read data that is committed.
             default => Core\Db\Isolation::ReadCommitted,
         };
     }

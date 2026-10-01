@@ -1,9 +1,7 @@
 <?nvs
-// Attack: end the script from the worst place there is. The call is made deep
-// inside a stack where every level holds an object, catches everything and has
-// a block to run on the way out, and it is made from a `finally` that is
-// already running because an error is on its way out. The ending then has to
-// travel through a thousand handlers, none of which may take it.
+// Attack: a script calls `Core\Script::finish()` from a `finally` block while an error is being thrown.
+// The call is 800 levels deep, and every level has a `catch (Throwable ...)` and a `finally`.
+// No `catch` block should run. The script should stop with no output after "warmed".
 // hostile: timeout-ms 20000
 
 class Load
@@ -26,25 +24,24 @@ class Deep
                 try {
                     throw new RuntimeError('something went wrong at the bottom');
                 } finally {
-                    // The script ends while an error is already travelling.
+                    // The script stops while the error above is still being thrown.
                     Core\Script::finish();
                 }
             }
             Deep::down($left - 1);
         } catch (Throwable $anything) {
-            // A catch-all at every single level. Not one of them may take the
-            // ending, so nothing here should ever be printed.
+            // Every level has a `catch` block for all errors. The stop is not an error,
+            // so this line should never print.
             echo 'a handler took the ending at level ', $left, "\n";
         } finally {
-            // More to allocate and release while the stack comes apart.
+            // Each `finally` creates and frees an object while the script stops.
             var $more = new Load();
             $held = $more;
         }
     }
 }
 
-// Warm the throw path first, so the ending travels through machinery that has
-// already run thousands of times.
+// Throw and catch 5,000 errors first, so the error handling code has run many times.
 uint $round = 0;
 while ($round < 5000) {
     try {

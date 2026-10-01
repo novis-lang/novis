@@ -1,15 +1,15 @@
 <?nvs
-// Pulling the words out of a document. A walk that asks each node its kind can
-// keep the text and pass over the comments and the instructions, which are
-// there for people and programs rather than for the reader.
+// This program collects the text of an XML document.
+// It checks the kind of each node. It keeps text nodes and skips comments
+// and processing instructions.
 
 class Reader {
     public static function words(Core\Xml\Node $node): tainted string {
         if ($node->kind() == Core\Xml\NodeKind::Text) {
             return $node->text();
         }
-        // A comment or an instruction is skipped whole, and nothing inside an
-        // element is skipped with it.
+        // A comment or an instruction gives an empty string.
+        // An element or the document gives the text of all its children.
         if ($node->kind() == Core\Xml\NodeKind::Comment
             || $node->kind() == Core\Xml\NodeKind::ProcessingInstruction) {
             return "";
@@ -24,6 +24,6 @@ class Reader {
 
 var $doc = Core\Xml::parse("<page><?render draft?><h1>Opening hours</h1><!-- check before Easter --> <p>Every day from <b>9</b> until <b>17</b>.</p></page>");
 
-// The space between the two blocks is text as well, so it comes through with
-// the rest: whitespace between tags is content, not layout.
+// The space between the comment and `<p>` is a text node too,
+// so it is part of the result.
 echo Reader::words($doc), "\n";

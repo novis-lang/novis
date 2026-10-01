@@ -1,16 +1,15 @@
 <?nvs
-// A nightly run that has to finish. Each customer's reference numbers are
-// written in a base taken from that customer's settings, and one of those
-// settings holds a base nobody can write in. That row is recorded as our
-// mistake to fix in the morning, and the rest of the run still goes out.
+// A nightly run prints a reference number for each customer, in the base from their settings.
+// One setting has base 40. A base must be 2 to 36, so `format` throws a `LogicError`.
+// The run catches it, counts that row as a setting to fix, and prints the other rows.
 
 final class Nightly {
     public static function reference(int $order, uint $base): string {
         return Core\BigInt::of($order)->format({radix: $base});
     }
 
-    // The line is built before anything is printed, so a row that turns out to
-    // be broken has written nothing yet.
+    // The code is built before the line is printed. A row that throws prints
+    // only the "skipped" line.
     public static function run(array<string> $customers, array<uint> $bases, array<int> $orders): uint {
         uint $toFix = 0;
         uint $row = 0;

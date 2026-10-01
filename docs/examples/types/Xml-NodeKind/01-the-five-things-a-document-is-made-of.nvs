@@ -1,6 +1,6 @@
 <?nvs
-// Everything a parsed document is made of is one of five kinds. This walks a
-// small document and says, for each node, which kind it is.
+// Every node in a parsed XML document is one of five kinds.
+// This program prints the kind of each node in a small document.
 
 class Walk {
     public static function name(Core\Xml\NodeKind $kind): string {
@@ -16,9 +16,8 @@ class Walk {
     public static function show(Core\Xml\Node $node, string $indent): void {
         var $kind = $node->kind();
         echo $indent, Walk::name($kind);
-        // Only two kinds are named: an element by its tag, an instruction by
-        // the program it is addressed to. The other three carry their content
-        // instead.
+        // An element and an instruction have a name, so this prints it.
+        // Text, a comment and an instruction have content, so this prints that too.
         if ($kind == Core\Xml\NodeKind::Element || $kind == Core\Xml\NodeKind::ProcessingInstruction) {
             echo " ", $node->name();
         }

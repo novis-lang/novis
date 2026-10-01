@@ -1,33 +1,32 @@
 <?nvs
-// A check you wrote yourself is worth checking. `expectFailure` runs a body,
-// insists that something in it failed, and takes that failure off the test's
-// record — the one way a failure is ever consumed on purpose.
+// This program tests a check function that you wrote yourself.
+// `Test::expectFailure` runs a function and passes only if a check in it failed.
+// It then removes that failure from the test's result.
 
 use Core\Test;
 use Core\Test\Failure;
 
 final class Money {
-    // The helper under test: an amount is a whole number of cents and is never
+    // This is the check under test. An amount in cents must not be
     // below zero.
     public static function assertValidCents(int $amount): void {
         Test::assertTrue($amount >= 0, {message: 'an amount cannot be negative'});
     }
 }
 
-// Good input passes and leaves nothing behind.
+// A valid amount passes, and the test records no failure.
 Money::assertValidCents(1250);
 echo "1250 is accepted\n";
 
-// Bad input has to be refused, and this is how that is said without the test
-// itself failing.
+// An invalid amount must fail the check. `expectFailure` tests this,
+// and the test itself still passes.
 Test::expectFailure(fn (): void => {
     Money::assertValidCents(-1);
 });
 echo "-1 is refused\n";
 
-// A body in which nothing failed is itself a failure. That is the half worth
-// knowing about: a helper that quietly stopped checking would otherwise go on
-// passing forever.
+// If no check in the function fails, `expectFailure` throws a `Failure`.
+// So a check that stops working makes this test fail.
 try {
     Test::expectFailure(fn (): void => {
         Money::assertValidCents(0);

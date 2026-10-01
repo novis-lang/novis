@@ -1,7 +1,6 @@
 <?nvs
-// Every read describes its columns, and this is what that description says
-// about each one. It is what the column was declared as in the database, so
-// two columns that hand you the same kind of value can still be told apart.
+// `Core\Db\ColumnType` is the type a column was declared with in the database.
+// This program prints every case and what it means.
 
 class Describe {
     public static function plainly(Core\Db\ColumnType $type): string {
@@ -45,9 +44,8 @@ foreach ($everything as Core\Db\ColumnType $type) {
     echo Describe::plainly($type), "\n";
 }
 
-// Text and JSON are the clearest pair. Both hand your program text, and they
-// are still different columns, so a program that pretty-prints JSON knows
-// which columns to do it to.
+// A Text column and a Json column both give your program a string.
+// They are still different cases, so this prints `no`.
 echo "Text and Json are the same case: ",
     Core\Db\ColumnType::Text == Core\Db\ColumnType::Json ? "yes" : "no",
     "\n";

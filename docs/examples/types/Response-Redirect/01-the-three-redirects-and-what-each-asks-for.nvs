@@ -1,7 +1,7 @@
 <?nvs
-// The three redirects, and what each one asks the browser to do next. They
-// differ on two things: whether the request is repeated exactly as it was, and
-// whether the new address is the one from now on.
+// This program prints the three kinds of redirect and what the browser does after each one.
+// They differ in two ways. Does the browser send the same request again?
+// Is the new address the one to use from now on?
 
 class Redirects {
     public static function label(Core\Response\Redirect $kind): string {
@@ -12,8 +12,8 @@ class Redirects {
         };
     }
 
-    // Repeated as it was — same method, same body. `SeeOther` does not: it
-    // asks for a plain read of another page instead.
+    // `Temporary` and `Permanent` make the browser send the request again, with the same method and body.
+    // `SeeOther` makes the browser load the new page with a plain `GET`.
     public static function repeatsTheRequest(Core\Response\Redirect $kind): bool {
         return match ($kind) {
             Core\Response\Redirect::SeeOther => false,
@@ -22,7 +22,7 @@ class Redirects {
         };
     }
 
-    // Worth remembering. Only one of the three says the old address is gone.
+    // Only `Permanent` tells the browser that the old address is gone for good.
     public static function isForGood(Core\Response\Redirect $kind): bool {
         return match ($kind) {
             Core\Response\Redirect::SeeOther => false,

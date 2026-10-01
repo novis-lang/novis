@@ -1,7 +1,6 @@
 <?nvs
-// The everyday job: a page of settings, with the values everybody starts with
-// and the ones this customer saved. Two questions get asked about that pair,
-// and each one wants a different part of an entry compared.
+// This program compares a customer's saved settings with the default settings.
+// Each comparison uses a different `on` option.
 
 array<string> $defaults = [
     "currency" => "EUR",
@@ -16,15 +15,14 @@ array<string> $saved = [
     "signature" => "Mit freundlichen Grüßen",
 ];
 
-// What this customer actually changed: a saved setting whose value is not the
-// one everybody starts with. `theme` was saved, but it was saved as the
-// default, so it is not a change.
+// `Both` gives each saved setting that is not in the defaults with the same key and value.
+// `theme` has the default value, so it is not in the result.
 echo "changed: ", Core\Json::encode(Core\Arr::diff($saved, $defaults, {on: Core\SetOn::Both})), "\n";
 
-// Which settings they have never touched, so the page can show the defaults
-// for them. Only the names matter here.
+// `Keys` gives the default settings that the customer never saved.
+// The page shows the default value for these.
 echo "untouched: ", Core\Json::encode(Core\Arr::diff($defaults, $saved, {on: Core\SetOn::Keys})), "\n";
 
-// And a saved setting the page no longer has, which is worth knowing before it
-// is written back.
+// `Keys` in the other direction gives the saved settings that are not defaults any more.
+// The page no longer offers `signature`.
 echo "no longer offered: ", Core\Json::encode(Core\Arr::diff($saved, $defaults, {on: Core\SetOn::Keys})), "\n";

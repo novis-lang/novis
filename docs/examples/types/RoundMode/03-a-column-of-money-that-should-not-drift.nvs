@@ -1,8 +1,7 @@
 <?nvs
-// The everyday job: a column of amounts, each one rounded to the cent before
-// it is printed on an invoice. Every row here is an exact half cent, which is
-// where the rule you picked starts to show, and the two totals below are what
-// the difference costs over four rows.
+// This program rounds invoice amounts to the cent with two different modes.
+// Every amount ends in an exact half cent, so the mode changes the result.
+// The two totals show the difference over four rows.
 
 array<float> $rows = [1.125, 2.375, 3.625, 4.875];
 
@@ -10,12 +9,12 @@ float $alwaysUp = 0.0;
 float $toTheEven = 0.0;
 
 foreach ($rows as float $amount) {
-    // The rule everybody knows: a half cent always goes up. Over a long
-    // column, every one of those is a cent the customer did not spend.
+    // `HalfUp` always rounds a half cent up.
+    // Over many rows, the total becomes too large.
     float $up = Core\Math::round($amount, {precision: 2, mode: Core\RoundMode::HalfUp});
 
-    // The rule an accountant asks for: a half cent goes to the even
-    // neighbour, so roughly half of them go down and the column stays honest.
+    // `HalfEven` rounds a half cent to the nearest even cent. About half of
+    // the amounts go down, so the total stays close to the exact sum.
     float $even = Core\Math::round($amount, {precision: 2, mode: Core\RoundMode::HalfEven});
 
     echo Core\Str::format("%.3f", $amount), "  half up ", Core\Str::format("%.2f", $up),

@@ -1,7 +1,7 @@
 <?nvs
-// Closing the books. `startOf` and `endOf` with a quarter give the window the
-// report covers, without anybody working out which months those are, and
-// counting in days says which invoices have been waiting too long to be paid.
+// This program finds the invoices for a quarterly report.
+// `startOf` and `endOf` with `Core\Unit::Quarter` give the first and last day of the quarter.
+// `difference` in days shows which invoices are more than 30 days old.
 
 var $utc = Core\Time\Zone::UTC;
 var $day = "yyyy-MM-dd";
@@ -21,7 +21,7 @@ array<Core\Time\DateTime> $issued = [
 uint $inThisQuarter = 0;
 
 foreach ($issued as string $number => Core\Time\DateTime $date) {
-    // An invoice belongs to the quarter when it sits between the two ends.
+    // An invoice belongs to the quarter when its date is between the first and last day.
     bool $covered = $from->difference($date, Core\Unit::Day) >= 0
         && $date->difference($to, Core\Unit::Day) >= 0;
     if ($covered) {

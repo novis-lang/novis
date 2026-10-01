@@ -1,7 +1,6 @@
 <?nvs
-// The everyday job: what sold this week, with the best sellers at the top. The
-// direction is the whole difference between a list somebody wants to read and
-// one that starts with what nobody bought.
+// This program lists what sold this week. `Core\Order::Desc` puts the best sellers
+// at the top.
 
 array<int> $sold = [
     "notebook" => 41,
@@ -15,6 +14,6 @@ foreach ($best as string $product => int $count) {
     echo $product, ": ", $count, "\n";
 }
 
-// The quiet end of the same list is the other direction, and it is the list
-// worth looking at when you are deciding what to stop stocking.
+// `Core\Order::Asc` puts the least sold first. This list helps you decide what to
+// stop selling.
 echo "least sold: ", Core\Json::encode(Core\Arr::sort($sold, {order: Core\Order::Asc, preserveKeys: true})), "\n";

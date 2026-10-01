@@ -1,17 +1,15 @@
 <?nvs
-// A partner signs the webhooks it sends us, and our side checks the signature
-// before believing the body. The key we were given is configuration, and the
-// kind is stored beside it: what a key is for cannot be read out of the key
-// material, since the same RSA key is RS256 or PS256 depending on which the
-// partner picked.
+// A partner signs the webhooks it sends. This program checks the signature
+// before it uses the body. The key kind is stored with the key in the
+// configuration, because the same RSA key can be RS256 or PS256.
 
-// The partner's side, which in real life is another program on another machine.
+// The partner's side. In a real system, this is another program on another machine.
 Core\Crypto\KeyPair $partner = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 bytes $body = "{\"event\":\"invoice.paid\",\"id\":\"in_88\"}" as bytes;
 bytes $signature = Core\Crypto::sign($body, $partner);
 
-// Our side. Both the key's octets and its kind come from the partner's
-// onboarding, and reading the key is where it is checked to be one.
+// Our side. The key bytes and the key kind come from the configuration.
+// `PublicKey::read` checks that the bytes are a valid key of that kind.
 Core\Crypto\KeyKind $kind = Core\Crypto\KeyKind::Ed25519;
 Core\Crypto\PublicKey $onFile = Core\Crypto\PublicKey::read(
     $partner->publicKey()->write(Core\Crypto\KeyFormat::Spki),
@@ -26,7 +24,7 @@ try {
     echo "not from the partner", "\n";
 }
 
-// The same signature against a body somebody changed on the way.
+// The same signature with a changed body. `verify` throws a `RuntimeError`.
 bytes $altered = "{\"event\":\"invoice.paid\",\"id\":\"in_99\"}" as bytes;
 try {
     Core\Crypto::verify($altered, $signature, $onFile);
@@ -35,8 +33,8 @@ try {
     echo "refused an altered body", "\n";
 }
 
-// The key answers the kind it was read as, so a program holding keys of
-// several kinds can route each one to the operation it is for.
+// `kind()` returns the kind the key was read as. A program with keys of several
+// kinds can use it to pick the right operation for each key.
 if ($onFile->kind() == Core\Crypto\KeyKind::Ed25519) {
     echo "the key on file signs, and agrees nothing", "\n";
 }

@@ -1,8 +1,7 @@
 <?nvs
-// A script that has done its job can stop where it stands. That ending is
-// `Finish`, and it is deliberately not a failure: the status is zero, there is
-// no error, and every `finally` on the way out still runs. What it is not is a
-// throw — no `catch` arm sees it, so cleanup written for errors stays quiet.
+// `Core\Script::finish()` stops a script that has done its work. The exit reason is `Finish`.
+// It is not a failure. The status is `0` and every `finally` block still runs.
+// It is not an error either, so no `catch` block runs.
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $ending = match ($report->reason()) {

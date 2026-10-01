@@ -1,7 +1,7 @@
 <?nvs
-// A question asked where no person is watching — a nightly job, a build step.
-// The program does not sit and wait for an answer that will never come: the
-// question gives up at once, and the code around it decides what happens next.
+// `Core\Cli::ask` needs a person at a terminal. A nightly job or a build step has
+// no terminal, so `ask` throws `Core\Cli\NotInteractive` immediately. The `catch`
+// block decides what happens next.
 
 try {
     tainted string $who = Core\Cli::ask("Who is running this release?");

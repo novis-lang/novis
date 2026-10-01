@@ -1,25 +1,22 @@
 <?nvs
-// The everyday job: a checkout that sends the customer to a payment provider,
-// and a provider that posts the answer back to you. That post is made by the
-// provider's page, so it is cross-site and the sign-in cookie is not sent with
-// it. Which is the whole reason the second cookie here exists.
+// This program shows the cookies for a checkout with an outside payment provider.
+// The provider's page posts the result back to your site. That post comes from
+// another site, so the browser does not send the `Lax` sign-in cookie with it.
+// A second cookie with `None` carries the order number instead.
 
 string $order = "ORD-1042";
 
-// The sign-in cookie, left at the default. A customer following a link from
-// your confirmation email arrives signed in, and a form on somebody else's
-// page posts to you carrying nothing of theirs.
+// The sign-in cookie uses the default, `Lax`. A link from another site arrives signed in.
+// A form on another site that posts to you does not get this cookie.
 Core\Response::addCookie("session", "s-88f1");
 echo "session: Lax, so the provider's post does not carry it\n";
 
-// What the return leg needs: which checkout this is, and nothing worth
-// stealing. It has to arrive on a cross-site post, so it is the one cookie
-// here written with None, secure goes with it, and it stops mattering as soon
-// as the payment is done.
+// This cookie contains only the order number. `None` lets it arrive with the provider's post.
+// `None` needs `secure: true`, and `maxAge: 30m` makes it expire after 30 minutes.
 Core\Response::addCookie("checkout", $order, {sameSite: Core\Response\SameSite::None, secure: true, maxAge: 30m});
 echo "checkout: None with secure, so the provider's post does carry it\n";
 
-// Once the answer has arrived, the short-lived cookie is over. A lifetime of
-// nothing is how a cookie is taken back.
+// After the payment, the checkout cookie is not needed. `maxAge: 0s`
+// tells the browser to delete it.
 Core\Response::addCookie("checkout", "", {sameSite: Core\Response\SameSite::None, secure: true, maxAge: 0s});
 echo "checkout: taken back once ", $order, " was paid for\n";

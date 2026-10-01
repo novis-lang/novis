@@ -1,19 +1,19 @@
 <?nvs
-// A form has just been posted and the order is saved. Answering with the page
-// right here would mean the browser re-posts the form every time somebody
-// refreshes, so the answer is a redirect to a page that is safe to reload.
+// This program shows how to reply to a saved form with a redirect.
+// If the reply were the page itself, a refresh would post the form again.
+// A redirect sends the browser to a page that is safe to reload.
 
 string $order = "ORD-1042";
 
-// `SeeOther` is fetched with a plain read, whatever method asked — which is
-// exactly what "now show me the saved order" wants.
+// After a `SeeOther` redirect, the browser loads the new page with a plain `GET`.
+// This is what you want to show the saved order.
 Core\Response::redirect("/orders/" . $order, Core\Response\Redirect::SeeOther);
 
-// The same answer written the short way. `SeeOther` is the case you get when
-// you name none, and the second call simply replaces the first.
+// This is the short way to write the same redirect. `SeeOther` is the default.
+// The second call replaces the first.
 Core\Response::redirect("/orders/" . $order);
 echo "saved ", $order, " and sent the browser to /orders/", $order, "\n";
 
-// A refresh of that page now re-reads the order. Nothing is saved twice, and
-// nobody is asked whether they want to send the form again.
+// A refresh of the new page only loads the order again.
+// The order is saved once.
 echo "a refresh re-reads the order instead of posting the form again\n";

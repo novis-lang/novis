@@ -1,8 +1,7 @@
 <?nvs
-// Attack: never build a second error, keep throwing the first one. Each level
-// of a deep stack catches the same object and throws it again, so whatever a
-// throw records about where it happened is written over and over onto one
-// error that is never released.
+// Attack: a script catches one error and throws the same error object again, many times.
+// Each throw records on that one object where it happened.
+// The script should finish, and its memory should not grow with each throw.
 // hostile: timeout-ms 20000
 
 class Ladder
@@ -15,8 +14,8 @@ class Ladder
         try {
             Ladder::up($rungs - 1);
         } catch (TimeoutError $again) {
-            // The same instance, not a new one: a rethrow moves what it records
-            // about its place, and nothing here ever lets it go.
+            // This throws the same error object again.
+            // Each throw updates the place recorded in that object.
             throw $again;
         }
     }
@@ -32,8 +31,7 @@ while ($round < 500) {
 }
 echo "rethrown\n";
 
-// The same error rethrown from one frame, a million times over, so the count is
-// on one object rather than spread across a stack.
+// Throw and catch the same error object 1,000,000 times in one function.
 try {
     throw new TimeoutError('the first one');
 } catch (TimeoutError $held) {
@@ -48,8 +46,8 @@ try {
     echo "one error, a million throws\n";
 }
 
-// And a stack as deep as the runtime will allow, with the rethrow at every
-// level of it.
+// Throw the same error again at every level of a stack 1,000,000 calls deep.
+// If the stack limit stops it, the `catch` below catches that error.
 try {
     Ladder::up(1000000);
 } catch (Throwable $whatever) {

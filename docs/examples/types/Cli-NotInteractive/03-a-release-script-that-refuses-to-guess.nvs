@@ -1,8 +1,7 @@
 <?nvs
-// Deleting last month's releases is not something to guess at. Run from a desk,
-// the question settles it. Run from a job with nobody watching, the script says
-// what it needed and leaves every file where it is — which is the reason this
-// question was given no fallback answer.
+// This script deletes old releases only when a person confirms it. In a job with
+// no terminal, `Core\Cli::confirm` throws `Core\Cli\NotInteractive`. The script
+// then prints what it needs and deletes nothing.
 
 final class Cleanup {
     public static function sweep(int $old): string {

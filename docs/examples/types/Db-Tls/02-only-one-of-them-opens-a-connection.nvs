@@ -1,8 +1,7 @@
 <?nvs
-// Three of the four modes are refused when a connection asks for them, and the
-// refusal names the one that was asked for. This is deliberate: a program that
-// asked to check less would otherwise be given more without being told, and
-// would go on believing it had asked for something that was allowed.
+// Only `VerifyFull` opens a connection. Each of the other three modes throws an
+// error, and the message names the mode. So your program always knows which
+// mode its connection uses.
 
 class Opens {
     public static function verdict(Core\Db\Tls $mode): string {

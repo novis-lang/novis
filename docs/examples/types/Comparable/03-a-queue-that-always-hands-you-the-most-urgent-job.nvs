@@ -1,6 +1,6 @@
 <?nvs
-// A queue keeps the order your class states, so the most urgent job is always
-// the next one out — even when it arrives after work has started.
+// `Core\Heap` orders its jobs with the `compareTo` method of the class. `pop`
+// always returns the most urgent job. This is also true for a job pushed later.
 
 final class Job implements Comparable {
     public string $name;
@@ -17,7 +17,7 @@ final class Job implements Comparable {
     }
 }
 
-// No comparator is given: the queue asks the class.
+// No comparison function is given, so the heap uses `Job::compareTo`.
 var $queue = new Core\Heap<Job>();
 $queue->push(new Job("send invoices", 45));
 $queue->push(new Job("rebuild search index", 120));
@@ -26,8 +26,8 @@ $queue->push(new Job("charge expiring card", 10));
 var $next = $queue->peek();
 echo "next up: ", $next->name, "\n";
 
-// A job that is nearly late arrives while the queue is being worked through.
-// It does not wait for its turn in line.
+// After the first job, the loop pushes a job with 2 minutes left. The next
+// `pop` returns that job before the older ones.
 var $worked = 0;
 while (!$queue->isEmpty()) {
     var $job = $queue->pop();

@@ -1,14 +1,11 @@
 <?nvs
-// What a server does on every page it sends: the client lists the formats it
-// can read, and the server picks the best one it also writes. The frame and
-// the name of the case that wrote it travel together, because nothing in the
-// frame itself says which one that was.
+// A client lists the formats it can read. The server picks the best format that
+// it can also write. It sends the format name in `Content-Encoding`, because the
+// compressed bytes do not contain it.
 
 class Response {
-    // The order is the server's policy and not the client's: a client says
-    // what it can read, and this picks from that. Gzip comes last because it
-    // is the one every client has read for twenty years, so it is what is
-    // left when the newer two are not offered.
+    // The server decides the order: Zstd, then Brotli, then Gzip. Almost every
+    // client can read Gzip, so it is the last choice.
     public static function pick(string $accept): ?Core\Codec {
         if (Core\Str::contains($accept, "zstd")) {
             return Core\Codec::Zstd;
@@ -22,8 +19,8 @@ class Response {
         return null;
     }
 
-    // The name each case goes out under. The bare stream has none: it is what
-    // the other two wrap, and no client asks for it by name.
+    // `header` returns the `Content-Encoding` name. In HTTP, `deflate` means the
+    // Zlib format. Plain `Deflate` has no name, so the result is "".
     public static function header(Core\Codec $codec): string {
         return match ($codec) {
             Core\Codec::Gzip => "gzip",
@@ -46,8 +43,8 @@ array<string> $clients = [
 foreach ($clients as string $accept) {
     ?Core\Codec $codec = Response::pick($accept);
 
-    // A client that accepts nothing you write gets the page as it is. That is
-    // a slower response and never a broken one.
+    // If the client accepts none of these formats, the server sends the page
+    // without compression.
     if ($codec == null) {
         echo "accepts ", $accept, " -> sent as it is\n";
     } else {

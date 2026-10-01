@@ -1,7 +1,6 @@
 <?nvs
-// What a check throws when it does not hold, and what that value says. The
-// message names the check and why it was not satisfied, with anything you added
-// in front of it.
+// A check that fails throws a `Core\Test\Failure`. Its message names the check
+// and says why it failed. Your own `message` comes first.
 
 use Core\Test;
 use Core\Test\Failure;
@@ -12,9 +11,8 @@ try {
     echo $failed->message, "\n";
 }
 
-// It hangs off the root of the error tree directly rather than under the errors
-// a running program raises, so a clause written for one of those does not take
-// it and a test's own failures stay separate from the program's.
+// `Failure` extends `Throwable` directly. It is not a `LogicError` or a `RuntimeError`,
+// so only the `Throwable` block catches it.
 try {
     Test::assertEquals(2, 3);
 } catch (LogicError $notAMistakeInTheCode) {

@@ -1,7 +1,7 @@
 <?nvs
-// Signing somebody up. One refusal is the person's to fix — that address is
-// already registered — and every other one is ours, so only the first is turned
-// into a sentence anyone reads and the rest are left to travel on.
+// A signup that tells the person what went wrong. If the address is already
+// registered, `Signup::add` returns a message the person can act on.
+// It throws every other `DbError` again, for the caller to handle.
 
 use Core\Db;
 use Core\Db\Connection;

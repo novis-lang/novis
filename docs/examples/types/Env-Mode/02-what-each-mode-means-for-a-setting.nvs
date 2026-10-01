@@ -1,7 +1,6 @@
 <?nvs
-// A mode is a value like any other, so a function can take one. Asking about
-// both modes in a single run is how you see what your program will do on a
-// real deployment while you are still working on your own machine.
+// This program passes each mode to a function and prints what it returns.
+// You can see the result for a real deployment while you work on your own machine.
 
 class Pages {
     // How long a finished page may be kept before it is built again.

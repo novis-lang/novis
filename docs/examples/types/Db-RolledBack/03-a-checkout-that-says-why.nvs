@@ -1,8 +1,7 @@
 <?nvs
-// Placing an order. How much is left on the shelf is only known once the row is
-// read inside the transaction, so the decision to abandon the order can only be
-// made there — and the sentence it gives up with is the one the shop shows the
-// customer.
+// Placing an order in a shop. The transaction reads the stock and checks it.
+// If a check fails, `$tx->rollBack` stops the transaction and throws `RolledBack`.
+// The text given to `rollBack` is the message the shop shows the customer.
 
 use Core\Db;
 use Core\Db\Connection;
@@ -26,8 +25,8 @@ final class Checkout {
             });
             return 'ordered';
         } catch (RolledBack $abandoned) {
-            // Nothing was written, and the reason says which of the two checks
-            // inside the closure was the one that stopped it.
+            // The transaction wrote nothing. `reason` is the text of the check
+            // that failed.
             return $abandoned->reason;
         }
     }

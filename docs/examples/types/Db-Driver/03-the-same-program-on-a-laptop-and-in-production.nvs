@@ -1,8 +1,7 @@
 <?nvs
-// What a team ends up with: the tests run against a SQLite file, staging and
-// production run against the real server. One word from the deployment picks
-// the backend, a word nothing answers is refused there and then, and the two
-// places the SQL differs are decided from the case rather than from the word.
+// The tests use a SQLite file. Staging and production use a PostgreSQL server.
+// `Deployment::driverFor` picks the driver from the name of the environment.
+// The SQL that differs between databases is then chosen from the driver.
 
 class Deployment {
     public static function driverFor(string $environment): ?Core\Db\Driver {
@@ -15,9 +14,8 @@ class Deployment {
         };
     }
 
-    // Asking for one page of rows. Four of the five spell it the same way and
-    // SQL Server does not, which is the sort of thing that is worth writing
-    // down once.
+    // `page` returns the SQL that reads one page of rows. SQL Server uses a
+    // different syntax from the other four drivers.
     public static function page(Core\Db\Driver $driver): string {
         return match ($driver) {
             Core\Db\Driver::SqlServer => "offset ? rows fetch next ? rows only",
@@ -31,8 +29,8 @@ array<string> $environments = ["tests", "production", "reporting", "sandbox"];
 foreach ($environments as string $environment) {
     ?Core\Db\Driver $driver = Deployment::driverFor($environment);
 
-    // A name with no backend behind it stops here. Starting up against a
-    // database nobody meant to configure is worse than not starting at all.
+    // `driverFor` returns `null` for an environment with no database.
+    // The program prints a message for it and does not pick a driver.
     if ($driver == null) {
         echo $environment, ": no database is configured for that name\n";
     } else {

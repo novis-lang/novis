@@ -1,7 +1,6 @@
 <?nvs
-// The five levels a transaction can run at. Each line says what your own
-// statements are allowed to see of the work going on beside them, which is the
-// only thing the level decides.
+// The five isolation levels a transaction can run at. Each line says what your
+// statements can see of other transactions that run at the same time.
 
 class Level {
     public static function promise(Core\Db\Isolation $level): string {

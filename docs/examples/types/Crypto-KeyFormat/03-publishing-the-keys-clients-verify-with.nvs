@@ -1,8 +1,7 @@
 <?nvs
-// Publishing the public keys a service signs with, as the JSON a client
-// fetches once and verifies with from then on. The keys are kept as DER and
-// written out as JSON, so the published document is produced from the stored
-// key rather than kept beside it and left to drift.
+// This program publishes the public keys of a service as JSON. Clients use
+// them to verify signatures. The keys are stored as DER, and the program
+// writes the JSON from them.
 
 array<string> $stored = [
     "3059301306072a8648ce3d020106082a8648ce3d030107034200"
@@ -29,6 +28,6 @@ foreach (Core\Arr::range(0, 1) as int $slot) {
     );
 }
 
-// What a write answers is the members that identify the key, sorted, and
-// nothing else — a service adds its own `kid` and `alg` beside them here.
+// `write` with `Jwk` gives only the fields that identify the key, sorted by
+// name. A real service can add its own `kid` and `alg` fields here.
 echo "{\"keys\":[", Core\Str::join($published, ","), "]}", "\n";

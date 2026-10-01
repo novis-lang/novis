@@ -1,15 +1,13 @@
 <?nvs
-// Attack: make the library refuse hundreds of thousands of times, reading the
-// message each round, then climb out of a deep chain where every frame throws a
-// message longer than the one under it. Anything held per failure — the text,
-// the place it came from — grows without limit here.
+// Attack: a program makes `Core\BigInt::format` throw a `LogicError` hundreds of
+// thousands of times. Then each level of a deep call chain throws a longer message.
+// Each error should be freed after use, so memory use should not keep growing.
 // hostile: timeout-ms 30000
 
 final class Churn
 {
-    // Every round asks for a base that does not exist, so every round builds a
-    // fresh message and a fresh failure. The argument is computed so no round
-    // can be folded away before the program runs.
+    // Each round passes a base that is not allowed, so each round builds a new error.
+    // The base is computed at run time, so the compiler cannot skip any round.
     public static function refusals(int $rounds): uint
     {
         uint $read = 0;
@@ -20,7 +18,7 @@ final class Churn
                 string $digits = Core\BigInt::of($i)->format({ radix: $noSuchBase });
                 $read = $read + Core\Str::length($digits);
             } catch (LogicError $refused) {
-                // The message is read, so a run cannot pass by never building one.
+                // This reads the message, so the runtime has to build it.
                 if (Core\Str::length($refused->message) > 0) {
                     $read = $read + 1;
                 }
@@ -30,9 +28,8 @@ final class Churn
         return $read;
     }
 
-    // Each frame catches what the frame under it threw and throws a longer
-    // message, so the chain holds a live failure per level and the text on the
-    // deepest one is as long as the chain is deep.
+    // Each level catches the error from the level below and throws a new one.
+    // The new message has one more character, so each message is longer than the last.
     public static function grow(int $depth): string
     {
         if ($depth == 0) {
@@ -49,17 +46,16 @@ final class Churn
 
 echo Churn::refusals(400000), "\n";
 
-// Deep enough to reach the bottom and climb all the way back out, so two
-// thousand failures are live at once and the message on the last one is as long
-// as the chain is deep.
+// This chain reaches the bottom and returns to the top. The last message is
+// 2000 characters longer than the first.
 try {
     echo Churn::grow(2000), "\n";
 } catch (LogicError $grown) {
     echo 'grew to ', Core\Str::length($grown->message), "\n";
 }
 
-// And deeper than the call stack allows, so the chain never reaches the bottom
-// and the limit fires with every one of those frames still to unwind.
+// This chain is deeper than the call stack allows. The recursion limit stops it
+// before the bottom, and every call above that point must still unwind.
 try {
     echo Churn::grow(200000), "\n";
 } catch (Throwable $gaveUp) {

@@ -1,6 +1,6 @@
 <?nvs
-// Whoever sends you a file chooses its name, so the name proves nothing. The
-// bytes do. This file is called `holiday.png` and it is a PDF.
+// The sender of a file chooses its name, so the name proves nothing. The
+// bytes do. This file is called `holiday.png`, but it is a PDF.
 
 string $name = "holiday.png";
 bytes $content = Core\Encoding::fromHex("255044462d312e370a25");
@@ -9,10 +9,10 @@ Core\Mime\Type $found = Core\Mime::detect($content);
 echo $name, " is really ", Core\Mime::mediaType($found), "\n";
 
 // Text has no first bytes to recognise. A CSV file, a JSON document or a web
-// page begins with whatever its author typed, so there is nothing to read.
+// page starts with whatever its author typed.
 Core\Mime\Type $text = Core\Mime::detect("name,total\nORD-1042,19.99\n" as bytes);
 echo "the csv is ", Core\Mime::mediaType($text), "\n";
 
-// That answer is `Unknown`, and `Unknown` is an answer. It means the bytes
-// carry nothing that says what they are — not that anything went wrong.
+// So the result is `Unknown`. This means the bytes do not show their type.
+// It is not an error.
 echo ($text == Core\Mime\Type::Unknown) ? "nothing to read, and that is fine\n" : "named\n";

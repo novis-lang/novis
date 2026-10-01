@@ -1,7 +1,7 @@
 <?nvs
-// An application's own error extends the root directly — there is no other
-// base class to pick. It gets the root's message for free and adds whatever
-// the people handling it need, here the invoice the trouble is about.
+// Your own error class extends `Throwable`. There is no other base class to choose.
+// It gets `message` from `Throwable` and can add its own properties.
+// Here `Overdue` adds the number of the unpaid invoice.
 
 class Overdue extends Throwable {
     public string $invoice = "";

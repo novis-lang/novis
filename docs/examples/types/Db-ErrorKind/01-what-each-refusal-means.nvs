@@ -1,7 +1,7 @@
 <?nvs
-// The eleven reasons a statement can come back refused. Each one is the same
-// case on every backend, so this is the list your program can branch on
-// without knowing which database it is talking to.
+// The eleven reasons the database can reject a statement. Each reason is the
+// same case on every database, so your program can check it without knowing
+// which database it uses.
 
 class Refusal {
     public static function meaning(Core\Db\ErrorKind $kind): string {

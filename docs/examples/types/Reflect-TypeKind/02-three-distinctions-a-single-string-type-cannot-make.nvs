@@ -1,7 +1,6 @@
 <?nvs
-// Three pairs that look alike and are not. Each pair would have given the same
-// answer in a language with one number type and one string type, and here each
-// half has a kind of its own.
+// `Core\Reflect::typeOf` returns the kind of a value. This program checks three
+// pairs of values that look alike. The two values in each pair have different kinds.
 
 class Kind {
     public static function of(mixed $value): string {
@@ -17,22 +16,22 @@ class Kind {
     }
 }
 
-// A count cannot be negative and a temperature can, so they are not the same
-// number.
+// An `int` can be negative. A `uint` cannot, so it is the type for a count of
+// items.
 int $below = -3;
 uint $items = 3;
 echo "-3 items:    ", Kind::of($below), "\n";
 echo "3 items:     ", Kind::of($items), "\n";
 
-// A price is exact to the last cent. A ratio is not, and a price kept as one
-// loses money a fraction at a time.
+// A `decimal` is exact to the last cent, so it is the type for a price.
+// A `float` is approximate, and small errors add up when you use it for money.
 decimal $price = 19.90;
 float $ratio = 19.90;
 echo "19.90 owed:  ", Kind::of($price), "\n";
 echo "19.90 parts: ", Kind::of($ratio), "\n";
 
-// Text is text you can show someone. Octets are whatever a file or a socket
-// handed you, and nothing promises they read as anything.
+// A `string` is text you can show to a person. `bytes` is raw data from a file
+// or a socket, and it may not be valid text.
 string $name = "ab";
 bytes $upload = Core\Encoding::fromHex("6162");
 echo "the word ab: ", Kind::of($name), "\n";

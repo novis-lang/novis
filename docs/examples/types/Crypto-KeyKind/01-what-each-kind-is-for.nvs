@@ -1,8 +1,7 @@
 <?nvs
-// Five kinds, and they are not interchangeable. Two of them agree a shared
-// secret with a peer, three of them sign, and one does both. What a key is for
-// is part of what it is, so every call that makes or reads a key says which
-// kind it means.
+// `Core\Crypto\KeyKind` has five kinds of key. Two of them agree a shared secret
+// with another program, four of them sign, and `P256` does both. Every call
+// that creates or reads a key needs its kind.
 
 class Keys {
     public static function purpose(Core\Crypto\KeyKind $kind): string {
@@ -27,13 +26,13 @@ foreach ($roster as Core\Crypto\KeyKind $kind) {
     echo Keys::purpose($kind), "\n";
 }
 
-// The three curve kinds are drawn here and now. There is no key size to pass:
-// each of them has one size.
+// `generateKeyPair` creates a new key pair for the three curve kinds. There is
+// no key size to pass, because each curve has one size.
 Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 echo "drew an Ed25519 pair", "\n";
 
-// An RSA key is issued to you rather than drawn, so asking for one here is a
-// mistake in the program and is reported as one.
+// You get an RSA key from whoever issued it. `generateKeyPair` with an RSA
+// kind throws a `LogicError`.
 try {
     Core\Crypto\KeyPair $never = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::RsaPkcs1);
     echo "drew an RSA pair", "\n";

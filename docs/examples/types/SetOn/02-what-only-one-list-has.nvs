@@ -1,7 +1,7 @@
 <?nvs
-// The other question: what is in the first list and not in the second. The
-// option means the same thing here, and the answer keeps the first list's
-// names and its order.
+// `Core\Arr::diff` returns the entries of the first array that are not in the second.
+// The `on` option says what to compare: values, keys, or both.
+// The result keeps the keys and the order of the first array.
 
 array<int> $mine = ["x" => 1, "y" => 2, "z" => 3];
 array<int> $theirs = ["p" => 2, "z" => 9];
@@ -10,6 +10,5 @@ echo "values:  ", Core\Json::encode(Core\Arr::diff($mine, $theirs)), "\n";
 echo "names:   ", Core\Json::encode(Core\Arr::diff($mine, $theirs, {on: Core\SetOn::Keys})), "\n";
 echo "both:    ", Core\Json::encode(Core\Arr::diff($mine, $theirs, {on: Core\SetOn::Both})), "\n";
 
-// `Both` answers everything here, because not one entry matches on its name
-// and its value at once — `z` is in both lists and holds something different
-// in each.
+// With `Both`, the result has every entry. No entry matches on key and value together.
+// `z` is in both arrays, but its value is `3` in one and `9` in the other.

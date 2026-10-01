@@ -1,12 +1,11 @@
 <?nvs
-// What a rollback carries, and which `catch` clause reaches it. Nothing here
-// opens a database: these are questions about the value itself, and the answers
-// are the same whichever database the transaction was running on.
+// This program shows what a `RolledBack` error contains, and which `catch` block
+// catches it. It does not open a database.
 
 use Core\Db\RolledBack;
 
-// The reason the program gave is also the message, so a line written to a log
-// and a branch written against the text read the same words.
+// `reason` is the text the program gave when it rolled back.
+// `message` is the same text.
 try {
     throw new RolledBack('the basket no longer adds up');
 } catch (RolledBack $abandoned) {
@@ -14,8 +13,8 @@ try {
     echo 'message: ', $abandoned->message, "\n";
 }
 
-// Giving up is the world saying no rather than a mistake in the code, so the
-// clause that means that is the one it lands in.
+// A rollback is not a bug in the code, so `RolledBack` is a `RuntimeError`.
+// This prints `a RuntimeError clause`.
 try {
     throw new RolledBack('the stock would have gone negative');
 } catch (LogicError $notAMistake) {
@@ -24,8 +23,8 @@ try {
     echo "a RuntimeError clause\n";
 }
 
-// The database's own refusals have a separate name beside this one, so a clause
-// written for a rollback never quietly takes one.
+// A `DbError` is not a `RolledBack`, so the first `catch` block does not catch it.
+// This prints `not a RolledBack clause`.
 try {
     throw new Core\Db\DbError('the server refused the statement');
 } catch (RolledBack $notARollback) {

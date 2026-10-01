@@ -1,28 +1,28 @@
 <?nvs
-// A calendar step is not a fixed amount of time. A month is as long as the
-// month you land in, a year is a day longer when it holds a 29 February, and a
-// day in a zone that changes its clocks is 23 or 25 hours.
+// This program shows that calendar units have no fixed length.
+// A month has 28 to 31 days, and a leap year has one extra day.
+// A day has 23 or 25 hours when the clocks change.
 
 var $utc = Core\Time\Zone::UTC;
 var $day = "yyyy-MM-dd";
 
-// Months keep the day number where they can, and clamp it where they cannot.
+// Adding months keeps the day number if the new month has it.
+// If not, the result is the last day of that month.
 var $endOfJanuary = Core\Time::at(2024, 1, 31, $utc);
 echo "31 January plus one month:  ", $endOfJanuary->plus(1, Core\Unit::Month)->format($day), "\n";
 echo "31 January plus two months: ", $endOfJanuary->plus(2, Core\Unit::Month)->format($day), "\n";
 
-// Clamping does not undo itself: the step back starts from the 29th it landed
-// on, so you come home a day short of the 31st you left from.
+// Going back one month starts from 29 February, so the result is 29 January.
+// The date you started from was 31 January.
 var $there = $endOfJanuary->plus(1, Core\Unit::Month);
 echo "and back one month again:   ", $there->minus(1, Core\Unit::Month)->format($day), "\n\n";
 
-// A leap day has no twin in an ordinary year, so it clamps too.
+// 2025 has no 29 February, so the result is 28 February.
 var $leapDay = Core\Time::at(2024, 2, 29, $utc);
 echo "29 February plus one year:  ", $leapDay->plus(1, Core\Unit::Year)->format($day), "\n\n";
 
-// The clocks go forward in Berlin on 31 March 2024, so that day is an hour
-// short. Counting the same stretch in days and in hours gives two answers, and
-// both are right.
+// The clocks go forward in Berlin on 31 March 2024, so that day has 23 hours.
+// The same day measured in days is still `1`.
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
 var $morning = Core\Time::at(2024, 3, 31, $berlin)->startOf(Core\Unit::Day);
 var $nextMorning = $morning->plus(1, Core\Unit::Day);

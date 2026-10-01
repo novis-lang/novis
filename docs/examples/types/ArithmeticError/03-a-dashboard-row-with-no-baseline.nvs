@@ -1,7 +1,7 @@
 <?nvs
-// A dashboard that has to finish. Each row is worked out on its own, and a row
-// with nothing to compare against — a product that sold none at all last month —
-// says so instead of taking the whole page down with it.
+// This dashboard calculates each row on its own. A product that sold nothing last
+// month makes the division by zero throw an `ArithmeticError`. That row prints
+// `new`, and the other rows still print their growth.
 
 final class Growth {
     public static function since(int $before, int $now): string {

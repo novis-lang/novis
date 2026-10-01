@@ -1,9 +1,8 @@
 <?nvs
-// Attack: give up on a transaction a hundred thousand times, then give up with
-// a reason megabytes long, then give up from the bottom of a stack of nested
-// transactions. Every rollback undoes real work, throws a value that keeps the
-// whole reason string, and unwinds a closure, so anything held per abandoned
-// transaction grows without limit here.
+// Attack: roll back a transaction 100,000 times, then roll back with a reason
+// that is megabytes long. Then roll back from the bottom of 2,000 nested transactions.
+// Every transaction and every `RolledBack` error should be freed. Memory should
+// stay small, and the table should be empty at the end.
 // hostile: timeout-ms 60000
 
 use Core\Db;
@@ -13,9 +12,8 @@ use Core\Db\Transaction;
 
 final class Churn
 {
-    // One transaction per round, each writing a row and then throwing it away.
-    // A run that kept the level, the savepoint or the thrown value would not
-    // finish this.
+    // Each round opens a transaction, writes a row and rolls back. The round
+    // should free the transaction and the error before the next one starts.
     public static function rounds(Connection $db, int $rounds): uint
     {
         uint $read = 0;
@@ -27,7 +25,7 @@ final class Churn
                     $tx->rollBack('this round keeps nothing');
                 });
             } catch (RolledBack $abandoned) {
-                // Both are read, so a run cannot pass by never building them.
+                // This reads both fields, so the error must really contain them.
                 if (Core\Str::length($abandoned->reason) > 0) {
                     $read = $read + 1;
                 }
@@ -40,9 +38,8 @@ final class Churn
         return $read;
     }
 
-    // One rollback carrying a few megabytes of reason. The value keeps that
-    // string, so this asks whether it is kept once or copied at every step
-    // between the closure and the catch outside it.
+    // One rollback with a reason of a few megabytes. The error keeps that text.
+    // It should be stored once, and not copied on its way to the `catch` block.
     public static function huge(Connection $db, int $doublings): uint
     {
         string $reason = "this is why, and here is more of why\n";
@@ -62,9 +59,8 @@ final class Churn
         }
     }
 
-    // A transaction inside a transaction is a savepoint, so this opens a deep
-    // stack of them and gives up at the bottom. The throw then unwinds every
-    // level at once, and each level has a savepoint to release on the way.
+    // A transaction inside a transaction is a savepoint. This opens many nested
+    // savepoints and rolls back at the bottom, so every level must be released.
     public static function deep(Transaction $outer, int $depth): void
     {
         if ($depth == 0) {
@@ -98,6 +94,5 @@ try {
     echo 'the stack came apart: ', $cameApart->message, "\n";
 }
 
-// And after all of it nothing is on the table, which is the half a leak of
-// half-applied work would have shown.
+// Every transaction rolled back, so the table is empty. This should print `0`.
 echo $db->query('select id from one', [])->count(), "\n";

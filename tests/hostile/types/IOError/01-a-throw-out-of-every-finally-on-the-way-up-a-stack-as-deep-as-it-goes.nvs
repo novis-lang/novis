@@ -1,7 +1,7 @@
 <?nvs
-// Attack: fail while already failing. Every level of a deep stack throws a new
-// IOError out of its own cleanup, so the error in flight is replaced hundreds
-// of times on the way up, each replacement allocating while the unwind runs.
+// Attack: every level of a deep call stack throws a new `IOError` from its
+// `finally` block. The error is replaced hundreds of times while the stack unwinds.
+// The program should finish, and every error should be freed.
 // hostile: timeout-ms 20000
 
 class Unwind
@@ -14,9 +14,8 @@ class Unwind
         try {
             Unwind::down($depth - 1);
         } finally {
-            // Cleanup that itself fails, which is the case a runtime is most
-            // likely to have got wrong: the error being carried is dropped here
-            // and a new one takes its place.
+            // This cleanup code fails too. The error from the level below is
+            // freed, and the new error replaces it.
             throw new IOError('cleanup failed on the way up');
         }
     }
@@ -27,15 +26,15 @@ while ($round < 200) {
     try {
         Unwind::down(400);
     } catch (Throwable $whatever) {
-        // Caught and dropped: nothing may be held once the clause ends, however
-        // many errors were built to get here.
+        // The error is caught and not used. Every error from this round should
+        // be freed when this block ends.
     }
     $round = $round + 1;
 }
 echo "unwound\n";
 
-// The other direction: an error raised inside the clause handling an error,
-// again and again, so each answer is itself an answer to something.
+// Now each `catch` block throws a new error, many times. Each new error keeps
+// the error before it in `previous`.
 uint $nested = 0;
 while ($nested < 2000) {
     try {
@@ -58,8 +57,7 @@ while ($nested < 2000) {
 }
 echo "nested\n";
 
-// And a stack deeper than anything above, with nothing to catch what comes back
-// but the outermost clause.
+// A much deeper stack. Only the outer `catch` block catches the error.
 try {
     Unwind::down(100000);
 } catch (Throwable $deep) {

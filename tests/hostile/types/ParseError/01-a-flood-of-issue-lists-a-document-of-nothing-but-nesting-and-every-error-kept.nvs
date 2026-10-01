@@ -1,7 +1,7 @@
 <?nvs
-// Attack: make the issue list the expensive part. Throw and drop thousands of
-// eight-entry lists, hand the reader a document that is nothing but nesting,
-// then refuse to let any of the errors go.
+// Attack: a program throws thousands of `ParseError` errors with eight issues each.
+// It decodes a document of only brackets, and then keeps every error in memory.
+// The memory limit should stop the program before it uses up the server.
 // hostile: timeout-ms 20000
 // hostile: ends-early
 
@@ -20,30 +20,30 @@ while ($round < 5000) {
             'h' => 'x',
         ]);
     } catch (ParseError $dropped) {
-        // Counted and then let go: nothing may be held after the clause ends.
+        // The issues are counted. The error should be freed when this block ends.
         $seen = $seen + Core\Arr::count($dropped->issues);
     }
     $round = $round + 1;
 }
 echo 'dropped ', $seen, " entries\n";
 
-// Nothing but opening brackets, so the reader runs out of depth rather than out
-// of document.
+// A document of only opening brackets. The decoder reaches its depth limit
+// and throws a `ParseError`.
 try {
     Core\Json::decode(Core\Str::repeat('[', 200000));
 } catch (ParseError $nesting) {
     echo "nesting refused\n";
 }
 
-// A quarter of a million characters of one broken value.
+// One broken value that is 250000 characters long.
 try {
     Core\Json::decode(Core\Str::repeat('1', 250000) . 'x');
 } catch (ParseError $long) {
     echo "long refused\n";
 }
 
-// Now the opposite of the first loop: every error and every list it carries is
-// kept alive at the same time, which is where a cap has to stop this.
+// This loop keeps every error and its issues in memory. The memory limit
+// should stop the program here.
 array<ParseError> $kept = [];
 uint $held = 0;
 while ($held < 200000) {

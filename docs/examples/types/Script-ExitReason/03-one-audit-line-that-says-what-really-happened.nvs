@@ -1,8 +1,7 @@
 <?nvs
-// The nightly job somebody reads the log of in the morning. One piece of work
-// on the way out writes the last line, and the reason decides the wording: a
-// job that stopped because it had nothing to do is not the same news as a job
-// that fell over, and a log that calls both "finished" is a log nobody trusts.
+// This program writes the last line of a nightly job's log from the exit reason.
+// A job that stopped because there was no work gets a different line
+// from a job that failed with an error.
 
 class Audit {
     public static function line(Core\Script\ExitReason $reason): string {
@@ -14,8 +13,8 @@ class Audit {
         };
     }
 
-    // Only one of the four is worth waking a person for, and it is the one the
-    // program did not choose.
+    // Only `UncaughtThrow` needs a person to look at it.
+    // It is the only reason the program did not choose itself.
     public static function wakeSomebody(Core\Script\ExitReason $reason): bool {
         return $reason == Core\Script\ExitReason::UncaughtThrow;
     }
@@ -32,8 +31,8 @@ array<string> $waiting = [];
 
 echo "looking for files to import\n";
 
-// Nothing arrived tonight. That is a normal Tuesday, so the job says so and
-// stops rather than pretending to do work.
+// No files arrived tonight. That is normal, so `exit` stops the job here.
+// The exit reason is `ExitCall`.
 if (Core\Arr::count($waiting) == 0) {
     echo "nothing arrived tonight\n";
     exit;

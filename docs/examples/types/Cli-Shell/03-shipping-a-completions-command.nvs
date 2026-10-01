@@ -1,8 +1,7 @@
 <?nvs
-// What a program ships in practice: a `completions` command of its own. The
-// person running it types the name of their shell, the program turns that word
-// into a case, and the script goes to standard output so it can be redirected
-// into a file in one step.
+// This program has its own `completions` command. The user types the name of
+// their shell, and the program writes the script to standard output. The user
+// can redirect it into a file with one command.
 
 class Tool {
     #[Core\Command(name: "deploy", about: "Push the current build")]
@@ -21,17 +20,16 @@ class Tool {
             default => null,
         };
 
-        // A word with no shell behind it gets a refusal, not a guess. Writing
-        // a bash script for somebody using tcsh would complete nothing.
+        // An unknown shell name prints an error to standard error, and the
+        // method returns status `2`.
         if ($which == null) {
             Core\Cli::write("no completion script is written for " . $shell,
                             {stream: Core\Cli\Stream::Err, newline: true});
             return 2;
         }
 
-        // The script is the answer, so it goes to standard output. The advice
-        // about it is not, so it goes to standard error and stays out of the
-        // file when somebody redirects.
+        // The script goes to standard output. The note about it goes to
+        // standard error, so a redirect writes only the script to the file.
         Core\Cli::write(Core\Command::completions($which));
         Core\Cli::write("save that where " . $shell . " looks for completions",
                         {stream: Core\Cli\Stream::Err, newline: true});
@@ -39,8 +37,8 @@ class Tool {
     }
 }
 
-// `Core\Command::run()` is what calls this with the word somebody typed. Both
-// words are run here so the refusal and the script are both visible.
+// In a real program, `Core\Command::run()` calls this method with what the user
+// typed. Here the code calls it twice, with `tcsh` and with `fish`.
 uint $refused = Tool::completions("tcsh");
 Core\Cli::write("tcsh ended with status " . $refused, {stream: Core\Cli\Stream::Err, newline: true});
 

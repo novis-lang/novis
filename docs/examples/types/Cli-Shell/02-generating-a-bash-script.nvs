@@ -1,7 +1,7 @@
 <?nvs
-// You do not write a completion script. You declare your commands, name a
-// shell, and the script is written from that declaration — so what the shell
-// offers is always what the program actually accepts.
+// `Core\Command::completions` writes a completion script from the commands and
+// options you declare. The shell then offers exactly the commands and options
+// that the program accepts.
 
 class Tool {
     #[Core\Command(name: "deploy", about: "Push the current build")]
@@ -18,7 +18,6 @@ class Tool {
     }
 }
 
-// The script registers against the program's own name. For a file run from a
-// command line that name is the file's, which is why this example's own file
-// name is what appears below.
+// The script uses the program's name. For a file run from the command line,
+// that is the file name, so this example's file name appears in the output.
 echo Core\Command::completions(Core\Cli\Shell::Bash);

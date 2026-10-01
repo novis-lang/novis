@@ -1,7 +1,6 @@
 <?nvs
-// Not every failure is about a field. A document that is broken, or nested
-// deeper than the reader was allowed to go, is refused the same way — one
-// entry, and its path is empty because nothing in particular was at fault.
+// Some errors are not about one field. A broken document throws a `ParseError` with one entry.
+// The entry's path is empty, because no single field caused the error.
 
 try {
     Core\Json::decode("{\"total\": }");
@@ -11,13 +10,13 @@ try {
     echo $broken->message, "\n";
 }
 
-// A limit on how deep the reader may go is how a program refuses a document
-// built to exhaust it.
+// `maxDepth` limits how deeply a document may be nested. A deeper document
+// throws a `ParseError`, so a hostile document cannot use up the server.
 try {
     Core\Json::decode("[[[1]]]", {maxDepth: 2});
 } catch (ParseError $deep) {
     echo $deep->message, "\n";
 }
 
-// A document that is fine throws nothing at all.
+// A valid document throws no error.
 echo Core\Json::encode(Core\Json::decode("{\"total\": 3}")), "\n";

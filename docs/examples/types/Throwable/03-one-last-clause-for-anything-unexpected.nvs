@@ -1,8 +1,8 @@
 <?nvs
-// What a handler does at the edge of a request. The failures it knows about get
-// the answer they deserve, and a last clause on the root turns everything else
-// into one safe reply instead of letting an unplanned error reach the visitor.
-// Order matters: the root goes last, because the first arm that matches wins.
+// This program turns each error in a request into a reply with a status code.
+// Each known error type gets its own `catch` block. A last `catch (Throwable ...)`
+// gives one safe reply for every other error. It must come last,
+// because the first `catch` block that matches is the one that runs.
 
 final class Handler {
     public static function reply(string $path): string {
@@ -29,8 +29,8 @@ final class Handler {
         } catch (RuntimeError $refused) {
             return "403 " . $refused->message;
         } catch (Throwable $unexpected) {
-            // Nothing planned for reaches here, so the visitor gets one reply
-            // and the detail goes where the team will read it.
+            // Every error that no block above catches comes here.
+            // The visitor gets one general reply, without the error's details.
             return "500 something went wrong on our side";
         }
     }

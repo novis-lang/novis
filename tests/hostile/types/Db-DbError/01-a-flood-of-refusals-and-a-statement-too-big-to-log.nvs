@@ -1,9 +1,8 @@
 <?nvs
-// Attack: make the database refuse a statement a hundred thousand times, then
-// make it refuse one whose text is megabytes long, then carry a refusal up
-// through a deep chain of calls. Every refusal keeps a message, a reason and a
-// copy of the statement that caused it, so anything held per failure grows
-// without limit here.
+// Attack: the database rejects a statement 100,000 times, then rejects one
+// statement that is megabytes long. Then an error is thrown again through 20,000 calls.
+// Each `DbError` has a copy of its statement. Every error should be freed after
+// its `catch` block, so memory stays small and the program finishes.
 // hostile: timeout-ms 60000
 
 use Core\Db;
@@ -12,8 +11,8 @@ use Core\Db\DbError;
 
 final class Flood
 {
-    // The same row, again and again. Each round is a refusal built, read and
-    // dropped; a run that kept one would not finish this.
+    // Inserts the same row again and again. Each round creates a `DbError`,
+    // reads it and frees it.
     public static function churn(Connection $db, int $rounds): uint
     {
         uint $kept = 0;
@@ -22,7 +21,7 @@ final class Flood
             try {
                 $db->execute('insert into one (id) values (?)', [1]);
             } catch (DbError $refused) {
-                // Both are read, so a run cannot pass by never building them.
+                // This reads both fields, so the error must really contain them.
                 if (Core\Str::length($refused->message) > 0) {
                     $kept = $kept + 1;
                 }
@@ -36,9 +35,8 @@ final class Flood
         return $kept;
     }
 
-    // One refused statement carrying a few megabytes of its own text. The
-    // refusal keeps that text, so this asks whether it is kept once or copied
-    // at every step between the driver and the catch clause.
+    // One rejected statement with a few megabytes of text. The error keeps that
+    // text. It should be stored once, and not copied on its way to the `catch` block.
     public static function huge(Connection $db, int $doublings): uint
     {
         string $padding = "-- and the rest of it\n";
@@ -56,9 +54,8 @@ final class Flood
         }
     }
 
-    // Every frame catches what the frame under it was refused and throws a
-    // fresh refusal carrying the same message, so the chain holds as many live
-    // failures as it is deep.
+    // Each call catches the error from the call below it. Then it throws a new
+    // `DbError` with the same message.
     public static function rethrow(Connection $db, int $depth): bool
     {
         if ($depth == 0) {

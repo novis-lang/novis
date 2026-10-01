@@ -1,8 +1,8 @@
 <?nvs
-// A request whose answer is settled three calls down: the browser already has
-// this version, so there is nothing left to build. Finishing there skips the
-// rest of the work, and the log line written in the outer `finally` is still
-// written — the one thing that must happen on every request either way.
+// This program stops a request from a function deep inside it.
+// The browser already has this version of the page, so the page is not built.
+// `Core\Script::finish()` skips the rest of the work.
+// The outer `finally` block still runs and writes the log line.
 
 class Cache {
     public static function isFresh(string $sent, string $current): bool {

@@ -1,7 +1,7 @@
 <?nvs
-// The cases are listed from least colour to most, so "does this terminal have
-// at least what I need" is a comparison. A case is a name rather than a
-// number, so convert both sides before comparing them.
+// The `Core\Cli\ColorDepth` cases go from least colour to most. Convert two
+// cases to `int` with `as int`, and `>=` checks if one has at least the colour
+// of the other.
 
 class Colour {
     public static function atLeast(Core\Cli\ColorDepth $have, Core\Cli\ColorDepth $want): bool {
@@ -9,16 +9,15 @@ class Colour {
     }
 }
 
-// Two terminals, and the same question asked of both.
+// Two terminals. The code checks both for at least `Ansi256`.
 Core\Cli\ColorDepth $laptop = Core\Cli\ColorDepth::TrueColor;
 Core\Cli\ColorDepth $buildLog = Core\Cli\ColorDepth::None;
 
 echo "laptop has 256: ", Colour::atLeast($laptop, Core\Cli\ColorDepth::Ansi256) ? "yes" : "no", "\n";
 echo "build log has 256: ", Colour::atLeast($buildLog, Core\Cli\ColorDepth::Ansi256) ? "yes" : "no", "\n";
 
-// Which is how a program picks the best of the drawings it knows how to make.
-// The list is written richest first, and the first one the terminal can show
-// wins.
+// `Chart::pick` checks the drawing with the most colour first. It returns the
+// first drawing that the terminal can show.
 class Chart {
     public static function pick(Core\Cli\ColorDepth $have): string {
         if (Colour::atLeast($have, Core\Cli\ColorDepth::TrueColor)) {

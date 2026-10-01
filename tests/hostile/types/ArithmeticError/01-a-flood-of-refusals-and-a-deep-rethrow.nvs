@@ -1,7 +1,7 @@
 <?nvs
-// Attack: raise this error hundreds of thousands of times, then raise it again
-// from inside every frame of a deep call chain. Anything held per failure — the
-// message, the place it came from — grows without limit here.
+// Attack: throw this error many times, then rethrow it in every frame of a deep
+// chain of calls. The memory for each error should be freed, and the program
+// should finish within its time limit.
 // hostile: timeout-ms 30000
 
 final class Flood
@@ -12,12 +12,12 @@ final class Flood
         int $i = 0;
         while ($i < $rounds) {
             try {
-                // A divisor the compiler cannot see is zero, so every round takes
-                // the real refusal rather than one folded away at compile time.
+                // The compiler cannot see that `$zero` is zero. So every round
+                // throws the error while the program runs.
                 int $zero = $i - $i;
                 $kept = $kept + (1 % $zero);
             } catch (ArithmeticError $failed) {
-                // The message is read, so a run cannot pass by never building one.
+                // The code reads the message, so every error must create its message.
                 if (Core\Str::length($failed->message) > 0) {
                     $kept = $kept + 1;
                 }
@@ -27,9 +27,8 @@ final class Flood
         return $kept;
     }
 
-    // Every frame catches what the frame under it threw and throws a fresh one
-    // carrying the same message, so the chain holds as many live failures as it
-    // is deep.
+    // Each frame catches the error from the frame below it and throws a new one
+    // with the same message. A deep chain has one live error per frame.
     public static function rethrow(int $depth): int
     {
         if ($depth == 0) {

@@ -1,18 +1,15 @@
 <?nvs
-// Three fields of one record to check. Run the checks one after another and the
-// first disappointment stops the rest, so you learn about one wrong field per
-// run. Catching each failure instead lets the helper name all of them at once.
-//
-// Catching them changes nothing about the verdict: the test has already failed
-// three times, because each check recorded its outcome before it threw. What
-// this buys is a better report, not a quieter one.
+// This program checks three fields and reports every wrong one in a single run.
+// Without the `catch`, the first failed check would stop the others.
+// A caught failure still counts. Each check records its result before it throws,
+// so the test has still failed twice.
 
 use Core\Test;
 use Core\Test\Failure;
 
 final class Fields {
-    // Returns the field's name when it is wrong, and an empty string when it is
-    // right, so the caller can collect the names.
+    // Returns the field's name when the value is wrong, and an empty string when
+    // it is right. The caller joins the names into one report.
     public static function wrong(string $name, string $expected, string $actual): string {
         try {
             Test::assertEquals($actual, $expected, {message: $name});

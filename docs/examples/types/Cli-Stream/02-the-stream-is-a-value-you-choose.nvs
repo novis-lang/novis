@@ -1,9 +1,9 @@
 <?nvs
-// Which stream a message belongs on is your program's decision, so the stream
-// is an ordinary value: pick it, return it from a function, pass it on.
+// A `Core\Cli\Stream` is an ordinary value. You can store it in a variable,
+// return it from a function and pass it to another function.
 
 class Report {
-    // What the caller asked for goes to output. Everything else goes to error.
+    // A result goes to standard output. Every other message goes to standard error.
     public static function streamFor(string $kind): Core\Cli\Stream {
         return match ($kind) {
             "result" => Core\Cli\Stream::Out,
@@ -20,9 +20,8 @@ Report::say("result", "eur 41.90");
 Report::say("warning", "one price was missing and was left out");
 Report::say("result", "eur 12.00");
 
-// The third case is the stream a program reads rather than writes. Asking to
-// write there is a mistake no run could recover from, so it is refused and the
-// message says why the case exists at all.
+// `Core\Cli\Stream::In` is standard input, which a program reads. Writing to it
+// throws an error, and the message explains why the case exists.
 try {
     Core\Cli::write("who would read this?", {stream: Core\Cli\Stream::In});
 } catch (Throwable $refused) {

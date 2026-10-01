@@ -1,7 +1,7 @@
 <?nvs
-// The queue check somebody does with their coffee. Five states, but only one
-// of them is a reason to open your laptop: `Dead` is work that was asked for
-// and never happened. The rest are either finished or on their way.
+// A morning check of last night's queue. A job has one of five states.
+// Only `Dead` needs a person. A `Dead` job used up every attempt and never ran to the end.
+// The other states are finished, cancelled, waiting, or running now.
 
 class Board {
     public static function needsAPerson(Core\Queue\State $state): bool {
@@ -37,6 +37,5 @@ foreach ($lastNight as string $job => Core\Queue\State $state) {
 
 echo "\n", $coming, " job(s) still on their way, ", $stuck, " waiting for a person\n";
 
-// The cancelled one is not on the list, because nobody wanted it to run. That
-// is the distinction worth keeping: a job that was called off and a job that
-// ran out of attempts look the same on a count and mean opposite things.
+// The cancelled job is not on the list, because nobody wanted it to run.
+// A `Dead` job did not run either, but somebody still needs it to.

@@ -1,7 +1,7 @@
 <?nvs
-// Four files arrive, and the question is what each one really is. The answer is
-// read from the first few bytes of the file. Those bytes are not letters, so
-// they are written here the way a person writes bytes: two characters each.
+// `Core\Mime::detect` reads the first bytes of a file and returns its type.
+// This program checks four files. Their first bytes are written in hex:
+// two characters for each byte.
 
 array<string> $arrived = [
     "a photo from a phone" => "ffd8ffe000104a4649",
@@ -15,6 +15,5 @@ foreach ($arrived as string $what => string $firstBytes) {
     echo $what, ": ", Core\Mime::mediaType($found), "\n";
 }
 
-// The spreadsheet came back as a zip, and that is correct. A `.xlsx` file, a
-// `.docx` and a `.jar` are all zip archives, and what tells them apart is a
-// file stored inside the archive.
+// The spreadsheet is a zip, and that is correct. A `.xlsx`, a `.docx` and a `.jar`
+// file are all zip archives. Only the files inside the archive are different.

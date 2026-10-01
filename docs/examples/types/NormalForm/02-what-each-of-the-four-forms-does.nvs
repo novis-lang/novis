@@ -1,7 +1,6 @@
 <?nvs
-// One word run through all four forms. It holds two things worth watching: an
-// accented letter, and `ﬁ`, which is a single character some typefaces use for
-// the two letters `f` and `i`.
+// This program converts one word to all four forms. The word has an accented
+// letter and `ﬁ`. `ﬁ` is one character that some typefaces use for `f` and `i`.
 
 string $subject = "ﬁancé";
 
@@ -15,10 +14,5 @@ foreach ($forms as string $name => string $text) {
     echo $name, ": ", $text, " (", Core\Str::length($text), " characters)\n";
 }
 
-// `Nfc` and `Nfd` print the same word and count the same, because what they
-// disagree about is how the accent is stored rather than how it reads. Either
-// one can be turned back into the other, so nothing is lost.
-//
-// The two `k` forms also replace `ﬁ` with the two letters `f` and `i`, which
-// is why they count one character more. There is no way back from that: the
-// original spelling is gone.
+// `Nfc` and `Nfd` store the accent in different ways, but both print 5 characters.
+// The `k` forms replace `ﬁ` with `f` and `i`, so they print 6. This cannot be undone.
