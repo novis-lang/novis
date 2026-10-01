@@ -1100,6 +1100,45 @@ fn an_attribute_payload_has_no_positional_field() {
     }
 }
 
+/// The named form's name may be `Owner::Name`, an alias declared in `Owner`'s
+/// body (`rule:attributes/attach-sites-and-forms`): the owner is the name and
+/// the alias is the member, and the payload follows as for a plain name.
+#[test]
+fn an_attribute_name_may_be_an_owner_member() {
+    let s = parse_stmt_ok("#[Shop\\Page::Meta(title: \"x\"), Page::Tag] class C {}");
+    let StmtKind::ClassDecl(class) = s.kind else {
+        panic!("expected a class decl: {s:?}");
+    };
+    let [with_list, listless] = class.attributes[0].attributes.as_slice() else {
+        panic!("expected two attributes: {class:?}");
+    };
+    assert!(with_list.name.is_some() && with_list.member.is_some());
+    assert_eq!(with_list.fields.len(), 1);
+    assert!(listless.member.is_some());
+    assert_eq!(listless.written_name(), Some(listless.payload));
+}
+
+/// A malformed attribute group is one error, and the declaration after it
+/// parses: the rest of the group is skipped up to its own `]`, or up to the
+/// declaration's first keyword when the `]` is missing.
+#[test]
+fn a_malformed_attribute_group_is_one_error() {
+    for src in [
+        "#[Page::] class C {}",
+        "#[Page::Meta(title: \"x\"] class C {}",
+        "#[Page::Meta(title: \"x\") Page::Meta(title: \"y\")] class C {}",
+        "#[Page::Meta(title: [1, 2]) extra] class C {}",
+        "#[Page::Meta(title: \"x\") class C {}",
+    ] {
+        let (stmt, diags) = parse_stmt_with_diags(src);
+        assert_eq!(diags.iter().count(), 1, "for {src:?}: {diags:?}");
+        assert!(
+            matches!(stmt.kind, StmtKind::ClassDecl(_)),
+            "expected the class to parse for {src:?}: {stmt:?}"
+        );
+    }
+}
+
 /// `rule:php-migration/a-constructor-return-carries-no-value`: the object
 /// under construction is the result, so only the *value* is refused — a bare
 /// `return;` still leaves early, and a `return` that belongs to a body nested

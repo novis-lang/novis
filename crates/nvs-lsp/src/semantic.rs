@@ -742,6 +742,10 @@ impl Named<'_> {
                     let library = self.library_of_attribute(name.span);
                     self.name_with(name, Kind::Type, library);
                 }
+                // The alias name in the member form `Owner::Name`.
+                if let Some(member) = attribute.member {
+                    self.push(member, Kind::Type);
+                }
                 for field in &attribute.fields {
                     self.push(field.name, Kind::Property);
                     self.expr(&field.value);

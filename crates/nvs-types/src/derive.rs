@@ -2347,11 +2347,14 @@ fn report_field_arg(field: &ObjectLiteralField, why: String, format: Format, env
 
 /// Whether one attribute is the named form spelling `want`. A bare
 /// `#[{...}]` names nothing at all (`rule:attributes/attach-sites-and-forms`), so it is never one of
-/// `rule:core-classes/derive-attribute`'s two nominal attributes.
+/// `rule:core-classes/derive-attribute`'s nominal attributes, and neither is
+/// the member form `Owner::Name`, which always names a `type` alias.
 pub(crate) fn attribute_is(attr: &Attribute, want: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
-    attr.name
-        .as_ref()
-        .is_some_and(|name| resolves_to(span_text(env.src, name.span), want, ctx))
+    attr.member.is_none()
+        && attr
+            .name
+            .as_ref()
+            .is_some_and(|name| resolves_to(span_text(env.src, name.span), want, ctx))
 }
 
 /// Every field written on the *first* `want`-named attribute in `groups`.

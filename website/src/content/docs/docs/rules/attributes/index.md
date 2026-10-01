@@ -83,20 +83,31 @@ The **bare** `#[{...}]` names no shape and is checked only as a well-formed obje
 a `type` alias whose right-hand side is a shape type; the literal is then checked against it by the
 width subtyping every shape-typed position already uses.
 
-Three answers, deliberately three. A name nothing declares is the ordinary undefined-name `E0303` — an
-attribute name is not a second namespace, so it gets no refusal of its own. A name resolving to
-something that is not a shape-typed alias, a class or a `type Id = int;`, is `E0726`. A payload that
-fails the shape is the ordinary mismatch `E0401`.
+The name may be written `Owner::Name`, an alias declared as a member of an interface, class or enum
+body ([`types/class-scoped-alias`](/docs/rules/types/unions-and-conversion/#class-scoped-alias "A type alias is also a member of a class, interface or enum, reached as Owner::Name and as a bare Name inside its owner")), and it is then resolved exactly as the type `Owner::Name` is,
+the owner's file being autoloaded like any other name the attribute writes. A name is therefore
+written the same way in an attribute and in a type, and an alias that belongs to an interface needs
+no second, file-scope declaration to be usable as an attribute.
+
+Three answers, deliberately three. A name nothing declares is the ordinary undefined-name `E0303` —
+an attribute name is not a second namespace, so it gets no refusal of its own; for `Owner::Name` it is
+the answer the same type would get. A name resolving to something that is not a shape-typed alias, a
+class, a `type Id = int;` or an enum case, is `E0726`. A payload that fails the shape is the ordinary
+mismatch `E0401`.
+
+A malformed attribute is one error. The parser skips the rest of its `#[...]` group up to the
+group's own `]`, so the declaration after it still parses and nothing else is reported for it.
 
 The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
-and naming no shape at all. Every userland name is an alias or a mistake.
+and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
+name is an alias or a mistake.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>A named attribute resolves to a <code>type</code> alias rather than to a class, so there is no per-attribute-kind declaration and no second namespace of attribute names</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/attributes/#inert-metadata" title="An attribute is a shape literal on a declaration, and nothing is ever declared or instantiated for it"><code>attributes/inert-metadata</code></a> <a href="/docs/rules/attributes/#payload-is-a-compile-time-constant" title="Every field value in an attribute payload is a compile-time constant"><code>attributes/payload-is-a-compile-time-constant</code></a> <a href="/docs/rules/attributes/#repeatable" title="An attribute may be attached to one declaration any number of times, and attach time never counts them"><code>attributes/repeatable</code></a> <a href="/docs/rules/statements/names-and-require/#a-qualified-name-is-absolute" title="A name containing a separator is read from the root, and one without it through the imports"><code>statements/a-qualified-name-is-absolute</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0046.md">record 0046</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0036.md">record 0036</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0015.md">record 0015</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0071.md">record 0071</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst"><code>tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-syntax/src/parser/tests/decl.rs"><code>crates/nvs-syntax/src/parser/tests/decl.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/src/attributes.rs"><code>crates/nvs-types/src/attributes.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/attributes/#inert-metadata" title="An attribute is a shape literal on a declaration, and nothing is ever declared or instantiated for it"><code>attributes/inert-metadata</code></a> <a href="/docs/rules/attributes/#payload-is-a-compile-time-constant" title="Every field value in an attribute payload is a compile-time constant"><code>attributes/payload-is-a-compile-time-constant</code></a> <a href="/docs/rules/attributes/#repeatable" title="An attribute may be attached to one declaration any number of times, and attach time never counts them"><code>attributes/repeatable</code></a> <a href="/docs/rules/statements/names-and-require/#a-qualified-name-is-absolute" title="A name containing a separator is read from the root, and one without it through the imports"><code>statements/a-qualified-name-is-absolute</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0046.md">record 0046</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0036.md">record 0036</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0015.md">record 0015</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0071.md">record 0071</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0232.md">record 0232</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst"><code>tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-malformed-attribute-is-one-error.nvst"><code>tests/conformance/reject/a-malformed-attribute-is-one-error.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-attribute-names-a-type-alias-declared-in-an-interface-or-class.nvst"><code>tests/conformance/lang/an-attribute-names-a-type-alias-declared-in-an-interface-or-class.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-syntax/src/parser/tests/decl.rs"><code>crates/nvs-syntax/src/parser/tests/decl.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/src/attributes.rs"><code>crates/nvs-types/src/attributes.rs</code></a></dd></div></dl>
 
 </div>
 

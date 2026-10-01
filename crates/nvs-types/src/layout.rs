@@ -795,9 +795,8 @@ fn push_attributes(
                 member: member.to_owned(),
                 parameter: parameter.to_owned(),
                 name: attr
-                    .name
-                    .as_ref()
-                    .map_or_else(String::new, |n| span_text(src, n.span).to_owned()),
+                    .written_name()
+                    .map_or_else(String::new, |span| span_text(src, span).to_owned()),
                 fields: attr
                     .fields
                     .iter()

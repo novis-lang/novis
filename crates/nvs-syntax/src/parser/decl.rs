@@ -41,16 +41,77 @@ impl<'src, 'd> Parser<'src, 'd> {
         groups
     }
 
+    /// One `#[...]` group.
+    ///
+    /// A malformed group is one error. When the group does not end at its
+    /// `]`, "expected `]`" is reported only if nothing inside the group was
+    /// reported already, and the tokens up to the group's own `]` are then
+    /// skipped by [`Self::skip_to_attribute_close`]. Without the skip, the
+    /// declaration after the group is parsed from the middle of the
+    /// attribute, and every token left over is a further error.
     pub(super) fn parse_attribute_group(&mut self) -> AttributeGroup {
         let start = self.bump().span; // '#['
+        let reported = self.diags.len();
         let mut attributes = vec![self.parse_attribute()];
         while self.eat(TokenKind::Comma).is_some() && !self.at(TokenKind::RBracket) {
             attributes.push(self.parse_attribute());
         }
-        let close = self.expect(TokenKind::RBracket, "`]`");
+        let close = match self.eat(TokenKind::RBracket) {
+            Some(close) => close,
+            None => {
+                if self.diags.len() == reported {
+                    self.error_expected("`]`");
+                }
+                self.skip_to_attribute_close()
+            }
+        };
         AttributeGroup {
             attributes,
             span: start.to(close),
+        }
+    }
+
+    /// Skips the rest of a malformed attribute group and returns the span of
+    /// the last token it consumed: the group's own `]` when there is one.
+    ///
+    /// Brackets, parentheses and braces are counted, so a `]` inside the
+    /// payload does not end the group. Outside every bracket, a `;`, an
+    /// unmatched closing bracket, or a keyword that starts a declaration also
+    /// ends the skip, without being consumed. A group with no `]` at all then
+    /// loses only its own tokens, and the declaration after it still parses.
+    fn skip_to_attribute_close(&mut self) -> Span {
+        let mut depth = 0usize;
+        loop {
+            match self.peek().kind {
+                TokenKind::Eof => return self.last_span,
+                TokenKind::RBracket if depth == 0 => return self.bump().span,
+                TokenKind::LParen
+                | TokenKind::LBracket
+                | TokenKind::LBrace
+                | TokenKind::AttributeOpen => depth += 1,
+                TokenKind::RParen | TokenKind::RBracket | TokenKind::RBrace => {
+                    if depth == 0 {
+                        return self.last_span;
+                    }
+                    depth -= 1;
+                }
+                TokenKind::Semicolon if depth == 0 => return self.last_span,
+                TokenKind::Keyword(
+                    Keyword::Abstract
+                    | Keyword::Class
+                    | Keyword::Const
+                    | Keyword::Enum
+                    | Keyword::Final
+                    | Keyword::Function
+                    | Keyword::Interface
+                    | Keyword::Private
+                    | Keyword::Protected
+                    | Keyword::Public
+                    | Keyword::Readonly,
+                ) if depth == 0 => return self.last_span,
+                _ => {}
+            }
+            self.bump();
         }
     }
 
@@ -61,6 +122,12 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// literal written without its braces, not an argument list, so a
     /// positional argument is "expected a field name" where it is written
     /// rather than something a later pass has to refuse.
+    ///
+    /// The named form's name may be `Owner::Name`, an alias declared in the
+    /// body of `Owner` (`rule:types/class-scoped-alias`), as it may in type
+    /// position. A `::` with no name after it is one error, and the attribute
+    /// is then kept as the bare form, so the checker reports nothing more about
+    /// it.
     pub(super) fn parse_attribute(&mut self) -> Attribute {
         let start = self.peek().span;
         if self.at(TokenKind::LBrace) {
@@ -70,22 +137,35 @@ impl<'src, 'd> Parser<'src, 'd> {
             let payload = open.to(close);
             return Attribute {
                 name: None,
+                member: None,
                 fields,
                 payload,
                 span: payload,
             };
         }
         let name = self.parse_name();
+        let mut named = true;
+        let mut member = None;
+        if self.eat(TokenKind::DoubleColon).is_some() {
+            if Self::is_name_segment(self.peek().kind) {
+                member = Some(self.bump().span);
+            } else {
+                self.error_expected("the name of a `type` alias after `::`");
+                named = false;
+            }
+        }
+        let written = member.map_or(name.span, |member| name.span.to(member));
         let (fields, payload) = if self.at(TokenKind::LParen) {
             let open = self.bump().span; // '('
             let fields = self.parse_object_literal_fields(TokenKind::RParen);
             let close = self.expect(TokenKind::RParen, "`)`");
             (fields, open.to(close))
         } else {
-            (Vec::new(), name.span)
+            (Vec::new(), written)
         };
         Attribute {
-            name: Some(name),
+            name: named.then_some(name),
+            member,
             fields,
             payload,
             span: start.to(self.last_span),

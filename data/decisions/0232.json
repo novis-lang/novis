@@ -1,0 +1,16 @@
+{
+  "title": "An attribute's name may be `Owner::Name`, resolved as the type `Owner::Name` is, and a malformed attribute is one error",
+  "status": "accepted",
+  "scope": "the name of a named attribute, and how the parser recovers from a malformed `#[...]` group. What an\nattribute name must resolve to stays [0046](0046.md)'s shape-typed alias, and retrieval stays\nstructural.",
+  "dependsOn": [
+    "0046",
+    "0190"
+  ],
+  "dependsOnText": "[0046](0046.md) (a named attribute's name is a shape-typed `type` alias),\n[0190](0190.md) (a `type` alias is also a member of a class, interface or enum).",
+  "validatedBy": "`tests/conformance/lang/an-attribute-names-a-type-alias-declared-in-an-interface-or-class.nvst` and\n`tests/conformance/reject/a-malformed-attribute-is-one-error.nvst`.",
+  "summary": {
+    "group": "language",
+    "headline": "An attribute can name a `type` alias declared in an interface or class",
+    "body": "`#[Page::Meta(title: \"Home\")]` names the alias `Meta` declared inside `Page`. It is resolved\nthe same way as the type `Page::Meta`. A mistake inside `#[...]` is reported once, and the\ndeclaration after it is still read."
+  }
+}

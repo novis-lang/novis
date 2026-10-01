@@ -5,7 +5,8 @@
     "0046",
     "0036",
     "0015",
-    "0071"
+    "0071",
+    "0232"
   ],
   "divergesFromPhp": "a named attribute resolves to a `type` alias rather than to a class, so there is no per-attribute-kind declaration and no second namespace of attribute names",
   "seeAlso": [
@@ -16,6 +17,8 @@
   ],
   "guardedBy": [
     "tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst",
+    "tests/conformance/reject/a-malformed-attribute-is-one-error.nvst",
+    "tests/conformance/lang/an-attribute-names-a-type-alias-declared-in-an-interface-or-class.nvst",
     "crates/nvs-syntax/src/parser/tests/decl.rs",
     "crates/nvs-types/src/attributes.rs"
   ]

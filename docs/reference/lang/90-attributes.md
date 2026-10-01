@@ -59,7 +59,9 @@ The two spellings of an attribute:
   of a scalar, or an undeclared name is refused. The literal is checked against that shape the way
   any shape-typed binding is: every field the shape declares must be present at its type, and
   extra fields are allowed. `#[Name]` with no list attaches an empty literal, which satisfies an
-  alias declaring no fields (`type Audited = {};`).
+  alias declaring no fields (`type Audited = {};`). `Name` may also be `Owner::Name`, an alias
+  declared inside an interface, class or enum, written the same way as in a type:
+  `#[Page::Meta(title: "Home")]`. A name the compiler acts on (below) is never written this way.
 - **Bare**: `#[{field: value, …}]` — a literal with no name and nothing to check it against.
 
 Rules that hold for both:

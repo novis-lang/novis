@@ -20,6 +20,8 @@
 //! ([`crate::expr::is_assignable`], `rule:types/shape-type`'s width subtyping). So an
 //! attribute's name resolves in the ordinary namespace/`use` scope, and an
 //! unresolvable one is the ordinary `E0303` rather than a refusal of its own.
+//! The member form `Owner::Name` names an alias declared in `Owner`'s body and
+//! is resolved as that type atom is ([`resolve_member_shape_alias`]).
 //!
 //! One consequence of § 2 is checked from here but owned elsewhere: `rule:security/secret-sinks-refuse`
 //! 's sink for a `secret` class constant reaching a payload is
@@ -27,10 +29,10 @@
 //! [`check_value`] calls it at each value it reaches, that walk being the one
 //! place every payload value passes.
 
-use nvs_diagnostics::{Diagnostic, code};
+use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{
     ArrayItem, Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase, Expr, ExprKind,
-    Name, ObjectLiteralField, Param, UnaryOp,
+    Name, ObjectLiteralField, Param, Type, TypeAtom, TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 
@@ -132,70 +134,20 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let text = span_text(env.src, name.span).to_owned();
     let qname = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
     env.exprs.record_attribute_name(name.span, qname.clone());
-    if crate::derive::ATTRIBUTES
-        .iter()
-        .any(|want| qname == nvs_hir::QName::parse(want))
-    {
-        if constant {
-            // Only the rosters that have a payload to check appear here; a
-            // recognized name whose payload is empty by construction
-            // (`#[Fixture]`) has nothing to say and says nothing.
-            let recognized = |want: &str| qname == nvs_hir::QName::parse(want);
-            if recognized(crate::derive::TEST) {
-                crate::testing::check_payload(&attr.fields, ctx, env);
-            } else if recognized(crate::derive::COMMAND) {
-                check_roster(
-                    "Command",
-                    crate::commands::COMMAND_OPTIONS,
-                    &attr.fields,
-                    ctx,
-                    env,
-                );
-            } else if recognized(crate::derive::OPTION) {
-                check_roster(
-                    "Option",
-                    crate::commands::OPTION_OPTIONS,
-                    &attr.fields,
-                    ctx,
-                    env,
-                );
-            } else if recognized(crate::derive::ROUTE) {
-                check_roster("Route", crate::routes::OPTIONS, &attr.fields, ctx, env);
-            } else if recognized(crate::derive::ACCESS) {
-                // Two calls, because `rule:attributes/access-payload` states two kinds of rule:
-                // the roster answers what is asked of every payload, and the
-                // pass that owns the attribute answers what is about
-                // `#[Access]` alone.
-                check_roster(
-                    "Access",
-                    crate::routes::ACCESS_OPTIONS,
-                    &attr.fields,
-                    ctx,
-                    env,
-                );
-                crate::routes::check_access(attr, env);
-            } else if recognized(crate::derive::API) {
-                // Only the roster here. `rule:attributes/api-adds-and-cannot-contradict`'s contradictions are
-                // every one of them a comparison against the *declaration* —
-                // its `#[Route]`, its return type, the classes the program
-                // declares — so they are asked by the per-class walk that
-                // holds those, exactly as `#[Route]`'s own path checks are.
-                check_roster("Api", crate::routes::API_OPTIONS, &attr.fields, ctx, env);
-            } else if payload.clean {
-                // A recognized name with no roster — `#[Json\Field]`,
-                // `#[TestWith]` — has its payload read by its own pass, which
-                // reads the literal and records nothing about the values. A
-                // `#[TestWith]` row is judged there against the parameter it
-                // names, a `uint` one included, so an integer only a `uint`
-                // holds is inferred as one here and left for that pass to
-                // place.
-                let rows = recognized(crate::derive::TEST_WITH);
-                infer_fields(&attr.fields, rows, ctx, env);
-            }
+    // `Owner::Name` is never one of the recognized names, which are all
+    // plain names, so a member form goes straight to the alias it names.
+    let shape = match attr.member {
+        Some(member) => resolve_member_shape_alias(name, member, ctx, env),
+        None if crate::derive::ATTRIBUTES
+            .iter()
+            .any(|want| qname == nvs_hir::QName::parse(want)) =>
+        {
+            check_recognized(attr, &qname, payload, ctx, env);
+            return;
         }
-        return;
-    }
-    let Some(shape) = resolve_shape_alias(&qname, name, ctx, env) else {
+        None => resolve_shape_alias(&qname, name, ctx, env),
+    };
+    let Some(shape) = shape else {
         return;
     };
     // A payload with a computed value has already been reported once, and
@@ -203,7 +155,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // variable, or as a mismatch against the field the shape declares. The
     // author is told about the value they wrote before they are told what it
     // failed to satisfy.
-    if !constant {
+    if !payload.constant {
         return;
     }
     // Deliberately the ordinary shape-typed position's check, run over an
@@ -214,6 +166,74 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let actual = check_object_literal(&attr.fields, None, &mut live, &scope, ctx, env);
     if !is_assignable(actual, shape, env.interner, env.graph, env.signatures) {
         report_mismatch(attr.payload, shape, actual, env);
+    }
+}
+
+/// One attribute whose name resolved to `rule:core-classes/derive-attribute`'s
+/// roster, its payload checked by the pass that owns that name.
+fn check_recognized(
+    attr: &Attribute,
+    qname: &nvs_hir::QName,
+    payload: Payload,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if payload.constant {
+        // Only the rosters that have a payload to check appear here; a
+        // recognized name whose payload is empty by construction
+        // (`#[Fixture]`) has nothing to say and says nothing.
+        let recognized = |want: &str| *qname == nvs_hir::QName::parse(want);
+        if recognized(crate::derive::TEST) {
+            crate::testing::check_payload(&attr.fields, ctx, env);
+        } else if recognized(crate::derive::COMMAND) {
+            check_roster(
+                "Command",
+                crate::commands::COMMAND_OPTIONS,
+                &attr.fields,
+                ctx,
+                env,
+            );
+        } else if recognized(crate::derive::OPTION) {
+            check_roster(
+                "Option",
+                crate::commands::OPTION_OPTIONS,
+                &attr.fields,
+                ctx,
+                env,
+            );
+        } else if recognized(crate::derive::ROUTE) {
+            check_roster("Route", crate::routes::OPTIONS, &attr.fields, ctx, env);
+        } else if recognized(crate::derive::ACCESS) {
+            // Two calls, because `rule:attributes/access-payload` states two kinds of rule:
+            // the roster answers what is asked of every payload, and the
+            // pass that owns the attribute answers what is about
+            // `#[Access]` alone.
+            check_roster(
+                "Access",
+                crate::routes::ACCESS_OPTIONS,
+                &attr.fields,
+                ctx,
+                env,
+            );
+            crate::routes::check_access(attr, env);
+        } else if recognized(crate::derive::API) {
+            // Only the roster here. `rule:attributes/api-adds-and-cannot-contradict`'s contradictions are
+            // every one of them a comparison against the *declaration* —
+            // its `#[Route]`, its return type, the classes the program
+            // declares — so they are asked by the per-class walk that
+            // holds those, exactly as `#[Route]`'s own path checks are.
+            check_roster("Api", crate::routes::API_OPTIONS, &attr.fields, ctx, env);
+        } else if payload.clean {
+            // A recognized name with no roster — `#[Json\Field]`,
+            // `#[TestWith]` — has its payload read by its own pass, which
+            // reads the literal and records nothing about the values. A
+            // `#[TestWith]` row is judged there against the parameter it
+            // names, a `uint` one included, so an integer only a `uint`
+            // holds is inferred as one here and left for that pass to
+            // place.
+            let rows = recognized(crate::derive::TEST_WITH);
+            infer_fields(&attr.fields, rows, ctx, env);
+        }
     }
 }
 
@@ -387,7 +407,7 @@ fn resolve_shape_alias(
             || qname.is_reserved_global_class()
             || qname.is_reserved_global_interface();
         if declared {
-            report_not_a_shape(name, &format!("`{qname}` is not a `type` alias"), env);
+            report_not_a_shape(name.span, &format!("`{qname}` is not a `type` alias"), env);
         } else {
             env.diags.report(nvs_hir::undeclared_name(
                 nvs_hir::Undeclared {
@@ -410,22 +430,62 @@ fn resolve_shape_alias(
     }
     let described = env.interner.describe(id);
     report_not_a_shape(
-        name,
+        name.span,
         &format!("`{qname}` is a `type` alias for `{described}`, which is not a shape"),
         env,
     );
     None
 }
 
-/// The `E0726` half of [`resolve_shape_alias`], which owns why.
-fn report_not_a_shape(name: &Name, what: &str, env: &mut Env<'_>) {
+/// `rule:attributes/attach-sites-and-forms`'s member form: `Owner::Name`
+/// resolves exactly as the type `Owner::Name` does
+/// (`rule:types/class-scoped-alias`), so the attribute is lowered as that type
+/// atom and nothing here repeats the lookup. An owner or member that resolves
+/// to nothing is the type position's own diagnostic. A member that is an enum
+/// case or a class constant lowers to a type that is not a shape, which is
+/// `E0726` as it is for a plain name.
+fn resolve_member_shape_alias(
+    owner: &Name,
+    member: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let span = owner.span.to(member);
+    let ty = Type {
+        kind: TypeKind::Atom(TypeAtom::Member(*owner, member)),
+        span,
+    };
+    let id = crate::lower::lower_type(&ty, ctx, env);
+    match env.interner.get(id) {
+        Ty::Shape(_) => Some(id),
+        // A name that resolved to nothing has been reported by the lowering
+        // and recovered as `mixed`, and one report is enough.
+        Ty::Mixed => None,
+        _ => {
+            let written = span_text(env.src, span).to_owned();
+            let described = env.interner.describe(id);
+            // An enum case describes itself by the name that was written.
+            let what = if described == written {
+                format!("`{written}` is not a `type` alias")
+            } else {
+                format!("`{written}` is `{described}`, which is not a shape")
+            };
+            report_not_a_shape(span, &what, env);
+            None
+        }
+    }
+}
+
+/// The `E0726` half of [`resolve_shape_alias`] and
+/// [`resolve_member_shape_alias`], which own why.
+fn report_not_a_shape(span: Span, what: &str, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_ATTRIBUTE_NAME_NOT_A_SHAPE,
             format!("an attribute's name must be a shape-typed `type` alias, and {what}"),
         )
         .with_primary(
-            name.span,
+            span,
             "this names no shape to check the payload against",
         )
         .with_help(

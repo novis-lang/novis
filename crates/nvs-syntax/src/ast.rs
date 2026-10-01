@@ -511,7 +511,14 @@ pub struct AttributeGroup {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
     /// The `type` alias the named form names, or `None` for the bare form.
+    /// In the member form `Owner::Name` this is `Owner`, and [`Self::member`]
+    /// is `Name`.
     pub name: Option<Name>,
+    /// The alias name after `::` in the member form `Owner::Name`: an alias
+    /// declared in the body of the interface, class or enum `Owner`
+    /// (`rule:types/class-scoped-alias`). `None` for a plain name and for the
+    /// bare form.
+    pub member: Option<Span>,
     /// The attached literal's fields, in source order.
     pub fields: Vec<ObjectLiteralField>,
     /// The payload literal alone — the parenthesized list or the braced one,
@@ -519,6 +526,16 @@ pub struct Attribute {
     pub payload: Span,
     /// The whole attribute, name and payload.
     pub span: Span,
+}
+
+impl Attribute {
+    /// The name as it is written — `Name`, `Ns\Name` or `Owner::Name` — or
+    /// `None` for the bare form.
+    #[must_use]
+    pub fn written_name(&self) -> Option<Span> {
+        let name = self.name.as_ref()?;
+        Some(self.member.map_or(name.span, |member| name.span.to(member)))
+    }
 }
 
 /// A declaration modifier — visibility, `readonly`, `static`, `abstract` or
