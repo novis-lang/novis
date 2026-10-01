@@ -1,23 +1,28 @@
 {
-  "state": "**Goal `core-class-cards`: Stages 2 and 3 are done, and Stage 4 is under way.** The `codes!` macro in\n`crates/nvs-diagnostics/src/lib.rs` reads an optional `.card(\"…\")` after each `Code::new(…)` and\nwrites `code::card(code) -> Option<&'static str>` beside `code::ALL`. Every band through the\nconfiguration band `E0601`–`E0650` carries cards, and so does the `E07xx` types band from `E0700`\nthrough `E0762`. Every other code (`E0763` onward in `E07xx`, then `E08xx` and `E09xx`) is in the\ntest module's `CODES_STILL_OWING_A_CARD`, in declaration order, and\n`every_code_carries_its_card_or_is_listed` holds the two together both ways. `nvs agent show E0201`\nprints a code's card. Stage 5 is not started.",
+  "state": "**Goal `core-class-cards`: Stages 2, 3 and 4 are done, and Stage 5 is next.** Every diagnostic code in\n`crates/nvs-diagnostics/src/lib.rs` carries its `.card(…)`, `CODES_STILL_OWING_A_CARD` is empty, and\n`no_code_still_owes_a_card` sits beside `every_code_carries_its_card_or_is_listed` and holds every\ndeclared code to a card. `rule:tooling/a-diagnostic-code-carries-its-card` is `shipped`, guarded by\nthat file and `render.rs`. The one red acceptance check left is Stage 5's: `bun nv proofs` still owes\n*Help* for features in `data/proofs/help-backlog.json`, and the backlog is not empty.",
   "next": {
-    "stage": 4,
-    "title": "every diagnostic code carries its card",
+    "stage": 5,
+    "title": "Help is owed by the whole roster",
     "files": [
-      "crates/nvs-diagnostics/src/lib.rs"
+      "data/proofs/help-backlog.json",
+      "tools/nv/proofs/collect.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Drain the list, one band slice per session, in file order** — `rule:tooling/a-diagnostic-code-carries-its-card`; the next slice starts at `E0763` at `crates/nvs-diagnostics/src/lib.rs:4120` and takes about 30 codes a session (through about `E0799`, the end of `E07xx`). The list at `crates/nvs-diagnostics/src/lib.rs:5141` is the order. A card is one to three sentences for the person who met the error, in the voice of AGENTS.md § *Text an end user reads*. Read the `///` above each code yourself with one Read over the slice, and send one `Explore` search for the raise sites (mostly under `crates/nvs-types/src/`), returning `file.rs:NN  CONSTANT  message  help` per code, `(N sites)` where there are several, and `NOT RAISED` for a code nothing raises. Write every card as one `bun nv splice --patch` (OLD `Code::new(\"E0763\");`, NEW the `.card(…)` form with `\\` line continuations), plus one block deleting the slice's codes from the list (a block matches a substring, so `\"E0763\", \"E0764\",` alone is a valid OLD), then `rustfmt --edition 2024` the file to reflow it. The first sentence becomes the index line, so it must read alone. Attribute syntax for an example comes from the corpus: `#[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]`, `#[Core\\Access(allow: Core\\Audience::Public)]`."
+        "text": "**Delete the backlog entries that already pass** — `rule:testing/feature-proofs`; the list `tools/nv/proofs/collect.ts:53` reads, `data/proofs/help-backlog.json`, is mostly `Core` members, and a member's *Help* is its class's card, which Stage 2 wrote. Run `bun nv proofs --id '<feature>'` on a sample first to confirm a carded class's member owes nothing, then delete every entry that passes in one edit, and write help only for what is left."
       },
       {
         "done": false,
-        "text": "**`no_code_still_owes_a_card`** — `rule:tooling/a-diagnostic-code-carries-its-card`; add it beside `every_code_carries_its_card_or_is_listed` at `crates/nvs-diagnostics/src/lib.rs:5159` once the list is empty: it asserts `CODES_STILL_OWING_A_CARD` is empty, and the list and its doc comment go with it."
+        "text": "**An exception and an interface owe *Help*** — `rule:testing/feature-proofs`; give both a card as an enum has one, and switch `help` on for both kinds in `POLICY` at `tools/nv/proofs/collect.ts:42`."
+      },
+      {
+        "done": false,
+        "text": "**A directive owes *Help*** — `rule:tooling/the-index-names-every-key-command-and-code`; set a directive's help from its index entry (Stage 3 landed it) and switch `help` on for the kind in `POLICY` at `tools/nv/proofs/collect.ts:42`."
       }
     ]
   },
   "backlog": [
-    "Stage 5 (help is owed, the roster owes nothing, the help backlog is empty) — `docs/agent/goals/core-class-cards.md`."
+    "Once the backlog is empty and every kind owes *Help*, the goal is met: run `bun nv verify --doc`, `bun nv owners --closes core-class-cards` and `bun nv playbook --closes core-class-cards` before writing `DONE`."
   ]
 }
