@@ -1,27 +1,27 @@
 {
-  "state": "**Goal `path-literals-follow-up`: Stage 2 is on disk, and Stage 3 is next.** Stage 1's floor is goal `plain-comments`'s list.\n\nEvery attack under `tests/hostile/` that ends early declares `// hostile: ends-early <step> <ending>` and prints `step <N>` as the first statement of that step (`rule:testing/hostile-case-contract`, ADR 0244). `tools/nv/proofs/run.ts:@judgeHostile` fails a case whose marker is malformed or names a step that is not the last, one that stopped before the step, and one that stopped with another ending; `tools/nv/test/hostile-ending.test.ts` pins the verdicts and reads every attack. The step line is matched at the end of a line, because a response body written before it may not end its own line. The ending of a throw is the first report's `class`: a hook that throws while the failure is reported writes a second report after it.\n\nThe migration found one real failure: `Core\\Http\\Client::openSocket` checked a header with a line break only after it connected, outside a test. It is now checked before the connect in both paths (`crates/nvs-stdlib/src/http/socket.rs:420`), and that attack reaches its last step and stops with `FATAL`.\n\nEight attacks are slow or still fail on their own known gap, and declare `FATAL` because that is what they are written to reach: the five marked `proof: gap`, plus `core/Heap/peek/01`, `core/Request/query/01` and `core/Xml-Reader/read/01`, which time out under the debug `nvs` and stop with `FATAL` under the proof binary.",
+  "state": "**Goal `path-literals-follow-up`: Stage 3 is under way.** Stages 1 and 2 are on disk, and Stage 1's floor is goal `plain-comments`'s list.\n\nADR 0245 is on disk (`docs/decisions/0245.md`). It modifies `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` and `rule:programs/path-literals-resolve-from-their-file`. Both fragments already state the whole Stage 3 behaviour: the queue half and `script::resolve`'s refusal are written there but not yet built.\n\n`[[schedule]] script` and `[log] handler` (global and `[app.log]`) are joined to the folder of their file while the configuration is read. `nvs_config::schedule::anchor` and `nvs_config::log::anchor` rewrite the typed tree and the table, beside `capability::anchor` in `resolve.rs`. `schedule::validate` checks the anchored value as held. The three `nvs-config` Stage 3 tests are in `crates/nvs-config/tests/resolve.rs`.\n\n`Core\\Http\\Socket`'s five perf figures were measured again after `socket.rs` changed, and `bun nv proofs --gate` owes nothing.",
   "next": {
     "stage": 3,
     "title": "scripts start at their file",
     "files": [],
-    "note": "one file set, the configuration: `crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/resolve.rs`, `crates/nvs-server/src/schedule.rs`, `crates/nvs-host/src/ladder.rs`, `crates/nvs-cli/src/serve.rs`.",
+    "note": "one file set, the script resolver and the queue: `crates/nvs-runtime/src/script.rs`, `crates/nvs-runtime/src/capability.rs`, `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-cli/src/worker.rs`, `crates/nvs-host/tests/limits.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The decision record** — the next free ADR slot, checked right before it is written. It modifies `config/a-relative-path-resolves-against-the-file-it-is-written-in` and `programs/path-literals-resolve-from-their-file` (goal prose § *Stage 3*); anchors `crates/nvs-config/src/resolve.rs:1`, `docs/rules/config/a-relative-path-resolves-against-the-file-it-is-written-in.md:1`."
+        "text": "**`script::resolve` refuses a relative path** (`rule:programs/path-literals-resolve-from-their-file`, ADR 0245 § 3) — ask `capability::relative` before the grant, in `crates/nvs-runtime/src/script.rs:416`, and rewrite the doc at `crates/nvs-runtime/src/capability.rs:134` that names three callers which skip it. Migrate the tests that hand it a relative handler: `crates/nvs-host/tests/limits.rs:779` (its `snapshot_of` at `crates/nvs-host/tests/limits.rs:1209` skips the anchor pass, so name the handler absolute), and check `crates/nvs-cli/tests/live_edit.rs:1` and `crates/nvs-cli/tests/live_config.rs:1231`."
       },
       {
         "done": false,
-        "text": "**`[[schedule]] script` and `[log] handler` resolve while the configuration is read** (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`) — anchors `crates/nvs-config/src/tree.rs:477`, `crates/nvs-config/src/tree.rs:1055`, `crates/nvs-host/src/ladder.rs:102`, `crates/nvs-cli/src/serve.rs:1741`."
+        "text": "**`Core\\Queue::push`'s script is a path parameter** (ADR 0245 § 2) — `CoreTy::Path(Qual::Sink)` at `crates/nvs-stdlib/src/queue.rs:1914`; a relative path built at run time throws at the push; the row stores the absolute path. Tests: `nvs-types`' `queue_push_script_literal_resolves_from_the_file_that_wrote_it` and `nvs-stdlib`'s `a_pushed_job_stores_an_absolute_script_path` and `a_relative_script_built_at_run_time_throws_at_the_push`. A stored relative row fails at `crates/nvs-cli/src/worker.rs:1379` (ADR 0245 § 4)."
       },
       {
         "done": false,
-        "text": "**The tests that wrote scripts relative to the working directory are migrated** — anchors `crates/nvs-cli/tests/live_edit.rs:1`, `crates/nvs-host/tests/limits.rs:1`."
+        "text": "**The `nvs-cli` pair** — `a_schedule_script_beside_the_configuration_runs_from_any_working_directory` and `a_log_handler_beside_the_configuration_runs_from_any_working_directory`, which start the server in a working directory that is not the configuration's folder; harness beside `crates/nvs-cli/tests/live_config.rs:1231`."
       }
     ]
   },
   "backlog": [
-    "The queue half of Stage 3: `Core\\Queue::push`'s script becomes `CoreTy::Path(Qual::Sink)` — `crates/nvs-stdlib/src/queue.rs:1908`, `crates/nvs-cli/src/worker.rs:1379` (goal prose § *Stage 3*).",
-    "Stages 4 to 7 as the goal prose orders them."
+    "Stages 4 to 6 (`fromCwd`'s taint, `thisFile`/`thisDir`, `'X' as class<T>`) — goal prose § *Stage 4* onward.",
+    "Stage 7's perf records for `Core\\Path::thisFile` and `thisDir` once Stage 5 lands."
   ]
 }
