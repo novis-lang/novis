@@ -3975,6 +3975,8 @@ fn header_map(lines: &[(String, String)]) -> Value {
 
 /// Every line the reply carried under `name`, as the two readers of
 /// [`HEADERS_SLOT`] both see them, or `None` where it carried no such field.
+/// `Core\Test\Response` keeps its headers in a slot of this shape and reads
+/// them through here too.
 ///
 /// The answer is the list of `string` values the slot already holds, borrowed
 /// rather than copied: the reply owns a reference to it for as long as the
@@ -3986,7 +3988,7 @@ fn header_map(lines: &[(String, String)]) -> Value {
 /// § 5.1 asks for is one lookup rather than a walk that compares
 /// case-insensitively at every entry, and a name written in lower case costs
 /// no allocation at all.
-fn field_lines(
+pub(crate) fn field_lines(
     object: *mut nvs_runtime::ObjHeader,
     at: usize,
     name: &str,
@@ -4001,7 +4003,7 @@ fn field_lines(
 }
 
 /// The lines of `values` in arrival order, each borrowed from the list.
-fn each_line(values: &NvsArray) -> impl Iterator<Item = Value> + '_ {
+pub(crate) fn each_line(values: &NvsArray) -> impl Iterator<Item = Value> + '_ {
     let mut from = 0_usize;
     std::iter::from_fn(move || {
         let slot = values.next_slot(from)?;
@@ -4042,7 +4044,7 @@ fn field_name<'a>(value: &'a Value, class: &str, member: &str) -> Result<&'a str
 /// # Errors
 ///
 /// A `LogicError` naming `headers` for `Set-Cookie`.
-fn joined_field(
+pub(crate) fn joined_field(
     object: *mut nvs_runtime::ObjHeader,
     at: usize,
     name: &str,

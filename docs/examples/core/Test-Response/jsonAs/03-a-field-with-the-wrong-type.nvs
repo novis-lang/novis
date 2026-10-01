@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a test finds an answer whose JSON has a field with the wrong type.
+
+use Core\Http\Method;
+use Core\Test;
+
+#[Core\Json\Derive]
+class Product {
+    public string $sku;
+    public int $price;
+
+    public function constructor(string $sku, int $price) {
+        $this->sku = $sku;
+        $this->price = $price;
+    }
+}
+
+try {
+    // This part answers each request. The price is a string, but `Product`
+    // needs an `int`.
+    var $path = Core\Request::path();
+    Core\Response::json(["sku" => "mug-7", "price" => "12"]);
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Get, "/products/mug-7");
+
+    // `jsonAs` throws a `ParseError`. Its `issues` list has one entry for
+    // each wrong field. This prints `1 wrong field`.
+    try {
+        $response->jsonAs<Product>();
+    } catch (ParseError $error) {
+        echo Core\Arr::count($error->issues), " wrong field\n";
+    }
+}

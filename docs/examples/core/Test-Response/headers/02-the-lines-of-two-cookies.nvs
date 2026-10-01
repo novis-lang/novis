@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check the whole `Set-Cookie` line of each cookie.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. It sets two cookies.
+    var $path = Core\Request::path();
+    Core\Response::addCookie("sid", "abc123");
+    Core\Response::addCookie("lang", "en", {httpOnly: false});
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Get, "/login");
+
+    // There is one line for each cookie, in the order the program set them.
+    // This prints two lines. The second line has no `HttpOnly`.
+    foreach ($response->headers()["set-cookie"] as string $line) {
+        echo $line, "\n";
+    }
+}

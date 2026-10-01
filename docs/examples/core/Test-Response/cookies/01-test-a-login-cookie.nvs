@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to test that a login page sets a session cookie.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. A login sets the `sid` cookie.
+    var $path = Core\Request::path();
+    if ($path == "/login") {
+        Core\Response::addCookie("sid", "abc123");
+    }
+} catch (LogicError $noRequest) {
+    // This part is the test.
+    var $login = Test::request(Method::Post, "/login");
+
+    // This prints `{"sid":"abc123"}`.
+    echo Core\Json::encode($login->cookies()), "\n";
+
+    // Another page sets no cookie, so the array is empty. This prints `0`.
+    var $home = Test::request(Method::Get, "/");
+    echo Core\Arr::count($home->cookies()), "\n";
+}

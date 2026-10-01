@@ -1,0 +1,34 @@
+<?nvs
+// Reads every header of a test response, as a test does before it checks which headers a page sends.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Test\Response> $responses = [
+            Core\Test::request(Core\Http\Method::Get, "/"),
+            Core\Test::request(Core\Http\Method::Get, "/bbb"),
+            Core\Test::request(Core\Http\Method::Get, "/cccccc"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($responses[($total % 3) as int]->headers());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part sets one header
+// for each character of the path, so the three answers have 2, 5 and 8 headers.
+try {
+    var $path = Core\Request::path();
+    uint $n = 0;
+    while ($n < Core\Str::length($path)) {
+        Core\Response::setHeader("X-Part-" . $n, "yes");
+        $n = $n + 1;
+    }
+} catch (LogicError $noRequest) {
+    echo Bench::run(400000), "\n";
+}

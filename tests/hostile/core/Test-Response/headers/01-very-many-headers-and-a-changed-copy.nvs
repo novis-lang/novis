@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a test reads all headers of answers with very many headers and cookies, and changes the
+// array it gets back. The response must stay the same, and the program must not crash.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    var $path = Core\Request::path();
+    if ($path == '/many') {
+        uint $n = 0;
+        while ($n < 20000) {
+            Core\Response::setHeader("X-Item-{$n}", 'value');
+            $n = $n + 1;
+        }
+    }
+    if ($path == '/replaced') {
+        uint $r = 0;
+        while ($r < 10000) {
+            Core\Response::setHeader('X-Same', "{$r}");
+            $r = $r + 1;
+        }
+    }
+    if ($path == '/cookies') {
+        uint $c = 0;
+        while ($c < 10000) {
+            Core\Response::addCookie("c{$c}", 'v');
+            $c = $c + 1;
+        }
+    }
+    if ($path == '/fails') {
+        Core\Response::setHeader('X-Before', 'set');
+        throw new RuntimeError('not handled');
+    }
+} catch (LogicError $noRequest) {
+    // 1. Read 20000 headers 100 times.
+    var $many = Test::request(Method::Get, '/many');
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 100) {
+        $total = $total + Core\Arr::count($many->headers());
+        $i = $i + 1;
+    }
+    echo 'counted ', $total, "\n";
+
+    // 2. One header set 10000 times has one line.
+    var $replaced = Test::request(Method::Get, '/replaced');
+    echo 'lines ', Core\Arr::count($replaced->headers()['x-same']), "\n";
+
+    // 3. 10000 cookies are 10000 lines.
+    var $cookies = Test::request(Method::Get, '/cookies');
+    echo 'cookie lines ', Core\Arr::count($cookies->headers()['set-cookie']), "\n";
+
+    // 4. Change the array that `headers()` returned. The next call returns the
+    // headers the program sent, unchanged.
+    var $copy = $many->headers();
+    $copy['x-item-0'] = ['changed'];
+    $copy['x-new'] = ['added'];
+    echo 'unchanged ', $many->headers()['x-item-0'][0], ' ', Core\Arr::count($many->headers()), "\n";
+
+    // 5. A failed request has no headers.
+    var $fails = Test::request(Method::Get, '/fails');
+    echo 'failed ', Core\Arr::count($fails->headers()), "\n";
+}

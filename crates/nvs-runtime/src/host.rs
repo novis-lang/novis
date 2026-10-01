@@ -389,6 +389,15 @@ pub struct Failure {
     pub message: String,
 }
 
+/// The media type of an answer whose [`Completion::content_type`] is `None` —
+/// `rule:security/response-body-is-one-typed-member`'s reading of a body only
+/// `echo` wrote, which is HTML.
+///
+/// Here, beside the field it completes, because two readers answer with it:
+/// `nvs-server` writes it on the wire, and `Core\Test::request` reports it on
+/// the response a test reads. One constant keeps the two from disagreeing.
+pub const ECHOED_MEDIA_TYPE: &str = "text/html; charset=utf-8";
+
 /// What an isolate answers with — the native half of the `ScriptResult` the
 /// language surface presents.
 #[derive(Debug)]

@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to read the JSON answer of an API into an instance of your own class.
+
+use Core\Http\Method;
+use Core\Test;
+
+// `#[Core\Json\Derive]` gives the class a JSON format. Each public field is one key.
+#[Core\Json\Derive]
+class Product {
+    public string $sku;
+    public int $price;
+
+    public function constructor(string $sku, int $price) {
+        $this->sku = $sku;
+        $this->price = $price;
+    }
+}
+
+try {
+    // This part answers each request. It sends one product as JSON.
+    var $path = Core\Request::path();
+    Core\Response::json(["sku" => "mug-7", "price" => 12]);
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Get, "/products/mug-7");
+
+    // The class between `<` and `>` is the class to create. The result is a `Product`.
+    var $product = $response->jsonAs<Product>();
+
+    // This prints `mug-7 costs 12`.
+    echo $product->sku, " costs ", $product->price, "\n";
+}

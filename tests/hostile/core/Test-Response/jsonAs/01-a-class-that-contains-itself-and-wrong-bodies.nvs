@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a test reads very deep, very long and wrong bodies into a class that contains itself.
+// Each read should return an object or throw an error the test can catch.
+
+use Core\Http\Method;
+use Core\Test;
+
+#[Core\Json\Derive]
+class Folder
+{
+    public string $name;
+    public ?Folder $inner;
+
+    public function constructor(string $name, ?Folder $inner)
+    {
+        $this->name = $name;
+        $this->inner = $inner;
+    }
+}
+
+try {
+    // `Core\Response::text` sends each body exactly as it is written here.
+    var $path = Core\Request::path();
+    if ($path == '/deep') {
+        // One folder inside the next, 1000 levels deep.
+        Core\Response::text(Core\Str::repeat('{"name":"f","inner":', 1000) . 'null' . Core\Str::repeat('}', 1000));
+    }
+    if ($path == '/list') {
+        Core\Response::text('[' . Core\Str::repeat('{"name":"f","inner":null},', 99999) . '{"name":"f","inner":null}]');
+    }
+    if ($path == '/wrong') {
+        Core\Response::text('{"name":7,"inner":"not a folder","extra":true}');
+    }
+    if ($path == '/array') {
+        Core\Response::text('[1, 2, 3]');
+    }
+} catch (LogicError $noRequest) {
+    // 1. 1000 folders inside each other. The body is deeper than `maxDepth: 64`,
+    // so this throws a `ParseError`. It is caught, so the next step still runs.
+    var $deep = Test::request(Method::Get, '/deep');
+    try {
+        $deep->jsonAs<Folder>({ maxDepth: 64 });
+    } catch (ParseError $tooDeep) {
+        echo "deep: too deep\n";
+    }
+
+    // 2. The same body with the largest `maxDepth`. The result is an object,
+    // or an error the test can catch.
+    try {
+        var $root = $deep->jsonAs<Folder>({ maxDepth: 1024 });
+        echo 'deep: read ', $root->name, "\n";
+    } catch (RecursionError $stack) {
+        echo "deep: the stack is full\n";
+    } catch (ParseError $parse) {
+        echo "deep: not read\n";
+    }
+
+    // 3. A list of 100000 folders, read 3 times.
+    var $list = Test::request(Method::Get, '/list');
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 3) {
+        $total = $total + Core\Arr::count($list->jsonAs<array<Folder>>());
+        $i = $i + 1;
+    }
+    echo 'list: ', $total, " folders\n";
+
+    // 4. Fields with the wrong type, an array where an object belongs, and no body.
+    array<string> $paths = ['/wrong', '/array', '/empty'];
+    foreach ($paths as string $bad) {
+        try {
+            Test::request(Method::Get, $bad)->jsonAs<Folder>();
+        } catch (ParseError $wrong) {
+            echo $bad, ': ', Core\Arr::count($wrong->issues), " issues\n";
+        }
+    }
+}

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check single values in the JSON that an API sends.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. It sends one product as JSON.
+    var $path = Core\Request::path();
+    Core\Response::json(["sku" => "mug-7", "price" => 12, "tags" => ["blue", "kitchen"]]);
+} catch (LogicError $noRequest) {
+    // This part is the test.
+    var $response = Test::request(Method::Get, "/products/mug-7");
+
+    // `json()` returns the decoded body. A JSON object is an array with string keys.
+    var $product = $response->json() as array<mixed>;
+
+    // This prints `mug-7 12 2`.
+    echo $product["sku"], " ", $product["price"], " ", Core\Arr::count($product["tags"] as array<mixed>), "\n";
+}

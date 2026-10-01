@@ -895,9 +895,26 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 /// construct the checker types itself (`nvs_types::expr::isolate`). Inventing
 /// one for a single member would put a second shape-typing path in
 /// `nvs-types` beside the one that already exists, which is a larger change
-/// than the two accessors below, and `Core\Script\ExitReport` is the shape a
+/// than the accessors below, and `Core\Script\ExitReport` is the shape a
 /// `Core`-owned result already takes here.
 ///
+/// **Its readers are the request side's, read from the other end.** `header`
+/// joins repeated lines with `, ` as `Core\Request::header` does, `headers`
+/// answers `Core\Request::headers`' shape, and `json`/`jsonAs<T>` carry
+/// `Core\Request`'s `{maxDepth?}` bag and its errors, so one spelling reads a
+/// request and the answer to it. `Set-Cookie` is the one field a response
+/// carries that a request never does, and it is read the way
+/// `Core\Http\Response` reads it: `header` refuses it, because two cookies
+/// joined parse as neither, and `cookies` is the reader for it.
+///
+/// **Nothing on it is `tainted`**: every byte is what the program under test
+/// wrote, which is its own output and not the peer's input.
+/// `rule:security/tainted-qualifier`'s qualifier travels with what arrived, and
+/// nothing that arrived reaches this without the program having put it there.
+///
+/// **What it spends:** one copy of the answer's header lines per test request,
+/// grouped by name in [`HEADERS_SLOT`], beside the body the response already
+/// held. Test-only: no served request builds one.
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
     doc: Some(&RESPONSE_CARD),
@@ -917,30 +934,81 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // Not `tainted`: the bytes are what the *program under test* wrote,
-            // which is its own output and not the peer's input. `rule:security/tainted-qualifier`'s
-            // qualifier travels with what arrived, and nothing that arrived
-            // reaches this without the program having put it there.
             return_ty: CoreTy::Str,
             symbol: "nvs_core_test_response_body",
             doc: Some(&RESPONSE_BODY_DOC),
         },
+        CoreMethod {
+            name: "header",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_test_response_header",
+            doc: Some(&RESPONSE_HEADER_DOC),
+        },
+        CoreMethod {
+            name: "headers",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&RESPONSE_HEADER_LINES),
+            symbol: "nvs_core_test_response_headers",
+            doc: Some(&RESPONSE_HEADERS_DOC),
+        },
+        CoreMethod {
+            name: "cookies",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "nvs_core_test_response_cookies",
+            doc: Some(&RESPONSE_COOKIES_DOC),
+        },
+        CoreMethod {
+            name: "json",
+            names: &[],
+            params: &[CoreTy::Options(crate::json::DECODE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_test_response_json",
+            doc: Some(&RESPONSE_JSON_DOC),
+        },
+        CoreMethod {
+            name: "jsonAs",
+            names: &[],
+            params: &[CoreTy::Options(crate::json::DECODE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "nvs_core_test_response_json_as",
+            doc: Some(&RESPONSE_JSON_AS_DOC),
+        },
     ],
-    slots: &["status", "body"],
+    slots: &["status", "body", "headers"],
     constants: &[],
 };
+
+/// `array<string>` — the lines of one header name in `headers()`'s answer, and
+/// so the element type of that member's own `array<…>`.
+const RESPONSE_HEADER_LINES: CoreTy = CoreTy::Array(&CoreTy::Str);
 
 /// `Core\Test\Response`'s class card — `rule:core-api/reference-card`.
 const RESPONSE_CARD: ClassDoc = ClassDoc {
     short: "The answer to one request that `Core\\Test::request` sent to your own program. \
-            `status()` returns the status code and `body()` returns the text the program wrote. \
-            You cannot create one yourself.",
+            `status()` returns the status code, `header()` and `headers()` return the headers, \
+            `cookies()` returns the cookies the program set, and `body()`, `json()` and \
+            `jsonAs()` return the body. You cannot create one yourself.",
 };
 
 /// [`RESPONSE`]'s first slot: the status the program declared, or `200`.
 const STATUS_SLOT: usize = 0;
 /// [`RESPONSE`]'s second slot: the bytes the program wrote.
 const BODY_SLOT: usize = 1;
+/// [`RESPONSE`]'s third slot: the answer's header lines, keyed by the
+/// lower-cased name, each a list of lines in the order the answer carries them
+/// — `Core\Http\Response`'s header slot's shape, so that class's readers
+/// ([`crate::http::field_lines`]) read this one too.
+const HEADERS_SLOT: usize = 2;
 
 /// `Core\Test\SentRequest`'s fully-qualified name, written once for the same
 /// reason [`NAME`] is.
@@ -1118,8 +1186,10 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "A `Core\\Test\\Response`. `status()` returns the status the program set, or `200` if \
-          it set none. `body()` returns the text the program wrote. A path that no route matches \
-          still gets an answer, because your program decides what to do with it.",
+          it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` \
+          decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the \
+          program set. A path that no route matches still gets an answer, because your program \
+          decides what to do with it.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "There is no program to answer, because the call is not in `nvs test` or \
@@ -1146,6 +1216,110 @@ const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
           result is an empty string. If the program threw an error it did not catch, the result \
           is also an empty string, because the server sends no body for a failed request.",
     errors: &[],
+};
+
+/// `Core\Test\Response::header`'s reference card — `rule:core-api/reference-card`.
+const RESPONSE_HEADER_DOC: MethodDoc = MethodDoc {
+    short: "Returns the value of one header of the answer, by its name.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The name of the header. Upper and lower case do not matter, so `Content-Type` and \
+               `content-type` are the same header.",
+        shape: &[],
+    }],
+    ret: "The value, exactly as the program set it. The result is `null` when the answer has no \
+          header of that name. When the answer has the header on more than one line, the values \
+          are joined with `, ` in order. The answer always has a `Content-Type` header. If the \
+          program set none, its value is `text/html; charset=utf-8`, the same as the server sends. \
+          A request that failed has no headers.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The name is `Set-Cookie`. Two cookies joined into one string are not a cookie, so \
+               `cookies()` and `headers()` read that header.",
+    }],
+};
+
+/// `Core\Test\Response::headers`'s reference card — `rule:core-api/reference-card`.
+const RESPONSE_HEADERS_DOC: MethodDoc = MethodDoc {
+    short: "Returns every header of the answer, grouped by name.",
+    params: &[],
+    ret: "An `array<array<string>>`. Each key is a header name in lower case. Its value is a list \
+          with one entry for each line of that header, in order. `Set-Cookie` has one line for \
+          each cookie. A request that failed returns an empty array.",
+    errors: &[],
+};
+
+/// `Core\Test\Response::cookies`'s reference card — `rule:core-api/reference-card`.
+const RESPONSE_COOKIES_DOC: MethodDoc = MethodDoc {
+    short: "Returns the cookies the program set in this answer, by name.",
+    params: &[],
+    ret: "An `array<string>`. Each key is a cookie name and each value is the cookie value, \
+          exactly as the program set it. Nothing is decoded. Attributes such as `Path` and \
+          `HttpOnly` are not in the result, and `headers()[\"set-cookie\"]` returns the whole \
+          lines. When the program set one name twice, the result has the last value. A cookie \
+          that the program deleted is in the result with an empty value. The array is empty \
+          when the program set no cookie.",
+    errors: &[],
+};
+
+/// `Core\Test\Response::json`'s reference card — `rule:core-api/reference-card`.
+const RESPONSE_JSON_DOC: MethodDoc = MethodDoc {
+    short: "Reads the body of the answer as one JSON document and returns the decoded value.",
+    params: &[ParamDoc {
+        name: "maxDepth",
+        desc: "How deep the document may nest. The default is 512, and the value must be from 1 \
+               to 1024. A document with no array or object in it has depth 1.",
+        shape: &[],
+    }],
+    ret: "The decoded value, the same as `Core\\Json::decode` returns for the body. A JSON object \
+          becomes an array with string keys. Every call decodes the body again and returns the \
+          same value.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`maxDepth` is not from 1 to 1024.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not one whole JSON document, or it nests deeper than `maxDepth`. \
+                   An empty body throws this error too. The `Content-Type` header is not \
+                   checked.",
+        },
+    ],
+};
+
+/// `Core\Test\Response::jsonAs`'s reference card — `rule:core-api/reference-card`.
+const RESPONSE_JSON_AS_DOC: MethodDoc = MethodDoc {
+    short: "Reads the body of the answer as one JSON object and returns a new instance of the \
+            class `T`. The class needs `#[Core\\Json\\Derive]`. Write `array<T>` to read a JSON \
+            array with one object for each element.",
+    params: &[ParamDoc {
+        name: "maxDepth",
+        desc: "How deep the document may nest. The default is 512, and the value must be from 1 \
+               to 1024. A document with no array or object in it has depth 1.",
+        shape: &[],
+    }],
+    ret: "A new `T` with its fields read from the body, or one `T` for each element for an \
+          `array<T>`. Every call creates new objects.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`T` has no `#[Core\\Json\\Derive]` attribute. Or `maxDepth` is not from 1 to \
+                   1024.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not one whole JSON object, or it nests deeper than `maxDepth`. An \
+                   empty body throws this error too. It is also thrown when a field is missing \
+                   or has the wrong type. The `issues` list has one entry for each wrong field. \
+                   The `Content-Type` header is not checked.",
+        },
+        ErrorDoc {
+            error: "RecursionError",
+            desc: "The call stack is full before the last object is created. This can happen \
+                   when a class contains itself and the body nests very deeply.",
+        },
+    ],
 };
 
 /// `Core\Test::answerHttp`'s reference card — `rule:core-api/reference-card`.
@@ -2605,6 +2779,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_request" => (nvs_core_test_request as *const ()).cast(),
         "nvs_core_test_response_status" => (nvs_core_test_response_status as *const ()).cast(),
         "nvs_core_test_response_body" => (nvs_core_test_response_body as *const ()).cast(),
+        "nvs_core_test_response_header" => (nvs_core_test_response_header as *const ()).cast(),
+        "nvs_core_test_response_headers" => (nvs_core_test_response_headers as *const ()).cast(),
+        "nvs_core_test_response_cookies" => (nvs_core_test_response_cookies as *const ()).cast(),
+        "nvs_core_test_response_json" => (nvs_core_test_response_json as *const ()).cast(),
+        "nvs_core_test_response_json_as" => (nvs_core_test_response_json_as as *const ()).cast(),
         "nvs_core_test_double" => (nvs_core_test_double as *const ()).cast(),
         "nvs_core_test_partial" => (nvs_core_test_partial as *const ()).cast(),
         "nvs_core_test_assert_called" => (nvs_core_test_assert_called as *const ()).cast(),
@@ -2740,21 +2919,73 @@ nvs_runtime::nvs_helper! {
         if !completion.ok {
             return Ok(crate::instance::build(
                 &RESPONSE,
-                [Value::int(500), Value::str(nvs_runtime::NvsStr::new(b""))],
+                [
+                    Value::int(500),
+                    Value::str(nvs_runtime::NvsStr::new(b"")),
+                    Value::array(nvs_runtime::NvsArray::new()),
+                ],
             ));
         }
         // Spec § 15's default, applied here rather than left `null`: a program
         // that only echoed answered `200`, and making a test say so would be
         // making every test say so.
         let status = i64::from(completion.status.unwrap_or(200));
+        let headers = answered_headers(&completion);
         Ok(crate::instance::build(
             &RESPONSE,
             [
                 Value::int(status),
                 Value::str(nvs_runtime::NvsStr::new(&completion.output)),
+                headers,
             ],
         ))
     }
+}
+
+/// The header lines a finished request answers with, grouped as
+/// [`HEADERS_SLOT`] holds them.
+///
+/// **The server's own composition, in its order**: `Content-Type` first — the
+/// declared media type, or [`nvs_runtime::host::ECHOED_MEDIA_TYPE`] for a
+/// program that only echoed — and then every row the program declared, a
+/// replacing row taking the place of every line under its name and an
+/// appending row joining them (`nvs-server`'s `answer` and `overrides`). So a
+/// `Location` from a redirect, a `Set-Cookie` from a session and a header set
+/// with `setHeader` are all here, and a test sees what a visitor is sent.
+///
+/// The headers the server adds for itself — a length, a date, the deployment's
+/// policy headers — are not: they are facts about a connection and a
+/// configuration, and a test's subject is the program.
+fn answered_headers(completion: &nvs_runtime::host::Completion) -> Value {
+    let mut groups: Vec<(String, Vec<&str>)> = vec![(
+        "content-type".to_owned(),
+        vec![
+            completion
+                .content_type
+                .as_deref()
+                .unwrap_or(nvs_runtime::host::ECHOED_MEDIA_TYPE),
+        ],
+    )];
+    for row in &completion.headers {
+        let name = row.name.to_ascii_lowercase();
+        match groups.iter_mut().find(|(seen, _)| *seen == name) {
+            Some((_, lines)) if row.append => lines.push(&row.value),
+            Some((_, lines)) => *lines = vec![&row.value],
+            None => groups.push((name, vec![&row.value])),
+        }
+    }
+    let mut out = nvs_runtime::NvsArray::new();
+    for (name, lines) in groups {
+        let mut values = nvs_runtime::NvsArray::new();
+        for line in lines {
+            values.append(Value::str(nvs_runtime::NvsStr::new(line.as_bytes())));
+        }
+        out.set(
+            nvs_runtime::NvsStr::new(name.as_bytes()),
+            Value::array(values),
+        );
+    }
+    Value::array(out)
 }
 
 nvs_runtime::nvs_helper! {
@@ -2768,6 +2999,225 @@ nvs_runtime::nvs_helper! {
     /// `Core\Test\Response::body(): string` — the bytes the program wrote.
     fn nvs_core_test_response_body(_ctx, args: [1]) {
         response_slot(args, BODY_SLOT, "body")
+    }
+}
+
+/// The field [`nvs_core_test_response_header`] does not join, and the field
+/// [`nvs_core_test_response_cookies`] reads — lower-cased, as the slot's keys are.
+const SET_COOKIE_FIELD: &str = "set-cookie";
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::header(string $name): ?string` — one field of the
+    /// answer, its lines joined by `, ` as `Core\Request::header` joins a
+    /// request's (RFC 9110 § 5.3), and `null` where the answer carried none.
+    ///
+    /// `Set-Cookie` is refused whether or not the answer carried one, on
+    /// `Core\Http\Response::header`'s reasoning: two cookies joined parse as
+    /// neither, and a rule that depended on what the program happened to set
+    /// is a rule no test could be written against. The message names the two
+    /// readers that do read it, since this class's `headers` takes no name.
+    ///
+    /// # Errors
+    ///
+    /// A `LogicError` for `Set-Cookie`. A [`Fault::fatal`] for a receiver that
+    /// is not a `Core\Test\Response` or a `$name` that is not text, both
+    /// unreachable from source.
+    fn nvs_core_test_response_header(_ctx, args: [2]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "header")?;
+        let name = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{RESPONSE_NAME}::header expected a `string` name, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        if name.eq_ignore_ascii_case(SET_COOKIE_FIELD) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{RESPONSE_NAME}::header(): two `Set-Cookie` lines joined into one string \
+                     are not a cookie; `cookies()` reads the cookies and \
+                     `headers()[\"set-cookie\"]` reads the lines one by one"
+                ),
+            ));
+        }
+        crate::http::joined_field(object, HEADERS_SLOT, name, RESPONSE_NAME)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::headers(): array<array<string>>` — every field of
+    /// the answer, keyed by the lower-cased name with one entry per line, which
+    /// is `Core\Request::headers`' shape. The slot is that answer already, so
+    /// this hands it back with a reference of the caller's own.
+    fn nvs_core_test_response_headers(_ctx, args: [1]) {
+        response_slot(args, HEADERS_SLOT, "headers")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::cookies(): array<string>` — the cookies the
+    /// answer's `Set-Cookie` lines set, by name.
+    ///
+    /// Each line is read as RFC 6265 § 5.2 has a user agent read it: the pair
+    /// is the text before the first `;`, the name is what precedes its first
+    /// `=`, both are trimmed of spaces and tabs, and a line with no `=` or an
+    /// empty name sets nothing. A later line for a name replaces the earlier
+    /// value, which is what a browser keeps. The value is not decoded, for
+    /// `Core\Request::cookie`'s reason: it is then the same text
+    /// `Core\Response::addCookie` wrote and a request would carry back.
+    ///
+    /// # Errors
+    ///
+    /// A [`Fault::fatal`] for a receiver that is not a `Core\Test\Response`,
+    /// unreachable from source.
+    fn nvs_core_test_response_cookies(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "cookies")?;
+        let mut out = nvs_runtime::NvsArray::new();
+        if let Some(lines) = crate::http::field_lines(object, HEADERS_SLOT, SET_COOKIE_FIELD) {
+            for line in crate::http::each_line(&lines) {
+                let text = line.as_str_bytes().unwrap_or_default();
+                if let Some((name, value)) = cookie_pair(text) {
+                    out.set(nvs_runtime::NvsStr::new(name), Value::str(nvs_runtime::NvsStr::new(value)));
+                }
+            }
+        }
+        Ok(Value::array(out))
+    }
+}
+
+/// The name and value one `Set-Cookie` line sets, or `None` where it sets
+/// nothing — [`nvs_core_test_response_cookies`]' reading of RFC 6265 § 5.2.
+fn cookie_pair(line: &[u8]) -> Option<(&[u8], &[u8])> {
+    let pair = line.split(|byte| *byte == b';').next().unwrap_or_default();
+    fn trim(bytes: &[u8]) -> &[u8] {
+        let padding = |byte: &u8| *byte == b' ' || *byte == b'\t';
+        let start = bytes
+            .iter()
+            .position(|byte| !padding(byte))
+            .unwrap_or(bytes.len());
+        let end = bytes
+            .iter()
+            .rposition(|byte| !padding(byte))
+            .map_or(start, |at| at + 1);
+        &bytes[start..end.max(start)]
+    }
+    let equals = pair.iter().position(|byte| *byte == b'=')?;
+    let name = trim(&pair[..equals]);
+    (!name.is_empty()).then(|| (name, trim(&pair[equals + 1..])))
+}
+
+/// `body`, a [`BODY_SLOT`] value, as the text of the one JSON document
+/// `member` reads, or the `ParseError` `Core\Request`'s `json` and `jsonAs`
+/// throw for an empty body.
+///
+/// The empty body is refused by name rather than left to the parser for
+/// `Core\Request`'s reason: `mixed` cannot tell "the program wrote nothing"
+/// from a body holding the document `null`, and the two must not read alike.
+/// The slot is a `string`, so its tag is the UTF-8 check and nothing walks
+/// the bytes a second time.
+fn response_text<'a>(body: &'a Value, member: &str) -> Result<&'a str, Fault> {
+    // Unreachable from source: `nvs_core_test_request` fills the slot with a
+    // `string` and nothing else writes it.
+    let text = body.as_text().ok_or_else(|| {
+        Fault::fatal(format!("{RESPONSE_NAME}::{member} found a non-string body"))
+    })?;
+    if text.is_empty() {
+        let message = format!(
+            "{RESPONSE_NAME}::{member}(): the program wrote no body, and no bytes are not the \
+             document `null`"
+        );
+        let issues = crate::issue::list([("", message.as_str())]);
+        return Err(Fault::thrown_with_issues(
+            ThrownClass::Parse,
+            message,
+            issues,
+        ));
+    }
+    Ok(text)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::json({maxDepth?: uint}): mixed` — the body decoded
+    /// as `Core\Json::decode` decodes it, with `Core\Request::json`'s bag,
+    /// default and errors.
+    ///
+    /// **It holds nothing**, where `Core\Request::json` holds its first reading:
+    /// that hold exists because a request body is claimed once, and nothing
+    /// about a captured body is single-use. A test asks once or twice, so every
+    /// call decodes again rather than adding a slot.
+    ///
+    /// # Errors
+    ///
+    /// `LogicError` for a `maxDepth` outside `1..=1024`, and [`response_text`]'s
+    /// `ParseError`s plus one for a body that does not parse at that depth.
+    fn nvs_core_test_response_json(_ctx, args: [2]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "json")?;
+        let max = crate::json::max_depth(&args[1], "Core\\Test\\Response::json")?;
+        let body = crate::instance::slot(object, BODY_SLOT);
+        let text = response_text(&body, "json")?;
+        crate::json::read(text, max).map_err(|why| {
+            let message = format!("{RESPONSE_NAME}::json(): {why}");
+            let issues = crate::issue::list([("", message.as_str())]);
+            Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::jsonAs<T>({maxDepth?: uint}): T` — the body hydrated
+    /// into `T`, which is `Core\Json::decodeAs` over the body, with
+    /// `Core\Request::jsonAs`' bag, default and errors.
+    ///
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// not values: `crate::registry::WRITTEN_CLASS_MEMBERS` puts this member on
+    /// the roster whose helper is handed a `nvs_runtime::ClassDesc`, the
+    /// `array<...>` flag and an inline shape's wire contract ahead of
+    /// everything, receiver included. So the receiver is argument 3.
+    ///
+    /// Not a `tainted` source (`nvs_types::derive::reads_a_peers_octets`): the
+    /// body is what the program under test wrote, so a field of `T` need not
+    /// declare `tainted` to receive it.
+    ///
+    /// # Errors
+    ///
+    /// `LogicError` for a `T` carrying no codec and for a `maxDepth` outside
+    /// the bag's range, `ParseError` for a body that is not the document `T`
+    /// decodes from.
+    fn nvs_core_test_response_json_as(ctx, args: [5]) {
+        // Unreachable from source: `nvs_ir::lower` writes all three out of the
+        // type argument at the call site, and a call naming none is `E0442`.
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Test\\Response::jsonAs` was called with no class in argument 0",
+        ))?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Test\\Response::jsonAs` was called with no list flag in \
+             argument 1",
+        ))?;
+        let shape = args[2].as_shape_codec();
+        let object = crate::instance::receiver(args[3], &RESPONSE, "jsonAs")?;
+        let max = crate::json::max_depth(&args[4], "Core\\Test\\Response::jsonAs")?;
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of a `ClassDescConst` the compiled \
+                      unit owns, so it outlives this call"
+        )]
+        unsafe {
+            crate::json::check_codec(class, shape, "Core\\Test\\Response::jsonAs")?;
+        }
+        let body = crate::instance::slot(object, BODY_SLOT);
+        let text = response_text(&body, "jsonAs")?;
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor and the contract came out of the constants a \
+                      compiled unit owns, so both outlive this call and every \
+                      object made from it"
+        )]
+        unsafe {
+            crate::json::decode_as(ctx, class, shape, text, max, list, "Core\\Test\\Response::jsonAs")
+        }
     }
 }
 
@@ -5834,6 +6284,340 @@ mod tests {
             "a receiver that is not a response throws"
         );
         let _ = ctx.take_pending();
+    }
+
+    /// A unit that answers `body` under `content_type` with `rows` declared, or
+    /// fails after declaring them.
+    #[derive(Debug)]
+    struct Declares {
+        content_type: Option<&'static str>,
+        rows: Vec<nvs_runtime::DeclaredHeader>,
+        body: &'static [u8],
+        fails: bool,
+    }
+
+    impl nvs_runtime::inproc::Answering for Declares {
+        fn answer(
+            &self,
+            _ctx: &mut Ctx,
+            _inbound: Box<nvs_runtime::Inbound>,
+        ) -> Result<nvs_runtime::host::Completion, String> {
+            Ok(nvs_runtime::host::Completion {
+                ok: !self.fails,
+                value: Value::null(),
+                output: self.body.to_vec(),
+                content_type: self.content_type.map(Into::into),
+                file_body: None,
+                status: None,
+                headers: self.rows.clone(),
+                error: None,
+                wall: None,
+                trace: Vec::new(),
+            })
+        }
+    }
+
+    /// `Core\Test::request` against `unit`, with every option at its default.
+    fn declared(ctx: &mut Ctx, unit: &Declares) -> Value {
+        let args = [
+            Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
+            Value::str(nvs_runtime::NvsStr::new(b"/page")),
+            Value::array(nvs_runtime::NvsArray::new()),
+            Value::null(),
+            Value::str(nvs_runtime::NvsStr::new(b"")),
+        ];
+        let answered = nvs_runtime::inproc::scoped(unit, || {
+            nvs_runtime::call(nvs_core_test_request, ctx, &args)
+        })
+        .expect("an installed unit answers");
+        for arg in args {
+            dropped(arg);
+        }
+        answered
+    }
+
+    /// `Core\Json::encode` of `value`, so an array answer compares as one
+    /// string. Releases `value`.
+    fn encoded(ctx: &mut Ctx, value: Value) -> String {
+        let written = nvs_runtime::call(
+            crate::json::nvs_core_json_encode,
+            ctx,
+            &[value, Value::bool(false), Value::bool(false)],
+        )
+        .expect("an answer of arrays and strings encodes");
+        let text = written
+            .as_text()
+            .expect("the encoding is a string")
+            .to_owned();
+        dropped(written);
+        dropped(value);
+        text
+    }
+
+    /// `headers` is the server's composition: `Content-Type` first, the
+    /// declared type or HTML where none was declared, then every declared row —
+    /// a replacing row takes the place of every line under its name, an
+    /// appending row joins them. `header` matches any case, joins repeated
+    /// lines with `, `, answers `null` for a field the answer did not carry,
+    /// and refuses `Set-Cookie`, which `cookies` reads by name. A failed unit
+    /// answers no headers at all.
+    // covers: Core\Test\Response::header, Core\Test\Response::headers, Core\Test\Response::cookies
+    #[test]
+    fn response_headers_are_what_the_server_sends_and_cookies_are_read_by_name() {
+        use nvs_runtime::DeclaredHeader;
+
+        let unit = Declares {
+            content_type: None,
+            rows: vec![
+                DeclaredHeader::set("Content-Type", "application/json"),
+                DeclaredHeader::set("Allow", "GET, POST"),
+                DeclaredHeader::add("Set-Cookie", "sid=abc; Path=/; HttpOnly"),
+                DeclaredHeader::add("set-cookie", " theme = dark ;Secure"),
+                DeclaredHeader::add("Set-Cookie", "no-equals-sign"),
+                DeclaredHeader::add("Set-Cookie", "sid=xyz"),
+                DeclaredHeader::add("Vary", "Accept"),
+                DeclaredHeader::add("vary", "Cookie"),
+            ],
+            body: b"{}",
+            fails: false,
+        };
+        let mut ctx = Ctx::buffered();
+        let response = declared(&mut ctx, &unit);
+
+        let all = nvs_runtime::call(nvs_core_test_response_headers, &mut ctx, &[response])
+            .expect("reading the headers cannot fail");
+        assert_eq!(
+            encoded(&mut ctx, all),
+            r#"{"content-type":["application/json"],"allow":["GET, POST"],"set-cookie":["sid=abc; Path=/; HttpOnly"," theme = dark ;Secure","no-equals-sign","sid=xyz"],"vary":["Accept","Cookie"]}"#,
+            "the declared type replaces HTML, and each row lands as the server applies it"
+        );
+
+        fn header(ctx: &mut Ctx, response: Value, name: &str) -> Result<Option<String>, String> {
+            let name = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+            let read = nvs_runtime::call(nvs_core_test_response_header, ctx, &[response, name]);
+            dropped(name);
+            match read {
+                Ok(value) => {
+                    let seen = value.as_text().map(str::to_owned);
+                    dropped(value);
+                    Ok(seen)
+                }
+                Err(_) => Err(ctx.take_pending().unwrap_or_default().into_owned()),
+            }
+        }
+        assert_eq!(
+            header(&mut ctx, response, "ALLOW"),
+            Ok(Some("GET, POST".to_owned())),
+            "any case"
+        );
+        assert_eq!(
+            header(&mut ctx, response, "vary"),
+            Ok(Some("Accept, Cookie".to_owned())),
+            "two lines joined in order"
+        );
+        assert_eq!(
+            header(&mut ctx, response, "location"),
+            Ok(None),
+            "a field it did not carry"
+        );
+        let refused =
+            header(&mut ctx, response, "Set-Cookie").expect_err("`Set-Cookie` does not join");
+        assert!(
+            refused.contains("cookies()"),
+            "the refusal names the reader that reads it: {refused}"
+        );
+
+        let cookies = nvs_runtime::call(nvs_core_test_response_cookies, &mut ctx, &[response])
+            .expect("reading the cookies cannot fail");
+        assert_eq!(
+            encoded(&mut ctx, cookies),
+            r#"{"sid":"xyz","theme":"dark"}"#,
+            "trimmed, attributes dropped, a line with no `=` skipped, the last value kept"
+        );
+        dropped(response);
+
+        let plain = declared(
+            &mut ctx,
+            &Declares {
+                content_type: Some("text/plain"),
+                rows: Vec::new(),
+                body: b"",
+                fails: false,
+            },
+        );
+        let all = nvs_runtime::call(nvs_core_test_response_headers, &mut ctx, &[plain])
+            .expect("reading the headers cannot fail");
+        assert_eq!(
+            encoded(&mut ctx, all),
+            r#"{"content-type":["text/plain"]}"#,
+            "the declared media type with no rows"
+        );
+        dropped(plain);
+
+        let echoed = declared(
+            &mut ctx,
+            &Declares {
+                content_type: None,
+                rows: Vec::new(),
+                body: b"",
+                fails: false,
+            },
+        );
+        let all = nvs_runtime::call(nvs_core_test_response_headers, &mut ctx, &[echoed])
+            .expect("reading the headers cannot fail");
+        assert_eq!(
+            encoded(&mut ctx, all),
+            format!(
+                r#"{{"content-type":["{}"]}}"#,
+                nvs_runtime::host::ECHOED_MEDIA_TYPE
+            ),
+            "an answer that only echoed is HTML, as the server sends it"
+        );
+        dropped(echoed);
+
+        let failed = declared(
+            &mut ctx,
+            &Declares {
+                content_type: Some("application/json"),
+                rows: vec![DeclaredHeader::set("Allow", "GET")],
+                body: b"{}",
+                fails: true,
+            },
+        );
+        let all = nvs_runtime::call(nvs_core_test_response_headers, &mut ctx, &[failed])
+            .expect("reading the headers cannot fail");
+        assert_eq!(
+            encoded(&mut ctx, all),
+            "[]",
+            "a failed unit answers no headers"
+        );
+        let cookies = nvs_runtime::call(nvs_core_test_response_cookies, &mut ctx, &[failed])
+            .expect("reading the cookies cannot fail");
+        assert_eq!(encoded(&mut ctx, cookies), "[]", "and no cookies");
+        dropped(failed);
+    }
+
+    /// `json` decodes the body at the depth it is given and decodes it again on
+    /// every call; `jsonAs` hydrates it into the class it is handed. Both
+    /// refuse a depth outside `1..=1024` before the body is read, and an empty
+    /// body, which is not the document `null`.
+    // covers: Core\Test\Response::json, Core\Test\Response::jsonAs
+    #[test]
+    fn response_json_readers_decode_the_body_and_refuse_a_bad_depth_and_no_body() {
+        use nvs_runtime::{ClassTable, CodecField, CodecTy};
+
+        let mut table = ClassTable::new();
+        // `$` cannot start a Novis identifier, so no declared class collides.
+        let id = table.define("$shape{name}".to_owned(), &["name"], &[]);
+        let codec = vec![CodecField {
+            key: "name".to_owned(),
+            slot: 0,
+            param: 0,
+            ty: CodecTy::Str,
+            element: None,
+            class: None,
+            cases: None,
+            shape: None,
+            nullable: false,
+            required: true,
+            default: None,
+        }];
+        let shape = table.define_shape_codec(codec, vec![std::ptr::null()], vec![std::ptr::null()]);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        let class = table.desc(id);
+
+        let json = |ctx: &mut Ctx, response: Value, depth: u64| {
+            nvs_runtime::call(
+                nvs_core_test_response_json,
+                ctx,
+                &[response, Value::uint(depth)],
+            )
+        };
+        let json_as = |ctx: &mut Ctx, response: Value, depth: u64| {
+            nvs_runtime::call(
+                nvs_core_test_response_json_as,
+                ctx,
+                &[
+                    Value::class_desc(class),
+                    Value::bool(false),
+                    Value::shape_codec(shape),
+                    response,
+                    Value::uint(depth),
+                ],
+            )
+        };
+
+        let mut ctx = Ctx::buffered();
+        let unit = Declares {
+            content_type: Some("application/json"),
+            rows: Vec::new(),
+            body: "{\"name\":\"Grüße\"}".as_bytes(),
+            fails: false,
+        };
+        let response = declared(&mut ctx, &unit);
+        let first = json(&mut ctx, response, 512).expect("the body is a document");
+        let second = json(&mut ctx, response, 2).expect("an object fits a depth of 2");
+        assert_eq!(encoded(&mut ctx, first), r#"{"name":"Grüße"}"#, "decoded");
+        assert_eq!(
+            encoded(&mut ctx, second),
+            r#"{"name":"Grüße"}"#,
+            "a second read decodes the same body again"
+        );
+        assert!(
+            json(&mut ctx, response, 1).is_err(),
+            "an object does not fit a depth of 1"
+        );
+        let _ = ctx.take_pending();
+
+        let hydrated = json_as(&mut ctx, response, 512).expect("the body is the object");
+        #[expect(
+            unsafe_code,
+            reason = "the value is an instance this frame holds a reference to, so the \
+                      field borrowed from it cannot outlive the allocation"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe {
+            nvs_runtime::NvsObj::from_raw(hydrated.obj_ptr().expect("an instance"))
+        });
+        assert_eq!(
+            object.field(0).as_text(),
+            Some("Grüße"),
+            "the field, decoded"
+        );
+        dropped(hydrated);
+
+        for (member, read) in [
+            ("json", &json as &dyn Fn(&mut Ctx, Value, u64) -> _),
+            ("jsonAs", &json_as),
+        ] {
+            assert!(
+                read(&mut ctx, response, 0).is_err(),
+                "{member}: a depth of 0"
+            );
+            let message = ctx.take_pending().unwrap_or_default();
+            assert!(
+                message.contains("maxDepth"),
+                "{member} names the option: {message}"
+            );
+        }
+        dropped(response);
+
+        let empty = declared(
+            &mut ctx,
+            &Declares {
+                content_type: None,
+                rows: Vec::new(),
+                body: b"",
+                fails: false,
+            },
+        );
+        // `take_pending` answers an empty sentence for a `ParseError` thrown with
+        // an issue list under a bare `Ctx`, so the sentence is pinned from Novis
+        // by the `.nvst` case that covers these members.
+        assert!(json(&mut ctx, empty, 512).is_err(), "no body is not `null`");
+        let _ = ctx.take_pending();
+        assert!(json_as(&mut ctx, empty, 512).is_err(), "nor an object");
+        let _ = ctx.take_pending();
+        dropped(empty);
     }
 
     /// `serverUrl` returns the address the runner armed on this context, and

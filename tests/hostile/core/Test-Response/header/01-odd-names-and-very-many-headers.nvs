@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a test reads headers with strange names, from answers with very many or very long
+// headers. Each read should return a value or `null`, or throw an error the test can catch.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    var $path = Core\Request::path();
+    if ($path == '/many') {
+        uint $n = 0;
+        while ($n < 10000) {
+            Core\Response::setHeader("X-Item-{$n}", 'value');
+            $n = $n + 1;
+        }
+    }
+    if ($path == '/long') {
+        Core\Response::setHeader('X-Long', Core\Str::repeat('x', 1048576));
+    }
+    if ($path == '/cookies') {
+        uint $c = 0;
+        while ($c < 1000) {
+            Core\Response::addCookie("c{$c}", 'v');
+            $c = $c + 1;
+        }
+    }
+} catch (LogicError $noRequest) {
+    // 1. Ask for names that no header can have. Each result is `null`.
+    var $plain = Test::request(Method::Get, '/plain');
+    array<string> $names = ['', ' ', "x\nSet-Cookie", Core\Str::repeat('a', 1048576), 'ÄÖÜ', "\0"];
+    uint $missing = 0;
+    foreach ($names as string $name) {
+        if ($plain->header($name) == null) {
+            $missing = $missing + 1;
+        }
+    }
+    echo 'missing ', $missing, "\n";
+
+    // 2. Read the last of 10000 headers 10000 times.
+    var $many = Test::request(Method::Get, '/many');
+    uint $found = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        if ($many->header('x-item-9999') != null) {
+            $found = $found + 1;
+        }
+        $i = $i + 1;
+    }
+    echo 'found ', $found, "\n";
+
+    // 3. Read a header of one megabyte 1000 times.
+    var $long = Test::request(Method::Get, '/long');
+    uint $total = 0;
+    uint $j = 0;
+    while ($j < 1000) {
+        $total = $total + Core\Str::length($long->header('X-LONG') ?? '');
+        $j = $j + 1;
+    }
+    echo 'read ', $total, " characters\n";
+
+    // 4. Ask for `Set-Cookie` in every case, from an answer with 1000 cookies.
+    // Each read throws a `LogicError`, and it is caught so the next one still runs.
+    var $cookies = Test::request(Method::Get, '/cookies');
+    uint $refused = 0;
+    array<string> $spellings = ['Set-Cookie', 'SET-COOKIE', 'set-cookie', 'sEt-CoOkIe'];
+    foreach ($spellings as string $spelling) {
+        try {
+            $cookies->header($spelling);
+        } catch (LogicError $joined) {
+            $refused = $refused + 1;
+        }
+    }
+    echo 'refused ', $refused, "\n";
+}

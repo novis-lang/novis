@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to test that a logout page deletes the session cookie.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. A cookie with an empty value and
+    // `maxAge: 0s` tells the browser to delete it.
+    var $path = Core\Request::path();
+    Core\Response::addCookie("sid", "", {maxAge: 0s});
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Post, "/logout");
+
+    // The deleted cookie is in the result with an empty value. This prints `[]`.
+    echo "[", $response->cookies()["sid"], "]\n";
+
+    // The whole line shows `Max-Age=0`. This prints `true`.
+    var $line = $response->headers()["set-cookie"][0];
+    echo Core\Str::contains($line, "Max-Age=0") ? "true" : "false", "\n";
+}

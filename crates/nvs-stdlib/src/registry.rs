@@ -3214,6 +3214,7 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Request", "queryAs"),
     (r"Core\Request", "postAs"),
     (r"Core\Http\Response", "jsonAs"),
+    (r"Core\Test\Response", "jsonAs"),
     (r"Core\Db\Connection", "queryAs"),
     (r"Core\Db\Transaction", "queryAs"),
     (r"Core\Db\Connection", "streamAs"),

@@ -1,0 +1,29 @@
+<?nvs
+// Reads the cookies of a test response, as a test does before it checks that a login sets a session cookie.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Test\Response> $responses = [
+            Core\Test::request(Core\Http\Method::Get, "/"),
+            Core\Test::request(Core\Http\Method::Get, "/bbb"),
+            Core\Test::request(Core\Http\Method::Get, "/cccccc"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($responses[($total % 3) as int]->cookies()["sid"]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part sets two cookies.
+// The `sid` value has one `x` for each character of the path.
+try {
+    Core\Response::addCookie("theme", "dark");
+    Core\Response::addCookie("sid", Core\Str::repeat("x", Core\Str::length(Core\Request::path())));
+} catch (LogicError $noRequest) {
+    echo Bench::run(200000), "\n";
+}

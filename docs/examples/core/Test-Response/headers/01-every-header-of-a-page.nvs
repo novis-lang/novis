@@ -1,0 +1,21 @@
+<?nvs
+// Shows every header that one page sends.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. It sets one header and writes a page.
+    var $path = Core\Request::path();
+    Core\Response::setHeader("Cache-Control", "no-store");
+    echo "<h1>Your basket</h1>";
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Get, "/basket");
+
+    // Each name is in lower case, and each value is a list of lines.
+    // The page used `echo`, so the content type is HTML.
+    var $headers = $response->headers();
+
+    // This prints `{"content-type":["text/html; charset=utf-8"],"cache-control":["no-store"]}`.
+    echo Core\Json::encode($headers), "\n";
+}

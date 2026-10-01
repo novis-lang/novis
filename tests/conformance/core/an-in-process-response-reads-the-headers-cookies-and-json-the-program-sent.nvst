@@ -1,0 +1,111 @@
+--TEST--
+an in-process response reads the headers a visitor is sent, the cookies the program set and the body as JSON, with `Core\Request`'s join, shape and errors — `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// covers: Core\Test\Response::header, Core\Test\Response::headers, Core\Test\Response::cookies, Core\Test\Response::json, Core\Test\Response::jsonAs
+//
+// Every header here is one the server would send: the `Content-Type` a body
+// member declared or HTML for an echo, a redirect's `Location`, `addCookie`'s
+// `Set-Cookie` lines and a `setHeader`. A request that fails answers none.
+//
+// The `catch (LogicError ...)` is the parent: there is no request in its run.
+#[Core\Json\Derive]
+class Product {
+    public string $sku;
+    public int $stock;
+
+    public function constructor(string $sku, int $stock) {
+        $this->sku = $sku;
+        $this->stock = $stock;
+    }
+}
+
+try {
+    var $path = Core\Request::path();
+    if ($path == "/product") {
+        Core\Response::json(["sku" => "mug-7", "stock" => 3]);
+    }
+    if ($path == "/list") {
+        Core\Response::json([["sku" => "a", "stock" => 1], ["sku" => "b", "stock" => 2]]);
+    }
+    if ($path == "/old") {
+        Core\Response::redirect("/new");
+    }
+    if ($path == "/login") {
+        Core\Response::addCookie("sid", "abc", {path: "/"});
+        Core\Response::addCookie("theme", "dark");
+        Core\Response::addCookie("sid", "xyz");
+        Core\Response::setHeader("Allow", "GET, POST");
+        echo "<p>welcome</p>";
+    }
+    if ($path == "/fails") {
+        Core\Response::setHeader("Allow", "GET");
+        throw new RuntimeError("not handled");
+    }
+    if ($path == "/wrong") {
+        Core\Response::json(["sku" => 7]);
+    }
+} catch (LogicError $noRequest) {
+    var $product = Core\Test::request(Core\Http\Method::Get, "/product");
+    echo "type ", $product->header("CONTENT-TYPE"), "\n";
+    var $decoded = $product->json();
+    echo "json ", Core\Json::encode($decoded), "\n";
+    Product $typed = $product->jsonAs<Product>();
+    echo "jsonAs ", $typed->sku, " ", $typed->stock, "\n";
+    array<Product> $listed = Core\Test::request(Core\Http\Method::Get, "/list")->jsonAs<array<Product>>();
+    echo "list ", Core\Arr::count($listed), " ", $listed[1]->sku, "\n";
+
+    var $old = Core\Test::request(Core\Http\Method::Get, "/old");
+    echo "redirect ", $old->status(), " ", $old->header("location") ?? "none", "\n";
+    echo "absent ", $old->header("x-missing") ?? "null", "\n";
+
+    var $login = Core\Test::request(Core\Http\Method::Get, "/login");
+    echo "headers ", Core\Json::encode($login->headers()), "\n";
+    echo "cookies ", Core\Json::encode($login->cookies()), "\n";
+    echo "allow ", $login->header("Allow") ?? "none", "\n";
+    try {
+        $login->header("set-cookie");
+    } catch (LogicError $joined) {
+        echo "set-cookie: ", $joined->message, "\n";
+    }
+    try {
+        $login->json();
+    } catch (ParseError $html) {
+        echo "html is not json: ", $html->message, "\n";
+    }
+
+    var $fails = Core\Test::request(Core\Http\Method::Get, "/fails");
+    echo "failed ", $fails->status(), " ", Core\Json::encode($fails->headers()), " ", Core\Json::encode($fails->cookies()), "\n";
+    try {
+        $fails->json();
+    } catch (ParseError $empty) {
+        echo "empty: ", $empty->message, "\n";
+    }
+
+    try {
+        $product->json({maxDepth: 0});
+    } catch (LogicError $depth) {
+        echo "depth: ", $depth->message, "\n";
+    }
+    try {
+        Core\Test::request(Core\Http\Method::Get, "/wrong")->jsonAs<Product>();
+    } catch (ParseError $wrong) {
+        echo "wrong: ", Core\Arr::count($wrong->issues), " issues\n";
+    }
+}
+--EXPECT--
+type application/json
+json {"sku":"mug-7","stock":3}
+jsonAs mug-7 3
+list 2 b
+redirect 303 /new
+absent null
+headers {"content-type":["text/html; charset=utf-8"],"set-cookie":["sid=abc; Path=/; Secure; HttpOnly; SameSite=Lax","theme=dark; Path=/; Secure; HttpOnly; SameSite=Lax","sid=xyz; Path=/; Secure; HttpOnly; SameSite=Lax"],"allow":["GET, POST"]}
+cookies {"sid":"xyz","theme":"dark"}
+allow GET, POST
+set-cookie: Core\Test\Response::header(): two `Set-Cookie` lines joined into one string are not a cookie; `cookies()` reads the cookies and `headers()["set-cookie"]` reads the lines one by one
+html is not json: Core\Test\Response::json(): expected value at line 1 column 1
+failed 500 [] []
+empty: Core\Test\Response::json(): the program wrote no body, and no bytes are not the document `null`
+depth: Core\Test\Response::json(): a `maxDepth` of 0 is outside 1..=1024
+wrong: 2 issues

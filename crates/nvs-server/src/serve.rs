@@ -1788,8 +1788,9 @@ where
 /// What a response carries when nothing declared otherwise —
 /// `rule:security/response-body-is-one-typed-member`
 /// 's last bullet, which is what makes `rule:statements/nvs-is-the-only-open-tag`'s inline-HTML page shape
-/// work with no ceremony.
-const ECHOED: &str = "text/html; charset=utf-8";
+/// work with no ceremony. The runtime holds the value, so `Core\Test::request`
+/// reports the same one.
+const ECHOED: &str = nvs_runtime::host::ECHOED_MEDIA_TYPE;
 
 /// What a declaration that is not a header value becomes.
 ///

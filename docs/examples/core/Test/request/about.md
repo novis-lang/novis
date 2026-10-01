@@ -4,7 +4,9 @@ request. You give the HTTP method and the path, such as `Core\Http\Method::Get` 
 can also give `headers`, a `body` and a `mount` prefix.
 
 The result is a `Core\Test\Response`. `status()` returns the status code. If the program set no
-status, the status is `200`. `body()` returns the text the program wrote.
+status, the status is `200`. `body()` returns the text the program wrote, and `json()` and
+`jsonAs()` decode it. `header()`, `headers()` and `cookies()` return the headers and cookies that
+the program set.
 
 To answer the request, Novis runs your program again from the top. In that run, the `Core\Request`
 methods read the request you sent. A request cannot send another request, so in that run

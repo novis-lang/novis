@@ -1,0 +1,63 @@
+--TEST--
+an in-process response reads the media type `Core\Response::bytes` declared as its one `Content-Type` line, and `json` and `jsonAs` apply their `maxDepth` to that body whatever the type says — `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// covers: Core\Test\Response::header, Core\Test\Response::headers, Core\Test\Response::cookies, Core\Test\Response::json, Core\Test\Response::jsonAs
+//
+// A body member declares the type, and that declaration is the answer's
+// `Content-Type`. The JSON readers do not check the type, so a document sent
+// as `text/plain` decodes; the depth bound applies to both readers alike.
+//
+// The `catch (LogicError ...)` is the parent: there is no request in its run.
+#[Core\Json\Derive]
+class Problem {
+    public string $title;
+    public int $status;
+
+    public function constructor(string $title, int $status) {
+        $this->title = $title;
+        $this->status = $status;
+    }
+}
+
+try {
+    var $path = Core\Request::path();
+    if ($path == "/problem") {
+        Core\Response::setStatus(422);
+        Core\Response::bytes("{\"title\":\"bad\",\"status\":422}" as bytes, "application/problem+json");
+    }
+    if ($path == "/plain") {
+        Core\Response::text("{\"title\":\"plain\",\"status\":200}");
+    }
+} catch (LogicError $noRequest) {
+    var $problem = Core\Test::request(Core\Http\Method::Post, "/problem");
+    echo $problem->status(), " ", $problem->header("Content-Type") ?? "none", "\n";
+    echo Core\Json::encode($problem->headers()), "\n";
+    echo "cookies ", Core\Arr::count($problem->cookies()), "\n";
+    Problem $read = $problem->jsonAs<Problem>({maxDepth: 2});
+    echo "jsonAs ", $read->title, " ", $read->status, "\n";
+    try {
+        $problem->jsonAs<Problem>({maxDepth: 1});
+    } catch (ParseError $shallow) {
+        echo "jsonAs depth 1 throws\n";
+    }
+
+    var $plain = Core\Test::request(Core\Http\Method::Get, "/plain");
+    echo $plain->header("content-type") ?? "none", "\n";
+    var $decoded = $plain->json({maxDepth: 2}) as array<mixed>;
+    echo "json ", $decoded["title"], "\n";
+    try {
+        $plain->json({maxDepth: 1});
+    } catch (ParseError $tooDeep) {
+        echo "json depth 1 throws\n";
+    }
+}
+--EXPECT--
+422 application/problem+json
+{"content-type":["application/problem+json"]}
+cookies 0
+jsonAs bad 422
+jsonAs depth 1 throws
+text/plain; charset=utf-8
+json plain
+json depth 1 throws

@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to test that a page sends the visitor to another address.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. The old address redirects to the new one.
+    var $path = Core\Request::path();
+    if ($path == "/old-page") {
+        Core\Response::redirect("/new-page");
+    }
+} catch (LogicError $noRequest) {
+    // This part is the test.
+    var $response = Test::request(Method::Get, "/old-page");
+
+    // A redirect sets the status and the `Location` header. This prints `303 /new-page`.
+    echo $response->status(), " ", $response->header("Location"), "\n";
+
+    // The answer has no `Retry-After` header, so the result is `null`.
+    // This prints `none`.
+    echo $response->header("Retry-After") ?? "none", "\n";
+}

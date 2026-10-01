@@ -1,0 +1,29 @@
+<?nvs
+// Reads one header of a test response, as a test does before it checks the content type of a page.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Test\Response> $responses = [
+            Core\Test::request(Core\Http\Method::Get, "/"),
+            Core\Test::request(Core\Http\Method::Get, "/bbb"),
+            Core\Test::request(Core\Http\Method::Get, "/cccccc"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($responses[($total % 3) as int]->header("cache-control") ?? "");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part sets the header.
+// Its value has one `x` for each character of the path.
+try {
+    Core\Response::setHeader("Cache-Control", Core\Str::repeat("x", Core\Str::length(Core\Request::path())));
+} catch (LogicError $noRequest) {
+    echo Bench::run(400000), "\n";
+}

@@ -5,9 +5,26 @@ nothing may invoke directly. **An in-process request may not be made from inside
 answering it is the entry that asked, so a second would answer itself forever, and the refusal is at
 the door rather than at a depth ceiling that would report an engine limit instead of the mistake.
 
-The response is a `Core`-owned instance whose two readings are members, so a status is `status()`
-and never a property. The synthetic request's parameters arrive **`tainted`**, exactly as a real
-request's would, so a handler that forgets to launder fails its test rather than production.
+The signature is `Core\Test::request(Core\Http\Method $method, string $path, {headers?:
+array<string>, body?: string|bytes, mount?: string}): Core\Test\Response`. A `?` in `$path` starts
+the query. A `body` that is not given is no body, which is not an empty one. `mount` is the prefix
+the request came in under, `""` for the root.
+
+The response is a `Core`-owned instance whose readings are members, so a status is `status()` and
+never a property: `status(): uint`, `body(): string`, `header(string $name): ?string`, `headers():
+array<array<string>>`, `cookies(): array<string>`, `json({maxDepth?: uint}): mixed` and
+`jsonAs<T>({maxDepth?: uint}): T`. They read a request's answer the way `Core\Request`'s members of
+the same names read the request: `header` matches any case and joins repeated lines with `, `,
+`headers` keys lower-cased names to lists of lines, and `json`/`jsonAs` carry the same bag, default
+and errors. `Set-Cookie` is the one field `header` refuses, as `Core\Http\Response::header` does,
+because two cookies joined are neither; `cookies` reads it by name, the last value of a name
+winning. The headers are the ones the program's answer carries — its `Content-Type`, or HTML for an
+echo, then every header it declared — and not the ones the server adds for itself. A request whose
+program fails answers `500`, no body and no headers, which is what the server sends. Nothing on the
+response is `tainted`: it is the program's own output.
+
+The synthetic request's parameters arrive **`tainted`**, exactly as a real request's would, so a
+handler that forgets to launder fails its test rather than production.
 
 `#[Test(server: true)]` binds a real listener for the cases that genuinely need the wire. The port
 is the operating system's and the address is loopback, so two suites on one machine never collide

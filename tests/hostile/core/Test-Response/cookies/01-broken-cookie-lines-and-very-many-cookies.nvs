@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a program writes broken `Set-Cookie` lines and very many cookies, and the test changes
+// the array it gets back. Each read should return an array, and the program must not crash.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    var $path = Core\Request::path();
+    // Each of these paths writes one broken `Set-Cookie` line.
+    if ($path == '/no-equals') {
+        Core\Response::setHeader('Set-Cookie', 'just-a-name');
+    }
+    if ($path == '/no-name') {
+        Core\Response::setHeader('Set-Cookie', '=value');
+    }
+    if ($path == '/only-semicolons') {
+        Core\Response::setHeader('Set-Cookie', ';;;');
+    }
+    if ($path == '/two-equals') {
+        Core\Response::setHeader('Set-Cookie', 'a=b=c; Path=/');
+    }
+    if ($path == '/spaces') {
+        Core\Response::setHeader('Set-Cookie', '   name   =   value   ; Secure');
+    }
+    if ($path == '/many') {
+        uint $c = 0;
+        while ($c < 10000) {
+            Core\Response::addCookie("c{$c}", 'v');
+            Core\Response::addCookie('same', "{$c}");
+            $c = $c + 1;
+        }
+    }
+} catch (LogicError $noRequest) {
+    // 1. Read the cookies of each broken line. A line with no name sets nothing.
+    array<string> $paths = ['/no-equals', '/no-name', '/only-semicolons', '/two-equals', '/spaces'];
+    foreach ($paths as string $broken) {
+        var $response = Test::request(Method::Get, $broken);
+        echo $broken, ' ', Core\Json::encode($response->cookies()), "\n";
+    }
+
+    // 2. Read 10000 cookies and one name set 10000 times.
+    var $many = Test::request(Method::Get, '/many');
+    var $cookies = $many->cookies();
+    echo 'cookies ', Core\Arr::count($cookies), ' last ', $cookies['same'], "\n";
+
+    // 3. Change the array that `cookies()` returned. The next call returns the
+    // cookies the program set, unchanged.
+    $cookies['same'] = 'changed';
+    echo 'unchanged ', $many->cookies()['same'], "\n";
+
+    // 4. Read the cookies 100 times.
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 100) {
+        $total = $total + Core\Arr::count($many->cookies());
+        $i = $i + 1;
+    }
+    echo 'counted ', $total, "\n";
+}

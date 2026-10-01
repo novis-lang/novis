@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the `Content-Type` header of an answer.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. `Core\Response::json` sends the array
+    // as JSON and sets the content type.
+    var $path = Core\Request::path();
+    Core\Response::json(["ok" => true]);
+} catch (LogicError $noRequest) {
+    // This part is the test.
+    var $response = Test::request(Method::Get, "/health");
+
+    // Upper and lower case do not matter. This prints `application/json`.
+    echo $response->header("content-type"), "\n";
+}

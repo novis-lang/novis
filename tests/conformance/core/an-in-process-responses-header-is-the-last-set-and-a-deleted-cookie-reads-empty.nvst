@@ -1,0 +1,58 @@
+--TEST--
+an in-process response carries the last value a `setHeader` set as its one line, a deleted cookie as an empty value, and the JSON document `null` as a value rather than as no body — `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// covers: Core\Test\Response::header, Core\Test\Response::headers, Core\Test\Response::cookies, Core\Test\Response::json, Core\Test\Response::jsonAs
+//
+// `setHeader` replaces, so a name set three times is one line holding the
+// last value. A cookie set with `maxAge: 0s` is the program deleting it, and
+// it reads back as the name with an empty value. A body holding the document
+// `null` decodes to `null`, where an empty body throws.
+//
+// The `catch (LogicError ...)` is the parent: there is no request in its run.
+#[Core\Json\Derive]
+class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+try {
+    var $path = Core\Request::path();
+    if ($path == "/replaced") {
+        Core\Response::setHeader("X-Stage", "one");
+        Core\Response::setHeader("x-stage", "two");
+        Core\Response::setHeader("X-STAGE", "three");
+        Core\Response::addCookie("sid", "abc");
+        Core\Response::addCookie("sid", "", {maxAge: 0s});
+        Core\Response::json(null);
+    }
+    if ($path == "/none") {
+        Core\Response::json([]);
+    }
+} catch (LogicError $noRequest) {
+    var $replaced = Core\Test::request(Core\Http\Method::Get, "/replaced");
+    echo "header ", $replaced->header("x-stage") ?? "none", "\n";
+    echo "lines ", Core\Json::encode($replaced->headers()["x-stage"]), "\n";
+    echo "cookies ", Core\Json::encode($replaced->cookies()), "\n";
+    echo "json ", Core\Json::encode($replaced->json()), "\n";
+    try {
+        $replaced->jsonAs<Tag>();
+    } catch (ParseError $notAnObject) {
+        echo "jsonAs of null throws\n";
+    }
+
+    var $none = Core\Test::request(Core\Http\Method::Get, "/none");
+    echo "empty list ", Core\Arr::count($none->jsonAs<array<Tag>>()), "\n";
+    echo "no cookies ", Core\Json::encode($none->cookies()), "\n";
+}
+--EXPECT--
+header three
+lines ["three"]
+cookies {"sid":""}
+json null
+jsonAs of null throws
+empty list 0
+no cookies []

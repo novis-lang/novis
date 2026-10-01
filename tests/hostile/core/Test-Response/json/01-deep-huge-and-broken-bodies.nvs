@@ -1,0 +1,73 @@
+<?nvs
+// Attack: a test decodes bodies that nest very deeply, are very large, or are not JSON at all.
+// Each read should return a value or throw an error the test can catch.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    var $path = Core\Request::path();
+    if ($path == '/open') {
+        echo Core\Str::repeat('[', 1000000);
+    }
+    if ($path == '/deep') {
+        echo Core\Str::repeat('[', 2000), Core\Str::repeat(']', 2000);
+    }
+    if ($path == '/huge') {
+        array<int> $numbers = [];
+        uint $n = 0;
+        while ($n < 200000) {
+            $numbers[] = $n as int;
+            $n = $n + 1;
+        }
+        Core\Response::json($numbers);
+    }
+    if ($path == '/small') {
+        Core\Response::json(['a' => 1]);
+    }
+} catch (LogicError $noRequest) {
+    // 1. A body of one million `[` is not JSON. The `ParseError` is caught,
+    // so the next step still runs.
+    try {
+        Test::request(Method::Get, '/open')->json();
+    } catch (ParseError $open) {
+        echo "open: not JSON\n";
+    }
+
+    // 2. A body that nests 2000 levels deep is deeper than any `maxDepth`.
+    var $deep = Test::request(Method::Get, '/deep');
+    array<int> $depths = [1, 512, 1024];
+    foreach ($depths as int $depth) {
+        try {
+            $deep->json({ maxDepth: $depth as uint });
+        } catch (ParseError $tooDeep) {
+            echo 'deep: too deep for ', $depth, "\n";
+        }
+    }
+
+    // 3. A `maxDepth` outside 1 to 1024 throws a `LogicError`.
+    var $small = Test::request(Method::Get, '/small');
+    array<int> $wrong = [0, 1025, 4294967295];
+    foreach ($wrong as int $outside) {
+        try {
+            $small->json({ maxDepth: $outside as uint });
+        } catch (LogicError $wrongDepth) {
+            echo 'depth ', $outside, " is not allowed\n";
+        }
+    }
+
+    // 4. Decode a list of 200000 numbers 10 times.
+    var $huge = Test::request(Method::Get, '/huge');
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 10) {
+        $total = $total + Core\Arr::count($huge->json() as array<mixed>);
+        $i = $i + 1;
+    }
+    echo 'decoded ', $total, " numbers\n";
+
+    // 5. Change a decoded value. The next call decodes the body again.
+    var $first = $small->json() as array<mixed>;
+    $first['a'] = 2;
+    echo 'again ', Core\Json::encode($small->json()), "\n";
+}

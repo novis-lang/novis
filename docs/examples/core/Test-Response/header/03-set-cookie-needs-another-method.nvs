@@ -1,0 +1,25 @@
+<?nvs
+// Shows what `header()` does when you ask for `Set-Cookie`.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. It sets two cookies.
+    var $path = Core\Request::path();
+    Core\Response::addCookie("theme", "dark");
+    Core\Response::addCookie("lang", "en");
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Get, "/settings");
+
+    // Each cookie has its own `Set-Cookie` line. `header()` cannot join them,
+    // so it throws a `LogicError`. This prints `use cookies()`.
+    try {
+        $response->header("Set-Cookie");
+    } catch (LogicError $error) {
+        echo "use cookies()\n";
+    }
+
+    // `cookies()` returns each cookie by its name. This prints `dark`.
+    echo $response->cookies()["theme"], "\n";
+}

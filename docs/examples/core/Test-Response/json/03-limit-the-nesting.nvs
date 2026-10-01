@@ -1,0 +1,25 @@
+<?nvs
+// Shows how the `maxDepth` option limits how deep the JSON may nest.
+
+use Core\Http\Method;
+use Core\Test;
+
+try {
+    // This part answers each request. The JSON is an object inside an object,
+    // so its depth is 3.
+    var $path = Core\Request::path();
+    Core\Response::json(["order" => ["id" => 7]]);
+} catch (LogicError $noRequest) {
+    var $response = Test::request(Method::Get, "/orders/7");
+
+    // A depth of 3 is allowed, so this prints `{"order":{"id":7}}`.
+    echo Core\Json::encode($response->json({maxDepth: 3})), "\n";
+
+    // A depth of 2 is not enough, so `json()` throws a `ParseError`.
+    // This prints `too deep`.
+    try {
+        $response->json({maxDepth: 2});
+    } catch (ParseError $error) {
+        echo "too deep\n";
+    }
+}
