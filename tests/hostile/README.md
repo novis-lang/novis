@@ -110,6 +110,8 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // hostile: timeout-ms 4000     how long it may run before it counts as unbounded (default 10s)
     // hostile: expect-refusal      the compiler saying no is this case's assertion
     // hostile: ends-early          the last step ends the program, and that ending is the attack
+    // hostile: comment-payload     the comment block directly under it is the payload, not prose,
+                                    so `bun nv proofs --comments` does not judge it
     // proof: gap <gap id>          it breaks something; the gap record says what, not this file
     // requires: unimplemented      skip: the feature does not run yet
     // requires: unix               skip on Windows: it opens a Unix-domain socket

@@ -117,19 +117,30 @@ const COMMENT_TOP_LINES = 4;
 const COMMENT_STEP_LINES = 2;
 const COMMENT_SENTENCE_WORDS = 25;
 const COMMENT_DIRECTIVE_RE = /^\/\/\s*(?:bench|hostile|covers|proof|requires):/;
+const COMMENT_PAYLOAD_RE = /^\/\/\s*hostile:\s*comment-payload\s*$/;
 
 /**
- * What is wrong with the shape of a proof program's comments, as `line: what`. A directive line is a
- * tool's and is skipped, and so is an indented comment line, which is how a configuration example shows
- * the block it is about.
+ * What is wrong with the shape of a proof program's comments, as `line: what`. A `///` doc comment is
+ * judged like a `//` one. A directive line is a tool's and is skipped, and so is an empty or indented
+ * comment line, which is how a configuration example shows the block it is about.
+ * `// hostile: comment-payload` skips the comment block directly under it: that block is an attack's
+ * payload, which no reader is meant to read as prose.
  */
 export function commentProblems(path: string): string[] {
   const blocks: [number, string[]][] = [];
   let current: string[] = [];
+  let payload = false;
   splitlines(read(path)).forEach((line, i) => {
     const text = line.trim();
+    if (COMMENT_PAYLOAD_RE.test(text)) {
+      payload = true;
+      current = [];
+      return;
+    }
+    if (payload && text.startsWith("//")) return;
+    payload = false;
     if (text.startsWith("//") && !COMMENT_DIRECTIVE_RE.test(text)) {
-      const body = text.slice(2);
+      const body = text.replace(/^\/\/\/?/, "");
       if (body.startsWith("     ") || !body.trim()) return;
       if (current.length === 0) {
         current = [];

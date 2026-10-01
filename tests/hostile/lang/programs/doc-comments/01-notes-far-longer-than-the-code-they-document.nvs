@@ -5,6 +5,7 @@
 // program should still compile and run.
 // hostile: timeout-ms 20000
 
+// hostile: comment-payload
 /// A class whose doc comment is a hundred times longer than its code.
 ///
 /// This doc comment has markers that mean something elsewhere: */ and /* and ?> and
@@ -81,6 +82,7 @@ final class Attack
         $this->seen = 0;
     }
 
+    // hostile: comment-payload
     /// Runs `$rounds` rounds and returns the running total.
     ///
     /// Each line of the loop uses the result of the line before.
