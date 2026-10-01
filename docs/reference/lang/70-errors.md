@@ -454,12 +454,14 @@ nothing is granted.
 try {
     echo Core\IO::read("data.txt");
 } catch (RuntimeError $denied) {
-    echo "denied: ", $denied->message, "\n";
+    // The first line goes on with the full path of `data.txt`.
+    echo "denied: ", Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::after($denied->message, "\n"), "\n";
 }
 echo "still running\n";
 ```
 ```output
-denied: Core\IO::read needs the capability `fs.read` for data.txt, which is not granted
+denied: Core\IO::read needs the capability `fs.read`
 help: grant it in nvs.toml under `[capabilities.fs]`
 still running
 ```
@@ -482,12 +484,13 @@ echo Core\Str::trim(Core\IO::read("data.txt")), "\n";
 try {
     Core\IO::write("out.txt", "x");
 } catch (RuntimeError $denied) {
-    echo "denied: ", $denied->message, "\n";
+    echo "denied: ", Core\Str::before($denied->message, " for "), "\n";
+    echo Core\Str::after($denied->message, "\n"), "\n";
 }
 ```
 ```output
 hello from disk
-denied: Core\IO::write needs the capability `fs.write` for out.txt, which is not granted
+denied: Core\IO::write needs the capability `fs.write`
 help: grant it in nvs.toml under `[capabilities.fs]`
 ```
 

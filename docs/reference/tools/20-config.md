@@ -240,21 +240,20 @@ echo Core\Str::trim(Core\IO::read("data/greeting.txt")), "\n";
 try {
     Core\IO::write("data/out.txt", "x");
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    // The message goes on with the full path of the file. This prints the part before it.
+    echo Core\Str::before($denied->message, " for "), "\n";
 }
 
 try {
     echo Core\IO::read("main.nvs");
 } catch (RuntimeError $denied) {
-    echo $denied->message, "\n";
+    echo Core\Str::before($denied->message, " for "), "\n";
 }
 ```
 ```output
 hello from data
-Core\IO::write needs the capability `fs.write` for data/out.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
-Core\IO::read needs the capability `fs.read` for main.nvs, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+Core\IO::write needs the capability `fs.write`
+Core\IO::read needs the capability `fs.read`
 ```
 
 # Network grants: the addresses and endpoints they reach
