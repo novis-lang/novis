@@ -572,6 +572,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::TaggedToInt => "tagged_to_int",
         Helper::TaggedToUint => "tagged_to_uint",
         Helper::TaggedToFloat => "tagged_to_float",
+        Helper::TaggedWidenToFloat => "tagged_widen_to_float",
         Helper::TaggedToBytes => "tagged_to_bytes",
         Helper::ToArrayOf => "to_array_of",
         Helper::ToArrayOfOrNull => "to_array_of_or_null",

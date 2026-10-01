@@ -156,6 +156,12 @@ var $x = 19.99;                  // no target type: float
 var $y = 19.99 as decimal;       // `as` supplies one: decimal, exact
 ```
 
+**A union holding `decimal` is a `decimal` position for a literal its other members do not accept.**
+`?decimal $rate = 3;`, `decimal|string $label = 7.25;` and the `?decimal` field of a shape literal
+place the literal at `decimal`, exact, at every position a plain `decimal` does. A union that already
+accepts the literal's own type keeps it: `int|decimal` places `3` at `int`, and `float|decimal` places
+`3` and `1.5` at `float`. Only a literal is placed; an `int` variable at `?decimal` is still a mismatch.
+
 **`expr as T` is itself a placing position.** A literal written directly under a conversion takes `T`
 as its target rather than being typed first and converted afterwards, so `19.99 as decimal` is exact
 to the full 29 significant digits and never becomes an `f64` on the way. That is not merely notational:
@@ -250,7 +256,9 @@ size-computation bug. Code that wants unbounded magnitude declares `float`, or c
 
 Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
 position** — an argument, a return, an assignment, a field of an object literal, an element of an
-array literal, or the far side of an arithmetic operator. It never reaches the field of a shape value
+array literal, or the far side of an arithmetic operator. A position whose type is a union holding
+`float` is a `float` position for an `int` or `uint` value the union does not name, and a union value
+such as a `?int` converts by its run-time tag. It never reaches the field of a shape value
 or object that already exists, because that value is shared and its field is not converted
 ([`types/shape-type`](types.md#types-shape-type)). It never reaches the elements of an array that already exists either: they
 keep the representation they were stored with, so an `array<int>` is not an `array<float>`, and
@@ -264,7 +272,7 @@ Everything else is a diagnostic. `mixed` never absorbs implicitly in either dire
 ([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
 so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md), [0239](../decisions/0239.md).</sub>
 
 <a id="types-decimal"></a>
 
@@ -930,13 +938,18 @@ Narrowing is flow-sensitive and **branch-local**, and there are four spellings o
 narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
 narrowing described the value that was there, not the slot.
 
+A ternary's two arms and the right operand of `&&` and `||` are branches too. The condition narrows
+`$c ? $a : $b` exactly as it narrows `if ($c)` and its `else`, `&&` narrows its right operand as the
+`if` block of its left, and `||` as the `else` block. Nothing it proves holds after the expression.
+
 `is` is the general one — it tests a value against any type a value can inhabit, and it is the only
 type test there is ([`types/type-test`](types.md#types-type-test)). Its value arm narrows too: `$x is $cls`, where `$cls` is
 a `class<T>`, narrows the subject to **`T`** on the true edge, which is sound because a `class<T>`
-holds `T` or an implementor of it ([`types/class-reference-sites`](types.md#types-class-reference-sites)). Every spelling narrows on the
-**true edge alone**. Subtracting a union member on the failing edge is deliberately not done by any of
-the four: it is a separable improvement, and one that has to be taken for all of them at once or not
-at all.
+holds `T` or an implementor of it ([`types/class-reference-sites`](types.md#types-class-reference-sites)). Every spelling narrows on
+**one edge alone**, the one where the fact it tests holds: `$x != null`, `$x is T` and `$x == 1` on
+their true edge, `$x == null` and `$x != 1` on their false edge, and a `!` in front swaps the two.
+Subtracting a union member on the other edge is deliberately not done by any of the four: it is a
+separable improvement, and one that has to be taken for all of them at once or not at all.
 
 Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
 leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a

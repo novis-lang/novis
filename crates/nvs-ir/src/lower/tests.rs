@@ -315,6 +315,48 @@ fn a_mixed_numeric_pair_converts_before_the_operator() {
     }
 }
 
+/// An `int` stored at a union that holds `float` and not `int` is converted
+/// before it is tagged, and a `?int` value stored there goes through the
+/// helper that converts an integer tag. Both carry the error edge, because
+/// both throw above 2^53. A union that names `int` converts nothing.
+#[test]
+fn an_int_at_a_union_holding_float_converts_before_it_is_tagged() {
+    let (f, map, file) = lower_first_method(concat!(
+        "<?nvs\nclass T {\n",
+        "  function widen(int $i, ?int $m): ?float {\n",
+        "    int|float $kept = $i;\n",
+        "    ?float $a = $i;\n",
+        "    float|string $b = $m ?? 'none';\n",
+        "    return $m;\n",
+        "  }\n}\n",
+    ));
+    let text = print_function(&f, map.file(file));
+    let lines = |needle: &str| {
+        text.lines()
+            .filter(|line| line.contains(needle))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        lines("helper.int_to_float").len(),
+        1,
+        "only the `?float` local converts the `int`: {text}"
+    );
+    assert_eq!(
+        lines("tagged_widen_to_float").len(),
+        2,
+        "the `float|string` local and the `?float` return each convert a tag: {text}"
+    );
+    for line in lines("helper.int_to_float")
+        .into_iter()
+        .chain(lines("tagged_widen_to_float"))
+    {
+        assert!(
+            line.contains(" ! bb"),
+            "the widening lost its error edge: {line}"
+        );
+    }
+}
+
 /// The other side of that bound: `rule:types/arithmetic`'s *ordering* rows are
 /// exact in the mathematical integers, so a mixed numeric pair under
 /// `<` is answered by `Helper::NumericLt` and pays no conversion at

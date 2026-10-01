@@ -229,6 +229,13 @@ An `array<int>` you already have is not an `array<float>`: passing, returning or
 does not compile. `$counts as array<float>` converts it. The result is a new array of floats, and
 the conversion throws for a whole number above 2^53.
 
+**Whole numbers at a nullable float**
+
+`?float $price = 3;` stores `3.0`, and so does an `int` argument, property, return, shape field or
+array element where the declared type is `?float`, `float|string` or another union that holds
+`float` but not `int`. A `?int` value stored there is converted when it holds a number. The
+conversion throws for a whole number above 2^53, as it does at a plain `float`.
+
 ## How code is written
 
 Spelling. What parses and what does not, which PHP forms were kept and which were rejected, naming, visibility, and the shape of a file.

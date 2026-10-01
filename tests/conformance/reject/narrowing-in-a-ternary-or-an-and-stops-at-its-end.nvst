@@ -1,0 +1,52 @@
+--TEST--
+What a ternary or an `&&` proves about a variable holds only inside it, and a `->` on a nullable value is one error, with no second error about the returned or stored type — `rule:types/narrowing`
+--FILE--
+<?nvs
+// After the ternary and after the `&&`, `$box` may be `null` again.
+final class Box
+{
+    public float $top = 1.5;
+}
+
+final class Probe
+{
+    public static function afterTernary(?Box $box): float
+    {
+        float $f = $box != null ? $box->top : 0.0;
+        return $box->top + $f;
+    }
+
+    public static function afterAnd(?Box $box): bool
+    {
+        bool $ok = $box != null && $box->top > 0.5;
+        return $ok && $box->top > 1.0;
+    }
+
+    public static function returned(?Box $box): float
+    {
+        return $box->top;
+    }
+
+    public static function stored(?Box $box): float
+    {
+        float $f = $box->top;
+        return $f;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0459]: `null|Box` may be `null`, so `->` cannot reach a member of it
+   --> case.nvs:13:16
+%A
+error[E0459]: `null|Box` may be `null`, so `->` cannot reach a member of it
+   --> case.nvs:19:23
+%A
+error[E0459]: `null|Box` may be `null`, so `->` cannot reach a member of it
+   --> case.nvs:24:16
+%A
+error[E0459]: `null|Box` may be `null`, so `->` cannot reach a member of it
+   --> case.nvs:29:20
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

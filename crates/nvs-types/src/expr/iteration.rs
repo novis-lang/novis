@@ -232,7 +232,9 @@ pub(crate) fn check_foreach_value(
     let Some(value) = source.value_ty() else {
         return;
     };
-    if !is_assignable(value, declared, env.interner, env.graph, env.signatures) {
+    if is_assignable(value, declared, env.interner, env.graph, env.signatures) {
+        note_float_widening_at(binding.span, value, declared, env);
+    } else {
         report_mismatch(binding.span, declared, value, env);
     }
 }

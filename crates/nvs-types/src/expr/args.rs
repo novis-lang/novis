@@ -603,7 +603,9 @@ fn check_arg_admitting_quals(
     if admitted.secret {
         compared = unsecret(compared, env.interner);
     }
-    if !is_assignable(compared, expected, env.interner, env.graph, env.signatures) {
+    if is_assignable(compared, expected, env.interner, env.graph, env.signatures) {
+        note_float_widening(value, compared, expected, env);
+    } else {
         report_mismatch(value.span, expected, actual, env);
     }
     actual
@@ -787,6 +789,7 @@ fn check_shape_field(
     // below reports the refusal.
     let actual = infer(value, Some(field.ty), live, scope, ctx, env);
     if is_assignable(actual, field.ty, env.interner, env.graph, env.signatures) {
+        note_float_widening(value, actual, field.ty, env);
         return actual;
     }
     // Only where the qualifier is the whole objection. A `tainted int` at a
@@ -1526,9 +1529,12 @@ pub(crate) fn check_generic_args(
             continue;
         }
         let actual = arg_types[index];
-        if !refused[index]
-            && !is_assignable(actual, declared, env.interner, env.graph, env.signatures)
-        {
+        if refused[index] {
+            continue;
+        }
+        if is_assignable(actual, declared, env.interner, env.graph, env.signatures) {
+            note_float_widening(&arg.value, actual, declared, env);
+        } else {
             report_mismatch(arg.value.span, declared, actual, env);
         }
     }

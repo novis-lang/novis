@@ -37,12 +37,13 @@ $h = $undefined;",
             .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
         "{diags:?}"
     );
-    // Both reports are the typo's own: the name is undeclared, and the `mixed`
-    // it recovers as does not satisfy the handle `$h` is bound to. Neither
-    // construct adds one of its own, which is what this half asserts.
+    // The one report is the typo's own: the name is undeclared, and the `mixed`
+    // it recovers as is not reported a second time against the handle `$h` is
+    // bound to. Neither construct adds one of its own, which is what this half
+    // asserts.
     assert_eq!(
         diags.iter().filter(|d| d.code.is_some()).count(),
-        2,
+        1,
         "{diags:?}"
     );
 }

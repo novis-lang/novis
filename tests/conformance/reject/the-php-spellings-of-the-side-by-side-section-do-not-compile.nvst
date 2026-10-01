@@ -34,5 +34,5 @@ error[E0211]: `$_GET` is not supported
 %A
 error[E0225]: `(int)expr` is not supported
 %A
-error: aborting due to 10 errors
+error: aborting due to 9 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -81,7 +81,7 @@ use self::{
 // the split: the same names, at the same path, whichever module now holds
 // them.
 pub(crate) use self::{
-    assign::{check_return, is_assignable, report_mismatch},
+    assign::{check_return, is_assignable, note_float_widening_at, report_mismatch},
     iteration::{check_foreach_inout, check_foreach_key, check_foreach_value, foreach_source},
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
     members::{
@@ -130,6 +130,11 @@ pub fn type_is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// neither: its type is a stand-in, and the parser's error is the real one
 /// ([`Env::refused_exprs`]). That covers the refused argument itself and a call
 /// whose result type was inferred from it.
+///
+/// An expression that reported an error of its own while it was checked
+/// reports neither either, for the same reason: its type is a stand-in, often
+/// with `mixed` in it, so `float $f = $box->top;` over a nullable `$box` is the
+/// one `E0459` and not a second mismatch about the `mixed` it recovered with.
 pub(crate) fn check_expr(
     expr: &Expr,
     expected: Option<TypeId>,
@@ -139,10 +144,12 @@ pub(crate) fn check_expr(
     env: &mut Env<'_>,
 ) -> TypeId {
     let refused_before = env.refused_exprs;
+    let errors_before = env.diags.error_count();
     let actual = infer(expr, expected, live, scope, ctx, env);
     if let Some(expected_id) = expected
         && !matches!(expr.kind, ExprKind::Paren(_))
         && env.refused_exprs == refused_before
+        && env.diags.error_count() == errors_before
     {
         // A written signature is a callable position like the bare type is
         // (`rule:types/callable-signature`), so a value that is not a closure
@@ -155,7 +162,9 @@ pub(crate) fn check_expr(
         if wants_callable && report_non_callable_value_if_applicable(expr, env) {
             return actual;
         }
-        if !is_assignable(actual, expected_id, env.interner, env.graph, env.signatures) {
+        if is_assignable(actual, expected_id, env.interner, env.graph, env.signatures) {
+            assign::note_float_widening(expr, actual, expected_id, env);
+        } else {
             report_mismatch(expr.span, expected_id, actual, env);
         }
     }
@@ -299,7 +308,7 @@ pub(crate) fn infer(
             // rather than a position it has to satisfy, so a `-$n` under a
             // `-1` target is still an ordinary mismatch reported once, at the
             // negation, rather than twice.
-            let hint = negated_literal_expectation(*op, expected, env.interner);
+            let hint = negated_literal_expectation(*op, inner, expected, env.interner);
             let inner_ty = infer(inner, hint, live, scope, ctx, env);
             match op {
                 // `!` is `rule:expressions/truthy-positions`'s truthy test written out rather than one of
@@ -368,16 +377,34 @@ pub(crate) fn infer(
             // that placement changes anything for. When both sides are digit
             // runs neither places the other and the source order stands, which
             // is also the order every diagnostic below is reported in.
-            let (lhs_ty, rhs_ty) =
-                if matches!(lhs.kind, ExprKind::Int(_)) && !matches!(rhs.kind, ExprKind::Int(_)) {
-                    let rhs_ty = check_expr(rhs, None, live, scope, ctx, env);
-                    let placed = uint_operand_expectation(lhs, rhs_ty, env.interner);
-                    (check_expr(lhs, placed, live, scope, ctx, env), rhs_ty)
+            //
+            // `&&` and `||` are always checked left first, because their right
+            // operand runs on one edge of the left alone and is therefore a
+            // branch (`rule:types/narrowing`). It is checked under what
+            // `crate::locals::narrow` installs for the left's true edge after
+            // `&&` and its false edge after `||`, exactly as an `if`'s
+            // then-block and `else` block would be, and the narrowing is taken
+            // off again before the result is typed.
+            let short_circuits = matches!(op, BinaryOp::And | BinaryOp::Or);
+            let (lhs_ty, rhs_ty) = if !short_circuits
+                && matches!(lhs.kind, ExprKind::Int(_))
+                && !matches!(rhs.kind, ExprKind::Int(_))
+            {
+                let rhs_ty = check_expr(rhs, None, live, scope, ctx, env);
+                let placed = uint_operand_expectation(lhs, rhs_ty, env.interner);
+                (check_expr(lhs, placed, live, scope, ctx, env), rhs_ty)
+            } else {
+                let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);
+                let narrowed = if short_circuits {
+                    crate::locals::narrow(lhs, *op == BinaryOp::And, scope, env)
                 } else {
-                    let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);
-                    let placed = uint_operand_expectation(rhs, lhs_ty, env.interner);
-                    (lhs_ty, check_expr(rhs, placed, live, scope, ctx, env))
+                    crate::locals::Narrowing::default()
                 };
+                let placed = uint_operand_expectation(rhs, lhs_ty, env.interner);
+                let rhs_ty = check_expr(rhs, placed, live, scope, ctx, env);
+                narrowed.restore(scope);
+                (lhs_ty, rhs_ty)
+            };
             if *op == BinaryOp::Concat {
                 require_stringable(lhs_ty, lhs.span, env);
                 require_stringable(rhs_ty, rhs.span, env);
@@ -407,14 +434,26 @@ pub(crate) fn infer(
         }
         ExprKind::Ternary { cond, then, else_ } => {
             let cond_ty = check_condition(cond, live, scope, ctx, env);
+            // `rule:types/narrowing`: the two arms are branches, so each is
+            // checked under exactly what `crate::locals::narrow` installs for
+            // an `if`'s then-block and its `else` block, and each narrowing is
+            // taken off again before anything after the arm is checked.
             // `$a ?: $b` (`then` omitted) evaluates to `$a` itself on the
             // truthy path — its type joins the union the same way an
-            // explicit `then` branch would.
+            // explicit `then` branch would, and its `else` arm is the same
+            // false edge as the long form's.
             let then_ty = match then {
-                Some(then) => check_expr(then, None, live, scope, ctx, env),
+                Some(then) => {
+                    let narrowed = crate::locals::narrow(cond, true, scope, env);
+                    let ty = check_expr(then, None, live, scope, ctx, env);
+                    narrowed.restore(scope);
+                    ty
+                }
                 None => cond_ty,
             };
+            let narrowed = crate::locals::narrow(cond, false, scope, env);
             let else_ty = check_expr(else_, None, live, scope, ctx, env);
+            narrowed.restore(scope);
             env.interner.make_union([then_ty, else_ty])
         }
         ExprKind::Conversion { expr: inner, ty } => {

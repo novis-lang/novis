@@ -14,5 +14,5 @@ echo Reader::name(), "\n";
 error[E0211]: `$_GET` is not supported
   --> case.nvs:4:16
 %A
-error: aborting due to 3 errors
+error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

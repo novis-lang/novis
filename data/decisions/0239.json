@@ -1,0 +1,17 @@
+{
+  "title": "A union that holds `float` is a `float` position for an `int` or `uint` value whose type the union does not name",
+  "status": "accepted",
+  "scope": "How an `int` or `uint` value is stored where the declared type is a union holding `float`: `?float`,\n`float|string`, `float|Shape`. A plain `float` target already converted, and an existing array or shape\nvalue is [0238](0238.md) and [0236](0236.md).",
+  "dependsOn": [
+    "0007",
+    "0054",
+    "0238"
+  ],
+  "dependsOnText": "[0007](0007.md) and [0054](0054.md) (the `int` → `float` widening is the one implicit\nconversion), [0238](0238.md) (the element of an array literal is placed at its element type).",
+  "validatedBy": "`tests/conformance/lang/an-integer-stored-at-a-union-holding-float-becomes-a-float.nvst` and\n`nvs_ir`'s `an_int_at_a_union_holding_float_converts_before_it_is_tagged`.",
+  "summary": {
+    "group": "types",
+    "headline": "Whole numbers at a nullable float",
+    "body": "`?float $price = 3;` stores `3.0`, and so does an `int` argument, property, return, shape field or\narray element where the declared type is `?float`, `float|string` or another union that holds `float`\nbut not `int`. A `?int` value stored there is converted when it holds a number. The conversion throws\nfor a whole number above 2^53, as it does at a plain `float`."
+  }
+}

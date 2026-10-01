@@ -1198,6 +1198,14 @@ impl<'a> Lowering<'a> {
                 slot: slot_v,
             },
         );
+        // A by-reference binding writes its value back into the element, so
+        // it keeps the element's own representation.
+        let v_v = if value_inout {
+            v_v
+        } else {
+            self.widen_marked_binding(value.span, v_v, value_ty, &mut body_env, body_cur)
+                .0
+        };
         if value_ty.is_refcounted() {
             self.emit_retain(body_cur, v_v);
         }
@@ -1524,6 +1532,8 @@ impl<'a> Lowering<'a> {
         let mut body_env = header_env.clone();
         let mut body_cur = body_block;
         let v_v = self.emit_iface_call(body_cur, cursor_v, true, "current", value_ty, &body_env);
+        let (v_v, _) =
+            self.widen_marked_binding(value.span, v_v, value_ty, &mut body_env, body_cur);
         body_env.insert(value_name, (v_v, value_ty));
 
         self.lower_stmt(body, &mut body_cur, &mut body_env);

@@ -161,6 +161,12 @@
           "headline": "Whole numbers in a float array",
           "body": "`array<float> $a = [1, 2];` stores `1.0` and `2.0`, and so does `[$count]` with an `int` variable. An `array<int>` you already have is not an `array<float>`: passing, returning or assigning one there does not compile. `$counts as array<float>` converts it. The result is a new array of floats, and the conversion throws for a whole number above 2^53.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0238.md"
+        },
+        {
+          "adr": "0239",
+          "headline": "Whole numbers at a nullable float",
+          "body": "`?float $price = 3;` stores `3.0`, and so does an `int` argument, property, return, shape field or array element where the declared type is `?float`, `float|string` or another union that holds `float` but not `int`. A `?int` value stored there is converted when it holds a number. The conversion throws for a whole number above 2^53, as it does at a plain `float`.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0239.md"
         }
       ]
     },

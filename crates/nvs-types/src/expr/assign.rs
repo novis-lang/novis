@@ -87,6 +87,53 @@ pub(crate) enum Widening {
     InPlace,
 }
 
+/// Marks `value` for conversion to `float` where it is stored, when a storing
+/// position accepted it at `to` only through [`is_assignable`]'s `int`/`uint`
+/// → `float` row inside a union.
+///
+/// That is a `to` that is a union naming `float`, and a value whose integer
+/// type the union does not name: `3` at `?float` or `float|string`, or a
+/// `?int` at `?float`. Such a union erases to a tagged value, so `nvs-ir`
+/// cannot tell from the representation that the integer must become a
+/// `float`. It reads the mark instead
+/// ([`crate::expr_table::ExprTypeTable::widens_to_float`]). A union source
+/// converts by its run-time tag, so it is marked only when the target names
+/// neither of its integer members: the conversion applies to both tags. A
+/// plain `float` target is not marked, because its erased type already
+/// converts.
+///
+/// Called by every position that stores a value at a declared type, after
+/// that position has accepted it.
+pub(crate) fn note_float_widening(value: &Expr, from: TypeId, to: TypeId, env: &mut Env<'_>) {
+    note_float_widening_at(value.unparenthesized().span, from, to, env);
+}
+
+/// [`note_float_widening`] for a value with no expression of its own: the
+/// result of `$x ??= e`, which `nvs-ir` lowers as the `$x ?? e` it means, at
+/// the assignment's span.
+pub(crate) fn note_float_widening_at(span: Span, from: TypeId, to: TypeId, env: &mut Env<'_>) {
+    let Ty::Union(members) = env.interner.get(to) else {
+        return;
+    };
+    let members = members.clone();
+    let float = env.interner.float();
+    if !members.contains(&float) {
+        return;
+    }
+    let from = env.interner.literal_base(from);
+    let integer = |ty: &TypeId| matches!(env.interner.get(*ty), Ty::Int | Ty::Uint);
+    let widens = match env.interner.get(from) {
+        Ty::Union(from_members) => {
+            let mut integers = from_members.iter().filter(|member| integer(member));
+            integers.clone().next().is_some() && integers.all(|member| !members.contains(member))
+        }
+        _ => integer(&from) && !members.contains(&from),
+    };
+    if widens {
+        env.exprs.record_float_widening(span);
+    }
+}
+
 /// [`is_assignable`] with the `int` → `float` row on or off — see [`Widening`].
 fn assignable(
     from: TypeId,
@@ -639,7 +686,14 @@ pub(crate) fn check_return(
         );
         return;
     }
+    // A value that already reported an error inside it is one mistake, not
+    // two: its type is a stand-in, often with `mixed` in it, and a second
+    // `E_BAD_RETURN_TYPE` about that stand-in names no mistake of its own.
+    let errors_before = env.diags.error_count();
     let actual = infer(expr, Some(return_ty), live, scope, ctx, env);
+    if env.diags.error_count() != errors_before {
+        return;
+    }
     if !is_assignable(actual, return_ty, env.interner, env.graph, env.signatures) {
         let expected_desc = env.interner.describe(return_ty);
         let actual_desc = env.interner.describe(actual);
@@ -653,6 +707,8 @@ pub(crate) fn check_return(
             None => diag,
         };
         env.diags.report(diag);
+    } else {
+        note_float_widening(expr, actual, return_ty, env);
     }
 }
 
@@ -1184,6 +1240,7 @@ pub(crate) fn check_compound_assign(
         report_mismatch(span, target_ty, result, env);
         return target_ty;
     }
+    note_float_widening_at(span, result, target_ty, env);
     // The operator's *result* is what lands in the element, and `.=` over a
     // `secret` operand produces a `secret` one (`rule:security/secret-propagation`),
     // so this spelling of the write owes the same refusal the plain one does.

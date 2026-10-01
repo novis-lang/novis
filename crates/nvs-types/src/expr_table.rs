@@ -54,7 +54,7 @@
 
 use nvs_diagnostics::Span;
 use nvs_hir::QName;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::defaults::ConstArg;
 use crate::ty::TypeId;
@@ -1261,6 +1261,7 @@ pub struct ExprTypeTable {
     by_span: FxHashMap<Span, ExprId>,
     methods: FxHashMap<Span, String>,
     types: FxHashMap<Span, TypeId>,
+    float_widened: FxHashSet<Span>,
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     db_codecs: FxHashMap<String, crate::derive::DerivedCodec>,
@@ -2156,6 +2157,25 @@ impl ExprTypeTable {
     #[must_use]
     pub fn declared_ty(&self, span: Span) -> Option<TypeId> {
         self.types.get(&span).copied()
+    }
+
+    /// Records that the value expression at `span` is stored at a union that
+    /// names `float` and not the value's own integer type. See
+    /// [`Self::widens_to_float`].
+    pub(crate) fn record_float_widening(&mut self, span: Span) {
+        self.float_widened.insert(span);
+    }
+
+    /// Whether the value expression at `span` converts to `float` where it is
+    /// stored: `3` at a `?float` or `float|string` position, or a `?int` at a
+    /// `?float` one. The checker accepted it through the `int` → `float` row
+    /// inside a union (`crate::expr::assign::note_float_widening`), and the
+    /// erased representation of that union is a tagged value, so `nvs-ir`
+    /// cannot see the conversion on its own: it would tag the integer as an
+    /// integer. One span per stored value, held for the compile.
+    #[must_use]
+    pub fn widens_to_float(&self, span: Span) -> bool {
+        self.float_widened.contains(&span)
     }
 }
 

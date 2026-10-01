@@ -1,0 +1,452 @@
+{
+  "title": "nothing in Novis is tested against PHP, and PHP is named only where a page compares or helps a migration",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-test/src/case.rs",
+      "crates/nvs-test/src/run.rs"
+    ],
+    "rules": [
+      "programs/memory-priority",
+      "programs/no-compatibility-promise",
+      "php-migration/every-divergence-is-deliberate-and-listed"
+    ],
+    "adrs": [
+      "0004"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "priority 2 is deleted",
+      "summary": "Writes the decision record, deletes priority 2 from the ordering, and makes every citation name a priority instead of numbering it.",
+      "context": {
+        "rules": [
+          "programs/three-claims",
+          "testing/nvst-is-separate",
+          "ide/case-files-have-their-own-grammar"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A decision record",
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "every error message has a conformance case",
+      "summary": "Moves every assertion only `tests/differential/` makes into `tests/conformance/`, so deleting the tree loses nothing.",
+      "context": {
+        "modules": [
+          "crates/nvs-stdlib/tests/conformance_coverage.rs",
+          "tools/nv/cmd/gaps.ts"
+        ],
+        "rules": [],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "the oracle is gone",
+      "summary": "Deletes `tests/differential/`, the oracle sections, `nvs test --php` and every reader of them.",
+      "context": {
+        "modules": [
+          "crates/nvs-test/src/lib.rs",
+          "tools/nv/cmd/verify.ts",
+          "tools/nv/cmd/try.ts",
+          "tools/nv/lib/chain.ts"
+        ],
+        "rules": [
+          "testing/nvst-is-separate",
+          "ide/case-files-have-their-own-grammar"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case",
+          "A code comment"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "the migration list is a document",
+      "summary": "Removes the tests that hold the PHP list complete, and keeps the tests that a row names a real Novis method.",
+      "context": {
+        "modules": [
+          "crates/nvs-stdlib/src/php_names.rs",
+          "tools/nv/cmd/migration.ts"
+        ],
+        "rules": [
+          "php-migration/every-php-builtin-is-a-completion-candidate",
+          "core-api/removals"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "title": "the rules state the behaviour",
+      "summary": "Rewrites every rule fragment that makes PHP the reference, and trims PHP from the ones that only mention it in passing.",
+      "context": {
+        "rules": [
+          "tooling/convert-equivalent-is-proven",
+          "tooling/convert-php-front-end",
+          "tooling/fmt-never-inserts-visibility",
+          "packaging/the-sweep-is-fired-by-a-human",
+          "testing/probes-on-is-a-tested-configuration"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "title": "the reader's text steps back",
+      "summary": "Takes \"This replaces PHP's `x`.\" out of `about.md` and the registry text, and takes PHP off the pages that do not compare.",
+      "context": {
+        "modules": [
+          "crates/nvs-cli/src/agent.rs"
+        ],
+        "rules": [
+          "programs/three-claims",
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `Core` member — the five edits",
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    },
+    {
+      "number": 8,
+      "title": "rendered and proven",
+      "summary": "Renders every generated file again and proves the roster still owes nothing.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "priority-two-names-no-php",
+      "kind": "command",
+      "stage": 2,
+      "name": "no current document makes PHP-compatible behaviour the second priority",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-i",
+        "PHP-compatible observable",
+        "--",
+        "AGENTS.md",
+        "docs/rules",
+        "data/rules",
+        "website/src/content",
+        "docs/agent/commands.md",
+        "docs/agent/user-report.md"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "the-ordering-has-no-semantics-priority",
+      "kind": "command",
+      "stage": 2,
+      "name": "the priority ordering no longer lists correctness of language semantics",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-i",
+        "Correctness of language semantics",
+        "--",
+        "AGENTS.md",
+        "docs/rules",
+        "website/src/content"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "no-rule-cites-a-priority-by-number",
+      "kind": "command",
+      "stage": 2,
+      "name": "AGENTS.md and the rule fragments name a priority instead of numbering it",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-i",
+        "-E",
+        "priority [1-5]\\b",
+        "--",
+        "AGENTS.md",
+        "docs/rules/*/*.md"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "nvs-stdlib-the-error-corpus-is-conformance-alone",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-stdlib (every error path is asserted by a case under `tests/conformance/`, which is the whole corpus)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib"
+      ],
+      "tests": [
+        "every_error_path_is_asserted_or_declared_unreachable",
+        "the_error_corpus_is_the_conformance_tree_alone"
+      ]
+    },
+    {
+      "id": "the-differential-tree-is-gone",
+      "kind": "command",
+      "stage": 4,
+      "name": "`tests/differential/` holds no tracked file",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "tests/differential"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "nvs-test-an-oracle-section-is-an-unknown-section",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-test (`--ORACLE--` and `--ORACLE-DIVERGES--` are refused like any unknown section)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-test"
+      ],
+      "tests": [
+        "an_oracle_section_is_an_unknown_section",
+        "an_oracle_diverges_section_is_an_unknown_section"
+      ]
+    },
+    {
+      "id": "nvs-cli-nvs-test-has-no-php-flag",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-cli (`nvs test --php` is an unknown flag)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "nvs_test_refuses_the_php_flag"
+      ]
+    },
+    {
+      "id": "no-case-tool-or-grammar-carries-an-oracle",
+      "kind": "command",
+      "stage": 4,
+      "name": "no case, tool, grammar or reference page names an oracle section",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-e",
+        "--ORACLE",
+        "--",
+        "tests",
+        "tools/nv",
+        "editors/vscode",
+        ":!editors/vscode/test",
+        "docs/reference",
+        "docs/examples",
+        "docs/agent/conventions.md",
+        "docs/agent/commands.md"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "no-completeness-gate-over-the-php-list",
+      "kind": "command",
+      "stage": 5,
+      "name": "no test, CI job or wrap gate holds the PHP list complete",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-e",
+        "every_php_builtin_in_the_oracle_inventory_is_a_candidate",
+        "-e",
+        "every_migration_member_row_has_a_conformance_case",
+        "-e",
+        "migration-table:",
+        "-e",
+        "MIGRATION_GATES",
+        "--",
+        "crates",
+        ".github",
+        "tools/nv"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "nvs-stdlib-a-migration-row-names-a-real-method",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-stdlib (every migration row still names a method the registry has)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib"
+      ],
+      "tests": [
+        "every_migration_member_row_names_a_registered_member"
+      ]
+    },
+    {
+      "id": "no-rule-makes-php-the-reference",
+      "kind": "command",
+      "stage": 6,
+      "name": "no rule fragment outside php-migration states a behaviour as PHP's",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-i",
+        "-e",
+        "PHP-exact",
+        "-e",
+        "PHP-identical",
+        "-e",
+        "matches PHP",
+        "-e",
+        "as PHP does",
+        "--",
+        "docs/rules/*/*.md",
+        ":!docs/rules/php-migration/*"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "no-about-md-says-what-it-replaces-in-php",
+      "kind": "command",
+      "stage": 7,
+      "name": "no about.md outside the php-differences tour says what it replaces in PHP",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-i",
+        "replaces PHP",
+        "--",
+        "docs/examples/*about.md",
+        ":!docs/examples/tools/php-differences"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "nvs-stdlib-no-member-text-says-what-it-replaces-in-php",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "nvs-stdlib (no registry text says what a method replaces in PHP; the `replaces` data stays)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib"
+      ],
+      "tests": [
+        "no_member_text_says_what_it_replaces_in_php"
+      ]
+    },
+    {
+      "id": "the-website-shows-no-php-replacement-fact",
+      "kind": "command",
+      "stage": 7,
+      "name": "no website component leads a method page with PHP or shows a \"Replaces in PHP\" fact",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-e",
+        "Replaces in PHP",
+        "-e",
+        "replacement for PHP",
+        "--",
+        "website/src"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-without-php",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: the whole roster owes nothing with PHP stepped back",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

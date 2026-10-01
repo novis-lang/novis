@@ -23,5 +23,5 @@ bool $state = $db->isOpen();
 error[E0405]: `Core\Db\Transaction` has no method named `isOpen`
    --> case.nvs:10:16
 %A
-error: aborting due to 2 errors
+error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

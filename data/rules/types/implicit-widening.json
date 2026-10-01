@@ -5,7 +5,8 @@
     "0007",
     "0054",
     "0236",
-    "0238"
+    "0238",
+    "0239"
   ],
   "divergesFromPhp": "the widening throws above 2^53 instead of rounding, and no other implicit coercion survives",
   "seeAlso": [
@@ -16,6 +17,7 @@
   "guardedBy": [
     "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.nvst",
     "tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst",
-    "tests/conformance/reject/an-existing-int-array-does-not-widen-to-a-float-array.nvst"
+    "tests/conformance/reject/an-existing-int-array-does-not-widen-to-a-float-array.nvst",
+    "tests/conformance/lang/an-integer-stored-at-a-union-holding-float-becomes-a-float.nvst"
   ]
 }

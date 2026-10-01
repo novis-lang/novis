@@ -1803,6 +1803,7 @@ impl<'a> Lowering<'a> {
                     let elem_ty = self.destructured_element_ty(*span);
                     let v =
                         self.read_destructured(subject, key.as_ref(), position, elem_ty, cur, env);
+                    let (v, elem_ty) = self.widen_marked_binding(*span, v, elem_ty, env, *cur);
                     let v = self.coerce(*cur, v, elem_ty, declared, env);
                     let lname = strip_sigil(span_text(self.src, *name)).to_owned();
                     // The read borrows the entry the array still owns, so the

@@ -1,0 +1,48 @@
+{
+  "state": "**Goal `php-oracle-retired` — nothing in Novis is tested against PHP, and PHP is named only where a page compares or helps a migration — has not started.** Goal `goal-closeout` ended the carried floor, so no goal record names `tests/differential/`.\n\nThe oracle is the `--ORACLE--` and `--ORACLE-DIVERGES--` sections of a `.nvst` case, parsed in `crates/nvs-test/src/case.rs` and run by `crates/nvs-test/src/run.rs`, which spawns `php`. Only `tests/differential/` uses them; `tests/conformance/` never runs PHP. `bun nv verify` runs the differential tree; CI does not. `crates/nvs-stdlib/tests/conformance_coverage.rs:@error_corpus` and `bun nv gaps --errors` read both trees.",
+  "next": {
+    "stage": 2,
+    "title": "priority 2 is deleted",
+    "files": [
+      "AGENTS.md",
+      "data/rules/programs/memory-priority.json",
+      "docs/rules/programs/memory-priority.md",
+      "data/rules/php-migration/every-divergence-is-deliberate-and-listed.json",
+      "docs/rules/php-migration/every-divergence-is-deliberate-and-listed.md",
+      "website/src/content/docs/docs/index.mdx",
+      "docs/agent/commands.md",
+      "docs/agent/user-report.md"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The decision record** — one new record, written first, for the whole goal, from the goal file's § *Standing decisions*; it `modifies` `rule:programs/memory-priority`, `rule:php-migration/every-divergence-is-deliberate-and-listed`, `rule:testing/nvst-is-separate` and `rule:ide/case-files-have-their-own-grammar`."
+      },
+      {
+        "done": false,
+        "text": "**Priority 2 is deleted** — the line leaves `AGENTS.md:51`, `docs/rules/programs/memory-priority.md:5` and `website/src/content/docs/docs/index.mdx:25`, and four priorities remain."
+      },
+      {
+        "done": false,
+        "text": "**A priority is cited by its name** — `AGENTS.md:65`, `docs/rules/programs/memory-priority.md:21` and the five rule fragments and Rust comments the goal file's Stage 2 lists; frozen records keep their numbers."
+      },
+      {
+        "done": false,
+        "text": "**The divergence rule** — `docs/rules/php-migration/every-divergence-is-deliberate-and-listed.md:1-2` grounded in migration help, with no priority 2 and no `.phpt` pass rate."
+      },
+      {
+        "done": false,
+        "text": "**The process docs** — `docs/agent/commands.md:418` and `docs/agent/user-report.md:54` measure a bug against the rules and the reference."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: every error message has a conformance case** — `crates/nvs-stdlib/tests/conformance_coverage.rs:@error_corpus` and `tools/nv/cmd/gaps.ts:343-362` read `tests/conformance/` alone; every message left unasserted gets a conformance case frozen from Novis output; `guardedBy`/`validatedBy` pointers at differential cases move to the new cases.",
+    "**Stage 4: the oracle is gone** — the runner (`crates/nvs-test/src/case.rs`, `run.rs`, `lib.rs`, `crates/nvs-cli/src/main.rs:463-465`), then `git rm -r tests/differential` and the `tools/nv` readers, then the editor grammar, the playbook entries and the prose.",
+    "**Stage 5: the migration list is a document** — `crates/nvs-stdlib/tests/php_names.rs:132`, `spec_registry_coverage.rs:1980`, `.github/workflows/ci.yml:515-527`, `tools/nv/cmd/session.ts:513`.",
+    "**Stage 6: the rules state the behaviour** — one rule topic per group, `types/` first.",
+    "**Stage 7: the reader's text steps back** — `about.md`, then `crates/nvs-stdlib/src/*.rs` registry text, then the website, then the reference and `nvs agent`'s primer order.",
+    "**Stage 8: rendered and proven** — `bun nv reference`, the rule chapters, the website data, `bun nv proofs --gate`.",
+    "This is the last goal on the chain."
+  ]
+}

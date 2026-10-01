@@ -2351,6 +2351,16 @@ pub enum Helper {
     TaggedToUint,
     /// [`Self::TaggedToInt`]'s row set, landing on `float`.
     TaggedToFloat,
+    /// A [`crate::ty::Ty::Tagged`] value stored at a union that names `float`
+    /// and not the value's integer type: an `int` or `uint` tag becomes a
+    /// `float` tag, exactly as [`Self::IntToFloat`] converts it, and throws
+    /// above 2^53. Every other tag comes back unchanged.
+    ///
+    /// The result is the operand's own reference, as with
+    /// [`crate::ir::InstKind::Tag`]: nothing is retained or released around
+    /// it. Emitted by `crate::lower::Lowering::lower_expr` where the checker
+    /// marked the value (`nvs_types::expr_table::ExprTypeTable::widens_to_float`).
+    TaggedWidenToFloat,
     /// A [`crate::ty::Ty::Tagged`] operand to `bytes` — `rule:types/conversion`'s
     /// `string as bytes` row chosen by the operand's **runtime** tag, plus the
     /// identical-type row a value that is already a `bytes` takes.
