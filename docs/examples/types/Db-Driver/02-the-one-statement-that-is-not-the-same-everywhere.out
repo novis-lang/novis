@@ -1,5 +1,7 @@
 MySQL
   insert into contacts (email, name) values (?, ?) on duplicate key update name = values(name)
+MariaDB
+  insert into contacts (email, name) values (?, ?) on duplicate key update name = values(name)
 PostgreSQL
   insert into contacts (email, name) values (?, ?) on conflict (email) do update set name = excluded.name
 SQLite

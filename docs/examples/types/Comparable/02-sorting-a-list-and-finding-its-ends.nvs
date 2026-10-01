@@ -1,6 +1,6 @@
 <?nvs
-// Once a class can order two of its values, the members that put things in
-// order work on a whole list of them. None of them needs to be told how.
+// A class that implements `Comparable` has a `compareTo` method. `Core\Arr::min`,
+// `Core\Arr::max` and `Core\Arr::sort` use it to order a list of those objects.
 
 final class Reading implements Comparable {
     public string $city;
@@ -23,9 +23,8 @@ array<Reading> $readings = [
     new Reading("Vienna", 19),
 ];
 
-// The coldest and the warmest of the day, without walking the list yourself.
-// An empty list has neither, so both answer `null` and the check is what lets
-// you read the city.
+// `Core\Arr::min` and `Core\Arr::max` return the coldest and warmest reading. For
+// an empty list both return `null`, so the code checks before it reads the city.
 var $coldest = Core\Arr::min($readings);
 var $warmest = Core\Arr::max($readings);
 if ($coldest != null) {
@@ -35,8 +34,9 @@ if ($warmest != null) {
     echo "warmest: ", $warmest->city, "\n";
 }
 
-// Sorting puts the list in that same order, coldest first.
-Core\Arr::sort($readings);
-foreach ($readings as Reading $reading) {
+// `Core\Arr::sort` returns a sorted copy and leaves `$readings` as it is.
+// The loop prints the copy, from the coldest city to the warmest.
+array<Reading> $sorted = Core\Arr::sort($readings);
+foreach ($sorted as Reading $reading) {
     echo $reading->city, " ", $reading->celsius, "\n";
 }
