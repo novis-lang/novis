@@ -1143,7 +1143,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
       (child) => {
         // After `launch` has written the log's first line, which `loop-stats` reads as the pack's size.
         CONSOLE.openSession(log);
-        ctx.live = new LiveSession(new ProcTree(child.pid, child), child.write, child.open);
+        ctx.live = new LiveSession(new ProcTree(child), child.write, child.open);
         CONTROL.attach(ctx.live);
       },
     );

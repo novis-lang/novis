@@ -99,7 +99,7 @@ describe("the console's helpers", () => {
 describe.if(process.platform === "win32")("the process tree", () => {
   test("a freeze stops the child where it stands, and a thaw lets it finish", async () => {
     const child = Bun.spawn(["cmd", "/c", "ping -n 3 127.0.0.1 >nul"], { stdout: "ignore" });
-    const tree = new Tree(child.pid);
+    const tree = new Tree(child);
     await Bun.sleep(200);
     expect(tree.pids()).toContain(child.pid);
     const began = performance.now();

@@ -9,26 +9,33 @@
 // any process on the machine: `wininit.exe` names a boot-time `smss.exe` that exited long ago, and a
 // child handed that id has every service, Explorer and the whole desktop below it. So:
 //
-// - On Windows the child is put in a Job Object right after it starts. Every process it starts from then
-//   on is in the job and cannot leave it, so the job's process list is the tree, including a grandchild
-//   whose parent has exited, and `TerminateJobObject` reaches nothing outside it. The child's own handle
-//   is held until `close`, so Windows cannot give its id to another process before then. A grandchild
-//   started in the microseconds between the spawn and the job is outside the job, since `Bun.spawn`
-//   cannot start a child suspended.
-// - Elsewhere the tree is read from creator ids, and a process counts only when it started no earlier
-//   than the child and no earlier than its creator. The child itself is killed through the handle its
-//   caller owns. It is not started in a process group of its own, because `detached` starts a new
-//   session that Ctrl-C in the terminal no longer reaches. An orphan is adopted by init, so only a kill
-//   taken while the tree is whole reaches it.
+// - On Windows the child is put in a Job Object in the constructor, which runs before the spawner awaits
+//   anything: until then libuv holds the child's handle, so its id is still the child's. Every process it
+//   starts from then on is in the job and cannot leave it, so the job's process list is the tree,
+//   including a grandchild whose parent has exited, and `TerminateJobObject` reaches nothing outside it.
+//   The child's own handle is held until `close`, so Windows cannot give its id to another process
+//   before then. A grandchild started in the microseconds between the spawn and the job escapes the job,
+//   since `Bun.spawn` cannot start a child suspended. Where no job can be made, only the child is killed,
+//   through that handle.
+// - Elsewhere the tree is read from creator ids while the child is still running. Linux moves an orphan
+//   to init, so a live process's creator id is never stale there; a process still counts only when it
+//   started no earlier than the child and no earlier than its creator, and its start is read again just
+//   before the kill. The child itself is signalled through the handle its caller owns. It is not started
+//   in a process group of its own, because `detached` calls `setsid`, which Ctrl-C in the terminal then
+//   no longer reaches. An orphan is therefore out of reach: only a kill taken while the tree is whole
+//   reaches it, and `reap` kills nothing.
 // - Every process addressed by its id is screened first: never this process, an ancestor of it, or a
-//   process that started before it. Each refusal is printed to stderr.
+//   process that started before it. Each refusal is printed to stderr. The screen is a second check
+//   only: which processes belong to the tree comes from the job, or from Linux's own creator links.
+// - The child is signalled through its owner's handle only while its exit has not been observed.
 //
 // The job has no limits, so closing it kills nothing. On Windows each process is frozen with
-// `NtSuspendProcess`; elsewhere the child alone gets `SIGSTOP` and `SIGCONT`.
+// `NtSuspendProcess` through a handle that `IsProcessInJob` has confirmed, and that handle is kept and
+// resumed through; elsewhere the child alone gets `SIGSTOP` and `SIGCONT`.
 //
 // What it costs: per spawn one job handle and one process handle, held until `close`, and four calls;
-// per kill one snapshot of the process table and one `OpenProcess` per running process to read when it
-// started.
+// per frozen process one handle until the thaw; per kill one snapshot of the process table and one
+// `OpenProcess` per running process to read when it started.
 //
 // Every method is best effort and never throws: a freeze that cannot be taken shows in its count, and a
 // kill that cannot be made safe kills less, never more.
@@ -227,33 +234,51 @@ function screened(pids: number[]): { kill: number[]; table: Proc[]; refused: boo
 
 // ---- a tree ----------------------------------------------------------------------------------------
 
-/** The handle a caller owns for the child it spawned, which is how the child itself is killed. */
+/** The handle a caller owns for the child it spawned: a `Bun.Subprocess` is one. */
 export interface Owned {
+  readonly pid: number;
+  readonly exitCode: number | null;
+  readonly signalCode: string | null;
   kill(signal?: number | NodeJS.Signals): void;
+}
+
+/** Signals `own` through its handle, and only while its exit has not been observed. */
+export function signalOwned(own: Owned, signal?: number | NodeJS.Signals): void {
+  if (own.exitCode !== null || own.signalCode !== null) return;
+  try {
+    own.kill(signal);
+  } catch {
+    // It has exited.
+  }
+}
+
+/** A process a freeze stopped, with the handle it was stopped through on Windows. */
+interface Frozen {
+  pid: number;
+  handle: Handle | null;
 }
 
 export class Tree {
   /** A freeze walks the list until a pass finds nobody new: a process starting a child when its turn came has one the first pass missed. */
   static readonly PASSES = 5;
-  /** The pids a freeze stopped, which are the ones a thaw owes. */
-  private frozen: number[] = [];
+  /** The processes a freeze stopped, which are the ones a thaw owes. */
+  private frozen: Frozen[] = [];
   private job: Handle | null = null;
   /** On Windows the child's own handle, which keeps its id from being given to another process. */
   private root: Handle | null = null;
   /** When the child started, read while it could not yet have exited. */
   private readonly started: bigint | null = null;
+  readonly pid: number;
 
-  /** Call it as soon as `Bun.spawn` returns, before anything awaits, so `pid` is still the child's. */
-  constructor(
-    readonly pid: number,
-    private readonly own?: Owned,
-  ) {
+  /** Call it as soon as `Bun.spawn` returns, before anything awaits, so `own.pid` is still the child's. */
+  constructor(private readonly own: Owned) {
+    this.pid = own.pid;
     const w = win();
     if (w === null) {
-      this.started = startedAt(pid);
+      this.started = startedAt(this.pid);
       return;
     }
-    const root = w.k32.OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SUSPEND_RESUME, 0, pid) as Handle | null;
+    const root = w.k32.OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SUSPEND_RESUME, 0, this.pid) as Handle | null;
     if (!root) return;
     this.root = root;
     this.started = handleStarted(root);
@@ -263,7 +288,7 @@ export class Tree {
     else w.k32.CloseHandle(job);
   }
 
-  /** Every live process in the tree, the root first. */
+  /** Every live process in the tree, the root first. A process listed here may exit at any moment. */
   pids(): number[] {
     const w = win();
     if (w === null || this.job === null) return [this.pid];
@@ -280,76 +305,81 @@ export class Tree {
     return [this.pid];
   }
 
+  /** Whether `pid` is a process in this tree's job right now, asked through a handle that can only query. */
+  holds(pid: number): boolean {
+    const w = win();
+    if (w === null || this.job === null) return false;
+    const handle = w.k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) as Handle | null;
+    if (!handle) return false;
+    try {
+      return this.inJob(handle);
+    } finally {
+      w.k32.CloseHandle(handle);
+    }
+  }
+
   /** Stops every process in the tree where it stands. Returns how many are stopped. */
   freeze(): number {
     if (this.frozen.length > 0) return this.frozen.length;
     const w = win();
     if (w === null) {
-      try {
-        if (this.started !== null && startedAt(this.pid) === this.started) {
-          process.kill(this.pid, "SIGSTOP");
-          this.frozen = [this.pid];
-        }
-      } catch {
-        // It has exited.
+      if (this.own.exitCode === null && this.own.signalCode === null) {
+        signalOwned(this.own, "SIGSTOP");
+        this.frozen = [{ pid: this.pid, handle: null }];
       }
       return this.frozen.length;
     }
     for (let pass = 0; pass < Tree.PASSES; pass++) {
-      const fresh = this.pids().filter((p) => !this.frozen.includes(p));
+      const fresh = this.pids().filter((p) => !this.frozen.some((f) => f.pid === p));
       if (fresh.length === 0) break;
-      for (const pid of fresh) if (this.each(pid, w.nt.NtSuspendProcess)) this.frozen.push(pid);
+      for (const pid of fresh) {
+        const handle = this.member(pid, PROCESS_SUSPEND_RESUME);
+        if (handle === null) continue;
+        if (w.nt.NtSuspendProcess(handle) === 0) this.frozen.push({ pid, handle });
+        else if (handle !== this.root) w.k32.CloseHandle(handle);
+      }
     }
     return this.frozen.length;
   }
 
-  /** Lets every process a freeze stopped carry on: the leaves first and the root last, so the agent wakes to children that already run. */
+  /** Lets every process a freeze stopped carry on, through the handle it was stopped through: the leaves first and the root last, so the agent wakes to children that already run. */
   thaw(): void {
     if (this.frozen.length === 0) return;
     const w = win();
-    if (w === null) {
-      try {
-        process.kill(this.pid, "SIGCONT");
-      } catch {
-        // It has exited.
+    if (w === null) signalOwned(this.own, "SIGCONT");
+    else {
+      for (const { handle } of [...this.frozen].reverse()) {
+        if (handle === null) continue;
+        w.nt.NtResumeProcess(handle);
+        if (handle !== this.root) w.k32.CloseHandle(handle);
       }
-    } else {
-      for (const pid of [...this.frozen].reverse()) this.each(pid, w.nt.NtResumeProcess);
     }
     this.frozen = [];
   }
 
-  /** Ends the whole tree, frozen or not. */
+  /** Ends the whole tree, frozen or not. Safe after the child has exited: then it ends what the job still holds. */
   kill(): void {
-    this.frozen = [];
     const w = win();
-    if (w !== null && this.job !== null) {
-      this.endJob(this.pids());
+    if (w !== null) {
+      if (this.job !== null) this.endJob(this.pids());
+      else if (this.root !== null) w.k32.TerminateProcess(this.root, 1);
+      else signalOwned(this.own, "SIGKILL");
+      this.thaw();
       return;
     }
-    // No job: the tree from creator ids, which needs to know when the child started.
-    if (this.started !== null) {
+    // Linux: the tree from creator ids, read only while the child runs and is still the process it was.
+    if (this.own.exitCode === null && this.own.signalCode === null && this.started !== null) {
       const { kill, table } = screened(descendants(this.pid, this.started, processTable()));
       this.endEach(kill, table);
     }
-    try {
-      if (this.root !== null) w!.k32.TerminateProcess(this.root, 1);
-      else if (this.own !== undefined) this.own.kill("SIGKILL");
-      else if (w === null && this.started !== null && startedAt(this.pid) === this.started) process.kill(this.pid, "SIGKILL");
-    } catch {
-      // It has exited.
-    }
+    signalOwned(this.own, "SIGKILL");
+    this.frozen = [];
   }
 
-  /** The child has exited: kills every process it started that is still running, and returns how many. */
+  /** The child has exited: kills every process it started that is still in its job, and returns how many. Nothing outside Windows. */
   reap(): number {
-    const w = win();
-    if (w === null) return 0;
-    if (this.job !== null) return this.endJob(this.pids().filter((p) => p !== this.pid));
-    // Without a job only the held handle makes the id safe to walk from.
-    if (this.root === null || this.started === null) return 0;
-    const { kill, table } = screened(descendants(this.pid, this.started, processTable()));
-    return this.endEach(kill, table);
+    if (win() === null || this.job === null) return 0;
+    return this.endJob(this.pids().filter((p) => p !== this.pid));
   }
 
   /** The tree is done with: thaws anything still frozen and gives the handles back. Kills nothing. */
@@ -370,7 +400,7 @@ export class Tree {
     return this.endEach(kill, table);
   }
 
-  /** Kills each of `pids` that still started when `table` says it did, and, with a job, is still in it. */
+  /** Kills each of `pids` that still started when `table` says it did and, on Windows, is still in the job. */
   private endEach(pids: number[], table: Proc[]): number {
     const started = new Map(table.map((p) => [p.pid, p.started]));
     const w = win();
@@ -386,34 +416,35 @@ export class Tree {
         }
         continue;
       }
-      const handle = w.k32.OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) as Handle | null;
-      if (!handle) continue;
+      const handle = this.member(pid, PROCESS_TERMINATE);
+      if (handle === null) continue;
       try {
-        if (handleStarted(handle) === started.get(pid) && this.mine(handle) && w.k32.TerminateProcess(handle, 1)) ended++;
+        if (handleStarted(handle) === started.get(pid) && w.k32.TerminateProcess(handle, 1)) ended++;
       } finally {
-        w.k32.CloseHandle(handle);
+        if (handle !== this.root) w.k32.CloseHandle(handle);
       }
     }
     return ended;
   }
 
-  /** Whether the process behind `handle` is in this tree's job; true when there is no job to ask. */
-  private mine(handle: Handle): boolean {
-    if (this.job === null) return true;
-    const inJob = new Int32Array(1);
-    return win()!.k32.IsProcessInJob(handle, this.job, ptr(inJob)) !== 0 && inJob[0] !== 0;
+  /**
+   * A handle to `pid` with `access`, opened and then confirmed through that same handle to be in the job,
+   * so a listed process that exited and whose id went to another process is never touched; the child's
+   * own handle for the child. Null when there is no job, or the process is gone or not in it.
+   */
+  private member(pid: number, access: number): Handle | null {
+    const w = win()!;
+    if (this.job === null) return null;
+    if (pid === this.pid && this.root !== null) return this.root;
+    const handle = w.k32.OpenProcess(access | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) as Handle | null;
+    if (!handle) return null;
+    if (this.inJob(handle)) return handle;
+    w.k32.CloseHandle(handle);
+    return null;
   }
 
-  private each(pid: number, call: (h: Handle) => number): boolean {
-    const w = win()!;
-    if (pid === this.pid && this.root !== null) return call(this.root) === 0;
-    const handle = w.k32.OpenProcess(PROCESS_SUSPEND_RESUME | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) as Handle | null;
-    // A process that exited between the list and now, or one that is not ours to touch.
-    if (!handle) return false;
-    try {
-      return this.job !== null && this.mine(handle) && call(handle) === 0;
-    } finally {
-      w.k32.CloseHandle(handle);
-    }
+  private inJob(handle: Handle): boolean {
+    const result = new Int32Array(1);
+    return win()!.k32.IsProcessInJob(handle, this.job!, ptr(result)) !== 0 && result[0] !== 0;
   }
 }

@@ -67,6 +67,7 @@ import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { type Check, type Outcome, PROGRAM_KINDS, allReds, firstErrLine, judgeCommand, judgeProgram, judgeTests, programFailLine } from "./accept.ts";
 import { mirrorPath, q, syncMirror, wslPath } from "./mirror.ts";
+import { signalOwned } from "./proctree.ts";
 
 export { wslPath };
 import { type Origin, DELAY_MS, HOST, PORT, holdOrigin } from "./origin.ts";
@@ -226,7 +227,8 @@ async function wslOrigin(binary: string, repo: string): Promise<Origin> {
     try {
       child.stdin.end();
     } catch {}
-    const timer = setTimeout(() => child.kill(), 15_000);
+    // Only `wsl.exe` runs on this side: the server runs inside the distro, where the closed stdin stops it.
+    const timer = setTimeout(() => signalOwned(child), 15_000);
     // The program and its configuration are this origin's scratch, so they go with it.
     void child.exited.then(() => {
       clearTimeout(timer);

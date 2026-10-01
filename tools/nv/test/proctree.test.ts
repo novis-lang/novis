@@ -53,7 +53,7 @@ describe("a live tree", () => {
   test("a kill ends the child and what it started, and nothing else", async () => {
     const argv = WIN ? ["cmd", "/c", "ping -n 60 127.0.0.1 > NUL"] : ["sh", "-c", "sleep 60 & wait"];
     const child = Bun.spawn(argv, { stdout: "ignore", stderr: "ignore" });
-    const tree = new Tree(child.pid, child);
+    const tree = new Tree(child);
     const rootStarted = startedAt(child.pid);
     const below = () => (WIN ? tree.pids().filter((p) => p !== child.pid) : descendants(child.pid, rootStarted!, processTable()));
     let held: number[] = [];
@@ -74,12 +74,34 @@ describe("a live tree", () => {
 
   test.if(WIN)("a reap ends a grandchild that outlived the child, and nothing else", async () => {
     const child = Bun.spawn(["cmd", "/c", "start /b ping -n 60 127.0.0.1 > NUL"], { stdout: "ignore", stderr: "ignore" });
-    const tree = new Tree(child.pid, child);
+    const tree = new Tree(child);
     expect(await child.exited).toBe(0);
     const left = tree.pids().filter((p) => p !== child.pid);
     expect(left.length).toBeGreaterThan(0);
     const starts = left.map((p) => [p, startedAt(p)] as const);
     expect(tree.reap()).toBe(left.length);
+    await Bun.sleep(200);
+    tree.close();
+    expect(starts.filter(([p, s]) => alive(p, s))).toEqual([]);
+    expect(() => process.kill(process.pid, 0)).not.toThrow();
+    expect(() => process.kill(process.ppid, 0)).not.toThrow();
+  }, 20_000);
+
+  test.if(WIN)("a grandchild that outlived the child is frozen, thawed and killed through the tree, and nothing else", async () => {
+    const child = Bun.spawn(["cmd", "/c", "start /b ping -n 60 127.0.0.1 > NUL"], { stdout: "ignore", stderr: "ignore" });
+    const tree = new Tree(child);
+    await child.exited;
+    const left = tree.pids().filter((p) => p !== child.pid);
+    expect(left.length).toBeGreaterThan(0);
+    expect(left.every((p) => tree.holds(p))).toBe(true);
+    expect(tree.holds(process.pid)).toBe(false);
+    expect(tree.holds(process.ppid)).toBe(false);
+    expect(tree.freeze()).toBe(left.length);
+    tree.thaw();
+    const starts = left.map((p) => [p, startedAt(p)] as const);
+    expect(starts.filter(([p, s]) => alive(p, s)).length).toBe(left.length);
+    tree.freeze();
+    tree.kill();
     await Bun.sleep(200);
     tree.close();
     expect(starts.filter(([p, s]) => alive(p, s))).toEqual([]);

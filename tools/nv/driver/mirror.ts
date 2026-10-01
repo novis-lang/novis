@@ -31,6 +31,7 @@ import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
+import { Tree } from "./proctree.ts";
 
 /** The scratch index the snapshot is taken through, under the repository root. */
 export const INDEX = ".agent-tmp/wsl-mirror/index";
@@ -114,12 +115,14 @@ async function snapshot(root: string): Promise<{ tree: string } | { fail: string
 /** One `bash -c` line inside the distro, with `input` on its standard input. */
 async function inWsl(line: string, input?: ReadableStream<Uint8Array>): Promise<{ code: number; out: string; err: string }> {
   const child = Bun.spawn(["wsl.exe", "--exec", "bash", "-c", line], { stdin: input ?? "ignore", stdout: "pipe", stderr: "pipe" });
-  const timer = setTimeout(() => child.kill(), TIMEOUT_MS);
+  const tree = new Tree(child);
+  const timer = setTimeout(() => tree.kill(), TIMEOUT_MS);
   try {
     const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
     return { code, out: out.trim(), err: lastLine(err) || `exit ${code}` };
   } finally {
     clearTimeout(timer);
+    tree.close();
   }
 }
 

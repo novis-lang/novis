@@ -69,6 +69,7 @@
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { Tree } from "../driver/proctree.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
@@ -222,10 +223,11 @@ function say(line: string): void {
  */
 async function spawn(argv: string[], env: Record<string, string>, timeoutS: number): Promise<Result> {
   const child = Bun.spawn(argv, { cwd: ROOT, env, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const tree = new Tree(child);
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    child.kill();
+    tree.kill();
   }, timeoutS * 1000);
   try {
     const [stdout, stderr, code] = await Promise.all([
@@ -236,6 +238,7 @@ async function spawn(argv: string[], env: Record<string, string>, timeoutS: numb
     return { code, stdout, stderr, timedOut };
   } finally {
     clearTimeout(timer);
+    tree.close();
   }
 }
 

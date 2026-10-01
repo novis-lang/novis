@@ -219,19 +219,16 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
     stdout: "pipe",
     stderr: "pipe",
   });
-  const tree = new Tree(child.pid, child);
-  let done = false;
+  const tree = new Tree(child);
   let timedOut = false;
   // Once the program has exited, the timeout reaches only what it left holding the pipes.
   const timer = setTimeout(() => {
     timedOut = true;
-    if (done) tree.reap();
-    else tree.kill();
+    tree.kill();
   }, timeoutMs);
   try {
     const reading = Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
     const exited = await child.exited;
-    done = true;
     // What a failed or killed program left running is killed with it, so it holds no pipe and no file.
     if (exited !== 0 || timedOut) tree.reap();
     const [stdout, stderr] = await reading;

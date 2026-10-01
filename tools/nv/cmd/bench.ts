@@ -103,6 +103,7 @@ import { createServer, connect, type AddressInfo, type Socket } from "node:net";
 import { cpus, machine, release } from "node:os";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, appendFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
+import { signalOwned, Tree } from "../driver/proctree.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
 import { unrecorded } from "../lib/reads.ts";
@@ -1039,13 +1040,13 @@ export class Server {
   private log: string[] = [];
   private drained: Promise<unknown>;
 
-  private constructor(private argv: string[], private proc: Bun.Subprocess<"ignore", "pipe", "pipe">) {
+  private constructor(private argv: string[], private proc: Bun.Subprocess<"ignore", "pipe", "pipe">, private tree: Tree) {
     this.drained = Promise.all([this.drain(proc.stdout), this.drain(proc.stderr)]);
   }
 
   static async start(argv: string[], port: number, cwd?: string, env?: Record<string, string>): Promise<Server> {
     const proc = Bun.spawn(argv, { cwd: cwd ?? ROOT, env: env ? { ...process.env, ...env } : process.env, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
-    const server = new Server(argv, proc);
+    const server = new Server(argv, proc, new Tree(proc));
     await server.await(port);
     return server;
   }
@@ -1075,6 +1076,7 @@ export class Server {
     while (Date.now() < deadline) {
       if (this.proc.exitCode !== null) {
         await Promise.race([this.drained, Bun.sleep(1000)]);
+        await this.stop();
         throw new Error(`${this.argv[0]} exited ${this.proc.exitCode} before it listened:\n${this.said()}`);
       }
       try {
@@ -1088,13 +1090,13 @@ export class Server {
     throw new Error(`${this.argv[0]} did not listen on port ${port} within 30s:\n${this.said()}`);
   }
 
+  /** Asks the server to stop, then after ten seconds kills it and every process it started that is still running. */
   async stop(): Promise<void> {
-    this.proc.kill();
+    signalOwned(this.proc);
     await Promise.race([this.proc.exited, Bun.sleep(10_000)]);
-    if (this.proc.exitCode === null && this.proc.signalCode === null) {
-      this.proc.kill("SIGKILL");
-      await this.proc.exited;
-    }
+    this.tree.kill();
+    await this.proc.exited;
+    this.tree.close();
   }
 }
 

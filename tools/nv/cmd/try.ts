@@ -30,6 +30,7 @@
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, join, normalize, parse } from "node:path";
+import { Tree } from "../driver/proctree.ts";
 import { covwsNvs } from "../lib/covws.ts";
 import { jobs as machineJobs } from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -100,10 +101,11 @@ async function exec(argv: string[]): Promise<[string, number]> {
   } catch {
     return [`<${argv[0]} not found on PATH>`, 127];
   }
+  const tree = new Tree(child);
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    child.kill();
+    tree.kill();
   }, TIMEOUT_S * 1000);
   try {
     const [stdout, stderr, code] = await Promise.all([
@@ -115,6 +117,7 @@ async function exec(argv: string[]): Promise<[string, number]> {
     return [(stdout + stderr).replace(/\r\n?/g, "\n"), code];
   } finally {
     clearTimeout(timer);
+    tree.close();
   }
 }
 

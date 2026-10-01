@@ -136,9 +136,11 @@ export class StdinGate {
   }
 }
 
-/** The running child as `onStart` gets it: its pid, its own handle's kill, a line down its stdin, and whether stdin is still open. */
+/** The running child as `onStart` gets it: its pid, its exit as observed so far, its own handle's kill, a line down its stdin, and whether stdin is still open. */
 export interface Started {
-  pid: number;
+  readonly pid: number;
+  readonly exitCode: number | null;
+  readonly signalCode: string | null;
   kill: (signal?: number | NodeJS.Signals) => void;
   write: (line: string) => boolean;
   open: () => boolean;
@@ -178,6 +180,12 @@ export async function launch(
   };
   onStart?.({
     pid: child.pid,
+    get exitCode() {
+      return child.exitCode;
+    },
+    get signalCode() {
+      return child.signalCode;
+    },
     kill: (signal) => child.kill(signal),
     write: (line) => {
       if (!open) return false;

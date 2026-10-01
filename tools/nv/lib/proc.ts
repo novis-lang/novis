@@ -76,18 +76,16 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
     stdout: "pipe",
     stderr: "pipe",
   });
-  const tree = new Tree(child.pid, child);
-  let exited = false;
-  const stop = () => (exited ? tree.reap() : tree.kill());
+  const tree = new Tree(child);
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    stop();
+    tree.kill();
   }, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   let aborted = false;
   const abort = () => {
     aborted = true;
-    stop();
+    tree.kill();
   };
   opts.signal?.addEventListener("abort", abort, { once: true });
   try {
@@ -98,7 +96,6 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
       opts.onLine ? drain(child.stderr, (l) => opts.onLine!(l, "stderr")) : new Response(child.stderr).text(),
     ]);
     const code = await child.exited;
-    exited = true;
     if (opts.reap && (code !== 0 || timedOut)) tree.reap();
     const [stdout, stderr] = await reading;
     return { argv, code: timedOut ? 124 : aborted ? 130 : code, stdout, stderr, timedOut, aborted };
@@ -145,7 +142,7 @@ export async function passthrough(argv: string[], opts: Omit<RunOptions, "input"
     stdout: "inherit",
     stderr: "inherit",
   });
-  const tree = new Tree(child.pid, child);
+  const tree = new Tree(child);
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
