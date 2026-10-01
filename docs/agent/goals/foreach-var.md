@@ -60,7 +60,7 @@ record's `changes: modifies` is what says it was overtaken.
 
 ## Stage 1 — the floor
 
-Goal `plain-comments`'s whole acceptance list, carried in verbatim by the goal switch. Never traded.
+Goal `path-literals-follow-up`'s whole acceptance list, carried in verbatim by the goal switch. Never traded.
 
 ## Stage 2 — the binding parses and checks, the keystone
 

@@ -1,0 +1,38 @@
+{
+  "state": "**Goal `path-literals-follow-up` — every path a program names starts where it is written, and an attack stops where it says it does — has just started; nothing of it has landed yet.** Goal `plain-comments`'s whole list is this goal's Stage 1 floor.\n\nThe six items are the user's decisions of 2026-10-01, and the goal file's § *Standing decisions* names the few calls the goal writer made where they leave a question. ADR 0241 and ADR 0240 are on `main`; this goal writes up to five new records, one per stage from 2 to 6, each numbered right before it is written.\n\nThree facts about the tree as the goal was written. `tools/nv/proofs/run.ts:@judgeHostile` accepts any non-zero exit under `// hostile: ends-early`, and about 240 attacks declare it. `[[schedule]] script`, `[log] handler` and `Core\\Queue::push`'s script all reach `crates/nvs-runtime/src/script.rs:@resolve`, which joins a relative path to the working directory. `Core\\Path::fromCwd` is `CoreTy::Text(Qual::Contagious)` (`crates/nvs-stdlib/src/path.rs:196`), so `Core\\IO::read` refuses its result.",
+  "next": {
+    "stage": 2,
+    "title": "an attack stops where it says",
+    "files": [
+      "tools/nv/proofs/run.ts",
+      "tests/hostile/README.md",
+      "docs/rules/testing/hostile-case-contract.md"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The decision record** — one new record, written first, that `modifies` `rule:testing/hostile-case-contract`: `// hostile: ends-early <step> <ErrorClass>`, and stopping at any other step or class fails the case. Anchor: `tools/nv/proofs/run.ts:@judgeHostile`."
+      },
+      {
+        "done": false,
+        "text": "**The runner** — `judgeHostile` reads the step and error class the program stopped with, and its failure message names both the declared and the reached ones. The goal file's Stage 2 names the two ways to find the step; pick one after reading what an uncaught error and a fatal limit print."
+      },
+      {
+        "done": false,
+        "text": "**`tools/nv/test/hostile-ending.test.ts`** — the four verdicts and the tree scan the Stage 2 check names."
+      },
+      {
+        "done": false,
+        "text": "**The migration** — every attack that declares `ends-early` gains its step and class from a run of it. An attack that stops before the step it tests is fixed so that step runs, never by moving the marker. `tests/hostile/README.md` and the rule fragment are rewritten whole in the same slice."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: scripts start at their file** — `crates/nvs-config/src/tree.rs:477` and `:1055`, `crates/nvs-server/src/schedule.rs`, `crates/nvs-host/src/ladder.rs:102`, `crates/nvs-stdlib/src/queue.rs:1908`, `crates/nvs-cli/src/worker.rs:1379`; `crates/nvs-cli/tests/live_edit.rs` and `crates/nvs-host/tests/limits.rs` are migrated.",
+    "**Stage 4: a path typed on the command line** — `crates/nvs-stdlib/src/path.rs:196`, `docs/rules/security/launderers-are-sink-named.md`, `docs/examples/core/Path/fromCwd/`.",
+    "**Stage 5: `thisFile` and `thisDir`** — `crates/nvs-types/src/paths.rs:@resolve_literal` and `ExprTypeTable::path_literal` are the fold to copy; full feature proofs.",
+    "**Stage 6: a class name written as a literal** — `crates/nvs-types/src/expr/operators.rs:@reject_impossible_class_reference_conversion`, `crates/nvs-hir/src/requires.rs`, `crates/nvs-lsp/src/completion.rs:@class_names`.",
+    "**Stage 7: the perf records** — last, once per feature, after the code has stopped changing.",
+    "When this goal's last check goes green the driver takes goal `foreach-var`."
+  ]
+}

@@ -1,0 +1,502 @@
+{
+  "title": "every path a program names starts where it is written, and an attack stops where it says it does",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-types/src/paths.rs",
+      "crates/nvs-stdlib/src/path.rs",
+      "crates/nvs-runtime/src/capability.rs",
+      "docs/decisions/0241.md"
+    ],
+    "rules": [
+      "programs/path-literals-resolve-from-their-file",
+      "config/a-relative-path-resolves-against-the-file-it-is-written-in"
+    ],
+    "adrs": [
+      "0241"
+    ],
+    "shapes": [
+      "A decision record",
+      "A rule fragment",
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "an attack stops where it says",
+      "summary": "Makes an attack that ends early pass only at the step and error class it declares, and fixes every attack that stopped earlier.",
+      "context": {
+        "modules": [
+          "tools/nv/proofs/run.ts",
+          "tests/hostile/README.md"
+        ],
+        "rules": [
+          "testing/hostile-case-contract"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "scripts start at their file",
+      "summary": "Resolves `[[schedule]] script` and `[log] handler` against the folder of their `nvs.toml`, and makes `Core\\Queue::push`'s script a path parameter that stores an absolute path.",
+      "context": {
+        "modules": [
+          "crates/nvs-runtime/src/script.rs",
+          "crates/nvs-config/src/tree.rs",
+          "crates/nvs-config/src/resolve.rs",
+          "crates/nvs-server/src/schedule.rs",
+          "crates/nvs-host/src/ladder.rs",
+          "crates/nvs-stdlib/src/queue.rs",
+          "crates/nvs-cli/src/worker.rs",
+          "crates/nvs-cli/tests/live_edit.rs",
+          "crates/nvs-host/tests/limits.rs"
+        ],
+        "rules": [
+          "concurrency/queue-four-members"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "a path typed on the command line",
+      "summary": "Makes `Core\\Path::fromCwd` return a plain string, so a command-line tool reads the file its user typed.",
+      "context": {
+        "modules": [
+          "docs/examples/core/Path/fromCwd/01-a-file-name-from-the-command-line.nvs",
+          "docs/reference/core/Path.md"
+        ],
+        "rules": [
+          "security/launderers-are-sink-named",
+          "security/launderer-answers-a-carrier"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case",
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "`thisFile` and `thisDir`",
+      "summary": "Adds `Core\\Path::thisFile()` and `Core\\Path::thisDir()`, folded while compiling to the path of the file that wrote the call and its folder.",
+      "context": {
+        "modules": [
+          "crates/nvs-types/src/expr_table.rs",
+          "crates/nvs-ir/src/lower/expr.rs",
+          "docs/reference/core/Path.md",
+          "docs/reference/tools/30-php-differences.md"
+        ],
+        "rules": [
+          "testing/feature-proofs",
+          "core-api/reference-card"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case",
+          "A diagnostic",
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "title": "a class name written as a literal",
+      "summary": "Makes `'X' as class<T>` load and check its class while compiling, as `X::class as class<T>` does, and offers every class that can be loaded in the editor.",
+      "context": {
+        "modules": [
+          "crates/nvs-types/src/expr/operators.rs",
+          "crates/nvs-hir/src/requires.rs",
+          "crates/nvs-hir/src/autoload.rs",
+          "crates/nvs-lsp/src/completion.rs"
+        ],
+        "rules": [
+          "types/class-reference",
+          "programs/no-runtime-autoload"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case",
+          "A diagnostic"
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "title": "the perf records",
+      "summary": "Measures the perf figure of every feature this goal and ADR 0241 changed, once, after the code has stopped changing.",
+      "context": {
+        "rules": [
+          "testing/member-perf-ledger",
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "an-attack-that-ends-early-stops-where-it-declares",
+      "kind": "command",
+      "stage": 2,
+      "name": "an attack that ends early passes only at the step and error class it declares",
+      "argv": [
+        "bun",
+        "test",
+        "tools/nv/test/hostile-ending.test.ts"
+      ],
+      "want": [
+        "an attack that stops at the step and error class it declares passes",
+        "an attack that stops at an earlier step fails and names both steps",
+        "an attack that stops with another error class fails and names both classes",
+        "an attack that runs to its last line while declaring an ending fails",
+        "every attack in tests/hostile that ends early declares its step and error class",
+        " 0 fail"
+      ]
+    },
+    {
+      "id": "nvs-config-a-script-in-the-configuration-starts-at-its-file",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-config (`[[schedule]] script` and `[log] handler` resolve against the folder of the file they are written in)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-config"
+      ],
+      "tests": [
+        "a_schedule_script_resolves_against_the_folder_of_its_file",
+        "a_log_handler_resolves_against_the_folder_of_its_file",
+        "a_schedule_script_in_an_included_file_resolves_against_that_file"
+      ]
+    },
+    {
+      "id": "nvs-types-a-queue-script-literal-starts-at-its-file",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-types (`Core\\Queue::push`'s script is a path parameter, and a relative literal there resolves from the file that wrote it)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "queue_push_script_literal_resolves_from_the_file_that_wrote_it"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-a-queued-job-stores-an-absolute-script",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-stdlib (a pushed job stores an absolute script path, and a relative script built at run time throws at the push)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib"
+      ],
+      "tests": [
+        "a_pushed_job_stores_an_absolute_script_path",
+        "a_relative_script_built_at_run_time_throws_at_the_push"
+      ]
+    },
+    {
+      "id": "nvs-cli-a-configured-script-runs-from-any-working-directory",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-cli (a schedule script and a log handler beside the configuration run whatever the working directory is)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "a_schedule_script_beside_the_configuration_runs_from_any_working_directory",
+        "a_log_handler_beside_the_configuration_runs_from_any_working_directory"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-from-cwd-returns-a-plain-string",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-stdlib (`Core\\Path::fromCwd` returns a string without `tainted`, and still throws while a request is answered)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib"
+      ],
+      "tests": [
+        "from_cwd_returns_a_string_without_tainted",
+        "from_cwd_throws_while_a_request_is_answered"
+      ]
+    },
+    {
+      "id": "from-cwd-reaches-a-file-sink",
+      "kind": "nvs-suite",
+      "stage": 4,
+      "name": "a path from `Core\\Path::fromCwd` reaches `Core\\IO::read`, and a tainted path that did not go through it still does not compile",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/path-from-cwd-gives-a-path-core-io-read-accepts.nvst",
+        "tests/conformance/reject/path-a-tainted-path-not-from-cwd-does-not-reach-io-read.nvst"
+      ]
+    },
+    {
+      "id": "nvs-types-this-file-and-this-dir-fold-while-compiling",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-types (`Core\\Path::thisFile` and `thisDir` fold to the file that wrote the call, and `thisDir`'s join takes only a relative literal)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "this_file_folds_to_the_absolute_path_of_the_file_that_wrote_it",
+        "this_file_in_a_required_file_names_that_file",
+        "this_dir_folds_to_the_folder_of_the_file_that_wrote_it",
+        "this_dir_joins_a_relative_literal",
+        "this_dir_with_a_join_that_is_not_a_relative_literal_does_not_compile"
+      ]
+    },
+    {
+      "id": "nvs-ir-this-dir-is-a-string-constant",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-ir (`Core\\Path::thisFile` and `thisDir` lower to a string constant and no call)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ir"
+      ],
+      "tests": [
+        "this_file_and_this_dir_lower_to_a_string_constant"
+      ]
+    },
+    {
+      "id": "this-file-and-this-dir-name-the-file-that-wrote-them",
+      "kind": "nvs-suite",
+      "stage": 5,
+      "name": "`Core\\Path::thisFile` and `thisDir` name the file that wrote them, and a join that is not a relative literal does not compile",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/path-this-file-and-this-dir-name-the-file-that-wrote-them.nvst",
+        "tests/conformance/reject/path-this-dir-joins-only-a-relative-literal.nvst"
+      ]
+    },
+    {
+      "id": "nvs-types-a-class-literal-is-checked-while-compiling",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "nvs-types (`'X' as class<T>` is decided while compiling: an unknown name and a class that is not a `T` do not compile)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "a_class_literal_conversion_names_a_class_that_can_be_loaded",
+        "a_class_literal_conversion_naming_an_unknown_class_does_not_compile",
+        "a_class_literal_conversion_naming_a_class_that_is_not_a_t_does_not_compile",
+        "a_class_string_built_at_run_time_still_sees_only_loaded_classes"
+      ]
+    },
+    {
+      "id": "nvs-hir-a-class-literal-loads-its-class",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "nvs-hir (a string literal under `as class<T>` loads its class through `autoload`, as `X::class` does)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-hir"
+      ],
+      "tests": [
+        "a_class_literal_conversion_loads_its_class"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-class-literal-completes-every-loadable-class",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "nvs-lsp (completion in the string of `as class<T>` offers every class `autoload` can load that is a `T`)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "completion_in_a_class_literal_offers_every_class_autoload_can_load"
+      ]
+    },
+    {
+      "id": "class-literal-conversion-runs-and-refuses",
+      "kind": "nvs-suite",
+      "stage": 6,
+      "name": "`'X' as class<T>` loads and converts a class, and an unknown name or a class that is not a `T` does not compile",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/lang/class-literal-conversion-is-decided-while-compiling.nvst",
+        "tests/conformance/reject/class-literal-conversion-names-an-unknown-class.nvst",
+        "tests/conformance/reject/class-literal-conversion-names-a-class-that-is-not-a-t.nvst"
+      ]
+    },
+    {
+      "id": "dossier-from-cwd-is-complete",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: `Core\\Path::fromCwd` owes nothing, its perf figure measured last",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--id",
+        "Core\\Path::fromCwd"
+      ],
+      "want": [
+        "complete."
+      ]
+    },
+    {
+      "id": "dossier-this-file-is-complete",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: `Core\\Path::thisFile` owes nothing, its perf figure measured last",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--id",
+        "Core\\Path::thisFile"
+      ],
+      "want": [
+        "complete."
+      ]
+    },
+    {
+      "id": "dossier-this-dir-is-complete",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: `Core\\Path::thisDir` owes nothing, its perf figure measured last",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--id",
+        "Core\\Path::thisDir"
+      ],
+      "want": [
+        "complete."
+      ]
+    },
+    {
+      "id": "dossier-path-literals-is-complete",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: the path-literal feature owes nothing, its perf figure measured last",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--id",
+        "lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file"
+      ],
+      "want": [
+        "complete."
+      ]
+    },
+    {
+      "id": "dossier-the-path-literals-follow-up-proofs-carry-plain-comments",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: the programs this goal added or changed carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/core/Path",
+        "tests/hostile/core/Path",
+        "docs/examples/lang/programs/file-paths-a-literal-starts-at-the-folder-of-its-file",
+        "tests/hostile/lang/programs/file-paths-a-literal-starts-at-the-folder-of-its-file"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-after-the-path-follow-up",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: the whole roster owes nothing, every perf figure this goal staled measured again",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

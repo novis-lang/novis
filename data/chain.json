@@ -178,6 +178,7 @@
     "limit-handler-reach",
     "core-class-cards",
     "plain-comments",
+    "path-literals-follow-up",
     "foreach-var",
     "var-array-literal",
     "program-enumeration",
