@@ -1,0 +1,12 @@
+<?nvs
+// Prints the name of every HTTP method that `Core\Http\Method` has.
+
+// `Core\Reflect\EnumInfo` lists the cases of an enum by name.
+Core\Reflect\EnumInfo $info = Core\Reflect\EnumInfo::of(Core\Http\Method::class) as Core\Reflect\EnumInfo;
+
+foreach ($info->cases() as string $case) {
+    // `valueOf` gives the number of the case. `as Core\Http\Method` converts the number to the case.
+    Core\Http\Method $method = ($info->valueOf($case) as int) as Core\Http\Method;
+    // The first line prints `Get is GET`.
+    echo $case, " is ", Core\Http::methodName($method), "\n";
+}

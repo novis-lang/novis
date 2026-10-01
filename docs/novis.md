@@ -22011,11 +22011,12 @@ Writes an archive's entries under `$destination` and answers how many files it w
 <a id="core-core-http"></a>
 ### `Core\Http`
 
-Keywords: allowUrl
+Keywords: allowUrl, methodName
 
 | Member | Signature |
 |---|---|
 | [`Core\Http::allowUrl`](#core-core-http-allowurl) | `allowUrl(string $url): Core\Http\Target` |
+| [`Core\Http::methodName`](#core-core-http-methodname) | `methodName(Core\Http\Method $method): string` |
 
 <a id="core-core-http-allowurl"></a>
 #### `Core\Http::allowUrl`
@@ -22033,6 +22034,21 @@ Checks `$url` against the outbound policy and pins it: the scheme, the `net.conn
 **Returns** `Core\Http\Target` — A `Core\Http\Target` bound to every address the host resolved to that the policy approved — at most eight, in the resolver's order — which is the set the client connects across, so a second name lookup cannot answer differently.
 
 **Throws** `RuntimeError` — The text is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, the host resolves to no address, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name.
+
+<a id="core-core-http-methodname"></a>
+#### `Core\Http::methodName`
+
+```nvs skip
+Core\Http::methodName(Core\Http\Method $method): string
+```
+
+Returns the name of an HTTP method as it is written in a request and in an `Allow` header. `Core\Http\Method::Get` gives `GET`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$method` | `Core\Http\Method` | The method, as a case of `Core\Http\Method`. |
+
+**Returns** `string` — The name in capital letters: `GET`, `HEAD`, `OPTIONS`, `TRACE`, `POST`, `PUT`, `PATCH` or `DELETE`.
 
 <a id="core-core-http-target"></a>
 ### `Core\Http\Target`

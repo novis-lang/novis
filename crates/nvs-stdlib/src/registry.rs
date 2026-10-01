@@ -2542,6 +2542,9 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "allowUrl",
         Some(nvs_config::Cap::NetConnect),
     ),
+    // A method's name is text the roster already has, and producing it
+    // reaches nothing.
+    (crate::http::NAME, "methodName", None),
     // `fs.read` and at the constructor rather than at the send: naming a file as
     // a body is what decides which file leaves the process, and the split above
     // makes measuring one a read of it. The framing asks the same door again

@@ -1,0 +1,6 @@
+--METHOD--
+PUT
+--PATH--
+/invoices/7
+--HEADERS--
+host: example.com

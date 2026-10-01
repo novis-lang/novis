@@ -1,0 +1,24 @@
+<?nvs
+// Attack: a program turns numbers that a visitor chose into HTTP methods and prints their names.
+// Only eight numbers are methods. Every other number should give `null`, and the program must not crash.
+
+// 1. Numbers that are not a method: negative, one past the last method, and the largest `int`.
+// The list also has `0` and `7`, the first and the last number that are methods.
+array<int> $numbers = [-1, 8, 255, 9223372036854775807, 0, 7];
+foreach ($numbers as int $number) {
+    ?Core\Http\Method $method = $number as ?Core\Http\Method;
+    if ($method == null) {
+        echo $number, ': no method', "\n";
+    } else {
+        echo $number, ': ', Core\Http::methodName($method), "\n";
+    }
+}
+
+// 2. Many calls in a loop, to check that no memory is lost.
+uint $total = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $total = $total + Core\Str::length(Core\Http::methodName(($i % 8) as Core\Http\Method));
+    $i = $i + 1;
+}
+echo $total, ' characters', "\n";

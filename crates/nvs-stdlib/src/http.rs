@@ -147,7 +147,8 @@ const MEMBER: &str = r"Core\Http::allowUrl";
 /// `Core\Http`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Makes HTTP calls to other servers. `Core\\Http::allowUrl` checks a URL that came from \
-            user input, and the classes under `Core\\Http` send the requests.",
+            user input, and the classes under `Core\\Http` send the requests. \
+            `Core\\Http::methodName` gives the name of an HTTP method as text.",
 };
 
 /// `Core\Http\Target`'s class card — `rule:core-api/reference-card`.
@@ -175,23 +176,37 @@ const CLIENT_CARD: ClassDoc = ClassDoc {
             returns the reply as a `Core\\Http\\Response`.",
 };
 
-/// `rule:http-server/allow-url-pins-the-address`'s launderer, as the one row `Core\Http` has today.
+/// `Core\Http`: `rule:http-server/allow-url-pins-the-address`'s launderer, and
+/// the wire text of a `Core\Http\Method` case.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
-    methods: &[CoreMethod {
-        name: "allowUrl",
-        names: &["url"],
-        // The one parameter in the language that **admits** a tainted URL, and
-        // the module doc above is the home of why its answer is a value: a
-        // `Qual::Launder` that returned a `string` would have removed the
-        // qualifier and left the rebinding gap open.
-        params: &[CoreTy::Text(Qual::Launder)],
-        defaults: &[],
-        return_ty: CoreTy::Instance(TARGET_NAME),
-        symbol: "nvs_core_http_allow_url",
-        doc: Some(&ALLOW_URL_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "allowUrl",
+            names: &["url"],
+            // The one parameter in the language that **admits** a tainted URL, and
+            // the module doc above is the home of why its answer is a value: a
+            // `Qual::Launder` that returned a `string` would have removed the
+            // qualifier and left the rebinding gap open.
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(TARGET_NAME),
+            symbol: "nvs_core_http_allow_url",
+            doc: Some(&ALLOW_URL_DOC),
+        },
+        // A static member here and not one on the enum, because an enum keeps
+        // no members of its own (`rule:enums/no-class-machinery`).
+        CoreMethod {
+            name: "methodName",
+            names: &["method"],
+            params: &[CoreTy::Enum(crate::router::METHOD_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_http_method_name",
+            doc: Some(&METHOD_NAME_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
@@ -217,6 +232,20 @@ const ALLOW_URL_DOC: MethodDoc = MethodDoc {
                resolves to a loopback, private, link-local or unspecified address that \
                `net.internal` does not name.",
     }],
+};
+
+/// `Core\Http::methodName`'s reference card — `rule:core-api/reference-card`.
+const METHOD_NAME_DOC: MethodDoc = MethodDoc {
+    short: "Returns the name of an HTTP method as it is written in a request and in an `Allow` \
+            header. `Core\\Http\\Method::Get` gives `GET`.",
+    params: &[ParamDoc {
+        name: "method",
+        desc: "The method, as a case of `Core\\Http\\Method`.",
+        shape: &[],
+    }],
+    ret: "The name in capital letters: `GET`, `HEAD`, `OPTIONS`, `TRACE`, `POST`, `PUT`, \
+          `PATCH` or `DELETE`.",
+    errors: &[],
 };
 
 /// [`TARGET`]'s name, written once — see [`NAME`].
@@ -343,6 +372,7 @@ const IDENTITY_READ_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_http_allow_url" => (nvs_core_http_allow_url as *const ()).cast(),
+        "nvs_core_http_method_name" => (nvs_core_http_method_name as *const ()).cast(),
         "nvs_core_http_identity_read" => (nvs_core_http_identity_read as *const ()).cast(),
         "nvs_core_http_client_get" => (nvs_core_http_client_get as *const ()).cast(),
         "nvs_core_http_client_post" => (nvs_core_http_client_post as *const ()).cast(),
@@ -570,6 +600,27 @@ nvs_runtime::nvs_helper! {
                 Value::array(addresses),
             ],
         ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http::methodName(Core\Http\Method $method): string` — the case's
+    /// wire token, `GET` for `Get`.
+    ///
+    /// The token is the case's own name upper-cased, read off
+    /// [`crate::router::METHOD`]'s roster through
+    /// [`crate::router::method_verb`]: the same derivation
+    /// `Core\Http\Client::request` sends a verb with, so the text a program
+    /// writes into an `Allow` header is the text a request goes out with, and
+    /// there is no second table of the eight tokens to disagree with the first.
+    /// One allocation of at most seven bytes, written once.
+    fn nvs_core_http_method_name(_ctx, args: [1]) {
+        let verb = crate::router::method_verb(&args[0], r"Core\Http::methodName")?;
+        Ok(Value::str(NvsStr::build(verb.len(), |out| {
+            for byte in verb.bytes() {
+                out.push(&[byte.to_ascii_uppercase()]);
+            }
+        })))
     }
 }
 
@@ -5250,6 +5301,48 @@ mod tests {
             message.contains("net.connect") && !message.contains("net.internal"),
             "the host is refused before the address is judged: {message}"
         );
+    }
+
+    /// `Core\Http::methodName` driven the way compiled code drives it: every
+    /// case of `Core\Http\Method` crosses as its ordinal and comes back as the
+    /// wire token written out here, so the test is the second spelling the
+    /// member itself does not keep.
+    // covers: Core\Http::methodName
+    #[test]
+    fn method_name_spells_every_case_as_its_wire_token() {
+        const TOKENS: [(&str, &str); 8] = [
+            ("Get", "GET"),
+            ("Head", "HEAD"),
+            ("Options", "OPTIONS"),
+            ("Trace", "TRACE"),
+            ("Post", "POST"),
+            ("Put", "PUT"),
+            ("Patch", "PATCH"),
+            ("Delete", "DELETE"),
+        ];
+        assert_eq!(
+            crate::router::METHOD.cases.len(),
+            TOKENS.len(),
+            "a case added to the roster is a token this test has to name"
+        );
+        let mut ctx = Ctx::buffered();
+        for (case, token) in TOKENS {
+            let ordinal = crate::router::method_case(case).expect("a case the roster names");
+            let name = nvs_runtime::call(
+                super::nvs_core_http_method_name,
+                &mut ctx,
+                &[Value::int(ordinal)],
+            )
+            .expect("every case has a name");
+            assert_eq!(name.as_text(), Some(token), "`{case}`");
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the one reference the member answered with"
+            )]
+            unsafe {
+                name.release();
+            }
+        }
     }
 
     /// `Core\Http::allowUrl` driven the way compiled code drives it. A granted
