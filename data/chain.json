@@ -1,5 +1,5 @@
 {
-  "live": "path-literals-follow-up",
+  "live": "foreach-var",
   "goals": [
     "core-depth",
     "concurrency",
