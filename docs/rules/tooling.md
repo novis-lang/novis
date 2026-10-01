@@ -994,19 +994,27 @@ attached doc comment ([`tooling/doc-comment-attaches-to-the-next-declaration`](t
 turns it on unconditionally. A private helper is never reported, and neither is an application, at any
 setting, unless it asks.
 
+**A method inherits a doc comment.** A public method with no `///` of its own passes when it overrides or
+implements a method of the same name that has one, on its parent class, on an interface it implements, or
+on any class or interface those extend or implement in turn. The override says what its ancestor already
+says, and `nvs doc` shows the ancestor's comment under it, naming where it comes from. A property and a
+constant inherit nothing, and a method that overrides an undocumented one is reported like any other.
+
 Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
 answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
 there is nothing to generate. With no `@param` and no `@return`
 ([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)), a synthesized `///` would be empty, so no autofix is
 possible and the only way to satisfy the check is to write a sentence. A diagnostic in every project was
 rejected for the same reason: the pressure would be answered by `/// Charges the card.` above
-`chargeTheCard()`, noise a human typed that will outlive the method's behaviour.
+`chargeTheCard()`, noise a human typed that will outlive the method's behaviour. Demanding the sentence
+again above every implementation of an interface would be that same noise, which is why an override
+inherits it.
 
 Until a package manager exists, `--strict-docs` is opt-in only and nothing fires it automatically. If
 publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
 sentence — that is a lint's design and belongs with the publisher.
 
-<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../decisions/0137.md), [0234](../decisions/0234.md).</sub>
 
 <a id="tooling-nvs-doc-renders-and-decides-nothing"></a>
 
@@ -1019,12 +1027,18 @@ emits. It ships in the binary because a user's project does not have this reposi
 and it is deliberately the least interesting part of the design: a renderer with no source of truth of its
 own ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers)), so replacing it later costs nothing.
 
+What it adds to the document is reading, never deciding. A page names the class's parent and interfaces
+from the document's `extends` and `implements`, and a method with no doc comment of its own shows the one
+it inherits by following those same keys to the nearest documented method of the same name — the comment
+[`tooling/strict-docs`](tooling.md#tooling-strict-docs) accepts for it. A name with a page in the same run becomes a link, and one
+without stays code.
+
 It renders text the lexer has already accepted, so it needs no bidi check of its own
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)). This repository does not itself need it — the one-file reference and the
 website already cover every in-tree consumer — and it exists for a user's own project and for the package
 ecosystem that does not exist yet, which is why it is kept cheap to replace.
 
-<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0137](../decisions/0137.md), [0234](../decisions/0234.md).</sub>
 
 <a id="tooling-one-json-several-renderers"></a>
 

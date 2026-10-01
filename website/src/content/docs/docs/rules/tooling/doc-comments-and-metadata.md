@@ -166,13 +166,21 @@ attached doc comment ([`tooling/doc-comment-attaches-to-the-next-declaration`](/
 turns it on unconditionally. A private helper is never reported, and neither is an application, at any
 setting, unless it asks.
 
+**A method inherits a doc comment.** A public method with no `///` of its own passes when it overrides or
+implements a method of the same name that has one, on its parent class, on an interface it implements, or
+on any class or interface those extend or implement in turn. The override says what its ancestor already
+says, and `nvs doc` shows the ancestor's comment under it, naming where it comes from. A property and a
+constant inherit nothing, and a method that overrides an undocumented one is reported like any other.
+
 Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
 answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
 there is nothing to generate. With no `@param` and no `@return`
 ([`tooling/doc-comment-tags-are-see-and-example`](/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-tags-are-see-and-example "A doc comment is Markdown plus @see and @example, each of which must resolve, and any other @tag is a diagnostic")), a synthesized `///` would be empty, so no autofix is
 possible and the only way to satisfy the check is to write a sentence. A diagnostic in every project was
 rejected for the same reason: the pressure would be answered by `/// Charges the card.` above
-`chargeTheCard()`, noise a human typed that will outlive the method's behaviour.
+`chargeTheCard()`, noise a human typed that will outlive the method's behaviour. Demanding the sentence
+again above every implementation of an interface would be that same noise, which is why an override
+inherits it.
 
 Until a package manager exists, `--strict-docs` is opt-in only and nothing fires it automatically. If
 publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
@@ -183,7 +191,7 @@ sentence — that is a lint's design and belongs with the publisher.
 <p>An IDE cannot answer the check with a generated docblock, because there is no tag to generate</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-tags-are-see-and-example" title="A doc comment is Markdown plus @see and @example, each of which must resolve, and any other @tag is a diagnostic"><code>tooling/doc-comment-tags-are-see-and-example</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-attaches-to-the-next-declaration" title="A /// run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic"><code>tooling/doc-comment-attaches-to-the-next-declaration</code></a> <a href="/docs/rules/packaging/packages/#a-package-is-its-digest" title="A package is an immutable source archive whose identity is its BLAKE3 digest"><code>packaging/a-package-is-its-digest</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-tags-are-see-and-example" title="A doc comment is Markdown plus @see and @example, each of which must resolve, and any other @tag is a diagnostic"><code>tooling/doc-comment-tags-are-see-and-example</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-attaches-to-the-next-declaration" title="A /// run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic"><code>tooling/doc-comment-attaches-to-the-next-declaration</code></a> <a href="/docs/rules/packaging/packages/#a-package-is-its-digest" title="A package is an immutable source archive whose identity is its BLAKE3 digest"><code>packaging/a-package-is-its-digest</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0234.md">record 0234</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/strict_docs.rs"><code>crates/nvs-cli/tests/strict_docs.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -202,6 +210,12 @@ emits. It ships in the binary because a user's project does not have this reposi
 and it is deliberately the least interesting part of the design: a renderer with no source of truth of its
 own ([`tooling/one-json-several-renderers`](/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers "nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content")), so replacing it later costs nothing.
 
+What it adds to the document is reading, never deciding. A page names the class's parent and interfaces
+from the document's `extends` and `implements`, and a method with no doc comment of its own shows the one
+it inherits by following those same keys to the nearest documented method of the same name — the comment
+[`tooling/strict-docs`](/docs/rules/tooling/doc-comments-and-metadata/#strict-docs "Nothing requires a doc comment by default; nvs check --strict-docs reports a public member without one, and no autofix can satisfy it") accepts for it. A name with a page in the same run becomes a link, and one
+without stays code.
+
 It renders text the lexer has already accepted, so it needs no bidi check of its own
 ([`security/bidi-boundaries`](/docs/rules/security/bidi-and-passwords/#bidi-boundaries "The lexer refuses an unterminated control and the sinks substitute it, and nobody writes a second predicate")). This repository does not itself need it — the one-file reference and the
 website already cover every in-tree consumer — and it exists for a user's own project and for the package
@@ -212,7 +226,7 @@ ecosystem that does not exist yet, which is why it is kept cheap to replace.
 <p>The renderer ships inside the binary rather than as a phpDocumentor-style tool a project installs</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program" title="nvs meta --json &lt;entry&gt; emits that program's own declarations beside the Core registry, in the registry's own shape"><code>tooling/meta-json-takes-a-program</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/doc.rs"><code>crates/nvs-cli/tests/doc.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program" title="nvs meta --json &lt;entry&gt; emits that program's own declarations beside the Core registry, in the registry's own shape"><code>tooling/meta-json-takes-a-program</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0234.md">record 0234</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/doc.rs"><code>crates/nvs-cli/tests/doc.rs</code></a></dd></div></dl>
 
 </div>
 

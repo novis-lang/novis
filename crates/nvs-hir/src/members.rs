@@ -60,6 +60,8 @@
 //! it. **A member is what the flag reports** — a method, a property, a class
 //! constant — and public is the absence of `private` and `protected`, since
 //! that is the visibility the language gives a member written without one. A
+//! method that overrides or implements a documented method of an ancestor
+//! inherits that doc comment and is not reported ([`check_documented`]). A
 //! class, an interface, an enum, an enum case and a `type` alias are
 //! deliberately not reported: the rule names a member, and widening it to every
 //! declaration is a decision for the publisher that turns the flag on rather
@@ -118,6 +120,10 @@ use crate::symbol::SymbolTable;
 pub struct ClassMembers {
     /// Method names.
     pub methods: FxHashSet<String>,
+    /// The names in [`Self::methods`] declared with a `///` above them. An
+    /// undocumented override of one of these inherits its doc comment, which
+    /// is what [`check_documented`] asks of it.
+    pub documented_methods: FxHashSet<String>,
     /// Constant names, enum cases included.
     pub consts: FxHashSet<String>,
     /// Static property names, `$` sigil stripped.
@@ -318,6 +324,9 @@ impl<'a> MemberResolver<'a> {
                                 .props
                                 .insert(text.strip_prefix('$').unwrap_or(text).to_owned());
                         }
+                    }
+                    if member.doc.is_some() {
+                        entry.documented_methods.insert(name.clone());
                     }
                     entry.methods.insert(name);
                 }
@@ -581,6 +590,12 @@ fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: 
 /// whatever it stood in for, and a second diagnostic about its documentation
 /// would be a cascade.
 ///
+/// **A method inherits a doc comment** from a method of the same name on an
+/// ancestor that has one: a parent class, an interface the class implements,
+/// or any class or interface those extend or implement in turn. An override
+/// or an implementation says what its ancestor already says, so it passes
+/// without a `///` of its own. A property and a constant inherit nothing.
+///
 /// Reported at the member's **name** rather than at [`ClassMember::span`],
 /// which reaches back over its attributes and modifiers: the repair is one line
 /// written above the declaration, and a primary label covering three lines of
@@ -602,6 +617,13 @@ fn check_documented(member: &ClassMember, src: &SourceFile, ctx: &Ctx<'_>, env: 
         return;
     }
     let written = src.span_text(name).unwrap_or_default();
+    if matches!(member.kind, ClassMemberKind::Method(_))
+        && ctx.current_class.is_some_and(|class| {
+            documented_on_an_ancestor(class, written, env, &mut FxHashSet::default())
+        })
+    {
+        return;
+    }
     let owner = ctx
         .current_class
         .map_or_else(String::new, |class| format!("{class}::"));
@@ -616,6 +638,33 @@ fn check_documented(member: &ClassMember, src: &SourceFile, ctx: &Ctx<'_>, env: 
              `--strict-docs` reports only what a reader of this package can reach",
         ),
     );
+}
+
+/// Whether something `qname` extends or implements, at any depth, declares the
+/// method `name` with a doc comment. `qname` itself is not asked:
+/// its own declaration is the one being checked. `seen` stops a cycle, which
+/// [`crate::hierarchy`] has already reported.
+fn documented_on_an_ancestor(
+    qname: &QName,
+    name: &str,
+    env: &Env<'_>,
+    seen: &mut FxHashSet<QName>,
+) -> bool {
+    let Some(links) = env.graph.get(qname) else {
+        return false;
+    };
+    links
+        .extends
+        .iter()
+        .chain(links.implements.iter())
+        .any(|parent| {
+            seen.insert(parent.clone())
+                && (env
+                    .table
+                    .get(parent)
+                    .is_some_and(|members| members.documented_methods.contains(name))
+                    || documented_on_an_ancestor(parent, name, env, seen))
+        })
 }
 
 /// Both tags of one declaration's doc comment, if it has one. This is the only

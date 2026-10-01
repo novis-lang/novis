@@ -1,0 +1,16 @@
+{
+  "title": "A method that overrides or implements a documented method inherits its doc comment under `--strict-docs`, and `nvs doc` shows it",
+  "status": "accepted",
+  "scope": "which public members `nvs check --strict-docs` reports (`E0326`), and what `nvs doc` shows\nfor a method with no `///` of its own. Properties, constants and every other diagnostic are unchanged.",
+  "dependsOn": [
+    "0137",
+    "0233"
+  ],
+  "dependsOnText": "[0137](0137.md) (`--strict-docs` reports a public member with no doc comment, and\n`nvs doc` renders the `nvs meta --json` document), [0233](0233.md) (the document names a class's\nparent and interfaces).",
+  "validatedBy": "`crates/nvs-cli/tests/strict_docs.rs`\n(`strict_docs_accepts_an_override_of_a_documented_method`,\n`strict_docs_reports_a_subclass_method_that_overrides_nothing`) and `crates/nvs-cli/tests/doc.rs`\n(`nvs_doc_shows_an_undocumented_override_the_doc_it_inherits`).",
+  "summary": {
+    "group": "tooling",
+    "headline": "An override uses the doc comment of the method it replaces",
+    "body": "`nvs check --strict-docs` no longer reports a method that implements a documented interface\nmethod or overrides a documented parent method. That method uses the parent's `///` comment.\n`nvs doc` shows that comment on the method and names the class or interface it comes from."
+  }
+}

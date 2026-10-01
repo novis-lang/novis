@@ -52,7 +52,7 @@ pub(crate) fn run(entry: &Path, out: &Path) -> ExitCode {
     let names: Vec<&str> = pages.iter().map(|page| page.name).collect();
     for page in &pages {
         let path = out.join(file_name(page.name));
-        if let Err(err) = std::fs::write(&path, render(page, &names)) {
+        if let Err(err) = std::fs::write(&path, render(page, &pages, &names)) {
             eprintln!("error: could not write {}: {err}", path.display());
             return ExitCode::FAILURE;
         }
@@ -99,20 +99,32 @@ fn file_name(name: &str) -> PathBuf {
 
 /// One page: the declaration's lineage and its own card, then a section per
 /// roster it carries.
-fn render(page: &Page<'_>, names: &[&str]) -> String {
+fn render(page: &Page<'_>, pages: &[Page<'_>], names: &[&str]) -> String {
     let mut out = format!("# {}\n\n*{}*\n", page.name, page.kind);
     lineage(&mut out, page.value, names);
     card(&mut out, &page.value["doc"], page, names);
-    section(&mut out, page, "cases", "Cases", names);
-    section(&mut out, page, "constants", "Constants", names);
-    section(&mut out, page, "members", "Members", names);
+    section(&mut out, page, "cases", "Cases", pages, names);
+    section(&mut out, page, "constants", "Constants", pages, names);
+    section(&mut out, page, "members", "Members", pages, names);
     out
 }
 
 /// One roster as a `##` section, or nothing when the document omitted it —
 /// which is what an empty roster is, per `rule:tooling/meta-json`'s omission
 /// rule.
-fn section(out: &mut String, page: &Page<'_>, key: &str, title: &str, names: &[&str]) {
+///
+/// A method with no `doc` of its own shows the card of the method it
+/// overrides or implements, found by [`inherited`], under a line naming
+/// where it comes from. That is the same doc comment `nvs check
+/// --strict-docs` accepts for it (`rule:tooling/strict-docs`).
+fn section(
+    out: &mut String,
+    page: &Page<'_>,
+    key: &str,
+    title: &str,
+    pages: &[Page<'_>],
+    names: &[&str],
+) {
     let Some(entries) = page.value[key].as_array() else {
         return;
     };
@@ -139,8 +151,68 @@ fn section(out: &mut String, page: &Page<'_>, key: &str, title: &str, names: &[&
                 .map_or(String::new(), |ty| format!("{ty} "));
             out.push_str(&format!("\n```nvs\n{ty}{name} = {value}\n```\n"));
         }
-        card(out, &entry["doc"], page, names);
+        let is_method = entry["signature"].is_string() && entry["kind"] != "property";
+        let from = if entry["doc"].is_null() && is_method {
+            inherited(page.value, name, pages, &mut Vec::new())
+        } else {
+            None
+        };
+        match from {
+            Some((owner, doc)) => {
+                let target = format!("{}::{name}", owner.name);
+                out.push_str(&format!(
+                    "\nInherited from {}.\n",
+                    see(&target, owner, names)
+                ));
+                card(out, doc, owner, names);
+            }
+            None => card(out, &entry["doc"], page, names),
+        }
     }
+}
+
+/// The page and the `doc` of the nearest documented method called `name` on
+/// something `value` extends or implements, searched depth first in the order
+/// the document lists them: the parent class, then each interface. Only the
+/// pages of this run are searched, so a method inherited from a `Core` class
+/// or interface shows no card. `seen` stops a cycle.
+fn inherited<'a, 'p>(
+    value: &Value,
+    name: &str,
+    pages: &'p [Page<'a>],
+    seen: &mut Vec<&'a str>,
+) -> Option<(&'p Page<'a>, &'a Value)> {
+    let parents = match &value["extends"] {
+        Value::String(parent) => vec![parent.as_str()],
+        Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
+        _ => Vec::new(),
+    };
+    let interfaces = value["implements"]
+        .as_array()
+        .map_or_else(Vec::new, |items| {
+            items.iter().filter_map(Value::as_str).collect()
+        });
+    for ancestor in parents.into_iter().chain(interfaces) {
+        let Some(owner) = pages.iter().find(|page| page.name == ancestor) else {
+            continue;
+        };
+        if seen.contains(&owner.name) {
+            continue;
+        }
+        seen.push(owner.name);
+        let documented = owner.value["members"].as_array().and_then(|members| {
+            members
+                .iter()
+                .find(|member| member["name"] == name && member["doc"].is_object())
+        });
+        if let Some(member) = documented {
+            return Some((owner, &member["doc"]));
+        }
+        if let Some(found) = inherited(owner.value, name, pages, seen) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 /// Whether a reader of this package can reach the entry — the document's own

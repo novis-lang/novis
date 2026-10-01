@@ -1174,10 +1174,13 @@ pub mod code {
     /// `nvs check --strict-docs`. `rule:tooling/strict-docs` keeps it silent
     /// everywhere else and no autofix can satisfy it: with no `@param` and no
     /// `@return` to fill in, a generated `///` would be empty, so the only way
-    /// to clear it is to write a sentence.
+    /// to clear it is to write a sentence. A method that overrides or
+    /// implements a documented method inherits that comment and is not
+    /// reported.
     pub const E_DOC_MISSING: Code = Code::new("E0326").card(
         "A public member has no doc comment, and `nvs check --strict-docs` needs one. Write a \
-         `///` line above it, or make the member `private`.",
+         `///` line above it, or make the member `private`. A method that overrides or implements \
+         a documented method uses that method's comment.",
     );
     /// An `autoload` prefix that no name can ever match: a segment that is
     /// not a `PascalCase` namespace segment, or a `{..}` directory segment

@@ -2,7 +2,8 @@
   "title": "Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it",
   "status": "designed",
   "because": [
-    "0137"
+    "0137",
+    "0234"
   ],
   "divergesFromPhp": "an IDE cannot answer the check with a generated docblock, because there is no tag to generate",
   "seeAlso": [
@@ -10,5 +11,7 @@
     "tooling/doc-comment-attaches-to-the-next-declaration",
     "packaging/a-package-is-its-digest"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-cli/tests/strict_docs.rs"
+  ]
 }

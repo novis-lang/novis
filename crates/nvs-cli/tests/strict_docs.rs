@@ -43,6 +43,56 @@ class Money {
 }
 ";
 
+/// Three undocumented public methods, each of which overrides or implements a
+/// documented one: `render` from an interface that `Named` extends, `name`
+/// from `Named` itself and `price` from the parent class. Each inherits its
+/// ancestor's doc comment, so this checks clean under the flag.
+const INHERITED_DOCS: &str = r#"<?nvs
+/// Something a reader can see.
+interface Printable {
+    /// The text a reader sees.
+    public function render(): string;
+}
+
+/// Something a reader can see, under a name.
+interface Named extends Printable {
+    /// The name a reader sees.
+    public function name(): string;
+}
+
+/// A thing a shop sells.
+class Item {
+    /// What the item costs, in cents.
+    public function price(): int { return 100; }
+}
+
+/// A post, sold like any other item.
+class Post extends Item implements Named {
+    public function name(): string { return "First post"; }
+
+    public function render(): string { return $this->name(); }
+
+    public function price(): int { return 250; }
+}
+"#;
+
+/// The same parent class, and a subclass method that overrides nothing.
+/// `summary` has no ancestor to inherit a doc comment from, so it is reported.
+const A_NEW_METHOD_ON_A_SUBCLASS: &str = r#"<?nvs
+/// A thing a shop sells.
+class Item {
+    /// What the item costs, in cents.
+    public function price(): int { return 100; }
+}
+
+/// A post, sold like any other item.
+class Post extends Item {
+    public function price(): int { return 250; }
+
+    public function summary(): string { return "A post"; }
+}
+"#;
+
 /// A fresh directory holding `case.nvs`. The name is the test's, so two tests
 /// never share a working directory.
 fn fixture(name: &str, program: &str) -> PathBuf {
@@ -112,6 +162,47 @@ fn strict_docs_is_silent_about_a_private_member() {
     assert!(
         !shown.contains("E0326"),
         "a private member was reported: {shown}"
+    );
+}
+
+#[test]
+fn strict_docs_accepts_an_override_of_a_documented_method() {
+    // A method that overrides a parent's method or implements an interface's
+    // inherits that method's doc comment, through any number of `extends`
+    // steps. Repeating the sentence above every implementation would be the
+    // generated noise the rule exists to refuse.
+    let dir = fixture("inherited", INHERITED_DOCS);
+    let out = check(&dir, &["--strict-docs"]);
+    let shown = shown(&out);
+    assert!(
+        out.status.success(),
+        "an override of a documented method failed --strict-docs: {shown}"
+    );
+    assert!(
+        !shown.contains("E0326"),
+        "an override of a documented method was reported: {shown}"
+    );
+}
+
+#[test]
+fn strict_docs_reports_a_subclass_method_that_overrides_nothing() {
+    // Inheriting is by name, from an ancestor that documents that name. A new
+    // method on a subclass has no such ancestor, so it is reported even though
+    // the parent class is fully documented and the override beside it is not.
+    let dir = fixture("new-on-subclass", A_NEW_METHOD_ON_A_SUBCLASS);
+    let out = check(&dir, &["--strict-docs"]);
+    let shown = shown(&out);
+    assert!(
+        !out.status.success(),
+        "a new undocumented subclass method checked clean under --strict-docs: {shown}"
+    );
+    assert!(
+        shown.contains("Post::summary"),
+        "the new method is not the one reported: {shown}"
+    );
+    assert!(
+        !shown.contains("Post::price"),
+        "the override of a documented method was reported: {shown}"
     );
 }
 

@@ -77,7 +77,8 @@ echo $till->charge(150) . "\n";
 
 /// A class with a parent class, an interface and a static method. `Shop\Item`
 /// and `Shop\Printable` are named through `use` imports, so the page has to
-/// name them fully qualified to link to their pages.
+/// name them fully qualified to link to their pages. `Post::render` has no
+/// `///` of its own and implements the documented `Printable::render`.
 const LINEAGE: &str = r#"<?nvs
 namespace Shop;
 
@@ -104,7 +105,6 @@ use Shop\Printable;
 ///
 /// @see parent::price
 class Post extends Item implements Printable {
-    /// The post as a reader sees it.
     public function render(): string {
         return "a post";
     }
@@ -282,5 +282,29 @@ fn nvs_doc_names_the_parent_class_and_the_interfaces() {
     assert!(
         page.contains("[parent::price](Shop.Item.md#price)"),
         "`parent::` in a `@see` did not link to the parent's page: {page}"
+    );
+}
+
+#[test]
+fn nvs_doc_shows_an_undocumented_override_the_doc_it_inherits() {
+    // `rule:tooling/strict-docs` accepts a method with no `///` when it
+    // implements a documented one, so the page shows that method's card and
+    // says where it comes from. Otherwise the page would show no text for a
+    // method the check passed.
+    let dir = fixture_of("inherited", LINEAGE);
+    let out = doc(&dir);
+    assert!(
+        out.status.success(),
+        "`nvs doc` failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let page = page(&dir, "Blog.Post.md");
+    assert!(
+        page.contains(
+            "### render\n\n```nvs\nrender(): string\n```\n\n\
+             Inherited from [Shop\\Printable::render](Shop.Printable.md#render).\n\n\
+             The text a reader sees.\n"
+        ),
+        "the inherited doc comment is not shown under `render`: {page}"
     );
 }
