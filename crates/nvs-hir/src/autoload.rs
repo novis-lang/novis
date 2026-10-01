@@ -119,14 +119,55 @@ pub enum SiteKind {
     Prefix {
         /// The namespace prefix, written without a trailing separator.
         prefix: String,
-        /// The roots, in declaration order.
-        roots: Vec<String>,
+        /// The roots, in declaration order, each with the span of the literal
+        /// that wrote it, quotes included.
+        roots: Vec<(String, Span)>,
     },
     /// `autoload discover '<glob>';`
     Discover {
         /// The glob, containing exactly one `*` occupying a whole segment.
         glob: String,
+        /// The glob's literal, quotes included.
+        literal: Span,
     },
+}
+
+impl Site {
+    /// Each path literal this declaration wrote, paired with the directory it
+    /// names: a root, or the directory a `discover` glob lists, which is the
+    /// part before its `*` segment.
+    ///
+    /// The paths come from the functions [`AutoloadMap::build`] resolves with,
+    /// [`canonical`] and [`glob_base`], so an editor's link and the map can
+    /// never name two directories for one literal. A literal that names no
+    /// directory is left out. A missing root is allowed, and `nvs check
+    /// --autoload-map` lists it under `missing`. A glob of the wrong shape is
+    /// already [`code::E_AUTOLOAD_GLOB_SHAPE`].
+    ///
+    /// Nothing calls this while compiling: it costs one existence test per
+    /// literal, paid by the caller that asks.
+    #[must_use]
+    pub fn directories(&self) -> Vec<(Span, PathBuf)> {
+        match &self.kind {
+            SiteKind::Prefix { roots, .. } => roots
+                .iter()
+                .filter_map(|(root, literal)| {
+                    let dir = canonical(&self.base_dir, root);
+                    is_dir(&dir).then_some((*literal, dir))
+                })
+                .collect(),
+            SiteKind::Discover { glob, literal } => {
+                let parts = glob_parts(glob);
+                star_segment(&parts)
+                    .ok()
+                    .map(|star| glob_base(&self.base_dir, &parts, star))
+                    .and_then(|base| crate::requires::canonicalize(&base))
+                    .filter(|base| is_dir(base))
+                    .map(|base| vec![(*literal, base)])
+                    .unwrap_or_default()
+            }
+        }
+    }
 }
 
 /// One prefix and the roots it is probed against, in declaration order.
@@ -307,7 +348,10 @@ impl AutoloadMap {
             }
             map.entries.push(Entry {
                 segments,
-                roots: roots.iter().map(|r| canonical(&site.base_dir, r)).collect(),
+                roots: roots
+                    .iter()
+                    .map(|(root, _)| canonical(&site.base_dir, root))
+                    .collect(),
                 span: site.span,
                 explicit: true,
                 borrowed: is_borrowed,
@@ -315,7 +359,7 @@ impl AutoloadMap {
         }
 
         for &(site, is_borrowed) in &ordered {
-            let SiteKind::Discover { glob } = &site.kind else {
+            let SiteKind::Discover { glob, .. } = &site.kind else {
                 continue;
             };
             let sink = if is_borrowed {
@@ -697,6 +741,23 @@ pub fn listed_names(dir: &Path) -> Option<Vec<String>> {
     listing(dir).as_deref().map(names_of)
 }
 
+/// Every entry of `dir`, each name as the disk spells it and whether it is a
+/// directory, sorted by name, or `None` for a directory there is nothing to
+/// list.
+///
+/// This is the listing a `discover` glob and § 3's scan read, unfiltered. An
+/// editor offers names out of it while a `require` or `autoload` path literal
+/// is being written, so what it offers is what resolution would find.
+#[must_use]
+pub fn entries_of(dir: &Path) -> Option<Vec<(String, bool)>> {
+    let mut entries: Vec<(String, bool)> = listing(dir)?
+        .iter()
+        .map(|(path, is_directory)| (entry_name(path), *is_directory))
+        .collect();
+    entries.sort();
+    Some(entries)
+}
+
 /// One directory's entries as this module reads them — `(path, whether it is a
 /// directory)` — or `None` for a directory there is nothing to list.
 ///
@@ -835,37 +896,71 @@ struct Discovered {
     candidates: Vec<PathBuf>,
 }
 
-/// Expands `autoload discover '<glob>'` into its `(prefix, root)` pairs.
-fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) -> Discovered {
-    let parts: Vec<&str> = glob.split(['/', '\\']).collect();
-    let stars = parts.iter().filter(|p| p.contains('*')).count();
-    let Some(star) = parts.iter().position(|p| *p == "*") else {
-        diags.report(
-            Diagnostic::error(
-                code::E_AUTOLOAD_GLOB_SHAPE,
-                format!("`{glob}` is not a discovery glob"),
-            )
-            .with_primary(span, "no `*` occupying a whole path segment")
-            .with_note("a `discover` glob holds exactly one `*`, and it is a whole segment"),
-        );
-        return Discovered::default();
-    };
-    if stars != 1 {
-        diags.report(
-            Diagnostic::error(
-                code::E_AUTOLOAD_GLOB_SHAPE,
-                format!("`{glob}` holds more than one `*`"),
-            )
-            .with_primary(span, "only one segment may be matched")
-            .with_note("a `discover` glob holds exactly one `*`, and it is a whole segment"),
-        );
-        return Discovered::default();
-    }
+/// Why a `discover` glob has no segment to match.
+enum GlobShape {
+    /// No `*` is a whole segment.
+    NoStar,
+    /// More than one segment holds a `*`.
+    ManyStars,
+}
 
+/// A glob's segments, split at either separator.
+fn glob_parts(glob: &str) -> Vec<&str> {
+    glob.split(['/', '\\']).collect()
+}
+
+/// Which of `parts` is the glob's one `*` segment.
+fn star_segment(parts: &[&str]) -> Result<usize, GlobShape> {
+    let star = parts
+        .iter()
+        .position(|part| *part == "*")
+        .ok_or(GlobShape::NoStar)?;
+    if parts.iter().filter(|part| part.contains('*')).count() != 1 {
+        return Err(GlobShape::ManyStars);
+    }
+    Ok(star)
+}
+
+/// The directory a glob lists: `base_dir` joined with the segments before its
+/// `*` segment at `star`.
+fn glob_base(base_dir: &Path, parts: &[&str], star: usize) -> PathBuf {
     let mut scanned = base_dir.to_path_buf();
     for part in &parts[..star] {
         scanned.push(part);
     }
+    scanned
+}
+
+/// Expands `autoload discover '<glob>'` into its `(prefix, root)` pairs.
+fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) -> Discovered {
+    let parts = glob_parts(glob);
+    let star = match star_segment(&parts) {
+        Ok(star) => star,
+        Err(GlobShape::NoStar) => {
+            diags.report(
+                Diagnostic::error(
+                    code::E_AUTOLOAD_GLOB_SHAPE,
+                    format!("`{glob}` is not a discovery glob"),
+                )
+                .with_primary(span, "no `*` occupying a whole path segment")
+                .with_note("a `discover` glob holds exactly one `*`, and it is a whole segment"),
+            );
+            return Discovered::default();
+        }
+        Err(GlobShape::ManyStars) => {
+            diags.report(
+                Diagnostic::error(
+                    code::E_AUTOLOAD_GLOB_SHAPE,
+                    format!("`{glob}` holds more than one `*`"),
+                )
+                .with_primary(span, "only one segment may be matched")
+                .with_note("a `discover` glob holds exactly one `*`, and it is a whole segment"),
+            );
+            return Discovered::default();
+        }
+    };
+
+    let scanned = glob_base(base_dir, &parts, star);
     let entries = listing(&scanned);
     let mut out = Discovered {
         listed: vec![Listing {

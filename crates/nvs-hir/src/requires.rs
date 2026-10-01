@@ -1112,17 +1112,23 @@ fn record_autoload(decl: &AutoloadDecl, src: &SourceFile, out: &mut Harvest) {
             let Some(prefix) = cook(*prefix) else {
                 return;
             };
-            let roots: Vec<String> = roots.iter().filter_map(|r| cook(*r)).collect();
+            let roots: Vec<(String, Span)> = roots
+                .iter()
+                .filter_map(|literal| Some((cook(*literal)?, *literal)))
+                .collect();
             if roots.is_empty() {
                 return;
             }
             autoload::SiteKind::Prefix { prefix, roots }
         }
-        AutoloadKind::Discover { glob } => {
-            let Some(glob) = cook(*glob) else {
+        AutoloadKind::Discover { glob: literal } => {
+            let Some(glob) = cook(*literal) else {
                 return;
             };
-            autoload::SiteKind::Discover { glob }
+            autoload::SiteKind::Discover {
+                glob,
+                literal: *literal,
+            }
         }
     };
     out.autoloads.push((kind, decl.span));
@@ -2210,21 +2216,30 @@ class Unreached {}
 
     // --- `rule:programs/no-runtime-autoload`: the autoload map ----------------------------------------
 
-    /// A [`Site`] over `dir`, with a throwaway span: every assertion below is
-    /// about which file was found, never about where the declaration sat.
-    fn site(dir: &TempDir, id: SourceId, kind: autoload::SiteKind) -> Site {
+    /// A [`Site`] over `dir`, with one throwaway span for the declaration and
+    /// each of its literals: every assertion below is about which file was
+    /// found, never about where the declaration sat.
+    fn site(dir: &TempDir, id: SourceId, kind: impl FnOnce(Span) -> autoload::SiteKind) -> Site {
+        let span = Span::at(id, 0);
         Site {
             base_dir: dir.path.clone(),
-            kind,
-            span: Span::at(id, 0),
+            kind: kind(span),
+            span,
         }
     }
 
-    fn prefix(prefix: &str, roots: &[&str]) -> autoload::SiteKind {
-        autoload::SiteKind::Prefix {
-            prefix: prefix.to_owned(),
-            roots: roots.iter().map(|r| (*r).to_owned()).collect(),
+    fn prefix(prefix: &str, roots: &[&str]) -> impl FnOnce(Span) -> autoload::SiteKind {
+        let prefix = prefix.to_owned();
+        let roots: Vec<String> = roots.iter().map(|r| (*r).to_owned()).collect();
+        move |span| autoload::SiteKind::Prefix {
+            prefix,
+            roots: roots.into_iter().map(|root| (root, span)).collect(),
         }
+    }
+
+    fn discover(glob: &str) -> impl FnOnce(Span) -> autoload::SiteKind {
+        let glob = glob.to_owned();
+        move |literal| autoload::SiteKind::Discover { glob, literal }
     }
 
     fn scratch_id(map: &mut SourceMap) -> SourceId {
@@ -2507,13 +2522,7 @@ class Unreached {}
             &[
                 site(&dir, id, prefix("Acme", &["./lent"])),
                 site(&dir, id, prefix("Other", &["./other"])),
-                site(
-                    &dir,
-                    id,
-                    autoload::SiteKind::Discover {
-                        glob: "./missing/*/src".to_owned(),
-                    },
-                ),
+                site(&dir, id, discover("./missing/*/src")),
             ],
             &mut diags,
         );
@@ -2561,13 +2570,7 @@ class Unreached {}
         let built = AutoloadMap::build(
             &[
                 site(&dir, id, prefix("Acme", &["./override"])),
-                site(
-                    &dir,
-                    id,
-                    autoload::SiteKind::Discover {
-                        glob: "./*/src".to_owned(),
-                    },
-                ),
+                site(&dir, id, discover("./*/src")),
             ],
             &mut diags,
         );
@@ -2602,13 +2605,7 @@ class Unreached {}
             &[
                 site(&dir, id, prefix("Acme", &["./override"])),
                 site(&dir, id, prefix("Gone", &["./absent"])),
-                site(
-                    &dir,
-                    id,
-                    autoload::SiteKind::Discover {
-                        glob: "./*/src".to_owned(),
-                    },
-                ),
+                site(&dir, id, discover("./*/src")),
             ],
             &mut diags,
         );
@@ -2709,6 +2706,52 @@ class Unreached {}
         );
     }
 
+    /// [`Site::directories`], which an editor's link reads: each path literal
+    /// of a declaration and the directory it resolves to, where there is one.
+    #[test]
+    fn each_autoload_literal_names_the_directory_it_resolves_to() {
+        let dir = TempDir::new("autoload-literals");
+        dir.write("src/Thing.nvs", "<?nvs\n");
+        dir.write("modules/Shop/src/Cart.nvs", "<?nvs\n");
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let canonical = |relative: &str| {
+            dir.path
+                .join(relative)
+                .canonicalize()
+                .expect("fixture directory")
+        };
+        let at = |start: u32, end: u32| Span::new(id, start, end);
+
+        // A root that exists names its directory under its own literal's span.
+        // A missing root is allowed and names nothing.
+        let roots = Site {
+            base_dir: dir.path.clone(),
+            kind: autoload::SiteKind::Prefix {
+                prefix: "App".to_owned(),
+                roots: vec![
+                    ("./src".to_owned(), at(20, 27)),
+                    ("./gone".to_owned(), at(29, 37)),
+                ],
+            },
+            span: at(0, 38),
+        };
+        assert_eq!(roots.directories(), vec![(at(20, 27), canonical("src"))]);
+
+        // A glob names the directory it lists, the part before its `*`.
+        let glob = site(&dir, id, discover("./modules/*/src"));
+        assert_eq!(
+            glob.directories(),
+            vec![(Span::at(id, 0), canonical("modules"))]
+        );
+
+        // A glob of the wrong shape lists nothing, so it names nothing.
+        let malformed = site(&dir, id, discover("./modules/src"));
+        assert_eq!(malformed.directories(), Vec::new());
+        let missing = site(&dir, id, discover("./gone/*"));
+        assert_eq!(missing.directories(), Vec::new());
+    }
+
     /// A `discover` glob has to be one `*` occupying a whole segment, and one
     /// that silently discovers nothing is the outcome worth diagnosing.
     #[test]
@@ -2717,16 +2760,7 @@ class Unreached {}
         let mut map = SourceMap::new();
         let id = scratch_id(&mut map);
         let mut diags = Diagnostics::new();
-        let _ = AutoloadMap::build(
-            &[site(
-                &dir,
-                id,
-                autoload::SiteKind::Discover {
-                    glob: "./src".to_owned(),
-                },
-            )],
-            &mut diags,
-        );
+        let _ = AutoloadMap::build(&[site(&dir, id, discover("./src"))], &mut diags);
         assert!(
             diags
                 .iter()
