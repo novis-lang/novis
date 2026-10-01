@@ -2503,6 +2503,71 @@ class T {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
+/// Lowers `T::m` once with written binding types and once with `var`, and
+/// asserts the two print identically. The printed IR carries source columns,
+/// so each `var` fixture pads the keyword to the written type's width.
+fn assert_var_binding_lowers_as_written(written: &str, var: &str) {
+    let (written_f, written_map, written_file) = lower_first_method(written);
+    let (var_f, var_map, var_file) = lower_first_method(var);
+    assert_eq!(
+        print_function(&var_f, var_map.file(var_file)),
+        print_function(&written_f, written_map.file(written_file)),
+    );
+}
+
+/// `rule:types/var-inference`: a `var` key and value binding over an
+/// `array<T>` lower to the IR the written `string` and `T` lower to, because
+/// `binding_ty` reads the type the checker recorded under the keyword.
+#[test]
+fn foreach_var_binding_lowers_as_the_written_type_does() {
+    assert_var_binding_lowers_as_written(
+        "<?nvs
+class T {
+  function m(array<string> $a): void {
+    foreach ($a as string $k => string $v) {
+      echo $k . $v;
+    }
+  }
+}
+",
+        "<?nvs
+class T {
+  function m(array<string> $a): void {
+    foreach ($a as var    $k => var    $v) {
+      echo $k . $v;
+    }
+  }
+}
+",
+    );
+}
+
+/// The same equality over an `Iterator<T>` subject, whose value binding
+/// takes the cursor's element type and has no key to bind.
+#[test]
+fn foreach_var_binding_over_a_cursor_lowers_as_the_written_type_does() {
+    assert_var_binding_lowers_as_written(
+        "<?nvs
+class T {
+  function m(Iterator<int> $c): void {
+    foreach ($c as int $v) {
+      echo $v;
+    }
+  }
+}
+",
+        "<?nvs
+class T {
+  function m(Iterator<int> $c): void {
+    foreach ($c as var $v) {
+      echo $v;
+    }
+  }
+}
+",
+    );
+}
+
 /// A refcounted value binding is retained where a scalar one is not — the
 /// binding is a durable slot and `InstKind::ArrayValueAt` hands it a
 /// borrow, the same split `InstKind::ArrayGet` already has.
