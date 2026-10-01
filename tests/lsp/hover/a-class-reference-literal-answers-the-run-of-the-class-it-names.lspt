@@ -1,0 +1,16 @@
+--TEST--
+a cursor inside the string converted with `as class<T>` answers what hovering the class's name answers, the `///` run above its declaration — `rule:types/class-reference`
+--FILE--
+<?nvs
+namespace App;
+
+interface Model { }
+
+/// One person who can sign in.
+class User implements Model { }
+
+$class = 'App\Us<|>er' as class<Model>;
+--REQUEST--
+hover
+--EXPECT--
+One person who can sign in.

@@ -1,5 +1,5 @@
 --TEST--
-a root that does not exist is allowed and names no directory, so it has no link, and the root beside it keeps its own — `rule:programs/autoload`
+a root that does not exist is allowed and names no directory, so it has no link, the root beside it keeps its own, and the prefix links to that first root that exists — `rule:programs/autoload`
 --FILE--
 <?nvs
 autoload 'App' from 'gone', 'src';
@@ -10,4 +10,5 @@ class User { }
 --REQUEST--
 documentLink
 --EXPECT--
+2:10-2:15 -> src/
 2:29-2:34 -> src/

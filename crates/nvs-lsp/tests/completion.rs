@@ -619,7 +619,13 @@ fn sources() -> Vec<Source> {
 /// literal's text reaches, through `nvs_hir::autoload::entries_of`: the
 /// listing the compiler resolves a `discover` glob with. It walks no tree and
 /// looks for no convention, so what it offers is what resolution would find.
-const SOURCED: [(&str, &str); 30] = [
+///
+/// The two name-literal arms read tables already named here. An `autoload`
+/// prefix is offered the namespaces of the workspace index's declarations and
+/// the analysis's symbol table. The operand of `as class<T>` is offered the
+/// analysis's classes that `nvs_hir::hierarchy::implements_interface` says are
+/// a `T`, the walk the checker answers the same question with.
+const SOURCED: [(&str, &str); 32] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
@@ -631,6 +637,8 @@ const SOURCED: [(&str, &str); 30] = [
     ("declared_type_members", "declared_type("),
     ("open_tags", "OPEN_TAGS"),
     ("paths", "autoload::entries_of("),
+    ("prefixes", "declarations_in("),
+    ("class_names", "hierarchy::implements_interface("),
     ("position", "words("),
     ("statement_words", "STATEMENT_WORDS"),
     ("followed", "Classes::of(cursor.symbols)"),

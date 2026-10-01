@@ -363,3 +363,35 @@ fn a_plain_file_under_a_lenders_directory_borrows_its_map() {
     assert!(codes(&alone).contains(&"E0306"), "{:?}", codes(&alone));
     assert!(alone.lent.is_empty());
 }
+
+/// A cursor on a prefix's `{..}` segment is told which directory name the
+/// segment is replaced by, and the namespace below it is spelled with that
+/// name. A `.lspt` case cannot hold this: its document sits at the top of a
+/// scratch directory whose own name is not a namespace segment.
+#[test]
+fn a_braced_prefix_segment_hovers_as_the_directory_name_it_reaches() {
+    let dir = TempDir::new("braced");
+    let boot = "<?nvs\nautoload 'App\\{..}' from 'src';\n";
+    dir.write("Blog/public/index.nvs", boot);
+    dir.write(
+        "Blog/public/src/Post.nvs",
+        "<?nvs\nnamespace App\\Blog;\nclass Post { }\n",
+    );
+    let mut documents = Documents::new();
+    dir.open(&mut documents, "Blog/public/index.nvs", boot);
+
+    let analysed = analyse(&documents, &dir.uri("Blog/public/index.nvs")).expect("it is open");
+    let on_braces = boot.find("{..}").expect("the segment is written") + 1;
+    let offset = u32::try_from(on_braces).expect("a test document is short");
+    let hover =
+        nvs_lsp::hover::at(&analysed, offset, PositionEncoding::Utf8).expect("the prefix hovers");
+    let lsp_types::HoverContents::Markup(markup) = hover.contents else {
+        panic!("a hover is Markdown");
+    };
+    assert_eq!(
+        markup.value,
+        "`{..}` is `Blog`, the name of the directory it reaches.\n\n```nvs\nnamespace \
+         App\\Blog\n```\n\nA name in this namespace is looked for in these directories, in \
+         this order:\n\n- `src`",
+    );
+}

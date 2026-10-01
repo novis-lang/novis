@@ -12,7 +12,10 @@ What that admits: route names and their parameters, from the route table
 default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
 complete as paths — scoped to the workspace's config tree, never to every TOML file; a `require` path
 and an `autoload` root or `discover` glob, which complete as the entries of the one directory the text
-before the cursor reaches, read through the listing the compiler resolves a glob with; `#[Api]` fields and
+before the cursor reaches, read through the listing the compiler resolves a glob with; an `autoload`
+prefix, which completes as the namespaces of the declarations the workspace index and the analysis already
+hold; the string converted with `as class<T>`, which completes as the classes the program declares that
+are a `T`, read through the hierarchy walk the checker answers that question with; `#[Api]` fields and
 every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 

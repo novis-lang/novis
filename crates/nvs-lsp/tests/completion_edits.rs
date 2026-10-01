@@ -113,6 +113,31 @@ fn at(line: u32, character: u32) -> Range {
     }
 }
 
+/// A class-reference literal's item is a class's whole name, and it replaces
+/// all the text between the opening quote and the cursor, separators included.
+#[test]
+fn a_class_name_item_replaces_all_the_text_written() {
+    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("nvs-class-case.nvs");
+    let source = "<?nvs\nnamespace App;\nclass User { }\n$c = 'App\\U<|>' as class<User>;";
+    let items = offered_in(&here, EDITOR, source);
+    assert_eq!(
+        named(&items, "App\\User").text_edit,
+        Some(CompletionTextEdit::Edit(TextEdit {
+            range: Range {
+                start: Position {
+                    line: 3,
+                    character: 6,
+                },
+                end: Position {
+                    line: 3,
+                    character: 11,
+                },
+            },
+            new_text: "App\\User".to_owned(),
+        }))
+    );
+}
+
 /// A directory in a path literal replaces only the segment being written,
 /// writes a `/` after its name, and opens the list again for the next segment.
 #[test]

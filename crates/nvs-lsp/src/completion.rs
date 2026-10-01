@@ -8,8 +8,10 @@
 //! position offers, which is the keywords that may be written there, the
 //! variables in scope, the types a bare name reaches and the PHP built-ins a
 //! half-written one matches, and is the same walk asked at a node that is no
-//! access at all — and the entries of a directory, inside a `require` or
-//! `autoload` path literal.
+//! access at all — and, inside a string literal the compiler reads as a path
+//! or a name, the entries of a directory in a `require` or `autoload` path,
+//! the namespaces the workspace declares in an `autoload` prefix, and the
+//! classes that are a `T` in the operand of `as class<T>`.
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -271,16 +273,33 @@
 //! listing answers out of a bundle's payload inside a bundled executable; a
 //! language server never runs inside one, so here it is always the disk.
 //!
+//! # What a name literal offers
+//!
+//! Two other literals are names, and each is offered whole names that replace
+//! everything written between the opening quote and the cursor. A client then
+//! narrows the list as more of the name is written. Whole names, and not one
+//! segment at a time, because a `\` written just before the closing quote is
+//! an escaped quote (`'App\'`), so the literal does not end there and no
+//! answer is possible at that keystroke.
+//!
+//! - **An `autoload` prefix** is a namespace: [`prefixes`] offers every
+//!   namespace a declaration in the workspace index or the analysis is written
+//!   in or under.
+//! - **The operand of `as class<T>`** is a class's whole name
+//!   (`rule:types/class-reference`): [`class_names`] offers each class and
+//!   interface the program declares that is a `T`. That is the set the
+//!   conversion compares the string with at run time, which resolves no `use`.
+//!
 //! **Known gaps.** Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/completion.rs` lists them.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use lsp_types::{
     Command, CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit,
     Documentation, InsertTextFormat, MarkupContent, MarkupKind, TextEdit,
 };
 use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, Span};
-use nvs_hir::QName;
+use nvs_hir::{QName, SymbolKind};
 use nvs_stdlib::php_names::{self, Candidate, Item, Kind};
 use nvs_stdlib::registry::{self, CoreClass, CoreConst, CoreEnum, CoreMethod};
 use nvs_syntax::ast::{
@@ -293,7 +312,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Value, json};
 
 use crate::definition::{
-    declared_type, imports_of, namespace_at, resolved_name, supertype_names, text_of,
+    class_literal, declared_type, imports_of, namespace_at, resolved_name, supertype_names, text_of,
 };
 use crate::document::Analysed;
 use crate::index::{DeclKind, Declaration, SymbolIndex};
@@ -357,7 +376,9 @@ pub fn at(
             under(symbols, &prefix),
         ),
         Asked::OpenTag(written) => open_tags(&cursor, written),
-        Asked::Path(literal) => paths(&cursor, &literal),
+        Asked::Literal(Literal::Path(literal)) => paths(&cursor, &literal),
+        Asked::Literal(Literal::Prefix(text_start)) => prefixes(&cursor, text_start),
+        Asked::Literal(Literal::Class(text_start, base)) => class_names(&cursor, text_start, &base),
         Asked::Position => position(&cursor, php),
         Asked::Nothing => return Vec::new(),
     };
@@ -391,7 +412,7 @@ pub fn continues_a_trigger(analysed: &Analysed, offset: BytePos) -> bool {
         .any(|spelling| upto.ends_with(spelling))
         || open_tag_written(upto).is_some()
         || (upto.ends_with(['/', '\'', '"'])
-            && path_literal(analysed, &analysed.index.at(offset), offset).is_some())
+            && literal_at(analysed, &analysed.index.at(offset), offset).is_some())
 }
 
 /// What every arm of a bare position reads: the analysis, the index, and where
@@ -462,9 +483,10 @@ enum Asked {
     /// A half-written open tag in a run of markup, this many bytes of it
     /// written so far — the tags that open code, and nothing else.
     OpenTag(usize),
-    /// The inside of a `require` or `autoload` path literal — the entries of
-    /// the directory its text reaches.
-    Path(PathLiteral),
+    /// The inside of a literal the compiler reads as a path or a name: a
+    /// `require` or `autoload` path, an `autoload` prefix, or the operand of
+    /// `as class<T>`.
+    Literal(Literal),
     /// No access at all — what may be written where a statement or an
     /// expression goes.
     Position,
@@ -485,6 +507,18 @@ fn members_of(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Completio
     }
 }
 
+/// A string literal the cursor is inside whose text the compiler reads as a
+/// name or a path, and so one this module answers inside.
+enum Literal {
+    /// A `require` path, or an `autoload` root or `discover` glob.
+    Path(PathLiteral),
+    /// An `autoload` prefix, starting at this byte after its opening quote.
+    Prefix(BytePos),
+    /// The operand of `as class<T>`, starting at this byte after its opening
+    /// quote, and the `T`.
+    Class(BytePos, QName),
+}
+
 /// A `require` or `autoload` path literal the cursor is inside.
 struct PathLiteral {
     /// The first byte of the literal's text, after its opening quote.
@@ -494,23 +528,30 @@ struct PathLiteral {
     files: bool,
 }
 
-/// The path literal the cursor at `offset` is writing, if it is inside one.
+/// The literal the cursor at `offset` is writing, if it is inside one this
+/// module answers inside.
 ///
 /// A `require`'s path is a `Str` node directly under its `Require` node. An
 /// `autoload` declaration's literals are spans on the declaration and no nodes
 /// of their own, so they are read off the declaration the walk parsed, which
-/// is the parse the index was built from. Either way the cursor has to be
+/// is the parse the index was built from. The operand of `as class<T>` is
+/// [`crate::definition::class_literal`]'s. In every case the cursor has to be
 /// between the quotes.
-fn path_literal(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Option<PathLiteral> {
+fn literal_at(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Option<Literal> {
     let inside = |span: Span| (span.start < offset && offset < span.end).then_some(span.start + 1);
     if let [string, parent, ..] = path.nodes()
         && string.kind == "Str"
         && parent.kind == "Require"
     {
-        return inside(string.span).map(|text_start| PathLiteral {
-            text_start,
-            files: true,
+        return inside(string.span).map(|text_start| {
+            Literal::Path(PathLiteral {
+                text_start,
+                files: true,
+            })
         });
+    }
+    if let Some(literal) = class_literal(analysed, offset) {
+        return Some(Literal::Class(literal.span.start + 1, literal.base.clone()));
     }
     let decl = path
         .nodes()
@@ -521,20 +562,103 @@ fn path_literal(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Option
         .iter()
         .find(|loaded| loaded.id == analysed.entry)?
         .stmts;
-    let literals: Vec<Span> = stmts.iter().find_map(|stmt| match &stmt.kind {
-        StmtKind::AutoloadDecl(found) if found.span == decl.span => Some(match &found.kind {
-            AutoloadKind::Prefix { roots, .. } => roots.clone(),
-            AutoloadKind::Discover { glob } => vec![*glob],
-        }),
-        _ => None,
-    })?;
-    literals
-        .into_iter()
-        .find_map(inside)
-        .map(|text_start| PathLiteral {
+    let (prefix, literals): (Option<Span>, Vec<Span>) =
+        stmts.iter().find_map(|stmt| match &stmt.kind {
+            StmtKind::AutoloadDecl(found) if found.span == decl.span => Some(match &found.kind {
+                AutoloadKind::Prefix { prefix, roots } => (Some(*prefix), roots.clone()),
+                AutoloadKind::Discover { glob } => (None, vec![*glob]),
+            }),
+            _ => None,
+        })?;
+    if let Some(text_start) = prefix.and_then(inside) {
+        return Some(Literal::Prefix(text_start));
+    }
+    literals.into_iter().find_map(inside).map(|text_start| {
+        Literal::Path(PathLiteral {
             text_start,
             files: false,
         })
+    })
+}
+
+/// The namespaces an `autoload` prefix may name, for the text written before
+/// the cursor.
+///
+/// A namespace is offered when a class, interface, enum or `type` alias is
+/// declared in it or under it, in a file the workspace index holds or one the
+/// analysis loaded. Each item is the whole name, and it replaces all the text
+/// written so far, so the list narrows segment by segment as the developer
+/// writes `App\B`. `Core` is not offered: no program autoloads into it.
+fn prefixes(cursor: &Cursor<'_>, text_start: BytePos) -> Vec<CompletionItem> {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let Some(written) = file.text().get(text_start as usize..cursor.offset as usize) else {
+        return Vec::new();
+    };
+    let indexed = cursor
+        .symbols
+        .files()
+        .flat_map(|path| cursor.symbols.declarations_in(path))
+        .filter(|declared| namespace_kind(declared.kind).is_some())
+        .map(|declared| declared.symbol.clone());
+    let loaded = cursor
+        .analysed
+        .module
+        .symbols
+        .iter()
+        .map(|symbol| symbol.qname.to_string());
+    let mut namespaces: BTreeSet<String> = BTreeSet::new();
+    for symbol in indexed.chain(loaded) {
+        let segments: Vec<&str> = symbol.split('\\').collect();
+        for end in 1..segments.len() {
+            namespaces.insert(segments[..end].join("\\"));
+        }
+    }
+    namespaces
+        .into_iter()
+        .filter(|namespace| namespace != "Core" && !namespace.starts_with("Core\\"))
+        .map(|namespace| CompletionItem {
+            text_edit: Some(cursor.replacing(written.len(), namespace.clone())),
+            label: namespace,
+            kind: Some(CompletionItemKind::MODULE),
+            ..CompletionItem::default()
+        })
+        .collect()
+}
+
+/// The classes a class-reference literal may name: every class and interface
+/// the program declares that is a `base`, `base` included.
+///
+/// This is the set the run-time conversion compares the string against, so a
+/// name offered here is one the conversion accepts. It is read off the
+/// analysis, the same declarations and hierarchy the checker reads. A class
+/// the program never loads is not offered, because the conversion cannot find
+/// it either. Each item is the whole name, the only form the conversion
+/// accepts, and it replaces all the text written so far.
+fn class_names(cursor: &Cursor<'_>, text_start: BytePos, base: &QName) -> Vec<CompletionItem> {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let Some(written) = file.text().get(text_start as usize..cursor.offset as usize) else {
+        return Vec::new();
+    };
+    let module = &cursor.analysed.module;
+    module
+        .symbols
+        .iter()
+        .filter_map(|symbol| {
+            let kind = match symbol.kind {
+                SymbolKind::Class => CompletionItemKind::CLASS,
+                SymbolKind::Interface => CompletionItemKind::INTERFACE,
+                SymbolKind::Enum | SymbolKind::TypeAlias => return None,
+            };
+            nvs_hir::hierarchy::implements_interface(&symbol.qname, base, &module.graph)
+                .then_some((symbol.qname.to_string(), kind))
+        })
+        .map(|(name, kind)| CompletionItem {
+            text_edit: Some(cursor.replacing(written.len(), name.clone())),
+            label: name,
+            kind: Some(kind),
+            ..CompletionItem::default()
+        })
+        .collect()
 }
 
 /// What the directory a path literal's text reaches holds, for the segment
@@ -613,9 +737,9 @@ fn paths(cursor: &Cursor<'_>, literal: &PathLiteral) -> Vec<CompletionItem> {
 /// below nothing and buys the receiver half of `Core\Str::` an answer it would
 /// otherwise be refused for standing before the receiver's end.
 fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
-    // A path literal is a string, so no other arm answers inside one.
-    if let Some(literal) = path_literal(analysed, path, offset) {
-        return Asked::Path(literal);
+    // These literals are strings, so no other arm answers inside one.
+    if let Some(literal) = literal_at(analysed, path, offset) {
+        return Asked::Literal(literal);
     }
     // A cursor inside a run of markup is not writing a program, and a keyword
     // list offered there inserts text the page would render rather than run.

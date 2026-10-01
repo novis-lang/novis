@@ -72,6 +72,12 @@
 //! because a body declaring two of them under one name is refused where the
 //! second is written (`rule:types/type-alias`).
 //!
+//! **A string can name a class too**, in one place: the operand of `as
+//! class<T>` (`rule:types/class-reference`). [`class_literal_at`] answers the
+//! class whose whole name the literal's text is, compared the way the run-time
+//! conversion compares it, so `'App\User' as class<Model>` jumps to `class
+//! User`. No other string is read as a name.
+//!
 //! **A `use` line names a type too.** An import is a statement and no
 //! expression, so nothing above reaches it, and what it resolved to is already
 //! `nvs_hir::Import`'s: [`import_at`] answers the target of the import whose
@@ -580,6 +586,11 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// answer. [`type_member_at`] and [`type_name_at`] answer nothing for a cursor
 /// outside a written type, and the walk over the nodes then runs as before.
 ///
+/// **A class-reference literal is asked next**, for the same reason: the
+/// literal records no name, so the walk over the nodes would step out to
+/// whatever holds the conversion. [`class_literal_at`] answers the class the
+/// literal's text names.
+///
 /// A name no recorded expression covers is answered last, by the places a
 /// name is written outside an expression and outside a type: an `extends` or
 /// `implements` clause off the hierarchy graph ([`clause_at`]), an attribute's
@@ -594,6 +605,7 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
         .collect();
     type_member_at(analysed, offset)
         .or_else(|| type_name_at(analysed, offset))
+        .or_else(|| class_literal_at(analysed, offset))
         .or_else(|| resolved_in(analysed, &nodes))
         .or_else(|| resolved_in(analysed, &payload_path(analysed, offset)))
         .or_else(|| clause_at(analysed, offset))
@@ -939,6 +951,95 @@ pub(crate) fn type_member_at(analysed: &Analysed, offset: BytePos) -> Option<(Ta
         Target::Constant { class: owner, name }
     };
     Some((target, *member))
+}
+
+/// A string literal written as the operand of `as class<T>` or `as
+/// ?class<T>`, which the cursor is inside.
+pub(crate) struct ClassLiteral<'a> {
+    /// The literal, quotes included.
+    pub span: Span,
+    /// The `T` the conversion bounds the class by, as the checker resolved
+    /// it.
+    pub base: &'a QName,
+}
+
+/// The class-reference literal the cursor at `offset` is inside, if any.
+///
+/// `rule:types/class-reference`'s string row: `'App\User' as class<Model>`.
+/// The index has the literal and the conversion as nodes and the target type
+/// as neither, so the type is found the way [`written_type_at`] finds one —
+/// the type the conversion wrote, which ends where the conversion ends — and
+/// its `T` is read off the type the checker recorded for it. The cursor has
+/// to be between the quotes.
+pub(crate) fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<ClassLiteral<'_>> {
+    let path = analysed.index.at(offset);
+    let [string, conversion, ..] = path.nodes() else {
+        return None;
+    };
+    if string.kind != "Str"
+        || conversion.kind != "Conversion"
+        || !(string.span.start < offset && offset < string.span.end)
+    {
+        return None;
+    }
+    let entry = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)?;
+    let end = conversion.span.end;
+    let ty = written_types_in(&entry.stmts, end, end)
+        .into_iter()
+        .find(|ty| ty.span.end == end && ty.span.start >= string.span.end)?;
+    let base = class_ref_base(&analysed.interner, analysed.exprs.declared_ty(ty.span)?)?;
+    Some(ClassLiteral {
+        span: string.span,
+        base,
+    })
+}
+
+/// The `T` of a `class<T>` or a `?class<T>`, and `None` for any other type.
+fn class_ref_base(interner: &TypeInterner, ty: TypeId) -> Option<&QName> {
+    let ty = match interner.get(ty) {
+        Ty::Union(members) => {
+            let mut named = members
+                .iter()
+                .filter(|member| !matches!(interner.get(**member), Ty::Null));
+            let only = *named.next()?;
+            named.next().is_none().then_some(only)?
+        }
+        _ => ty,
+    };
+    let Ty::ClassRef(argument) = interner.get(ty) else {
+        return None;
+    };
+    match interner.get(*argument) {
+        Ty::Class(qname, _) => Some(qname),
+        _ => None,
+    }
+}
+
+/// The class a class-reference literal at `offset` names, and the literal's
+/// span.
+///
+/// The text is compared with each class's whole name, exactly: the run-time
+/// conversion compares the string with the names of the classes the program
+/// declares, and resolves no `use` and no namespace, so `'User'` under `use
+/// App\User;` and `'\App\User'` name no class there and none here. A literal
+/// naming a class outside `T` still names that class, so the jump reaches it
+/// and the reader sees why the conversion fails.
+pub(crate) fn class_literal_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
+    let literal = class_literal(analysed, offset)?;
+    let file = analysed.map.file(analysed.entry);
+    let raw = text_of(file, literal.span);
+    if !(raw.starts_with('\'') || raw.starts_with('"')) {
+        return None;
+    }
+    let text = nvs_syntax::string_lit::cook_string_literal(file, literal.span);
+    if text.is_empty() || text.starts_with('\\') {
+        return None;
+    }
+    let symbol = analysed.module.symbols.get(&QName::parse(&text))?;
+    Some((Target::Type(Cow::Borrowed(&symbol.qname)), literal.span))
 }
 
 /// What a plain class name written in type position at `offset` names, and

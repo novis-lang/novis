@@ -15,6 +15,10 @@
 //!   `nvs_hir::autoload::Site` with every literal's span, and
 //!   `Site::directories` resolves those literals with the same functions the
 //!   autoload map is built with, so a link and the map cannot disagree.
+//! - **An `autoload` prefix links to the first of its roots that exists**,
+//!   which is the first directory a name under it is looked for in. A prefix
+//!   is a namespace and has no declaration to jump to, so the link is its
+//!   ctrl-click, and a hover lists every root (`crate::hover`).
 //!
 //! **The entry file only**, on [`crate::symbols::for_document`]'s terms: a
 //! required file's own `require` is a link in *its* document.

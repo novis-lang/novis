@@ -9,6 +9,13 @@
 //! on. They are tried in that order, so the most specific answer a cursor has
 //! is the one it gets and the type is what is left when nothing documented it.
 //!
+//! **Two string literals are answered as what they name.** An `autoload`
+//! prefix's literal answers the namespace it maps and the directories a name
+//! under it is looked for in ([`autoload_prefix`]). The operand of `as
+//! class<T>` answers the class its text names, the way that class's name does
+//! ([`class_literal`]). Both are asked before the walk over the nodes, because
+//! a literal records no name and the walk would step out to what holds it.
+//!
 //! **The walk from the cursor to the declaration is
 //! [`crate::definition`]'s.** Hover and go-to-definition ask the same question
 //! about *where* and differ only in what they read once they are there, so the
@@ -74,12 +81,14 @@
 //! for here.
 
 use std::borrow::Cow;
+use std::fmt::Write as _;
 
 use lsp_types::{
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
     ParameterLabel, SignatureHelp, SignatureInformation,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
+use nvs_hir::autoload::SiteKind;
 use nvs_hir::{QName, SymbolKind};
 use nvs_stdlib::registry::{self, CoreMethod, MethodDoc};
 use nvs_syntax::ast::DocComment;
@@ -87,7 +96,9 @@ use nvs_syntax::{DOC_MARKER, IndexNode};
 use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
-use crate::definition::{Target, attribute_at, payload_path, site, target_of, text_of};
+use crate::definition::{
+    Target, attribute_at, class_literal_at, payload_path, site, target_of, text_of,
+};
 use crate::document::Analysed;
 use crate::position::range_at;
 
@@ -105,7 +116,9 @@ pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> O
         .iter()
         .map(|node| node.span)
         .collect();
-    let (value, node) = answer_in(analysed, &nodes, offset)
+    let (value, node) = autoload_prefix(analysed, offset)
+        .or_else(|| class_literal(analysed, offset))
+        .or_else(|| answer_in(analysed, &nodes, offset))
         .or_else(|| answer_in(analysed, &payload_path(analysed, offset), offset))
         .or_else(|| attribute(analysed, offset))?;
     // A run of bare `///` markers is a run with nothing in it, and it takes the
@@ -362,6 +375,65 @@ fn answer_in(analysed: &Analysed, nodes: &[Span], offset: BytePos) -> Option<(St
 /// Whether `byte` is one a qualified name is written with.
 fn is_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'\\'
+}
+
+/// What the class a class-reference literal names documents, on the terms of
+/// a cursor on the class's name, and the literal's span.
+///
+/// The class is [`crate::definition::class_literal_at`]'s, and the answer is
+/// the one hovering the name gives: a `///` run, and nothing for a class with
+/// none.
+fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let (target, span) = class_literal_at(analysed, offset)?;
+    Some((run(analysed, &target)?, span))
+}
+
+/// The namespace an `autoload` prefix maps and the directories a name under it
+/// is looked for in, for a cursor inside the prefix's literal, and that
+/// literal's span.
+///
+/// Both are read off the declaration's `nvs_hir::autoload::Site`, which
+/// resolves them with the functions the autoload map is built with
+/// (`rule:programs/autoload`). So a `{..}` segment shows the directory name it
+/// is replaced by, and a root that does not exist is listed and says so. A
+/// cursor on the `{..}` segment itself is told what that segment is first.
+fn autoload_prefix(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let (site, literal, written) = analysed
+        .autoloads
+        .iter()
+        .find_map(|site| match &site.kind {
+            SiteKind::Prefix {
+                prefix, literal, ..
+            } if literal.start < offset && offset < literal.end => Some((site, *literal, prefix)),
+            _ => None,
+        })?;
+    let namespace = site.namespace()?;
+    let mut value = String::new();
+    // The written prefix and the namespace have one segment each, in order, so
+    // the segment the cursor is on is found by counting separators.
+    let before = analysed
+        .map
+        .file(analysed.entry)
+        .text()
+        .get(literal.start as usize + 1..offset as usize)?;
+    let segment = before.matches('\\').count();
+    if let (Some(braced), Some(name)) = (written.split('\\').nth(segment), namespace.get(segment))
+        && braced.starts_with('{')
+    {
+        let _ = writeln!(
+            value,
+            "`{braced}` is `{name}`, the name of the directory it reaches.\n"
+        );
+    }
+    let _ = writeln!(value, "```nvs\nnamespace {}\n```\n", namespace.join("\\"));
+    value.push_str("A name in this namespace is looked for in these directories, in this order:\n");
+    for root in site.roots() {
+        let _ = write!(value, "\n- `{}`", root.shown);
+        if !root.exists {
+            value.push_str(" (does not exist)");
+        }
+    }
+    Some((value, literal))
 }
 
 /// The card of the attribute whose name the cursor is on, and that name's

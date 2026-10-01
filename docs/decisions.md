@@ -1560,7 +1560,10 @@ line a statement starts on is listed with the number of times it ran. A line no 
 
 Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the editor lists
 the folders and `.nvs` files in the folder the path reaches so far. An `autoload` path lists folders
-only. Ctrl+click on an `autoload` root or glob shows its folder in the Explorer.
+only. Ctrl+click on an `autoload` root or glob shows its folder in the Explorer. An `autoload`
+prefix lists the namespaces your code declares, and its hover shows the folders it maps to. In
+`'App\User' as class<Model>`, the string lists the classes that are a `Model`, and ctrl+click opens
+the class.
 
 ## Engineering decisions
 

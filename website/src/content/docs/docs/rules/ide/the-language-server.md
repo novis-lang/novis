@@ -202,14 +202,17 @@ the answer. Each is named because
 "minimal" without a list is how scope grows: `publishDiagnostics` (the existing `nvs check` pipeline, at
 the negotiated encoding, `code` set, phase-gated per [`ide/diagnostics-are-phase-gated`](/docs/rules/ide/the-language-server/#diagnostics-are-phase-gated "A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics")); `hover`
 (the declared type, a `Core` member's registry signature row, a declaration's doc-comment run as
-Markdown); `definition` (the declaring span anywhere in the resolved `require`/`autoload` graph);
-`completion` (keywords by position, members off a resolved receiver including `Core` classes, enum cases
-after `Type::`, in-scope variables, and inside a `require` or `autoload` path literal the entries of the
-directory its text reaches — no workspace symbol search); `semanticTokens/full`; `documentSymbol`;
-and three that are projections of data the tree already holds rather than features built on it —
-`selectionRange` (the index's ancestor list is the response), `foldingRange` (the same walk plus comment
-blocks out of the trivia layer) and `documentLink` (the resolved path literal of a `require`, and each
-`autoload` root and `discover` glob, which name the directory each resolves to and list).
+Markdown, an `autoload` prefix's namespace and roots, and the class the string of `as class<T>` names);
+`definition` (the declaring span anywhere in the resolved `require`/`autoload` graph, the string of `as
+class<T>` included); `completion` (keywords by position, members off a resolved receiver including `Core`
+classes, enum cases after `Type::`, in-scope variables, inside a `require` or `autoload` path literal the
+entries of the directory its text reaches, inside an `autoload` prefix the namespaces the workspace
+declares, and inside the string of `as class<T>` the classes that are a `T` — no workspace symbol
+search); `semanticTokens/full`; `documentSymbol`; and three that are projections of data the tree already
+holds rather than features built on it — `selectionRange` (the index's ancestor list is the response),
+`foldingRange` (the same walk plus comment blocks out of the trivia layer) and `documentLink` (the
+resolved path literal of a `require`, each `autoload` root and `discover` glob, which name the directory
+each resolves to and list, and an `autoload` prefix, which names the first of its roots that exists).
 M4B's non-standard request is `nvs/redactions`
 ([`ide/redaction-ranges-come-from-the-server`](/docs/rules/ide/security-in-the-editor/#redaction-ranges-come-from-the-server "The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess")), non-standard because LSP has no shape for "do not
 show this to the room".
