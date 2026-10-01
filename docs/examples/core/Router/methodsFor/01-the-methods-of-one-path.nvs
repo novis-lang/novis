@@ -11,12 +11,8 @@ class Comments {
     public function add(): string { return "a new comment"; }
 }
 
-// `Core\Router::methodsFor` returns one `Core\Http\Method` for each method.
-// They are in the order the routes are declared. This prints `GET` and `POST`.
+// `Core\Router::methodsFor` returns the methods in the order the routes are declared.
+// `Core\Http::methodName` converts each one to text. This prints `GET` and `POST`.
 foreach (Core\Router::methodsFor("/comments") as Core\Http\Method $verb) {
-    echo match ($verb) {
-        Core\Http\Method::Get => "GET",
-        Core\Http\Method::Post => "POST",
-        default => "another method",
-    }, "\n";
+    echo Core\Http::methodName($verb), "\n";
 }

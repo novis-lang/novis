@@ -14,20 +14,6 @@ class Orders {
 }
 
 class Verbs {
-    // The name to put in the answer, spelled the way HTTP spells it.
-    public static function text(Core\Http\Method $verb): string {
-        return match ($verb) {
-            Core\Http\Method::Get => "GET",
-            Core\Http\Method::Head => "HEAD",
-            Core\Http\Method::Options => "OPTIONS",
-            Core\Http\Method::Trace => "TRACE",
-            Core\Http\Method::Post => "POST",
-            Core\Http\Method::Put => "PUT",
-            Core\Http\Method::Patch => "PATCH",
-            Core\Http\Method::Delete => "DELETE",
-        };
-    }
-
     // Says what to answer for one verb and one path.
     public static function answer(Core\Http\Method $verb, string $path): string {
         if (Core\Router::match($verb, $path) != null) {
@@ -41,7 +27,9 @@ class Verbs {
 
         string $list = "";
         foreach ($allowed as Core\Http\Method $other) {
-            $list = $list == "" ? Verbs::text($other) : $list . ", " . Verbs::text($other);
+            // `Core\Http::methodName` converts the method to text, for example `GET`.
+            string $name = Core\Http::methodName($other);
+            $list = $list == "" ? $name : $list . ", " . $name;
         }
         return "405, try one of: " . $list;
     }

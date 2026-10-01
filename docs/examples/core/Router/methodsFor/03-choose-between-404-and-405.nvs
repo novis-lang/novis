@@ -26,16 +26,8 @@ class NoRoute {
             if ($allow != "") {
                 $allow = $allow . ", ";
             }
-            $allow = $allow . match ($verb) {
-                Core\Http\Method::Get => "GET",
-                Core\Http\Method::Head => "HEAD",
-                Core\Http\Method::Options => "OPTIONS",
-                Core\Http\Method::Trace => "TRACE",
-                Core\Http\Method::Post => "POST",
-                Core\Http\Method::Put => "PUT",
-                Core\Http\Method::Patch => "PATCH",
-                Core\Http\Method::Delete => "DELETE",
-            };
+            // `Core\Http::methodName` converts the method to text, for example `GET`.
+            $allow = $allow . Core\Http::methodName($verb);
         }
         return "405 Method Not Allowed, Allow: " . $allow;
     }

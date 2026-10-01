@@ -13,16 +13,8 @@ Client::put("https://api.example.com/users/7", {json: ["name" => "Ada"]});
 // `Client::request` takes the method as its first argument.
 Client::request(Method::Options, "https://api.example.com/users");
 
+// `Core\Http::methodName` converts each method to text.
 // This prints `GET`, `PUT` and `OPTIONS`, one on each line.
 foreach (Test::sentHttp() as SentRequest $request) {
-    echo match ($request->method()) {
-        Method::Get => "GET",
-        Method::Head => "HEAD",
-        Method::Options => "OPTIONS",
-        Method::Trace => "TRACE",
-        Method::Post => "POST",
-        Method::Put => "PUT",
-        Method::Patch => "PATCH",
-        Method::Delete => "DELETE",
-    }, "\n";
+    echo Core\Http::methodName($request->method()), "\n";
 }
