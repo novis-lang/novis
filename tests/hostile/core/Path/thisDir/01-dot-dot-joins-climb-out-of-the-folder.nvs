@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a program adds `..` parts to `Core\Path::thisDir` to climb out of its
+// folder and read other files. The path stops at the root, and each read should
+// throw a `RuntimeError`.
+
+// 1. Climb to the folder above and read a file there.
+try {
+    echo Core\IO::read(Core\Path::thisDir('../nvs.toml')), "\n";
+} catch (RuntimeError $error) {
+    echo "1: throws\n";
+}
+
+// 2. Climb far past the root. The path stops at the root of the disk.
+string $top = Core\Path::thisDir('../../../../../../../../../../../../../../../../../../../../../../../..');
+echo '2: ', Core\Path::isAbsolute($top) ? 'absolute' : 'relative', ', ',
+    Core\Path::dirname($top) == $top ? 'at the root' : 'below the root', "\n";
+
+// 3. Go down into a folder and climb back out of it in the same path.
+try {
+    echo Core\IO::read(Core\Path::thisDir('data/../../../../secrets.txt')), "\n";
+} catch (RuntimeError $error) {
+    echo "3: throws\n";
+}
+
+// 4. A path with a NUL byte in it.
+try {
+    echo Core\IO::read(Core\Path::thisDir("data\0/../../nvs.toml")), "\n";
+} catch (RuntimeError $error) {
+    echo "4: throws\n";
+}
+
+// 5. A system file, reached by climbing past the root.
+try {
+    echo Core\IO::read(Core\Path::thisDir('../../../../../../../../../../../../../../../../etc/passwd')), "\n";
+} catch (RuntimeError $error) {
+    echo "5: throws\n";
+}

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to add a file name that the program builds to the folder of this file.
+
+array<string> $months = ["2026-01", "2026-02"];
+
+// `thisDir` needs a string literal, so a built name goes to `Core\Path::join`.
+// This prints `2026-01.csv` and `2026-02.csv`.
+foreach ($months as string $month) {
+    string $path = Core\Path::join(Core\Path::thisDir(), "exports", $month . ".csv");
+    echo Core\Path::basename($path), "\n";
+}

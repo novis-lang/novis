@@ -1,0 +1,11 @@
+<?nvs
+// Shows how a program gets the full path of a file in its own folder.
+
+// `thisDir` adds `about.md` to the folder of this file.
+string $about = Core\Path::thisDir('about.md');
+
+// The path starts at a root, so this prints `true`.
+echo Core\Path::isAbsolute($about) ? "true" : "false", "\n";
+
+// The folder of the path is the folder of this file. This prints `thisDir`.
+echo Core\Path::basename(Core\Path::dirname($about)), "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// Gets the path of a file beside the program, as code does before it opens a data file.
+// bench: iterations 400000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Path::thisDir('data/rates.json')) + $i % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000) > 0 ? "done" : "empty", "\n";
