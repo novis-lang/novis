@@ -100,7 +100,7 @@ Conventions the whole file uses:
 | [`Core\Out`](#core-core-out) | output buffering scoped to a closure — what it echoes is captured as the sink's carrier instead of reaching the output |
 | [`Core\Debug`](#core-core-debug) | one readable rendering of any value — `dump` writes it to stderr, `render` answers it as text |
 | [`Core\Test`](#core-core-test) | the typed assertion roster a `#[Test]` method calls — what PHPUnit's `assert*` family becomes when testing is part of the language |
-| [`Core\Test\Response`](#core-core-test-response) | what `Core\Test::request` answers — the status and the bytes one in-process request produced |
+| [`Core\Test\Response`](#core-core-test-response) | what `Core\Test::request` answers — the status, the headers, the cookies and the body one in-process request produced |
 | [`Core\Test\SentRequest`](#core-core-test-sentrequest) |  |
 | [`Core\Task`](#core-core-task) | structured concurrency — run a fixed set or a whole array of closures as child tasks and get every result back before the call returns |
 | [`Core\Task\Channel<T>`](#core-core-task-channel) | a bounded queue between two tasks whose `send` waits at the bound — backpressure instead of a growing buffer |
@@ -5939,7 +5939,9 @@ The two spellings of an attribute:
   of a scalar, or an undeclared name is refused. The literal is checked against that shape the way
   any shape-typed binding is: every field the shape declares must be present at its type, and
   extra fields are allowed. `#[Name]` with no list attaches an empty literal, which satisfies an
-  alias declaring no fields (`type Audited = {};`).
+  alias declaring no fields (`type Audited = {};`). `Name` may also be `Owner::Name`, an alias
+  declared inside an interface, class or enum, written the same way as in a type:
+  `#[Page::Meta(title: "Home")]`. A name the compiler acts on (below) is never written this way.
 - **Bare**: `#[{field: value, …}]` — a literal with no name and nothing to check it against.
 
 Rules that hold for both:
@@ -16345,7 +16347,7 @@ final class CartTest {
 | [`Core\Test::advance`](#core-core-test-advance) | `advance(Core\Time\Duration $by): void` |
 | [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
-| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string\|bytes, mount?: string}): Core\Test\Response` |
+| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string\|bytes, mount?: string, captures?: array<string>}): Core\Test\Response` |
 | [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>, tls?: Core\Http\TlsInfo}): void` |
 | [`Core\Test::tlsSession`](#core-core-test-tlssession) | `tlsSession({version?: string, cipher?: string, verified?: bool, subject?: string, issuer?: string, expiry?: Core\Time\Instant}): Core\Http\TlsInfo` |
 | [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
@@ -16608,7 +16610,7 @@ Gives the answers for the next `Core\Cli` prompts, so you can test a program tha
 #### `Core\Test::request`
 
 ```nvs skip
-Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string}): Core\Test\Response
+Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string>}): Core\Test\Response
 ```
 
 Sends one request to your own program and returns the answer. It opens no network connection. The request goes through the same route table and the same code as a real request.
@@ -16620,10 +16622,11 @@ Sends one request to your own program and returns the answer. It opens no networ
 | `{headers: …}` | `array<string>` (default `[]`) | The headers of the request, with the header name as the key. If you give no `content-type` or `content-length`, the length is set from `body`. |
 | `{body: …}` | `string\|bytes` (default `null`, neutral) | The body of the request, as a `string` or as `bytes`. If you give no body, the request has no body. An empty string is a body of length 0. |
 | `{mount: …}` | `string` (default `""`, neutral) | The prefix the program is served under, such as `/shop`. `Core\Request::mount()` returns it, and `Core\Router::url` adds it in front of each link. The default is `""`, which means the root. |
+| `{captures: …}` | `array<string>` (default `[]`) | The parts of the prefix that the mount's pattern matched, in order. For the pattern `/shops/{1}` and `mount: "/shops/acme"`, this is `["acme"]`. `Core\Request::mount()->captures()` returns this list. The default is an empty list. You need `mount` to give `captures`. |
 
-**Returns** `Core\Test\Response` — A `Core\Test\Response`. `status()` returns the status the program set, or `200` if it set none. `body()` returns the text the program wrote. A path that no route matches still gets an answer, because your program decides what to do with it.
+**Returns** `Core\Test\Response` — A `Core\Test\Response`. `status()` returns the status the program set, or `200` if it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it.
 
-**Throws** `RuntimeError` — There is no program to answer, because the call is not in `nvs test` or `nvs run`. The call is also an error inside a request that `request` sent, because a request cannot send another request.
+**Throws** `LogicError` — `captures` is not empty and `mount` is `""`. The root has no pattern, so it has no captures. `captures` is also an error when it is not a list.; `RuntimeError` — There is no program to answer, because the call is not in `nvs test` or `nvs run`. The call is also an error inside a request that `request` sent, because a request cannot send another request.
 
 <a id="core-core-test-answerhttp"></a>
 #### `Core\Test::answerHttp`
@@ -16805,18 +16808,27 @@ Runs `$body` with the test's clock advanced by `$settings.within`, and asserts t
 <a id="core-core-test-response"></a>
 ### `Core\Test\Response`
 
-Keywords: Core\Test::request, in-process request, HTTP test, functional test, route table, status, body, response, no socket, status, body
+Keywords: Core\Test::request, in-process request, HTTP test, functional test, route table, status, body, header, headers, cookies, json, jsonAs, response, no socket, status, body, header, headers, cookies, json, jsonAs
 
 `Core\Test\Response` is the value `Core\Test::request(...)` answers: what the program under test wrote
-while answering one synthetic request. **It has two members**, `status()` and `body()`, and no
+while answering one synthetic request. `status()` is the status, `header()` and `headers()` the
+headers, `cookies()` the cookies it set, and `body()`, `json()` and `jsonAs<T>()` the body. It has no
 constructor — the only way to obtain one is to make a request.
+
+The readers are `Core\Request`'s, read from the answer's side: `header` matches any case and joins
+repeated lines with `, `, `headers` keys lower-cased names to lists of lines, and `json` and `jsonAs`
+take the same `{maxDepth?}` option and throw the same errors. The headers are the ones a visitor is
+sent by the program — its `Content-Type`, which is HTML for a page that only echoed, a redirect's
+`Location`, the `Set-Cookie` of each `addCookie`, and every `setHeader` — and not the ones the server
+adds for itself. `header("Set-Cookie")` throws a `LogicError`, because two cookies joined are not a
+cookie; `cookies()` reads them by name.
 
 The request runs in this process. There is no socket and no port: the program's own entry is run as an
 isolate with the compiled route table's match already on it, so `Core\Request::route()` inside the
 program reads the same match a served request would, and the handler chain that answers is the real one
 rather than a mock of it. What comes back is the status the program declared — `200` where it declared
-none — and every byte it echoed. A program that throws an error it does not catch answers `500` and an
-empty body, which is what the server sends for a failed request.
+none — and every byte it echoed. A program that throws an error it does not catch answers `500`, an
+empty body and no headers of its own, which is what the server sends for a failed request.
 
 ```nvs skip
 #[Test]
@@ -16837,6 +16849,11 @@ there being no program under test to answer it.
 |---|---|
 | [`Core\Test\Response->status`](#core-core-test-response-status) | `status(): uint` |
 | [`Core\Test\Response->body`](#core-core-test-response-body) | `body(): string` |
+| [`Core\Test\Response->header`](#core-core-test-response-header) | `header(string $name): ?string` |
+| [`Core\Test\Response->headers`](#core-core-test-response-headers) | `headers(): array<array<string>>` |
+| [`Core\Test\Response->cookies`](#core-core-test-response-cookies) | `cookies(): array<string>` |
+| [`Core\Test\Response->json`](#core-core-test-response-json) | `json({maxDepth?: uint}): mixed` |
+| [`Core\Test\Response->jsonAs`](#core-core-test-response-jsonas) | `jsonAs<T>({maxDepth?: uint}): T` |
 
 <a id="core-core-test-response-status"></a>
 #### `Core\Test\Response->status`
@@ -16859,6 +16876,79 @@ $response->body(): string
 Returns the text the program wrote while it answered this request.
 
 **Returns** `string` — Everything the program wrote with `echo`, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string, because the server sends no body for a failed request.
+
+<a id="core-core-test-response-header"></a>
+#### `Core\Test\Response->header`
+
+```nvs skip
+$response->header(string $name): ?string
+```
+
+Returns the value of one header of the answer, by its name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The name of the header. Upper and lower case do not matter, so `Content-Type` and `content-type` are the same header. |
+
+**Returns** `?string` — The value, exactly as the program set it. The result is `null` when the answer has no header of that name. When the answer has the header on more than one line, the values are joined with `, ` in order. The answer always has a `Content-Type` header. If the program set none, its value is `text/html; charset=utf-8`, the same as the server sends. A request that failed has no headers.
+
+**Throws** `LogicError` — The name is `Set-Cookie`. Two cookies joined into one string are not a cookie, so `cookies()` and `headers()` read that header.
+
+<a id="core-core-test-response-headers"></a>
+#### `Core\Test\Response->headers`
+
+```nvs skip
+$response->headers(): array<array<string>>
+```
+
+Returns every header of the answer, grouped by name.
+
+**Returns** `array<array<string>>` — An `array<array<string>>`. Each key is a header name in lower case. Its value is a list with one entry for each line of that header, in order. `Set-Cookie` has one line for each cookie. A request that failed returns an empty array.
+
+<a id="core-core-test-response-cookies"></a>
+#### `Core\Test\Response->cookies`
+
+```nvs skip
+$response->cookies(): array<string>
+```
+
+Returns the cookies the program set in this answer, by name.
+
+**Returns** `array<string>` — An `array<string>`. Each key is a cookie name and each value is the cookie value, exactly as the program set it. Nothing is decoded. Attributes such as `Path` and `HttpOnly` are not in the result, and `headers()["set-cookie"]` returns the whole lines. When the program set one name twice, the result has the last value. A cookie that the program deleted is in the result with an empty value. The array is empty when the program set no cookie.
+
+<a id="core-core-test-response-json"></a>
+#### `Core\Test\Response->json`
+
+```nvs skip
+$response->json({maxDepth?: uint}): mixed
+```
+
+Reads the body of the answer as one JSON document and returns the decoded value.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest. The default is 512, and the value must be from 1 to 1024. A document with no array or object in it has depth 1. |
+
+**Returns** `mixed` — The decoded value, the same as `Core\Json::decode` returns for the body. A JSON object becomes an array with string keys. Every call decodes the body again and returns the same value.
+
+**Throws** `LogicError` — `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON document, or it nests deeper than `maxDepth`. An empty body throws this error too. The `Content-Type` header is not checked.
+
+<a id="core-core-test-response-jsonas"></a>
+#### `Core\Test\Response->jsonAs`
+
+```nvs skip
+$response->jsonAs<T>({maxDepth?: uint}): T
+```
+
+Reads the body of the answer as one JSON object and returns a new instance of the class `T`. The class needs `#[Core\Json\Derive]`. Write `array<T>` to read a JSON array with one object for each element.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest. The default is 512, and the value must be from 1 to 1024. A document with no array or object in it has depth 1. |
+
+**Returns** `T` — A new `T` with its fields read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects.
+
+**Throws** `LogicError` — `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RecursionError` — The call stack is full before the last object is created. This can happen when a class contains itself and the body nests very deeply.
 
 <a id="core-core-test-sentrequest"></a>
 ### `Core\Test\SentRequest`
@@ -26376,6 +26466,7 @@ E0401
 ### nvs test
 
     nvs test <paths>... [--filter <text>] [--format human|json|junit] [--php <path>] [--update]
+                        [--coverage-lcov <file>] [--coverage-clover <file>]
 
 One subcommand runs two kinds of test, and which one is meant is read off the path:
 
@@ -26435,8 +26526,16 @@ final class MathTest {
   and a `.nvst` tree are each refused beside it.
 - `--php <path>` names the PHP binary a case with an `--ORACLE--` section is compared against
   (default `php`).
+- `--coverage-lcov <file>` writes the run's line coverage to the file in the lcov format.
+  `--coverage-clover <file>` writes the same coverage as Clover XML, the format PHPUnit's
+  `--coverage-clover` writes. You can give both in one run. Each line where a statement starts is
+  listed with the number of times it ran. A line that no test reached has the count `0`. A file
+  is named relative to the directory you run `nvs test` in, so run it from your repository's root
+  for your CI service to find the files. Under the `human` format, the run prints one more line,
+  `N of N lines run (N%)`. The top-level statements of a file do not run under `nvs test`, so
+  they have the count `0`. Naming either flag beside a `.nvst` tree or `--list` is refused.
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
-  wrote it, and is **the only spelling under which `nvs test` writes to a file at all**. It
+  wrote it, and is **the only spelling under which `nvs test` writes to a source file**. It
   replaces the `$expected` literal and nothing else: a passing snapshot is untouched, and so is
   every other line of the file. The verdicts do not change — the tests that produced a new
   snapshot are still reported as failed, and the re-run is what says the new text is the one you
