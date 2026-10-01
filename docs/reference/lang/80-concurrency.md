@@ -17,6 +17,27 @@ while any child is still running.
 what `curl_multi_*` was for. Nothing is shared between requests: there are no globals that outlive
 one, and no `Core` member that keeps state across them.
 
+```nvs
+<?nvs
+class Loader {
+    // `sleep` waits like any other call. There is no `async` and no `await` to write.
+    public static function load(string $name): string {
+        Core\Time::sleep(Core\Time\Duration::milliseconds(10));
+        return $name;
+    }
+}
+
+// The two calls run at the same time. `Core\Task::all` returns when both are done.
+var $both = Core\Task::all({
+    first:  fn(): string => Loader::load("users"),
+    second: fn(): string => Loader::load("orders"),
+});
+echo $both->first, " ", $both->second, "\n";
+```
+```output
+users orders
+```
+
 # `Core\Task::all`: a fixed set of tasks
 
 `Core\Task::all` takes a shape whose every field is a zero-argument callable, runs them all
@@ -389,3 +410,12 @@ help: grant it in nvs.toml under `[capabilities.script]`
   around it into a child that shares nothing but compiled code.
 - State shared between requests, or between an isolate and its parent, other than the values that
   cross at `await`.
+
+```nvs error
+<?nvs
+// There is no `Fiber` class. Run the work as a task with `Core\Task::all` or `Core\Task::map`.
+var $fiber = new Fiber(fn(): int => 1);
+```
+```output
+`Fiber` is not declared
+```

@@ -5477,6 +5477,27 @@ while any child is still running.
 what `curl_multi_*` was for. Nothing is shared between requests: there are no globals that outlive
 one, and no `Core` member that keeps state across them.
 
+```nvs
+<?nvs
+class Loader {
+    // `sleep` waits like any other call. There is no `async` and no `await` to write.
+    public static function load(string $name): string {
+        Core\Time::sleep(Core\Time\Duration::milliseconds(10));
+        return $name;
+    }
+}
+
+// The two calls run at the same time. `Core\Task::all` returns when both are done.
+var $both = Core\Task::all({
+    first:  fn(): string => Loader::load("users"),
+    second: fn(): string => Loader::load("orders"),
+});
+echo $both->first, " ", $both->second, "\n";
+```
+```output
+users orders
+```
+
 ### `Core\Task::all`: a fixed set of tasks
 
 `Core\Task::all` takes a shape whose every field is a zero-argument callable, runs them all
@@ -5850,6 +5871,15 @@ help: grant it in nvs.toml under `[capabilities.script]`
 - State shared between requests, or between an isolate and its parent, other than the values that
   cross at `await`.
 
+```nvs error
+<?nvs
+// There is no `Fiber` class. Run the work as a task with `Core\Task::all` or `Core\Task::map`.
+var $fiber = new Fiber(fn(): int => 1);
+```
+```output
+`Fiber` is not declared
+```
+
 <a id="lang-attributes"></a>
 ## A.10 Attributes, routes, commands and derived codecs
 
@@ -5962,6 +5992,31 @@ payload, so nothing is reflected on at run time.
 - PHP's `ReflectionClass::getAttributes()` and `ReflectionAttribute::newInstance()` do not exist; a
   retrieved payload is a plain shape value, read with `->`.
 
+```nvs
+<?nvs
+type Tag = {label: string};
+type Route = {path: string};
+
+#[Tag(label: "fast")]
+#[Tag(label: "safe")]
+class Engine {}
+
+// `all<Tag>` returns every attribute that matches the shape `Tag`, in the order they are written.
+array<Tag> $tags = Core\Attributes::all<Tag>(Engine::constructor(...));
+foreach ($tags as Tag $tag) {
+    echo $tag->label, "\n";
+}
+
+// `get<Route>` returns `null`, because `Engine` has no attribute with a `path` field.
+?Route $route = Core\Attributes::get<Route>(Engine::constructor(...));
+echo $route?->path ?? "no route", "\n";
+```
+```output
+fast
+safe
+no route
+```
+
 ### The names the compiler acts on
 
 Everything above is inert metadata. A closed set of `Core`-owned names is different: when an
@@ -5970,6 +6025,21 @@ command row or a test row — and checks its payload against that attribute's ow
 refusing an unknown field, a mistyped one, or one given twice. The match is by resolved name, so a
 userland `type Route = {…}` declares an ordinary attribute and never a route, and `#[Core\Route]`
 and `use Core\Route; … #[Route]` are the same attribute.
+
+```nvs error
+<?nvs
+class Home {
+    // `Core\Route` has no `colour` field, so this does not compile.
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, colour: "red")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string {
+        return "home";
+    }
+}
+```
+```output
+`colour` is not an option of `#[Route]`
+```
 
 - `#[Core\Json\Derive]`
 - `#[Core\Json\Field]`
@@ -6469,6 +6539,34 @@ route and command tables find theirs too.
   constructor callable with no arguments — dependencies arrive through `I`'s own methods.
 - The instances are built where the call stands, once per evaluation, like any other `new`.
 - An interface nothing implements answers `[]`.
+
+```nvs
+<?nvs
+interface Greeter {
+    public function greet(): string;
+}
+
+class English implements Greeter {
+    public function greet(): string {
+        return "hello";
+    }
+}
+
+class German implements Greeter {
+    public function greet(): string {
+        return "hallo";
+    }
+}
+
+// The array has one new object of each class, sorted by class name.
+foreach (Core\Program::implementing<Greeter>() as Greeter $greeter) {
+    echo $greeter->greet(), "\n";
+}
+```
+```output
+hello
+hallo
+```
 
 ### `Core\Program::implementingWith<I, T>($member)`: every implementor with one attribute
 
