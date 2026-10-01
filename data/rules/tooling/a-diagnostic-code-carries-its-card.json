@@ -1,6 +1,6 @@
 {
   "title": "Every diagnostic code carries a plain card that `nvs agent show` prints, and a terminal rendering names that command once",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0216"
   ],
@@ -9,5 +9,8 @@
     "core-api/reference-card",
     "testing/feature-proofs"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-diagnostics/src/lib.rs",
+    "crates/nvs-diagnostics/src/render.rs"
+  ]
 }

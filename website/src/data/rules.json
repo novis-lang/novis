@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1018,
-    "shipped": 782,
-    "designed": 236,
+    "shipped": 783,
+    "designed": 235,
     "diverging": 589
   },
   "topics": [
@@ -2253,8 +2253,8 @@
       "single": false,
       "counts": {
         "total": 67,
-        "shipped": 44,
-        "designed": 23,
+        "shipped": 45,
+        "designed": 22,
         "diverging": 40
       },
       "sections": [
@@ -2571,8 +2571,8 @@
           "url": "/docs/rules/tooling/doc-comments-and-metadata/",
           "counts": {
             "total": 14,
-            "shipped": 7,
-            "designed": 7,
+            "shipped": 8,
+            "designed": 6,
             "diverging": 6
           },
           "rules": [
@@ -2668,7 +2668,7 @@
               "id": "tooling/a-diagnostic-code-carries-its-card",
               "slug": "a-diagnostic-code-carries-its-card",
               "title": "Every diagnostic code carries a plain card that `nvs agent show` prints, and a terminal rendering names that command once",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/doc-comments-and-metadata/#a-diagnostic-code-carries-its-card",
               "diverges": null
             },

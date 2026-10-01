@@ -4671,7 +4671,10 @@ pub mod code {
     /// calling through the value by name, which nothing supports; reported
     /// once per type however many parameters carry one, since writing PHP's
     /// parameter spelling is one mistake and deleting the names is one fix.
-    pub const E_CALLABLE_TYPE_NAMES_A_PARAMETER: Code = Code::new("E0800");
+    pub const E_CALLABLE_TYPE_NAMES_A_PARAMETER: Code = Code::new("E0800").card(
+        "A `callable` type lists only the types of its parameters, not their names. Write \
+         `callable(int): string`, not `callable(int $x): string`.",
+    );
 
     /// Two writers of one response body — `echo` and a typed body member, or
     /// two different typed members —
@@ -4686,7 +4689,10 @@ pub mod code {
     /// statically certain to reach — `nvs_types::response`'s module doc owns
     /// that scope, the reach inside a handler, and the entry script the scope
     /// leaves to the run-time default.
-    pub const E_ECHO_BESIDE_A_BODY_MEMBER: Code = Code::new("E0801");
+    pub const E_ECHO_BESIDE_A_BODY_MEMBER: Code = Code::new("E0801").card(
+        "This route handler writes its response body in two ways, for example with `echo` and \
+         with a body method. A response has one body, so write it in one way only.",
+    );
 
     /// A `spawn script` operand that is neither of
     /// [ADR 0006](/docs/decisions/0006.md)
@@ -4706,7 +4712,11 @@ pub mod code {
     /// a `string` parameter would read as: the operand position accepts two
     /// unrelated shapes, so "expected `string`" describes half the rule and
     /// sends the reader to fix the wrong half.
-    pub const E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD: Code = Code::new("E0802");
+    pub const E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD: Code = Code::new("E0802").card(
+        "`spawn script` needs a path or a `static` method written as `Class::method(...)`. An \
+         `fn` literal or a `callable` variable is not allowed. Move the code into a `static` \
+         method and spawn that method.",
+    );
 
     // `E0804` is retired and is never reused: it refused a method entry that
     // declared a parameter. ADR 0006 § *Decision*'s binding lowers — the
@@ -4729,7 +4739,10 @@ pub mod code {
     /// text is still in the source and still greppable, and pulling a long
     /// justification out to a named constant is the shape this hatch wants
     /// rather than the one it refuses.
-    pub const E_REASON_NOT_A_SOURCE_LITERAL: Code = Code::new("E0805");
+    pub const E_REASON_NOT_A_SOURCE_LITERAL: Code = Code::new("E0805").card(
+        "The reason passed to this method must be a string literal or a `const`. A computed \
+         value is not allowed, because a reader must be able to see the reason in the code.",
+    );
 
     /// A `Core\Db\…::queryAs<T>` whose `T` no row can be hydrated into —
     /// `rule:core-classes/db-column-types`'s type map, asked at the call
@@ -4748,7 +4761,11 @@ pub mod code {
     /// declaration's own refusal and fires whether or not anything ever calls
     /// `queryAs`: this one is about a *call*, and the class it names may be
     /// perfectly well formed for every other purpose it has.
-    pub const E_QUERY_AS_NOT_A_ROW_CLASS: Code = Code::new("E0806");
+    pub const E_QUERY_AS_NOT_A_ROW_CLASS: Code = Code::new("E0806").card(
+        "`queryAs<T>` cannot build this class from a database row. `T` must be one class and \
+         not a list such as `array<Row>`, and the class needs `#[Db\\Derive]`. Every \
+         `constructor` parameter of the class must be filled from a column.",
+    );
 
     /// `callable(int)` — a `callable` type written with a parameter list and
     /// no return type, `rule:types/callable-signature`.
@@ -4759,7 +4776,10 @@ pub mod code {
     /// would not, so the site keeps the dynamic path anyway. `void` and
     /// `never` are writable there as in any other return position, which is
     /// what the help names.
-    pub const E_CALLABLE_TYPE_WITHOUT_RETURN: Code = Code::new("E0807");
+    pub const E_CALLABLE_TYPE_WITHOUT_RETURN: Code = Code::new("E0807").card(
+        "A `callable` type with a parameter list needs a return type. Write \
+         `callable(int): void` if it returns nothing.",
+    );
 
     /// `fn ($n) => …` written where nothing says what `$n` holds —
     /// `rule:types/callable-literal-inference`.
@@ -4770,7 +4790,10 @@ pub mod code {
     /// of the lattice and names no parameter, and a signature shorter than the
     /// literal names this one no type either. The parameter is checked as
     /// `mixed` afterwards so the body is still checked at all.
-    pub const E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE: Code = Code::new("E0808");
+    pub const E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE: Code = Code::new("E0808").card(
+        "This closure parameter has no type, and the compiler cannot tell which type it should \
+         have. Write the type, as in `fn (User $u) => $u->name`.",
+    );
 
     /// `$f(1)` where `$f` is a `callable(int, string): R` — a call through a
     /// written signature passing a number of arguments the signature does not
@@ -4785,7 +4808,10 @@ pub mod code {
     /// site passing more names a parameter the type does not have. Bare
     /// `callable` keeps no count at all: nothing there says what to compare
     /// against.
-    pub const E_CALLABLE_CALL_ARITY: Code = Code::new("E0809");
+    pub const E_CALLABLE_CALL_ARITY: Code = Code::new("E0809").card(
+        "This call passes a different number of arguments than the `callable` type lists. \
+         Pass exactly the parameters the type names.",
+    );
 
     /// `Core\Request::jsonAs<T>()` over a `T` holding a `string` or `bytes`
     /// property that is not written `tainted` —
@@ -4808,7 +4834,11 @@ pub mod code {
     /// It is `jsonAs`'s alone rather than every decoder's: `Core\Json::decodeAs`
     /// takes its document through a plain `string` parameter, so a tainted
     /// argument is already refused where it is passed.
-    pub const E_DECODED_FIELD_NOT_TAINTED: Code = Code::new("E0810");
+    pub const E_DECODED_FIELD_NOT_TAINTED: Code = Code::new("E0810").card(
+        "`Core\\Request::jsonAs<T>()` fills this property with data from the request, so a \
+         `string` or `bytes` property must be `tainted` (marked as coming from outside the \
+         program). Write `tainted` on the property, as in `public tainted string $name`.",
+    );
 
     /// `$x is void`, `$x is never` — a type no value inhabits, written where
     /// `is` asks whether a value holds one (`rule:types/type-test`, the second
@@ -4820,7 +4850,10 @@ pub mod code {
     /// carrying. `is` is total over every type a value can inhabit
     /// (ADR 0150 § 6), and these two are the boundary of that set rather than
     /// an exception inside it.
-    pub const E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE: Code = Code::new("E0811");
+    pub const E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE: Code = Code::new("E0811").card(
+        "No value can have the type `void` or `never`, so `$x is void` has no answer. Test \
+         against a type that a value can have.",
+    );
 
     /// `$x is tainted string`, `$x is secret bytes` — a qualifier written where
     /// `is` takes a type (`rule:types/type-test`, the first of its two
@@ -4836,7 +4869,10 @@ pub mod code {
     /// Numbered past its two siblings because `E0810` was already
     /// [`E_DECODED_FIELD_NOT_TAINTED`] when `rule:types/type-test` was written,
     /// and a code means one thing.
-    pub const E_TYPE_TEST_AGAINST_A_QUALIFIER: Code = Code::new("E0813");
+    pub const E_TYPE_TEST_AGAINST_A_QUALIFIER: Code = Code::new("E0813").card(
+        "`tainted` and `secret` exist only while the program compiles, so `is` cannot test \
+         them. Test the type without them, as in `$x is string`.",
+    );
 
     /// A `catch` clause or arm naming `Core\Script\Finished`, the class
     /// `Core\Script::finish()` raises.
@@ -4854,7 +4890,11 @@ pub mod code {
     /// *other* end of the same mistake and needs no case of its own: the marker
     /// descends from `Throwable` not at all, so `throw` already reports it as
     /// an operand outside the tree.
-    pub const E_CATCH_ARM_NAMES_THE_FINISH_MARKER: Code = Code::new("E0814");
+    pub const E_CATCH_ARM_NAMES_THE_FINISH_MARKER: Code = Code::new("E0814").card(
+        "A `catch` cannot name `Core\\Script\\Finished`, because `Core\\Script::finish()` ends \
+         the request and is not an error. Put code that must run at the end in a `finally` \
+         block or a `Core\\Script::onExit` hook.",
+    );
 
     /// Two of `Core\Http\Client`'s four body keys written at one call.
     ///
@@ -4865,7 +4905,10 @@ pub mod code {
     /// [`E_RETRY_WITHOUT_IDEMPOTENCY_KEY`]'s reason — `rule:core-api/shape-rules` R2 makes the bag
     /// a literal — and where the verb is dynamic the same question throws
     /// before the first attempt rather than after it.
-    pub const E_TWO_REQUEST_BODIES: Code = Code::new("E0815");
+    pub const E_TWO_REQUEST_BODIES: Code = Code::new("E0815").card(
+        "This `Core\\Http\\Client` call has two body options, and a request has only one body. \
+         Keep the one whose format the server expects.",
+    );
 
     /// A body key written at a `Core\Http\Client` member whose verb carries no
     /// body.
@@ -4875,7 +4918,11 @@ pub mod code {
     /// one are read by no server the request was worth making to. Distinct from
     /// [`E_TWO_REQUEST_BODIES`], where the keys are legal for the verb and it is
     /// their number that is the defect.
-    pub const E_BODY_ON_A_BODYLESS_VERB: Code = Code::new("E0816");
+    pub const E_BODY_ON_A_BODYLESS_VERB: Code = Code::new("E0816").card(
+        "A `GET` or `HEAD` request sends no body, so this body option is not allowed. Put the \
+         value in the query part of the URL, or use a method that sends a body, such as \
+         `post`.",
+    );
 
     /// `contentType` written at a `Core\Http\Client` member with no `body`.
     ///
@@ -4884,7 +4931,11 @@ pub mod code {
     /// key already named, so a `contentType` beside one is either a second
     /// opinion the request will not send or a `body` the call site forgot to
     /// write.
-    pub const E_CONTENT_TYPE_WITHOUT_A_BODY: Code = Code::new("E0817");
+    pub const E_CONTENT_TYPE_WITHOUT_A_BODY: Code = Code::new("E0817").card(
+        "`contentType` gives the type of a raw `body`, and this call has no `body`. Add the \
+         `body`, or delete `contentType`. A `json`, `form` or `multipart` body sets its own \
+         type.",
+    );
 
     /// `spawn script … with(on: …)` written as anything but the word
     /// `"worker"` or the word `"here"` —
@@ -4902,7 +4953,10 @@ pub mod code {
     /// literals that `nvs_types::expr::isolate` could report instead: an
     /// expected type claims a position accepts values of that type, and this
     /// one accepts two words.
-    pub const E_SPAWN_PLACEMENT_UNKNOWN: Code = Code::new("E0818");
+    pub const E_SPAWN_PLACEMENT_UNKNOWN: Code = Code::new("E0818").card(
+        "`on:` in `spawn script` accepts only `\"worker\"` or `\"here\"`, written directly. \
+         `\"worker\"` runs the script on another CPU core, and `\"here\"` runs it on this one.",
+    );
 
     /// A capture declared at an enum subset admits two cases carrying one
     /// written value —
@@ -4915,7 +4969,11 @@ pub mod code {
     /// one segment would name two cases, and a match that picked either would be
     /// choosing for the program. Refused rather than first-wins, which is
     /// `rule:errors/ambiguous-input-refused`.
-    pub const E_ROUTE_CAPTURE_CASES_SHARE_A_VALUE: Code = Code::new("E0819");
+    pub const E_ROUTE_CAPTURE_CASES_SHARE_A_VALUE: Code = Code::new("E0819").card(
+        "Two enum cases allowed by this route parameter have the same value, so one URL \
+         segment would match both. Give the cases different values, or leave one of them out \
+         of the parameter's type.",
+    );
 
     /// A member that builds a written class out of a document — `decodeAs<T>`,
     /// `jsonAs<T>`, `queryAs<T>` on a request, `shapeAs<T>` — naming a class
@@ -4934,7 +4992,11 @@ pub mod code {
     /// The two doors keep separate codes because they refuse separate sets:
     /// a row is flat, so `E0806` also answers for a column map a document has
     /// no equivalent of.
-    pub const E_DECODED_CLASS_NOT_CONSTRUCTIBLE: Code = Code::new("E0820");
+    pub const E_DECODED_CLASS_NOT_CONSTRUCTIBLE: Code = Code::new("E0820").card(
+        "This class cannot be built from a document, because a `constructor` parameter has no \
+         field to fill it. This happens when a property has `#[Json\\Field(skip: true)]` and is \
+         still a constructor parameter. Remove that parameter, or remove `skip: true`.",
+    );
     /// A member that builds an instance out of a document names a class that
     /// declared no JSON codec at all.
     ///
@@ -4950,7 +5012,10 @@ pub mod code {
     /// a different one: that code names a contract the class does have and a
     /// constructor position it leaves unfilled, and this one names a class with
     /// no contract to inspect.
-    pub const E_DECODED_CLASS_HAS_NO_CODEC: Code = Code::new("E0821");
+    pub const E_DECODED_CLASS_HAS_NO_CODEC: Code = Code::new("E0821").card(
+        "This class cannot be read from a document, because it has no JSON codec. Write \
+         `#[Json\\Derive]` on the class, or write its `fromJson` method yourself.",
+    );
     /// A written `return;` in a body whose declaration is not `void`.
     ///
     /// The defect [`E_MISSING_RETURN`] names, written out rather than reached
@@ -4966,7 +5031,10 @@ pub mod code {
     /// pair. A generator's body reaches this nowhere — `rule:iteration/one-way-only` leaves it
     /// no return value to produce, so `nvs_types::check` checks it against
     /// `void` and `return;` is its only stop.
-    pub const E_VALUELESS_RETURN: Code = Code::new("E0822");
+    pub const E_VALUELESS_RETURN: Code = Code::new("E0822").card(
+        "This `return;` gives no value, but the function declares a return type. Return a \
+         value, or declare the return type `void`.",
+    );
     /// A method declaration that writes no return type, where the constructor
     /// is the one declaration allowed to.
     ///
@@ -4986,7 +5054,10 @@ pub mod code {
     /// block-bodied `fn`, and between them an expression-bodied closure is the
     /// only callable whose return type may go unwritten — its body is one
     /// expression, which is its own answer.
-    pub const E_METHOD_RETURN_TYPE_REQUIRED: Code = Code::new("E0823");
+    pub const E_METHOD_RETURN_TYPE_REQUIRED: Code = Code::new("E0823").card(
+        "Every method needs a return type, except the `constructor`. Write `: void` if the \
+         method returns nothing, or `: never` if it always throws.",
+    );
 
     /// A `secret` value written into a container element or field whose own
     /// type does not carry the qualifier.
@@ -5005,7 +5076,11 @@ pub mod code {
     /// legitimately reaches — a bound database parameter, a process argv, an
     /// outbound request — and each is written as an argument, so an argument
     /// list is where this steps aside and the call's own rules decide.
-    pub const E_SECRET_INTO_CONTAINER: Code = Code::new("E0824");
+    pub const E_SECRET_INTO_CONTAINER: Code = Code::new("E0824").card(
+        "A `secret` value cannot be stored in an array element or a field whose type is not \
+         `secret`. Declare the type with `secret`, as in `array<secret string>` or \
+         `{name: secret string}`.",
+    );
 
     /// A `Core\Test::double<T>` whose shape of answers leaves a method `T`
     /// requires unimplemented.
@@ -5019,7 +5094,11 @@ pub mod code {
     /// There is no answer for it to default to, which is why this is refused
     /// rather than filled in: `rule:testing/doubles` is strict because a double
     /// of `now(): Instant` has nothing legal to return.
-    pub const E_DOUBLE_METHOD_MISSING: Code = Code::new("E0825");
+    pub const E_DOUBLE_METHOD_MISSING: Code = Code::new("E0825").card(
+        "This test double (a fake object for a test) does not implement a method that its \
+         interface requires. Add a field with a closure for that method, or use \
+         `Core\\Test::partial` to take the method from a real implementation.",
+    );
     /// A `Core\Test::double<T>`/`partial<T>` whose shape of answers names a
     /// method `T` does not declare.
     ///
@@ -5032,7 +5111,10 @@ pub mod code {
     /// is named by this too. It is an internal helper for that interface's own
     /// bodies rather than part of its contract, so no implementor defines it
     /// and no double may answer it either.
-    pub const E_DOUBLE_METHOD_UNKNOWN: Code = Code::new("E0826");
+    pub const E_DOUBLE_METHOD_UNKNOWN: Code = Code::new("E0826").card(
+        "This test double has a field for a method that its interface does not declare. \
+         Delete the field, or check the spelling of the method name.",
+    );
     /// A `Core\Test::double<T>`/`partial<T>` whose `T` names a declaration that
     /// is not an interface.
     ///
@@ -5052,7 +5134,11 @@ pub mod code {
     /// A type argument that is not a class or interface *name* at all takes
     /// [`E_TYPE_ARG_NOT_A_CLASS`] instead, so one mistake is still one
     /// diagnostic.
-    pub const E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE: Code = Code::new("E0827");
+    pub const E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE: Code = Code::new("E0827").card(
+        "`Core\\Test::double<T>` and `Core\\Test::partial<T>` need an interface as `T`, and \
+         this is not an interface. Declare an interface with the methods you need, and use it \
+         as `T`.",
+    );
     /// A `Core\Test::double<T>`/`partial<T>` whose shape answers a method `T`
     /// does declare with a value that cannot stand in for it.
     ///
@@ -5066,7 +5152,11 @@ pub mod code {
     /// A field typed bare `callable` is accepted: it carries no parameter list
     /// to compare (`rule:types/callable-is-a-closure`), and the call it stands
     /// in for is checked one argument at a time by `nvs_runtime::closure`.
-    pub const E_DOUBLE_METHOD_SIGNATURE: Code = Code::new("E0828");
+    pub const E_DOUBLE_METHOD_SIGNATURE: Code = Code::new("E0828").card(
+        "The closure for this method of the test double does not fit the method's declaration. \
+         It may have fewer parameters, but each parameter must accept what callers pass, and \
+         its return type must match.",
+    );
 
     /// A method reference names a method the class or interface it names does
     /// not declare.
@@ -5081,7 +5171,10 @@ pub mod code {
     /// everywhere but the argument positions a registry row wrote
     /// `nvs_stdlib::registry::CoreTy::MethodRef` at, and a reader who sees
     /// "no constant named `send`" there has been told about the wrong language.
-    pub const E_METHOD_REF_UNDECLARED: Code = Code::new("E0829");
+    pub const E_METHOD_REF_UNDECLARED: Code = Code::new("E0829").card(
+        "This method reference names a method that the class or interface does not declare. \
+         Check the spelling, or update the test if the method was renamed.",
+    );
 
     /// A position that takes a method reference was given something else.
     ///
@@ -5090,7 +5183,10 @@ pub mod code {
     /// refused anyway: `"send"` is a spelling nothing checks, so a typo in it
     /// reports as a call that never happened, at the end of a test, rather than
     /// where it was written. The reference is the whole point of the position.
-    pub const E_METHOD_REF_REQUIRED: Code = Code::new("E0830");
+    pub const E_METHOD_REF_REQUIRED: Code = Code::new("E0830").card(
+        "This argument must be a method reference such as `Mailer::send`, not a string like \
+         `\"send\"`. The compiler checks a reference, and it does not check a string.",
+    );
 
     /// `static::NAME` inside a constant expression — a property or parameter
     /// default, an attribute payload.
@@ -5100,7 +5196,10 @@ pub mod code {
     /// expression is folded once with no frame to read that class from. Refused
     /// by name rather than folded as `self::NAME`, which is what it silently
     /// was: the declaring class's value where a subclass's was meant.
-    pub const E_STATIC_CONST_IN_CONSTANT_EXPRESSION: Code = Code::new("E0831");
+    pub const E_STATIC_CONST_IN_CONSTANT_EXPRESSION: Code = Code::new("E0831").card(
+        "`static::NAME` cannot be used in a default value or an attribute, because these are \
+         fixed before any method is called. Write `self::NAME` instead.",
+    );
 
     /// `static::NAME` where `NAME`'s value is not a scalar — an `array`
     /// constant, an object, a `null`, an integer outside `int`.
@@ -5109,7 +5208,10 @@ pub mod code {
     /// which carries the four scalar kinds and nothing else
     /// (`nvs_runtime::ConstantValue`), so there is no value to answer with.
     /// `self::NAME` and `Class::NAME` still inline such a constant.
-    pub const E_STATIC_CONST_HAS_NO_SCALAR_VALUE: Code = Code::new("E0832");
+    pub const E_STATIC_CONST_HAS_NO_SCALAR_VALUE: Code = Code::new("E0832").card(
+        "`static::NAME` works only for a constant whose value is a `string`, `int`, `uint`, \
+         `bool` or `float`. For any other constant, write `self::NAME` or `ClassName::NAME`.",
+    );
 
     /// A class or interface redeclares a constant an ancestor already declares,
     /// at a type not assignable to the ancestor's.
@@ -5119,7 +5221,10 @@ pub mod code {
     /// — so a redeclaration at another type would be read at the wrong
     /// representation, `secret` bit included. PHP 8.3 makes the same demand of
     /// a typed constant override.
-    pub const E_CONST_REDECLARED_AT_ANOTHER_TYPE: Code = Code::new("E0833");
+    pub const E_CONST_REDECLARED_AT_ANOTHER_TYPE: Code = Code::new("E0833").card(
+        "This class declares a constant again, with a type that does not fit the parent's \
+         constant. Give it the parent's type, or a type that fits it.",
+    );
 
     /// `static::` — a constant, a call, `::class`, `new static()` — inside a
     /// closure body.
@@ -5128,29 +5233,48 @@ pub mod code {
     /// closure is lifted to a frame of its own that carries neither it nor a
     /// receiver, so there is nothing to bind `static` to. Refused where it is
     /// written; before this code, lowering panicked on the spelling.
-    pub const E_STATIC_IN_CLOSURE: Code = Code::new("E0834");
+    pub const E_STATIC_IN_CLOSURE: Code = Code::new("E0834").card(
+        "`static::` cannot be used inside a closure. Read the value into a variable outside the \
+         closure, and use that variable inside it.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
-    pub const E_INTERNAL: Code = Code::new("E0901");
+    pub const E_INTERNAL: Code = Code::new("E0901").card(
+        "The compiler found an error in itself. This is a bug in Novis and not in your \
+         program. Please report it, with the code that caused it.",
+    );
 
     // --- W1xxx warnings ----------------------------------------------------
     /// Code that can never execute.
-    pub const W_UNREACHABLE: Code = Code::new("W1001");
+    pub const W_UNREACHABLE: Code = Code::new("W1001").card("This code can never run, so you can delete it.");
     /// A variable assigned and never read.
-    pub const W_UNUSED_VARIABLE: Code = Code::new("W1002");
+    pub const W_UNUSED_VARIABLE: Code = Code::new("W1002").card(
+        "This variable gets a value that is never read. Delete the assignment, or use the \
+         variable.",
+    );
     /// A deprecated construct that still works.
-    pub const W_DEPRECATED: Code = Code::new("W1003");
+    pub const W_DEPRECATED: Code = Code::new("W1003").card(
+        "This feature still works, but a future version may remove it. The message says what \
+         to use instead.",
+    );
     /// A construct whose behaviour differs from PHP's, where converted code may
     /// silently change meaning.
-    pub const W_PHP_DIVERGENCE: Code = Code::new("W1004");
+    pub const W_PHP_DIVERGENCE: Code = Code::new("W1004").card(
+        "This code gives a different result in Novis than in PHP. Check that the result is \
+         what you expect.",
+    );
     /// A secret file the configuration reads can be read by an account other
     /// than the one the runtime runs as. `rule:config/a-secret-is-a-file-whose-content-is-the-value` advises here where it
     /// refuses on writability: a Compose secret is mounted `0444` and a
     /// Kubernetes secret volume defaults to `0644`, so inside a container this
     /// mode is the norm and on a shared host it is not, and nothing the
     /// runtime can read tells it which it is in.
-    pub const W_SECRET_FILE_READABLE: Code = Code::new("W1005");
+    pub const W_SECRET_FILE_READABLE: Code = Code::new("W1005").card(
+        "Other user accounts on this host can read this secret file. Inside a container this \
+         is normal. On a shared host, make the file readable only by the account that runs \
+         Novis, for example with `chmod 600`.",
+    );
     /// `catch (Throwable) => value` — an expression-level arm naming the root
     /// of the exception tree, binding nothing, whose body is not a `throw`
     /// (`rule:expressions/bare-throwable-arm-warns`). In the block form a `catch (Throwable)` has a body with room to
@@ -5164,7 +5288,11 @@ pub mod code {
     /// type error, the reason
     /// `rule:expressions/nullable-condition-lint`
     /// gives for its own.
-    pub const W_CATCH_ARM_DISCARDS_EVERY_FAILURE: Code = Code::new("W1006");
+    pub const W_CATCH_ARM_DISCARDS_EVERY_FAILURE: Code = Code::new("W1006").card(
+        "This `catch (Throwable)` arm turns every error into a value, also errors you did not \
+         expect. Name the error class you expect, or write `catch (Throwable $e)` and use \
+         `$e`.",
+    );
     /// A credential the configuration puts in force begins or ends with
     /// whitespace. `rule:config/a-secret-is-a-file-whose-content-is-the-value` keeps such a value exactly as it was written —
     /// a password may legitimately carry an edge space, and removing it would
@@ -5179,7 +5307,11 @@ pub mod code {
     /// reader that quietly trims it instead turns a working credential into an
     /// authentication failure at the far end, which is the bug this code
     /// exists to make loud.
-    pub const W_CREDENTIAL_HAS_EDGE_WHITESPACE: Code = Code::new("W1007");
+    pub const W_CREDENTIAL_HAS_EDGE_WHITESPACE: Code = Code::new("W1007").card(
+        "This credential starts or ends with a space or a line break, and Novis uses it \
+         exactly as written. If you did not mean that, remove the whitespace. Write a secret \
+         file with `printf %s`, because `echo` adds a line break.",
+    );
     /// The configuration names a shared store and grants nothing that may
     /// reach it: `[cache.shared] url` is set and `cache.shared` is not
     /// granted, so `Core\Cache::shared()` and `Core\RateLimit::consume` would
@@ -5195,7 +5327,10 @@ pub mod code {
     /// the tier and one that does not, and the second is a program with
     /// nothing to fix. What it may not be is *silent*, since the failure it
     /// otherwise produces arrives one deploy later and names only the member.
-    pub const W_STORE_CONFIGURED_UNGRANTED: Code = Code::new("W1008");
+    pub const W_STORE_CONFIGURED_UNGRANTED: Code = Code::new("W1008").card(
+        "`[cache.shared] url` names a store, but no application may use it, so \
+         `Core\\Cache::shared()` will fail. Write `cache.shared = true` under `[capabilities]`.",
+    );
     /// `[http.client.tls] keylog` is on, and this host is one where that is
     /// allowed: every outbound TLS session is appending its secrets to the
     /// named file.
@@ -5207,7 +5342,11 @@ pub mod code {
     /// file. It is not a refusal here for the reason it is `E0640` elsewhere:
     /// `production` never reaches this, so the only host that sees it has
     /// already said it is being debugged.
-    pub const W_TLS_KEYLOG_ON: Code = Code::new("W1009");
+    pub const W_TLS_KEYLOG_ON: Code = Code::new("W1009").card(
+        "`[http.client.tls] keylog` is on, so the keys of every TLS connection are written to \
+         a file. Anybody who can read that file can read the traffic. Remove the setting when \
+         you have finished debugging.",
+    );
     /// `[http.client.proxy] resolve` is `proxy`, so the destination's
     /// address is the proxy's question and no longer this deployment's.
     ///
@@ -5220,7 +5359,11 @@ pub mod code {
     /// today's log the sentence, and the alternative is an auditor reading
     /// a boot record that says the address policy is in force when what is
     /// in force is the proxy's.
-    pub const W_PROXY_RESOLVES_THE_DESTINATION: Code = Code::new("W1010");
+    pub const W_PROXY_RESOLVES_THE_DESTINATION: Code = Code::new("W1010").card(
+        "`[http.client.proxy] resolve` is `\"proxy\"`, so the proxy looks up the address of \
+         every outbound host and Novis cannot check it. Write `resolve = \"local\"` if this \
+         network can look up addresses itself.",
+    );
     /// A `/** … */` block directly above a declaration, across no blank line
     /// (`rule:tooling/doc-comment-is-three-slashes`). The block is an ordinary
     /// comment and documents nothing — `nvs meta`, `nvs doc` and the editor's
@@ -5230,7 +5373,10 @@ pub mod code {
     /// that its documentation is silently dropped, which is exactly what a
     /// reader who only sees `nvs check` say `no errors` cannot discover. The
     /// help names the one-token fix.
-    pub const W_DOC_BLOCK_BEFORE_A_DECLARATION: Code = Code::new("W1011");
+    pub const W_DOC_BLOCK_BEFORE_A_DECLARATION: Code = Code::new("W1011").card(
+        "A `/** ... */` block is an ordinary comment, so it does not document the declaration \
+         below it. Start each line of a doc comment with `///` instead.",
+    );
     /// `{` directly followed by a class path — `{Page::TITLE}`,
     /// `{Money::format($c)}` — inside a markup literal
     /// (`rule:core-classes/html-literal`). A brace hole begins with `$`, so
@@ -5240,7 +5386,10 @@ pub mod code {
     /// because the grammar is unchanged and the bytes may be what was meant;
     /// the help names `<?= Page::TITLE ?>`, the hole that takes the
     /// expression, and `\{` for a literal brace that wants to stay.
-    pub const W_MARKUP_BRACE_BEFORE_A_CLASS_PATH: Code = Code::new("W1012");
+    pub const W_MARKUP_BRACE_BEFORE_A_CLASS_PATH: Code = Code::new("W1012").card(
+        "In markup, a `{` followed by a class name is printed as text. Write \
+         `<?= Page::TITLE ?>` to print a value, or `\\{` for a brace you want to keep.",
+    );
 }
 }
 
@@ -5248,19 +5397,11 @@ pub mod code {
 mod tests {
     use super::{Code, code};
 
-    /// The codes that landed before a code carried a card, and still owe one,
-    /// in the order the `code` module declares them. A code is deleted from
-    /// here in the commit that gives it its `.card`, the test below says so by
-    /// name, and a code added after this list was written is never added to
-    /// it: it lands with its card. Goal `core-class-cards` is what empties the
-    /// list.
-    const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808", "E0809", "E0810", "E0811",
-        "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819", "E0820", "E0821", "E0822",
-        "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829", "E0830", "E0831", "E0832",
-        "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004", "W1005", "W1006", "W1007",
-        "W1008", "W1009", "W1010", "W1011", "W1012",
-    ];
+    /// The codes that still owe their card, in the order the `code` module
+    /// declares them. It is empty, and [`no_code_still_owes_a_card`] keeps it
+    /// so: a code lands with its card, as a `Core` member does, and is never
+    /// added here.
+    const CODES_STILL_OWING_A_CARD: &[&str] = &[];
 
     /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
     /// card or is named in [`CODES_STILL_OWING_A_CARD`], and the two are held
@@ -5292,6 +5433,24 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    /// No declared code is without its card. With
+    /// [`every_code_carries_its_card_or_is_listed`] this also holds
+    /// [`CODES_STILL_OWING_A_CARD`] empty, since a listed code that has its
+    /// card fails that test.
+    #[test]
+    fn no_code_still_owes_a_card() {
+        let owing: Vec<&str> = code::ALL
+            .iter()
+            .filter(|&&declared| code::card(declared).is_none())
+            .map(|declared| declared.as_str())
+            .collect();
+        assert!(
+            owing.is_empty(),
+            "these codes have no card: {}",
+            owing.join(", ")
+        );
     }
 
     /// Every `E01xx` number this file declares, read out of the registry's own

@@ -3,7 +3,7 @@
 
 # Tooling
 
-*23 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
+*22 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1208,7 +1208,7 @@ name does not exist, which is the property [`tooling/the-index-is-one-line-per-m
 
 <a id="tooling-a-diagnostic-code-carries-its-card"></a>
 
-## Every diagnostic code carries a plain card that `nvs agent show` prints, and a terminal rendering names that command once  *(designed — not yet in the compiler)*
+## Every diagnostic code carries a plain card that `nvs agent show` prints, and a terminal rendering names that command once
 
 `rule:tooling/a-diagnostic-code-carries-its-card`
 
