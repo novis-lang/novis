@@ -16,6 +16,8 @@
   "guardedBy": [
     "tests/conformance/lang/an-integer-literal-takes-uint-from-the-operand-beside-it.nvst",
     "tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst",
+    "tests/conformance/lang/a-number-literal-at-a-union-holding-decimal-becomes-a-decimal.nvst",
+    "tests/conformance/reject/an-int-variable-is-not-a-decimal-at-a-union-holding-decimal.nvst",
     "crates/nvs-types/tests/decimal.rs"
   ]
 }

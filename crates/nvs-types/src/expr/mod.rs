@@ -301,7 +301,7 @@ pub(crate) fn infer(
             // rather than a position it has to satisfy, so a `-$n` under a
             // `-1` target is still an ordinary mismatch reported once, at the
             // negation, rather than twice.
-            let hint = negated_literal_expectation(*op, expected, env.interner);
+            let hint = negated_literal_expectation(*op, inner, expected, env.interner);
             let inner_ty = infer(inner, hint, live, scope, ctx, env);
             match op {
                 // `!` is `rule:expressions/truthy-positions`'s truthy test written out rather than one of

@@ -216,13 +216,15 @@ pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId
 /// literal types are deliberately not here: a negated value that the target
 /// cannot hold is the refusal those targets exist for.
 ///
-/// It is [`wants_decimal`]'s exact test and not [`placed_literal`]'s walk over
-/// a union, so `-e` is placed exactly where `e` is. A union carrying both a
-/// `decimal` and a `float` arm already takes the `float` one for a fractional
-/// literal, and reaching past that here would have made `Core\Math::abs(-0.0)`
-/// a `decimal` while `abs(0.0)` stayed a `float`.
+/// A union naming `decimal` passes through too, but only to a numeric literal
+/// `operand`, which then asks [`wants_decimal_in_union`] itself. That keeps
+/// `-e` placed exactly where `e` is: `-3` at `?decimal` is a `decimal`, and a
+/// union carrying both a `decimal` and a `float` arm keeps the `float` one for
+/// a fractional literal, so `Core\Math::abs(-0.0)` is a `float` as
+/// `abs(0.0)` is.
 pub(crate) fn negated_literal_expectation(
     op: UnaryOp,
+    operand: &Expr,
     expected: Option<TypeId>,
     interner: &mut TypeInterner,
 ) -> Option<TypeId> {
@@ -232,15 +234,27 @@ pub(crate) fn negated_literal_expectation(
     if expected.is_some_and(|id| matches!(interner.get(id), Ty::Decimal)) {
         return expected;
     }
-    let placed = placed_literal(
+    if let Some(placed) = placed_literal(
         expected,
         interner,
         |ty| matches!(ty, Ty::IntLiteral(v) if *v < 0),
-    )?;
-    let &Ty::IntLiteral(value) = interner.get(placed) else {
-        return None;
-    };
-    Some(interner.int_literal(value.checked_neg()?))
+    ) {
+        let &Ty::IntLiteral(value) = interner.get(placed) else {
+            return None;
+        };
+        return Some(interner.int_literal(value.checked_neg()?));
+    }
+    let numeric_literal = matches!(
+        operand.unparenthesized().kind,
+        ExprKind::Int(_) | ExprKind::Float(_)
+    );
+    // A plain `decimal` returned above, so a match here is a union member.
+    let union_names_decimal =
+        placed_literal(expected, interner, |ty| matches!(ty, Ty::Decimal)).is_some();
+    if numeric_literal && union_names_decimal {
+        return expected;
+    }
+    None
 }
 
 /// The type `-e` has when its operand took `rule:types/literal-types`'s int literal type —
@@ -375,6 +389,11 @@ pub(crate) fn infer_int_literal(
     {
         return placed;
     }
+    let int = env.interner.int();
+    if !wants_uint && wants_decimal_in_union(expected, int, env) {
+        check_decimal_int_literal(span, report_span, env);
+        return record_decimal_placement(report_span, env);
+    }
     match parsed {
         Ok(n) if i64::try_from(n).is_ok() => {
             if wants_uint {
@@ -424,11 +443,12 @@ pub(crate) fn infer_float_literal(
     expected: Option<TypeId>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    if wants_decimal(expected, env) {
+    let float = env.interner.float();
+    if wants_decimal(expected, env) || wants_decimal_in_union(expected, float, env) {
         check_decimal_float_literal(span, report_span, env);
         return record_decimal_placement(report_span, env);
     }
-    env.interner.float()
+    float
 }
 
 /// `'a'` / `"a"` / a heredoc or nowdoc body — [`super::infer`]'s
@@ -615,6 +635,32 @@ pub(crate) fn record_decimal_placement(span: Span, env: &mut Env<'_>) -> TypeId 
 /// `rule:types/numeric-literal-placement`'s "untyped until placed" rule, asked once per literal arm.
 pub(crate) fn wants_decimal(expected: Option<TypeId>, env: &Env<'_>) -> bool {
     expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Decimal))
+}
+
+/// Whether a union position places a numeric literal at its `decimal` member:
+/// the union names `decimal`, and the literal's unplaced type `default` (`int`
+/// for a digit run, `float` for a fractional literal) is not assignable to it.
+///
+/// That makes `?decimal` and `decimal|string` decimal positions for a literal,
+/// exactly as a plain `decimal` is, while a union that already accepts the
+/// literal keeps the type it takes today: `int|decimal` places `3` at `int`,
+/// and `float|decimal` places `3` and `1.5` at `float`. A unioned literal type
+/// such as `1|decimal` is matched by [`placed_literal`] before this is asked.
+pub(crate) fn wants_decimal_in_union(
+    expected: Option<TypeId>,
+    default: TypeId,
+    env: &mut Env<'_>,
+) -> bool {
+    let Some(expected) = expected else {
+        return false;
+    };
+    let Ty::Union(members) = env.interner.get(expected) else {
+        return false;
+    };
+    let names_decimal = members
+        .iter()
+        .any(|member| matches!(env.interner.get(*member), Ty::Decimal));
+    names_decimal && !is_assignable(default, expected, env.interner, env.graph, env.signatures)
 }
 
 /// `rule:types/decimal`'s layout, applied to a fractional literal's own text: a 96-bit
@@ -886,6 +932,7 @@ pub(crate) fn check_object_literal(
                     && !drops_qualifier(inferred, declared, env) =>
             {
                 env.exprs.record_type(field.name, declared);
+                note_float_widening(&field.value, inferred, declared, env);
                 declared
             }
             _ => inferred,
@@ -932,7 +979,6 @@ fn declared_shape(expected: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
                 .copied()
                 .filter(|member| matches!(env.interner.get(*member), Ty::Shape(_)));
             match (shapes.next(), shapes.next()) {
-                note_float_widening(&field.value, inferred, declared, env);
                 (Some(only), None) => Some(only),
                 _ => None,
             }
@@ -1034,7 +1080,12 @@ pub(crate) fn check_array_literal(
         // element's span, and `nvs_ir::lower` reads it back: it lowers a
         // number literal at that type and converts any other value to it, so
         // `1` and `$count` in an `array<float>` literal are stored as floats.
+        // An element typed `decimal` keeps the span's own record: a number
+        // literal placed at `decimal` inside a union such as `?decimal` is
+        // recorded there by [`record_decimal_placement`], and the union would
+        // replace it.
         if let Some(elem) = elem_expected
+            && !matches!(env.interner.get(elem_ty), Ty::Decimal)
             && is_assignable(elem_ty, elem, env.interner, env.graph, env.signatures)
         {
             env.exprs.record_type(item.value.span, elem);
@@ -1046,6 +1097,23 @@ pub(crate) fn check_array_literal(
             let mixed = env.interner.mixed();
             env.interner.array(mixed)
         }
+    }
+}
+
+/// The one `array<T>` member of a union `expected`, or `expected` itself
+/// where it is not a union or has no member or several — see
+/// [`check_array_literal`].
+fn sole_array_member(expected: TypeId, env: &Env<'_>) -> TypeId {
+    let Ty::Union(members) = env.interner.get(expected) else {
+        return expected;
+    };
+    let mut arrays = members
+        .iter()
+        .copied()
+        .filter(|member| matches!(env.interner.get(*member), Ty::Array(_)));
+    match (arrays.next(), arrays.next()) {
+        (Some(only), None) => only,
+        _ => expected,
     }
 }
 
@@ -1101,23 +1169,6 @@ fn check_spread_element(
         )
         .with_primary(item.value.span, format!("this is `{rendered}`"))
         .with_help(
-/// The one `array<T>` member of a union `expected`, or `expected` itself
-/// where it is not a union or has no member or several — see
-/// [`check_array_literal`].
-fn sole_array_member(expected: TypeId, env: &Env<'_>) -> TypeId {
-    let Ty::Union(members) = env.interner.get(expected) else {
-        return expected;
-    };
-    let mut arrays = members
-        .iter()
-        .copied()
-        .filter(|member| matches!(env.interner.get(*member), Ty::Array(_)));
-    match (arrays.next(), arrays.next()) {
-        (Some(only), None) => only,
-        _ => expected,
-    }
-}
-
             "`...` contributes the subject's own entries to the array being built, so the \
              subject has to have entries — write the value as an ordinary element instead",
         ),

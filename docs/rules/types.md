@@ -156,6 +156,12 @@ var $x = 19.99;                  // no target type: float
 var $y = 19.99 as decimal;       // `as` supplies one: decimal, exact
 ```
 
+**A union holding `decimal` is a `decimal` position for a literal its other members do not accept.**
+`?decimal $rate = 3;`, `decimal|string $label = 7.25;` and the `?decimal` field of a shape literal
+place the literal at `decimal`, exact, at every position a plain `decimal` does. A union that already
+accepts the literal's own type keeps it: `int|decimal` places `3` at `int`, and `float|decimal` places
+`3` and `1.5` at `float`. Only a literal is placed; an `int` variable at `?decimal` is still a mismatch.
+
 **`expr as T` is itself a placing position.** A literal written directly under a conversion takes `T`
 as its target rather than being typed first and converted afterwards, so `19.99 as decimal` is exact
 to the full 29 significant digits and never becomes an `f64` on the way. That is not merely notational:

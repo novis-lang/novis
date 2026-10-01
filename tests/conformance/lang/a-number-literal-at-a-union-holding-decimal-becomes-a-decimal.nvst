@@ -1,0 +1,108 @@
+--TEST--
+A number literal placed where the declared type is a union that holds `decimal`, and that does not accept the literal's own `int` or `float`, becomes an exact `decimal` at every placing position; `int|decimal` keeps an integer literal as `int` and `float|decimal` keeps both literals as `float` — `rule:types/numeric-literal-placement`
+--FILE--
+<?nvs
+// covers: lang:types/numbers-bool-int-uint-float-decimal
+
+type Price = {net: decimal, gross: ?decimal};
+
+final class Shop
+{
+    public ?decimal $rate;
+    public decimal|string $label;
+
+    public function constructor()
+    {
+        $this->rate = 2;
+        $this->label = 7.25;
+    }
+
+    public static function kind(mixed $value): string
+    {
+        if ($value is decimal) {
+            return 'decimal';
+        }
+        if ($value is float) {
+            return 'float';
+        }
+        return $value is int ? 'int' : 'other';
+    }
+
+    public static function nullable(?decimal $value): string
+    {
+        return self::kind($value);
+    }
+
+    public static function either(decimal|string $value): string
+    {
+        return self::kind($value);
+    }
+
+    public static function back(): ?decimal
+    {
+        return 3;
+    }
+
+    public static function backFraction(): decimal|string
+    {
+        return 0.1;
+    }
+}
+
+// Arguments and returns.
+echo Shop::nullable(3), ' ', Shop::nullable(1.5), ' ', Shop::either(3), "\n";
+echo Shop::kind(Shop::back()), ' ', Shop::kind(Shop::backFraction()), "\n";
+
+// Locals, including a negated literal and a later assignment.
+?decimal $local = 3;
+?decimal $negative = -3;
+?decimal $fraction = -0.75;
+echo Shop::kind($local), ' ', $negative, ' ', Shop::kind($fraction), ' ', $fraction, "\n";
+$local = 4;
+echo Shop::kind($local), ' ', $local, "\n";
+
+// A fractional literal is exact: the digits are kept, and 0.1 + 0.2 is 0.3.
+?decimal $exact = 19.99;
+?decimal $wide = 1.2345678901234567890123;
+echo $exact, ' ', $wide, "\n";
+?decimal $tenth = 0.1;
+?decimal $fifth = 0.2;
+if ($tenth != null && $fifth != null) {
+    echo $tenth + $fifth, "\n";
+}
+
+// An integer literal above the `int` range fits a decimal.
+?decimal $large = 99999999999999999999;
+echo $large, "\n";
+
+// Properties.
+Shop $shop = new Shop();
+echo Shop::kind($shop->rate), ' ', Shop::kind($shop->label), ' ', $shop->label, "\n";
+
+// Shape fields and array elements.
+Price $price = {net: 1, gross: 2.50};
+echo Shop::kind($price->gross), ' ', $price->gross, "\n";
+array<?decimal> $list = [1, null, 2.5];
+echo Shop::kind($list[0]), ' ', Shop::kind($list[1]), ' ', Shop::kind($list[2]), "\n";
+
+// A union that already accepts the literal keeps the literal's own type.
+int|decimal $count = 3;
+int|decimal $half = 1.5;
+echo Shop::kind($count), ' ', Shop::kind($half), "\n";
+float|decimal $whole = 3;
+float|decimal $ratio = 1.5;
+float|decimal|string $mixed = 3;
+echo Shop::kind($whole), ' ', Shop::kind($ratio), ' ', Shop::kind($mixed), "\n";
+--EXPECT--
+decimal decimal decimal
+decimal decimal
+decimal -3 decimal -0.75
+decimal 4
+19.99 1.2345678901234567890123
+0.3
+99999999999999999999
+decimal decimal 7.25
+decimal 2.50
+decimal other decimal
+int decimal
+float float float
