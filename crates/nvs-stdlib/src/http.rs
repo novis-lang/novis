@@ -6078,6 +6078,8 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let url = Value::str(NvsStr::new(format!("ws://{at}/chat").as_bytes()));
         let idle = crate::instance::build(&crate::time::DURATION, [Value::int(0)]);
+        // The empty list a call site fills in for `headers` when none are written.
+        let headers = Value::array(NvsArray::new());
 
         for (bound, named, absent) in [
             (idle, "`idle`", "net.connect"),
@@ -6085,6 +6087,7 @@ mod tests {
         ] {
             let mut args = [Value::null(); SOCKET_ARITY];
             args[0] = url;
+            args[SOCKET_HEADERS] = headers;
             args[SOCKET_IDLE] = bound;
             let refused = nvs_runtime::call(
                 super::socket::nvs_core_http_client_open_socket,
@@ -6107,6 +6110,7 @@ mod tests {
         unsafe {
             url.release();
             idle.release();
+            headers.release();
         }
 
         match listener.accept() {
