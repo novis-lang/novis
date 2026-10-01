@@ -91,6 +91,18 @@ A ladder has a **kind**, because not every cost is a program running:
 | `fmt` | the size of the file the ladder prints | `nvs fmt` |
 | `serve` | requests served, or connections, or the size of one request | `nvs serve` with a load the tool sends; per-request counts and peak memory |
 
+**The compiler gets counts of its own.** `nvs run --count` counts what a program did. It says nothing
+about what compiling the program cost, so a `compile` ladder would have only the clock, and the clock
+never decides alone. This stage adds `nvs check --count`, which prints one line on stderr with the
+work each phase did: tokens, syntax nodes, resolved names, typed expressions, and IR instructions
+where the command lowers. `nvs run --count` adds the same line for its own compile. Where a phase's
+output already has a length (a token list, a node arena, a function body), the count is that length,
+read once when the phase ends. A counter inside a hot loop is added only where no such length exists,
+and nothing is counted while the flag is off. A `compile` ladder fits a slope for each phase's count
+as well as the total, so a steep compile names the phase and the count that carry it. `lsp` and
+`fmt` ladders have no counts of their own. Their clock decides under the second-run bound, and
+callgrind settles a doubtful slope, as it does for a bench.
+
 **The bounds**, written in the tool's module doc, which is their one home:
 
 - A count's slope above **1.35** fails. Counts are the same on every run, so they decide.
@@ -172,11 +184,29 @@ subagents, one per area of Stage 3's table, each read-only, each looking for the
 - a registry, cache, map or log that grows with total traffic and is never trimmed
 - a lock held across a wait, or one global lock on the request path
 - a sort, or a copy of everything, inside a loop
+- work paid when nobody reads it: a clock read, a timer, a log line built or a metric recorded on the
+  request path when no reader is configured
+- output nobody asked for: diagnostic detail, debug records or metadata built on every run when only
+  a flag or an error path reads them
+- a cache whose answer can differ from computing it again. That is state, not a cache, and it is a
+  correctness defect before it is a performance one
 
 Each subagent reports the site, why it grows, and how a ladder would show it. The session writes the
 ladder when one can show it, and the gap in every case. `docs/perf/performance-review.md` gets one
 section per area: what was read, and what was found or that nothing was. That file is the technical
 register of the pass. The summary for the user is Stage 6's.
+
+**The fixed floor.** Every program pays the cost of the smallest input before its own work starts:
+an empty program run, an empty program compiled, one empty request served, an empty file opened in
+the editor. That cost does not grow, so no ladder shows it, and it is on every path real programs
+use. The session measures each one with its counts, reads what the counts are spent on, and records
+it in a `## floor` section of `docs/perf/performance-review.md`. Work the floor pays for nothing is a
+gap under the same in-scope test as any other.
+
+**Old refusals are priced again.** A decision record or a perf note that declined a performance
+change because of a figure measured on an earlier, smaller tree is measured again on today's tree.
+A verdict that changes becomes a gap. One that holds gets a line in the area's section with the new
+figure.
 
 ## Stage 5 — the fixes
 
@@ -186,6 +216,43 @@ Each gap is fixed at its cause, never patched around. The fix keeps its ladder a
 growth cannot come back unnoticed, and deletes the gap record. The order is by file set: gaps in one
 crate are one group. A fix that moves a `Core` member's implementing file makes its perf figure stale,
 and `bun nv proofs --record-perf --id '<feature>'` records it again in the same slice.
+
+**Every fix follows the same steps.**
+
+- **Profile, then write down the claim and its ceiling, before building anything.** The gap record
+  says what the fix should save and the most it can save. The cheapest ceiling is a throwaway build
+  that runs the phase twice: the extra cost is the most that removing the phase can ever save. A
+  fix that does not change growth and whose ceiling is under the in-scope share (see the standing
+  decisions) is not built. Its ceiling goes as one line into the area's section of
+  `docs/perf/performance-review.md`, so a later pass can price it again.
+- **Nothing else gets worse.** After a fix, every bench and ladder the change reaches runs again. If
+  another one's counts rise, the fix is not kept as it stands. The session finds out why, and keeps
+  the fix only when the rise is a bounded constant that the fix's doc comment names as what it spends.
+- **Removed code is deleted.** It does not stay behind a flag or a setting, and no switch is added
+  that nobody would ever turn off.
+
+**The build, last.** When every gap is closed, the session races the release profile over the bench
+tree with no code change: `lto = "fat"` against today's `"thin"`, a PGO build trained on the benches
+of half the areas and raced on the other half, and an `x86-64-v3` build. JIT code is already compiled
+for the host CPU (`host_isa` in `crates/nvs-codegen/src/lib.rs`), so a target level reaches only the
+Rust code: the runtime, `Core` and the compiler. Two lines of the profile are not raced. `panic =
+"unwind"` is what contains a panic to one request, and overflow checks stay on for security.
+`Cargo.toml` says both beside them.
+
+- The benches are sorted once, before the first race, into heavy, medium and light by their counted
+  cost.
+- A build change is worth proposing when the heavy tier's geometric mean improves by more than the
+  noise and no heavy bench gets slower, or when the heavy tier is flat, the lighter tiers improve and
+  nothing gets slower. A change that slows a heavy bench to speed up light ones is not proposed,
+  whatever the total says.
+- A build flag does not change the counts, so the races read callgrind's instruction count under WSL,
+  with the clock beside it as the standing decision on the clock says.
+- Each race's build goes to its own target directory under `.agent-tmp/`, which is deleted when the
+  race is done.
+
+None of them is built in this goal. Each one adds time to every release build the loop makes, and
+PGO and a target level change how Novis is built and shipped. The figures go under *Decisions for
+you*, each with the release build time it costs.
 
 When a fix needs a large tradeoff (see the standing decisions), it is not built. The session writes it
 into `docs/perf/performance-pass.md` under *Decisions for you*: the problem, what it costs today with a
@@ -239,8 +306,13 @@ numbers, no internals. It has these sections:
 - **Counts decide and the clock confirms.** The machine runs other work, so a clock figure alone never
   fails a ladder and never proves a fix. A fix's before and after are read from counts where the
   counts see the work. For work inside a Rust member that only the clock sees, use the best of
-  several runs. Under WSL, `valgrind --tool=callgrind` gives an instruction count that is the same on
-  every run, and it settles a doubtful case.
+  several runs. When the clock compares two builds, they run in alternating rounds at high priority,
+  each column takes its best round, and an unchanged control column shows how large the noise is.
+  Under WSL, `valgrind --tool=callgrind` gives an instruction count that is the same on every run,
+  and it settles a doubtful case.
+- **A guarantee is never given up on a guess.** A fix that would weaken a check, a precision or an
+  isolation property for speed is first measured as a throwaway probe, and the probe is deleted. Its
+  figure is what *Decisions for you* reports as the gain.
 - **Frozen output stays frozen.** No expected output of a test, a case or an example is edited to make
   a fix pass.
 - **Subagents.** Stage 4 runs one read-only subagent per area. Stage 3 may run one per area to write
