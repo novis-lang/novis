@@ -125,6 +125,51 @@ fn infer_against_type(
     env.interner.bool_ty()
 }
 
+/// `rule:types/conversion`'s shape row: `$x as Shape` is this module's test
+/// with a throw where it answers `false`, so it is accepted from exactly the
+/// operands `is` gives a run-time answer for. Answers whether the conversion
+/// was accepted; `false` leaves the target to the caller's refusal.
+///
+/// An operand that [`always_holds`] the shape is the free row and records
+/// nothing. One the shape [`never_holds`] is [`code::E_NO_CONVERSION`], the
+/// refusal a class target gets for a pair sharing no value. A shape whose
+/// fields carry a qualifier has no bit to test ([`qualified_atom`]), so it is
+/// not accepted. Every other operand records
+/// [`ExprInfo::ShapeConversion`], and `nvs-ir` lowers the field walk an `is`
+/// lowers, once per conversion: O(fields), nothing allocated.
+pub(crate) fn accept_shape_conversion(
+    from: TypeId,
+    to: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> bool {
+    if !matches!(env.interner.get(to), Ty::Shape(_)) || qualified_atom(to, env).is_some() {
+        return false;
+    }
+    if always_holds(from, to, env) {
+        return true;
+    }
+    if never_holds(from, to, env) {
+        let described_from = env.interner.describe(from);
+        let described_to = env.interner.describe(to);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_NO_CONVERSION,
+                format!("`{described_from}` cannot be converted to `{described_to}`"),
+            )
+            .with_primary(span, "converted here")
+            .with_help(
+                "`rule:types/conversion` converts into a shape by testing the value's fields, and \
+                 no value of this type is an object that could have them",
+            ),
+        );
+        return true;
+    }
+    env.exprs
+        .record(span, ExprInfo::ShapeConversion { shape: to });
+    true
+}
+
 /// `$x is $cls` — the value arm, `rule:types/class-reference-sites`' third
 /// site, and the only one of the three that consults nothing about `T`: the
 /// operand carries the descriptor the test walks, so a class reference over any

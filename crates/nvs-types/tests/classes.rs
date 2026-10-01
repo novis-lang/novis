@@ -7,6 +7,7 @@ mod common;
 
 use common::*;
 use nvs_diagnostics::code;
+use nvs_types::expr_table::ExprInfo;
 
 #[test]
 fn a_type_alias_is_substituted_into_a_local_declaration() {
@@ -1242,19 +1243,21 @@ fn a_core_class_is_a_checked_conversion_target() {
     assert!(!lift.has_errors(), "{lift:?}");
 }
 
-/// The other three `ConvKind::Object` targets name no class at all, so there is
-/// nothing to test a value against and the operand has to be an object already:
-/// `$plain as object` is the free widening row, and everything wider than an
-/// object keeps `E0711`.
+/// Plain `object` and `callable` name no class at all, so there is nothing to
+/// test a value against and the operand has to be an object already: `$plain
+/// as object` is the free widening row, and everything wider than an object
+/// keeps `E0711`. A shape is the third such target and is tested by its
+/// fields instead, which
+/// [`a_shape_target_records_its_field_walk_only_where_the_operand_needs_one`]
+/// pins.
 #[test]
-fn an_object_a_shape_and_a_callable_are_still_untestable_targets() {
+fn an_object_and_a_callable_are_still_untestable_targets() {
     let refused = check_src(
         "<?nvs\n\
          class T {\n\
          \x20 function m(mixed $v): void {\n\
          \x20   $v as object;\n\
          \x20   $v as callable;\n\
-         \x20   $v as {x: int};\n\
          \x20 }\n\
          }\n",
     );
@@ -1263,7 +1266,7 @@ fn an_object_a_shape_and_a_callable_are_still_untestable_targets() {
             .iter()
             .filter(|d| d.code == Some(code::E_UNTESTABLE_CONVERSION_TARGET))
             .count(),
-        3,
+        2,
         "{refused:?}"
     );
 
@@ -1275,4 +1278,42 @@ fn an_object_a_shape_and_a_callable_are_still_untestable_targets() {
          }\n",
     );
     assert!(!widened.has_errors(), "{widened:?}");
+}
+
+/// `rule:types/conversion`'s shape row: an operand that may or may not satisfy
+/// the shape records the field walk `nvs-ir` lowers, and one that satisfies it
+/// already records nothing and stays the free row. A class operand whose `int`
+/// field meets a `float` one is not already satisfying, so it is tested.
+// covers: lang:types/the-conversion-operator-as
+#[test]
+fn a_shape_target_records_its_field_walk_only_where_the_operand_needs_one() {
+    let (diags, declared) = check_src_declared(
+        "<?nvs\n\
+         type Pad = {top: float, left: float};\n\
+         class Whole { public int $top = 1; public float $left = 2.0; }\n\
+         class T {\n\
+         \x20 function m(mixed $v, float|Pad $u, Pad $p, Whole $w): void {\n\
+         \x20   $v as Pad;\n\
+         \x20   $u as Pad;\n\
+         \x20   $p as {top: float};\n\
+         \x20   $w as Pad;\n\
+         \x20 }\n\
+         }\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    for tested in ["$v as Pad", "$u as Pad", "$w as Pad"] {
+        assert!(
+            matches!(
+                declared.folded_at(tested),
+                Some(ExprInfo::ShapeConversion { .. })
+            ),
+            "`{tested}` recorded {:?}",
+            declared.folded_at(tested)
+        );
+    }
+    assert!(
+        declared.folded_at("$p as {top: float}").is_none(),
+        "{:?}",
+        declared.folded_at("$p as {top: float}")
+    );
 }

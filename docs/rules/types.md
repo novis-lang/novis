@@ -981,13 +981,14 @@ the target has to be a closed set and the operand has to name one value. Everyth
 where it runs.
 
 `as` binds tighter than any binary operator, so `$a as int + 1` is `($a as int) + 1`. Inside a
+| `mixed` / `object` / a union / a class → a shape | checked: the value must have every field the shape names at the named type, tested the way `$x is Shape` tests it ([`types/type-test`](types.md#types-type-test)), or it throws the `RuntimeError` a failed `as ClassName` throws. An operand that already satisfies the shape converts for free, and one that holds no object, or a shape whose field carries a qualifier, is refused where it is written |
 `foreach` header the `as` belongs to `foreach`, so converting the subject takes parentheses:
 `foreach (($m as array<int>) as int $v)`. Two conversions are *not* spelled with it: an `int` or
 `uint` widening into a `float` position, which is implicit ([`types/implicit-widening`](types.md#types-implicit-widening)), and a
 condition, which tests any type against PHP's truthy table without asking for one. PHP's cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 

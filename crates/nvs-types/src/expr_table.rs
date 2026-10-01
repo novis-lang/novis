@@ -851,6 +851,19 @@ pub enum ExprInfo {
         /// What the test answers, at every execution.
         answer: bool,
     },
+    /// `$x as Shape`, keyed by the *`as` expression's* own span, where the
+    /// operand does not already satisfy the shape: `rule:types/conversion`'s
+    /// shape row, which is [`Self::TypeTest`]'s field walk with a throw on the
+    /// false edge.
+    ///
+    /// Recorded for [`Self::TypeTest`]'s reason: the shape is a written type,
+    /// and `nvs-ir` cannot intern one. An `as` into a shape the operand
+    /// already satisfies records nothing and stays the free row.
+    ShapeConversion {
+        /// The shape the operand is tested against and narrowed to. Never one
+        /// whose fields carry a qualifier: those keep `E0711`.
+        shape: TypeId,
+    },
     /// `EnumName::CaseName`, keyed by the whole access's own span.
     ///
     /// `rule:enums/no-class-machinery` makes a case "an integer constant, inlined at every use
@@ -1440,12 +1453,15 @@ impl ExprTypeTable {
         self.callable_values.iter().map(|(span, sig)| (*span, *sig))
     }
 
-    /// Every type an `is` in this program asks a value to hold. Iterates for
+    /// Every type an `is`, or an `as` into a shape, in this program asks a
+    /// value to hold at run time. Iterates for
     /// [`Self::closures`]' reason: the question is about the program rather
     /// than about one site, so there is no span to look up.
     pub(crate) fn tested_types(&self) -> impl Iterator<Item = TypeId> + '_ {
         self.entries.iter().filter_map(|info| match info {
-            ExprInfo::TypeTest { tested } => Some(*tested),
+            ExprInfo::TypeTest { tested } | ExprInfo::ShapeConversion { shape: tested } => {
+                Some(*tested)
+            }
             _ => None,
         })
     }

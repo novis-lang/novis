@@ -215,6 +215,13 @@ brackets is a table the compiler holds, so adding one is a row, not a language c
 value that already exists with an `int` field is not accepted where a `float` field is needed. Build
 a new value instead: `{x: $old->x}`.
 
+**`as` converts to a shape**
+
+`$value as Point` with `type Point = {x: float, y: float};` checks that the value is an object with
+an `x` and a `y` that are both `float`. If it is, the result is that value as a `Point`. If it is
+not, `as` throws a `RuntimeError`, the same error a failed `as User` throws. `$value is Point` runs
+the same check and returns `true` or `false`.
+
 ## How code is written
 
 Spelling. What parses and what does not, which PHP forms were kept and which were rejected, naming, visibility, and the shape of a file.

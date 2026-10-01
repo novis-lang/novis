@@ -3215,34 +3215,33 @@ pub mod code {
         "This `Core` class has no text form, so it cannot be printed, joined with `.` or converted \
          with `as string`. Call one of its methods that returns the text you want.",
     );
-    /// An `expr as T` into an object target that names **no testable class** —
-    /// plain `object`, a shape, `callable`, or a `Core`-owned class — from an
-    /// operand that is not already an object.
+    /// An `expr as T` into an object target nothing can be tested against —
+    /// plain `object`, `callable`, a `Core` namespace class, or a shape whose
+    /// fields carry a `tainted` or `secret` qualifier — from an operand that is
+    /// not already an object.
     ///
-    /// `rule:types/conversion` tabulates no row producing an object, and the one reason a
-    /// class target is admitted at all is that it can be *checked*: the
-    /// downcast out of `mixed` tests the value's runtime class and throws when
-    /// it misses. `object`, a shape and a `callable` name no class at all, so
-    /// there is no descriptor to test against. A `Core` class is refused for a
-    /// narrower reason: its descriptor is the process's rather than the unit's,
-    /// and the downcast resolves its target through
-    /// `nvs_codegen`'s `class_desc_const`, which answers only for a class the
-    /// unit built — while `$v instanceof Core\Time\Date` reaches the same
-    /// descriptor as an imported symbol and does test against it. Either way
-    /// the conversion could only *assert* the tag it cannot verify, and the
-    /// honest answer is a diagnostic where it is written.
+    /// `rule:types/conversion` tabulates no row producing an object, and the
+    /// reason a class or a shape target is admitted at all is that it can be
+    /// *checked*: the conversion out of `mixed` tests the value's runtime class,
+    /// or walks a shape's fields as `is` does, and throws when it misses.
+    /// `object` and `callable` name no class, and nothing is ever an instance
+    /// of a `Core` namespace class, so there is no descriptor to test against.
+    /// A qualifier is erased before codegen, so a shape carrying one has a
+    /// field no walk can check. Each time the conversion could only *assert*
+    /// what it cannot verify, and the honest answer is a diagnostic where it is
+    /// written.
     ///
     /// An operand that is already an object is untouched and is the free
     /// widening row: `$plain as object` runs nothing, because both sides are
     /// one pointer.
     ///
-    /// The sibling for a target that *does* name a class is
-    /// [`E_NO_CONVERSION`], which refuses the pair sharing no value at all;
-    /// the two never fire together, because a target names a testable class or
-    /// it does not.
+    /// The sibling for a target that *can* be tested is [`E_NO_CONVERSION`],
+    /// which refuses the pair sharing no value at all; the two never fire
+    /// together, because a target can be tested or it cannot.
     pub const E_UNTESTABLE_CONVERSION_TARGET: Code = Code::new("E0711").card(
-        "`as` can only convert a value to a class it can test the value against. `object`, a \
-         shape and `callable` name no class. Name a class instead, as in `$v as User`.",
+        "`as` can only convert a value to a type it can test the value against. `object`, \
+         `callable` and a `Core` namespace class have nothing to test. Convert to a class, as in \
+         `$v as User`, or to a shape, as in `$v as {id: int}`.",
     );
 
     /// A `name:` argument at a call through a `callable`.

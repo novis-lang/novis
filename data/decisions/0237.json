@@ -1,0 +1,17 @@
+{
+  "title": "`$x as Shape` tests the shape's fields the way `$x is Shape` does, and throws where the test fails",
+  "status": "accepted",
+  "scope": "`as` into a shape target, from any operand `is` gives a run-time answer for. `as ?Shape`, the\nnullable form, is left as it is.",
+  "dependsOn": [
+    "0036",
+    "0150",
+    "0236"
+  ],
+  "dependsOnText": "[0036](0036.md) (shape types), [0150](0150.md) (`is` and its shape walk), [0236](0236.md)\n(an existing `int` field does not satisfy a `float` one).",
+  "validatedBy": "`tests/conformance/lang/an-as-conversion-to-a-shape-tests-its-fields-and-throws-where-is-answers-false.nvst`\nand `tests/conformance/reject/an-as-conversion-to-a-shape-no-value-of-the-operand-could-satisfy-does-not-compile.nvst`.",
+  "summary": {
+    "group": "types",
+    "headline": "`as` converts to a shape",
+    "body": "`$value as Point` with `type Point = {x: float, y: float};` checks that the value is an object\nwith an `x` and a `y` that are both `float`. If it is, the result is that value as a `Point`. If it\nis not, `as` throws a `RuntimeError`, the same error a failed `as User` throws. `$value is Point`\nruns the same check and returns `true` or `false`."
+  }
+}

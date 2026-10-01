@@ -686,6 +686,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         inner: &Expr,
         ty: &Type,
+        span: Span,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
@@ -864,6 +865,16 @@ impl<'a> Lowering<'a> {
                         super::closure::declared_class(ty, self.exprs, self.checked_types)
                 {
                     return self.lower_checked_downcast(v, from, &class, inner, ty.span, env, cur);
+                }
+                // `rule:types/conversion`'s shape row, here for the downcast's
+                // reason: a shape erases to `Ty::Object` too. The checker
+                // records the row only where the operand does not already
+                // satisfy the shape, so a missing record is the free row below.
+                if (from == Ty::Tagged || from == Ty::Object)
+                    && to == Ty::Object
+                    && let Some(&ExprInfo::ShapeConversion { shape }) = self.exprs.lookup(span)
+                {
+                    return self.lower_shape_conversion(v, from, shape, inner, ty.span, env, cur);
                 }
                 // `rule:core-classes/html-auto-escape`'s `"<b>" as Core\Html\Markup`, and it is here
                 // for the downcast's reason exactly: both targets erase to
@@ -1198,7 +1209,6 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let borrowed = self.aliasing_read(operand);
         let (is_instance, _) = self.emit(
             *cur,
             Ty::Bool,
@@ -1207,6 +1217,60 @@ impl<'a> Lowering<'a> {
                 class: TestedClass::Named(class.to_owned()),
             },
         );
+        self.lower_tested_conversion(is_instance, value, from, class, operand, span, env, cur)
+    }
+
+    /// `rule:types/conversion`'s shape row: `$x as Shape` where the operand
+    /// does not already satisfy the shape. The test is the field walk `$x is
+    /// Shape` lowers (`Self::emit_shape_walk`), and the throw and the
+    /// ownership are [`Self::lower_checked_downcast`]'s, through
+    /// [`Self::lower_tested_conversion`]. The message names the shape by its
+    /// fields, the way the checker describes it.
+    ///
+    /// What it spends is the walk's: one probe and one tagged read per field
+    /// the shape names, nothing allocated.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the same caller state `Self::lower_checked_downcast` takes, with the shape's \
+                  type in place of the class label"
+    )]
+    fn lower_shape_conversion(
+        &mut self,
+        value: ValueId,
+        from: Ty,
+        shape: TypeId,
+        operand: &Expr,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let holds = self.emit_shape_walk(shape, value, from, span, env, cur);
+        let described = self.checked_types.describe(shape);
+        self.lower_tested_conversion(holds, value, from, &described, operand, span, env, cur)
+    }
+
+    /// The half of a checked conversion into an object that comes after its
+    /// test: a [`Terminator::Throw`] of a `RuntimeError` naming `target` on the
+    /// false edge, and the operand handed through on the true one.
+    /// [`Self::lower_checked_downcast`] says why the throw is that class and
+    /// how ownership splits across the two edges.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "`tested` and `target` are what the two callers differ in; the rest is the \
+                  operand's own state, which a struct would only rename"
+    )]
+    fn lower_tested_conversion(
+        &mut self,
+        tested: ValueId,
+        value: ValueId,
+        from: Ty,
+        target: &str,
+        operand: &Expr,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let borrowed = self.aliasing_read(operand);
         let hit = self.new_block();
         let refused = self.new_block();
         let hit_edge = self.ids.next_edge(span);
@@ -1214,7 +1278,7 @@ impl<'a> Lowering<'a> {
         self.seal(
             *cur,
             Terminator::Branch {
-                cond: is_instance,
+                cond: tested,
                 then_block: hit,
                 then_edge: hit_edge,
                 else_block: refused,
@@ -1228,7 +1292,7 @@ impl<'a> Lowering<'a> {
             refused,
             Ty::Str,
             InstKind::ConstStr(format!(
-                "cannot convert a value of another type to `{class}`"
+                "cannot convert a value of another type to `{target}`"
             )),
         );
         // Argument 2 is the `{previous}` bag flattened to its own `null`

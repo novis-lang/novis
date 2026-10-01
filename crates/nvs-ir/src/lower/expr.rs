@@ -457,7 +457,7 @@ impl<'a> Lowering<'a> {
                 self.emit(*cur, Ty::Int, InstKind::ConstInt(0))
             }
             ExprKind::Conversion { expr: inner, ty } => {
-                self.lower_conversion(inner, ty, env, cur)
+                self.lower_conversion(inner, ty, expr.span, env, cur)
             }
             // `rule:types/arithmetic`'s `± 1` *as a value*. Both spellings run the same
             // read-modify-write the statement form and `$x += 1;` already go
@@ -5433,6 +5433,31 @@ impl<'a> Lowering<'a> {
         result
     }
 
+    /// `$x is Shape`'s field walk for a caller that is not an `is`:
+    /// `rule:types/conversion`'s shape row
+    /// (`Self::lower_shape_conversion`), which throws where this answers
+    /// `false`. The subject is borrowed, as [`Self::emit_test_shape`] borrows
+    /// it, and `*cur` moves to the block the answer is read in.
+    pub(super) fn emit_shape_walk(
+        &mut self,
+        shape: TypeId,
+        value: ValueId,
+        subject: Ty,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let Some(walk) = test_shape(shape, self.exprs, self.checked_types, self.enums) else {
+            panic!(
+                "nvs-ir: `as {:?}` reached lowering with no run-time row — `nvs_types` records \
+                 a shape conversion only for a shape whose fields carry no qualifier, and every \
+                 other field type has one",
+                self.checked_types.get(shape)
+            );
+        };
+        self.emit_test_shape(walk, value, subject, span, env, cur).0
+    }
+
     /// One [`TestShape`]'s comparison, over a subject already lowered and read
     /// by nobody else — [`Self::lower_type_test`]'s arms, reachable a second
     /// time because a union's and an intersection's rows are their members'.
@@ -5882,9 +5907,10 @@ impl<'a> Lowering<'a> {
         // answer `false` makes a [`TestShape::All`] `true`. A union or an
         // intersection never arrives empty —
         // `nvs_types::ty::TypeInterner::make_union` collapses a one-member
-        // union to that member and interns no empty one — so the shape that
-        // does is an enum declaring no cases, whose set of values is empty and
-        // which therefore holds no value at all.
+        // union to that member and interns no empty one. Two rows build an
+        // empty chain on purpose: an enum declaring no cases, whose set of
+        // values is empty and which therefore holds no value at all, and a
+        // shape's `mixed` field, which every value satisfies.
         if members.is_empty() {
             return self.emit(*cur, Ty::Bool, InstKind::ConstBool(!decided));
         }
@@ -6408,7 +6434,16 @@ fn test_shape(
                     // the first comparison of the runtime's scan.
                     slot: u32::try_from(slot).unwrap_or(0),
                     required: field.required,
-                    value: Box::new(test_shape(field.ty, exprs, checked_types, enums)?),
+                    // A `mixed` field holds whatever the key holds, so once
+                    // the key is there the field passes: the empty
+                    // [`TestShape::All`], which answers `true`. `mixed` has no
+                    // row of its own because the checker settles every test
+                    // whose whole type it is.
+                    value: Box::new(if matches!(checked_types.get(field.ty), CheckedTy::Mixed) {
+                        TestShape::All(Vec::new())
+                    } else {
+                        test_shape(field.ty, exprs, checked_types, enums)?
+                    }),
                 });
             }
             return Some(TestShape::All(rows));

@@ -1921,18 +1921,20 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 /// `Lowering::convert`'s free `from == to` row: nothing ran, and `Bar`'s slot
 /// list was then read off a `Foo`'s allocation.
 ///
-/// A target naming **no testable class** — plain `object`, a shape, a
-/// `callable`, or a `Core` namespace class, none of which has a descriptor to
-/// compare against — has no such test to run, so the operand has to be an
-/// object *already*. From anything wider the conversion could only assert the
-/// tag it cannot verify, which is the same type confusion one step earlier, and
-/// it is [`code::E_UNTESTABLE_CONVERSION_TARGET`] where it is written. `$plain
-/// as object` stays the free widening row it always was.
+/// A target naming **no testable class** — plain `object`, a `callable`, or a
+/// `Core` namespace class, none of which has a descriptor to compare against —
+/// has no such test to run, so the operand has to be an object *already*. From
+/// anything wider the conversion could only assert the tag it cannot verify,
+/// which is the same type confusion one step earlier, and it is
+/// [`code::E_UNTESTABLE_CONVERSION_TARGET`] where it is written. `$plain as
+/// object` stays the free widening row it always was. A shape has no
+/// descriptor either, but its fields are the test `is` already runs, so it is
+/// [`super::type_test::accept_shape_conversion`]'s row instead.
 fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
     let Ty::Class(qname, _) = env.interner.get(to).clone() else {
         // Plain `object`, a shape and a `callable` are the other three
         // `ConvKind::Object` targets, and none of them names a class to test
-        // against — nor to be unrelated to.
+        // against, nor to be unrelated to. A shape is tested by its fields.
         reject_untestable_object_target(from, to, span, env);
         return;
     };
@@ -1977,13 +1979,18 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
 /// The half of [`reject_unrelated_class_conversion`] that fires for a target
 /// with no class descriptor behind it. Read that function's doc comment first.
 ///
-/// The operand already being an object is the free widening row and the only
-/// accepted shape: `$plain as object`, `$plain as callable`, `$uri as object`
-/// are one pointer on both sides and run nothing at all. Everything else —
-/// `mixed`, a `?T`, a scalar, an `array<T>` — would have to take a tag on
-/// trust, and `nvs_ir` has no instruction that could check it.
+/// A shape target is tested by its fields instead, and
+/// [`super::type_test::accept_shape_conversion`] decides it first. For every
+/// other target here, the operand already being an object is the free
+/// widening row and the only accepted operand: `$plain as object`, `$plain as
+/// callable`, `$uri as object` are one pointer on both sides and run nothing
+/// at all. Everything else — `mixed`, a `?T`, a scalar, an `array<T>` — would
+/// have to take a tag on trust, and `nvs_ir` has no instruction that could
+/// check it.
 fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
-    if conversion_kind(from, env.interner) == ConvKind::Object {
+    if super::type_test::accept_shape_conversion(from, to, span, env)
+        || conversion_kind(from, env.interner) == ConvKind::Object
+    {
         return;
     }
     let described_from = env.interner.describe(from);
@@ -1995,10 +2002,10 @@ fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &m
         )
         .with_primary(span, "converted here")
         .with_help(
-            "`rule:types/conversion` tabulates no conversion into an object, and this target names no class \
-             to test the value against: name a class values are made of instead — a declared \
-             one, or a `Core` class with instances such as `Core\\Time\\Date` — which is the \
-             checked way out of `mixed`",
+            "`rule:types/conversion` has no checked row into this target, because nothing about it can \
+             be tested on the value at run time: convert to a declared class, a `Core` class with \
+             instances such as `Core\\Time\\Date`, or a shape such as `{id: int}` whose fields \
+             carry no qualifier — those are the checked ways out of `mixed`",
         ),
     );
 }

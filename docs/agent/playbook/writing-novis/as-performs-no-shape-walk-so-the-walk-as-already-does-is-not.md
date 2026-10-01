@@ -1,7 +1,0 @@
-- **`as` performs no shape walk, so "the walk `as` already does" is not available for `is {x: int}`.**
-  `$m as ?{x: int}` is `E0711` where it is written — `rule:types/conversion` tabulates no conversion
-  into an object — which means the shape row of `rule:types/type-test` is a walk to *build*, across
-  the checker, `nvs-ir` and the runtime, and not a second caller of one that exists. Run the spelling
-  through `target/debug/nvs.exe run` before planning a row around a walk a rule names, because a rule
-  naming a conversion is not evidence the conversion lowers.
-  [until: gone crates/nvs-diagnostics/src/lib.rs:E0711]

@@ -1,0 +1,117 @@
+--TEST--
+`$x as Shape` runs the field walk `$x is Shape` runs, gives the value at the shape where it holds and throws a `RuntimeError` where it does not, `rule:types/conversion`, `rule:types/type-test`, `rule:types/shape-type`
+--FILE--
+<?nvs
+// covers: lang:types/the-conversion-operator-as
+type Pad = {top: float, left: float};
+type Width = {w: float};
+
+class Whole {
+    public int $w;
+    public function constructor(int $w) {
+        $this->w = $w;
+    }
+}
+
+class Box {
+    // A union holding the shape: the conversion is a run-time test, and the
+    // `float` member fails it.
+    public static function pad(float|Pad $p): Pad {
+        return $p as Pad;
+    }
+
+    // `mixed` takes the same row, and a failed test is the `RuntimeError` a
+    // failed `as ClassName` throws.
+    public static function wide(mixed $m): string {
+        try {
+            Width $s = $m as Width;
+            return "w=" . ($s->w as string);
+        } catch (RuntimeError $e) {
+            return $e->message;
+        }
+    }
+}
+
+echo Box::pad({top: 1.0, left: 2.5})->left, "\n";
+try {
+    echo Box::pad(3.0)->left, "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+echo Box::wide({w: 1.5}), "\n";
+echo Box::wide({w: 1.5, h: 2.0}), "\n";
+echo Box::wide({h: 2.0}), "\n";
+echo Box::wide("text"), "\n";
+echo Box::wide(null), "\n";
+
+// A field holding an `int` is not a `float` field. The shape reads its slot as
+// a `float`, so both an object literal and a class instance fail the test.
+var $made = {w: 2};
+echo Box::wide($made), "\n";
+echo Box::wide(new Whole(2)), "\n";
+
+// An operand typed as a class is tested the same way, because the class does
+// not satisfy the shape on its own. One that does satisfy it is not tested.
+Whole $whole = new Whole(2);
+try {
+    echo ($whole as Width)->w, "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+echo ($whole as {w: int})->w, "\n";
+
+// Agreement: `as` succeeds exactly where `is` answers `true`, for every value.
+class Probe {
+    public static function value(int $which): mixed {
+        if ($which == 0) { return {w: 1.0}; }
+        if ($which == 1) { return {w: 1}; }
+        if ($which == 2) { return {v: 1.0}; }
+        if ($which == 3) { return new Whole(1); }
+        if ($which == 4) { return [1.0]; }
+        return 4.0;
+    }
+}
+int $agreed = 0;
+for (int $which = 0; $which < 6; $which = $which + 1) {
+    mixed $v = Probe::value($which);
+    bool $tested = $v is {w: float};
+    bool $converted = true;
+    try {
+        $v as {w: float};
+    } catch (RuntimeError $e) {
+        $converted = false;
+    }
+    if ($tested == $converted) { $agreed = $agreed + 1; }
+}
+echo "agreed ", $agreed, "/6\n";
+
+// A `?Pad` holding `null` fails, and one holding a value passes.
+?Pad $maybe = {top: 4.0, left: 5.0};
+echo ($maybe as Pad)->top, "\n";
+?Pad $none = null;
+try {
+    echo ($none as Pad)->top, "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// A field typed `mixed` only needs the key to be there.
+mixed $any = {w: "x"};
+echo ($any as {w: mixed}) is {w: string} ? "kept" : "lost", "\n";
+--EXPECT--
+2.5
+cannot convert a value of another type to `{left: float, top: float}`
+w=1.5
+w=1.5
+cannot convert a value of another type to `{w: float}`
+cannot convert a value of another type to `{w: float}`
+cannot convert a value of another type to `{w: float}`
+cannot convert a value of another type to `{w: float}`
+cannot convert a value of another type to `{w: float}`
+cannot convert a value of another type to `{w: float}`
+2
+agreed 6/6
+4
+cannot convert a value of another type to `{left: float, top: float}`
+kept

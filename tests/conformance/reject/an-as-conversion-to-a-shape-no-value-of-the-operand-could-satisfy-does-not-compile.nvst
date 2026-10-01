@@ -1,0 +1,40 @@
+--TEST--
+`as Shape` from an operand that can hold no object is `E0708`, and a shape with a `secret` field has nothing a run-time test can check and stays `E0711` — `rule:types/conversion`
+--FILE--
+<?nvs
+// A shape is tested by walking the object's fields, so an operand that is
+// never an object shares no value with it: the refusal a class target gets.
+type Pad = {top: float, left: float};
+int $n = 3;
+$n as Pad;
+string $s = "x";
+$s as {a: int};
+// A qualifier is erased before the program runs, so the walk could not check
+// this field. `is` refuses the same shape with `E0813`.
+type Hidden = {key: secret string};
+mixed $m = 3;
+$m as Hidden;
+--EXPECTF-ERROR--
+error[E0708]: `int` cannot be converted to `{left: float, top: float}`
+  --> %s:6:1
+  |
+6 | $n as Pad;
+  | ^^^^^^^^^ converted here
+  = help: `rule:types/conversion` converts into a shape by testing the value's fields, and no value of this type is an object that could have them
+
+error[E0708]: `string` cannot be converted to `{a: int}`
+  --> %s:8:1
+  |
+8 | $s as {a: int};
+  | ^^^^^^^^^^^^^^ converted here
+  = help: `rule:types/conversion` converts into a shape by testing the value's fields, and no value of this type is an object that could have them
+
+error[E0711]: `mixed` cannot be converted to `{key: secret string}`
+   --> %s:13:1
+   |
+13 | $m as Hidden;
+   | ^^^^^^^^^^^^ converted here
+   = help: `rule:types/conversion` has no checked row into this target, because nothing about it can be tested on the value at run time: convert to a declared class, a `Core` class with instances such as `Core\Time\Date`, or a shape such as `{id: int}` whose fields carry no qualifier — those are the checked ways out of `mixed`
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

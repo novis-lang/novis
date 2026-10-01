@@ -149,6 +149,12 @@
           "headline": "Whole numbers in `float` shape fields",
           "body": "`Point $p = {x: 2};` with `type Point = {x: float};` stores `2.0`, and `$p->x` is a `float`. A shape value that already exists with an `int` field is not accepted where a `float` field is needed. Build a new value instead: `{x: $old->x}`.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0236.md"
+        },
+        {
+          "adr": "0237",
+          "headline": "`as` converts to a shape",
+          "body": "`$value as Point` with `type Point = {x: float, y: float};` checks that the value is an object with an `x` and a `y` that are both `float`. If it is, the result is that value as a `Point`. If it is not, `as` throws a `RuntimeError`, the same error a failed `as User` throws. `$value is Point` runs the same check and returns `true` or `false`.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0237.md"
         }
       ]
     },

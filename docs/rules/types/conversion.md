@@ -28,6 +28,7 @@ This is the whole conversion surface:
 | an enum / `mixed` → a case-subset type | checked against the named cases (`rule:types/enum-case-type`) |
 | `string` / `class<U>` → `class<T>` | the name must be `T` or a class that is one, or it throws. `Foo::class` is decided at compile time, and `class<T>` → `string` is total — the descriptor's own name, not the annotation's |
 | `string` / `property<U>` → `property<T>` | the name must be one of `T`'s public declared properties, or it throws. A written-out name is decided at compile time, and `property<T>` → `string` is total |
+| `mixed` / `object` / a union / a class → a shape | checked: the value must have every field the shape names at the named type, tested the way `$x is Shape` tests it (`rule:types/type-test`), or it throws the `RuntimeError` a failed `as ClassName` throws. An operand that already satisfies the shape converts for free, and one that holds no object, or a shape whose field carries a qualifier, is refused where it is written |
 | any row above, under a qualifier | a successful checked conversion strips `tainted` and `secret`; `as` is never a launderer for a value that keeps its type |
 
 A conversion the operand disproves by itself is a **compile** error rather than a run-time throw:

@@ -751,6 +751,9 @@ echo $grid[0][1], " ", Core\Json::encode($a), "\n";
   `{x: 1, y: "two"}` builds an instance with exactly those fields. A literal with more fields than a
   shape names still satisfies it. A shape type cannot open a statement (`{` there is a block), so
   name it with a `type` alias and declare through the alias.
+- `$v as Point` checks at run time that `$v` is an object with every field `Point` names, at the
+  type `Point` gives it. If the check passes, the result is a `Point`. If it fails, `as` throws a
+  `RuntimeError`. `$v is Point` runs the same check and returns `true` or `false`.
 
 ```nvs
 <?nvs
@@ -771,11 +774,15 @@ object $o = new Cell();
 echo $o->n, " ", ($o is Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
 callable $double = fn(int $x): int => $x * 2;
 echo $double(4) as int, "\n";
+mixed $raw = {x: 5, y: 6};
+Point $checked = $raw as Point;
+echo $checked->x + $checked->y, "\n";
 ```
 ```output
 3 34 extra
 1 cell 1
 8
+11
 ```
 
 ### `mixed`
@@ -1175,8 +1182,9 @@ expected `uint`, found `int`
 but fails at run time throws: `ArithmeticError` when a number does not fit (a fractional `float`
 into `int`, a negative into `uint`, an `int` past 2^53 into `float`, a non-integral `decimal` into
 `int`), `RuntimeError` for everything else (a string that is not a number, malformed `bytes`, a
-`mixed` of the wrong tag, a value outside a literal or enum-case set, an object of another class, a
-name that denotes no class this program declares to be a `T` when the target is `class<T>`).
+`mixed` of the wrong tag, a value outside a literal or enum-case set, an object of another class, an
+object without the fields a shape names, a name that denotes no class this program declares to be a
+`T` when the target is `class<T>`).
 
 `expr as ?T` is the same conversion answering `null` instead of throwing. It is refused where
 `as T` cannot fail (`$i as ?int` on an `int`) and for a class target (`$o as ?Foo`): an object is
@@ -1296,6 +1304,7 @@ The conversion table. A pair not listed is a compile error naming both types.
 | `array<T>` | `array<U>` | element by element, throwing at the first element `U` refuses; `array<mixed>` accepts every element |
 | `?T` | `T` | throws on `null` |
 | a class | `object`, a parent, an interface | free; `object as Foo` tests the runtime class |
+| `mixed`, `object`, a union, a class | a shape | the value must have every field the shape names, at the named types, or it throws; a value whose type already has them converts for free |
 | `string` | `class<T>` | the name must denote `T` or a class that is one, or it throws; a written `Foo::class` operand is decided at compile time and never throws |
 | `class<U>` | `class<T>` | `U` must be a `T`, tested against the class the reference holds |
 | any | a literal or enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
