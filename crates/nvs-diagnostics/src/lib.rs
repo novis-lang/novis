@@ -2488,7 +2488,10 @@ pub mod code {
     /// ) and a configured number the budget cannot afford is clamped and
     /// logged rather than refused, because a server that will not boot because
     /// two directives disagree is the worse outage.
-    pub const E_NO_ADMISSION: Code = Code::new("E0622");
+    pub const E_NO_ADMISSION: Code = Code::new("E0622").card(
+        "`[server] max_in_flight` is `0`, so the server would refuse every request. Write a number \
+         above zero, or leave the key out to use the default.",
+    );
 
     /// A `[server] health_path` that is not an absolute path: `healthz`,
     /// `/healthz?verbose=1`, or `/` on its own. `rule:http-server/the-server-block-is-boot-class`'s probe answers
@@ -2502,7 +2505,10 @@ pub mod code {
     /// Not `E0621`'s refusal reached from another direction: a mount path is a
     /// prefix that has to resolve inside `[server] root` on disk, and this is a
     /// whole request target that reaches no filesystem at all.
-    pub const E_BAD_HEALTH_PATH: Code = Code::new("E0623");
+    pub const E_BAD_HEALTH_PATH: Code = Code::new("E0623").card(
+        "`[server] health_path` must be an absolute path such as `/healthz`. It cannot be `/` on \
+         its own, and it cannot contain a query (`?`) or a fragment (`#`).",
+    );
 
     /// An `[http.cookies] same_site` that is none of `rule:http-server/cookies-are-secure-httponly-and-lax`'s three
     /// spellings — `Strictly`, `lax=true`, or a value left over from another
@@ -2521,7 +2527,10 @@ pub mod code {
     /// *pair* of individually meaningful values, and this is one value that
     /// has no meaning by itself — which is why it is asked first, the pair
     /// question being undecidable over a `same_site` nobody can read.
-    pub const E_BAD_SAME_SITE: Code = Code::new("E0624");
+    pub const E_BAD_SAME_SITE: Code = Code::new("E0624").card(
+        "`[http.cookies] same_site` must be `\"Strict\"`, `\"Lax\"` or `\"None\"`. Any other value \
+         is not allowed.",
+    );
 
     /// An `[http.headers]` policy value a header line cannot carry: a `\r\n`
     /// in a `referrer_policy`, a `content_security_policy` or a
@@ -2540,7 +2549,11 @@ pub mod code {
     /// Not `E0612`'s or `E0624`'s refusal reached from another direction:
     /// both of those are about a value's *meaning* under `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, and
     /// this is about whether the bytes can be transmitted at all.
-    pub const E_UNCARRIABLE_HEADER: Code = Code::new("E0625");
+    pub const E_UNCARRIABLE_HEADER: Code = Code::new("E0625").card(
+        "A value in `[http.headers]` contains a line break or another character that a header \
+         cannot contain. `referrer_policy`, `content_security_policy` and `permissions_policy` may \
+         only contain printable ASCII characters.",
+    );
 
     /// `[session] backend` names a store a session may not live in.
     ///
@@ -2558,7 +2571,10 @@ pub mod code {
     /// for `E0613`'s reason applied to a worse failure: a session that vanishes
     /// looks like a user signing themselves out, so nothing in the running
     /// system ever reports it.
-    pub const E_SESSION_BACKEND: Code = Code::new("E0626");
+    pub const E_SESSION_BACKEND: Code = Code::new("E0626").card(
+        "`[session] backend` must be `\"shared\"` or `\"db\"`. `\"local\"` and `\"process\"` are not \
+         allowed, because every core and every process must see the same session.",
+    );
 
     /// `[metrics] exporter` or `[trace] exporter` names no exporter that block
     /// has.
@@ -2575,7 +2591,10 @@ pub mod code {
     /// nothing writes to is indistinguishable from a deployment with nothing to
     /// say, so every dashboard over it is empty rather than wrong and nothing
     /// reports why.
-    pub const E_UNSPELLED_EXPORTER: Code = Code::new("E0627");
+    pub const E_UNSPELLED_EXPORTER: Code = Code::new("E0627").card(
+        "The `exporter` key names an exporter that does not exist. `[metrics] exporter` accepts \
+         `\"prometheus\"`, `\"otlp\"` or `false`. `[trace] exporter` accepts `\"otlp\"` or `false`.",
+    );
 
     /// `[trace] sample` is not a fraction of one.
     ///
@@ -2589,7 +2608,10 @@ pub mod code {
     /// TOML spells `nan` and `inf` and every ordering against a `NaN` is false:
     /// a sample written as one would read as "record nothing" through the same
     /// expression that reads `0.0` that way.
-    pub const E_SAMPLE_NOT_A_FRACTION: Code = Code::new("E0628");
+    pub const E_SAMPLE_NOT_A_FRACTION: Code = Code::new("E0628").card(
+        "`[trace] sample` must be a number from `0.0` to `1.0`. `0.0` records no requests, `0.5` \
+         records half of them and `1.0` records every request.",
+    );
 
     /// `[control] socket` names something that would be reachable over a
     /// network rather than a local endpoint.
@@ -2612,7 +2634,10 @@ pub mod code {
     /// Not `E0627`'s refusal reached from another direction: that one is an
     /// exporter *sink* the tree does not know, and this one is a value the
     /// tree understands perfectly and is not allowed to accept.
-    pub const E_NETWORK_CONTROL_SOCKET: Code = Code::new("E0629");
+    pub const E_NETWORK_CONTROL_SOCKET: Code = Code::new("E0629").card(
+        "`[control] socket` must be the path of a local socket, or `false`. A network address such \
+         as `127.0.0.1:9000` is not allowed, because the control socket has no password.",
+    );
 
     /// `nvs service` was asked to store an argv that names something other
     /// than a server.
@@ -2626,7 +2651,10 @@ pub mod code {
     /// `nvs-cli`'s own contained-panic hook, which that flag's doc comment
     /// says must never be reachable from a served request, and a service
     /// carrying it is exactly that with a privileged account attached.
-    pub const E_SERVICE_ARGV_NOT_ALLOWED: Code = Code::new("E0630");
+    pub const E_SERVICE_ARGV_NOT_ALLOWED: Code = Code::new("E0630").card(
+        "`nvs service` can only install a command that runs a server, `serve` or `run`. Other \
+         commands and the `--fault-inject` option are not allowed in a service.",
+    );
 
     /// A path in the argv `nvs service` was asked to store, or in one of its
     /// own options, is relative — or the argv names no `--config` at all.
@@ -2640,7 +2668,10 @@ pub mod code {
     /// 's `./nvs.toml` — the same failure one step less visible, because it
     /// makes the service's configuration a property of whatever directory the
     /// manager happened to start it in.
-    pub const E_SERVICE_PATH_NOT_ABSOLUTE: Code = Code::new("E0631");
+    pub const E_SERVICE_PATH_NOT_ABSOLUTE: Code = Code::new("E0631").card(
+        "Every path given to `nvs service` must be absolute, and the command must name a `--config` \
+         file. A service does not start in your current folder, so a relative path is not found.",
+    );
 
     /// An `--account` password was passed to `nvs service` on the command
     /// line.
@@ -2651,7 +2682,10 @@ pub mod code {
     /// sense for its whole life. The option exists in order to be refused by
     /// name — a bare "unrecognized argument" would read as a spelling mistake
     /// and send the operator looking for the right flag.
-    pub const E_SERVICE_PASSWORD_ON_A_COMMAND_LINE: Code = Code::new("E0633");
+    pub const E_SERVICE_PASSWORD_ON_A_COMMAND_LINE: Code = Code::new("E0633").card(
+        "`nvs service` does not accept the account password on the command line, because other \
+         users on the machine can read it. Leave the password out, and `nvs service` asks for it.",
+    );
 
     /// `nvs service` was run from an
     /// `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
@@ -2663,7 +2697,10 @@ pub mod code {
     /// that payload at every boot, with no operator having read what it
     /// contains — which is the boundary 0048 § 1 declined to cross, arrived at
     /// from the other side.
-    pub const E_SERVICE_FROM_A_BUNDLE: Code = Code::new("E0634");
+    pub const E_SERVICE_FROM_A_BUNDLE: Code = Code::new("E0634").card(
+        "A program built with `nvs build` cannot install itself as a service. Run `nvs service` \
+         with the `nvs` program itself.",
+    );
 
     /// `[cache.shared] url` or `[db.<name>] host` names a Unix-domain socket on a
     /// build that carries no `AF_UNIX` transport.
@@ -2683,7 +2720,10 @@ pub mod code {
     /// differently. Reading it as loopback TCP instead is refused because a
     /// configuration that reads as one transport and runs as another is
     /// invisible in exactly the review that would have caught it.
-    pub const E_NO_UNIX_TRANSPORT: Code = Code::new("E0635");
+    pub const E_NO_UNIX_TRANSPORT: Code = Code::new("E0635").card(
+        "`[cache.shared] url` starts with `unix:`, which is a Unix socket, and this build cannot \
+         open Unix sockets. This is the case on Windows. Write the url as `redis://host:port`.",
+    );
 
     /// A `[server] workers` written as `0`.
     ///
@@ -2698,7 +2738,10 @@ pub mod code {
     /// `available_parallelism` with is what the operator asked for and is
     /// started: a heuristic that knew better than the block would make the
     /// core count something the file cannot state.
-    pub const E_NO_WORKERS: Code = Code::new("E0636");
+    pub const E_NO_WORKERS: Code = Code::new("E0636").card(
+        "`[server] workers` is `0`, so no worker would answer a request. Write a number above zero, \
+         or leave the key out to use one worker per CPU core.",
+    );
 
     /// A **written** `Core\Queue::purge` queue name that the compiling
     /// machine's `queue.purge` grant does not cover —
@@ -2725,7 +2768,10 @@ pub mod code {
     /// door is the only place the question can be asked. In this band rather
     /// than the types one for `E0618`'s reason: what it reads is a grant, not
     /// a type.
-    pub const E_UNGRANTED_QUEUE: Code = Code::new("E0637");
+    pub const E_UNGRANTED_QUEUE: Code = Code::new("E0637").card(
+        "`Core\\Queue::purge` names a queue that this machine's `queue.purge` capability does not \
+         include. Add the queue name to `purge` under `[capabilities.queue]` in `nvs.toml`.",
+    );
 
     /// `[http.client.tls] roots` naming no trust anchor at all — an empty
     /// list.
@@ -2737,7 +2783,10 @@ pub mod code {
     /// issuer — a message that sends an operator looking at the origin rather
     /// than at the key they wrote. Omitting the key is how a deployment asks
     /// for the compiled-in set, so there is nothing `[]` could have meant.
-    pub const E_TLS_ROOTS_EMPTY: Code = Code::new("E0638");
+    pub const E_TLS_ROOTS_EMPTY: Code = Code::new("E0638").card(
+        "`[http.client.tls] roots` is an empty list, so every outbound `https` call would fail. Name \
+         at least one certificate file, or leave the key out to use the built-in certificates.",
+    );
 
     /// `[http.client.tls] min_version` naming a version this build does not
     /// speak.
@@ -2747,7 +2796,10 @@ pub mod code {
     /// either would leave the floor at 1.2 while telling an operator they had
     /// chosen otherwise, which is the one outcome worse than refusing the
     /// key.
-    pub const E_TLS_MIN_VERSION: Code = Code::new("E0639");
+    pub const E_TLS_MIN_VERSION: Code = Code::new("E0639").card(
+        "`[http.client.tls] min_version` must be `\"1.2\"` or `\"1.3\"`. Older TLS versions are not \
+         supported.",
+    );
 
     /// `[http.client.tls] keylog` written on a host whose mode is
     /// `production`.
@@ -2759,7 +2811,10 @@ pub mod code {
     /// a deployment has already said whether it is debugging, so the key is
     /// announced in `development` and refused here rather than left for a
     /// reviewer to catch.
-    pub const E_KEYLOG_IN_PRODUCTION: Code = Code::new("E0640");
+    pub const E_KEYLOG_IN_PRODUCTION: Code = Code::new("E0640").card(
+        "`[http.client.tls] keylog` is not allowed in `production` mode. The file it writes can \
+         decrypt every outbound connection. Use it only in `development`.",
+    );
 
     /// `[http.client.tls]` resolved, and the outbound client it describes
     /// could not be built from it — a `roots` entry that cannot be opened or
@@ -2772,7 +2827,10 @@ pub mod code {
     /// because the alternative is a process that answers every outbound
     /// `https` call with a handshake failure an operator reads as the
     /// origin's fault. The message names the file.
-    pub const E_TLS_CLIENT_UNBUILDABLE: Code = Code::new("E0641");
+    pub const E_TLS_CLIENT_UNBUILDABLE: Code = Code::new("E0641").card(
+        "A file named in `[http.client.tls]` cannot be used. A `roots` file cannot be opened or \
+         contains no certificate, or the `keylog` file cannot be opened. The message names the file.",
+    );
 
     /// A `[cache.process] fill_wait` that is not a wait — `0`, or `false`.
     ///
@@ -2788,7 +2846,10 @@ pub mod code {
     /// wait than the operator's writes `wait` at its own call site, where
     /// that decision is visible in review; an operator who wants a longer
     /// one raises this key.
-    pub const E_FILL_WAIT_NOT_A_WAIT: Code = Code::new("E0642");
+    pub const E_FILL_WAIT_NOT_A_WAIT: Code = Code::new("E0642").card(
+        "`[cache.process] fill_wait` must be a length of time above zero, such as `\"5s\"`. `0` and \
+         `false` are not allowed.",
+    );
 
     /// A `[http.client.proxy]` block that writes no `resolve`.
     ///
@@ -2800,7 +2861,10 @@ pub mod code {
     /// address pin everywhere else. The refusal names both words rather
     /// than picking one, since the deployment's own network is what
     /// decides which is true and this file cannot know it.
-    pub const E_PROXY_RESOLVE_MISSING: Code = Code::new("E0643");
+    pub const E_PROXY_RESOLVE_MISSING: Code = Code::new("E0643").card(
+        "A `[http.client.proxy]` block must set `resolve` to `\"local\"` or `\"proxy\"`. With \
+         `\"local\"`, this server looks up host names. With `\"proxy\"`, the proxy looks them up.",
+    );
 
     /// A `[http.client.proxy] resolve` that is neither `local` nor
     /// `proxy`.
@@ -2810,7 +2874,10 @@ pub mod code {
     /// `rule:security/net-address-policy` still sees an address. A third
     /// word has no reading to fall back on, and reading it as either of
     /// the two would pick a security posture out of a typo.
-    pub const E_PROXY_RESOLVE_UNKNOWN: Code = Code::new("E0644");
+    pub const E_PROXY_RESOLVE_UNKNOWN: Code = Code::new("E0644").card(
+        "`[http.client.proxy] resolve` must be `\"local\"` or `\"proxy\"`. With `\"local\"`, this \
+         server looks up host names. With `\"proxy\"`, the proxy looks them up.",
+    );
 
     /// A `[http.client.proxy]` block whose `url` this client cannot dial —
     /// absent, not `http://`, naming no host, or carrying a credential or
@@ -2827,7 +2894,11 @@ pub mod code {
     /// for the same reason — `username` and `password` are where a
     /// credential is read from, so one written here would be dropped in
     /// silence.
-    pub const E_PROXY_URL_UNDIALABLE: Code = Code::new("E0645");
+    pub const E_PROXY_URL_UNDIALABLE: Code = Code::new("E0645").card(
+        "`[http.client.proxy] url` must be an `http://` address with a host, such as \
+         `http://proxy.example.com:3128`. Put a user name and password in `username` and \
+         `password`, not in the URL.",
+    );
 
     /// A `[http.client.proxy] bypass` entry that is not a host name — one
     /// with a port, a scheme, a `*` or a `/`.
@@ -2841,7 +2912,10 @@ pub mod code {
     /// port or a scheme is an entry that can never match, which is a
     /// bypass an operator believes is in force. The refusal names the
     /// entry.
-    pub const E_PROXY_BYPASS_ENTRY: Code = Code::new("E0646");
+    pub const E_PROXY_BYPASS_ENTRY: Code = Code::new("E0646").card(
+        "An entry in `[http.client.proxy] bypass` must be a host name, such as `api.example.com`, or \
+         `.example.com` for every host under it. A port, a scheme, `*` and `/` are not allowed.",
+    );
 
     /// A `[http.client.socket]` bound written with no bound in it — a
     /// `max_message` or a `send_timeout` of `false` or of zero.
@@ -2857,7 +2931,10 @@ pub mod code {
     /// round: a cap of nothing admits no message and a wait of nothing writes
     /// no frame, so the block configured a socket that can hold no
     /// conversation. The refusal names the key and the two shipped values.
-    pub const E_SOCKET_BOUND_REMOVED: Code = Code::new("E0647");
+    pub const E_SOCKET_BOUND_REMOVED: Code = Code::new("E0647").card(
+        "`[http.client.socket] max_message` and `send_timeout` need a value above zero. `false` and \
+         `0` are not allowed. The message shows the default value.",
+    );
 
     /// A `[server] socket_mode` that is not a file mode — not octal, wider
     /// than `0777`, or carrying a bit that is not a permission.
@@ -2869,7 +2946,10 @@ pub mod code {
     /// reader had to guess the intent of would be a trust boundary chosen
     /// out of a typo, and the guess an operator would least expect is the
     /// one that widens it.
-    pub const E_BAD_SOCKET_MODE: Code = Code::new("E0648");
+    pub const E_BAD_SOCKET_MODE: Code = Code::new("E0648").card(
+        "`[server] socket_mode` must be an octal file mode no larger than `0777`, such as \
+         `\"0660\"`. It sets who may connect to the Unix socket.",
+    );
 
     /// A `[server.connection]` bound written with no bound in it — any of
     /// that block's keys as `false` or as zero.
@@ -2888,7 +2968,10 @@ pub mod code {
     /// A value that is not a size, a count or a duration at all is `E0601`
     /// in `nvs_config::value`'s own words; this code is only for a
     /// well-formed value whose *magnitude* is the problem.
-    pub const E_CONNECTION_BOUND_REMOVED: Code = Code::new("E0649");
+    pub const E_CONNECTION_BOUND_REMOVED: Code = Code::new("E0649").card(
+        "A key in `[server.connection]` is `false` or `0`. Every key in this block needs a limit \
+         above zero. The message shows the default value.",
+    );
 
     /// `[http] csrf_key` holding something that is not a key: text that is
     /// not base64, or base64 of any length other than the one a key is.
@@ -2900,7 +2983,9 @@ pub mod code {
     /// unverified while its configuration says they are checked — the one
     /// way a security directive must not fail. The refusal names the key
     /// and what a key is, and never a byte of the value.
-    pub const E_BAD_CSRF_KEY: Code = Code::new("E0650");
+    pub const E_BAD_CSRF_KEY: Code = Code::new("E0650").card(
+        "`[http] csrf_key` is not a valid key. It must be base64 text of a 32-byte key.",
+    );
 
     // --- E07xx types, continued --------------------------------------------
     //
@@ -4853,23 +4938,20 @@ mod tests {
     /// it: it lands with its card. Goal `core-class-cards` is what empties the
     /// list.
     const CODES_STILL_OWING_A_CARD: &[&str] = &[
-        "E0622", "E0623", "E0624", "E0625", "E0626", "E0627", "E0628", "E0629", "E0630", "E0631",
-        "E0633", "E0634", "E0635", "E0636", "E0637", "E0638", "E0639", "E0640", "E0641", "E0642",
-        "E0643", "E0644", "E0645", "E0646", "E0647", "E0648", "E0649", "E0650", "E0700", "E0701",
-        "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709", "E0710", "E0711",
-        "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721", "E0722", "E0723",
-        "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731", "E0732", "E0733",
-        "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741", "E0742", "E0743",
-        "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751", "E0752", "E0753",
-        "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761", "E0762", "E0763",
-        "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771", "E0772", "E0775",
-        "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785", "E0786", "E0787",
-        "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795", "E0796", "E0797",
-        "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807", "E0808", "E0809",
-        "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818", "E0819", "E0820",
-        "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828", "E0829", "E0830",
-        "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003", "W1004", "W1005",
-        "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
+        "E0700", "E0701", "E0713", "E0714", "E0702", "E0705", "E0706", "E0707", "E0708", "E0709",
+        "E0710", "E0711", "E0712", "E0715", "E0716", "E0717", "E0718", "E0719", "E0720", "E0721",
+        "E0722", "E0723", "E0724", "E0725", "E0726", "E0727", "E0728", "E0729", "E0730", "E0731",
+        "E0732", "E0733", "E0734", "E0735", "E0736", "E0737", "E0738", "E0739", "E0740", "E0741",
+        "E0742", "E0743", "E0744", "E0745", "E0746", "E0747", "E0748", "E0749", "E0750", "E0751",
+        "E0752", "E0753", "E0754", "E0755", "E0756", "E0757", "E0758", "E0759", "E0760", "E0761",
+        "E0762", "E0763", "E0764", "E0765", "E0766", "E0767", "E0768", "E0769", "E0770", "E0771",
+        "E0772", "E0775", "E0778", "E0779", "E0780", "E0781", "E0782", "E0783", "E0784", "E0785",
+        "E0786", "E0787", "E0788", "E0789", "E0790", "E0791", "E0792", "E0793", "E0794", "E0795",
+        "E0796", "E0797", "E0798", "E0799", "E0800", "E0801", "E0802", "E0805", "E0806", "E0807",
+        "E0808", "E0809", "E0810", "E0811", "E0813", "E0814", "E0815", "E0816", "E0817", "E0818",
+        "E0819", "E0820", "E0821", "E0822", "E0823", "E0824", "E0825", "E0826", "E0827", "E0828",
+        "E0829", "E0830", "E0831", "E0832", "E0833", "E0834", "E0901", "W1001", "W1002", "W1003",
+        "W1004", "W1005", "W1006", "W1007", "W1008", "W1009", "W1010", "W1011", "W1012",
     ];
 
     /// Every code carries its `rule:tooling/a-diagnostic-code-carries-its-card`
