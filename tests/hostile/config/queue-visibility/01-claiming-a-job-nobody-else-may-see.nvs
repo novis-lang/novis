@@ -1,20 +1,11 @@
 <?nvs
-// Attack: the lease that decides when a claimed job becomes claimable again,
-// pushed by a request. It is the block's one duration, so the pressure that
-// belongs here is on the parser rather than on the count: a value that reads as
-// a duration to one layer and as nothing to the next is how a lease of zero
-// arrives spelled as something the boot refusal never sees. Both ends are worth
-// having — a lease short enough makes every claimed job visible to every worker
-// at once, which is two workers running one job and the whole point of the
-// lease undone, and a lease long enough is a job nobody may retry for a week
-// after the worker holding it was killed. The lease still reading what the
-// deployment configured is the evidence that neither happened.
+// Attack: a request tries to change `queue.visibility`. A very short time lets two
+// workers run the same job. A very long time hides a job for days after its worker
+// stops. Every write should fail, and the value should stay the configured one.
 // hostile: timeout-ms 20000
 
-// 1. Every shape a duration can be written in, including the ones that are not
-//    durations. `false` is the spelling that removes a ceiling elsewhere in the
-//    file and is not a meaning a lease has, so it belongs here beside the
-//    zeroes rather than among the malformed values.
+// 1. Tries durations in many forms, and values that are not durations. In
+//    `[limits]`, `false` means "no limit", so it is tried too.
 array<string> $leases = [
     '0',
     '0s',
@@ -52,11 +43,8 @@ foreach ($leases as string $lease) {
     Core\Config::restore('queue.visibility');
 }
 
-// 2. Every spelling of the key, because a refusal that matches by text rather
-//    than by the row governing it is one near-miss from letting a lease
-//    through, and this key has more plausible near-misses than most: the same
-//    idea is called a visibility timeout by one broker and a lock duration by
-//    the next.
+// 2. Tries keys that are almost `queue.visibility`, such as `visibility_timeout`.
+//    Every write should fail.
 array<string> $keys = [
     'queue.visibility',
     'QUEUE.VISIBILITY',
@@ -73,11 +61,8 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. All of it as fast as the runtime will take it, reading the lease back
-//    every round. It is read as a job is claimed rather than when a worker is
-//    built, so there is no restart standing between a write that reached the
-//    published snapshot and the very next claim taken under it — the standing
-//    value moving here is that, and it is the only place a request can see it.
+// 3. Writes and reads the value 200,000 times. The server reads it each time it
+//    takes a job. The value should never change, so this prints `0`.
 uint $changes = 0;
 string $standing = Core\Config::get('queue.visibility') ?? '(nothing written)';
 uint $i = 0;
@@ -91,8 +76,8 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 4. And real work alongside it, because the request shortening its own lease
-//    is the request enqueueing the job the lease would cover.
+// 4. Builds 20,000 job strings, as a real request would. The settings should
+//    still be the configured values after this work.
 array<string> $claims = [];
 uint $j = 0;
 while ($j < 20000) {

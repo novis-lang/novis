@@ -1,31 +1,27 @@
 <?nvs
-// A connection that has finished its call is kept open instead of being closed,
-// so the next call to the same upstream skips the round trip and the TLS
-// handshake. `[http.client] pool_idle` is how many of those one core will hold
-// at a time. This checkout writes it out:
+// After a call finishes, its connection stays open. The next call to the same server
+// then needs no new connection and no new TLS handshake. `[http.client] pool_idle` is
+// how many of these open connections one core keeps. This file sets it:
 //
 //     [http.client]
 //     pool_idle = 16
 
 echo 'idle connections per core: ', Core\Config::get('http.client.pool_idle') ?? '(nothing, so the built-in default)', "\n";
 
-// The shelf belongs to the core, not to the request that filled it, so the room
-// a host has to have for it is this number times however many cores it runs.
-// Which makes it a decision about the size of the machine.
+// Each core keeps its own connections. A host with 16 cores keeps up to 16 times
+// this number, so this prints `256`.
 echo 'so a 16-core host holds:   ', 16 * 16, "\n";
 
-// And that is why a running program may read the number and not move it. A
-// request that raised it would be spending memory every other request on that
-// core then goes without. Asking answers `no` rather than throwing.
+// The right number depends on the size of the machine, so a program cannot change it.
+// `Core\Config::set` returns `false`, so this prints `no`.
 echo 'raise it from code:        ', Core\Config::set('http.client.pool_idle', '512') ? 'yes' : 'no', "\n";
 
-// The bounds that *are* a program's sit in the same block, because each of them
-// bounds the one call being made and spends nothing anybody else needs.
+// A program may change the settings in this block that affect only its own call.
+// `http.client.deadline` is one of them, so this prints `yes` and then `2s`.
 echo 'shorten my own call:       ', Core\Config::set('http.client.deadline', '2s') ? 'yes' : 'no', "\n";
 echo 'now in force:              ', Core\Config::get('http.client.deadline') ?? '(nothing)', "\n";
 
-// `0` is a written value and not a missing one: it takes the shelf away, so
-// every call opens its own connection. There is no spelling for an unbounded
-// shelf, which is the point — a pool nobody can size is memory nobody can size.
+// `Core\Config::restore` deletes the value this program set. This file sets no
+// deadline, so `get` returns `null`.
 Core\Config::restore('http.client.deadline');
 echo 'back to the file:          ', Core\Config::get('http.client.deadline') ?? '(nothing, so the built-in default)', "\n";

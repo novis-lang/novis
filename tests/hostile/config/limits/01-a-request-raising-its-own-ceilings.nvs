@@ -1,18 +1,11 @@
 <?nvs
-// Attack: `[limits]` is the one block a request is *allowed* to write, so the
-// whole of its safety is that `[limits.hard]` bounds what it may write and
-// that neither half can be talked into a nonsense value. This pushes every key
-// of the block past its ceiling, then feeds both halves the numbers a size
-// parser comes apart on, then tries the keys carved out of the block that are
-// the operator's, then checks the survivor is still the deployment's answer.
+// Attack: a request tries to raise its own `[limits]` past `[limits.hard]`, or to
+// set them to values that cannot be read correctly. Every such write should fail,
+// and the limits should end at the configured values.
 // hostile: timeout-ms 30000
 
-// 1. Over the ceiling, on every key that has one. Each accepted raise is a
-//    request handing itself more of this host than the operator allowed.
-//    The second half of the list is the same overshoot wearing a different
-//    spelling of the same unit, which is where a bypass would actually live: a
-//    lenient parser used for the ceiling check and a strict one used for
-//    enforcement would disagree about `700 M` and let it through.
+// 1. Sets every key above its ceiling. Some values write the same size in other
+//    ways, like `700 M` or `700MiB`. Every write should fail.
 array<string> $overshoot = [
     '1G',
     '512G',
@@ -41,10 +34,8 @@ foreach ($keys as string $key) {
     Core\Config::restore('limits.' . $key);
 }
 
-// 2. Values a size or duration parser comes apart on. An accepted one is a
-//    limit whose enforcement is now somebody's rounding decision — and a
-//    parsed-to-zero or parsed-to-huge answer is the same defect wearing two
-//    faces, so nothing here may read back as a value.
+// 2. Tries values that are not valid sizes: negative, zero, huge, or with extra
+//    text. Every write should fail, so no read returns one of these values.
 array<string> $nonsense = [
     '',
     ' ',
@@ -81,11 +72,8 @@ foreach ($nonsense as string $value) {
 Core\Config::restore('limits.memory');
 Core\Config::restore('limits.hard.memory');
 
-// 3. The ceiling itself, and the keys written beside these that are the
-//    operator's: the tier-1 handler's reserved slice, the recursion depth and
-//    the decompression bound. An accepted write to any of them is a script
-//    choosing the size of its own safety net, which is the case the whole
-//    class distinction exists for.
+// 3. Tries the keys that only the person who runs the server may set: the
+//    ceilings, the reserves, the script depth and the decompression limits.
 array<string> $operators = [
     'limits.hard.memory',
     'limits.hard.cpu_time',
@@ -105,10 +93,8 @@ foreach ($operators as string $key) {
     Core\Config::restore($key);
 }
 
-// 4. The spellings that are nearly one of those. `[limits]` and `[limits.hard]`
-//    are the same key names under two different classes, so a near miss that
-//    landed on the wrong one of the pair would be a request writing the
-//    ceiling by mis-spelling the default.
+// 4. Tries keys that are almost a real key. None of them may change a limit
+//    or a ceiling.
 array<string> $spellings = [
     'limits.hard',
     'limits.hard.hard.memory',
@@ -128,10 +114,8 @@ foreach ($spellings as string $key) {
     Core\Config::restore($key);
 }
 
-// 5. A hundred thousand accepted writes and a hundred thousand refused ones,
-//    neither with a restore between them: an overlay that grew an entry per
-//    call would be one request eating this host through the one block it is
-//    allowed to touch.
+// 5. Makes 100,000 allowed writes and 100,000 failed writes. The request's
+//    memory should not grow with the number of writes.
 uint $i = 0;
 while ($i < 100000) {
     Core\Config::set('limits.memory', '200M');
@@ -140,7 +124,7 @@ while ($i < 100000) {
 }
 Core\Config::restore('limits.memory');
 
-// 6. What survived. The deployment's answer, unchanged by any of the above —
-//    anything else here is a request that moved a limit it does not own.
+// 6. Prints both values. They should be the configured values. Any other
+//    value means the request changed a limit it may not change.
 echo 'memory:  ', Core\Config::get('limits.memory') ?? '(nothing)', "\n";
 echo 'ceiling: ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";

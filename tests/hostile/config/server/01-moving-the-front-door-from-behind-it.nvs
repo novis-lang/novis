@@ -1,19 +1,11 @@
 <?nvs
-// Attack: the server's own block, written from a request the server is already
-// serving. Three keys here are worth more than the rest of the file put
-// together. `listen` is which interface the deployment answers on, and a
-// loopback server that started answering on every address is exposed without
-// anybody having deployed anything. `trusted_proxies` is fail-closed and
-// empty, so an entry added to it makes every forwarding header believed —
-// which is the client address the logs, the rate limits and the allow-lists all
-// read. And the four waits are what stops a connection that sends one byte a
-// minute from holding a slot forever. Every one of them still reading what the
-// file wrote is the evidence that the front door did not move.
+// Attack: a request tries to change `[server]`: the address it listens on, the
+// trusted proxies and the timeouts. Every write should fail, and every value
+// should still be the configured one at the end.
 // hostile: timeout-ms 20000
 
-// 1. The address. Every spelling of "everywhere" is worth trying, because the
-//    dangerous value is not a malformed one — it is a well-formed address that
-//    a loopback deployment never meant to answer on.
+// 1. Tries many ways to write "every network address", such as `0.0.0.0:80`.
+//    These are valid addresses, but a program still may not set them.
 array<string> $addresses = [
     '127.0.0.1:8000',
     '0.0.0.0:80',
@@ -39,9 +31,8 @@ foreach ($addresses as string $address) {
     Core\Config::restore('server.listen');
 }
 
-// 2. The proxy list, which is the quietest of the three: nothing crashes when
-//    it grows, and everything downstream starts believing a header this request
-//    wrote about itself.
+// 2. Tries to add proxies. A trusted proxy makes the server believe the client
+//    address in a header, and this request could write that header.
 array<string> $proxies = [
     '0.0.0.0/0',
     '::/0',
@@ -58,10 +49,8 @@ foreach ($proxies as string $proxy) {
     Core\Config::restore('server.trusted_proxies');
 }
 
-// 3. The waits and the ceilings, in both directions. Lengthened, a wait is a
-//    slot held by a connection doing nothing; removed, it is every slot. The
-//    ceiling beside them is the count that refuses a request before anything is
-//    allocated for it, so a raised one is the same attack spelled as a number.
+// 3. Tries to remove or raise the timeouts, `max_in_flight` and the other
+//    `[server]` keys. Every write should fail.
 array<string> $bounds = [
     'server.header_timeout',
     'server.body_idle_timeout',
@@ -102,8 +91,8 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 5. And real work alongside it, because the request moving the front door is a
-//    request that came through it.
+// 5. Builds 20,000 strings, as a real request would. The settings should still
+//    be the configured values after this work.
 array<string> $connections = [];
 uint $j = 0;
 while ($j < 20000) {

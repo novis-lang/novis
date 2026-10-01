@@ -1,27 +1,31 @@
 {
-  "state": "**Goal `plain-comments` — every landed comment reads plainly — has just started; nothing of it has landed yet.** Goal `the-description-is-owed`'s whole list is this goal's Stage 1 floor.\n\nSettled before the first session: the rule is `docs/examples/README.md` § *How a comment is\nwritten*, the bounds a script can judge are `commentProblems` in `tools/nv/proofs/collect.ts`, and neither is\nreopened here. This goal changes comment lines in programs already on disk and nothing else. The\ngate's switch, `\"comments\": true` under `owes.all` in `data/proofs/policy.json`, is **off** and stays off until Stage 2 is green.",
+  "state": "**Goal `plain-comments`, Stage 2 (the sweep): 296 of the 297 programs the checker named are rewritten and committed.** `bun nv proofs --comments docs/examples tests/hostile benches/members` now names one program: `tests/hostile/lang/programs/doc-comments/01-notes-far-longer-than-the-code-they-document.nvs`. Its long `///` block is the attack's payload: Markdown headings, nested lists, a table, a code fence, nested quotes and twelve `@see` lines. Fitting it in two lines removes what the attack tests, and `rule:testing/a-failing-proof-is-fixed-or-recorded` does not allow a weaker attack. Its payload is restored and its prose is plain. Only the checker's line and sentence counts still flag it.\n\n**The run is held on one decision** (status BLOCKED): how a comment that is an attack's payload passes the checker. The goal's standing decisions say the bounds are not reopened and no feature is excused, so a session cannot decide this. The recommendation is a `// hostile: comment-payload` directive line that makes `commentProblems` skip the one comment block directly under it. That keeps every prose comment in the file judged, and a tree README states it. The `lang/programs/comments` attack and the `doc-comments` bench were cut to fit and lost little, so they need no directive.\n\nThree examples printed something wrong and were fixed and re-blessed under the goal's *A comment that was wrong is fixed* decision: `types/Comparable/02` threw away the result of `Core\\Arr::sort`, `types/Db-Driver/02` left `MariaDb` out of its loop, and `lang/types/mixed/01` printed `per row`. The gate switch in `data/proofs/policy.json` is still off.",
   "next": {
     "stage": 2,
-    "title": "the sweep",
+    "title": "the sweep, then Stage 3: the gate",
     "files": [],
-    "note": "one file set per slice: a chapter's or a class's directories under `docs/examples/`, `tests/hostile/` and `benches/members/`.",
+    "note": "one file set: the checker, the last flagged attack and the policy file.",
     "items": [
       {
         "done": false,
-        "text": "`bun nv proofs --comments docs/examples tests/hostile benches/members` — the whole worklist, one program per block, one line per problem. Its last line is the count."
+        "text": "Apply the user's answer on payload comments to `tools/nv/proofs/collect.ts:126` (`commentProblems`), and mark the payload block of `tests/hostile/lang/programs/doc-comments/01-notes-far-longer-than-the-code-they-document.nvs:8` with it. Say the rule in `tests/hostile/README.md`. `rule:testing/feature-proofs`."
       },
       {
         "done": false,
-        "text": "Cut it by chapter and class, hand each to a worker under the rules in the goal's *Running this goal wide*, and launch them in one message."
+        "text": "Re-run `bun nv proofs --comments docs/examples tests/hostile benches/members`, which `tools/nv/proofs/collect.ts:446` runs. Stage 2 is green when it exits 0."
       },
       {
         "done": false,
-        "text": "After every worker has stopped: the `git diff -U0` read for a changed line that is not a comment, `--run examples` over what changed, `bun nv verify`, the wrap."
+        "text": "Stage 3: add `\"comments\": true` under `owes.all` in `data/proofs/policy.json` (read by `tools/nv/proofs/collect.ts:75`), then `bun nv proofs --gate`."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the gate** — `data/proofs/policy.json` alone. Add `\"comments\": true` under `owes.all` once Stage 2's check is green, and `bun nv proofs --gate` then passes on a line naming plain comments. One small slice; take it in the session that finishes the sweep.",
-    "When this goal's last check goes green the driver takes goal `ci-green`."
+    "`tests/hostile/core/Str/length/01-unbounded-and-degenerate-input.nvs`: `$hard[$total % 4]` gets stuck on one string after it reaches `\"cafe\\u{301}\"`, so the later rounds never count the emoji. Owner: `tests/hostile/README.md`.",
+    "`tests/hostile/config/http-csrf_key/01-choosing-which-forgeries-the-door-accepts.nvs`: `'\\u{0000}'` is single-quoted, and may be literal text and not null bytes. Not checked. Owner: `tests/hostile/README.md`.",
+    "`tests/hostile/config/http-client-tls/01-choosing-who-is-believed-from-inside-a-request.nvs` never reads back `roots` or `keylog`, the two keys it attacks. Owner: `tests/hostile/README.md`.",
+    "`docs/examples/config/http-client-tls/01-whose-certificates-an-outbound-call-believes.nvs`: the `speak older TLS:` line sets `min_version` to `'1.2'`, the value already in force. Owner: `docs/examples/README.md`.",
+    "`tests/hostile/lang/types/parameters/01-build-every-shape-of-argument-list-until-one-slips.nvs` step 4 says a throw stops the `inout` copy-back. Not checked. Owner: `tests/hostile/README.md`.",
+    "The handoff's earlier item named a *Running this goal wide* section in `docs/agent/goals/plain-comments.md`. That section does not exist, so this session wrote its worker brief itself."
   ]
 }

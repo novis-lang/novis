@@ -1,31 +1,27 @@
 <?nvs
-// `[cache.local]` configures the fastest of the three cache tiers: one store per
-// CPU core, shared with nothing. It has a single setting, and this is what the
-// server running this program was given:
+// `[cache.local]` configures the fastest cache: one store for each CPU core.
+// The server running this program has this setting:
 //
 //     [cache.local]
 //     max_size = "32M"
 //
-// `max_size` is what one core's entries may hold together. Because the store is
-// per core, a machine with eight of them holds up to eight times that figure.
+// `max_size` is the most memory the entries of one core may use together.
+// A machine with eight cores may use up to eight times that amount.
 
 var $cache = Core\Cache::local();
 
-// Something expensive to work out, kept for the next request this core handles.
+// `put` stores a value for the next request on this core. `get` returns it, so this prints `20`.
 $cache->put('vat-rate:at', '20');
 echo 'vat rate: ', $cache->get('vat-rate:at') ?? '(work it out again)', "\n";
 
-// The cap in force, exactly as the file spelled it. With no `[cache.local]`
-// block at all, a built-in figure applies and this reads back as nothing.
+// This prints the limit as the file writes it: `32M`. Without a `[cache.local]`
+// block, a built-in limit applies and `Core\Config::get` returns `null`.
 echo 'cap:      ', Core\Config::get('cache.local.max_size') ?? '(the built-in cap)', "\n";
 
-// Filling the store up is not something a program has to guard against: going
-// over the cap forgets the least recently used entries to make room, so a `put`
-// never fails for want of space. Plan for a `get` to miss, not for a `put` to
-// throw.
+// When the store is full, `put` deletes the entries used least recently to make room.
+// A `put` never fails, but a `get` can return `null`. This key was never stored.
 echo 'miss:     ', $cache->get('vat-rate:de') ?? '(not cached)', "\n";
 
-// The cap belongs to whoever runs the server. The memory it bounds is the
-// core's, so one request raising it would be spending what every other request
-// on that core then goes without -- which is why a program cannot.
+// Only the person who runs the server may change this limit.
+// `Core\Config::set` returns `false`, so this prints `no`.
 echo 'raise it: ', Core\Config::set('cache.local.max_size', '1G') ? 'yes' : 'no', "\n";

@@ -1,15 +1,10 @@
 <?nvs
-// Attack: the timeout is the half of the pool's bound that says how long, so
-// this goes at the window rather than at the count — a wait written as every
-// magnitude a duration parser might overflow on, as every spelling that has
-// ever meant "no limit", and as the count's own spelling, because the two caps
-// sit one underscore apart and a parser that took either would let an operator
-// set a window where they meant a number of connections.
+// Attack: a request tries to change `[http.client] pool_idle_timeout`, how long an unused
+// connection stays open. It uses values that overflow, values that could mean "forever",
+// and values meant for `pool_idle`. Every change should fail.
 // hostile: timeout-ms 30000
 
-// 1. Magnitudes. A duration is nanoseconds underneath, so the interesting
-//    values are the ones that overflow on the way there rather than the ones
-//    that are merely long.
+// 1. Set durations that overflow when converted to nanoseconds, and zero or negative ones.
 array<string> $magnitudes = [
     '9223372036854775807',
     '9223372036854775807s',
@@ -29,10 +24,7 @@ foreach ($magnitudes as string $value) {
 }
 Core\Config::restore('http.client.pool_idle_timeout');
 
-// 2. Every spelling that has ever meant "hold it forever" somewhere. There is
-//    no such value here, and a parser that read one as a very large number
-//    would be a connection the far end retired sitting in the pool until the
-//    process ends.
+// 2. Set values that could mean "forever" in other tools, and invalid durations.
 array<string> $forever = [
     'false',
     'null',
@@ -58,10 +50,7 @@ foreach ($forever as string $value) {
 }
 Core\Config::restore('http.client.pool_idle_timeout');
 
-// 3. The two caps written in each other's spelling, and the near miss between
-//    them: `http.client.pool_idle` is a plain text prefix of this key, so a
-//    registry matching on text rather than on dot boundaries would answer about
-//    whichever of the pair it found first.
+// 3. Swap the values of `pool_idle` and `pool_idle_timeout`, and set keys between the two names.
 Core\Config::set('http.client.pool_idle', '30s');
 Core\Config::set('http.client.pool_idle_timeout', '16');
 array<string> $between = [
@@ -81,8 +70,7 @@ foreach ($between as string $key) {
 Core\Config::restore('http.client.pool_idle');
 Core\Config::restore('http.client.pool_idle_timeout');
 
-// 4. A hundred thousand refusals of the pair, alternating, so a refusal that
-//    left anything behind leaves two hundred thousand of them behind.
+// 4. Try both changes 100,000 times with no restore. A failed change should use no memory.
 uint $i = 0;
 while ($i < 100000) {
     Core\Config::set('http.client.pool_idle_timeout', '24h');

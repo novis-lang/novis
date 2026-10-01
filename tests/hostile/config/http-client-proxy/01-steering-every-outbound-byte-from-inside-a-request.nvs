@@ -1,14 +1,10 @@
 <?nvs
-// Attack: where every outbound byte goes is the deployment's decision, so the
-// attack is every way of naming a proxy that is not the operator writing the
-// block — the keys themselves, the credential half of them, a URL carrying a
-// second request inside it, the environment variables every other client reads,
-// and the names that sit one character away from the real ones.
+// Attack: a request tries to choose the proxy that outbound calls use. It sets the keys of
+// `[http.client.proxy]`, including the password, and keys that are almost those keys.
+// Every change should fail.
 // hostile: timeout-ms 30000
 
-// 1. Every key of the block, written with the value an attacker would want in
-//    it. A request that got any of these through would be choosing who resolves
-//    the destination, which is choosing whether the address check happened.
+// 1. Set every key of the block to values an attacker wants, such as a proxy they control.
 array<string> $keys = [
     'http.client.proxy',
     'http.client.proxy.url',
@@ -43,10 +39,7 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. The ambient way in, which is the same attack with a worse reach: a
-//    variable is shared by every request in the process and written down in no
-//    file an auditor opens. Nothing here reads one, in any spelling, and the
-//    program cannot write one either.
+// 2. Read the usual proxy environment variables. Novis does not use them for outbound calls.
 array<string> $ambient = [
     'HTTP_PROXY',
     'HTTPS_PROXY',
@@ -60,10 +53,7 @@ foreach ($ambient as string $name) {
     Core\Env::get($name);
 }
 
-// 3. Names near the real ones. The block sits between two others that answer
-//    differently — the pool's caps above it and the socket's bounds below — so
-//    a near miss reaching the wrong row is a proxy key answered by something
-//    that is not about proxies at all.
+// 3. Set keys that are almost the real keys, and a key with 20,000 parts.
 array<string> $nearby = [
     'http.client.proxyx',
     'http.client.proxy_url',
@@ -84,9 +74,7 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 4. A hundred thousand attempts at the one key that matters, with no restore
-//    between them, in case the refusal is only the first answer or the overlay
-//    grows on the way to giving it.
+// 4. Try the same change 100,000 times with no restore. A failed change should use no memory.
 uint $i = 0;
 while ($i < 100000) {
     Core\Config::set('http.client.proxy.url', 'http://attacker.test:8080');

@@ -1,21 +1,11 @@
 <?nvs
-// Attack: the block that decides where every user's session lives, written by
-// one of those users. Each key buys something different and all three are worth
-// taking. A `backend` moved to a per-process tier makes a session mean
-// different things on different cores, which is an authenticated user who is
-// logged out on one request and somebody else on the next. A `ttl` stretched is
-// how long a stolen identifier stays worth stealing. And the cookie's *name* is
-// the one string from this block that reaches a response header, so it is where
-// an attribute the deployment never spelled would have to arrive. The three of
-// them still reading what the file wrote is the evidence that none of that
-// happened.
+// Attack: a request tries to change `[session]` for every user: where sessions are
+// stored, how long they last, and the cookie name. Every write should fail, and
+// all three should still be the configured values at the end.
 // hostile: timeout-ms 20000
 
-// 1. Every store a session could be asked to live in, including the two weak
-//    cache tiers the block refuses by name at boot and the ones an operator
-//    might expect from another runtime. A spelling that folds to one of the two
-//    real stores is as bad as one that reaches a weak tier: both are this
-//    request choosing where everybody's session is kept.
+// 1. Tries many stores, including `local` and stores from other languages. Only
+//    `shared` and `db` are valid, and a program may not set either.
 array<string> $stores = [
     'shared',
     'db',
@@ -42,11 +32,8 @@ foreach ($stores as string $store) {
     Core\Config::restore('session.backend');
 }
 
-// 2. The cookie name, which is the only value in this block that becomes part
-//    of a response header. The attributes of every cookie this server writes
-//    are fixed and have no spelling in the file, so the shapes that matter here
-//    are the ones that would carry one in anyway — a separator, a newline, an
-//    equals sign, a second cookie hidden behind either.
+// 2. Tries cookie names with `;`, `=` or a line break. Such a name could add a
+//    cookie setting or a second cookie to the response header.
 array<string> $cookies = [
     'nvs_session',
     'sid',
@@ -70,10 +57,8 @@ foreach ($cookies as string $cookie) {
     Core\Config::restore('session.cookie');
 }
 
-// 3. The lifetime, at both ends. Stretched, it is a stolen identifier that
-//    stays good for a year; shortened to nothing, it is every session in the
-//    deployment expiring as it is written, which logs everybody out and is a
-//    denial of service spelled as a duration.
+// 3. Tries very long and very short lifetimes. A year keeps a stolen session
+//    useful. `0` would log every user out at once.
 array<string> $lifetimes = [
     '2h',
     '0',
@@ -96,11 +81,8 @@ foreach ($lifetimes as string $lifetime) {
     Core\Config::restore('session.ttl');
 }
 
-// 4. All three as fast as the runtime will take them, reading back every round.
-//    The block is bound when the process starts, so a write that nevertheless
-//    reached the published snapshot would wait for a restart to move the store —
-//    but it is the snapshot a reload carries forward, and the standing value
-//    moving here is the only way a request could ever see that it had.
+// 4. Writes all three keys 200,000 times and reads the store back each time.
+//    The value should never change, so this prints `0`.
 uint $changes = 0;
 string $standing = Core\Config::get('session.backend') ?? '(nothing written)';
 uint $i = 0;
@@ -115,8 +97,8 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 5. And real work alongside it, because the request moving everybody's session
-//    is a request in the middle of holding one.
+// 5. Builds 20,000 strings, as a real request would. The settings should still
+//    be the configured values after this work.
 array<string> $records = [];
 uint $j = 0;
 while ($j < 20000) {

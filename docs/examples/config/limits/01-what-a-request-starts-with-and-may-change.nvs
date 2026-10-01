@@ -1,36 +1,30 @@
 <?nvs
-// `[limits]` is what one request starts with — the heap it may hold, the CPU
-// and wall time it may spend, the bytes it may write back. This checkout
-// writes two of them, and a program is allowed to read what it got.
+// `[limits]` sets the limits each request starts with. They cover memory, CPU
+// time, wall time and the size of the response. A program can read its own limits.
 
 echo 'memory to start with: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
 echo 'the ceiling above it: ', Core\Config::get('limits.hard.memory') ?? '(unset)', "\n";
 
-// These are ordinary per-request defaults, so a program may change its own. A
-// job that knows it should stay small says so and is then held to it, which is
-// worth doing: a limit a program set for itself still stops it, and stopping
-// early is how a runaway is caught before it takes the host with it.
+// A program may lower its own limit. The new limit applies to the rest of
+// the request, and the request stops if it uses more.
 echo 'ask for less:         ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";
 echo 'in force now:         ', Core\Config::get('limits.memory'), "\n";
 
-// It may ask for more, too — up to the ceiling the operator wrote and not one
-// byte past it. Over the ceiling is refused on the spot with the previous
-// value left standing, so a program asking for too much carries on under what
-// it already had instead of falling over.
+// A program may also raise it, up to the ceiling in `[limits.hard]`. A value over
+// the ceiling returns `false`, and the previous value stays in force.
 echo 'ask for 400M:         ', Core\Config::set('limits.memory', '400M') ? 'accepted' : 'refused', "\n";
 echo 'ask for 1G:           ', Core\Config::set('limits.memory', '1G') ? 'accepted' : 'refused', "\n";
 echo 'in force now:         ', Core\Config::get('limits.memory'), "\n";
 
-// Raising the ceiling itself is the thing no program can do, and that is what
-// makes the freedom above safe to hand out.
+// No program can change the ceiling itself, so this call returns `false`.
 echo 'raise the ceiling:    ', Core\Config::set('limits.hard.memory', '1G') ? 'accepted' : 'refused', "\n";
 
-// A key this block never wrote still starts unset and still takes a value, so
-// a program can bound itself where the deployment said nothing at all.
+// `limits.cpu_time` is not set in the configuration, so it starts as `null`.
+// A program can still set it for itself.
 echo 'cpu time to start:    ', Core\Config::get('limits.cpu_time') ?? '(unset — no ceiling was written for it either)', "\n";
 echo 'bound my own cpu:     ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'refused', "\n";
 
-// And `restore` puts back what the configuration said, which is how a request
-// hands the next one the deployment's answer rather than its own.
+// `Core\Config::restore` sets the key back to the value in the configuration
+// file. Here that is `256M`.
 Core\Config::restore('limits.memory');
 echo 'back to the file:     ', Core\Config::get('limits.memory'), "\n";

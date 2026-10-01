@@ -1,7 +1,6 @@
 <?nvs
-// A program runs under whichever `[[app]]` blocks in `nvs.toml` cover its own
-// file. This one is covered by two of them -- a block for the whole directory
-// tree, and a narrower block naming this single file:
+// A program uses the settings of every `[[app]]` block in `nvs.toml` that covers its file.
+// Two blocks cover this file. One is for the whole directory, and one is for this file only:
 //
 //     [[app]]
 //     root = "."
@@ -15,22 +14,20 @@
 //     [app.limits]
 //     memory = "64M"
 //
-// The narrower block wins wherever both say something, and says nothing about
-// everything else.
+// When both blocks set the same value, the block for this file wins.
 
-// The wider block never mentions memory, so this is the narrow block's own
-// value. Any other file in the tree still gets whatever `[limits]` sets.
+// Only the block for this file sets `limits.memory`, so this prints `64M`.
+// Other files in the directory use the value from `[limits]`.
 echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
 
-// Inherited from the wider block: a setting the narrow one is silent about is
-// not cleared by it.
+// Only the block for the whole directory sets `spawn`.
+// This file uses that value too, so this prints `true`.
 echo 'spawn:  ', Core\Config::get('capabilities.script.spawn') ?? '(unset)', "\n";
 
-// A program may tighten its own limit for the rest of the run.
+// A program may lower its own memory limit for the rest of the run.
 echo 'narrow: ', Core\Config::set('limits.memory', '32M') ? 'yes' : 'no', "\n";
 echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
 
-// It cannot edit the blocks themselves. Those belong to whoever deploys the
-// application, and a program able to rewrite one could grant itself anything in
-// the file -- including another application's permissions.
+// A program cannot change the `[[app]]` blocks. Only the person who deploys the
+// application may do that, so `Core\Config::set` returns `false` and this prints `no`.
 echo 'reroot: ', Core\Config::set('app.0.root', '/') ? 'yes' : 'no', "\n";

@@ -1,15 +1,8 @@
 <?nvs
-// Attack: hand this program a capability the file never granted it. The
-// `[capabilities]` block is the one row a request may write at all, and only
-// ever downwards -- so every spelling below is an attempt to make that one
-// opening widen instead: a grant written directly, a grant written under a name
-// that resolves near the real one, and a refusal worn down by being asked a
-// hundred thousand times. A single `true` getting through is a program deciding
-// its own authority.
+// Attack: a program tries to give itself rights that the configuration file did not give it.
+// Every attempt below should fail, and the rights should stay as the file sets them.
 
-// 1. Every grant this deployment knows about, written from inside the request
-//    that would benefit. The values are the ones that mean "everything" if
-//    anything reads them loosely.
+// 1. Set every right to values that could mean "everything", such as `true`, `*` and `/`.
 array<string> $grants = [
     'capabilities',
     'capabilities.fs.read',
@@ -34,15 +27,12 @@ foreach ($grants as string $grant) {
     foreach ($everything as string $value) {
         Core\Config::set($grant, $value);
     }
-    // And the other direction, because a narrowing this row cannot compare is
-    // refused too: a `set` that took even this would mean the comparison ran.
+    // Also try to set `false`. A program cannot lower a right either, so this should fail too.
     Core\Config::set($grant, 'false');
     Core\Config::restore($grant);
 }
 
-// 2. Names that sit near the real ones, because the registry answers by longest
-//    prefix and a row reached for a key nobody declared would be governing the
-//    block's neighbours as well.
+// 2. Set keys that are almost real keys: extra dots, capital letters and unknown names.
 array<string> $nearby = [
     'capabilities.',
     '.capabilities',
@@ -63,17 +53,13 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. A key long enough to be a walk rather than a lookup: the prefix rule is a
-//    scan back through the dots, so twenty thousand of them is the shape that
-//    finds a quadratic one or a stack that recurses per segment.
+// 3. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
 string $deep = 'capabilities.fs.read.' . Core\Str::repeat('scope.', 10000) . 'root';
 Core\Config::set($deep, 'true');
 Core\Config::get($deep);
 Core\Config::restore($deep);
 
-// 4. The same refusal, a hundred thousand times, in case it is decided once
-//    and remembered -- or in case each attempt leaves something behind in the
-//    overlay a request writes into.
+// 4. Try the same change 100,000 times. Each try should fail and leave nothing behind.
 uint $i = 0;
 while ($i < 100000) {
     Core\Config::set('capabilities.fs.write', 'true');
@@ -81,9 +67,7 @@ while ($i < 100000) {
     $i = $i + 1;
 }
 
-// 5. The doors themselves, after all of that. Neither grant was ever written
-//    for this program, so both have to refuse -- and a door that consulted an
-//    overlay rather than the grant would now be open.
+// 5. Write a file and open the shared cache. The program has neither right, so both should throw.
 try {
     Core\IO::write('tests/hostile/config/capabilities/claimed.txt', 'granted after all');
     echo "fs.write opened\n";
@@ -98,9 +82,5 @@ try {
     echo "cache.shared still refused\n";
 }
 
-// 6. And the one grant this program does hold, arriving from the block that
-//    covers every program in this checkout. The attack must not have moved it
-//    either: a block that can be written from inside is broken in both
-//    directions, and a `false` here would be this request having narrowed a
-//    right for whatever reads the snapshot next.
+// 6. Read the one right this program has. The attack should not have changed it either.
 echo 'run scripts: ', Core\Config::get('capabilities.script.spawn') ?? '(nothing)', "\n";

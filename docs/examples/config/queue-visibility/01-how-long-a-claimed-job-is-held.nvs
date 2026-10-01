@@ -1,21 +1,17 @@
 <?nvs
-// `[queue] visibility` is the lease a worker takes when it claims a job: for
-// that long, nobody else can see it.
+// `[queue] visibility` is how long a job stays hidden after a worker takes it.
+// During that time, no other worker can see the job.
 
 echo 'a claim is held for: ', Core\Config::get('queue.visibility') ?? '(nothing written — five minutes)', "\n";
 echo 'tries per job:       ', Core\Config::get('queue.max_attempts') ?? '(nothing written — five of them)', "\n";
 
-// A worker that finishes never needs the lease. A worker that dies mid-job
-// leaves it to expire, and then the job is visible again and another worker
-// takes it — which is how a killed process loses no work and needs nothing to
-// have noticed it died.
+// If a worker stops in the middle of a job, the time runs out. The job is then
+// visible again, and another worker takes it.
 
-// The length is the operator's, because it is a claim about how long the work
-// takes rather than about this request. A program that could shorten its own
-// would be arranging for a second worker to start the job while the first is
-// still running it.
+// A program cannot shorten this time, so the call returns `false`. A shorter time
+// could let a second worker start a job that is still running.
 echo 'hold my jobs for a second: ', Core\Config::set('queue.visibility', '1s') ? 'accepted' : 'refused', "\n";
 
-// Lengthening it is refused too: a lease nobody can outlive is a job that stays
-// invisible for an hour after the worker holding it was killed.
+// A program cannot make it longer either. With an hour, a job whose worker
+// stopped would stay hidden for an hour.
 echo 'or hold them for an hour:  ', Core\Config::set('queue.visibility', '1h') ? 'accepted' : 'refused', "\n";

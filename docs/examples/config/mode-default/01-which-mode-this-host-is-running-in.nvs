@@ -1,27 +1,26 @@
 <?nvs
-// `[mode] default` is the mode a host runs in, and it is production unless the
-// file says otherwise. A program reads it for the few decisions that honestly
-// depend on it: seed data, a mail transport that sends nothing, a debug route.
+// `[mode] default` is the mode the server runs in. It is `production` unless the
+// configuration says otherwise. A program reads it for things like demo data
+// or a debug page.
 
 echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
 
-// Nothing is written here, so the mode is the safe one. That is the direction
-// the default points: a deployment that forgets the line is a production one.
+// This configuration does not set the mode, so `Core\Config::get` returns `null`
+// and the mode is `production`.
 echo 'written:    ', Core\Config::get('mode.default') ?? '(nothing — so production)', "\n";
 
-// Which is the branch an application actually takes.
+// `Core\Env::mode()` returns the current mode, so this runs the `else` branch.
 if (Core\Env::mode() == Core\Env\Mode::Development) {
     echo 'seeding the demo account', "\n";
 } else {
     echo 'not seeding: real orders live on this host', "\n";
 }
 
-// There are two modes and no third. A name that is neither is refused and the
-// mode stays where it was — a staging host is a production one configured
-// differently, which is what staging has always been.
+// There are only two modes. `staging` is not one of them, so the call returns
+// `false`. A staging server runs in `production` with its own settings.
 echo 'select staging: ', Core\Config::set('mode.default', 'staging') ? 'accepted' : 'refused', "\n";
 
-// And the mode is shorthand rather than a switch: each of the five defaults it
-// selects is an ordinary directive, still settable one at a time.
+// The mode sets the default of five other settings. You can still change each
+// of them on its own, like `log.level` here.
 echo 'ask for debug logs: ', Core\Config::set('log.level', 'debug') ? 'accepted' : 'refused', "\n";
 echo 'log level is now:   ', Core\Config::get('log.level') ?? '(nothing written)', "\n";

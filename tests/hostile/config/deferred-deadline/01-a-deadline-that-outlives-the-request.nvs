@@ -1,26 +1,17 @@
 <?nvs
-// Attack: make after-response work outlast its budget. `[deferred] deadline` is
-// one of the few keys a request may genuinely write, so the attack is not "can
-// it be written" but "what can be written into it": a deadline longer than the
-// machine will be up for, one that is not a time at all, one megabyte of one,
-// and fifty thousand of them in a row. Beside it sits the key that is *not* a
-// request's -- the number of request trees a core keeps alive -- because raising
-// that is how one program would make every other program's deferred work wait.
+// Attack: a request tries to make work after the response run longer than allowed.
+// A request may set `[deferred] deadline`, so it sets invalid, huge and many values.
+// It also tries to raise `max_concurrent`, which only the person who runs the server may change.
+// Nothing should crash, and every change to `max_concurrent` should fail.
 
-// 1. The sibling that bounds the host. Every spelling of a bigger number, and
-//    the values that mean "no bound at all" if anything reads them loosely: a
-//    request that got one of these through would be sizing somebody else's
-//    machine from inside a request it does not own.
+// 1. Raise `max_concurrent`, or set values that could mean "no limit". Each change should fail.
 array<string> $caps = ['4096', '18446744073709551615', '-1', '0', 'true', '', 'unlimited'];
 foreach ($caps as string $cap) {
     Core\Config::set('deferred.max_concurrent', $cap);
 }
 Core\Config::restore('deferred.max_concurrent');
 
-// 2. The deadline itself, at both ends of what a duration can be and past them.
-//    Nothing here is expected to be useful; what is expected is that a value
-//    nobody can use is still a value nothing comes apart on, at the write and at
-//    the read alike.
+// 2. Set the deadline to values at and past the limits of a duration. Nothing should crash.
 array<string> $deadlines = [
     '0s',
     '0',
@@ -43,17 +34,13 @@ foreach ($deadlines as string $deadline) {
 }
 Core\Config::restore('deferred.deadline');
 
-// 3. One value big enough to be the attack by itself: a megabyte of digits is
-//    not a duration, and whatever refuses it has to refuse it without parsing
-//    its way through the whole thing first.
+// 3. Set the deadline to a number with 1,000,000 digits. It should fail quickly.
 string $flood = Core\Str::repeat('9', 1000000) . 's';
 Core\Config::set('deferred.deadline', $flood);
 Core\Config::get('deferred.deadline');
 Core\Config::restore('deferred.deadline');
 
-// 4. Names that sit near the real one, because the registry answers by longest
-//    prefix: a row reached for a key nobody declared would be governing the
-//    block's other half as well, and that half is the operator's.
+// 4. Set keys that are almost the real key: extra dots, capital letters and other names.
 array<string> $nearby = [
     'deferred.deadline.',
     '.deferred.deadline',
@@ -73,18 +60,13 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 5. A key long enough to be a walk rather than a lookup: the prefix rule scans
-//    back through the dots, so twenty thousand of them is the shape that finds a
-//    quadratic one or a stack that recurses per segment.
+// 5. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
 string $deep = 'deferred.deadline.' . Core\Str::repeat('scope.', 10000) . 'default';
 Core\Config::set($deep, '9999h');
 Core\Config::get($deep);
 Core\Config::restore($deep);
 
-// 6. Fifty thousand writes, each with its own value, and never a restore between
-//    them. The overlay a request writes into is the thing under attack here: it
-//    has to hold one entry for this key rather than one per write, or a request
-//    that sets a deadline in a loop is a request that exhausts its own memory.
+// 6. Set the deadline 50,000 times with no restore. Only the last value should use memory.
 uint $i = 0;
 while ($i < 50000) {
     Core\Config::set('deferred.deadline', $i . 's');
@@ -92,8 +74,7 @@ while ($i < 50000) {
 }
 Core\Config::restore('deferred.deadline');
 
-// 7. And a restore of a key this program never wrote, twice, because a drop that
-//    assumes it is dropping something is a drop that has something to get wrong.
+// 7. Restore two keys that this program has not changed. Nothing should happen.
 Core\Config::restore('deferred.deadline');
 Core\Config::restore('deferred.max_concurrent');
 

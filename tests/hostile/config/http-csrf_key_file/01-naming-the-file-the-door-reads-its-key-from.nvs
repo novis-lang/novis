@@ -1,15 +1,10 @@
 <?nvs
-// Attack: the file half of the door's key is a path, and a path is worth more to
-// an attacker than a value — a file's content can keep changing after the
-// configuration stopped, and a path that reaches a device or a directory asks the
-// server to read something that is not a key at all. So this writes every kind of
-// path a request could name, then the spellings that try to be the `_file` key
-// without being it, then both halves together, which is the one combination the
-// configuration refuses outright.
+// Attack: a request tries to set `[http] csrf_key_file`, the file the server reads its CSRF key from.
+// It uses paths to files it controls, devices and directories, keys that are almost this key,
+// and both keys together. Every change should fail.
 // hostile: timeout-ms 30000
 
-// 1. Paths. An accepted one is an attacker choosing the key every request in the
-//    process is checked against, by choosing a file they can rewrite afterwards.
+// 1. Set the path to files the attacker controls, devices, directories and invalid paths.
 array<string> $paths = [
     '/tmp/attacker.key',
     'nvs.toml',
@@ -37,16 +32,13 @@ array<string> $paths = [
 ];
 foreach ($paths as string $value) {
     Core\Config::set('http.csrf_key_file', $value);
-    // Refused, so nothing may read back — a path that answers here is a path the
-    // server would read a key from.
+    // The change failed, so these reads should not return the attacker's path.
     Core\Config::get('http.csrf_key_file');
     Core\Config::get('http.csrf_key');
 }
 Core\Config::restore('http.csrf_key_file');
 
-// 2. The spellings that are nearly this key. The pair are two rows carved out of a
-//    block a request may otherwise write, so a near miss lands on the blanket
-//    rather than on nothing — which is how one of these would quietly succeed.
+// 2. Set keys that are almost this key, and a key with 20,000 parts.
 array<string> $spellings = [
     'http.csrf_key_file.path',
     'http.csrf_key_file.',
@@ -65,10 +57,7 @@ foreach ($spellings as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. Both halves at once, in both orders. One value with two sources is refused
-//    where the configuration is read, and a request that could write one half
-//    while the other was ignored would have chosen the key without ever holding
-//    both of them.
+// 3. Set both keys, in both orders. Each change should fail on its own.
 Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
 Core\Config::set('http.csrf_key', 'attacker-chosen-key');
 Core\Config::get('http.csrf_key');
@@ -78,9 +67,7 @@ Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
 Core\Config::get('http.csrf_key_file');
 Core\Config::restore('http.csrf_key_file');
 
-// 4. Restoring what was never set, then a hundred thousand refused writes with no
-//    restore between them: a refusal that left an entry behind would be a request
-//    growing this host's memory while being told `no` every time.
+// 4. Restore a key that was never set. Then try one change 100,000 times with no restore.
 Core\Config::restore('http.csrf_key_file');
 uint $i = 0;
 while ($i < 100000) {

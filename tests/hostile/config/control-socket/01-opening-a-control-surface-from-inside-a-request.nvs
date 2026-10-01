@@ -1,15 +1,9 @@
 <?nvs
-// Attack: move the control surface from inside a request, and reach the one
-// this machine might already have. `[control] socket` is the door every
-// administrative operation on a live server arrives through, and its whole
-// authentication is who owns it -- so a request that could write the key would
-// be choosing where that door is, and one that could write a host and a port
-// would be putting it on the network, which the boot refuses outright.
+// Attack: a request tries to move `[control] socket`, or to open it. The person who runs
+// the server manages it through this socket, so whoever can use it controls the server.
+// Every attempt below should fail.
 
-// 1. The key itself, written with every shape the boot exists to refuse. A
-//    `System` directive answers nobody, so every one of these has to come back
-//    false -- including the ones that are perfectly good local paths, because
-//    "is this a reasonable socket" is not the question being asked.
+// 1. Set the socket to paths and network addresses. Each change should fail, even to a valid path.
 array<string> $addresses = [
     '/tmp/mine.sock',
     '\\\\.\\pipe\\mine',
@@ -34,18 +28,12 @@ foreach ($addresses as string $address) {
     Core\Config::restore('control.socket');
 }
 
-// 2. A path at the length where a name stops being a name: an endpoint on Unix
-//    is bounded by the address structure it is copied into, and one that was
-//    truncated rather than refused would name a *different* socket than the one
-//    written down.
+// 2. Set a 256 KB path, and a path with a null byte. A shortened path would name another socket.
 string $overlong = '/tmp/' . Core\Str::repeat('s', 262144) . '.sock';
 Core\Config::set('control.socket', $overlong);
 Core\Config::set('control.socket', "/tmp/one\u{0000}/../../etc/two.sock");
 
-// 3. The block and the names around the key, because the registry answers by
-//    longest prefix and the row here is the *key* rather than the block: a key
-//    added to `[control]` is ungoverned until somebody writes its row, and a
-//    request must not be the one that finds that out.
+// 3. Set the whole block, and keys that are almost the real key or are unknown.
 array<string> $nearby = [
     'control',
     'control.',
@@ -62,8 +50,7 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 4. The same refusal a hundred thousand times, in case an overlay a request
-//    writes into keeps what it was handed even when the write was refused.
+// 4. Try the same change 100,000 times. Each try should fail and leave nothing behind.
 uint $i = 0;
 while ($i < 100000) {
     Core\Config::set('control.socket', '0.0.0.0:9000');
@@ -71,10 +58,7 @@ while ($i < 100000) {
     $i = $i + 1;
 }
 
-// 5. The surface itself, as a file. `nvs ctl` speaks HTTP over this socket, and
-//    a program that could open it would be issuing control operations with a
-//    request's authority rather than an operator's -- so the endpoint is a path
-//    like any other and the file grant is what stands in the way.
+// 5. Read the usual control socket paths as files. The program has no right to read them.
 array<string> $endpoints = [
     '\\\\.\\pipe\\nvs-control',
     '/run/nvs/control.sock',
@@ -89,5 +73,5 @@ foreach ($endpoints as string $endpoint) {
     }
 }
 
-// Still standing, and the door still wherever the file put it.
+// The socket should still be the value from the file.
 echo 'control socket: ', Core\Config::get('control.socket') ?? '(none)', "\n";

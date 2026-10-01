@@ -1,21 +1,19 @@
 <?nvs
-// `[metrics]` says who collects the counts Novis keeps about itself, and how
-// many distinct series one core holds before it stops taking new ones.
+// `[metrics]` sets where Novis sends the numbers it counts about itself. It also
+// sets `max_series`, the most different series one CPU core keeps.
 
 echo 'exporter:   ', Core\Config::get('metrics.exporter') ?? '(nothing written — nothing is exported)', "\n";
 echo 'scrape at:  ', Core\Config::get('metrics.listen') ?? '(nothing written)', "\n";
 echo 'push to:    ', Core\Config::get('metrics.endpoint') ?? '(nothing written)', "\n";
 echo 'series cap: ', Core\Config::get('metrics.max_series') ?? '(nothing written — the bound this build ships with)', "\n";
 
-// The block belongs to whoever runs the deployment, every key of it. A program
-// that could switch the exporter off would stop being measured at the moment
-// being measured matters most.
+// Only the person who runs the server may change `[metrics]`. Every call below
+// returns `false`, so a program cannot stop its own metrics.
 echo 'switch it off:        ', Core\Config::set('metrics.exporter', 'false') ? 'accepted' : 'refused', "\n";
 echo 'push somewhere else:  ', Core\Config::set('metrics.endpoint', 'https://collector.mine/v1') ? 'accepted' : 'refused', "\n";
 echo 'raise the series cap: ', Core\Config::set('metrics.max_series', '100000000') ? 'accepted' : 'refused', "\n";
 
-// The tracing block beside it is the same kind of thing for the same reason:
-// spans and counts are both how a deployment is watched, and a program that
-// could turn either one down would be choosing how closely it is watched.
+// `[trace]` works the same way. A program cannot turn off its own tracing,
+// so this call returns `false` too.
 echo 'traces go to:         ', Core\Config::get('trace.exporter') ?? '(nothing written — nothing is exported)', "\n";
 echo 'stop tracing me:      ', Core\Config::set('trace.exporter', 'false') ? 'accepted' : 'refused', "\n";

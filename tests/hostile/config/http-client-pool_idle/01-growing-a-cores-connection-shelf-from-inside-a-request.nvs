@@ -1,15 +1,10 @@
 <?nvs
-// Attack: the cap bounds memory a *core* holds after this request is gone, so
-// the attack is every way of reaching it that is not the key's own name — the
-// key spelled sideways, a name invented underneath it that might fall through
-// to the request-settable blanket row beside it, the number written as
-// something the reader has to guess at, and then a loop that asks a few hundred
-// thousand times in case the refusal is only the first answer.
+// Attack: a request tries to raise `[http.client] pool_idle`, the number of open connections each
+// core keeps. It uses invalid values, keys that are almost the real key, and 200,000 tries.
+// Every change should fail.
 // hostile: timeout-ms 30000
 
-// 1. The key itself, written as everything a cap could be written as: a number
-//    past what any counter holds, a negative one, a size where a count goes, a
-//    removal spelled as `false`, and nothing at all.
+// 1. Set the limit to huge, negative, empty and invalid values, and to `false`.
 array<string> $values = [
     '18446744073709551615',
     '9223372036854775808',
@@ -32,10 +27,7 @@ foreach ($values as string $value) {
 }
 Core\Config::restore('http.client.pool_idle');
 
-// 2. Names invented underneath the cap. The blanket row over this whole block
-//    answers `Runtime`, so a lookup that failed to reach the cap's own row would
-//    not fail loudly — it would land on a row a request may set, which is the
-//    one shape of this bug nothing else would notice.
+// 2. Set new keys under `pool_idle`. A request may set other keys in this block, but not these.
 array<string> $beneath = [
     'http.client.pool_idle.max',
     'http.client.pool_idle.default',
@@ -50,9 +42,7 @@ foreach ($beneath as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. The key spelled sideways, because the registry answers by longest prefix
-//    on dot boundaries and a near miss is how a cap comes to be governed by
-//    something that is not it.
+// 3. Set keys that are almost the real key: extra dots or spaces, capital letters and other names.
 array<string> $sideways = [
     'http.client.pool_idlex',
     'http.client.pool_idle ',
@@ -73,9 +63,7 @@ foreach ($sideways as string $key) {
     Core\Config::restore($key);
 }
 
-// 4. Two hundred thousand refusals in a row with no restore between them. A
-//    refusal that recorded an overlay entry anyway would be a request growing
-//    its own snapshot by asking for something it is not allowed to have.
+// 4. Try the same change 200,000 times with no restore. A failed change should use no memory.
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('http.client.pool_idle', '1048576');

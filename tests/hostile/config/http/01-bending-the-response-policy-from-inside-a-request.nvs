@@ -1,17 +1,11 @@
 <?nvs
-// Attack: a request is allowed to shape its own response, so the attack is not
-// "can this block be written" but "what can be written into it, and how far
-// does a write reach". Header values carrying a second header inside them, the
-// two combinations the rules refuse outright, the cross-origin door opened to
-// everybody with credentials attached -- and then the keys of the block that
-// are *not* a request's, because a policy a request may bend is next door to a
-// secret every request's door reads.
+// Attack: a request may change most of `[http]` for its own response. This test sets header values
+// with a second header inside, unsafe combinations of settings, and the keys a request may not change.
+// Each unsafe value and each change to the CSRF key or the shared client settings should fail.
+// Some values are large, so this test needs more time than usual.
 // hostile: timeout-ms 20000
 
-// 1. The two keys that hold a secret rather than a policy. A request that got
-//    either of these through would be choosing the key its co-residents verify
-//    every cross-site token against, which is choosing which forgeries they
-//    accept.
+// 1. Set the CSRF key and the CSRF key file. The server checks every request against this key.
 array<string> $secrets = ['http.csrf_key', 'http.csrf_key_file'];
 array<string> $values = [
     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -31,10 +25,7 @@ foreach ($secrets as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. The keys that settle something more than one request shares: the outbound
-//    pool's caps, the trust anchors every session in the process uses, and
-//    where every outbound byte goes. Each of these is a way to reach past the
-//    request doing the writing.
+// 2. Change the outbound client settings that all requests share: the pool, TLS and the proxy.
 array<string> $shared = [
     'http.client.pool_idle',
     'http.client.pool_idle_timeout',
@@ -52,10 +43,7 @@ foreach ($shared as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. A header value carrying a second header inside it. This is the oldest
-//    attack there is against anything that puts a configured string on the
-//    wire, and it is written here in every separator a parser might be lenient
-//    about.
+// 3. Set header values that contain a second header after a line break or a null byte.
 array<string> $injections = [
     "no-referrer\r\nSet-Cookie: session=stolen",
     "no-referrer\nSet-Cookie: session=stolen",
@@ -72,11 +60,7 @@ foreach ($injections as string $value) {
 Core\Config::restore('http.headers.referrer_policy');
 Core\Config::restore('http.headers.content_security_policy');
 
-// 4. The combinations the rules refuse outright, asked from inside a request
-//    rather than written in a file: a cookie sent cross-site in the clear, and
-//    a cross-origin door open to everybody with credentials attached. Being
-//    refused at boot is not the same as being refused here, which is the whole
-//    reason to ask.
+// 4. Set unsafe values, such as any origin with credentials. The server does not start with these in its file.
 Core\Config::set('http.cookies.same_site', 'None');
 Core\Config::set('http.cookies.secure', 'false');
 Core\Config::set('http.cors.origins', '*');
@@ -88,11 +72,7 @@ Core\Config::set('http.headers.content_type_options', 'false');
 Core\Config::set('http.errors.detail', 'full');
 Core\Config::set('http.errors.detail', 'everything');
 
-// 5. Names that sit near the real ones, because the registry answers by longest
-//    prefix and this block is the one place in the file where the default
-//    answer is "a request may". A near miss reaching no row at all, or reaching
-//    the blanket row where an exception should have caught it, is a key nobody
-//    is governing.
+// 5. Set keys that are almost the real keys, and a key with 10,000 parts.
 array<string> $nearby = [
     'http.',
     '.http',
@@ -112,9 +92,7 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 6. Fifty thousand writes of one key with no restore between them. The overlay
-//    a request writes into holds what it wrote, so a policy set in a loop must
-//    cost one entry rather than one per write.
+// 6. Set one key 50,000 times with no restore. Only the last value should use memory.
 uint $i = 0;
 while ($i < 50000) {
     Core\Config::set('http.errors.detail', $i % 2 == 0 ? 'full' : 'generic');

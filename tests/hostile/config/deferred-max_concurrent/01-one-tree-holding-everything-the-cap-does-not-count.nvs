@@ -1,18 +1,11 @@
 <?nvs
-// Attack: the cap counts request *trees*, so one request is one slot however
-// much work it hands off -- which makes the queue behind a single slot the
-// thing to attack rather than the number in front of it. Two hundred thousand
-// hand-offs on one tree, each closure carrying its own data so the queue holds
-// bytes and not just references; a drain that tries to extend itself while it
-// is already running, which would be a tree that never leaves flight; and every
-// spelling of "raise the cap" a request could reach for, because a request that
-// got one of those through would be sizing somebody else's machine.
+// Attack: `[deferred] max_concurrent` counts requests, not pieces of work. So this request adds
+// 200,000 closures to run after the response, and one closure tries to add more while it runs.
+// It also tries to raise the limit, and every change to the limit should fail.
+// The server should run all the work and keep running.
 // hostile: timeout-ms 40000
 
-// 1. The sizing decision itself, in every spelling of "more" and every value
-//    that means "no bound at all" to a reader that squints. The cap is the half
-//    of `[deferred]` a request must never reach: its sibling deadline is the
-//    one a call may genuinely name.
+// 1. Raise the limit, or set values that could mean "no limit". Each change should fail.
 array<string> $caps = [
     '4096',
     '18446744073709551615',
@@ -34,9 +27,7 @@ foreach ($caps as string $cap) {
 Core\Config::restore('deferred.max_concurrent');
 Core\Config::restore('deferred.max_concurrent');
 
-// 2. Names that sit near the real one, because the registry answers by longest
-//    prefix: a row reached for a key nobody declared would be governing the cap
-//    from a spelling nobody audited.
+// 2. Set keys that are almost the real key, and a key with 10,000 parts.
 array<string> $nearby = [
     'deferred.max_concurrent.',
     '.deferred.max_concurrent',
@@ -56,11 +47,7 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. The drain trying to extend itself. Registered first so it runs first, and
-//    it asks twice: once for a piece of work of its own, and once for a whole
-//    second flood. A queue that could grow while it is being drained is a
-//    request that is never finished, and a slot that is never given back is one
-//    the cap has lost for the lifetime of the core.
+// 3. Add a closure that runs first and tries to add more work while it runs. Each try should throw.
 Core\Task::afterResponse(fn (): void => {
     try {
         Core\Task::afterResponse(fn (): void => {});
@@ -77,20 +64,12 @@ Core\Task::afterResponse(fn (): void => {
     }
 });
 
-// 4. The loophole the unit leaves open. Every one of these is accepted, because
-//    the slot was taken by the registration above and the cap has nothing left
-//    to say -- so what is under attack is the queue that holds them and the
-//    drain that has to run every entry of it after the answer has gone. Each
-//    closure captures a string of its own, so the tree is holding data at its
-//    peak for the whole length of its after-response work, which is exactly the
-//    cost the cap is supposed to be pricing.
+// 4. Add 200,000 closures, each with its own string. The limit counts this request once, so all are accepted.
 uint $i = 0;
 while ($i < 200000) {
     string $payload = 'entry-' . $i . '-' . Core\Str::repeat('x', 64);
     Core\Task::afterResponse(fn (): void => {
-        // Deliberately silent. Two hundred thousand lines of output would measure
-        // this machine's console rather than the executor, and what is being
-        // asserted is only that the runtime is still standing afterwards.
+        // This closure prints nothing. The test only checks that the server still runs afterwards.
         Core\Str::length($payload);
     });
     $i = $i + 1;

@@ -1,15 +1,11 @@
 <?nvs
-// Attack: the temporary root is the one directory the runtime believes it owns
-// outright, and that belief is what licenses it to delete things. A request
-// that could move the root at a shared directory would be pointing the sweep
-// at other people's files and other people's symlinks — so this writes every
-// path worth pointing it at, then the sibling key that would exempt a program
-// from the sweep instead, then the spellings that try to be either without
-// being them.
+// Attack: a request tries to move `io.temp_root`, the directory for temporary
+// files. The server deletes old files there when it starts. Only the person who
+// runs the server may set it, so every write below should fail.
 // hostile: timeout-ms 30000
 
-// 1. Roots. An accepted one is an attacker choosing where every other
-//    request's scratch files land, and what the next boot sweep deletes.
+// 1. Tries many directories, including system directories, network paths and
+//    paths with hidden null bytes or line breaks.
 array<string> $roots = [
     '/',
     '/tmp',
@@ -44,16 +40,14 @@ array<string> $roots = [
 ];
 foreach ($roots as string $value) {
     Core\Config::set('io.temp_root', $value);
-    // Refused, so nothing may read back — a root that answers here is a root
-    // the runtime would create directories in and later delete things from.
+    // Each write fails, so each read returns `null`. The server would create
+    // and delete files in a directory set here.
     Core\Config::get('io.temp_root');
 }
 Core\Config::restore('io.temp_root');
 
-// 2. The other way to the same place: keeping every directory instead of
-//    moving where they are. A program that could set this would hoard scratch
-//    space on this host until the disk was gone, and would do it silently —
-//    the operator's version of the key logs every path it keeps.
+// 2. Tries to set `debug.keep_temporary`, which keeps every temporary file.
+//    That could fill the disk, so every write should fail.
 array<string> $keeps = ['true', '1', 'yes', 'on', 'TRUE', '-1', '0', 'false', ''];
 foreach ($keeps as string $value) {
     Core\Config::set('debug.keep_temporary', $value);
@@ -61,9 +55,8 @@ foreach ($keeps as string $value) {
 }
 Core\Config::restore('debug.keep_temporary');
 
-// 3. The spellings that are nearly one of those two. `[io]` has exactly one
-//    row and it is the whole key, so a near miss has to land on nothing at
-//    all — there is no block-wide row underneath for it to inherit.
+// 3. Tries keys that are almost one of those two. None of them is a real key,
+//    so every write should fail.
 array<string> $spellings = [
     'io',
     'io.temp_root.path',
@@ -85,9 +78,8 @@ foreach ($spellings as string $key) {
     Core\Config::restore($key);
 }
 
-// 4. Restoring what was never set, then a hundred thousand refused writes with
-//    no restore between them: a refusal that left an entry behind would be a
-//    request growing this host's memory while being told `no` every time.
+// 4. Restores a key that was never set, then writes 100,000 times. A failed write
+//    must not use memory, so the request's memory should not grow.
 Core\Config::restore('io.temp_root');
 uint $i = 0;
 while ($i < 100000) {

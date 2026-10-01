@@ -1,11 +1,7 @@
 <?nvs
-// Attack: the ceiling worked by its name rather than by its value. The key is
-// resolved on the whole dotted path and read on its last segment, so the ways
-// in are the spellings that reach the same row from a block nobody thought
-// about — the bare name a `Core\Config::set` uses for a limit, the copy under
-// `[app.limits]`, the one under `[limits.hard]`, and the same characters with a
-// NUL or a traversal in them. A key that lands on the row while being classed
-// by something else is the whole refusal gone.
+// Attack: a request tries to change `limits.max_script_depth` with keys that are
+// almost the same: other letter case, other prefixes, null bytes or `..`.
+// Every write should fail.
 // hostile: timeout-ms 30000
 
 array<string> $names = [
@@ -35,9 +31,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// Every value under the real name. A depth is a count of levels, so these are
-// the counts it might round, the ones that are not counts at all, and the two
-// that would take the ceiling off if either were read as written.
+// Tries many values on the real key: whole numbers, values that are not whole
+// numbers, and `0` and `false`, which mean "no limit". Every write should fail.
 array<string> $values = [
     '0',
     'false',
@@ -64,10 +59,8 @@ foreach ($values as string $value) {
 }
 Core\Config::restore('limits.max_script_depth');
 
-// What is left standing, asked of the thing itself rather than of the registry:
-// the chain beside this file runs until it is refused, so a bound this program
-// moved is a descent that does not come back. The path is written from the
-// repository root, which is where a case is run from.
+// Prints the limit, then starts the endless chain from the other file. The
+// chain should stop at the limit, and this prints `yes`.
 echo 'the ceiling reads: ', Core\Config::get('limits.max_script_depth') ?? '(nothing)', "\n";
 var $chain = spawn script 'tests/hostile/config/limits-max_script_depth/01-a-chain-of-spawns-with-no-end.nvs' with(
     output: 'capture',

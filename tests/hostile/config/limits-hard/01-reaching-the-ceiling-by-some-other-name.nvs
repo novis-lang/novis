@@ -1,15 +1,11 @@
 <?nvs
-// Attack: the ceiling is the only thing standing between a request and as much
-// of this host as it cares to ask for, and it is one longest-match row away
-// from the block the request *is* allowed to write. So this reaches for it by
-// every other name — case, separator, doubled segment, an application scope,
-// a path that walks back up — then works the boundary from both sides, then
-// tries to move it by ordering rather than by writing it, and finishes by
-// asking whether one byte over the ceiling is still refused.
+// Attack: a request tries to change `[limits.hard]`, the ceiling on its own limits.
+// Only the person who runs the server may set it, so every write to it should fail.
+// At the end, `513M` is one megabyte over the ceiling and should still fail.
 // hostile: timeout-ms 30000
 
-// 1. Every other name for the ceiling. An accepted one is a request writing
-//    `[limits.hard]` without ever spelling it.
+// 1. Tries the ceiling's key and keys that are almost the same, with other
+//    letter case, separators or prefixes.
 array<string> $names = [
     'limits.hard.memory',
     'limits.hard',
@@ -38,16 +34,14 @@ array<string> $names = [
 foreach ($names as string $key) {
     Core\Config::set($key, '4G');
     Core\Config::set($key, '18446744073709551615');
-    // Refused, so nothing may read back and the real ceiling must not have
-    // moved under any of these spellings.
+    // Each write fails, so each read returns `null`. The real ceiling stays
+    // the same.
     Core\Config::get($key);
     Core\Config::restore($key);
 }
 
-// 2. The boundary, from both sides and in every unit spelling. The accepted
-//    side has to stop exactly at the written ceiling: one byte over that is
-//    accepted is a ceiling that rounds, and a ceiling that rounds is a ceiling
-//    an attacker states in whichever unit rounds their way.
+// 2. Tries values just under, at and over the ceiling, in many units. A value
+//    even one byte over `512M` should fail.
 array<string> $atTheEdge = [
     '512M',
     '513M',
@@ -70,10 +64,8 @@ foreach ($atTheEdge as string $value) {
 }
 Core\Config::restore('limits.memory');
 
-// 3. Moving the ceiling by ordering instead of by writing it. Each of these is
-//    a sequence that would leave the ceiling raised if any step were applied
-//    out of the order it was asked in, or if `restore` put back an overlay's
-//    value rather than the file's.
+// 3. Mixes writes and restores 1,000 times. The ceiling should never go up,
+//    and `restore` should always return to the configured value.
 uint $round = 0;
 while ($round < 1000) {
     Core\Config::set('limits.memory', '64M');
@@ -89,9 +81,7 @@ while ($round < 1000) {
     $round = $round + 1;
 }
 
-// 4. Every other ceiling in the block, in case one of them is the settable
-//    one. A single writable row here is the whole class distinction gone for
-//    that budget.
+// 4. Tries every other ceiling in `[limits.hard]`. Every write should fail.
 array<string> $keys = ['memory', 'cpu_time', 'wall_time', 'max_tasks', 'max_output', 'max_regex_steps'];
 foreach ($keys as string $key) {
     Core\Config::set('limits.hard.' . $key, '4G');
@@ -100,9 +90,8 @@ foreach ($keys as string $key) {
     Core\Config::restore('limits.hard.' . $key);
 }
 
-// 5. What is left standing. The ceiling is the file's, and one byte over it is
-//    still refused — anything else here is a request that got more of this
-//    host than the deployment allowed.
+// 5. Prints the ceiling, which should be the configured value. Setting `513M`
+//    should still fail.
 echo 'ceiling:   ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";
 echo 'ask 513M:  ', Core\Config::set('limits.memory', '513M') ? 'accepted' : 'refused', "\n";
 echo 'in force:  ', Core\Config::get('limits.memory') ?? '(nothing)', "\n";

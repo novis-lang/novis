@@ -1,30 +1,20 @@
 <?nvs
-// `[[include]]` splits one configuration across more than one file: an entry
-// names another file, or a directory of them, and what that file says is read
-// in place. This checkout writes no include at all, so every line below is the
-// answer a program gets when the whole configuration is a single file.
+// `[[include]]` splits one configuration into more than one file. Each entry
+// names a file or a directory of files, and the server reads them in place.
+// This configuration has no include, so this program shows what a program
+// sees when the configuration is one file.
 
 echo 'included files:   ', Core\Config::get('include') ?? '(none — this checkout is one file)', "\n";
 
-// An include is arranged at the *file* layer, so even where one is written
-// there is nothing here to read. What a program sees is the settled answer for
-// a key, with every included file already folded in and no trace of which one
-// said it — later files win, and the winner is the only thing worth asking.
+// `Core\Config::get('include')` returns `null`. A program sees only the final
+// value of each key. When two files set the same key, the later file wins.
 echo 'memory per request: ', Core\Config::get('limits.memory') ?? '(nothing)', "\n";
 
-// Nor may a program add one. An include is the operator's: a request that
-// could name a file for the server to read would be choosing the whole
-// configuration — every capability grant and every limit in it — out of a file
-// no account ever had to own in order to write.
+// A program cannot add an include. Only the person who runs the server may
+// choose which files it reads, so each `Core\Config::set` call below returns `false`.
 echo 'pull one in:      ', Core\Config::set('include', 'conf.d/mine.toml') ? 'yes' : 'no', "\n";
 echo 'or a directory:   ', Core\Config::set('include.dir', '/tmp/conf.d') ? 'yes' : 'no', "\n";
 echo 'or an optional:   ', Core\Config::set('include.optional', 'true') ? 'yes' : 'no', "\n";
 
-// What the operator gets in exchange is the arrangement a deployment actually
-// wants: the shared settings in the root file, this machine's in a file of its
-// own, dropped into a directory one entry names and read in filename order —
-// and a host that needs no local file marks that entry optional and edits
-// nothing. Optional covers an absent file and nothing else: one that is there
-// but unreadable, unparseable or writable by somebody else stops the server,
-// because a configuration quietly missing half of itself is how a server comes
-// up looking healthy with its restrictions gone.
+// An entry with `optional = true` may name a file that does not exist. If the file
+// exists but cannot be read or parsed, the server does not start.

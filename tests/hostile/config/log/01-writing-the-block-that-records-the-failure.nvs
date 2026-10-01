@@ -1,15 +1,10 @@
 <?nvs
-// Attack: the `[log]` block written from inside the program it records. Two of
-// its keys are the program's and the rest are not, and every way of reaching
-// the second set through the first is what this tries — the bare name a limit
-// is set by, the copy under `[app.log]`, the block itself as a key, a name with
-// a NUL in it, and the mode flip that would re-derive the two movable keys
-// without naming either of them.
+// Attack: a program tries to change `log.target` and `log.handler`. It may only
+// change `log.format` and `log.level`. Every write to the other keys should fail.
 // hostile: timeout-ms 30000
 
-// 1. Every other name. A `[log]` key that answered to the bare name a limit
-//    uses would be a second spelling with no block in it, and a key that
-//    answered as a whole table would set several rows at once.
+// 1. Tries the `[log]` keys and keys that are almost the same. This includes
+//    `log` alone and keys with no `log.` prefix.
 array<string> $names = [
     'log',
     'log.format',
@@ -41,9 +36,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every value under the two names that do take one. A rendering and a level
-//    are words rather than measurements, so the sizes here are the ones that
-//    are not words at all.
+// 2. Tries many values on `log.format` and `log.level`, including empty, wrong
+//    and very long strings. Only valid values should be accepted.
 array<string> $values = [
     '',
     ' ',
@@ -69,11 +63,8 @@ foreach ($values as string $value) {
 Core\Config::restore('log.format');
 Core\Config::restore('log.level');
 
-// 3. The other door into the same two keys: a mode carries a whole set of
-//    defaults, and this block holds two of them, so a flip is a way to move
-//    them without writing either name. It is refused unless the deployment
-//    left room for it, and the churn is here because the overlay this writes
-//    into is the one thing a request can make grow.
+// 3. Changes the mode and both keys 5,000 times. A mode change sets these keys
+//    too. The request's memory should not grow with the number of writes.
 uint $round = 0;
 while ($round < 5000) {
     Core\Config::set('mode', 'development');
@@ -85,6 +76,6 @@ while ($round < 5000) {
     $round = $round + 1;
 }
 
-// 4. What is left standing: the two the operator keeps, after all of that.
+// 4. Prints `log.target` and `log.handler`. Both should still be the configured values.
 echo 'target:  ', Core\Config::get('log.target') ?? '(nothing written)', "\n";
 echo 'handler: ', Core\Config::get('log.handler') ?? '(nothing written)', "\n";

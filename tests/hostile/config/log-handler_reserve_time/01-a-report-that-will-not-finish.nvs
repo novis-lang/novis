@@ -1,9 +1,7 @@
 <?nvs
-// Attack: the clock the tier-3 report runs on. Every name and every duration
-// first — including the ones that would leave the report no time at all — and
-// then a failure whose handler does not report but spins, which is what a
-// report that blocks on a destination that stopped answering looks like from
-// the inside. The runtime has to end this program rather than wait for it.
+// Attack: a program tries to set `log.handler_reserve_time` to no time. It then
+// fails with a handler that runs for a long time. Every write should fail, and
+// the server should stop the handler when its time is used up.
 // hostile: timeout-ms 60000
 // hostile: ends-early
 
@@ -29,9 +27,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// Every duration under the real name, in the units it might round in and a few
-// it should not take at all. Zero and `false` are the interesting ones: a
-// report allowed no time is a report nobody gets.
+// Tries durations in many units on the real key, including `0` and `false`.
+// Every write should fail.
 array<string> $durations = [
     '0',
     '0s',
@@ -57,12 +54,8 @@ Core\Config::restore('log.handler_reserve_time');
 
 echo 'the clock reads: ', Core\Config::get('log.handler_reserve_time') ?? '(nothing)', "\n";
 
-// The handler that will not finish. It is reached by running the request out of
-// memory, which is the breach this machine will certainly deliver, and then it
-// spends its time on arithmetic instead of on a report. The loop is bounded
-// rather than endless on purpose: a handler stopped at a ceiling and one that
-// simply ran out of iterations are both passes, and an unbounded loop would
-// make the difference between them a question about this machine.
+// The request runs out of memory, and this handler then loops 200,000,000 times.
+// The loop has an end, so the test passes whether the handler is stopped or not.
 Core\Fatal::onLimit(fn (): void => {
     uint $spin = 0;
     uint $acc = 0;

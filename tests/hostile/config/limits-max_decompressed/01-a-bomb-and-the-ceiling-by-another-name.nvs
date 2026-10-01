@@ -1,14 +1,10 @@
 <?nvs
-// Attack: the absolute half of the decompression bound is the number standing
-// between a hundred kilobytes on the wire and as much of this host's heap as
-// the archive cares to name. So this reaches for the key by every other name,
-// hands it every value that would remove it, asks for more of it than there is,
-// and then builds the bomb for real — eighty megabytes of one octet, which is
-// a frame small enough to post and an output the ceiling has to refuse.
+// Attack: a request tries to remove `limits.max_decompressed`, the most bytes one
+// decompression may produce. It then unpacks a small input into 80 MB.
+// Every write should fail, and the decompression should throw a `ParseError`.
 // hostile: timeout-ms 60000
 
-// 1. Every other name for the ceiling. An accepted one is a request choosing
-//    how much of the heap an archive it was handed may claim.
+// 1. Tries the limit's key and keys that are almost the same.
 array<string> $names = [
     'limits.max_decompressed',
     'limits.MAX_DECOMPRESSED',
@@ -36,8 +32,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every value under the real name, including the two that would read as "no
-//    ceiling" anywhere else in this block.
+// 2. Tries many values on the real key, including `false` and `0`. Every write
+//    should fail.
 array<string> $values = [
     'false',
     'true',
@@ -60,9 +56,8 @@ foreach ($values as string $value) {
 }
 Core\Config::restore('limits.max_decompressed');
 
-// 3. A call asking for more than the deployment allows, in every shape a `uint`
-//    has. The bound a call gets is the smaller of its ask and the operator's,
-//    so an ask that wins here is a bound named by whoever sent the archive.
+// 3. Passes limits from `0` to the largest `uint`. A call always gets the smaller
+//    of its own limit and the configured one.
 bytes $small = Core\Compress::compress(Core\Str::repeat('A', 16384) as bytes, Core\Codec::Gzip);
 array<uint> $asks = [0, 1, 16383, 16384, 16385, 67108864, 67108865, 4294967296, 18446744073709551615];
 foreach ($asks as uint $ask) {
@@ -72,9 +67,8 @@ foreach ($asks as uint $ask) {
     }
 }
 
-// 4. The same frame through a stream, fed one octet at a time. The bound is the
-//    whole stream's, so a chunking that charges each `add` separately is a
-//    ceiling divided by however many pieces the sender chose to send.
+// 4. Sends the same input to a stream one byte at a time. The limit counts the
+//    whole stream, so `finish` should throw a `ParseError`.
 Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Codec::Gzip, 1024);
 int $at = 0;
 int $len = Core\Bytes::length($small) as int;
@@ -88,9 +82,8 @@ try {
     echo "one octet at a time: refused\n";
 }
 
-// 5. The bomb itself. Eighty megabytes of one octet compresses to about eighty
-//    kilobytes, so the ratio leaves room and the absolute ceiling is the only
-//    thing left saying no. What the host must not do is hold the output.
+// 5. Compresses 80 MB of the letter `A` to about 80 KB. Only the `64M` limit
+//    can stop this, so the decompression should throw a `ParseError`.
 bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 83886080) as bytes, Core\Codec::Gzip);
 echo 'on the wire: ', Core\Bytes::length($bomb), " octets\n";
 try {
@@ -100,8 +93,8 @@ try {
     echo "the bomb was refused\n";
 }
 
-// 6. And refused again, however many times it is sent. A ceiling that leaks the
-//    output it refused is one a sender reaches by sending twice.
+// 6. Sends the same input 8 more times. Each call should throw, and no memory
+//    from a failed call should stay in use.
 uint $again = 0;
 while ($again < 8) {
     try {

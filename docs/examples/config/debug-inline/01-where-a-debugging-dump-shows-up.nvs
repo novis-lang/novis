@@ -1,24 +1,19 @@
 <?nvs
-// A debugging dump always goes to the log. `[debug] inline` decides whether a
-// page being built as HTML *also* gets it appended, where whoever asked for the
-// page can read it. Nothing is written for it in this checkout, so the mode the
-// deployment runs in decides: development appends, production does not.
+// `Core\Debug::dump` always writes to the log. `[debug] inline` says whether an HTML page
+// also shows the dump at its end. This file sets nothing, so the run mode is used.
+// In development mode the page shows the dump. In production mode it does not.
 
 echo 'written here: ', Core\Config::get('debug.inline') ?? '(nothing, so the mode decides)', "\n";
 
-// A program may never turn it on, and that is the whole point of the key: a
-// dump forgotten in shipped code writes a log line, and no request can talk the
-// runtime into putting it in the response instead.
+// A program may never turn this setting on, so this prints `no`. A dump you forget
+// in your code writes only to the log. It never appears in the response.
 echo 'turn it on:   ', Core\Config::set('debug.inline', 'true') ? 'yes' : 'no', "\n";
 
-// Turning it off comes back `no` as well, for a plainer reason: a program may
-// narrow a setting it can compare — a smaller size, a shorter timeout — and
-// "off" is not a smaller "on". Running in production is how a deployment has it
-// off, and that is a decision it makes before the first request arrives.
+// A program may not turn it off either. It may only lower a number, such as a memory
+// limit or a timeout. To turn the setting off, run the server in production mode.
 echo 'turn it off:  ', Core\Config::set('debug.inline', 'false') ? 'yes' : 'no', "\n";
 
-// The dump itself needs none of this. From a command-line program it goes to the
-// error stream, so what the program prints stays clean and can still be piped
-// somewhere.
+// In a command-line program, `Core\Debug::dump` writes to the error stream.
+// The normal output does not contain the dump, so you can still pipe it to another program.
 Core\Debug::dump(['order' => 1042, 'total' => '19.90']);
 echo "done\n";

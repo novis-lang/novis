@@ -1,23 +1,22 @@
 <?nvs
-// `[log]` holds what a program's records look like and what happens when one of
-// its requests fails. Two of its keys belong to the program, and the rest to
-// whoever runs it.
+// `[log]` sets the format of log records and what happens when a request fails.
+// A program may change `log.format` and `log.level`. Only the person who runs the
+// server may change the other keys.
 
 echo 'rendering: ', Core\Config::get('log.format') ?? '(unset — json, which is the default here)', "\n";
 echo 'level:     ', Core\Config::get('log.level') ?? '(unset — Info, which is the default here)', "\n";
 
-// A job that wants its own run traced turns its own level down. What it sets is
-// its own: the request running beside it still has what the deployment wrote.
+// This sets the log level to `Debug` for this request only. Other requests
+// still use the configured level.
 echo 'trace this run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'refused', "\n";
 echo 'level now:      ', Core\Config::get('log.level') ?? '(unset)', "\n";
 
-// Where the records go, and which script is run when the request fails, are not
-// the failing program's to choose — a program that could send the report of its
-// own failure somewhere nobody reads is a program nobody hears fail.
+// A program cannot change where records go or which script runs when it fails.
+// Both calls return `false`.
 echo 'send them elsewhere: ', Core\Config::set('log.target', 'file:/tmp/mine.log') ? 'accepted' : 'refused', "\n";
 echo 'name my own handler: ', Core\Config::set('log.handler', 'scripts/mine.nvs') ? 'accepted' : 'refused', "\n";
 
-// And `restore` hands back what the configuration said, so the level this
-// request turned down is not the level the next thing to run starts at.
+// `Core\Config::restore` sets the level back to the configured value.
+// No level is configured here, so the result is `null`.
 Core\Config::restore('log.level');
 echo 'level after restore: ', Core\Config::get('log.level') ?? '(unset — the default again)', "\n";

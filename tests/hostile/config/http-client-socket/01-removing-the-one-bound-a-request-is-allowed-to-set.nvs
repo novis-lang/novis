@@ -1,15 +1,10 @@
 <?nvs
-// Attack: this is the one block under `[http.client]` a request may write, so
-// the attack is not "can it be written" but "how far does a write reach". The
-// bound removed rather than narrowed, the message cap raised to whatever a peer
-// would like to send, the spellings that mean no limit somewhere else, and then
-// the neighbouring blocks reached through this one, because a block a request
-// may set sits directly beside three it may not.
+// Attack: a request may set `[http.client.socket]`, so it tries to remove its limits or make them huge.
+// It also tries to change the blocks next to it through this block.
+// Removing a limit, or changing another block, should fail.
 // hostile: timeout-ms 30000
 
-// 1. The message cap raised and removed. A socket reassembles a message into
-//    the opening task's memory, so a cap a request could take off is a peer
-//    deciding how much memory this host spends on it.
+// 1. Set the largest message size to huge, negative, empty and invalid values.
 array<string> $sizes = [
     '18446744073709551615',
     '9223372036854775807',
@@ -33,9 +28,7 @@ foreach ($sizes as string $value) {
 }
 Core\Config::restore('http.client.socket.max_message');
 
-// 2. The same against the wait, where zero and `false` are the two values that
-//    are not bounds: a cap of nothing admits no message and a wait of nothing
-//    writes no frame, so neither is a spelling for removing the limit.
+// 2. Set the send timeout to `0`, `false`, huge and invalid values.
 array<string> $waits = [
     '0',
     '0s',
@@ -57,9 +50,7 @@ foreach ($waits as string $value) {
 }
 Core\Config::restore('http.client.socket.send_timeout');
 
-// 3. The neighbours, reached through the one block that answers `yes`. Writing
-//    this block must not be a way to write the three beside it, and a near miss
-//    between them is exactly how it would become one.
+// 3. Set keys of other blocks through this block, and then set the other blocks directly.
 array<string> $neighbours = [
     'http.client.socket.pool_idle',
     'http.client.socket.max_message.pool_idle',
@@ -83,9 +74,7 @@ Core\Config::restore('http.client.pool_idle');
 Core\Config::restore('http.client.tls.roots');
 Core\Config::restore('http.client.proxy.url');
 
-// 4. Two hundred thousand accepted writes of one key with no restore between
-//    them. This one is allowed, so what is being asked is that the overlay a
-//    request writes into costs one entry rather than one per write.
+// 4. Set an allowed value 200,000 times with no restore. Only the last value should use memory.
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('http.client.socket.max_message', $i % 2 == 0 ? '65536' : '131072');

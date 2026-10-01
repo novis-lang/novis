@@ -1,19 +1,10 @@
 <?nvs
-// Attack: move the coherent cache tier from inside a request, and reach it
-// without being granted it. Where a fleet's shared state lives is the
-// operator's decision and applies only at a restart, so a request that could
-// rewrite `[cache.shared] url` would be pointing every other core on the box at
-// a store it chose -- and one that could open the tier without the grant would
-// be reading a deployment's entries with nothing having said it may.
-//
-// It earns a longer clock than the default because step 3 writes a quarter of a
-// megabyte of address text twenty thousand times over.
+// Attack: a request tries to change `[cache.shared] url` and the other settings of the block,
+// and to use the shared cache without the right to. Every attempt should fail.
+// Step 3 writes a lot of data, so this test needs more time than usual.
 // hostile: timeout-ms 30000
 
-// 1. Every key of the block, and the block itself, written through the one
-//    member that can write anything. A `System` key refuses each of these; a
-//    tier that took even one of them would have moved the store for whoever
-//    asked next.
+// 1. Set every key of the block, and the block itself, to an address the attacker controls.
 array<string> $keys = [
     'cache.shared',
     'cache.shared.url',
@@ -27,9 +18,7 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. The spellings that are not the keys but resolve near them, because the
-//    registry answers by longest prefix: a row reached for a name nobody wrote
-//    would be governing a key nobody declared.
+// 2. Set keys that are almost real keys: extra dots, capital letters and unknown names.
 array<string> $nearby = [
     'cache',
     'cache.',
@@ -48,10 +37,7 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. Addresses that are not addresses, at a size chosen to outrun whatever
-//    holds the overlay a request writes into. Each is a value the block would
-//    have to refuse at boot, offered instead to the one writer that runs while
-//    a request is being served.
+// 3. Set the address to invalid values and to a 256 KB value, 20,000 times.
 string $enormous = 'redis://' . Core\Str::repeat('a', 262144) . ':6379';
 array<string> $malformed = [
     '',
@@ -73,27 +59,21 @@ while ($i < 20000) {
     $i = $i + 1;
 }
 
-// 4. The credential, asked for by the program the store is being kept from. A
-//    password written in the file is the store's, not the request's, and one
-//    read out of a file never enters the merged table at all -- so there is
-//    nothing here for a `get` to hand back.
+// 4. Read the password and the password file. `Core\Config::get` should return `null` for both.
 Core\Config::get('cache.shared.password');
 Core\Config::get('cache.shared.password_file');
 
-// 5. The tier itself, without the grant, asked for until the refusal wears out.
-//    A refusal that is decided once and then cached as a connection, or one
-//    that dials first and checks afterwards, would leak a socket per attempt.
+// 5. Open the shared cache 5,000 times without the right. No attempt should open a connection.
 uint $tries = 0;
 while ($tries < 5000) {
     try {
         var $store = Core\Cache::shared();
         $store->put('claimed:' . $tries, 'mine');
     } catch (RuntimeError $refused) {
-        // The refusal is the point; the attack is that it holds five thousand
-        // times and costs nothing each time.
+        // This error is expected. Each attempt should fail quickly.
     }
     $tries = $tries + 1;
 }
 
-// Still standing, and the store still whatever the file said.
+// The address should still be the value from the file.
 echo 'store: ', Core\Config::get('cache.shared.url') ?? '(no shared tier)', "\n";

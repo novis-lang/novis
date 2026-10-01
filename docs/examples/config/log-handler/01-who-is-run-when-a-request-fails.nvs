@@ -1,25 +1,23 @@
 <?nvs
-// `[log] handler` names the script run when a request fails and the program's
-// own last words could not be said — or were never arranged at all.
+// `[log] handler` names a script that runs when a request fails. It runs when the
+// program has no handler of its own, or when that handler could not run.
 
 echo 'the handler on duty: ', Core\Config::get('log.handler') ?? '(none written — the floor writes the record itself)', "\n";
 echo 'memory held back:    ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing written — the engine sizes it)', "\n";
 echo 'time held back:      ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written — the engine sizes it)', "\n";
 
-// A program's own last words are its own to arrange. This one runs inside the
-// failing request, and registering it is a call rather than a directive.
+// A program registers its own handler with `Core\Fatal::onLimit`. This function
+// runs inside the request that failed.
 Core\Fatal::onLimit(fn (): void => {
     echo "the program's own handler ran\n";
 });
 
-// The deployment's is not. A program able to name the script that reports its
-// failure could name one that reports nothing, which is the same as not being
-// reported at all.
+// A program cannot change `log.handler`. It cannot point it at its own script
+// or remove it, so both calls return `false`.
 echo 'point it at my script: ', Core\Config::set('log.handler', 'scripts/mine.nvs') ? 'accepted' : 'refused', "\n";
 echo 'or take it off:        ', Core\Config::set('log.handler', '') ? 'accepted' : 'refused', "\n";
 
-// The two keys beside it are the operator's for the same reason: they size the
-// room that script runs in, and a program that could shrink them could make the
-// report of its own failure fail as well.
+// The two reserve keys set the memory and time that script gets. A program
+// cannot change them either.
 echo 'widen its memory:      ', Core\Config::set('log.handler_reserve_memory', '1G') ? 'accepted' : 'refused', "\n";
 echo 'narrow its time:       ', Core\Config::set('log.handler_reserve_time', '1ms') ? 'accepted' : 'refused', "\n";

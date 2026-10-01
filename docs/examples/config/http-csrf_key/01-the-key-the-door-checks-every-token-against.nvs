@@ -1,29 +1,21 @@
 <?nvs
-// `[http] csrf_key` is the one key the server door verifies a presented CSRF
-// token against. Naming it is what turns the token half of the check on: until
-// it is named there is no token this deployment ever issued, so a covered
-// request arriving without one has nothing to be missing. This configuration
-// names none.
+// `[http] csrf_key` is the key the server uses to check the CSRF token of a request.
+// The server checks tokens only when this key is set. This file sets no key,
+// so no request needs a token yet.
 
 echo 'door key:       ', Core\Config::get('http.csrf_key') ?? '(nothing, so no token is expected yet)', "\n";
 echo 'read from file: ', Core\Config::get('http.csrf_key_file') ?? '(nothing)', "\n";
 
-// It is not a program's to name, and this is the plainest case of why: the door
-// checks every request against this one key, so a request that could write it
-// would be choosing which forgeries the requests beside it accept.
+// The server checks every request against this one key, so a program cannot set it.
+// A program that could set it could make forged requests pass. Both lines print `no`.
 echo 'name one here:  ', Core\Config::set('http.csrf_key', 'a-key-of-my-own') ? 'yes' : 'no', "\n";
 echo 'or name a file: ', Core\Config::set('http.csrf_key_file', '/tmp/csrf.key') ? 'yes' : 'no', "\n";
 
-// With no key named, what is still refused is the forgery the check is named
-// for: a browser request that arrives somewhere other than where its `Origin`
-// says it came from. What is not refused is a covered request that sent no
-// `Origin` at all — every non-browser caller — and naming the key is what
-// covers those.
+// Without the key, the server still rejects a browser request whose `Origin` header names
+// another site. A request with no `Origin` header is checked only when the key is set.
 
-// A program that wants tokens of its own does not wait for the deployment to
-// name anything. It holds its own key and issues against that, and the two keys
-// are for two different jobs: this one proves a form came from this
-// application's page, and the door's proves it to the door.
+// A program can also make its own tokens with its own key. `Core\Csrf::issue` makes a token
+// for one session, and `Core\Csrf::verify` accepts it only for that session.
 secret bytes $mine = Core\Crypto::generateKey();
 string $token = Core\Csrf::issue('sid-ada', $mine);
 echo 'own token:      ', Core\Csrf::verify($token, 'sid-ada', $mine) ? 'accepted' : 'refused', "\n";

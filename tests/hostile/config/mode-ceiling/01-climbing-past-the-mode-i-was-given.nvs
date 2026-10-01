@@ -1,13 +1,10 @@
 <?nvs
-// Attack: the line a program's own mode flip stops at, pushed by the program it
-// stops. Every spelling that might reach the key from a block nobody guarded,
-// every value that might be read as a third mode or as the one above, and then
-// the flip itself repeated until something either gives or leaks — a host still
-// in production at the end is the only evidence that none of it landed.
+// Attack: a program in production tries to switch to `development` or to raise
+// `mode.ceiling`. Every attempt should fail, and the server should still run in
+// production at the end.
 // hostile: timeout-ms 20000
 
-// 1. Every other name for the ceiling and for the flip it bounds, including the
-//    per-application copy of the block.
+// 1. Tries `mode.ceiling`, `mode.default` and keys that are almost the same.
 array<string> $names = [
     'mode',
     'mode.ceiling',
@@ -32,10 +29,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every shape of mode. The interesting ones are not the silly ones: a value
-//    that differs from `development` only in case, in padding or in an invisible
-//    character is the one an engine might fold into it, and a third name is the
-//    open set of environments this language deliberately does not have.
+// 2. Tries `development` with other letter case, spaces or hidden characters,
+//    and names that are not a mode. Every write should fail.
 array<string> $modes = [
     '',
     ' ',
@@ -63,10 +58,8 @@ foreach ($modes as string $mode) {
 Core\Config::restore('mode.ceiling');
 Core\Config::restore('mode.default');
 
-// 3. The flip itself, taken as often as the runtime will take it. A ceiling
-//    enforced once and then cached, or a refused set that still moves something
-//    behind it, shows up here and nowhere else — and a value kept per call is a
-//    leak that grows with how hard the program asks.
+// 3. Tries to switch to `development` 200,000 times. Every try should fail, so
+//    this prints `0`. The request's memory should not grow.
 uint $granted = 0;
 uint $i = 0;
 while ($i < 200000) {

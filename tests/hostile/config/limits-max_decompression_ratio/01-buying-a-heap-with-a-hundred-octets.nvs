@@ -1,13 +1,10 @@
 <?nvs
-// Attack: the ratio is the half that catches the archive small enough to post
-// a thousand times, so this works it from every side — the key by every other
-// name, the value in every shape that would read as "no ratio", frames whose
-// output per octet climbs past the deployment's with the absolute ceiling left
-// wide open, and the same frame sliced into chunks small enough that no single
-// one of them looks like an attack.
+// Attack: a request tries to remove `limits.max_decompression_ratio`, the most
+// output bytes allowed for each input byte. It then unpacks inputs with a high
+// ratio. Every write should fail, and inputs over the ratio should throw.
 // hostile: timeout-ms 60000
 
-// 1. Every other name for the ratio.
+// 1. Tries the ratio's key and keys that are almost the same.
 array<string> $names = [
     'limits.max_decompression_ratio',
     'limits.MAX_DECOMPRESSION_RATIO',
@@ -34,10 +31,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every value under the real name. `false` is the one worth the line: it is
-//    how this file spells "no ceiling" for the limits a request may raise, and
-//    a ratio that read it the same way would be a bound switched off by a word
-//    the block's own documentation teaches.
+// 2. Tries many values on the real key. In `[limits]`, `false` means "no limit",
+//    so it is tried too. Every write should fail.
 array<string> $values = [
     'false',
     'true',
@@ -60,11 +55,8 @@ foreach ($values as string $value) {
 }
 Core\Config::restore('limits.max_decompression_ratio');
 
-// 3. Frames whose ratio climbs. A short run of one octet carries enough header
-//    to stay well under the deployment's ratio; a long one approaches what
-//    deflate can do with a single repeated byte, which is past it. Somewhere in
-//    this list the bound has to start saying no, with the absolute ceiling
-//    nowhere in sight.
+// 3. Compresses longer and longer runs of `A`, so the ratio grows. The small
+//    inputs unpack, and the large ones should throw a `ParseError`.
 array<uint> $sizes = [16384, 65536, 262144, 1048576, 4194304, 8388608];
 foreach ($sizes as uint $size) {
     bytes $frame = Core\Compress::compress(Core\Str::repeat('A', $size) as bytes, Core\Codec::Gzip);
@@ -76,9 +68,8 @@ foreach ($sizes as uint $size) {
     }
 }
 
-// 4. The same frame through a stream, one octet per chunk. The bound is the
-//    whole stream's, so a decoder charging each `add` its own ratio would let
-//    any archive through for the cost of sending it slowly.
+// 4. Sends a large input to a stream one byte at a time. The ratio counts the
+//    whole stream, so `finish` should throw a `ParseError`.
 bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 4194304) as bytes, Core\Codec::Gzip);
 Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Codec::Gzip);
 int $at = 0;
@@ -94,9 +85,8 @@ try {
     echo "one octet at a time: refused\n";
 }
 
-// 5. And the ask itself, at both ends of what a `uint` holds. A call may lower
-//    the ratio and may not raise it, so an ask that wins here is a sender
-//    choosing how much of this heap its own archive is worth.
+// 5. Passes ratios from `0` to the largest `uint`. A call may lower the ratio
+//    but not raise it.
 array<uint> $asks = [0, 1, 2, 999, 1000, 1001, 18446744073709551615];
 foreach ($asks as uint $ask) {
     try {

@@ -1,15 +1,11 @@
 <?nvs
-// Attack: the block that says who watches this deployment, written by the
-// program being watched. Every spelling that might reach a key from a block
-// nobody guarded, every value that might reach a collector — or reach one
-// differently from the grammar that resolved it — and a cardinality argument
-// where the per-core series bound is, because a registry that grows with
-// traffic is a leak with a dashboard on it.
+// Attack: a program tries to change `[metrics]` and `[trace]`, which control how it
+// is measured. Only the person who runs the server may set them, so every write
+// below should fail.
 // hostile: timeout-ms 20000
 // hostile: ends-early
 
-// 1. Every other name for the four keys, including the tracing block on the
-//    same footing and a per-application copy of both.
+// 1. Tries the `[metrics]` and `[trace]` keys and keys that are almost the same.
 array<string> $names = [
     'metrics',
     'metrics.exporter',
@@ -40,11 +36,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every shape of destination. A collector that is a loopback port nobody
-//    listens on, a scheme the dialler does not speak, a name that is two
-//    different hosts depending on who resolves it, or a scrape endpoint bound
-//    to every interface, are each a deployment measured by somebody else or by
-//    nobody — and all of them are silence rather than an error at the sink.
+// 2. Tries many destinations: unknown exporters, local ports, all network
+//    interfaces, files and bad URLs. Every write should fail.
 array<string> $destinations = [
     '',
     ' ',
@@ -70,10 +63,8 @@ foreach ($destinations as string $destination) {
     Core\Config::set('trace.endpoint', $destination);
 }
 
-// 3. The per-core series bound, from both ends. Removing it is what makes a
-//    label built out of something a visitor sent into memory that grows with
-//    traffic; setting it to nothing is a deployment that stops reporting after
-//    its first series and never says why.
+// 3. Tries very small, very large and invalid values for `metrics.max_series`
+//    and `trace.sample`. Every write should fail.
 array<string> $bounds = [
     '0',
     '-1',
@@ -97,10 +88,8 @@ Core\Config::restore('metrics.exporter');
 
 echo 'exporter on duty: ', Core\Config::get('metrics.exporter') ?? '(nothing written)', "\n";
 
-// 4. And real work while all of that was in flight, ending past a ceiling this
-//    program set for itself: what the case asserts is that the runtime does the
-//    work, reports the failure and stays standing, still measured by whatever
-//    the deployment wrote rather than by what this program asked for.
+// 4. Lowers the memory limit to `8M` and builds strings until it is used up.
+//    The server should report the failure and keep running.
 Core\Config::set('limits.memory', '8M');
 array<string> $hoard = [];
 uint $i = 0;

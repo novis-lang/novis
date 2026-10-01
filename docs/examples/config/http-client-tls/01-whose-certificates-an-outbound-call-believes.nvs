@@ -1,33 +1,25 @@
 <?nvs
-// `[http.client.tls]` answers three questions about every outbound `https` call
-// this deployment makes: whose certificates it believes, the oldest TLS version
-// it will speak, and whether a copy of its session secrets is written out for
-// debugging. This configuration writes the version floor at the value the client
-// already speaks, and leaves the other two alone.
+// `[http.client.tls]` configures every outbound `https` call: which certificates it trusts,
+// the oldest TLS version it uses, and whether it writes its session secrets to a file for
+// debugging. This file sets the oldest version to `1.2` and does not set the other two.
 
 echo 'oldest version:   ', Core\Config::get('http.client.tls.min_version') ?? '(nothing, so 1.2)', "\n";
 echo 'secrets written:  ', Core\Config::get('http.client.tls.keylog') ?? '(nothing, so none)', "\n";
 
-// The trust list reads as nothing here for two reasons at once: nothing wrote
-// one, and a setting whose value is a list never reads back as text anyway —
-// there would be no single value to hand back. An unwritten list is the set of
-// certificate authorities shipped with Novis, and a deployment that adds its own
-// company CA to them writes `roots = ["bundled", "/etc/novis/corp-ca.pem"]`.
+// `Core\Config::get` cannot read a list, so it returns `null`. Without `roots`, Novis trusts its
+// built-in certificate authorities. `roots = ["bundled", "/etc/novis/corp-ca.pem"]` adds one more.
 echo 'trust anchors:    ', Core\Config::get('http.client.tls.roots') ?? '(nothing, so the shipped set)', "\n";
 
-// None of the three is a program's to change, because there is only one of them:
-// every request this process serves talks to the outside world through a single
-// client that these three settle, so a request narrowing the trust list would be
-// choosing who is believed on behalf of every request beside it.
+// Every request in this process uses the same TLS client, so a program cannot change
+// these three settings. `Core\Config::set` returns `false`, and each line prints `no`.
 echo 'trust one more:   ', Core\Config::set('http.client.tls.roots', '["/tmp/mine.pem"]') ? 'yes' : 'no', "\n";
 echo 'speak older TLS:  ', Core\Config::set('http.client.tls.min_version', '1.2') ? 'yes' : 'no', "\n";
 echo 'write secrets:    ', Core\Config::set('http.client.tls.keylog', '/tmp/keys.log') ? 'yes' : 'no', "\n";
 
-// A refusal changes nothing, so the floor is still the one the file wrote.
+// The failed calls changed nothing, so the oldest version is still `1.2`.
 echo 'still in force:   ', Core\Config::get('http.client.tls.min_version') ?? '(nothing)', "\n";
 
-// The block beside it is the counter-example, and the only one under
-// `[http.client]` that answers `yes`: the bounds on a single WebSocket are spent
-// on the one socket this program opened, so this program may name them.
+// `[http.client.socket]` is the only block in `[http.client]` that a program may change.
+// Its limits affect only the socket the program opened, so this prints `yes`.
 echo 'hold less:        ', Core\Config::set('http.client.socket.max_message', '65536') ? 'yes' : 'no', "\n";
 Core\Config::restore('http.client.socket.max_message');

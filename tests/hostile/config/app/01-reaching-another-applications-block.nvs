@@ -1,19 +1,10 @@
 <?nvs
-// Attack: reach the `[[app]]` roster from inside a request that one of its
-// blocks configured -- by naming the roster directly, by widening the grants and
-// limits a block folded in, and by handing the directive lookup keys no operator
-// would write. A request that could move any of these would be choosing its own
-// application's capabilities, or another application's.
-//
-// It earns a longer clock than the default because two of its inputs are sized
-// rather than shaped: a four-megabyte key and a hundred thousand rounds of
-// set-and-restore, both of which are the attack rather than decoration.
+// Attack: a request tries to change the `[[app]]` blocks, or the rights and limits they
+// give it. Every change to a block, a right or a limit above the maximum should fail.
+// Some steps use very large keys, so this test needs more time than usual.
 // hostile: timeout-ms 20000
 
-// 1. The roster itself, by every spelling a block is written in. `[[app]]` is an
-//    array of tables, so a request that guessed the index would be editing one
-//    named application; a request that reached the bare key would be editing all
-//    of them.
+// 1. Change and read the `[[app]]` blocks directly, by index and by key.
 array<string> $roster = [
     'app',
     'app.0',
@@ -35,8 +26,7 @@ foreach ($roster as string $key) {
     Core\Config::get($key);
 }
 
-// 2. The keys a block folds onto the global tree, which is where a grant it made
-//    actually lands. Widening one of these is the same win as editing the block.
+// 2. Raise the rights and limits that a block gives to this request.
 array<string> $folded = [
     'capabilities.fs.read',
     'capabilities.fs.write',
@@ -53,16 +43,13 @@ foreach ($folded as string $key) {
     Core\Config::set($key, '1024G');
 }
 
-// 3. A limit far above the ceiling the operator kept, asked for in every unit
-//    the value parser accepts, in case one of them overflows on the way in.
+// 3. Set the memory limit to huge values in several units, and to `-1` and `0`.
 array<string> $enormous = ['4G', '16777216M', '9223372036854775807', '-1', '0'];
 foreach ($enormous as string $value) {
     Core\Config::set('limits.memory', $value);
 }
 
-// 4. A key deep enough to make the longest-prefix scan walk a hundred thousand
-//    dot boundaries, and a key four megabytes wide. Both are `app.`-rooted, so
-//    every row of the registry is compared against them.
+// 4. Use an `app.` key with 100,000 parts, and an `app.` key that is 4 MB long.
 string $deep = 'app' . Core\Str::repeat('.0', 100000);
 Core\Config::set($deep, '1');
 Core\Config::get($deep);
@@ -71,10 +58,7 @@ string $wide = Core\Str::repeat('a', 4000000);
 Core\Config::set('app.' . $wide, $wide);
 Core\Config::get('app.' . $wide);
 
-// 5. Keys one byte off a real row, so a prefix test that did not stop on a dot
-//    boundary would answer for them: a longer name that starts the same way, the
-//    row with a trailing dot, and a root escaped with `..` the way a symlinked
-//    entry file would try to leave its application's directory.
+// 5. Use keys that are almost real keys: a longer name, an extra dot, a `..` path, a null byte.
 array<string> $nearly = [
     'appx.root',
     'app.',
@@ -88,9 +72,7 @@ foreach ($nearly as string $key) {
     Core\Config::get($key);
 }
 
-// 6. A hundred thousand rounds of set-and-restore on a directive this request may
-//    set, to see whether the per-request overlay the block folded into grows for
-//    the rest of the request rather than being replaced.
+// 6. Set and restore an allowed value 100,000 times. The memory used should not grow.
 uint $round = 0;
 while ($round < 100000) {
     Core\Config::set('limits.memory', '32M');
@@ -98,8 +80,7 @@ while ($round < 100000) {
     $round = $round + 1;
 }
 
-// The whole view, rebuilt after all of that: an entry here that a block never
-// wrote, or a roster key that survived the fold, is the finding.
+// Read all settings again. A key that no block set, or any `[[app]]` key, means the attack worked.
 array<string> $all = Core\Config::all();
 echo Core\Arr::count($all), " directive(s) still in force\n";
 echo Core\Config::get('limits.memory') ?? '(unset)', "\n";

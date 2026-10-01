@@ -1,22 +1,17 @@
 <?nvs
-// Attack: the reserved slice is the only heap the handler reporting an
-// exhausted heap will ever get, and it is carved out of a block the request is
-// otherwise allowed to write. So this reaches for it by every other name, hands
-// it every value that would leave nothing behind, moves the ceiling it comes
-// out of under it a thousand times — and then actually runs out of memory with
-// a handler registered, which is the moment the net either exists or does not.
+// Attack: a request tries to remove `limits.fatal_reserve_memory`, the memory kept
+// for its error handler. It then runs out of memory. The handler should still run.
 // hostile: timeout-ms 30000
 // hostile: ends-early
 
-// Registered first, so every line below runs with the net in play: a handler
-// installed only at the end would let an attack that took the reserve away
-// halfway through look exactly like one that never tried.
+// Registers the handler first, so every step below runs while the handler is
+// in place.
 Core\Fatal::onLimit(fn (): void => {
     echo "the handler still had somewhere to run\n";
 });
 
-// 1. Every other name for the net. An accepted one is a request sizing its own
-//    safety net, which `rule:errors/on-limit` puts in somebody else's hands.
+// 1. Tries the reserve's key and keys that are almost the same. Only the person
+//    who runs the server may set the reserve, so every write should fail.
 array<string> $names = [
     'limits.fatal_reserve_memory',
     'limits.FATAL_RESERVE_MEMORY',
@@ -47,10 +42,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every value that would leave the handler nothing, under the real name. A
-//    net of zero and a net larger than the heap it is carved out of are the
-//    same attack from two sides: both leave one of the two parties with no
-//    memory at all.
+// 2. Tries values of zero, invalid values and values bigger than the request's
+//    memory. Every write should fail.
 array<string> $values = [
     '0',
     '0B',
@@ -74,12 +67,8 @@ foreach ($values as string $value) {
 }
 Core\Config::restore('limits.fatal_reserve_memory');
 
-// 3. Moving the heap the slice is carved out of, under the slice. The reserve
-//    is clamped to a quarter of the ceiling, so a ceiling driven down to where
-//    the clamp bites and back up again is the sequence that leaves the two
-//    disagreeing about which reading they came from. The floor here is a heap
-//    this program still fits in: a ceiling of one byte ends the request on the
-//    spot, which is correct and would end the attack three sections early.
+// 3. Lowers and raises `limits.memory` 1,000 times. The reserve is at most a
+//    quarter of it, and the two must still agree after every change.
 uint $round = 0;
 while ($round < 1000) {
     Core\Config::set('limits.memory', '4M');
@@ -91,10 +80,8 @@ while ($round < 1000) {
     $round = $round + 1;
 }
 
-// 4. The moment itself. The heap is lowered to something a loop reaches
-//    immediately, and the loop is allowed to reach it. Whatever comes out of
-//    here, the runtime has to still be the thing printing it: the reserve is
-//    what the handler registered at the top runs inside.
+// 4. Lowers the memory limit to `8M`, then fills it in a loop. The request
+//    stops, and the handler registered at the top should run in the reserve.
 echo 'net:  ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing)', "\n";
 echo 'heap: ', Core\Config::set('limits.memory', '8M') ? 'lowered' : 'refused', "\n";
 

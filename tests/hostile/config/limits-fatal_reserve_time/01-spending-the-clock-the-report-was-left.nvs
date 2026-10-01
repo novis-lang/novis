@@ -9,7 +9,7 @@ Core\Fatal::onLimit(fn (): void => {
     echo "the handler still had a clock to run on\n";
 });
 
-// 1. Every other name for the slice.
+// 1. Tries the reserve's key and keys that are almost the same.
 array<string> $names = [
     'limits.fatal_reserve_time',
     'limits.FATAL_RESERVE_TIME',
@@ -36,9 +36,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every value under the real name. A duration is the one thing this key is,
-//    so the sizes are worked in every unit it might round in and in a few it
-//    should not accept at all.
+// 2. Tries durations in many units, and values that are not durations at all.
+//    Every write should fail.
 array<string> $values = [
     '0',
     '0s',
@@ -64,9 +63,8 @@ foreach ($values as string $value) {
 }
 Core\Config::restore('limits.fatal_reserve_time');
 
-// 3. Both halves at once, with the budgets they are carved out of moving under
-//    them. Either half accepted here is the whole net resized by the program it
-//    exists to report on.
+// 3. Changes `limits.cpu_time` 1,000 times while it tries to set both reserves.
+//    Every write to a reserve should fail.
 uint $round = 0;
 while ($round < 1000) {
     Core\Config::set('limits.cpu_time', '1ms');

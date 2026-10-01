@@ -1,17 +1,10 @@
 <?nvs
-// Attack: this block settles the one TLS client the whole process shares, so a
-// request that could write any of its three keys would be choosing whose
-// certificates every co-resident request believes. Nothing here is supposed to
-// be accepted, and the attack is every route to an acceptance: the keys
-// themselves, the spellings that are one character off one of them, the block
-// reached through the neighbour a request *may* write, and a mode flipped first
-// so the boot-time refusal would have nothing left to refuse.
+// Attack: a request tries to change `[http.client.tls]`. Every request in the process uses the
+// same TLS client, so these settings decide which certificates every request trusts.
+// Every change should fail.
 // hostile: timeout-ms 30000
 
-// 1. The trust list, written every way a list can be written. An accepted one
-//    naming only the attacker's file is a host that believes one certificate
-//    authority, and an accepted empty one is a host whose outbound calls all
-//    fail — either way the deployment's decision was made by a request.
+// 1. Set the trusted certificates to the attacker's file, to an empty list and to invalid values.
 array<string> $roots = [
     '["/tmp/attacker.pem"]',
     '[]',
@@ -32,9 +25,7 @@ foreach ($roots as string $value) {
 }
 Core\Config::restore('http.client.tls.roots');
 
-// 2. The version floor, dragged downwards. The two versions beneath the floor
-//    are the ones this client does not implement at all, so an accepted `1.0`
-//    would be a file saying one thing and a handshake doing another.
+// 2. Set the oldest TLS version to older versions and to invalid values.
 array<string> $versions = [
     '1.0',
     '1.1',
@@ -53,10 +44,7 @@ foreach ($versions as string $value) {
 }
 Core\Config::restore('http.client.tls.min_version');
 
-// 3. The secrets file. This one is worth the most to an attacker who already
-//    runs code here: a path that is accepted writes out the keys that decrypt
-//    every outbound byte this host sends, and a path it cannot write to is a
-//    second question asked after the first was answered wrongly.
+// 3. Set the file for session secrets. With them, an attacker could read all outbound traffic.
 array<string> $keylogs = [
     '/tmp/keys.log',
     'keys.log',
@@ -73,19 +61,13 @@ foreach ($keylogs as string $value) {
 }
 Core\Config::restore('http.client.tls.keylog');
 
-// 4. The mode flipped first. A program may move itself out of `production`, and
-//    `production` is what refuses a `keylog` at boot — so the interesting order
-//    is flip, then write, then ask. The class is what refuses this, not the
-//    mode, and a version of it that leaned on the mode would be openable here.
+// 4. Switch to development mode first, and then set the secrets file. This should still fail.
 Core\Config::set('mode.default', 'development');
 Core\Config::set('http.client.tls.keylog', '/tmp/keys.log');
 Core\Config::get('http.client.tls.keylog');
 Core\Config::restore('mode.default');
 
-// 5. Spellings one character off a real key, and the block reached sideways
-//    through `[http.client.socket]` — the one block under `[http.client]` a
-//    request may write. A near miss that resolves is how a settable block
-//    becomes a way to write the three beside it.
+// 5. Set keys that are almost the real keys, and the same keys under `[http.client.socket]`.
 array<string> $keys = [
     'http.client.tls',
     'http.client.tls.',
@@ -106,11 +88,7 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 6. A hundred thousand refused writes with no restore between them. Every one
-//    of them is refused, so what is being asked is that a refusal costs nothing
-//    that accumulates: a request that can grow the overlay by being told `no`
-//    has found a way to spend this host's memory without being allowed to
-//    change a thing.
+// 6. Try two changes 100,000 times with no restore. A failed change should use no memory.
 uint $i = 0;
 while ($i < 100000) {
     Core\Config::set('http.client.tls.roots', '["/tmp/attacker.pem"]');

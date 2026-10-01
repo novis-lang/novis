@@ -1,20 +1,18 @@
 <?nvs
-// `[mode] ceiling` is the most permissive mode any code on this host may select.
-// A program may flip its own mode; the ceiling is how far.
+// `[mode] ceiling` is the most open mode any code on this server may select.
+// A program may change its own mode, but not past the ceiling.
 
 echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
 echo 'ceiling:    ', Core\Config::get('mode.ceiling') ?? '(nothing written — the mode the host started in)', "\n";
 
-// At or below the ceiling the flip belongs to the program.
+// `production` is at the ceiling, so this call returns `true`.
 echo 'select production:  ', Core\Config::set('mode.default', 'production') ? 'accepted' : 'refused', "\n";
 
-// Above it the call answers false and leaves the mode where it was. A host
-// started in production is not reachable from code that asks for development —
-// which is why nothing has to be written on a production machine to keep
-// verbose errors and open defaults off it.
+// `development` is above the ceiling, so the call returns `false`. The server
+// started in production, and the mode stays `production`.
 echo 'select development: ', Core\Config::set('mode.default', 'development') ? 'accepted' : 'refused', "\n";
 echo 'still running in:   ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
 
-// And the ceiling itself is the operator's line. A program that could raise it
-// could grant itself the mode it was just refused, one call later.
+// Only the person who runs the server may change the ceiling. This call
+// returns `false`.
 echo 'raise the ceiling:  ', Core\Config::set('mode.ceiling', 'development') ? 'accepted' : 'refused', "\n";

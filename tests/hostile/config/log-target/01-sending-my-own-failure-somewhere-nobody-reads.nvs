@@ -1,15 +1,11 @@
 <?nvs
-// Attack: the destination the engine's own floor writes to, moved by the program
-// the floor is about to write about. Every spelling that might reach the key from
-// a block nobody guarded, every value a filesystem might open differently from
-// the grammar that resolved it, and then a real failure at the end — a record
-// that still arrives after all of this is the only evidence that none of it
-// landed.
+// Attack: a program tries to change `log.target`, where the server writes the
+// record of its failure. Every write should fail. The program then fails, and
+// the record should still be written to the configured target.
 // hostile: timeout-ms 20000
 // hostile: ends-early
 
-// 1. Every other name for the same destination, including the per-application
-//    copy of the block and the two keys beside it that shape the same record.
+// 1. Tries `log.target` and keys that are almost the same.
 array<string> $names = [
     'log.target',
     'target',
@@ -35,11 +31,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every shape of destination under the real name. The interesting ones are
-//    not the silly ones: a floor pointed at a device, at a directory, at a path
-//    outside every granted root, or at a name that is two different paths
-//    depending on who reads it, is a failure report nobody ever sees — and
-//    `file:` with nothing behind it is the shape a half-finished edit leaves.
+// 2. Tries targets that are a device, a directory, a path outside the project,
+//    or an empty `file:`. Every write to `log.target` should fail.
 array<string> $destinations = [
     '',
     ' ',
@@ -73,13 +66,12 @@ Core\Config::restore('log.level');
 
 echo 'writing to: ', Core\Config::get('log.target') ?? '(nothing written)', "\n";
 
-// 3. The rung above the floor, arranged to fail in turn, so the failure below
-//    reaches the floor rather than stopping at a handler this program wrote.
+// 3. Registers a handler that throws an error, so the server must write the
+//    record to `log.target` itself.
 Core\Fatal::onLimit(fn (): void => {
     throw new RuntimeError('the handler this program arranged threw as well');
 });
 
-// 4. And a real failure, carrying a message large enough that the record itself
-//    is the load. Nothing here is caught: what the case asserts is that the
-//    runtime reports it and stays standing, wherever the record ends up.
+// 4. Throws an error with a very long message, and nothing catches it. The
+//    server should write the record and keep running.
 throw new RuntimeError(Core\Str::repeat('the destination is not mine to move. ', 65536));

@@ -1,18 +1,9 @@
 <?nvs
-// Attack: make the runtime keep temporary directories it promised to delete.
-// `[debug] keep_temporary` is the only thing that switches the end-of-script
-// sweep off, and it is the operator's alone -- so the first half of this program
-// is every spelling of a request writing it anyway, and the second half is the
-// sweep itself, handed the shapes that break a recursive delete: a thousand
-// directories on the list at once, a tree deeper than a stack likes, a path that
-// is already gone, and a path that is no longer the kind it was handed out as.
-// A `true` getting through in the first half exempts this program's files; a
-// sweep that comes apart in the second half leaves them without being asked.
+// Attack: a request tries to keep the temporary directories that are deleted when it ends.
+// First it tries to change `[debug] keep_temporary`, and every change should fail.
+// Then it makes directories that are hard to delete. All of them should still be deleted.
 
-// 1. The key itself, written from inside the request that would benefit, in
-//    every spelling a loose reader might take for "yes" -- and the sibling that
-//    would achieve the same thing sideways, since a program that could move the
-//    root would be pointing the sweep at a directory holding none of its files.
+// 1. Set `keep_temporary` and `io.temp_root` to values that could mean "yes" or a new path.
 array<string> $keys = ['debug.keep_temporary', 'io.temp_root', 'debug', 'io'];
 array<string> $yes = ['true', 'True', 'TRUE', '1', 'on', 'yes', '-1', '/', 'C:\\', '.'];
 foreach ($keys as string $key) {
@@ -22,10 +13,7 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Names that sit near the real one, because the registry answers by longest
-//    prefix: a row reached for a key nobody declared would be governing the
-//    block's neighbours as well, and `debug.inline` next door is the one key of
-//    this block a request may write at all.
+// 2. Set keys that are almost the real key: extra dots, capital letters and other names.
 array<string> $nearby = [
     'debug.keep_temporary.',
     '.debug.keep_temporary',
@@ -46,17 +34,13 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. A key long enough to be a walk rather than a lookup: the prefix rule scans
-//    back through the dots, so twenty thousand of them is the shape that finds a
-//    quadratic one or a stack that recurses per segment.
+// 3. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
 string $deep = 'debug.keep_temporary.' . Core\Str::repeat('scope.', 10000) . 'root';
 Core\Config::set($deep, 'true');
 Core\Config::get($deep);
 Core\Config::restore($deep);
 
-// 4. The same refusal, fifty thousand times, in case it is decided once and
-//    remembered -- or in case each attempt leaves something behind in the
-//    overlay a request writes into.
+// 4. Try the same change 50,000 times. Each try should fail and leave nothing behind.
 uint $i = 0;
 while ($i < 50000) {
     Core\Config::set('debug.keep_temporary', 'true');
@@ -64,10 +48,7 @@ while ($i < 50000) {
     $i = $i + 1;
 }
 
-// 5. The hoard. Every one of these is on the runtime's own list until this
-//    program ends, and none of them is removed here: the list grows with the
-//    number of directories rather than with what is in them, and the sweep walks
-//    all of it after the last line of this file.
+// 5. Make 1,000 temporary directories with files in them, and delete none of them here.
 uint $made = 0;
 while ($made < 1000) {
     string $scratch = Core\IO::temporaryDir();
@@ -76,9 +57,7 @@ while ($made < 1000) {
     $made = $made + 1;
 }
 
-// 6. One directory deep enough that deleting it is a walk of its own. A sweep
-//    that recurses once per level meets its stack here rather than in
-//    production, and a sweep that gives up halfway leaves the whole chain.
+// 6. Make one directory 400 levels deep. Deleting it should not overflow the stack.
 string $tower = Core\IO::temporaryDir();
 string $path = $tower;
 uint $level = 0;
@@ -89,10 +68,7 @@ while ($level < 400) {
 }
 Core\IO::write($path . '/bottom.txt', 'the last one');
 
-// 7. A path already gone, which the sweep is promised to treat as the goal state
-//    reached early rather than as a failure -- and beside it a path handed out as
-//    a directory and left as a file, which is the kind confusion a delete written
-//    for one of them walks into.
+// 7. Delete one temporary directory early, and replace another with a file. The cleanup should not fail.
 string $vanished = Core\IO::temporaryDir();
 Core\IO::removeDir($vanished);
 
@@ -100,7 +76,5 @@ string $swapped = Core\IO::temporaryDir();
 Core\IO::removeDir($swapped);
 Core\IO::write($swapped, 'no longer a directory');
 
-// 8. And the answer, after all of it. The key has to still be what the file
-//    says, or one of the writes above landed and every directory made here is
-//    staying on the disk.
+// 8. `keep_temporary` should still be the value from the file.
 echo 'keep_temporary: ', Core\Config::get('debug.keep_temporary') ?? '(nothing)', "\n";

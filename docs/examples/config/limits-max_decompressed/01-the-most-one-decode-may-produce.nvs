@@ -1,19 +1,18 @@
 <?nvs
-// A compressed frame can be tiny and still unpack into more memory than the
-// host has. This is the ceiling on what one decode may produce, and every
-// `Core\Compress` and `Core\Zip` call runs under it whether it asks to or not.
+// A small compressed input can unpack into more memory than the server has.
+// `limits.max_decompressed` is the most bytes one decompression may produce.
+// Every `Core\Compress` and `Core\Zip` call uses this limit.
 
 echo 'the most one decode may produce: ', Core\Config::get('limits.max_decompressed') ?? '(unset)', "\n";
 
-// 16 KiB of one octet, which is the shape a bomb has: small on the wire and
-// large in the heap.
+// This compresses 16 KiB of the letter `A`. The result is only 52 bytes,
+// so the input is small and the output is large.
 bytes $payload = Core\Str::repeat("A", 16384) as bytes;
 bytes $frame = Core\Compress::compress($payload, Core\Codec::Gzip);
 echo 'on the wire:                     ', Core\Bytes::length($frame), " octets\n";
 
-// A call may name a tighter ceiling of its own, and then it gets the smaller of
-// the two. Passing it throws rather than answering a prefix — a truncated
-// decode that looks like success is the failure this bound exists to prevent.
+// The third argument sets a lower limit for one call. If the output would be
+// bigger, the call throws a `ParseError` and returns no partial data.
 try {
     Core\Compress::decompress($frame, Core\Codec::Gzip, 16383);
     echo "one octet short:                 got the whole thing anyway\n";
@@ -22,8 +21,7 @@ try {
 }
 echo 'at its own ceiling:              ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Gzip, 16384)), " octets\n";
 
-// What a call cannot do is ask for more than the deployment allows: asking for
-// more gets the operator's number, and the operator's number is not a program's
-// to move.
+// A call that sets a higher limit still gets the configured limit. A program
+// cannot change `limits.max_decompressed`, so this returns `false`.
 echo 'raise the ceiling from here:     ', Core\Config::set('limits.max_decompressed', '4G') ? 'accepted' : 'refused', "\n";
 echo 'still:                           ', Core\Config::get('limits.max_decompressed') ?? '(unset)', "\n";

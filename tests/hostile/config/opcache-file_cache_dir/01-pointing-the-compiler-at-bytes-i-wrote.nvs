@@ -1,15 +1,11 @@
 <?nvs
-// Attack: the directory this process reads already-compiled native code out of,
-// aimed by the program that would be executed from it. Every path shape that
-// might escape whatever holds it, every other name the key might answer to, and
-// then the write repeated until something gives — the artifact cache still being
-// wherever the deployment put it is the only evidence that none of it landed.
+// Attack: a program tries to move `opcache.file_cache_dir`, the directory the
+// server loads compiled code from. With its own directory, it could run code it
+// wrote. Every write should fail, and the directory should not change.
 // hostile: timeout-ms 20000
 
-// 1. Every shape of path. Traversal, a root, a device, a share, a byte that
-//    ends a string early for one consumer and not the next, and a name longer
-//    than any path a filesystem will take: what each of them is trying to be is
-//    a directory this program can write and the loader will read.
+// 1. Tries `..` paths, a root, a device, a network share, null bytes and a very
+//    long path. Every write should fail.
 array<string> $paths = [
     '/tmp/mine',
     '.',
@@ -36,10 +32,8 @@ foreach ($paths as string $path) {
     Core\Config::restore('opcache.file_cache_dir');
 }
 
-// 2. Every other name the directory might answer to. `[cache]` is the data
-//    cache and holds no artifact directory, so a spelling under it that reached
-//    this key would be the second home the rule says does not exist — and the
-//    per-application copy is the same question asked one block down.
+// 2. Tries other keys that might name the same directory, including keys under
+//    `[cache]`, the data cache. Every write should fail.
 array<string> $names = [
     'opcache.file_cache_dir',
     'opcache.file_cache',
@@ -63,9 +57,8 @@ foreach ($names as string $name) {
     Core\Config::restore($name);
 }
 
-// 3. The three keys that bound the cache without moving it, since a program
-//    that cannot redirect the directory would settle for emptying it: a cache
-//    turned off, sized to nothing, or collected on every single compile.
+// 3. Tries to turn the cache off, set its size to `0`, or clear it on every
+//    compile. Every write should fail.
 array<string> $bounds = ['false', 'true', '0', '1', '-1', '18446744073709551615'];
 foreach ($bounds as string $bound) {
     Core\Config::set('opcache.file_cache', $bound);
@@ -74,10 +67,8 @@ foreach ($bounds as string $bound) {
     Core\Config::set('opcache.file_cache_gc_divisor', $bound);
 }
 
-// 4. And all of it again under as many writes as the runtime will take, read
-//    back every round: a refusal that answers false while still reaching the
-//    snapshot behind it would show up here and nowhere else, because the write
-//    itself already said no.
+// 4. Writes and reads the directory 200,000 times. The value should never
+//    change, so this prints `0`.
 uint $changes = 0;
 string $standing = Core\Config::get('opcache.file_cache_dir') ?? '(nothing written)';
 uint $i = 0;

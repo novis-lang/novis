@@ -1,9 +1,7 @@
 <?nvs
-// `[http]` is the block a response is shaped by: the security headers that go
-// out on it, what a cross-origin caller is allowed, what every cookie inherits,
-// and how much an error page is willing to say. Nothing is written for it in
-// this checkout, so every line below is the shipped default — and the shipped
-// default is the closed one:
+// `[http]` configures every response: security headers, cross-origin calls, cookie
+// defaults and how much an error page shows. This file sets nothing, so each value
+// is the built-in default. Each default is the safest choice, like this one:
 //
 //     [http.errors]
 //     detail = "generic"
@@ -12,20 +10,16 @@ echo 'error detail:    ', Core\Config::get('http.errors.detail') ?? '(nothing, s
 echo 'cookies default: ', Core\Config::get('http.cookies.same_site') ?? '(nothing, so the built-in default)', "\n";
 echo 'CORS origins:    ', Core\Config::get('http.cors.origins') ?? '(nothing, so no cross-origin call is answered)', "\n";
 
-// A program may change any of that for the one request it is in the middle of,
-// and the next request starts from the file again. It is allowed because it
-// buys nothing: a handler that wants a different policy could already have
-// written the header into its own response by hand.
+// A program may change these values for the request it is handling. The next request
+// uses the values from the file again. This prints `yes` and then `full`.
 echo 'say more:        ', Core\Config::set('http.errors.detail', 'full') ? 'yes' : 'no', "\n";
 echo 'now in force:    ', Core\Config::get('http.errors.detail') ?? '(nothing)', "\n";
 
-// Two keys of the block are not like that, and they are the two that hold a
-// secret rather than a policy: the key cross-site request tokens are signed
-// with, and the file it is read out of. A request that could choose that key
-// could sign its own tokens, so it stays the operator's.
+// A program cannot change `http.csrf_key`, the secret key that signs cross-site request
+// tokens. With that key, a request could sign its own tokens. This prints `no`.
 echo 'choose the key:  ', Core\Config::set('http.csrf_key', 'whatever-i-like') ? 'yes' : 'no', "\n";
 
-// Putting a setting back drops what this program wrote rather than writing the
-// old value over it, so what comes back is whatever the configuration says.
+// `Core\Config::restore` deletes the value this program set. `get` then returns the
+// value from the configuration file, which is `null` here.
 Core\Config::restore('http.errors.detail');
 echo 'restored to:     ', Core\Config::get('http.errors.detail') ?? '(nothing, so the built-in default)', "\n";

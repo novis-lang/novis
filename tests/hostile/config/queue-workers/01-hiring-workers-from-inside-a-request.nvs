@@ -1,19 +1,11 @@
 <?nvs
-// Attack: the number of tasks this instance spawns to work the queue, written
-// from inside a request. This is the block's resource key, so what a successful
-// write buys is not data but the machine — a count a request could raise is a
-// request spawning tasks on a host every co-resident request is also running
-// on, and a count it could lower is this instance quietly stopping its share of
-// the work, which looks exactly like a queue with nothing in it. The count
-// still reading what the file wrote, after all of it, is the evidence that no
-// task was started or stopped.
+// Attack: a request tries to change `queue.workers`, the number of queue workers
+// on this server. More workers take CPU time from other requests, and `0` stops
+// all queue work. Every write should fail, and the value should not change.
 // hostile: timeout-ms 20000
 
-// 1. Every shape a count can be written in. The words are not the dangerous
-//    ones: a value that reads as a number to one parser and as nothing to the
-//    next is how a count arrives spelled as something the refusal does not
-//    recognise, and the far end of the range is where a count that *was*
-//    accepted stops being a count and becomes an allocation.
+// 1. Tries numbers written in many ways, from `0` to numbers too large to store,
+//    and values that are not numbers. Every write should fail.
 array<string> $counts = [
     '0',
     '1',
@@ -44,10 +36,8 @@ foreach ($counts as string $count) {
     Core\Config::restore('queue.workers');
 }
 
-// 2. The key beside it, in the same breath. `connection` and `workers` are the
-//    two keys a worker is built out of and they apply together, so a refusal
-//    that held for one of them and not the other would be a half-built worker:
-//    the right number of tasks dialled at the wrong database, or the reverse.
+// 2. Tries `queue.workers`, `queue.connection` and keys that are almost the same.
+//    A worker uses both keys, so both writes must fail.
 array<string> $keys = ['queue.workers', 'queue.connection', 'QUEUE.WORKERS', 'queue.workers ', 'app.0.queue.workers'];
 foreach ($keys as string $key) {
     Core\Config::set($key, '64');
@@ -55,11 +45,8 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. All of it as fast as the runtime will take it, reading the count back every
-//    round. The value is read when a worker is built rather than per job, so a
-//    write that nevertheless reached the published snapshot would be invisible
-//    until a restart acted on it — here it shows as the standing count moving,
-//    which is the only place a request could ever see it.
+// 3. Writes and reads the value 200,000 times. The value should never change,
+//    so this prints `0`.
 uint $changes = 0;
 string $standing = Core\Config::get('queue.workers') ?? '(nothing written)';
 uint $i = 0;
@@ -73,8 +60,8 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 4. And real work alongside it, because the request asking for more workers is
-//    a request already using the machine it is asking for more of.
+// 4. Builds 20,000 strings, as a real request would. The settings should still
+//    be the configured values after this work.
 array<string> $work = [];
 uint $j = 0;
 while ($j < 20000) {

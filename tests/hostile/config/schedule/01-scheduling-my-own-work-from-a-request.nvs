@@ -1,19 +1,11 @@
 <?nvs
-// Attack: the deployment's clock, written from inside a request. An entry that
-// arrived this way would be the strongest thing in the file to hold — a script
-// path of the attacker's choosing, run by the server itself, on the server's
-// own capabilities, at a time nobody is watching, and repeatedly. Every key of
-// an entry is worth pushing for its own reason: `script` is the file that runs,
-// `scope` turns one firing into one per host, `timezone` moves the hour it
-// happens at, and `overlap` turns a slow job into an unbounded number of
-// concurrent ones. The list still being unreadable and unwritable afterwards is
-// the evidence that none of it landed.
+// Attack: a request tries to add or change a `[[schedule]]` entry. The server would
+// then run a script the attacker chose, again and again. Every write should fail,
+// and a program should not be able to read the schedule.
 // hostile: timeout-ms 20000
 
-// 1. Every key of an entry, under the spellings a nested block could be reached
-//    through. `[[schedule]]` is an array of tables, so an index is part of the
-//    path — and an index is exactly where a reader that accepts more than it
-//    means to accepts an entry that was never written.
+// 1. Tries every key of an entry, with an index like `schedule.0.script` and
+//    without one. Every write should fail.
 array<string> $keys = [
     'schedule',
     'schedule.0',
@@ -39,10 +31,8 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. The script path, which is the whole prize. § 1 puts a scheduled file under
-//    the same spawn roots a `spawn script` target lives under, compared after
-//    canonicalization — so the shapes worth trying are the ones that spell
-//    themselves inside a root and land outside one.
+// 2. Tries script paths that start inside the project but point outside it,
+//    with `..`, null bytes or line breaks. Every write should fail.
 array<string> $scripts = [
     'jobs/report.nvs',
     'jobs/../../../etc/nvs.toml',
@@ -61,11 +51,8 @@ foreach ($scripts as string $script) {
     Core\Config::restore('schedule.0.script');
 }
 
-// 3. The three words that change what a firing costs. `scope` is one run
-//    against every host in the fleet, `overlap` is every firing piling onto the
-//    last one instead of being skipped, and the zone is which hour it all
-//    happens in — the three ways an entry that was already allowed becomes
-//    something else entirely.
+// 3. Tries values for `scope`, `overlap` and `timezone`. These change where,
+//    how often and at what hour a job runs. Every write should fail.
 array<string> $words = [
     'fleet',
     'host',
@@ -87,9 +74,8 @@ foreach ($words as string $word) {
     Core\Config::restore('schedule.0.scope');
 }
 
-// 4. And an expression, every minute of every hour, because the cheapest way to
-//    turn a schedule into a denial of service is not a new entry but an
-//    existing one firing sixty times more often.
+// 4. Tries cron expressions that run a job every minute or every second.
+//    Every write should fail.
 array<string> $crons = [
     '* * * * *',
     '0 3 * * *',
@@ -104,11 +90,8 @@ foreach ($crons as string $cron) {
     Core\Config::restore('schedule.0.cron');
 }
 
-// 5. All of it as fast as the runtime will take it, reading back every round.
-//    An entry is armed at boot over the merged tree, so a write that reached the
-//    published snapshot would not fire until a restart acted on it — but it
-//    would be in the snapshot the next reload carries forward, which is the one
-//    place this could ever become visible from here.
+// 5. Writes and reads the schedule 200,000 times. Every read should return
+//    `null`, so this prints `0`.
 uint $visible = 0;
 uint $i = 0;
 while ($i < 200000) {
@@ -121,8 +104,8 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 6. And real work alongside, because a request that wants itself scheduled is
-//    a request already doing something the server let it do.
+// 6. Builds 20,000 strings, as a real request would. The schedule should still
+//    be hidden after this work.
 array<string> $entries = [];
 uint $j = 0;
 while ($j < 20000) {

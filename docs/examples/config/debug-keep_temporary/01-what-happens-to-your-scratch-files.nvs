@@ -1,26 +1,21 @@
 <?nvs
-// A program that asks for somewhere to put working files gets its own directory,
-// and that directory is deleted as soon as the program ends. `[debug]
-// keep_temporary` is the one switch that stops the deletion, so that you can go
-// and look at what a run left behind:
+// A program can get its own directory for working files. It is deleted when the program ends.
+// `[debug] keep_temporary` stops the deletion, so you can look at the files a run left:
 //
 //     [debug]
 //     keep_temporary = true
 //
-// This checkout writes `false`, which is what every deployment should be running.
+// This file sets `false`. Every server in production should use `false`.
 
 echo 'kept after a run: ', Core\Config::get('debug.keep_temporary') ?? '(no)', "\n";
 
-// Where those directories are made is a separate key, and it is the one you
-// would go and look *in* while the switch above is on. Writing nothing, as here,
-// means the machine's own temporary directory.
+// `io.temp_root` is where these directories are made. This file sets nothing,
+// so they are made in the temporary directory of the machine.
 echo 'made under:       ', Core\Config::get('io.temp_root') ?? "(the machine's own)", "\n";
 
-// Neither is a program's to change. A program that could keep its own files
-// would be a program somebody could talk into keeping every file it ever made
-// until the disk was full, so the answer is no and there is nothing to pass.
+// A program cannot change `keep_temporary`, so this prints `no`. Otherwise a program
+// could keep every file it makes until the disk is full.
 echo 'a program may:    ', Core\Config::set('debug.keep_temporary', 'true') ? 'yes' : 'no', "\n";
 
-// Turning it on takes a reload rather than a restart, so an operator can switch
-// it on around one run that is going wrong and off again afterwards. Remember
-// the second half: while it is on, nothing is cleaning up.
+// You can turn the setting on with a reload of the server. A restart is not needed.
+// While it is on, nothing deletes the files. Turn it off again when you are done.

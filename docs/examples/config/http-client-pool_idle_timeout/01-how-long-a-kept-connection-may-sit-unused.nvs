@@ -1,8 +1,7 @@
 <?nvs
-// A kept connection is worth having only while the other end still has it too,
-// and the other end closes quiet connections without telling anybody.
-// `[http.client] pool_idle_timeout` is how long one may sit unused here before
-// this side closes it first. This checkout writes both halves out:
+// After a call, the connection stays open for the next call. The other server closes unused
+// connections and does not say so. `[http.client] pool_idle_timeout` is how long a
+// connection may stay unused before Novis closes it first. This file sets both values:
 //
 //     [http.client]
 //     pool_idle = 16
@@ -11,21 +10,16 @@
 echo 'how many may be kept: ', Core\Config::get('http.client.pool_idle') ?? '(nothing, so the built-in default)', "\n";
 echo 'how long one may sit: ', Core\Config::get('http.client.pool_idle_timeout') ?? '(nothing, so the built-in default)', "\n";
 
-// The two are one bound in two units, and neither states it alone. The count
-// says how many connections a core may hold; without the wait, a connection the
-// far end retired hours ago is still one of the sixteen being held, and the
-// first call to draw it fails on its first byte.
+// `Core\Time\Duration::parse` reads the timeout as a duration. This prints `30 seconds`. Without
+// a timeout, a connection the other server closed stays open here, and the next call on it fails.
 Core\Time\Duration $window = Core\Time\Duration::parse(Core\Config::get('http.client.pool_idle_timeout') ?? '30s');
 echo 'which is:             ', $window->toSeconds(), " seconds\n";
 
-// A duration with no suffix is read as seconds, so `30` and `"30s"` are the
-// same wait written two ways. The count beside it takes no suffix at all, so
-// the two caps cannot be written in each other's spelling and an operator who
-// meant one cannot quietly get the other.
+// A duration with no unit is in seconds, so `30` and `"30s"` are the same. `pool_idle`
+// is a count and takes no unit. This prints `30000`.
 echo 'and in milliseconds:  ', $window->toMilliseconds(), "\n";
 
-// Both belong to the core and not to the request that filled the shelf, so a
-// program may read either and move neither. Asking answers `no` rather than
-// throwing.
+// Many requests use these connections, so a program cannot change either setting.
+// `Core\Config::set` returns `false`, and the timeout is still `30s`.
 echo 'hold them longer:     ', Core\Config::set('http.client.pool_idle_timeout', '24h') ? 'yes' : 'no', "\n";
 echo 'still in force:       ', Core\Config::get('http.client.pool_idle_timeout') ?? '(nothing)', "\n";

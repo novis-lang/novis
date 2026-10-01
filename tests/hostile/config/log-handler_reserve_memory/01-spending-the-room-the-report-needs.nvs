@@ -1,11 +1,7 @@
 <?nvs
-// Attack: the allotment the tier-3 report is written in, worked from inside the
-// program it would be reporting on. First every name and every size that would
-// leave it at nothing, then a failure arranged so that the reporting path runs
-// with the heap already gone — the program's own handler allocates rather than
-// reporting, so whatever is left of the ladder has to finish the job. Nothing
-// here is caught: a clean report and a clean stop are both passes, and a panic
-// is not.
+// Attack: a program tries to set `log.handler_reserve_memory` to nothing, then runs
+// out of memory with a handler that uses more memory. Every write should fail.
+// The server should report the failure or stop the request, and must not crash.
 // hostile: timeout-ms 60000
 // hostile: ends-early
 
@@ -31,9 +27,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// Every size, under the real name. The ones that matter are at the bottom of
-// the range: an allotment of nothing is a report that cannot be written, which
-// is the failure this key exists to make impossible.
+// Tries many sizes on the real key, including `0` and `1`. With no memory, the
+// report could not be written. Every write should fail.
 array<string> $sizes = [
     '0',
     '0B',
@@ -60,9 +55,8 @@ Core\Config::restore('log.handler_reserve_time');
 
 echo 'the allotment reads: ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing)', "\n";
 
-// And the failure. The handler this program registers for itself does not
-// report — it allocates, which is what a handler written by somebody who had
-// not thought about it does — so the rung beneath it is what has to hold.
+// This handler does not report anything. It uses even more memory, so the
+// server's own report must handle the failure.
 Core\Fatal::onLimit(fn (): void => {
     array<string> $more = [];
     uint $k = 0;

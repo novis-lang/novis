@@ -1,20 +1,11 @@
 <?nvs
-// Attack: the bound that makes a failing job stop, pushed by the request that
-// enqueued it. Both directions are worth taking — a bound raised is a job that
-// keeps costing a worker, a connection and a row long after it was going to
-// succeed, and every other job in the same queue waits behind it; a bound
-// lowered is work that stops being retried and therefore stops arriving, which
-// nothing downstream can tell from work that succeeded. Zero is the shape the
-// boot refuses outright, so the pressure here is on every spelling that might
-// arrive as one. The bound still reading what the deployment configured is the
-// evidence that none of them did.
+// Attack: a request tries to raise or lower `queue.max_attempts`. A higher value
+// retries a failing job for too long, and `0` would never run it. Every write
+// should fail, and the value should stay the configured one.
 // hostile: timeout-ms 20000
 
-// 1. Every shape a count of attempts can be written in. The ones that matter
-//    are at the two ends: a spelling that folds to zero is a job dead-lettered
-//    by the enqueue that created it, and one that folds to a number nothing
-//    reaches is the unbounded retry § 6 has no spelling for, arriving as a
-//    number instead of as a word.
+// 1. Tries many numbers, from `0` and negative values to numbers too large to
+//    store, and values that are not numbers. Every write should fail.
 array<string> $attempts = [
     '0',
     '-0',
@@ -47,11 +38,8 @@ foreach ($attempts as string $attempt) {
     Core\Config::restore('queue.max_attempts');
 }
 
-// 2. The lease beside it, under the same writes. These are the block's two
-//    `Reload` keys — both read out of the published snapshot as a job is
-//    claimed rather than when a worker is built — so a write that reached the
-//    snapshot would be in force for the very next job, and neither of them has
-//    a restart standing between the write and the effect.
+// 2. Tries this key, `queue.visibility` and keys that are almost the same. The
+//    server reads both keys each time it takes a job, so a change would apply at once.
 array<string> $keys = [
     'queue.max_attempts',
     'queue.visibility',
@@ -67,10 +55,8 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. All of it as fast as the runtime will take it, reading the bound back
-//    every round. There is no restart between this write and the job it would
-//    govern, so the standing value moving here is the whole failure — a job
-//    claimed one instruction later would be retried under it.
+// 3. Writes and reads the value 200,000 times. The value should never change,
+//    so this prints `0`.
 uint $changes = 0;
 string $standing = Core\Config::get('queue.max_attempts') ?? '(nothing written)';
 uint $i = 0;
@@ -84,8 +70,8 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 4. And real work alongside, because a request that wants its own job retried
-//    forever is a request in the middle of enqueueing it.
+// 4. Builds 20,000 job strings, as a real request would. The settings should
+//    still be the configured values after this work.
 array<string> $jobs = [];
 uint $j = 0;
 while ($j < 20000) {

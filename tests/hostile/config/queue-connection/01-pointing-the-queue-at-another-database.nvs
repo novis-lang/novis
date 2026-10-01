@@ -1,20 +1,11 @@
 <?nvs
-// Attack: the database this deployment's background jobs live in, pushed by a
-// request that would rather they lived somewhere else. A redirect here is worth
-// more to an attacker than any other key in the block — the queue's rows are
-// written with the deployment's own credentials, so a connection that moved
-// would both leak every job an operator enqueues and let this request claim
-// work it was never granted, and it would do it silently, because a queue that
-// stores nothing and a queue nobody enqueued to look exactly alike. The
-// connection still reading what the file wrote, after all of it, is the
-// evidence that nothing moved.
+// Attack: a request tries to change `queue.connection`, the database that holds
+// the background jobs. With another database, it could read every job. Every
+// write should fail, and the connection should still be the configured one.
 // hostile: timeout-ms 20000
 
-// 1. Every name a redirect could be written as. The interesting ones are not
-//    the obviously hostile strings: a name that some layer trims, folds or
-//    truncates into `main` is a value that gets *accepted* on the way past a
-//    refusal, and a name carrying a newline is how a second block arrives in a
-//    file that only ever had one.
+// 1. Tries `main` with other letter case, spaces or a line break, and other
+//    database names. Every write should fail.
 array<string> $names = [
     'main',
     'MAIN',
@@ -41,11 +32,8 @@ foreach ($names as string $name) {
     Core\Config::restore('queue.connection');
 }
 
-// 2. Every spelling of the key, because a refusal that matches the key by text
-//    rather than by the row governing it is one near-miss away from letting a
-//    write through. The per-app form is the one that matters: an application
-//    block is the place a deployment legitimately writes queue keys, so a
-//    request reaching it reaches the same table from the other side.
+// 2. Tries keys that are almost `queue.connection`, including the `app.0.` form
+//    for one application. Every write should fail.
 array<string> $keys = [
     'queue.connection',
     'QUEUE.CONNECTION',
@@ -66,12 +54,8 @@ foreach ($keys as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. All of it again, as fast as the runtime will take it, reading the value
-//    back every round. The key is read once when a worker is built rather than
-//    per job, so a write that nevertheless reached the published snapshot would
-//    be invisible to the enqueue that comes next and visible only to whatever
-//    the next boot dialled — here it shows as the standing value moving, which
-//    is the only place a request could ever see it.
+// 3. Writes and reads the connection 200,000 times. The value should never
+//    change, so this prints `0`.
 uint $changes = 0;
 string $standing = Core\Config::get('queue.connection') ?? '(nothing written)';
 uint $i = 0;
@@ -85,9 +69,8 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 4. And real work alongside, because a request that wants the queue moved is a
-//    request doing something else at the same time, and the block is read from
-//    under whatever that is.
+// 4. Builds 20,000 job strings, as a real request would. The settings should
+//    still be the configured values after this work.
 array<string> $payloads = [];
 uint $j = 0;
 while ($j < 20000) {

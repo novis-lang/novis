@@ -1,17 +1,11 @@
 <?nvs
-// Attack: the key the mode is read and written at, pushed from inside the
-// request that reads it. A flip re-derives five other directives into this
-// request's overlay, so the pressure goes on the derivation — an explicit value
-// stomped by a later flip, an overlay that keeps every value it was ever handed,
-// a refused flip that moves one of the five anyway. A host still in production
-// at the end, with the five defaults where this program last put them, is the
-// only evidence that none of it landed.
+// Attack: a request changes `mode.default` many times. A mode change also sets
+// the default of five other settings. The server should still run in production
+// at the end, and a failed change must not change any of the five.
 // hostile: timeout-ms 20000
 
-// 1. The five rows the mode selects, set explicitly and then flipped over. The
-//    flip is allowed to re-derive what this request has not chosen and nothing
-//    else, so the interesting attack is to choose all of them first and then ask
-//    for the mode whose defaults disagree with every one of them.
+// 1. Sets the five settings first, then changes the mode. A mode change only sets
+//    the ones this request has not set itself.
 array<string> $derived = ['log.format', 'log.level', 'log.access', 'http.errors.detail', 'debug.inline'];
 foreach ($derived as string $key) {
     Core\Config::set($key, 'json');
@@ -25,9 +19,8 @@ foreach ($derived as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every value a mode might be mistaken for. A third environment name, a mode
-//    with an invisible character in it, a mode that is a list, and one long
-//    enough that whatever holds the overlay has to grow to take it.
+// 2. Tries values that look like a mode: other names, hidden characters, a list
+//    and a very long string. None of them is a valid mode.
 array<string> $modes = [
     '',
     'production',
@@ -52,10 +45,8 @@ foreach ($modes as string $mode) {
     Core\Config::restore('mode.default');
 }
 
-// 3. The overlay itself, under as many writes as the runtime will take. A value
-//    kept per call rather than per key is a leak that grows with how hard the
-//    program asks, and a restore that drops more than this request wrote takes
-//    the file's value with it.
+// 3. Writes and restores 200,000 times. The request's memory should not grow,
+//    and `restore` should return each key to its configured value.
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('log.level', 'debug');
@@ -66,9 +57,8 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 4. Reading the mode as hard as writing it. The typed read and the string read
-//    are one fact, and a cache behind either that the writes above have not been
-//    told about shows up as the two disagreeing.
+// 4. Reads the mode 200,000 times in two ways. `Core\Env::mode()` and
+//    `Core\Config::get` should always give the same mode, so this prints `0`.
 uint $disagreements = 0;
 uint $j = 0;
 while ($j < 200000) {

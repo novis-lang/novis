@@ -1,14 +1,11 @@
 <?nvs
-// Attack: the rung that reports this program's failure, written by this
-// program. Every spelling that might reach the key from a block nobody guarded,
-// every path a filesystem might read differently from the check that resolved
-// it, and then a real failure at the end — because a ladder left standing after
-// all of this is the only evidence that none of it landed.
+// Attack: a program tries to change `log.handler`, the script that reports its
+// failure. Every write should fail. The program then fails for real, and the
+// failure should still be reported.
 // hostile: timeout-ms 30000
 // hostile: ends-early
 
-// 1. Every other name for the same rung, including the two keys that size the
-//    room it runs in and the per-application copy of the block.
+// 1. Tries `log.handler`, its two reserve keys, and keys that are almost the same.
 array<string> $names = [
     'log.handler',
     'handler',
@@ -35,11 +32,8 @@ foreach ($names as string $key) {
     Core\Config::restore($key);
 }
 
-// 2. Every shape of path under the real name. The interesting ones are not the
-//    silly ones: a handler pointed at a device, at a directory, at this file
-//    itself, or at something outside every granted root is a report that goes
-//    nowhere, and a path with a NUL in it is two different paths depending on
-//    who reads it.
+// 2. Tries paths to a device, a directory, this file, a URL and paths outside
+//    the project. It also sets both reserves to `0`. Every write should fail.
 array<string> $paths = [
     '',
     ' ',
@@ -64,19 +58,16 @@ foreach ($paths as string $path) {
 }
 Core\Config::restore('log.handler');
 
-// 3. The program's own tier, which *is* its to arrange — registered here so
-//    that the failure below has something to try before it reaches the rung
-//    this file is about. A handler that fails is one of the cases tier 3 exists
-//    for, so this one fails.
+// 3. Registers the program's own handler, which a program may do. This handler
+//    throws an error, so the `log.handler` script must report the failure.
 Core\Fatal::onLimit(fn (): void => {
     throw new RuntimeError('the handler this program arranged threw as well');
 });
 
 echo 'handler on duty: ', Core\Config::get('log.handler') ?? '(nothing written)', "\n";
 
-// 4. And a real failure, past a ceiling this program set for itself. Nothing
-//    here is caught: what the case asserts is that the runtime reports it and
-//    stays standing, whichever rung of the ladder ends up doing the reporting.
+// 4. Lowers the memory limit to `8M` and then uses more. Nothing catches the
+//    error. The server should report it and keep running.
 Core\Config::set('limits.memory', '8M');
 array<string> $hoard = [];
 uint $i = 0;
