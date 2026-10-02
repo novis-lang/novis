@@ -47,7 +47,9 @@
 //! # A lexical join
 //!
 //! The literal is joined to the folder of the declaring file and `.` and `..`
-//! are removed from the text. Nothing reads the filesystem, for three reasons.
+//! are removed from the text. The folder is the canonical one the `require`
+//! walk names the file by ([`base_file`]), so the entry file and a required
+//! file agree on it. The join itself reads nothing, for three reasons.
 //! A build has to give the same answer whether or not the file exists yet,
 //! since a program may be about to create it. A bundled executable compiles
 //! from its payload, where the folder is synthetic
@@ -261,12 +263,7 @@ pub(crate) fn fold_this(call: &Expr, member: &str, args: &CallArgs, env: &mut En
         .first()
         .filter(|arg| !matches!(arg.value.unparenthesized().kind, ExprKind::Null));
     let path = match (member, join) {
-        ("thisFile", _) => env
-            .src
-            .path()
-            .and_then(Path::file_name)
-            .zip(base_dir(env.src))
-            .map(|(name, dir)| dir.join(name).to_string_lossy().into_owned()),
+        ("thisFile", _) => base_file(env.src).map(|file| file.to_string_lossy().into_owned()),
         (_, None) => base_folder(env.src),
         (_, Some(arg)) => {
             let text = match arg.value.unparenthesized().kind {
@@ -343,25 +340,48 @@ pub fn base_folder(src: &SourceFile) -> Option<String> {
     base_dir(src).map(|dir| dir.to_string_lossy().into_owned())
 }
 
-/// The folder a relative literal in `src` is joined to: the one that holds the
-/// file, made absolute. Inside a bundled executable that folder is synthetic,
-/// and [`nvs_diagnostics::embedded::on_disk`] answers where it is on disk.
-///
-/// A file named relative to the shell's working directory — `nvs run
-/// tool.nvs` — is made absolute against that directory here, while
-/// compiling. That is the one time the working directory is read, and it is
-/// what the person who typed the command meant by the name they typed.
+/// The folder a relative literal in `src` is joined to: the one that holds
+/// [`base_file`].
 fn base_dir(src: &SourceFile) -> Option<PathBuf> {
-    let dir = src.path()?.parent()?;
+    base_file(src)?.parent().map(Path::to_path_buf)
+}
+
+/// The path of the file `src` was read from, as the `require` walk names a
+/// file: canonical, so every link is followed, a Windows short name such as
+/// `RUNNER~1` is written out in full, and the letters have their on-disk case.
+/// The entry file arrives as it was typed and a required file arrives
+/// canonical, so this is what makes `thisDir()` and a literal give the same
+/// folder in both. Inside a bundled executable the folder is synthetic, and
+/// [`nvs_diagnostics::embedded::on_disk`] answers where it is on disk.
+///
+/// A file that cannot be canonicalized, such as an editor buffer not yet
+/// saved, is made absolute instead. A file named relative to the shell's
+/// working directory — `nvs run tool.nvs` — is made absolute against that
+/// directory here, while compiling. That is the one time the working
+/// directory is read, and it is what the person who typed the command meant
+/// by the name they typed.
+///
+/// **Cost:** one `canonicalize` call per literal and per `thisFile` or
+/// `thisDir` call while compiling, on a file the compiler has just read.
+fn base_file(src: &SourceFile) -> Option<PathBuf> {
+    let path = src.path()?;
+    let name = path.file_name()?;
+    let dir = path.parent()?;
     if let Some(on_disk) = nvs_diagnostics::embedded::on_disk(dir) {
-        return Some(on_disk);
+        return Some(on_disk.join(name));
+    }
+    nvs_footprint::exists(path);
+    if let Ok(real) = path.canonicalize() {
+        return Some(without_verbatim(real));
     }
     let dir = if dir.as_os_str().is_empty() {
         Path::new(".")
     } else {
         dir
     };
-    std::path::absolute(dir).ok().map(without_verbatim)
+    std::path::absolute(dir)
+        .ok()
+        .map(|dir| without_verbatim(dir).join(name))
 }
 
 /// A Windows verbatim path — `\\?\C:\app`, which is how a canonicalized

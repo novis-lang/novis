@@ -319,6 +319,34 @@ fn this_dir_folds_to_the_folder_of_the_file_that_wrote_it() {
     assert_eq!(Path::new(file).parent(), Some(Path::new(dir)), "{paths:?}");
 }
 
+/// The entry file and a file it requires name their folders the same way. The
+/// entry is loaded by the path the caller gave and the required file by its
+/// canonical path, and in a temporary folder the two differ: a Windows short
+/// name such as `RUNNER~1`, or macOS's `/var` link to `/private/var`.
+// covers: Core\Path::thisDir
+#[test]
+fn this_dir_in_the_entry_and_in_a_required_file_name_one_folder_the_same_way() {
+    let (diags, exprs) = check_program_table(&[
+        (
+            "this_dir_entry.nvs",
+            "<?nvs\nrequire 'lib/blog.nvs';\necho Core\\Path::thisDir(), Blog::folder(), \"\\n\";\n",
+        ),
+        (
+            "lib/blog.nvs",
+            "<?nvs\nclass Blog {\n  public static function folder(): string {\n    \
+             return Core\\Path::thisDir();\n  }\n}\n",
+        ),
+    ]);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let paths = resolved(&exprs);
+    assert_eq!(paths.len(), 2, "{paths:?}");
+    assert_eq!(
+        Path::new(&paths[1]).parent(),
+        Some(Path::new(&paths[0])),
+        "{paths:?}"
+    );
+}
+
 /// A relative literal is joined to the folder as a path literal is, with `.`
 /// and `..` removed, and a named argument fills the same parameter.
 // covers: Core\Path::thisDir
