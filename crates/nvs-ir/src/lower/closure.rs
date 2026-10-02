@@ -753,6 +753,11 @@ pub(crate) fn lower_callable(
         // so what this frame staged it also releases — see `InstKind::CoreCall`.
         let written = nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
             .then(|| low.written_type_constants(cur, call));
+        // Staged after the thunk's temporaries mark, so the release below
+        // covers it — `Lowering::written_enum_constant` owns the slot.
+        let written_enum =
+            nvs_types::core_takes_written_enum(&call.class.to_string(), &call.method)
+                .then(|| low.written_enum_constant(cur, call));
         // A producer reached through a callable reference is handed the zero
         // word rather than this thunk's own position: the record is produced
         // wherever the callable is later invoked, and the line that wrote the
@@ -790,6 +795,7 @@ pub(crate) fn lower_callable(
             .into_iter()
             .chain(source)
             .chain(written.into_iter().flatten())
+            .chain(written_enum)
             .chain(receiver)
             .chain(args)
             .chain(site)

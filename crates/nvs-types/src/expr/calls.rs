@@ -181,7 +181,10 @@ pub(crate) fn infer_method_call(
         if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
             && !reject_unforwardable_first_class_callable(qname, name, sig, expr.span, env)
         {
-            let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
+            let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
+            // The thunk calls the native member with the same leading enum
+            // name a call would — see `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`.
+            call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
             let held = first_class_callable_type(sig, env);
             env.exprs.record_callable_value(expr.span, held);
@@ -208,6 +211,10 @@ pub(crate) fn infer_method_call(
         {
             target.record_on(&mut call, list);
         }
+        // `Core\Router\Match::accessAs<E>` answers a case of the enum its call
+        // site wrote, and a case does not say at run time which enum it is
+        // from — see `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`.
+        call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // `rule:statements/static-is-a-member-modifier`'s late static binding, as a type: a member declaring
@@ -478,6 +485,7 @@ pub(crate) fn infer_static_call(
         {
             let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
             call.static_class = called_class_set_at(class, ctx, env);
+            call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
             let held = first_class_callable_type(sig, env);
             env.exprs.record_callable_value(expr.span, held);
@@ -567,6 +575,7 @@ pub(crate) fn infer_static_call(
         {
             target.record_on(&mut call, list);
         }
+        call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // The static-call half of the same substitution the instance-call arm
@@ -1283,6 +1292,9 @@ pub(crate) fn resolved_call(
         // Its counterpart for a type argument that is an inline shape, set
         // beside it and by the same call — see the field's own doc comment.
         written_shape: None,
+        // Set by both call arms and both callable-reference arms, for a member
+        // on `registry::WRITTEN_ENUM_MEMBERS` — see the field's own doc comment.
+        written_enum: None,
     }
 }
 

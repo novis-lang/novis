@@ -1,0 +1,63 @@
+--TEST--
+`Core\Router\Match::accessAs<E>` answers the matched route's `#[Access(allow: …)]` as a case of `E`, and `null` for a decision of another enum — even one whose case has the same integer — for a class constant, through `?->` and through a callable reference — `rule:security/access-is-checked-for-presence-not-meaning`
+--FILE--
+<?nvs
+// covers: Core\Router\Match::accessAs
+namespace App;
+
+// `Admin` and `Core\Audience::Public` are both the first case, so both are 0.
+enum Role { Admin, Editor }
+
+class Policy
+{
+    public const string STAFF = "staff";
+}
+
+class Pages
+{
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get, name: "Pages::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "index"; }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Pages::admin")]
+    #[Core\Access(allow: Role::Admin)]
+    public function admin(): string { return "admin"; }
+
+    #[Core\Route(path: "/editor", method: Core\Http\Method::Get, name: "Pages::editor")]
+    #[Core\Access(allow: Role::Editor)]
+    public function editor(): string { return "editor"; }
+
+    #[Core\Route(path: "/staff", method: Core\Http\Method::Get, name: "Pages::staff")]
+    #[Core\Access(allow: Policy::STAFF)]
+    public function staff(): string { return "staff"; }
+}
+
+array<string> $paths = ["/pages", "/admin", "/editor", "/staff"];
+foreach ($paths as string $path) {
+    ?Core\Router\Match $match = Core\Router::match(Core\Http\Method::Get, $path);
+    if ($match == null) {
+        continue;
+    }
+    ?Core\Audience $open = $match->accessAs<Core\Audience>();
+    ?Role $role = $match->accessAs<Role>();
+    echo $path, ": public=", $open == Core\Audience::Public ? "yes" : "no",
+        " admin=", $role == Role::Admin ? "yes" : "no",
+        " editor=", $role == Role::Editor ? "yes" : "no",
+        " no-role=", $role == null ? "yes" : "no", "\n";
+}
+
+// `?->` on a missing match is `null`, and a callable reference answers what a call does.
+?Core\Router\Match $none = null;
+echo "missing: ", $none?->accessAs<Role>() == null ? "null" : "a case", "\n";
+?Core\Router\Match $editor = Core\Router::match(Core\Http\Method::Get, "/editor");
+if ($editor != null) {
+    var $read = $editor->accessAs<Role>(...);
+    echo "reference: ", $read() == Role::Editor ? "Editor" : "other", "\n";
+}
+--EXPECT--
+/pages: public=yes admin=no editor=no no-role=yes
+/admin: public=no admin=yes editor=no no-role=no
+/editor: public=no admin=no editor=yes no-role=no
+/staff: public=no admin=no editor=no no-role=yes
+missing: null
+reference: Editor

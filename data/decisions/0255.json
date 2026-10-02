@@ -1,0 +1,10 @@
+{
+  "title": "A match answers its access decision as a case of the enum its call site writes",
+  "status": "accepted",
+  "scope": "how a program compares `Core\\Router\\Match`'s access decision. What the compiler checks about\n`allow:`, who dispatches and what the server enforces are [0102](0102.md)'s and [0199](0199.md)'s and\nunchanged; `access()` stays as [0199](0199.md) § 1 shipped it.",
+  "dependsOn": [
+    "0199",
+    "0102"
+  ],
+  "validatedBy": "`tests/conformance/core/a-match-answers-the-access-decision-as-a-case-of-the-written-enum.nvst`,\n`tests/conformance/core/access-as-answers-a-uint-backed-case-that-a-match-arm-compares.nvst`,\n`tests/conformance/reject/access-as-needs-an-enum-as-its-type-argument.nvst`,\n`tests/hostile/core/Router-Match/accessAs/01-an-admin-route-tries-to-pass-as-public.nvs`, and\n`access_as_names_a_case_only_for_a_decision_of_the_written_enum` in `crates/nvs-stdlib/src/router.rs`."
+}

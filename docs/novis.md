@@ -6452,8 +6452,10 @@ missing feature:
   array is the `404`, and any other array is the `Allow` header of a `405`.
 - The CSRF check on `Post`, `Put`, `Patch` and `Delete` is the one decision the server enforces
   on a matched route. The `allow:` value of `#[Core\Access]` is recorded and not enforced. The
-  entry file enforces it: `access()` on the match returns the full name of the `allow:` constant,
-  such as `Core\Audience::Public`. Check it once, before the `switch`, and treat `null` as denied.
+  entry file enforces it: `accessAs<E>()` on the match returns the `allow:` value as a case of
+  the enum `E`, such as `Core\Audience::Public`, and `null` when the value is not a case of `E`.
+  Check it once, before the `switch`, and treat `null` as denied. `access()` returns the full
+  name of the `allow:` constant as text, for a log line or a class constant.
 - A `Core\Router\Match` has a name, the converted captures, the verb and the access decision. It
   has nothing that can be called, so a program dispatches with one `switch` on `name()`. Give
   every route it dispatches a `name:`.
@@ -6480,7 +6482,7 @@ class App {
         if ($match == null) {
             return Core\Router::methodsFor($path) == [] ? "404" : "405";
         }
-        if ($match->access() != "Core\\Audience::Public") {
+        if ($match->accessAs<Core\Audience>() != Core\Audience::Public) {
             return "403";
         }
         var $users = new Users();
@@ -15946,7 +15948,7 @@ Lists the HTTP methods that the routes of `$path` accept, in the order the route
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`
 
-Keywords: route match, matched route, route parameters, path captures, Core\Request::route, named route, tainted capture, access decision, #[Core\Access], allow, authorization, dispatch, name, params, param, method, access
+Keywords: route match, matched route, route parameters, path captures, Core\Request::route, named route, tainted capture, access decision, #[Core\Access], allow, authorization, dispatch, name, params, param, method, access, accessAs
 
 A `Core\Router\Match` is what `Core\Request::route()` answers (`null` when nothing in the route
 table claimed this method and path); it is never constructed by hand. The server matches the
@@ -15995,6 +15997,7 @@ no request here
 | [`Core\Router\Match->param`](#core-core-router-match-param) | `param(string $name): ?tainted string\|int\|uint\|decimal\|Core\Uuid\|Parses` |
 | [`Core\Router\Match->method`](#core-core-router-match-method) | `method(): Core\Http\Method` |
 | [`Core\Router\Match->access`](#core-core-router-match-access) | `access(): ?string` |
+| [`Core\Router\Match->accessAs`](#core-core-router-match-accessas) | `accessAs<T>(): ?T` |
 
 <a id="core-core-router-match-name"></a>
 #### `Core\Router\Match->name`
@@ -16054,6 +16057,17 @@ $match->access(): ?string
 Returns the access rule of the matched route: the full name of the constant in its `#[Access(allow: …)]`. The server does not check it for you. A program that calls the route's handler checks it once, before that call.
 
 **Returns** `?string` — The name with its namespace, such as `Core\Audience::Public` or `App\Role::Admin`. Not `tainted`: it is the program's own text. Every route of a compiled program has one, so treat `null` as access denied.
+
+<a id="core-core-router-match-accessas"></a>
+#### `Core\Router\Match->accessAs`
+
+```nvs skip
+$match->accessAs<T>(): ?T
+```
+
+Returns the access rule of the matched route as a case of the enum you write between `<` and `>`. `$match->accessAs<App\Role>()` returns `App\Role::Admin` for a route with `#[Access(allow: App\Role::Admin)]`. Compare the result with a case, such as `== Core\Audience::Public`.
+
+**Returns** `?T` — The case of that enum, or `null` when the route's rule is not a case of that enum. Treat `null` as access denied. The type argument must be an enum.
 
 <a id="core-core-csv"></a>
 ### `Core\Csv`

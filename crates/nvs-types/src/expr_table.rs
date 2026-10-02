@@ -210,6 +210,16 @@ pub struct ResolvedCall {
     /// At most one of the two is `Some`, and a member off that roster records
     /// neither.
     pub written_shape: Option<WrittenShape>,
+    /// The **enum** a member on `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`
+    /// was written with — `Core\Router\Match::accessAs<App\Role>` records
+    /// `App\Role`.
+    ///
+    /// A field of its own rather than a third spelling of
+    /// [`Self::written_class`]: an enum has no `nvs_runtime::ClassDesc`, so
+    /// `nvs-ir` hands the native member the name instead, as a `string` ahead
+    /// of the receiver. `None` for every member off that roster, and for a call
+    /// whose type argument `E0841` refused.
+    pub written_enum: Option<QName>,
     /// Whether some subtype of [`Self::class`] redeclares [`Self::method`],
     /// so a receiver's runtime class can answer it with different code than
     /// the label [`Self::class`] names —

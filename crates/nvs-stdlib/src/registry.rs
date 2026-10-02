@@ -3351,6 +3351,36 @@ pub fn takes_written_class(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The closed roster of members whose type argument must name an **enum**, and
+/// whose helper is handed that enum's name as an extra leading argument.
+///
+/// An enum case is its backing integer at run time
+/// (`rule:enums/representation`), so a native member that answers a case of
+/// the enum its call site wrote cannot tell which enum that is from anything
+/// it is handed: the type argument is erased by the time it runs, and an enum
+/// has no descriptor [`WRITTEN_CLASS_MEMBERS`]' block could carry. The name is
+/// what the helper looks the cases up by, through
+/// `nvs_runtime::ClassTable::enum_desc`.
+///
+/// **The name is always argument 0**, ahead of the receiver, for
+/// [`WRITTEN_CLASS_MEMBERS`]' reason: it is a constant of the call and not a
+/// value of the receiver. It is a `string` the lowering builds fresh for the
+/// call, so `args: [N]` counts **one** more than [`CoreMethod::params`] does,
+/// receiver included. No member is on both rosters.
+///
+/// `nvs_types::expr::args::written_enum_of` refuses a type argument that is
+/// not an enum with `E0841`, so the name the helper is handed always resolves.
+pub const WRITTEN_ENUM_MEMBERS: &[(&str, &str)] = &[(crate::router::MATCH_NAME, "accessAs")];
+
+/// Whether `class::method` is one of [`WRITTEN_ENUM_MEMBERS`].
+#[must_use]
+pub fn takes_written_enum(class: &str, method: &str) -> bool {
+    nvs_footprint::class(class);
+    WRITTEN_ENUM_MEMBERS
+        .iter()
+        .any(|(owner, name)| *owner == class && *name == method)
+}
+
 /// The closed roster of members whose helper is handed **where it was called**,
 /// as an extra leading argument — the file, the one-based line and the
 /// enclosing `Class::member` of the call.

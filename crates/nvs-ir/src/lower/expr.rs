@@ -4058,12 +4058,20 @@ impl<'a> Lowering<'a> {
             if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
                 self.own_temporary(object_v);
             }
+            // A member on `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS` is
+            // handed the enum its call site wrote, by name, as argument 0 —
+            // `Lowering::written_enum_constant` owns why it is staged here,
+            // inside the guard, rather than with the constants above.
+            let written_enum =
+                nvs_types::core_takes_written_enum(&call.class.to_string(), &call.method)
+                    .then(|| self.written_enum_constant(*cur, call));
             let LoweredArgs { values } =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
             let mut arg_values = Vec::with_capacity(values.len() + 6);
             arg_values.extend(prepared);
             arg_values.extend(source);
             arg_values.extend(written_class.into_iter().flatten());
+            arg_values.extend(written_enum);
             arg_values.push(object_v);
             arg_values.extend(values);
             arg_values.extend(site);
@@ -4285,12 +4293,18 @@ impl<'a> Lowering<'a> {
             let prepared = nvs_types::core_takes_prepared(&call.class.to_string(), &call.method)
                 .then(|| self.prepared_constant(*cur, expr.span));
             let mark = self.temporaries_mark();
+            // `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`' leading `string`,
+            // staged after the mark — `Lowering::written_enum_constant` owns it.
+            let written_enum =
+                nvs_types::core_takes_written_enum(&call.class.to_string(), &call.method)
+                    .then(|| self.written_enum_constant(*cur, call));
             let lowered =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
             let arg_values = prepared
                 .into_iter()
                 .chain(source)
                 .chain(written_class.into_iter().flatten())
+                .chain(written_enum)
                 .chain(lowered.values)
                 .chain(site)
                 .collect::<Vec<_>>();

@@ -1,0 +1,45 @@
+--TEST--
+`Core\Router\Match::accessAs<E>` over a `uint`-backed enum answers the case with its own backing, so a `match` over the result reaches the arm of the case the route wrote — `rule:security/access-is-checked-for-presence-not-meaning` `rule:enums/one-backing-type`
+--FILE--
+<?nvs
+// covers: Core\Router\Match::accessAs
+namespace App;
+
+enum Level: uint {
+    Reader = 10,
+    Owner = 20,
+}
+
+class Docs
+{
+    #[Core\Route(path: "/docs", method: Core\Http\Method::Get, name: "Docs::read")]
+    #[Core\Access(allow: Level::Reader)]
+    public function read(): string { return "read"; }
+
+    #[Core\Route(path: "/docs/settings", method: Core\Http\Method::Get, name: "Docs::settings")]
+    #[Core\Access(allow: Level::Owner)]
+    public function settings(): string { return "settings"; }
+
+    #[Core\Route(path: "/docs/public", method: Core\Http\Method::Get, name: "Docs::open")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function open(): string { return "open"; }
+}
+
+array<string> $paths = ["/docs", "/docs/settings", "/docs/public"];
+foreach ($paths as string $path) {
+    ?Core\Router\Match $match = Core\Router::match(Core\Http\Method::Get, $path);
+    if ($match == null) {
+        continue;
+    }
+    ?Level $level = $match->accessAs<Level>();
+    string $needs = match ($level) {
+        Level::Reader => "reader",
+        Level::Owner => "owner",
+        null => "not a level",
+    };
+    echo $path, ": ", $needs, " ", $level == null ? "-" : ($level as uint), "\n";
+}
+--EXPECT--
+/docs: reader 10
+/docs/settings: owner 20
+/docs/public: not a level -

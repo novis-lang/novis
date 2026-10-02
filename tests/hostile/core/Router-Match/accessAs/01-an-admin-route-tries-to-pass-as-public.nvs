@@ -1,0 +1,64 @@
+<?nvs
+// Attack: an admin route tries to pass as a public route. `Role::Admin` and
+// `Core\Audience::Public` are both the first case of their enum, so both are 0.
+// The admin route should never read as public, and nothing may crash.
+namespace App;
+
+use RuntimeError;
+
+enum Role
+{ Admin, Editor }
+
+enum Plan
+{ Free }
+
+class Site
+{
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Site::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string
+    { return 'home'; }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Site::admin")]
+    #[Core\Access(allow: Role::Admin)]
+    public function admin(): string
+    { return 'admin'; }
+
+    #[Core\Route(path: "/pricing", method: Core\Http\Method::Get, name: "Site::pricing")]
+    #[Core\Access(allow: Plan::Free)]
+    public function pricing(): string
+    { return 'pricing'; }
+}
+
+// 1. Each route is read as every enum. Only the enum in its own rule gives a case.
+array<string> $paths = ['/', '/admin', '/pricing'];
+foreach ($paths as string $path) {
+    try {
+        ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, $path);
+        if ($found == null) {
+            echo $path, ' -> no route', "\n";
+            continue;
+        }
+        echo $path,
+            ' public=', $found->accessAs<Core\Audience>() == Core\Audience::Public ? 'yes' : 'no',
+            ' admin=', $found->accessAs<Role>() == Role::Admin ? 'yes' : 'no',
+            ' free=', $found->accessAs<Plan>() == Plan::Free ? 'yes' : 'no', "\n";
+    } catch (RuntimeError $e) {
+        echo $path, ' -> error', "\n";
+    }
+}
+
+// 2. The admin route is read as public one million times. It is never public.
+?Core\Router\Match $admin = Core\Router::match(Core\Http\Method::Get, '/admin');
+uint $public = 0;
+if ($admin != null) {
+    Core\Router\Match $settings = $admin;
+    uint $i = 0;
+    while ($i < 1000000) {
+        if ($settings->accessAs<Core\Audience>() == Core\Audience::Public) {
+            $public = $public + 1;
+        }
+        $i = $i + 1;
+    }
+}
+echo $public, "\n";

@@ -340,8 +340,10 @@ missing feature:
   array is the `404`, and any other array is the `Allow` header of a `405`.
 - The CSRF check on `Post`, `Put`, `Patch` and `Delete` is the one decision the server enforces
   on a matched route. The `allow:` value of `#[Core\Access]` is recorded and not enforced. The
-  entry file enforces it: `access()` on the match returns the full name of the `allow:` constant,
-  such as `Core\Audience::Public`. Check it once, before the `switch`, and treat `null` as denied.
+  entry file enforces it: `accessAs<E>()` on the match returns the `allow:` value as a case of
+  the enum `E`, such as `Core\Audience::Public`, and `null` when the value is not a case of `E`.
+  Check it once, before the `switch`, and treat `null` as denied. `access()` returns the full
+  name of the `allow:` constant as text, for a log line or a class constant.
 - A `Core\Router\Match` has a name, the converted captures, the verb and the access decision. It
   has nothing that can be called, so a program dispatches with one `switch` on `name()`. Give
   every route it dispatches a `name:`.
@@ -368,7 +370,7 @@ class App {
         if ($match == null) {
             return Core\Router::methodsFor($path) == [] ? "404" : "405";
         }
-        if ($match->access() != "Core\\Audience::Public") {
+        if ($match->accessAs<Core\Audience>() != Core\Audience::Public) {
             return "403";
         }
         var $users = new Users();

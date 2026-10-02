@@ -585,9 +585,14 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// above that `switch` and covers every arm; read off the method's attributes
 /// it is checked once per arm, and an arm that forgets it serves an unguarded
 /// route with nothing to say so. That is a priority-1 difference, so
-/// [`MATCH_ACCESS_DOC`]'s member is here. It answers the resolved *name* and
-/// nothing structured, which is all the row carries and all the compiler
-/// promises about it. The verb crosses for the same reader: one method under
+/// [`MATCH_ACCESS_DOC`]'s member is here. The row carries the resolved *name*,
+/// which `access()` answers as text. [`MATCH_ACCESS_AS_DOC`]'s `accessAs<E>()`
+/// answers the same decision as a case of the enum `E` the call site wrote, or
+/// `null` when the decision is not one of `E`'s cases (ADR 0255). The typed
+/// member is the one a dispatcher compares with: a case reaching `mixed` is
+/// only its integer (`rule:enums/representation`), so `Core\Audience::Public`
+/// and `App\Role::Admin` can be equal there, and a comparison against the text
+/// keeps compiling after the case it names is renamed. The verb crosses for the same reader: one method under
 /// two `#[Route]`s is how `Get` and `Post` share an implementation, and the
 /// name alone cannot tell the two apart.
 ///
@@ -644,6 +649,15 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             symbol: "nvs_core_router_match_access",
             doc: Some(&MATCH_ACCESS_DOC),
         },
+        CoreMethod {
+            name: "accessAs",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Written("T")),
+            symbol: "nvs_core_router_match_access_as",
+            doc: Some(&MATCH_ACCESS_AS_DOC),
+        },
     ],
     slots: &["name", "params", "method", "access"],
     constants: &[],
@@ -654,8 +668,9 @@ const MATCH_CARD: ClassDoc = ClassDoc {
     short: "The route that a path matched. `Core\\Request::route()` returns the match of the \
             request being served, and `Core\\Router::match()` returns the match of a path you \
             choose. `name()` returns the route's name, `params()` and `param()` return the values \
-            captured from the path, `method()` returns the route's HTTP method and `access()` \
-            returns its access rule.",
+            captured from the path and `method()` returns the route's HTTP method. \
+            `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and \
+            `access()` returns the same rule as its name.",
 };
 
 /// `Core\Router\Match::name`'s reference card — `rule:core-api/reference-card`.
@@ -715,6 +730,18 @@ const MATCH_ACCESS_DOC: MethodDoc = MethodDoc {
     ret: "The name with its namespace, such as `Core\\Audience::Public` or `App\\Role::Admin`. \
           Not `tainted`: it is the program's own text. Every route of a compiled program has \
           one, so treat `null` as access denied.",
+    errors: &[],
+};
+
+/// `Core\Router\Match::accessAs`'s reference card — `rule:core-api/reference-card`.
+const MATCH_ACCESS_AS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the access rule of the matched route as a case of the enum you write between \
+            `<` and `>`. `$match->accessAs<App\\Role>()` returns `App\\Role::Admin` for a route \
+            with `#[Access(allow: App\\Role::Admin)]`. Compare the result with a case, such as \
+            `== Core\\Audience::Public`.",
+    params: &[],
+    ret: "The case of that enum, or `null` when the route's rule is not a case of that enum. \
+          Treat `null` as access denied. The type argument must be an enum.",
     errors: &[],
 };
 
@@ -808,6 +835,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_match_param" => (nvs_core_router_match_param as *const ()).cast(),
         "nvs_core_router_match_method" => (nvs_core_router_match_method as *const ()).cast(),
         "nvs_core_router_match_access" => (nvs_core_router_match_access as *const ()).cast(),
+        "nvs_core_router_match_access_as" => (nvs_core_router_match_access_as as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1910,6 +1938,76 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Router\Match::accessAs<E>(): ?E` — the decision
+    /// [`nvs_core_router_match_access`] answers as text, as a case of the enum
+    /// the call site wrote (ADR 0255).
+    ///
+    /// Argument 0 is that enum's name, which
+    /// [`crate::registry::WRITTEN_ENUM_MEMBERS`] puts ahead of the receiver.
+    /// [`case_named`] owns which decisions answer a case.
+    fn nvs_core_router_match_access_as(ctx, args: [2]) {
+        // Unreachable from source: the lowering writes slot 0 out of the type
+        // argument, and `E0841` refuses one that is not an enum before any of
+        // this runs, so the name is a string and the runtime has its cases.
+        let written = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(
+                "internal error: `Core\\Router\\Match::accessAs` was called with no enum name \
+                 in argument 0",
+            )
+        })?;
+        let receiver = crate::instance::receiver(args[1], &MATCH, "accessAs")?;
+        let held = crate::instance::slot(receiver, MATCH_ACCESS);
+        // A decision of another enum, a class constant and a row with no
+        // decision answer `null` before the unit's enums are searched, so the
+        // search runs only for the enum the call site wrote.
+        let Some(case) = case_named(held.as_text(), written) else {
+            return Ok(Value::null());
+        };
+        // Unreachable from source, for the reason above: `E0841` refuses a type
+        // argument that is not an enum, and the unit describes every enum it
+        // declares or reads, so the name the lowering wrote is always found.
+        let desc = ctx.enum_desc(written).ok_or_else(|| {
+            Fault::fatal(format!(
+                "internal error: `Core\\Router\\Match::accessAs` was written with `{written}`, \
+                 and this unit describes no enum of that name"
+            ))
+        })?;
+        Ok(case_value(desc, case))
+    }
+}
+
+/// The case name in the row's decision `access` when the decision is a case of
+/// the enum named `written`, or `None`.
+///
+/// The row carries `Enum::Case`, resolved by the compiler, and `written` is the
+/// enum the call site wrote, resolved the same way. So the answer is `None` for
+/// a decision of any other enum, for a class constant and for a row with no
+/// decision, and a dispatcher reads the `null` that becomes as denied.
+fn case_named<'a>(access: Option<&'a str>, written: &str) -> Option<&'a str> {
+    let (owner, case) = access?.rsplit_once("::")?;
+    (owner == written).then_some(case)
+}
+
+/// The value of `desc`'s case named `case`, or `null` when `desc` declares no
+/// such case.
+///
+/// A case is its backing integer at run time (`rule:enums/representation`), so
+/// the enum's own `int` or `uint` is what is returned, and nothing is allocated.
+fn case_value(desc: &nvs_runtime::EnumDesc, case: &str) -> Value {
+    // Both narrowings are exact: `nvs_ir::lower` widened an `i64` or a `u64`
+    // to `i128`, and `rule:enums/one-backing-type` says which one it was.
+    match desc.value_of(case) {
+        Some(value) if desc.unsigned() => {
+            Value::uint(u64::try_from(value).expect("a `uint`-backed case widened from a `u64`"))
+        }
+        Some(value) => {
+            Value::int(i64::try_from(value).expect("an `int`-backed case widened from an `i64`"))
+        }
+        None => Value::null(),
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Router\Match::param(string $name): ?(tainted string|int|uint|decimal|Core\Uuid|Parses)`
     /// — [`nvs_core_router_match_params`] read at one key.
     ///
@@ -2082,6 +2180,28 @@ mod tests {
         let refused = crossed_slot("Brew", None, super::MATCH_METHOD)
             .expect_err("`Brew` is no case of the roster");
         assert!(refused.contains("`Brew`"), "{refused}");
+    }
+
+    /// `accessAs<E>` answers a case only for a decision of `E` itself. Every
+    /// other row is `None`, which crosses as `null` and is read as denied: a
+    /// case of another enum, whose integer may equal one of `E`'s, an enum
+    /// whose name only starts or ends like `E`'s, a class constant, and a row
+    /// with no decision.
+    // covers: Core\Router\Match::accessAs
+    #[test]
+    fn access_as_names_a_case_only_for_a_decision_of_the_written_enum() {
+        let named = |access: Option<&'static str>, written| super::case_named(access, written);
+        assert_eq!(named(Some("App\\Role::Admin"), "App\\Role"), Some("Admin"));
+        assert_eq!(
+            named(Some("Core\\Audience::Public"), "Core\\Audience"),
+            Some("Public")
+        );
+        assert_eq!(named(Some("App\\Role::Admin"), "Core\\Audience"), None);
+        assert_eq!(named(Some("Core\\Audience::Public"), "App\\Role"), None);
+        assert_eq!(named(Some("App\\RoleX::Admin"), "App\\Role"), None);
+        assert_eq!(named(Some("Other\\App\\Role::Admin"), "App\\Role"), None);
+        assert_eq!(named(Some("App\\Policy::STAFF"), "App\\Role"), None);
+        assert_eq!(named(None, "App\\Role"), None);
     }
 
     /// `Core\Router::match($method, $path)` over the table `ctx` holds, `None`

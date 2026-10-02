@@ -21,9 +21,8 @@ class FrontController {
             return "404 Not Found";
         }
         // The server does not check the rule. This one check covers every route below.
-        ?string $rule = $matched->access();
-        bool $allowed = $rule == "Core\\Audience::Public"
-            || ($rule == "App\\Role::Admin" && $isAdmin);
+        bool $allowed = $matched->accessAs<Core\Audience>() == Core\Audience::Public
+            || ($matched->accessAs<Role>() == Role::Admin && $isAdmin);
         if (!$allowed) {
             return "403 Forbidden";
         }

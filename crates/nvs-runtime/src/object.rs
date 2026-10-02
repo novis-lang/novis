@@ -2486,10 +2486,13 @@ impl ClassTable {
 
     /// The enum named `name`, or `None` if this unit declares none.
     ///
-    /// A linear scan, on [`ClassTable::id_of`]'s reasoning: the one caller is
-    /// `Core\Reflect\EnumInfo::of`, which a program reaches for to describe a
-    /// type rather than in a loop over values, and a second index would cost
-    /// every unit to save that call nothing it can measure.
+    /// A linear scan over the unit's enums, `Core`'s included. Two callers:
+    /// `Core\Reflect\EnumInfo::of`, which describes a type, and
+    /// `Core\Router\Match::accessAs`, which runs once per request a dispatcher
+    /// serves and searches only after the route's decision has named the enum
+    /// it is looking for. A program declares tens of enums, not thousands, so
+    /// the scan is a few dozen short string comparisons and an index would cost
+    /// every unit memory to save less than that.
     #[must_use]
     pub fn enum_desc(&self, name: &str) -> Option<&EnumDesc> {
         self.enums.iter().find(|desc| desc.name == name)

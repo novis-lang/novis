@@ -16,12 +16,12 @@ class Articles {
 
 class Guard {
     // A public route is open to everyone. An editor route is open only to editors.
-    // Any other rule, and `null`, is denied.
-    public static function allows(?string $rule, bool $isEditor): bool {
-        if ($rule == "Core\\Audience::Public") {
+    // Any other rule is denied.
+    public static function allows(Core\Router\Match $found, bool $isEditor): bool {
+        if ($found->accessAs<Core\Audience>() == Core\Audience::Public) {
             return true;
         }
-        if ($rule == "App\\Role::Editor") {
+        if ($found->accessAs<Role>() == Role::Editor) {
             return $isEditor;
         }
         return false;
@@ -33,6 +33,6 @@ array<string> $paths = ["/articles", "/articles/edit"];
 foreach ($paths as string $path) {
     ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, $path);
     if ($found != null) {
-        echo $path, ": ", Guard::allows($found->access(), false) ? "yes" : "no", "\n";
+        echo $path, ": ", Guard::allows($found, false) ? "yes" : "no", "\n";
     }
 }

@@ -1829,6 +1829,49 @@ pub(crate) fn written_class_of(
     None
 }
 
+/// The enum a member on `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS` was written
+/// with, reporting `E_TYPE_ARG_NOT_AN_ENUM` when what was written is not one.
+///
+/// A class, a shape, a scalar and an `array<...>` are all refused, and so is a
+/// class whose constants a route's `allow:` may name: the member answers a
+/// *case*, and only an enum has cases the runtime can look up by name. A
+/// missing type argument was already reported by [`check_written_type_args`],
+/// so it records nothing more here.
+///
+/// `None` for every member off that roster, which is a table lookup and nothing
+/// more on the ordinary path.
+pub(crate) fn written_enum_of(
+    owner: &QName,
+    method: &str,
+    written: &[TypeId],
+    type_args: &[Type],
+    call_span: Span,
+    env: &mut Env<'_>,
+) -> Option<QName> {
+    if !nvs_stdlib::registry::takes_written_enum(&owner.to_string(), method) {
+        return None;
+    }
+    let first = *written.first()?;
+    if let Ty::Enum(qname, _) = env.interner.get(first) {
+        return Some(qname.clone());
+    }
+    let found = env.interner.describe(first);
+    let span = type_args.first().map_or(call_span, |ty| ty.span);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_ARG_NOT_AN_ENUM,
+            format!("`{owner}::{method}` returns a case of an enum, and `{found}` is not an enum"),
+        )
+        .with_primary(span, format!("`{found}` written here"))
+        .with_help(
+            "write the enum whose cases the route's `allow:` names, such as \
+             `accessAs<Core\\Audience>()` or `accessAs<App\\Role>()`. A route whose `allow:` \
+             names a class constant has no enum, and `access()` returns its name as a `string`",
+        ),
+    );
+    None
+}
+
 /// `E_TYPE_ARG_COUNT` for a call site, from both places [`check_written_type_args`]
 /// reports it: a list of the wrong length, and no list at all.
 pub(crate) fn report_type_arg_count(sig: &MethodSig, member: &str, span: Span, env: &mut Env<'_>) {

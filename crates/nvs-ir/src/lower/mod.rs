@@ -2257,6 +2257,42 @@ impl<'a> Lowering<'a> {
         [desc, list, codec]
     }
 
+    /// The `string` a member on `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`
+    /// takes as its argument 0: the name of the enum its call site wrote.
+    ///
+    /// A fresh [`InstKind::ConstStr`] and so refcounted, which is why it is
+    /// staged as a temporary here and released with the call's other borrowed
+    /// arguments. Every caller emits it after the receiver is opened and after
+    /// its temporaries mark, so a `?->` guard that skips the call skips this
+    /// too, and the release covers it on both edges.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the member when the checker recorded no enum, which is one
+    /// run's two halves disagreeing: `E0841` refuses a call whose type argument
+    /// is not an enum before lowering runs.
+    pub(crate) fn written_enum_constant(
+        &mut self,
+        b: BlockId,
+        call: &nvs_types::expr_table::ResolvedCall,
+    ) -> ValueId {
+        let name = call
+            .written_enum
+            .as_ref()
+            .unwrap_or_else(|| {
+                panic!(
+                    "nvs-ir: `{}::{}` needs the enum written at its call site, and nvs_types \
+                     recorded none — did this program pass nvs_types::check_program with the \
+                     same table?",
+                    call.class, call.method
+                )
+            })
+            .to_string();
+        let (v, _) = self.emit(b, Ty::Str, InstKind::ConstStr(name));
+        self.own_temporary(v);
+        v
+    }
+
     /// The constant a member on `nvs_stdlib::registry::SOURCE_MEMBERS`
     /// takes as its argument 0: where this call site is, as
     /// [`InstKind::SourceConst`] carries it.

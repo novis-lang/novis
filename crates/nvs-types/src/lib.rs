@@ -243,6 +243,7 @@ pub use nvs_stdlib::registry::takes_call_site as core_takes_call_site;
 pub use nvs_stdlib::registry::takes_prepared as core_takes_prepared;
 pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
+pub use nvs_stdlib::registry::takes_written_enum as core_takes_written_enum;
 pub use nvs_stdlib::router::link::{
     ABSOLUTE_SYMBOL as CORE_ROUTE_LINK_ABSOLUTE, SIGNED_SYMBOL as CORE_ROUTE_LINK_SIGNED,
     SYMBOL as CORE_ROUTE_LINK,

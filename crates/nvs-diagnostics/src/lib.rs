@@ -5337,6 +5337,14 @@ pub mod code {
          with the folder of this file: `Core\\Path::thisDir('data') . '/' . $name`, or \
          `Core\\Path::join(Core\\Path::thisDir('data'), $name)`.",
     );
+    /// A type argument written where the member needs an **enum** —
+    /// `Core\Router\Match::accessAs<App\Policy>` over a class. The members that
+    /// do are `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`, and each of them
+    /// answers a case of the written enum, which only an enum has (ADR 0255).
+    pub const E_TYPE_ARG_NOT_AN_ENUM: Code = Code::new("E0841").card(
+        "This method returns a case of the enum you write as its type argument, so the type \
+         argument must be an enum. Write an enum such as `Core\\Audience` or `App\\Role`.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
