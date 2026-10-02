@@ -8,21 +8,37 @@ keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generat
 # What `foreach` walks
 
 `foreach` accepts three things: an `array<T>`, an object implementing `Iterable<T>`, and an
-object implementing `Iterator<T>`. The binding is typed. Over an array it may bind the key as
-well (`foreach ($a as string $k => T $v)`); the array forms, `break`, `continue` and the rest of
-the statement are in the [statements](#lang-statements) chapter.
+object implementing `Iterator<T>`. Each of the three gives the value binding the element type `T`:
+`as var $v` takes it, and a written `as T $v` is checked against it. Over an array the loop may
+bind the key as well (`foreach ($a as var $k => var $v)`, the key a `string`); the other two have
+no key. The array forms, `break`, `continue` and the rest of the statement are in the
+[statements](#lang-statements) chapter.
 <!-- src: `rule:iteration/two-interfaces` -->
 
 ```nvs
 <?nvs
-array<string> $names = ["a" => "Ada", "b" => "Bob"];
-foreach ($names as string $k => string $v) {
+class Letters implements Iterable<string> {
+    public function iterate(): Iterator<string> {
+        yield "x";
+        yield "y";
+    }
+}
+var $names = ["a" => "Ada", "b" => "Bob"];
+foreach ($names as var $k => var $v) {
     echo $k, "=", $v, ";";
+}
+echo "\n";
+foreach (new Letters() as var $letter) {
+    echo Core\Str::upper($letter);
+}
+foreach ($names as string $k => string $v) {
+    echo $k;
 }
 echo "\n";
 ```
 ```output
 a=Ada;b=Bob;
+XYab
 ```
 
 # The two interfaces

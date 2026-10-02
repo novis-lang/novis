@@ -99,12 +99,12 @@ do {
 
 # `for`
 
-`for (init; cond; step) body`. The init clause is **either** one typed local declaration — `int $i = 0`, or `var $i = 0` — **or** a comma-separated list of expressions over locals declared above the loop; never both, and never two declarations. The condition and the step are each a comma-separated list of expressions, any of them empty, so `for (;;)` loops until a `break`. A condition list runs every expression in it and decides on the last, so an assignment written before that last one happens on every test, including the one that ends the loop. The counter is an ordinary function-scoped local: it is readable after the loop with the value that ended it, and a second loop in the same function needs a different name. `continue` runs the step.
+`for (init; cond; step) body`. The init clause is **either** one local declaration — `var $i = 0`, or with a written type, `int $i = 0` — **or** a comma-separated list of expressions over locals declared above the loop; never both, and never two declarations. The condition and the step are each a comma-separated list of expressions, any of them empty, so `for (;;)` loops until a `break`. A condition list runs every expression in it and decides on the last, so an assignment written before that last one happens on every test, including the one that ends the loop. The counter is an ordinary function-scoped local: it is readable after the loop with the value that ended it, and a second loop in the same function needs a different name. `continue` runs the step.
 
 ```nvs
 <?nvs
 int $j = 10;
-for (int $i = 0; $i < 3; $i++, $j--) {
+for (var $i = 0; $i < 3; $i++, $j--) {
     echo $i, ":", $j, " ";
 }
 echo "\n", $i, " ", $j, "\n";
@@ -135,37 +135,49 @@ at most one binding
 
 # `foreach`
 
-`foreach (subject as T $v)` or `foreach (subject as string $k => T $v)`. Every binding declares its type; an untyped `as $v` does not parse.
+`foreach (subject as var $v)` or `foreach (subject as var $k => var $v)`. Each binding writes `var` or its type — `foreach (subject as T $v)`, `foreach (subject as string $k => T $v)` — and the two may be mixed in one header. A binding with neither, `as $v`, does not parse.
 
-- Over an `array<T>`: the value binds as `T` and the key, when bound, is `string` — never `int`. `inout T $v` writes each element back into the array; `&$v` does not parse. The loop walks a copy, so appending to or unsetting from the array inside the body does not change what is visited (an `inout` loop walks the array itself).
+- `var` on the value binding takes the subject's element type `T`, with any qualifier on it such as `tainted`; `var` on the key binding takes `string`. The type is then fixed, exactly as if it were written. A written type is checked against the element type, and is the one to write when the binding must be wider than the element — `int|float $v` over an `array<int>` whose body stores a `float` in `$v`.
+- Over an `array<T>`: the value binds as `T` and the key, when bound, is `string` — never `int`. `inout var $v` or `inout T $v` writes each element back into the array; `&$v` does not parse. The loop walks a copy, so appending to or unsetting from the array inside the body does not change what is visited (an `inout` loop walks the array itself).
 - Over an `Iterator<T>` or an `Iterable<T>` — a generator, or a class implementing either — the value binds as `T` and there is no key to bind. The iteration chapter owns those interfaces and generators.
-- The subject is an expression, but `as` in the header belongs to `foreach`: converting the subject needs parentheses, `foreach (($m as array<int>) as int $v)`. An array literal as the subject has no element type; bind it to a typed local first.
+- The subject is an expression, but `as` in the header belongs to `foreach`: converting the subject needs parentheses, `foreach (($m as array<int>) as var $v)`. An array literal as the subject is `array<T>` under a `var` value binding when every element has the type `T`, as it is for `var $xs = [...]`; mixed element types or `[]` do not compile. Under a written binding type the literal has no element type, so bind it to a typed local first.
 - The body is one statement; `break`, `continue` and `return` leave it as they leave any loop.
-- A binding is declared by the loop, and a later `foreach` in the same function may declare the same name again.
+- A binding is declared by the loop, and a later `foreach` in the same function may declare the same name again at the same type, whether written or taken by `var`; at another type it is `E0406`.
 
 ```nvs
 <?nvs
-array<int> $prices = ["apple" => 3, "pear" => 5];
-foreach ($prices as int $p) {
+var $prices = ["apple" => 3, "pear" => 5];
+foreach ($prices as var $p) {
     echo $p, " ";
 }
 echo "\n";
-foreach ($prices as string $name => int $each) {
+foreach ($prices as var $name => var $each) {
     echo $name, "=", $each, " ";
 }
 echo "\n";
-foreach ($prices as inout int $doubled) {
+foreach ($prices as inout var $doubled) {
     $doubled = $doubled * 2;
 }
 echo Core\Json::encode($prices), "\n";
+foreach ($prices as string $name => int|float $amount) {
+    if ($amount > 6) {
+        $amount = $amount * 0.25;
+    }
+    echo $name, "=", $amount, " ";
+}
+echo "\n";
+foreach (["new", "sale"] as var $tag) echo $tag, " ";
+echo "\n";
 mixed $m = [7, 8];
-foreach (($m as array<int>) as int $v) echo $v;
+foreach (($m as array<int>) as var $v) echo $v;
 echo "\n";
 ```
 ```output
 3 5
 apple=3 pear=5
 {"apple":6,"pear":10}
+apple=6 pear=2.5
+new sale 
 78
 ```
 
@@ -196,6 +208,14 @@ foreach ($a as $v) { echo $v; }
 ```
 ```output
 a `foreach` binding writes its type, or `var`
+```
+
+```nvs error
+<?nvs
+foreach ([1, "two"] as var $x) { echo $x; }
+```
+```output
+`var` cannot infer an array whose elements have different types
 ```
 
 # `switch`

@@ -2,20 +2,22 @@
 // Shows `inout`, which writes the value back into the array. A program does
 // this to clean up a table of input before it stores or sends the table.
 
-array<string> $form = [
+var $form = [
     "name" => "  Ada Lovelace ",
     "city" => "London  ",
     "note" => "",
 ];
 
-foreach ($form as inout string $field) {
+// `inout var $field` is a `string`, because every value in `$form` is a string.
+foreach ($form as inout var $field) {
     $field = Core\Str::trim($field);
 }
 
 // This prints: {"name":"Ada Lovelace","city":"London","note":""}
 echo Core\Json::encode($form), "\n";
 
-// Without `inout` the binding is a copy, and the array keeps what it had.
+// This loop writes the type `int` in place of `var`. Without `inout`, the
+// variable is a copy, and the array keeps its values.
 array<int> $counts = ["a" => 1, "b" => 2];
 foreach ($counts as int $copy) {
     $copy = $copy * 100;

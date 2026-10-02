@@ -16,6 +16,8 @@ array<int> $ids = [11, 12, 13, 14, 15, 16, 17];
 uint $total = Core\Arr::count($ids);
 uint $written = 0;
 
+// The counters write their type, `uint`, in place of `var`. A `uint` is never
+// negative, and neither is a position in a list.
 for (uint $start = 0; $start < $total; $start = $start + 3) {
     array<int> $batch = [];
     // The inner loop stops at the end of the batch or at the end of the list,

@@ -2,17 +2,17 @@
 // Shows the two ways a `foreach` loop walks an array: the values alone, and the keys
 // together with the values.
 
-array<int> $scores = ["ada" => 31, "bob" => 27, "cleo" => 44];
+var $scores = ["ada" => 31, "bob" => 27, "cleo" => 44];
 
-// The loop binds one value per step. `int $score` is the type of every value in this array.
-int $total = 0;
-foreach ($scores as int $score) {
+// The loop gives one value per step. `var $score` gets the type of the values, `int`.
+var $total = 0;
+foreach ($scores as var $score) {
     $total = $total + $score;
 }
 // This prints 102.
 echo $total, "\n";
 
-// An array also has keys. `string $name => int $score` binds both of them.
+// An array also has keys. `string $name => int $score` gets both, and writes their types.
 foreach ($scores as string $name => int $score) {
     echo $name, " scored ", $score, "\n";
 }

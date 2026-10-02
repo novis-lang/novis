@@ -1,10 +1,10 @@
 <?nvs
-// Shows the key form of `foreach`. Write `$key => $value` to bind both. An
-// array key is always a `string`, so the key binding is declared `string`.
+// Shows the key form of `foreach`. Write `$key => $value` to get both. With `var`,
+// the key is a `string` and the value has the type of the array's values.
 
-array<int> $stock = ["shirt" => 4, "socks" => 0, "belt" => 12];
+var $stock = ["shirt" => 4, "socks" => 0, "belt" => 12];
 
-foreach ($stock as string $item => int $left) {
+foreach ($stock as var $item => var $left) {
     if ($left == 0) {
         echo $item, ": out of stock\n";
     } else {
@@ -12,7 +12,8 @@ foreach ($stock as string $item => int $left) {
     }
 }
 
-// The key is a `string` even when it looks like a number.
+// You can write both types instead. An array key is always a `string`, even when
+// it looks like a number.
 array<string> $byId = ["1" => "Ada", "2" => "Grace"];
 foreach ($byId as string $id => string $name) {
     // This prints: id 1 is Ada, then id 2 is Grace.

@@ -19,7 +19,8 @@ class Cart implements Iterable<Item> {
     }
 
     public function iterate(): Iterator<Item> {
-        foreach ($this->items as Item $item) {
+        // `var $item` is an `Item`, because `$this->items` is an `array<Item>`.
+        foreach ($this->items as var $item) {
             yield $item;
         }
     }

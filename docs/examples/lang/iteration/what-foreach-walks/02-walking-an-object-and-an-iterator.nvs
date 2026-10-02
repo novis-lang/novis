@@ -22,12 +22,14 @@ class Steps {
     }
 }
 
-// The subject is an object. This prints the three names.
-foreach (new Weekdays() as string $day) {
+// The subject is an object. `Weekdays` is an `Iterable<string>`, so `$day` is a
+// `string`. This prints the three names.
+foreach (new Weekdays() as var $day) {
     echo $day, "\n";
 }
 
-// The subject is an iterator. This prints 1, 2 and 3.
+// The subject is an iterator. This loop writes the type `int` in place of `var`.
+// This prints 1, 2 and 3.
 foreach (Steps::upTo(3) as int $n) {
     echo $n, "\n";
 }
