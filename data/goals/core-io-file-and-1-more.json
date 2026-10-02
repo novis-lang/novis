@@ -6834,7 +6834,7 @@
       ],
       "tests": [
         "init_in_an_empty_tree_writes_the_agents_stanza_and_nothing_else",
-        "init_writes_the_claude_skill_when_that_harness_is_present",
+        "init_writes_the_claude_skill_and_hook_when_claude_code_runs_it",
         "init_run_twice_changes_nothing_the_first_run_wrote",
         "init_refuses_to_overwrite_a_stanza_that_has_been_edited"
       ]
