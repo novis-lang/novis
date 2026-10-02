@@ -365,10 +365,14 @@ fn walk<C: Carrier>(
 /// § 2's "refuses what has no meaning on the other side", for the shapes that
 /// arrive wearing [`Tag::Object`].
 ///
-/// Both refusals are a bit on the class and nothing structural. A closure is
-/// [`ClassDesc::is_closure()`] and not a declared `invoke`, which is a method
-/// name a program may use and refusing on it would make a user class
-/// uncopyable for spelling it. A host handle is
+/// All three refusals are a fact about the class and nothing structural. A
+/// closure is [`ClassDesc::is_closure()`] and not a declared `invoke`, which is
+/// a method name a program may use and refusing on it would make a user class
+/// uncopyable for spelling it. A generator is [`ClassDesc::is_generator()`],
+/// its synthesized state class: its slots are a suspended frame and its
+/// resume point, which
+/// `rule:concurrency/a-cached-value-is-copied-across-the-boundary` refuses at
+/// every copy boundary. A host handle is
 /// [`ClassDesc::holds_host_handle()`] and not the shape of the slot, which is a
 /// `uint` like every other: the key indexes the table of the [`crate::Ctx`]
 /// that opened it ([`crate::Ctx::hold_open_socket`]), so a copy that crossed
@@ -379,6 +383,13 @@ fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
         return Err(GraphError(
             "a closure captures a heap and a scope, so it has no meaning on the \
              other side of a copy boundary"
+                .to_owned(),
+        ));
+    }
+    if class.is_generator() {
+        return Err(GraphError(
+            "a generator is a suspended frame, so it has no meaning on the other \
+             side of a copy boundary"
                 .to_owned(),
         ));
     }

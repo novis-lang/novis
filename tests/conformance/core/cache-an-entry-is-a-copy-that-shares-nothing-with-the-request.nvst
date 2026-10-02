@@ -9,6 +9,13 @@ class Note {
     }
 }
 
+class Count {
+    public static function oneTwo(): Iterator<int> {
+        yield 1;
+        yield 2;
+    }
+}
+
 var $cache = Core\Cache::local();
 
 // § 2: `put` copies *out* of the request heap. The request's own object stays
@@ -39,6 +46,15 @@ try {
     echo $error->message, "\n";
 }
 
+// A generator is refused the same way. Its state is a suspended frame, which
+// has no meaning in another request.
+try {
+    $cache->put("generator", Count::oneTwo());
+    echo "stored a generator\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
 // The shared tier copies the same way, at the same boundary — the refusal
 // below is the store's absence and not a second answer about what may cross.
 try {
@@ -51,4 +67,5 @@ try {
 copy=written
 again=written
 Core\Cache\Store::put(): a closure captures a heap and a scope, so it has no meaning on the other side of a copy boundary
+Core\Cache\Store::put(): a generator is a suspended frame, so it has no meaning on the other side of a copy boundary
 shared refused before there was anything to copy

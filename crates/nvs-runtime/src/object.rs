@@ -1341,6 +1341,20 @@ impl ClassDesc {
         self.name.starts_with("$shape{")
     }
 
+    /// Whether this is a generator's synthesized state class, which
+    /// `nvs_ir::lower::generator` labels `{name}$gen`. The label is the one
+    /// mark every state class carries: [`Self::unwind_entry`] is only there
+    /// when the body owes a `finally`. `$` cannot appear in an Novis
+    /// identifier, so no declared class collides with the suffix.
+    ///
+    /// The reader is `rule:classes/graph-copy`'s walk, which refuses a
+    /// generator; `tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst`
+    /// is what holds this spelling and the lowering's together.
+    #[must_use]
+    pub fn is_generator(&self) -> bool {
+        self.name.ends_with("$gen")
+    }
+
     /// Whether an instance of this class is a closure rather than an object of
     /// a declared class — the bit [`ClassTable::set_closure`] writes, and the
     /// one answer [`crate::closure::call_closure`] and
