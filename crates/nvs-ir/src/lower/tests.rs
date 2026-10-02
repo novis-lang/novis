@@ -2568,6 +2568,36 @@ class T {
     );
 }
 
+/// `rule:types/var-inference`: a `var` local over a one-type array literal
+/// lowers to the IR the written `array<T>` lowers to — flat, nested and
+/// through a spread — because the literal is then checked against the
+/// inferred type exactly as against a written one.
+#[test]
+fn var_array_literal_lowers_as_the_written_type_does() {
+    assert_var_binding_lowers_as_written(
+        "<?nvs
+class T {
+  function m(array<int> $more): void {
+    array<int> $x = [1, 2];
+    array<array<int>> $g = [[1, 2], [3]];
+    array<int> $all = [...$more, 3];
+    echo $x[0] + $g[0][0] + $all[0];
+  }
+}
+",
+        "<?nvs
+class T {
+  function m(array<int> $more): void {
+    var        $x = [1, 2];
+    var               $g = [[1, 2], [3]];
+    var        $all = [...$more, 3];
+    echo $x[0] + $g[0][0] + $all[0];
+  }
+}
+",
+    );
+}
+
 /// A refcounted value binding is retained where a scalar one is not — the
 /// binding is a durable slot and `InstKind::ArrayValueAt` hands it a
 /// borrow, the same split `InstKind::ArrayGet` already has.
