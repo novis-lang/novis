@@ -220,8 +220,28 @@
         "command": "nvs.hideSecrets",
         "title": "Hide Secrets",
         "category": "Novis"
+      },
+      {
+        "command": "nvs.convertToHtmlLiteral",
+        "title": "Convert to html literal",
+        "category": "Novis"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "nvs.convertToHtmlLiteral",
+          "when": "editorLangId == nvs"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "nvs.convertToHtmlLiteral",
+          "when": "editorLangId == nvs",
+          "group": "1_modification"
+        }
+      ]
+    },
     "views": {
       "explorer": [
         {

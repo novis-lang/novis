@@ -102,6 +102,7 @@ const COMMANDS = [
   "nvs.restartServer",
   "nvs.revealSecret",
   "nvs.hideSecrets",
+  "nvs.convertToHtmlLiteral",
 ];
 
 // `rule:ide/dependencies-are-allowlisted` is over runtime dependencies: a test library ships to

@@ -126,6 +126,15 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
     commands.registerCommand("nvs.revealSecret", (where?: Parameters<typeof redactions.reveal>[0]) =>
       redactions.reveal(where)),
     commands.registerCommand("nvs.hideSecrets", () => redactions.hide()),
+    // The conversion is the server's code action (`rule:ide/a-string-converts-to-an-html-literal`),
+    // so this command only asks the editor to apply it, filtered by its exact kind. A second
+    // client gets the same action from the server and needs nothing written here.
+    commands.registerCommand("nvs.convertToHtmlLiteral", () =>
+      commands.executeCommand("editor.action.codeAction", {
+        kind: "refactor.rewrite.htmlLiteral",
+        preferred: false,
+        apply: "ifSingle",
+      })),
     workspace.onDidChangeConfiguration((event: ConfigurationChangeEvent) => {
       if (RESPAWNING_SETTINGS.some((setting) => event.affectsConfiguration(setting))) {
         void restart(context);

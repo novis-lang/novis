@@ -224,7 +224,7 @@ Conventions the whole file uses:
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, `nvs ctl` and `nvs service` *(nvs serve, server, HTTP, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
-- C.6 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
+- C.6 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html literal, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
 - C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, --json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
 ### Part D — Coming from PHP
@@ -28815,7 +28815,7 @@ E0211
 <a id="tools-editor"></a>
 ## C.6 The editor: nvs lsp, nvs lsp-test and the VS Code extension
 
-Keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation
+Keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html literal, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation
 
 ### nvs lsp
 
@@ -28850,14 +28850,38 @@ anything else, because nothing else is offered.
 | `textDocument/selectionRange` | the chain of nodes the cursor is inside, innermost first, so expand-selection walks the tree |
 | `textDocument/foldingRange` | every construct written over three lines or more, plus the comment blocks |
 | `textDocument/documentLink` | each `require`'s path literal, with the file it reached, and each `autoload` root and `discover` glob, with the folder it names. A glob links to the folder before its `*`. A root that does not exist has no link. The prefix of an `autoload` line links to the first of its folders that exists. A path you pass to a function that reads or writes a file links to that file or folder, if it exists. In VS Code, Ctrl+click on a folder link shows that folder in the Explorer |
-| `textDocument/codeAction` | the two quick fixes below |
+| `textDocument/codeAction` | the quick fixes and the one refactor below |
 | `nvs/redactions` | the byte ranges the editor must conceal. Novis's own request; the protocol has no shape for it |
 
-Two code actions ship, and both are a fix the diagnostic that reported the problem was already
-carrying: the rename that corrects an identifier's casing, and the rewrite of a legacy cast to
-`expr as T`. A fix the compiler would have to compute for itself is offered by nothing. They are
-`quickfix` actions and are also grouped under `source.fixAll.nvs`, so an editor can run them on
-save.
+Every quick fix is a fix that the diagnostic which reported the problem already contains. Examples
+are the rename that corrects an identifier's casing, and the rewrite of a legacy cast to `expr as T`.
+A fix the compiler would have to compute for itself is not offered. The fixes are `quickfix` actions.
+They are also grouped under `source.fixAll.nvs`, so an editor can run them on save.
+
+One action is not a fix: **Convert to html literal**, of kind `refactor.rewrite.htmlLiteral`. Put
+the cursor on a string, or select it, and the action rewrites the string as an
+``html`…` `` literal that prints the same text:
+
+```nvs
+var $name = "Ada";
+echo "<p class=\"note\">Hello, $name</p>";
+echo html`<p class="note">Hello, $name</p>`;
+```
+
+On an operand of a `.` chain, the action converts the whole chain. A variable, or a property or
+array read on one, becomes a `{$…}` hole. Any other value becomes a `<?= … ?>` hole:
+
+```nvs
+var $name = "Ada";
+echo "<b>" . $name . "</b> is " . Core\Str::upper("here") . '!';
+echo html`<b>{$name}</b> is <?= Core\Str::upper("here") ?>!`;
+```
+
+The action changes what the line prints. Text from a plain string is escaped when it is printed,
+and the text of an html literal is printed as markup. So the action is never applied on save. Read
+the preview before you apply it. It is offered for a double-quoted or single-quoted string. It is
+not offered for a heredoc or nowdoc, for an array key, a `case` or `match` condition, a constant, or
+the path of a `require` or `use`.
 
 #### Diagnostics, and the phase gate
 
@@ -29091,6 +29115,7 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.restartServer` | Restart Language Server | stops the server and starts it again, which is also what clicking the status item does |
 | `nvs.revealSecret` | Reveal Secret | uncovers the one concealed range under the cursor, in this window |
 | `nvs.hideSecrets` | Hide Secrets | conceals every range revealed in this window again |
+| `nvs.convertToHtmlLiteral` | Convert to html literal | applies the server's **Convert to html literal** action at the cursor. It is also in the editor's context menu |
 | `nvs.run` | Run File | contributed and not yet answered |
 | `nvs.test` | Run Tests | contributed and not yet answered |
 | `nvs.showAst` | Show AST | contributed and not yet answered |
