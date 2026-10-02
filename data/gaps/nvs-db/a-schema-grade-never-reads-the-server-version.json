@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-db/src/ddl.rs",
-  "title": "A schema step's grade is keyed on the dialect alone, and never on the server version the connection already has.",
-  "text": "`rule:core-classes/schema-plan` keys a grade on driver **and** server version, and grades up only when the version is unknown. `grade_of` at `crates/nvs-db/src/ddl.rs:982` takes the dialect and nothing else, so adding a column with a default is always graded as a rewrite, even on PostgreSQL 11+ and MySQL 8.0.12+. `Connection::server_version` at `crates/nvs-db/src/conn.rs:1142` holds the version a plan built over a connection could pass in. Closing this threads an optional server version into `grade_of`, grades the version-keyed changes from it, keeps grading up when it is absent, and tests both arms.",
-  "goal": "goal-closeout"
-}
