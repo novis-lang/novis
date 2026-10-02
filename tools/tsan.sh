@@ -54,6 +54,7 @@ cd "$(dirname "$0")/.." || exit 1
 # /var/tmp to keep warm anyway.
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/var/tmp/nvs-tsan}"
 export PATH="$HOME/.cargo/bin:$PATH"
+. tools/target-checkout.sh
 
 # `halt_on_error=0` so one race does not hide the next: the run still exits
 # non-zero, and a leg that reports everything it found is worth more than one

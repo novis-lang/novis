@@ -35,6 +35,7 @@ cd "$(dirname "$0")/.." || exit 1
 # after every idle gap -- a target directory there costs a cold build every run.
 export CARGO_TARGET_DIR=/var/tmp/nvs-linux
 export PATH="$HOME/.cargo/bin:$PATH"
+. tools/target-checkout.sh
 
 cargo build --quiet -p nvs-cli || exit 1
 BIN=/var/tmp/nvs-linux/debug/nvs
