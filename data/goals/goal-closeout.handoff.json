@@ -1,27 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\n`bun nv owners --closes goal-closeout` is the one owner gate now. `bun nv playbook --closes` is deleted with the driver's call to it (`tools/nv/driver/gates.ts`), because the playbook owns no per-goal question and the index it read is gone. The TSan crate keying and the five tool surfaces that only goal checks reached now have tests (`tools/nv/test/select-checks.test.ts`, `tools/nv/test/surfaces.test.ts`).\n\nTwo `tools/nv/` gaps are left: the proof programs and `data/schema/`. The rest of the gaps owned by this goal are under the other `data/gaps/<module>/` directories. Group them by file set, one crate or tool directory at a time. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nCI's `proofs` job (`.github/workflows/ci.yml`, gated by the `proofs` lane in `tools/nv/cmd/ci-changes.ts`) is the one suite that runs every example and attack: `bun nv proofs --verify --nvs` on a fresh proof binary, on all three platforms. `tools/nv/cmd/proofs.ts`'s module doc says why `nv verify` runs none. Locally, a no-cache run of the whole roster on the named proof binary took 227 s and was green; its first CI run has not happened yet.\n\nThe floor checks that called the deleted `nv playbook --closes` and its carried-gaps section are gone from the two walked records that carried them. `nv owners --check` and `nv owners --closes` already answer both questions. Until Stage 6 deletes the walked goals, deleting an `nv` surface still turns every walked goal check that calls it red: grep `data/goals/` for the flag in the same slice.\n\nOne `tools/nv/` gap is left: `data/schema/`. The rest of the gaps owned by this goal are under the other `data/gaps/<module>/` directories. Group them by file set, one crate or tool directory at a time. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `tools/nv/cmd/verify.ts`, `tools/nv/cmd/proofs.ts`, `.github/workflows/ci.yml`, then `tools/nv/lib/schema.ts`.",
+    "note": "one file set: `tools/nv/lib/schema.ts`, `tools/nv/schema/`, then the smallest `data/gaps/<crate>/` directory.",
     "items": [
       {
         "done": false,
-        "text": "**No suite runs the proof programs once the floor is gone** — `data/gaps/nv/no-suite-runs-the-proof-programs-once-the-floor-is-gone.json`, at `tools/nv/cmd/verify.ts:46`. Decide between running owed proof atoms in `nv verify` and a `bun nv proofs --verify` step in `.github/workflows/ci.yml:176`; time `bun nv proofs --verify` over the roster first, and say which in `tools/nv/cmd/proofs.ts:1`'s module doc."
+        "text": "**`data/schema/` is promised and nothing writes it** — `data/gaps/nv/data-schema-is-promised-and-nothing-writes-it.json`, at `tools/nv/lib/schema.ts:4`. Build the writer or strike the promise in that module doc, then delete the gap record."
       },
       {
         "done": false,
-        "text": "**`data/schema/` is promised and nothing writes it** — `data/gaps/nv/data-schema-is-promised-and-nothing-writes-it.json`, at `tools/nv/lib/schema.ts:44`. Write one JSON Schema per record type from `bun nv render`, and make `bun nv render --check` fail on a stale one; or strike the promise in the module doc if no reader exists."
-      },
-      {
-        "done": false,
-        "text": "**The next crate's gaps** — `bun nv owners --closes goal-closeout`, at `tools/nv/cmd/owners.ts:413`; take the smallest `data/gaps/<crate>/` directory next."
+        "text": "**The next crate's gaps** — `bun nv owners --closes goal-closeout`, at `tools/nv/cmd/owners.ts:413`; take the smallest `data/gaps/<crate>/` directory and close each gap in it as one group."
       }
     ]
   },
   "backlog": [
-    "Stage 5 and Stage 6 of `docs/agent/goals/goal-closeout.md`: the floor's removal and the deletion of the walked goals.",
-    "`ci-green` stays red until Stage 6 (`tools/nv/cmd/ci-green.ts`)."
+    "The first CI run of the `proofs` job: a red on Linux or macOS is a real finding about a program, not about the job (`.github/workflows/ci.yml`).",
+    "`bun nv import` reads the deleted rule index; fix or delete it with the goal's Stage 5 machinery removal (`docs/agent/goals/goal-closeout.md` § *Stage 5*)."
   ]
 }
