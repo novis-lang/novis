@@ -38,14 +38,24 @@
 //! [`for_document`] is what the two halves compose into, and the one function
 //! the server and the suite both call: the gate, narrowed to the entry file,
 //! crossed to the wire.
+//!
+//! **A completion file's `strict` is checked here and nowhere else.**
+//! [`unknown_values`] compares each string literal argument at a strict
+//! parameter with the values a completion file lists for it, so the warning is
+//! the language server's alone and `nvs check` never reads a completion file
+//! (`rule:ide/completion-files-offer-values-at-named-parameters`). Its cost is
+//! one table lookup per string literal argument per analysis.
 
 use std::collections::BTreeSet;
 
 use lsp_types::{DiagnosticSeverity, DiagnosticTag, NumberOrString, Range};
 use nvs_diagnostics::{
-    Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId,
+    Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId, code,
 };
+use nvs_syntax::string_lit::cook_string_literal;
 
+use crate::arguments;
+use crate::completion_files::CompletionFiles;
 use crate::document::Analysed;
 use crate::index::{CheckScope, Declaration};
 use crate::position::position_at;
@@ -123,7 +133,8 @@ pub enum Phases {
 ///
 /// Three things happen here: the phase gate is applied unless `phases` defeats
 /// it, what survives is narrowed to the entry file, and that crosses to the
-/// wire. The second is the one that is easy to miss.
+/// wire. The second is the one that is easy to miss. The warnings of
+/// [`unknown_values`], which read `files` and no compiler phase, join them.
 ///
 /// **The entry file only.** One analysis reads a whole `require` graph and
 /// reports over all of it, but a `publishDiagnostics` notification is about one
@@ -139,6 +150,7 @@ pub enum Phases {
 #[must_use]
 pub fn for_document(
     analysed: &Analysed,
+    files: &CompletionFiles,
     phases: Phases,
     encoding: PositionEncoding,
 ) -> Vec<lsp_types::Diagnostic> {
@@ -147,10 +159,70 @@ pub fn for_document(
         Phases::All => analysed.diags.iter().collect(),
     };
     let entry = analysed.map.file(analysed.entry);
+    let strict = unknown_values(analysed, files);
     surviving
         .into_iter()
         .filter(|diagnostic| file_of(diagnostic).is_none_or(|file| file == analysed.entry))
+        .chain(&strict)
         .map(|diagnostic| to_wire(diagnostic, entry, encoding))
+        .collect()
+}
+
+/// A warning on each string literal argument in the entry document whose
+/// parameter a completion file marks `strict` and whose text is none of the
+/// values that apply at its call
+/// (`rule:ide/completion-files-offer-values-at-named-parameters` § *What else
+/// reads it*).
+///
+/// Only a `.nvs` file is checked. A literal is skipped where an attachment's
+/// `when` names an argument the call leaves out or writes as something other
+/// than one string literal, because which values apply there is not known. A
+/// value built at run time is not a string literal, so it is never checked.
+fn unknown_values(analysed: &Analysed, files: &CompletionFiles) -> Vec<Diagnostic> {
+    let entry = analysed.map.file(analysed.entry);
+    if entry
+        .path()
+        .is_none_or(|path| path.extension().is_none_or(|extension| extension != "nvs"))
+    {
+        return Vec::new();
+    }
+    arguments::named_in_document(analysed)
+        .into_iter()
+        .filter_map(|named| {
+            let attachments = files.attachments(&named.class, &named.method, &named.parameter);
+            if !attachments.iter().any(|attachment| attachment.strict) {
+                return None;
+            }
+            let undecided = attachments
+                .iter()
+                .filter_map(|attachment| attachment.when.as_ref())
+                .any(|when| {
+                    !named
+                        .others
+                        .iter()
+                        .any(|(name, text)| *name == when.parameter && text.is_some())
+                });
+            if undecided {
+                return None;
+            }
+            let text = cook_string_literal(entry, named.span);
+            let values =
+                files.values_at(&named.class, &named.method, &named.parameter, &named.others);
+            if values.iter().any(|value| value.value == text) {
+                return None;
+            }
+            Some(
+                Diagnostic::warning(
+                    code::W_COMPLETION_VALUE_UNKNOWN,
+                    format!(
+                        "`{text}` is not one of the values the completion files list for `${}` \
+                         of `{}::{}`",
+                        named.parameter, named.class, named.method
+                    ),
+                )
+                .with_primary(named.span, "not a listed value"),
+            )
+        })
         .collect()
 }
 

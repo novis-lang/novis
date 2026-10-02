@@ -1,7 +1,8 @@
 //! A string argument at a parameter a completion file names offers the file's values, from the
 //! attachments whose `when` the call meets and one segment at a time where a list has a
 //! separator, and each item changes only that string. A literal equal to a value hovers as that
-//! value (`rule:ide/completion-files-offer-values-at-named-parameters`).
+//! value, and one that is no value at a `strict` parameter is warned on
+//! (`rule:ide/completion-files-offer-values-at-named-parameters`).
 //!
 //! Each test writes a workspace of its own under cargo's scratch folder in `target/` and deletes it
 //! when it ends, as `tests/completion_files.rs` does.
@@ -10,14 +11,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionItemTag, CompletionTextEdit, Documentation,
-    HoverContents, Position, Range,
+    CompletionItem, CompletionItemKind, CompletionItemTag, CompletionTextEdit, DiagnosticSeverity,
+    Documentation, HoverContents, NumberOrString, Position, Range,
 };
-use nvs_diagnostics::PositionEncoding;
+use nvs_diagnostics::{PositionEncoding, code};
 use nvs_lsp::completion_files::CompletionFiles;
 use nvs_lsp::{
-    Analysed, CheckScope, Client, Documents, PhpNames, SymbolIndex, analyse, completion, hover,
-    uri_of,
+    Analysed, CheckScope, Client, Documents, Phases, PhpNames, SymbolIndex, analyse, completion,
+    hover, uri_of,
 };
 
 /// A scratch workspace that deletes itself.
@@ -447,6 +448,110 @@ fn definition_on_a_literal_equal_to_a_value_goes_to_its_location() {
 fn a_value_without_a_location_has_no_definition() {
     let (_, declared) = defined("no-location", "Icon::render('st<|>ar', 16, 'solid');");
     assert_eq!(declared, None);
+}
+
+/// The ranges of the unknown-value warnings in the document `call` makes, with `file` as the one
+/// completion file of a workspace named `name`.
+fn warned(name: &str, file: &str, call: &str) -> Vec<Range> {
+    let workspace = Workspace::new(name);
+    workspace.write(".novis/completion/strict.json", file);
+    let files = workspace.load();
+    let (_, analysis, _) = opened(&workspace, &format!("{CURSOR}{call}"));
+    nvs_lsp::for_document(&analysis, &files, Phases::Gated, PositionEncoding::Utf8)
+        .into_iter()
+        .filter(|diagnostic| {
+            diagnostic.code
+                == Some(NumberOrString::String(
+                    code::W_COMPLETION_VALUE_UNKNOWN.as_str().to_owned(),
+                ))
+        })
+        .inspect(|diagnostic| {
+            assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::WARNING));
+        })
+        .map(|diagnostic| diagnostic.range)
+        .collect()
+}
+
+/// `home` and `star` for `$name`, checked.
+const STRICT: &str = r#"{
+  "parameters": [
+    { "method": "App\\Ui\\Icon::render", "parameter": "name", "values": ["home", "star"], "strict": true }
+  ]
+}"#;
+
+/// The range of the literal `literal`, written as the first argument of `Icon::render(…)`.
+fn first_argument(literal: &str) -> Range {
+    let open = render_open();
+    let line = between(open, 0).start.line;
+    Range::new(
+        Position::new(line, open),
+        Position::new(line, open + u32::try_from(literal.len()).expect("short")),
+    )
+}
+
+#[test]
+fn a_strict_parameter_warns_on_a_literal_that_is_not_one_of_its_values() {
+    for (call, want) in [
+        ("Icon::render('moon', 16);", vec![first_argument("'moon'")]),
+        (
+            "Icon::render(\"Home\", 16);",
+            vec![first_argument("\"Home\"")],
+        ),
+        ("Icon::render('home', 16);", Vec::new()),
+        ("Icon::render(\"star\", 16, 'line');", Vec::new()),
+        ("Label::text('moon');", Vec::new()),
+    ] {
+        assert_eq!(warned("strict", STRICT, call), want, "{call}");
+    }
+}
+
+#[test]
+fn a_strict_parameter_does_not_check_a_value_built_at_run_time() {
+    for call in [
+        "$name = 'moon';\nIcon::render($name, 16);",
+        "Icon::render('mo' . 'on', 16);",
+        "$name = 'moon';\nIcon::render(\"{$name}\", 16);",
+    ] {
+        assert_eq!(warned("run-time", STRICT, call), Vec::new(), "{call}");
+    }
+}
+
+/// `home` for `$name` at every call, and `moon` only where `$style` is `line`, checked.
+const STRICT_WHEN: &str = r#"{
+  "parameters": [
+    { "method": "App\\Ui\\Icon::render", "parameter": "name", "values": ["home"], "strict": true },
+    {
+      "method": "App\\Ui\\Icon::render",
+      "parameter": "name",
+      "values": ["moon"],
+      "when": { "parameter": "style", "equals": "line" }
+    }
+  ]
+}"#;
+
+#[test]
+fn a_strict_check_is_skipped_where_a_when_cannot_be_decided() {
+    for (call, want) in [
+        (
+            "$style = 'line';\nIcon::render('moon', 16, $style);",
+            Vec::new(),
+        ),
+        ("Icon::render('moon', 16);", Vec::new()),
+        ("Icon::render('moon', 16, 'line');", Vec::new()),
+        (
+            "Icon::render('moon', 16, 'solid');",
+            vec![first_argument("'moon'")],
+        ),
+    ] {
+        assert_eq!(warned("strict-when", STRICT_WHEN, call), want, "{call}");
+    }
+}
+
+#[test]
+fn a_parameter_without_strict_reports_nothing() {
+    for call in ["Icon::render('moon', 16);", "Icon::render('home', 16);"] {
+        assert_eq!(warned("not-strict", ICONS, call), Vec::new(), "{call}");
+    }
 }
 
 /// Values for `$name`, two of them only for some values of `$style`.

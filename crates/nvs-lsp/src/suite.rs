@@ -449,7 +449,12 @@ fn diagnostics(analysed: &Analysed, phase_all: bool) -> Response {
     } else {
         Phases::Gated
     };
-    Response::Diagnostics(for_document(analysed, phases, COLUMNS))
+    Response::Diagnostics(for_document(
+        analysed,
+        &crate::completion_files::CompletionFiles::default(),
+        phases,
+        COLUMNS,
+    ))
 }
 
 /// `textDocument/documentSymbol` — the entry document's outline.

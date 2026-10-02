@@ -5545,6 +5545,13 @@ pub mod code {
         "The workspace does not declare this class. If it comes from `vendor/`, this is \
          expected. Otherwise, check the class's whole name.",
     );
+    /// A string literal at a parameter a completion file marks `strict`, whose
+    /// text is none of the values that apply at the call. Reported by the
+    /// language server only, in the program's file, and never by `nvs check`.
+    pub const W_COMPLETION_VALUE_UNKNOWN: Code = Code::new("W1020").card(
+        "A completion file lists the values this parameter takes, and this string is not one of \
+         them. Choose a value from the list, or add this one to the completion file.",
+    );
 }
 }
 

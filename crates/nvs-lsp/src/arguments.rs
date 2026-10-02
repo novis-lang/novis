@@ -30,7 +30,9 @@
 //! class, the method and the parameter that a completion file's attachment is
 //! keyed by (`rule:ide/completion-files-offer-values-at-named-parameters`),
 //! and the text of every other argument that is one string literal, which a
-//! `when` compares.
+//! `when` compares. [`named_in_document`] names every such literal the
+//! document writes, which the diagnostics read a completion file's `strict`
+//! against.
 //!
 //! **Where a path literal leads is the checker's join.** A relative literal at
 //! a path parameter was resolved while checking, and
@@ -116,6 +118,23 @@ pub(crate) fn at(analysed: &Analysed, offset: BytePos) -> Option<Argument> {
 /// resolved, written for a parameter it named.
 pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<Named> {
     let (literal, holders) = holders_at(analysed, offset)?;
+    name(analysed, literal, &holders)
+}
+
+/// Every string literal argument the entry document writes, named by its
+/// parameter as [`named_at`] names one, in the order they were written.
+pub(crate) fn named_in_document(analysed: &Analysed) -> Vec<Named> {
+    let mut found = Vec::new();
+    walk_literals(analysed, &mut |literal, holders| {
+        found.extend(name(analysed, literal, holders));
+    });
+    found.sort_by_key(|named| named.span.start);
+    found
+}
+
+/// The string literal at `literal` named by its parameter, given the node that
+/// holds it and the one that holds that.
+fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named> {
     let raw = text_of(analysed.map.file(analysed.entry), literal);
     if !(raw.starts_with('\'') || raw.starts_with('"')) {
         return None;
@@ -182,28 +201,35 @@ fn holders_at(analysed: &Analysed, offset: BytePos) -> Option<(Span, Vec<Holder>
 /// Every marked argument literal the entry document writes, in the order they
 /// were written.
 pub(crate) fn in_document(analysed: &Analysed) -> Vec<Argument> {
+    let mut found = Vec::new();
+    walk_literals(analysed, &mut |literal, holders| {
+        found.extend(classify(analysed, literal, holders));
+    });
+    found.sort_by_key(|argument| argument.span.start);
+    found
+}
+
+/// Calls `each` with every string literal the entry document writes, and the
+/// node that holds it and the one that holds that.
+fn walk_literals(analysed: &Analysed, each: &mut dyn FnMut(Span, &[Holder])) {
     let Some(loaded) = analysed
         .loaded
         .iter()
         .find(|loaded| loaded.id == analysed.entry)
     else {
-        return Vec::new();
+        return;
     };
-    let mut found = Vec::new();
     for root in &walk::of_stmts(&loaded.stmts) {
-        visit(analysed, root, &mut Vec::new(), &mut found);
+        visit(root, &mut Vec::new(), each);
     }
-    found.sort_by_key(|argument| argument.span.start);
-    found
 }
 
-/// [`in_document`]'s walk: `node` and everything under it, with the nodes
+/// [`walk_literals`]' walk: `node` and everything under it, with the nodes
 /// that hold it in `above`, innermost last.
 fn visit<'n>(
-    analysed: &Analysed,
     node: &'n walk::Node,
     above: &mut Vec<&'n walk::Node>,
-    found: &mut Vec<Argument>,
+    each: &mut dyn FnMut(Span, &[Holder]),
 ) {
     if node.kind == "Str" {
         let holders: Vec<Holder> = above
@@ -217,12 +243,12 @@ fn visit<'n>(
                 child_kinds: holder.children.iter().map(|child| child.kind).collect(),
             })
             .collect();
-        found.extend(classify(analysed, node.span, &holders));
+        each(node.span, &holders);
         return;
     }
     above.push(node);
     for child in &node.children {
-        visit(analysed, child, above, found);
+        visit(child, above, each);
     }
     above.pop();
 }

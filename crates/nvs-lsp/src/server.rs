@@ -382,7 +382,15 @@ fn reanalyse(
             publish_completion_files(connection, completion_files, encoding)?;
         }
     }
-    publish(connection, documents, index, scope, encoding, changed)
+    publish(
+        connection,
+        documents,
+        index,
+        completion_files,
+        scope,
+        encoding,
+        changed,
+    )
 }
 
 /// The response to one request.
@@ -1793,6 +1801,7 @@ fn publish(
     connection: &Connection,
     documents: &mut Documents,
     index: &SymbolIndex,
+    completion_files: &CompletionFiles,
     scope: CheckScope,
     encoding: PositionEncoding,
     changed: &Changed,
@@ -1828,7 +1837,7 @@ fn publish(
         let mut diagnostics = if stub {
             Vec::new()
         } else {
-            for_document(&analysed, Phases::Gated, encoding)
+            for_document(&analysed, completion_files, Phases::Gated, encoding)
         };
         if let Some(path) = path_of(&uri).filter(|_| !stub) {
             diagnostics.extend(dimming(

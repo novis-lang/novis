@@ -139,6 +139,7 @@ fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
     assert!(
         !nvs_lsp::for_document(
             &analysed(mistyped),
+            &nvs_lsp::completion_files::CompletionFiles::default(),
             nvs_lsp::Phases::Gated,
             PositionEncoding::Utf8
         )
