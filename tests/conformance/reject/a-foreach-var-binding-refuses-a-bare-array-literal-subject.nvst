@@ -1,15 +1,15 @@
 --TEST--
-A `foreach` value binding written `var` refuses a bare array literal subject, as a `var` local refuses one — `rule:types/var-inference`
+A `foreach` value binding written `var` refuses a bare array literal subject whose elements have two types, as a `var` local refuses one — `rule:types/var-inference`
 --FILE--
 <?nvs
 // covers: lang:statements/foreach
-foreach ([1, 2, 3] as var $x) {
+foreach ([1, "two", 3] as var $x) {
     echo $x, "\n";
 }
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0414]: `var` cannot infer an array literal's element type
+error[E0414]: `var` cannot infer an array whose elements have different types
   --> case.nvs:3:10
 %A
 error: aborting due to 1 error

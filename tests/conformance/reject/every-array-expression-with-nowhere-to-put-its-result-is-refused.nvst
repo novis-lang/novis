@@ -9,8 +9,9 @@ An array expression with nowhere to put its result is refused where it is writte
 // meets first, and one that stopped firing would otherwise leave a program
 // running on a value nobody decided.
 //
-// `var` has no target type to check a literal against, so the element type
-// would have to be inferred and `rule:types/arrays` does not infer one.
+// `var` has no target type to check a literal against, and a literal whose
+// elements have two types gives it no one element type to take
+// (`rule:types/var-inference`).
 //
 // `$a + $b` is the PHP operation `Core\Arr::underlay` replaces, and the
 // temporary write is the one `rule:types/arrays` cannot express: the array
@@ -30,7 +31,7 @@ class Make {
 array<int> $a = [1, 2];
 array<int> $b = ["k" => 3];
 
-var $loose = [1, 2];
+var $loose = [1, "2"];
 echo Core\Arr::count($a + $b), "\n";
 Make::row()["k"] = 1;
 echo $a[], "\n";
@@ -39,7 +40,7 @@ list(int $x, int $y) = $a;
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0414]: `var` cannot infer an array literal's element type
+error[E0414]: `var` cannot infer an array whose elements have different types
 %A
 error[E0467]: `+` is not defined with an array operand
 %A

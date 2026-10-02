@@ -108,8 +108,8 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{
-    DestructureElement, DestructureTarget, Expr, ExprKind, ForeachBinding, ForeachBindingTy, Stmt,
-    StmtKind,
+    ArrayItem, DestructureElement, DestructureTarget, Expr, ExprKind, ForeachBinding,
+    ForeachBindingTy, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -1189,22 +1189,16 @@ pub(crate) fn check_stmt(
             value_inout,
             body,
         } => {
-            if matches!(value.ty, ForeachBindingTy::Var(_))
-                && matches!(subject.kind, ExprKind::ArrayLiteral(_))
-            {
-                env.diags.report(
-                    Diagnostic::error(
-                        code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE,
-                        "`var` cannot infer an array literal's element type",
-                    )
-                    .with_primary(subject.span, "no target type to check this literal against")
-                    .with_help(
-                        "put the array in a typed local first — `array<T> $items = [...];` — \
-                         and iterate that",
-                    ),
-                );
-            }
-            let subject_ty = check_expr(subject, None, live, scope, ctx, env);
+            // `rule:types/var-inference`: a bare literal under a `var` value
+            // binding is that binding's initializer, so it is typed as a `var`
+            // local's literal is. A `var` key alone takes `string` whatever
+            // the elements are, and leaves the subject as it was.
+            let subject_ty = match (&value.ty, &subject.kind) {
+                (ForeachBindingTy::Var(_), ExprKind::ArrayLiteral(items)) => {
+                    var_array_literal(items, subject, None, live, scope, ctx, env)
+                }
+                _ => check_expr(subject, None, live, scope, ctx, env),
+            };
             let source = crate::expr::foreach_source(subject_ty, subject.span, env);
             let mut body_live = live.clone();
             if let Some(k) = key {
@@ -1423,26 +1417,19 @@ pub(crate) fn check_stmt(
                 // `rule:types/var-inference`: `var` — the parser never produces this without
                 // an initializer. Its type is synthesized the same way an
                 // `echo` argument's is (`check_expr` with no `expected`),
-                // then fixed onto the binding exactly as if it had been
-                // written out by hand.
+                // except for a bare array literal, which has the one-type rule
+                // of its own ([`var_array_literal`]), and then fixed onto the
+                // binding exactly as if it had been written out by hand.
                 None => {
                     let value = value
                         .as_ref()
                         .expect("parser guarantees `var`'s initializer");
-                    if matches!(value.kind, ExprKind::ArrayLiteral(_)) {
-                        env.diags.report(
-                            Diagnostic::error(
-                                code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE,
-                                "`var` cannot infer an array literal's element type",
-                            )
-                            .with_primary(
-                                value.span,
-                                "no target type to check this literal against",
-                            )
-                            .with_help("write the type explicitly: `array<T> $name = [...];`"),
-                        );
-                    }
-                    let synthesized = check_expr(value, None, live, scope, ctx, env);
+                    let synthesized = match &value.kind {
+                        ExprKind::ArrayLiteral(items) => {
+                            var_array_literal(items, value, Some(&name_str), live, scope, ctx, env)
+                        }
+                        _ => check_expr(value, None, live, scope, ctx, env),
+                    };
                     let inferred_ty =
                         reject_void_or_never_binding(synthesized, value.span, true, env);
                     declare_binding(scope, &name_str, inferred_ty, *name, true, env);
@@ -1486,6 +1473,103 @@ pub(crate) fn check_stmt(
             // second diagnostic here would only say it worse.
         }
         _ => {}
+    }
+}
+
+/// The type `var` gives a bare array literal, `array<T>` when every element
+/// has the one type `T` (`rule:types/var-inference`), or `E0414` and
+/// `array<mixed>` for any other literal.
+///
+/// `name` is the local being declared, and `None` is a `foreach` subject,
+/// whose help line names a typed local to iterate instead. The help line is
+/// the declaration a person writes: the elements' union, an `array<T>` with
+/// `T` left open for an empty literal, and the literal itself where it is
+/// short enough to read on one line. An element that reported its own error
+/// gets no second diagnostic here.
+fn var_array_literal(
+    items: &[ArrayItem],
+    literal: &Expr,
+    name: Option<&str>,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let refusal =
+        match crate::expr::synthesize_array_literal(items, literal.span, live, scope, ctx, env) {
+            Ok(ty) => return ty,
+            Err(crate::expr::NoArrayType::Untyped) => None,
+            Err(crate::expr::NoArrayType::Differ { distinct, .. }) => Some((
+                "`var` cannot infer an array whose elements have different types",
+                literal.span,
+                format!("the elements are {}", listed_types(&distinct, env)),
+                written_element_type(&distinct, env),
+            )),
+            Err(crate::expr::NoArrayType::Empty { at }) => Some((
+                "`var` cannot infer the type of an empty array",
+                at,
+                "this array has no elements".to_owned(),
+                "T".to_owned(),
+            )),
+        };
+    if let Some((message, at, label, element)) = refusal {
+        let text = span_text(env.src, literal.span);
+        let shown = if text.len() <= 40 && !text.contains('\n') {
+            text
+        } else {
+            "[...]"
+        };
+        let open = if element == "T" {
+            ", with the element type in place of `T`"
+        } else {
+            ""
+        };
+        let help = match name {
+            Some(name) => format!("write the type: `array<{element}> ${name} = {shown};`{open}"),
+            None => format!(
+                "put the array in a typed local first, `array<{element}> $items = {shown};`{open}, \
+                 and loop over `$items`"
+            ),
+        };
+        env.diags.report(
+            Diagnostic::error(code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE, message)
+                .with_primary(at, label)
+                .with_help(help),
+        );
+    }
+    let mixed = env.interner.mixed();
+    env.interner.array(mixed)
+}
+
+/// The elements' types as a person writes them in a declaration, in the order
+/// the elements are written: `int|string`, and `?int` for an `int` and a
+/// `null`.
+fn written_element_type(distinct: &[TypeId], env: &Env<'_>) -> String {
+    if let [a, b] = distinct {
+        match (env.interner.get(*a), env.interner.get(*b)) {
+            (Ty::Null, _) => return format!("?{}", env.interner.describe(*b)),
+            (_, Ty::Null) => return format!("?{}", env.interner.describe(*a)),
+            _ => {}
+        }
+    }
+    let written: Vec<String> = distinct
+        .iter()
+        .map(|ty| env.interner.describe(*ty))
+        .collect();
+    written.join("|")
+}
+
+/// `` `int` and `string` ``, or `` `int`, `float` and `string` ``.
+fn listed_types(distinct: &[TypeId], env: &Env<'_>) -> String {
+    let mut quoted: Vec<String> = distinct
+        .iter()
+        .map(|ty| format!("`{}`", env.interner.describe(*ty)))
+        .collect();
+    let last = quoted.pop().unwrap_or_default();
+    if quoted.is_empty() {
+        last
+    } else {
+        format!("{} and {last}", quoted.join(", "))
     }
 }
 

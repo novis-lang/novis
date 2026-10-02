@@ -22,10 +22,9 @@ $count = "two";
 int $unset;
 echo $unset, "\n";
 
-// `rule:types/var-inference`: an array literal is checked against a target
-// rather than inferring one, so `var` has nothing to read its element type
-// from.
-var $xs = [1, 2, 3];
+// `rule:types/var-inference`: `var` takes an array literal's type only when
+// every element has one type, and these elements have two.
+var $xs = [1, "2", 3];
 
 // `rule:types/conversion`: PHP's one way of retyping a live binding is
 // refused, naming the conversion that makes a new one instead.
@@ -41,7 +40,7 @@ error[E0401]: expected `int`, found `string`
 %A
 error[E0301]: `$unset` is read before any assignment reaches it
 %A
-error[E0414]: `var` cannot infer an array literal's element type
+error[E0414]: `var` cannot infer an array whose elements have different types
 %A
 error[E0208]: `settype` is not supported
 %A

@@ -84,7 +84,10 @@ use self::{
 pub(crate) use self::{
     assign::{check_return, is_assignable, note_float_widening_at, report_mismatch},
     iteration::{check_foreach_inout, check_foreach_key, check_foreach_value, foreach_source},
-    literals::{check_array_key_type, check_object_literal, int_literal_digits},
+    literals::{
+        NoArrayType, check_array_key_type, check_object_literal, int_literal_digits,
+        synthesize_array_literal,
+    },
     members::{
         can_hold_an_object, check_unset_target, is_this_receiver, reject_finish_marker_arm,
         resolve_class_expr,

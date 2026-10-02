@@ -64,25 +64,137 @@ fn redeclaring_a_var_local_is_diagnosed_like_any_other() {
     );
 }
 
-/// `rule:types/var-inference`: a bare array literal has no target type to synthesize
-/// against, so `var` cannot infer one — this is the one initializer
-/// shape it refuses rather than silently falling back to `array<mixed>`.
-#[test]
-fn var_rejects_a_bare_array_literal_initializer() {
-    let diags = check_in_method("var $rows = [1, 2, 3];\n");
-    assert!(
-        diags
-            .iter()
-            .any(|d| d.code == Some(code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE)),
-        "{diags:?}"
-    );
-}
-
 /// The codes `check` reported for one method `m` whose parameters are
 /// `params` and whose body is `body`.
 fn codes_in(params: &str, body: &str) -> Vec<nvs_diagnostics::Code> {
     let src = format!("<?nvs\nclass T {{\n  function m({params}): void {{\n{body}  }}\n}}\n");
     check_src(&src).iter().filter_map(|d| d.code).collect()
+}
+
+/// `rule:types/var-inference`: a literal whose elements all have the type `T`
+/// is an `array<T>`, fixed like a written one — keys take no part, and an
+/// element of another type is the ordinary mismatch a written type gets.
+#[test]
+fn var_infers_an_array_literal_whose_elements_have_one_type() {
+    let reads = codes_in(
+        "",
+        "var $ids = [1, 2, 3];\narray<int> $same = $ids;\n\
+         var $byKey = ['a' => 'x', 'b' => 'y'];\narray<string> $names = $byKey;\n",
+    );
+    assert!(reads.is_empty(), "{reads:?}");
+    let narrower = codes_in("", "var $ids = [1, 2];\narray<string> $s = $ids;\n");
+    assert_eq!(narrower, [code::E_TYPE_MISMATCH]);
+    let written = codes_in("", "var $ids = [1, 2];\n$ids[] = 'three';\n");
+    assert!(!written.is_empty(), "{written:?}");
+    assert!(
+        !written.contains(&code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE),
+        "{written:?}"
+    );
+}
+
+#[test]
+fn var_infers_a_nested_literal_and_a_spread_from_their_elements() {
+    let codes = codes_in(
+        "array<int> $more",
+        "var $grid = [[1, 2], [3]];\narray<array<int>> $g = $grid;\n\
+         var $all = [...$more, ...[4, 5], 6];\narray<int> $a = $all;\n",
+    );
+    assert!(codes.is_empty(), "{codes:?}");
+}
+
+/// Two types are refused once, whatever they are, and nothing is widened to a
+/// common type: `int` beside `float` is two types too.
+#[test]
+fn var_refuses_an_array_literal_whose_elements_differ() {
+    for literal in [
+        "[1, 'a']",
+        "[1, null]",
+        "[1, 2.5]",
+        "[[1], ['a']]",
+        "[...[1], 'a']",
+    ] {
+        let codes = codes_in("", &format!("var $x = {literal};\n"));
+        assert_eq!(codes, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE], "{literal}");
+    }
+}
+
+/// A qualifier is part of the type, so `var` can neither drop nor invent one.
+#[test]
+fn var_refuses_elements_that_differ_only_in_a_qualifier() {
+    let mixed = codes_in("tainted string $t", "var $x = [$t, 'plain'];\n");
+    assert_eq!(mixed, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE]);
+    let kept = codes_in(
+        "tainted string $t, tainted string $u",
+        "var $x = [$t, $u];\narray<string> $plain = $x;\n",
+    );
+    assert_eq!(kept, [code::E_TYPE_MISMATCH]);
+}
+
+#[test]
+fn var_refuses_an_empty_array_literal_nested_included() {
+    for literal in ["[]", "[[1], []]", "[...[]]"] {
+        let codes = codes_in("", &format!("var $x = {literal};\n"));
+        assert_eq!(codes, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE], "{literal}");
+    }
+}
+
+#[test]
+fn var_refuses_a_parent_and_a_child_class() {
+    let diags = check_src(
+        "<?nvs\nclass User {}\nclass Admin extends User {}\nclass T {\n  \
+         function m(): void {\n    var $people = [new User(), new Admin()];\n  }\n}\n",
+    );
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE]);
+}
+
+/// An element that reported its own error is that one diagnostic, never a
+/// second about the literal.
+#[test]
+fn var_over_a_literal_with_a_broken_element_reports_the_element_alone() {
+    let codes = codes_in("", "var $x = [1, $missing];\n");
+    assert_eq!(codes, [code::E_UNDEFINED_VARIABLE]);
+}
+
+#[test]
+fn foreach_var_over_a_one_type_array_literal_takes_its_element_type() {
+    let reads = codes_in("", "foreach ([1, 2] as var $n) { int $m = $n; }\n");
+    assert!(reads.is_empty(), "{reads:?}");
+    let retyped = codes_in("", "foreach ([1, 2] as var $n) { string $s = $n; }\n");
+    assert_eq!(retyped, [code::E_TYPE_MISMATCH]);
+}
+
+/// `rule:ide/no-compile-path-calls-the-synthesis`: the synthesis has one
+/// caller, `var_array_literal`, and that has two — `var`'s arm and the
+/// `foreach` subject. A third caller anywhere in the crate fails here.
+#[test]
+fn only_var_and_the_foreach_subject_call_the_synthesis() {
+    let src = nvs_repo::path("crates/nvs-types/src");
+    let mut synthesis = Vec::new();
+    let mut wrapper = Vec::new();
+    let mut dirs = vec![src];
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                dirs.push(path);
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            for _ in text.matches("synthesize_array_literal(") {
+                synthesis.push(name.clone());
+            }
+            for _ in text.matches("var_array_literal(") {
+                wrapper.push(name.clone());
+            }
+        }
+    }
+    synthesis.sort();
+    // The definition, and the one call inside `var_array_literal`.
+    assert_eq!(synthesis, ["literals.rs", "locals.rs"]);
+    // The definition, and the `var` arm and the `foreach` subject.
+    assert_eq!(wrapper, ["locals.rs", "locals.rs", "locals.rs"]);
 }
 
 /// `rule:types/var-inference`: a `var` value binding takes the subject's
@@ -134,11 +246,11 @@ fn foreach_var_over_a_mixed_subject_is_mixed() {
     assert_eq!(narrows, [code::E_TYPE_MISMATCH]);
 }
 
-/// The local's refusal, at the subject. A call around the literal gives it a
-/// target, as it does for `var $x = f([1, 2]);`.
+/// The local's refusal, at the subject, for a literal of two types. A call
+/// around the literal gives it a target, as it does for `var $x = f([1, 2]);`.
 #[test]
 fn foreach_var_over_a_bare_array_literal_is_refused() {
-    let bare = codes_in("", "foreach ([1, 2] as var $x) { }\n");
+    let bare = codes_in("", "foreach ([1, 'two'] as var $x) { }\n");
     assert_eq!(bare, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE]);
     let called = check_src(
         "<?nvs\nclass T {\n  static function same(array<int> $a): array<int> { return $a; }\n  \

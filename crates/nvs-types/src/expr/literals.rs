@@ -25,7 +25,10 @@
 //! [`check_array_literal`] is `rule:types/arrays`'s half of the same idea for the one
 //! composite literal: an array literal checked against an `array<T>` target
 //! checks every element directly against `T`, never inferring an element type
-//! and comparing it afterwards.
+//! and comparing it afterwards. [`synthesize_array_literal`] is the one
+//! exception, and only under `var`: with no target to check against, it types
+//! a literal from its elements, `array<T>` when they all have the one type `T`
+//! and a reason otherwise (`rule:ide/no-compile-path-calls-the-synthesis`).
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
@@ -1117,6 +1120,162 @@ fn sole_array_member(expected: TypeId, env: &Env<'_>) -> TypeId {
     }
 }
 
+/// Why [`synthesize_array_literal`] gives a literal no type.
+pub(crate) enum NoArrayType {
+    /// The elements have two or more types. `union` is their canonical union,
+    /// which no binding is ever given, and `distinct` the same types in the
+    /// order the elements are written, which is how a help line prints them.
+    Differ {
+        union: TypeId,
+        distinct: Vec<TypeId>,
+    },
+    /// The literal, or a literal nested in it, has no elements. `at` is the
+    /// empty one.
+    Empty { at: Span },
+    /// An element reported its own error, so its type is a stand-in and a
+    /// refusal would be a second diagnostic for one mistake.
+    Untyped,
+}
+
+/// `rule:types/var-inference`'s one-type rule: the type a literal with no
+/// target has, `array<T>` when every element has the same interned type `T`.
+///
+/// An element's type is what [`check_expr`] gives it with no expectation,
+/// which is what `var` gives that element alone, so nothing is widened to a
+/// common type: `[1, 2.5]` and a parent beside its child are two types, and so
+/// is a `tainted` string beside a plain one. A nested literal is typed by the
+/// same rule first, a spread gives its source's element type, and a key is
+/// checked as [`check_array_literal`] checks it and takes no part in `T`.
+///
+/// On success every element is recorded at `T`, as [`check_array_literal`]
+/// records it under a written `array<T>` target, so `nvs_ir::lower` lowers the
+/// two spellings the same. Every element is checked exactly once, whatever the
+/// answer, so an element's own error is reported as it would be anywhere else
+/// and nothing an element registers is registered twice.
+///
+/// Only `crate::locals`'s `var` arm and its `foreach` subject call this, and
+/// a guard test in `tests/locals.rs` counts the callers.
+pub(crate) fn synthesize_array_literal(
+    items: &[ArrayItem],
+    span: Span,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Result<TypeId, NoArrayType> {
+    synthesize_items(items, span, live, scope, ctx, env)
+}
+
+/// [`synthesize_array_literal`]'s body. A nested literal and a spread of one
+/// recurse into this rather than into the public function, so that the public
+/// one's callers are only the two the guard test counts.
+fn synthesize_items(
+    items: &[ArrayItem],
+    span: Span,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Result<TypeId, NoArrayType> {
+    let mut types: Vec<TypeId> = Vec::new();
+    let mut empty = items.is_empty().then_some(span);
+    let mut untyped = false;
+    // A nested literal of two types makes this one two types as well, even
+    // when it is the only element; its union is its part of the help line.
+    let mut differs = false;
+    for item in items {
+        if item.by_ref {
+            report_by_reference_element(item, env);
+            untyped = true;
+        }
+        if let Some(key) = &item.key {
+            let key_ty = check_expr(key, None, live, scope, ctx, env);
+            check_array_key_type(key_ty, key.span, env);
+        }
+        let answer = if item.spread {
+            spread_element_ty(item, live, scope, ctx, env)
+        } else {
+            element_ty(&item.value, live, scope, ctx, env)
+        };
+        match answer {
+            Ok(ty) => types.push(ty),
+            Err(NoArrayType::Differ { union, .. }) => {
+                differs = true;
+                types.push(if item.spread {
+                    union
+                } else {
+                    env.interner.array(union)
+                });
+            }
+            Err(NoArrayType::Empty { at }) => empty = empty.or(Some(at)),
+            Err(NoArrayType::Untyped) => untyped = true,
+        }
+    }
+    if untyped {
+        return Err(NoArrayType::Untyped);
+    }
+    if let Some(at) = empty {
+        return Err(NoArrayType::Empty { at });
+    }
+    let first = types[0];
+    if differs || types.iter().any(|ty| *ty != first) {
+        let mut distinct: Vec<TypeId> = Vec::new();
+        for ty in &types {
+            if !distinct.contains(ty) {
+                distinct.push(*ty);
+            }
+        }
+        let union = env.interner.make_union(types);
+        return Err(NoArrayType::Differ { union, distinct });
+    }
+    if !matches!(env.interner.get(first), Ty::Decimal) {
+        for item in items.iter().filter(|item| !item.spread) {
+            env.exprs.record_type(item.value.span, first);
+        }
+    }
+    Ok(env.interner.array(first))
+}
+
+/// One plain element's type for [`synthesize_items`]: a nested literal's by
+/// the same rule, anything else what [`check_expr`] gives it alone.
+fn element_ty(
+    value: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Result<TypeId, NoArrayType> {
+    if let ExprKind::ArrayLiteral(items) = &value.kind {
+        return synthesize_items(items, value.span, live, scope, ctx, env);
+    }
+    let errors_before = env.diags.error_count();
+    let refused_before = env.refused_exprs;
+    let ty = check_expr(value, None, live, scope, ctx, env);
+    if env.diags.error_count() != errors_before || env.refused_exprs != refused_before {
+        return Err(NoArrayType::Untyped);
+    }
+    Ok(ty)
+}
+
+/// A `...` element's part of `T` for [`synthesize_items`]: its source's
+/// element type. A source that is not an array is the spread's own `E0484`.
+fn spread_element_ty(
+    item: &ArrayItem,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Result<TypeId, NoArrayType> {
+    let subject = element_ty(&item.value, live, scope, ctx, env)?;
+    match env.interner.get(subject) {
+        Ty::Array(elem) => Ok(*elem),
+        _ => {
+            report_spread_not_an_array(item, subject, env);
+            Err(NoArrayType::Untyped)
+        }
+    }
+}
+
 /// `[...$a]` — the subject's own elements have to satisfy the literal's.
 ///
 /// A spread contributes the subject's *entries*, so what it owes is exactly
@@ -1161,6 +1320,11 @@ fn check_spread_element(
     if reported || matches!(env.interner.get(subject_ty), Ty::Array(_)) {
         return;
     }
+    report_spread_not_an_array(item, subject_ty, env);
+}
+
+/// `E0484`, for [`check_spread_element`] and [`spread_element_ty`] alike.
+fn report_spread_not_an_array(item: &ArrayItem, subject_ty: TypeId, env: &mut Env<'_>) {
     let rendered = env.interner.describe(subject_ty);
     env.diags.report(
         Diagnostic::error(
