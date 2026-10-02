@@ -1,14 +1,14 @@
 --TEST--
-`Core\Program::implementing` refuses a type argument that is not an interface, a shape among them, and an interface one of whose classes has a constructor the enumeration could not call, each at the call that would have written the `new` (`rule:programs/implementing`)
+`Core\Program::implementing` takes an interface or a class and refuses every other type argument, an enum and a shape among them, and refuses a listed class whose constructor the enumeration could not call, under an interface and under a class alike, each at the call that would have written the `new` (`rule:programs/implementing`)
 --FILE--
 <?nvs
 // covers: lang:attributes/core-program-implementing-i-every-class-implementing-an-interface
-// `rule:programs/implementing`: the type argument is what gives the enumerated instances a
-// static type and the enumeration writes `new C()` for each of them, so an
-// argument that is not an interface and a class the enumeration could not
-// construct are both refused where the call is written. The accepted call is
-// first, so an enumeration that stopped answering a well-formed one fails here
-// rather than as a missing refusal.
+// `rule:programs/implementing`: the type argument is what gives the enumerated
+// instances a static type, and the enumeration writes `new C()` for each of
+// them. So a type argument that is neither an interface nor a class, and a
+// class the enumeration could not construct, are both refused where the call
+// is written. The accepted calls are first, so an enumeration that stopped
+// answering a well-formed one fails here rather than as a missing refusal.
 interface Check {
     public function name(): string;
 }
@@ -20,6 +20,8 @@ class Fine implements Check {
 class Plain {
     public function name(): string { return "plain"; }
 }
+
+enum Level { Low = 1, High = 2 }
 
 interface Needful {
     public function label(): string;
@@ -33,29 +35,43 @@ class Needy implements Needful {
     public function label(): string { return $this->label; }
 }
 
+class Sender {}
+
+class NeedySender extends Sender {
+    public int $port;
+    public function constructor(int $port) { $this->port = $port; }
+}
+
 echo Core\Arr::count(Core\Program::implementing<Check>()), "\n";
 
-// A class describes an implementation rather than an interface to enumerate.
+// A concrete class is accepted, and is in its own list.
 echo Core\Arr::count(Core\Program::implementing<Plain>()), "\n";
+
+// An enum is neither an interface nor a class.
+echo Core\Arr::count(Core\Program::implementing<Level>()), "\n";
 
 // A shape describes data rather than methods, so nothing could be called on
 // the array it would answer.
 echo Core\Arr::count(Core\Program::implementing<{name: string}>()), "\n";
 
 // Every class the enumeration instantiates needs a constructor callable with
-// no arguments.
+// no arguments, whether it is listed through an interface or through a class.
 echo Core\Arr::count(Core\Program::implementing<Needful>()), "\n";
+echo Core\Arr::count(Core\Program::implementing<Sender>()), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0743]: `Core\Program::implementing` enumerates an interface, and `Plain` is not one
-   --> case.nvs:36:22
+error[E0743]: `Core\Program::implementing` enumerates an interface or a class, and `Level` is neither
+   --> case.nvs:48:22
 %A
-error[E0743]: `Core\Program::implementing` enumerates an interface, and `{name: string}` is not one
-   --> case.nvs:40:22
+error[E0743]: `Core\Program::implementing` enumerates an interface or a class, and `{name: string}` is neither
+   --> case.nvs:52:22
 %A
-error[E0744]: `Needy` implements `Needful` and its constructor takes 1 required argument(s)
-   --> case.nvs:44:22
+error[E0744]: `Needy` is a `Needful` and its constructor takes 1 required argument(s)
+   --> case.nvs:56:22
 %A
-error: aborting due to 3 errors
+error[E0744]: `NeedySender` is a `Sender` and its constructor takes 1 required argument(s)
+   --> case.nvs:57:22
+%A
+error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
