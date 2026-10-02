@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 3 (every old goal is read), batch 1 of about twelve is done.** `docs/agent/goal-decisions.md` exists with its opening paragraph, a `## Decisions` list and a closing `## Goals with nothing to keep` list. It names the first fifteen goals on the chain, `core-depth` to `surface`. Stage 3's check stays red until every goal in front of `goal-closeout` is named in it.\n\nBatch 1 kept one decision (`core-depth`'s `Core\\Digest` roster) and opened seven gaps owned by `goal-closeout`. `bun nv owners --closes goal-closeout` now lists 47 gaps for Stage 4.\n\nThe early goals' records have empty `stages` and `checks` and no handoff record, so for them questions 1 and 3 read the prose alone. Later goals, such as `tooling-overhaul`, carry checks.\n\nA batch of fifteen goals goes to **two** read-only `Explore` subagents of seven and eight goals, sent in one message. Each one used 135k to 170k of its own context, under the 250k bound. The session verified every finding itself before writing a gap. Two findings were dropped. `Core\\Hash::ofFile` is superseded by the migration spec's R17 row. `Hash\\Stream` accumulating chunks is a bound its module doc states.\n\nThe warm-start gate now has a gap: `crates/nvs-cli/src/cache.rs`'s `the-warm-start-margin-runs-in-no-ci-step`.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 3 (every old goal is read), batches 1 and 2 of about twelve are done.** `docs/agent/goal-decisions.md` names the first thirty goals on the chain, `core-depth` to `gap-owners`, in its `## Decisions` list or its closing `## Goals with nothing to keep` list. Stage 3's check stays red until every goal in front of `goal-closeout` is named there.\n\nBatch 2 kept one decision (`input-shapes`: no `Core` member names a qualifier) and opened six gaps owned by `goal-closeout`. `bun nv owners --closes goal-closeout` now lists 53 gaps for Stage 4.\n\nBatch 2 also fixed four documents that were behind tested code, as the standing decision says: `rule:tooling/meta-json` now names five rosters, `rule:routing/a-query-parameter-is-declared-like-a-capture` admits a `Parses` class, `rule:expressions/try-parse` names the `Parses` contract, and `rule:classes/comparable` names `Parses` beside `Stringable`. A small doc fix like these is done in the batch, not opened as a gap.\n\nThe goals from `lsp-server` on still have empty `stages` and `checks` and no handoff record, so questions 1 and 3 read the prose alone. Expect checks from about `tooling-overhaul` on.\n\nA batch of fifteen goals goes to **two** read-only `Explore` subagents of seven and eight goals, sent in one message. Each used 100k to 150k of its own context. The session verifies every finding before it writes a gap. Batch 2 dropped three findings: `Core\\Test::request`'s four-key bag is what `rule:testing/in-process-request` now states, the trusted-proxy `Forwarded` walk has Rust tests in `crates/nvs-server/src/forwarded.rs`, and `Parses`'s unreachable default `tryParse` is a bound `crates/nvs-hir/src/interfaces.rs:67` states. `agent-surface`'s promise that `AGENTS.md` installs the `nvs agent` stanza was dropped too: `AGENTS.md` is the user's file and is kept minimal on purpose.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 3,
     "title": "every old goal is read",
     "files": [
       "docs/agent/goal-decisions.md",
-      "data/gaps/"
+      "data/gaps/",
+      "docs/rules/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Batch 2, the next fifteen goals** — `data/chain.json:19` to `data/chain.json:33`, `lsp-server` to `gap-owners`. Send two read-only `Explore` subagents in one message, seven and eight goals, with the three questions at `docs/agent/goals/goal-closeout.md:80`. Tell each to check `data/gaps/` and module `# Known gaps` before reporting, and to skip process-only decisions. Verify every finding yourself, then write the gaps under `data/gaps/<crate>/` owned by `goal-closeout` and add each slug to `docs/agent/goal-decisions.md:12` (`## Decisions`) or its closing list."
+        "text": "**Batch 3, the next fifteen goals** — `data/chain.json:34` to `data/chain.json:48`, `unowned-sweep` to `fmt`. Send two read-only `Explore` subagents in one message, seven and eight goals, with the three questions at `docs/agent/goals/goal-closeout.md:80`. Tell each to check `data/gaps/`, module `# Known gaps` and `docs/rules/` before reporting, and to skip process-only decisions. Verify every finding yourself. Write the gaps under `data/gaps/<crate>/` owned by `goal-closeout`, fix a rule fragment that is behind tested code and run `bun nv rules --render`, and add each slug to `docs/agent/goal-decisions.md:12` (`## Decisions`) or its closing list."
       },
       {
         "done": false,
-        "text": "**Batch 3, the next fifteen goals** — `data/chain.json:34` to `data/chain.json:48`, starting at `unowned-sweep`, with the same three questions at `docs/agent/goals/goal-closeout.md:80` and the same method."
+        "text": "**Batch 4, the next fifteen goals** — `data/chain.json:49` to `data/chain.json:63`, `template-format` to `unowned-closures`, the same way, with the questions at `docs/agent/goals/goal-closeout.md:80`."
       }
     ]
   },
   "backlog": [
-    "Batches 4 onward, `data/chain.json:49` to the goal in front of `goal-closeout`: same method, about fifteen goals per session (`docs/agent/goals/goal-closeout.md:76`).",
-    "Stage 4 builds the 47 gaps `bun nv owners --closes goal-closeout` lists, including the warm-start CI step before Stage 6 deletes the floor (`data/gaps/nvs-cli/the-warm-start-margin-runs-in-no-ci-step.json`).",
-    "Stage 6: the first audit found eight code and test comments that cite batch 1 goals by slug. Find them again with a grep for each slug outside `docs/agent/goals/` and `data/goals/` when citations are removed (`docs/agent/goals/goal-closeout.md:132`)."
+    "Stage 4 builds the 53 gaps `bun nv owners --closes goal-closeout` lists, one crate per group (`docs/agent/goals/goal-closeout.md:96`).",
+    "`bun nv import` reads a deleted rule index; Stage 6 owns the `ci-green` floor check (`docs/agent/goals/goal-closeout.md`)."
   ]
 }
