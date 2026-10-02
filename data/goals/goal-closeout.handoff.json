@@ -1,37 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The last `nvs-ir` gap closed by keeping `rule:statements/require-is-the-only-inclusion-construct` as written: a `require` with no compiled file (a computed path, or a literal in a source with no folder) evaluates its path and throws a `RuntimeError` at the site (`lower_unloaded_require` in `crates/nvs-ir/src/lower/exception.rs`), pinned by `tests/conformance/lang/a-require-with-a-computed-path-throws.nvst`. The other three `nvs-ir` gaps are owned by milestones M10 and M12, so they stay with their owners.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names 73 gaps across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The other three `nvs-ir` gaps are owned by milestones M10 and M12, so they stay with their owners.\n\nIn `nvs-syntax`, `E0106` and `E0107` are now raised. `Parser::check_modifiers` in `crates/nvs-syntax/src/parser/decl.rs` judges each modifier list against its `ModifierSite`, pinned by `tests/conformance/reject/a-repeated-or-misplaced-modifier-does-not-compile.nvst`. `Parser::parse_param_list` in `crates/nvs-syntax/src/parser/expr.rs` reports a duplicate parameter name, pinned by `tests/conformance/reject/two-parameters-with-one-name-do-not-compile.nvst`. Three `nvs-syntax` gaps are left: the two below, and `the-pipeline-bench-has-no-nested-twin`.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps, across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
-    "files": [
-      "crates/nvs-syntax/src/parser/decl.rs",
-      "crates/nvs-syntax/src/parser/expr.rs",
-      "crates/nvs-syntax/src/parser/mod.rs",
-      "crates/nvs-syntax/src/lexer.rs"
-    ],
-    "note": "Each is a diagnostic code the code table declares and the parser never raises. Raise it, pin it with a `tests/conformance/reject/` case, and delete the gap record under `data/gaps/nvs-syntax/`.",
+    "files": [],
+    "note": "one file set: `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/parser/mod.rs`, and the fixtures the namespace check breaks. Each is a diagnostic code the code table declares and nobody raises. Raise it, pin it with a `tests/conformance/reject/` case, and delete the gap record under `data/gaps/nvs-syntax/`.",
     "items": [
       {
         "done": false,
-        "text": "**A repeated or misplaced modifier compiles, and `E0106` is never raised** — gap `a-repeated-or-misplaced-modifier-compiles`. The modifier loop is at `crates/nvs-syntax/src/parser/decl.rs:188`."
+        "text": "**A malformed number literal is reported as another error, and `E0003` is never raised** — gap `a-malformed-number-literal-is-reported-as-something-else`. The number scan is `lex_number` at `crates/nvs-syntax/src/lexer.rs:757`; the record names the three shapes (`0x`, `0b102`, `1e`)."
       },
       {
         "done": false,
-        "text": "**Two parameters with one name compile, and `E0107` is never raised** — gap `two-parameters-with-one-name-compile`. The list parse is at `crates/nvs-syntax/src/parser/expr.rs:1967`."
-      },
-      {
-        "done": false,
-        "text": "**A second `namespace X;` in one file compiles, and `E0243` is never raised** — gap `a-second-namespace-statement-in-one-file-compiles`. The declaration parse is at `crates/nvs-syntax/src/parser/decl.rs:311`."
-      },
-      {
-        "done": false,
-        "text": "**A malformed number literal is reported as another error, and `E0003` is never raised** — gap `a-malformed-number-literal-is-reported-as-something-else`. The number lexer is at `crates/nvs-syntax/src/lexer.rs:757`."
+        "text": "**A second `namespace X;` in one file compiles, and `E0243` is never raised** — gap `a-second-namespace-statement-in-one-file-compiles`. The check goes over the file's top-level statements in `Parser::parse_all` at `crates/nvs-syntax/src/parser/mod.rs:482`. The record names the `nvs-hir` and `nvs-ir` unit tests and the conformance case whose fixtures declare several namespaces, which move in the same change."
       }
     ]
   },
   "backlog": [
-    "`crates/nvs-syntax/src/parser/expr.rs`'s other gap, `the-pipeline-bench-has-no-nested-twin`, is a bench and not a diagnostic; take it after the group above.",
-    "Whether `nvs build --compile` refuses a computed `require` path, as `rule:packaging/a-bundled-require-resolves-at-build-time` says it must, is not checked.",
-    "The remaining gap directories, smallest first, from `bun nv owners --closes goal-closeout`."
+    "`the-pipeline-bench-has-no-nested-twin` under `data/gaps/nvs-syntax/` — the last `nvs-syntax` gap after the group above.",
+    "The other gap directories `bun nv owners --closes goal-closeout` names, smallest first."
   ]
 }

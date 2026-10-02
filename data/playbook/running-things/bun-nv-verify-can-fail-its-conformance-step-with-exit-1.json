@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv verify` can fail its `conformance` step with `exit 1` while every case reads passed.",
+  "body": "Under a big parallel batch some cases write no coverage record, and `recordCases` in `tools/nv/select/record.ts` marks a case with no record red. Run `bun nv verify` again: it selects only those red cases, and a small batch writes every record.",
+  "files": [
+    "tools/nv/select/record.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/select/record.ts:!got"
+  }
+}
