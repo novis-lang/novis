@@ -436,13 +436,13 @@ mod tests {
         assert_eq!(labels, [Some("Alpha::constructor".to_owned()), None]);
     }
 
-    /// `rule:programs/implementing`'s class selector: an abstract base lists
-    /// its concrete descendants, a concrete class in the middle is in its own
-    /// list, and a class two levels down is reached through both. The answer
-    /// is asserted whole, so a walk that missed the reflexive case or the
-    /// second level fails here.
+    /// `rule:programs/implementing`'s class selector over an abstract base: it
+    /// lists its concrete descendants, a concrete class in the middle is
+    /// listed, and a class two levels down under an abstract one is reached.
+    /// The answer is asserted whole, so a walk that listed the abstract
+    /// classes or stopped at the first level fails here.
     #[test]
-    fn program_implementing_takes_a_class_and_lists_every_concrete_subclass() {
+    fn program_implementing_takes_an_abstract_class_and_lists_its_concrete_subclasses() {
         let (exprs, span, diags) = check(
             "<?nvs\n\
              abstract class Exporter {}\n\
@@ -459,7 +459,12 @@ mod tests {
         };
         let names: Vec<String> = classes.iter().map(ToString::to_string).collect();
         assert_eq!(names, ["Csv", "Tsv", "Wide"]);
+    }
 
+    /// `rule:programs/implementing`: a concrete `T` is in its own list, ahead
+    /// of its subclasses only because its name sorts first.
+    #[test]
+    fn program_implementing_takes_a_concrete_class_and_lists_it_with_its_subclasses() {
         let (exprs, span, diags) = check(
             "<?nvs\n\
              class Csv {}\n\
@@ -475,24 +480,28 @@ mod tests {
     }
 
     /// The selector's one refusal, reported where the type argument is
-    /// written: an enum is a named type that is neither an interface nor a
-    /// class, so it is the case a check for "any named type" would let through.
+    /// written, for each kind of type that is neither an interface nor a
+    /// class: an enum is the named type a check for "any named type" would
+    /// let through, a shape is a type with fields, and `int` names no
+    /// declaration at all.
     #[test]
-    fn program_implementing_refuses_a_type_argument_that_is_neither_an_interface_nor_a_class() {
-        let (exprs, span, diags) = check(
-            "<?nvs\n\
-             enum Suit { Hearts = 1 }\n\
-             Core\\Program::implementing<Suit>();\n",
-        );
-        assert!(
-            diags.iter().any(|d| d.code
-                == Some(nvs_diagnostics::code::E_PROGRAM_TYPE_ARG_NOT_A_CLASS_OR_INTERFACE)),
-            "expected E0743, got: {diags:?}"
-        );
-        assert!(
-            !matches!(exprs.lookup(span), Some(ExprInfo::ProgramInstances { .. })),
-            "a refused enumeration must record nothing for `nvs-ir` to lower"
-        );
+    fn program_implementing_refuses_an_enum_a_shape_and_a_scalar() {
+        for selector in ["Suit", "{name: string}", "int"] {
+            let (exprs, span, diags) = check(&format!(
+                "<?nvs\n\
+                 enum Suit {{ Hearts = 1 }}\n\
+                 Core\\Program::implementing<{selector}>();\n",
+            ));
+            assert!(
+                diags.iter().any(|d| d.code
+                    == Some(nvs_diagnostics::code::E_PROGRAM_TYPE_ARG_NOT_A_CLASS_OR_INTERFACE)),
+                "expected E0743 for `{selector}`, got: {diags:?}"
+            );
+            assert!(
+                !matches!(exprs.lookup(span), Some(ExprInfo::ProgramInstances { .. })),
+                "a refused enumeration of `{selector}` must record nothing for `nvs-ir` to lower"
+            );
+        }
     }
 
     /// § 3's second refusal, and the bound it rests on asserted from both
@@ -622,5 +631,42 @@ mod tests {
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].0, "order");
         assert!(matches!(fields[0].1, crate::defaults::ConstArg::Int(2)));
+    }
+
+    /// `rule:programs/implementing-with`: `I` selects exactly as
+    /// `implementing<I>` does, so a class selects its concrete classes, itself
+    /// included, and the abstract one in between is not a row.
+    #[test]
+    fn program_implementing_with_takes_a_class() {
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             class Page {}\n\
+             abstract class Section extends Page {}\n\
+             #[{order: 1}]\n\
+             class About extends Section {}\n\
+             Core\\Program::implementingWith<Page, {order: int}>();\n",
+        );
+        assert!(!diags.has_errors(), "the join was refused: {diags:?}");
+        let Some(ExprInfo::ProgramInstancesWith {
+            classes, payloads, ..
+        }) = exprs.lookup(span)
+        else {
+            panic!("the call recorded no join: {:?}", exprs.lookup(span));
+        };
+        assert_eq!(
+            classes.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ["About", "Page"]
+        );
+        let [about, page] = payloads.as_slice() else {
+            panic!("one payload per class: {payloads:?}");
+        };
+        assert!(
+            matches!(about, crate::defaults::ConstArg::Shape(_)),
+            "`About`'s own attribute is its row's: {about:?}"
+        );
+        assert!(
+            matches!(page, crate::defaults::ConstArg::Null),
+            "`Page` carries no attribute: {page:?}"
+        );
     }
 }

@@ -462,7 +462,7 @@
       ],
       "tests": [
         "program_implementing_expands_to_new_expressions",
-        "program_implementing_refuses_a_non_interface_type_argument",
+        "program_implementing_refuses_an_enum_a_shape_and_a_scalar",
         "an_implementor_without_a_no_argument_constructor_is_named"
       ]
     },

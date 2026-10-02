@@ -1163,9 +1163,7 @@ mod tests {
 
     /// [`implements_interface`] is reflexive, so the interface would list
     /// itself if `concrete` were not asked — and a program cannot `new` an
-    /// interface. Its sibling assertion is that the answer for a class
-    /// target is still the classes below it, since § 3 restricts the *type
-    /// parameter* to an interface rather than restricting this walk.
+    /// interface.
     #[test]
     fn an_interface_is_never_its_own_implementor() {
         let (graph, diags) = resolve(concat!(
@@ -1177,6 +1175,46 @@ mod tests {
         assert_eq!(
             implementors(&QName::parse("Module"), &graph),
             vec![QName::parse("Only")],
+        );
+    }
+
+    /// `rule:programs/implementing` over an abstract class: the class itself
+    /// and the abstract class below it are dropped, and the concrete class
+    /// reached only through that abstract one is listed. The answer is
+    /// asserted whole, so a walk that stopped at the abstract intermediate
+    /// fails here.
+    #[test]
+    fn implementors_of_an_abstract_class_are_its_concrete_subclasses() {
+        let (graph, diags) = resolve(concat!(
+            "<?nvs\n",
+            "abstract class Exporter {}\n",
+            "class Csv extends Exporter {}\n",
+            "abstract class Partial extends Exporter {}\n",
+            "class Wide extends Partial {}\n",
+            "class Loose {}\n",
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(
+            implementors(&QName::parse("Exporter"), &graph),
+            vec![QName::parse("Csv"), QName::parse("Wide")],
+        );
+    }
+
+    /// `rule:programs/implementing`: a concrete `T` is in its own list,
+    /// beside its subclasses, and a class with no subclasses lists itself
+    /// alone.
+    #[test]
+    fn implementors_of_a_concrete_class_include_the_class_itself() {
+        let (graph, diags) = resolve(concat!(
+            "<?nvs\n",
+            "class Sender {}\n",
+            "class Mail extends Sender {}\n",
+            "class Only {}\n",
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(
+            implementors(&QName::parse("Sender"), &graph),
+            vec![QName::parse("Mail"), QName::parse("Sender")],
         );
         assert_eq!(
             implementors(&QName::parse("Only"), &graph),
