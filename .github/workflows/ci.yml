@@ -480,7 +480,10 @@ jobs:
   # and only at distribution, unlike an unallowed licence, which fails loudly
   # the moment it enters the tree. Also fails on a licence the generator has no
   # policy for, so a new one is a decision someone makes rather than a line
-  # that appears in a generated file. See ADR 0065.
+  # that appears in a generated file. See ADR 0065. The same graph also holds
+  # the default binary's C dependencies against their ledger, so one added
+  # without answering `rule:packaging/a-c-dependency-answers-two-questions`
+  # fails here.
   # ---------------------------------------------------------------------------
   attribution:
     name: third-party attribution
@@ -504,6 +507,8 @@ jobs:
         run: cargo fetch --locked
       - name: THIRD-PARTY-LICENSES.txt matches Cargo.lock
         run: bun nv gen-attribution --check
+      - name: Every C dependency of the default binary is recorded
+        run: bun nv gen-attribution --check-c-deps
 
   # ---------------------------------------------------------------------------
   # Every PHP built-in has exactly one recorded outcome, and every Core member a
