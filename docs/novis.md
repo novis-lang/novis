@@ -17503,7 +17503,7 @@ Returns the exception that ended the script, if there was one.
 <a id="core-core-program"></a>
 ### `Core\Program`
 
-Keywords: get_declared_classes, class_implements, implementing, implementingWith, plugin discovery, registry, autoload, enumerate implementors, service locator, attributes of discovered classes, routes of every page, program id, build id, deployment fingerprint, cache busting, asset version, revision hash, implementing, implementingWith, id
+Keywords: get_declared_classes, class_implements, implementing, implementingWith, plugin discovery, registry, autoload, enumerate implementors, service locator, attributes of discovered classes, routes of every page, program id, build id, deployment fingerprint, cache busting, asset version, revision hash, implementing, implementingWith, constructors, id
 
 `Core\Program::implementing<T>()` is written with its type argument — `T` is an interface — and expands
 **at compile time** to an array literal of `new` expressions, one per non-abstract class in the program that
@@ -17587,6 +17587,7 @@ id is 64 characters, and stable within the run: yes
 |---|---|
 | [`Core\Program::implementing`](#core-core-program-implementing) | `implementing<T>(): array<T>` |
 | [`Core\Program::implementingWith`](#core-core-program-implementingwith) | `implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>` |
+| [`Core\Program::constructors`](#core-core-program-constructors) | `constructors<T, C>(): array<{class: string, make: C}>` |
 | [`Core\Program::id`](#core-core-program-id) | `id(): string` |
 
 <a id="core-core-program-implementing"></a>
@@ -17614,6 +17615,17 @@ Returns the same objects as `implementing<I>()`, each with one attribute of its 
 | `$member` | `string` (default `""`, neutral) | The name of the method, property or constructor parameter that has the attribute. An empty string reads the attributes of the class itself. |
 
 **Returns** `array<{instance: I, attribute: ?T}>` — An array with one row per class, sorted by class name. Each row is `{instance: I, attribute: ?T}`. `attribute` is `null` when the class has no attribute of the shape `T`. Two matching attributes on one class do not compile.
+
+<a id="core-core-program-constructors"></a>
+#### `Core\Program::constructors`
+
+```nvs skip
+Core\Program::constructors<T, C>(): array<{class: string, make: C}>
+```
+
+Returns a function for every class that `implementing<T>()` lists, in the same order. You write the interface or class `T` and a function type `C` between `<` and `>`: `Core\Program::constructors<Module, callable(Config): Module>()`. Each function creates a new object of its class with the arguments you pass. A class whose constructor does not accept these arguments does not compile.
+
+**Returns** `array<{class: string, make: C}>` — An array with one row per class, sorted by class name. Each row is `{class: string, make: C}`. `class` is the full class name. No object is created until you call `make`.
 
 <a id="core-core-program-id"></a>
 #### `Core\Program::id`
