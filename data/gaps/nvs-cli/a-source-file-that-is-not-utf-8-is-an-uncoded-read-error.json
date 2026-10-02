@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/main.rs",
-  "title": "A source file that is not UTF-8 is an uncoded read error, and `E0006` is never raised.",
-  "text": "`E_INVALID_UTF8` (`E0006`) is declared with a card that tells the reader to save the file as UTF-8, but nothing raises it. `nvs check` over a file holding the bytes `FF FE` prints `error: could not read <path>: stream did not contain valid UTF-8`, from the read at `crates/nvs-cli/src/main.rs:2019`, with no code and no card. `crates/nvs-cli/src/ast.rs:59` and `crates/nvs-cli/src/fmt.rs:84` read a file the same way. A read that fails on `std::io::ErrorKind::InvalidData` should report `E0006` as a diagnostic at the first byte that is not UTF-8, and every other read error stays as it is. Whether a `require`d file reaches the same read is not checked.",
-  "goal": "goal-closeout"
-}

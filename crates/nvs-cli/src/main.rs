@@ -2016,7 +2016,7 @@ fn front_end_in(
     let mut id = match map.load(path) {
         Ok(id) => id,
         Err(err) => {
-            eprintln!("error: could not read {}: {err}", path.display());
+            report_unreadable(path, &err, sink);
             if let Some(looked) = looked {
                 looked.take(&map, None);
             }
@@ -2046,7 +2046,7 @@ fn front_end_in(
         id = match map.load(path) {
             Ok(id) => id,
             Err(err) => {
-                eprintln!("error: could not read {}: {err}", path.display());
+                report_unreadable(path, &err, sink);
                 return Err(ExitCode::FAILURE);
             }
         };
@@ -3594,6 +3594,43 @@ fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {
         .render_all(diags.iter(), map, &mut out)
         .expect("rendering to an in-memory buffer cannot fail");
     eprint!("{}", String::from_utf8_lossy(&out));
+}
+
+/// Reports a source file [`SourceMap::load`] could not read, into `sink`.
+///
+/// A file that is not UTF-8 is `E0006`, pointed at its first byte that is not,
+/// in a map of its own that holds the file's text with each such byte replaced
+/// by U+FFFD — the caller's map never sees that text. Every other read error,
+/// and a file too large to load, is the uncoded `could not read` line.
+fn report_unreadable(path: &std::path::Path, err: &std::io::Error, sink: Sink) {
+    let fits = |len: usize| len <= nvs_diagnostics::MAX_SOURCE_LEN;
+    if err.kind() == std::io::ErrorKind::InvalidData
+        && std::fs::metadata(path).is_ok_and(|meta| usize::try_from(meta.len()).is_ok_and(fits))
+        && let Ok(bytes) = std::fs::read(path)
+        && let Err(bad) = std::str::from_utf8(&bytes)
+        && let text = String::from_utf8_lossy(&bytes).into_owned()
+        && fits(text.len())
+        && let Ok(at) = u32::try_from(bad.valid_up_to())
+    {
+        let mut map = SourceMap::new();
+        let id = map.add(path.display().to_string(), text);
+        // U+FFFD, the character the bad byte was replaced by, is three bytes.
+        let replacement = 3;
+        let mut diags = Diagnostics::new();
+        diags.report(
+            nvs_diagnostics::Diagnostic::error(
+                nvs_diagnostics::code::E_INVALID_UTF8,
+                format!("`{}` is not valid UTF-8", path.display()),
+            )
+            .with_primary(
+                nvs_diagnostics::Span::new(id, at, at + replacement),
+                "this byte is not UTF-8",
+            ),
+        );
+        emit_diagnostics(&mut diags, &map, sink);
+        return;
+    }
+    eprintln!("error: could not read {}: {err}", path.display());
 }
 
 #[cfg(test)]

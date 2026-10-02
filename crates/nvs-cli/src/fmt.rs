@@ -154,7 +154,7 @@ fn one(path: &Path, mode: Mode) -> bool {
     let id = match map.load(path) {
         Ok(id) => id,
         Err(err) => {
-            eprintln!("error: could not read {}: {err}", path.display());
+            crate::report_unreadable(path, &err, crate::Sink::Text);
             return false;
         }
     };

@@ -56,7 +56,7 @@ pub(crate) fn run(path: &Path, as_json: bool, strict: bool) -> ExitCode {
     let id = match map.load(path) {
         Ok(id) => id,
         Err(err) => {
-            eprintln!("error: could not read {}: {err}", path.display());
+            crate::report_unreadable(path, &err, crate::Sink::Text);
             return ExitCode::FAILURE;
         }
     };

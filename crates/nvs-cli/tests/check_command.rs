@@ -84,3 +84,37 @@ fn nvs_check_reports_every_diagnostic_and_runs_nothing() {
     );
     assert!(stderr.contains("aborting due to 2 errors"), "{stderr}");
 }
+
+/// A file that is not UTF-8 is `E0006` at its first byte that is not, from
+/// each command that reads a source file, and a file that is not there is
+/// still the uncoded `could not read`.
+#[test]
+fn a_source_file_that_is_not_utf_8_is_e0006_at_its_first_bad_byte() {
+    let dir = scratch("not-utf-8");
+    // `0xE9` is `é` in Latin-1, and on its own it is not UTF-8.
+    let mut bytes = b"<?nvs\necho 1;\n// caf".to_vec();
+    bytes.extend_from_slice(&[0xE9, b'\n']);
+    fs::write(dir.join("latin1.nvs"), bytes).unwrap();
+
+    for command in [&["check"][..], &["ast"], &["fmt", "--check"]] {
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(command)
+            .arg("latin1.nvs")
+            .current_dir(&dir)
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(1), "{command:?}: {stderr}");
+        assert!(stderr.contains("error[E0006]"), "{command:?}: {stderr}");
+        assert!(
+            stderr.contains("latin1.nvs:3:7"),
+            "{command:?} points at the byte: {stderr}"
+        );
+    }
+
+    let missing = check_in(&dir, &["missing.nvs"]);
+    let stderr = String::from_utf8_lossy(&missing.stderr);
+    assert_eq!(missing.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("could not read"), "{stderr}");
+    assert!(!stderr.contains("E0006"), "{stderr}");
+}
