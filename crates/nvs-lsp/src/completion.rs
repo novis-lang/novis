@@ -307,7 +307,9 @@
 //!
 //! Inside a string argument at a parameter no mark claims, the list is the
 //! values the completion files attach to that parameter
-//! (`rule:ide/completion-files-offer-values-at-named-parameters`):
+//! (`rule:ide/completion-files-offer-values-at-named-parameters`), and at a
+//! path or class-name parameter they join the entries or classes its mark
+//! offers, so it is offered both lists ([`values_beside`]):
 //! [`crate::arguments::named_at`] names the parameter by the declaration the
 //! checker resolved the call to, and `CompletionFiles::values_at` keeps the
 //! attachments whose `when` the call's other arguments meet. A parameter with
@@ -410,10 +412,16 @@ pub fn at(
             under(symbols, &prefix),
         ),
         Asked::OpenTag(written) => open_tags(&cursor, written),
-        Asked::Literal(Literal::Path(literal)) => paths(&cursor, &literal),
+        Asked::Literal(Literal::Path(literal)) => {
+            let mut items = paths(&cursor, &literal);
+            items.extend(values_beside(&cursor, files));
+            items
+        }
         Asked::Literal(Literal::Prefix(text_start)) => prefixes(&cursor, text_start),
         Asked::Literal(Literal::Class(text_start, bound)) => {
-            class_names(&cursor, text_start, &bound)
+            let mut items = class_names(&cursor, text_start, &bound);
+            items.extend(values_beside(&cursor, files));
+            items
         }
         Asked::Literal(Literal::Values(literal, values)) => file_values(&cursor, literal, &values),
         Asked::Position => position(&cursor, php),
@@ -464,7 +472,12 @@ pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset:
         Some(Literal::Values(_, values)) => {
             matches!(last, '\'' | '"') || values.iter().any(|value| value.separator == Some(last))
         }
-        Some(_) => matches!(last, '\'' | '"' | '/'),
+        Some(_) => {
+            matches!(last, '\'' | '"' | '/')
+                || named_values(analysed, files, offset).is_some_and(|(_, values)| {
+                    values.iter().any(|value| value.separator == Some(last))
+                })
+        }
         None => false,
     }
 }
@@ -637,11 +650,8 @@ fn literal_at(
             files: Files::All,
         }));
     }
-    if let Some(named) = crate::arguments::named_at(analysed, offset) {
-        let values = files.values_at(&named.class, &named.method, &named.parameter, &named.others);
-        if !values.is_empty() {
-            return Some(Literal::Values(named.span, values));
-        }
+    if let Some((literal, values)) = named_values(analysed, files, offset) {
+        return Some(Literal::Values(literal, values));
     }
     let decl = path
         .nodes()
@@ -669,6 +679,27 @@ fn literal_at(
             files: Files::None,
         })
     })
+}
+
+/// The string argument the cursor at `offset` is inside, quotes included, and
+/// the values a completion file offers at it, from the attachments that apply
+/// at its call. `None` where no value applies.
+fn named_values(
+    analysed: &Analysed,
+    files: &CompletionFiles,
+    offset: BytePos,
+) -> Option<(Span, Vec<Arc<completion_files::Value>>)> {
+    let named = crate::arguments::named_at(analysed, offset)?;
+    let values = files.values_at(&named.class, &named.method, &named.parameter, &named.others);
+    (!values.is_empty()).then_some((named.span, values))
+}
+
+/// The items a completion file adds at an argument a path or class-name
+/// parameter already completes, so that parameter is offered both lists.
+fn values_beside(cursor: &Cursor<'_>, files: &CompletionFiles) -> Vec<CompletionItem> {
+    named_values(cursor.analysed, files, cursor.offset)
+        .map(|(literal, values)| file_values(cursor, literal, &values))
+        .unwrap_or_default()
 }
 
 /// The values a completion file offers at the string argument `literal`.

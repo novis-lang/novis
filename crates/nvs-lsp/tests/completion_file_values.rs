@@ -1,7 +1,7 @@
 //! A string argument at a parameter a completion file names offers the file's values, from the
 //! attachments whose `when` the call meets and one segment at a time where a list has a
-//! separator, and each item changes only that string
-//! (`rule:ide/completion-files-offer-values-at-named-parameters`).
+//! separator, and each item changes only that string. A literal equal to a value hovers as that
+//! value (`rule:ide/completion-files-offer-values-at-named-parameters`).
 //!
 //! Each test writes a workspace of its own under cargo's scratch folder in `target/` and deletes it
 //! when it ends, as `tests/completion_files.rs` does.
@@ -11,11 +11,14 @@ use std::path::{Path, PathBuf};
 
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemTag, CompletionTextEdit, Documentation,
-    Position, Range,
+    HoverContents, Position, Range,
 };
 use nvs_diagnostics::PositionEncoding;
 use nvs_lsp::completion_files::CompletionFiles;
-use nvs_lsp::{CheckScope, Client, Documents, PhpNames, SymbolIndex, analyse, completion, uri_of};
+use nvs_lsp::{
+    Analysed, CheckScope, Client, Documents, PhpNames, SymbolIndex, analyse, completion, hover,
+    uri_of,
+};
 
 /// A scratch workspace that deletes itself.
 struct Workspace {
@@ -89,16 +92,8 @@ fn offered(
     files: &CompletionFiles,
     call: &str,
 ) -> (Vec<CompletionItem>, bool) {
-    let source = format!("{CLASSES}{call}");
-    let cursor = source.find(CURSOR).expect("the call marks its cursor");
-    let source = source.replacen(CURSOR, "", 1);
-    let path = workspace.write("src/page.nvs", &source);
-    let uri = uri_of(&path).expect("a scratch path is UTF-8");
-    let mut documents = Documents::new();
-    documents.open(uri.clone(), 1, source);
-    let analysis = analyse(&documents, &uri).expect("an open document analyses");
+    let (documents, analysis, at) = opened(workspace, call);
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
-    let at = u32::try_from(cursor).expect("a test document is short");
     let items = completion::at(
         &analysis,
         &index,
@@ -109,6 +104,35 @@ fn offered(
         PositionEncoding::Utf8,
     );
     (items, completion::continues_a_trigger(&analysis, files, at))
+}
+
+/// `call`, written after [`CLASSES`] in a document in `workspace` with its [`CURSOR`] taken out,
+/// opened and analysed, and the byte offset of the cursor in the whole text.
+fn opened(workspace: &Workspace, call: &str) -> (Documents, Analysed, u32) {
+    let source = format!("{CLASSES}{call}");
+    let cursor = source.find(CURSOR).expect("the call marks its cursor");
+    let source = source.replacen(CURSOR, "", 1);
+    let path = workspace.write("src/page.nvs", &source);
+    let uri = uri_of(&path).expect("a scratch path is UTF-8");
+    let mut documents = Documents::new();
+    documents.open(uri.clone(), 1, source);
+    let analysis = analyse(&documents, &uri).expect("an open document analyses");
+    let at = u32::try_from(cursor).expect("a test document is short");
+    (documents, analysis, at)
+}
+
+/// The Markdown a hover at the [`CURSOR`] in `call` answers with, and the range it underlines.
+fn hovered(workspace: &Workspace, files: &CompletionFiles, call: &str) -> Option<(String, Range)> {
+    let (_, analysis, at) = opened(workspace, call);
+    hover::at(&analysis, files, at, PositionEncoding::Utf8).map(|hover| {
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("a hover is Markdown");
+        };
+        (
+            markup.value,
+            hover.range.expect("a hover underlines its node"),
+        )
+    })
 }
 
 /// The one item labelled `label`.
@@ -137,36 +161,82 @@ fn between(open: u32, len: u32) -> Range {
     )
 }
 
-#[test]
-fn a_string_argument_at_a_named_parameter_offers_the_files_values() {
-    let workspace = Workspace::new("offers");
+/// A workspace named `name` with [`ICONS`] as its one completion file, the file's path, and the
+/// files loaded.
+fn icons(name: &str) -> (Workspace, PathBuf, CompletionFiles) {
+    let workspace = Workspace::new(name);
     let file = workspace.write(".novis/completion/icons.json", ICONS);
     let files = workspace.load();
+    (workspace, file, files)
+}
 
-    // Single-quoted: every value, the set's first and the attachment's own after it.
+/// The byte column the first argument's quote opens at in `Icon::render(…)`.
+fn render_open() -> u32 {
+    u32::try_from("Icon::render(".len()).expect("short")
+}
+
+#[test]
+fn a_string_argument_at_a_named_parameter_offers_the_files_values() {
+    let (workspace, _, files) = icons("offers");
+
+    // Every value, the set's first and the attachment's own after it.
     let (items, _) = offered(&workspace, &files, "Icon::render('ho<|>me', 16, 'solid');");
-    let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
-    assert_eq!(labels, ["Arrow left", "cost$", "home", "it's"]);
+    assert_eq!(labels(&items), ["Arrow left", "cost$", "home", "it's"]);
 
-    // Each item replaces the whole text between the quotes, and only that.
-    let open = u32::try_from("Icon::render(".len()).expect("short");
-    for (label, written) in [
-        ("home", "home"),
-        ("Arrow left", "arrow-left"),
-        ("it's", "it\\'s"),
-        ("cost$", "cost$"),
+    // A parameter no file names is ordinary text.
+    let (items, _) = offered(&workspace, &files, "Icon::render('home', 16, '<|>');");
+    assert!(
+        !items.iter().any(|item| item.label == "home"),
+        "no value at `$style`"
+    );
+
+    // Without the file, the same argument offers no value either.
+    let (items, _) = offered(
+        &workspace,
+        &CompletionFiles::default(),
+        "Icon::render('<|>', 16, 'solid');",
+    );
+    assert!(
+        !items.iter().any(|item| item.label == "home"),
+        "no value without the file"
+    );
+}
+
+/// Three classes that share one method: `Child` inherits it from `Base`, and `Own` overrides it.
+const FAMILY: &str = "class Base {\n    \
+     public static function pick(string $name): string {\n        return $name;\n    }\n}\n\n\
+     class Child extends Base {}\n\n\
+     class Own extends Base {\n    \
+     public static function pick(string $name): string {\n        return $name;\n    }\n}\n\n";
+
+/// One value for each of the three classes' `pick`.
+const PICKS: &str = r#"{
+  "parameters": [
+    { "method": "App\\Ui\\Base::pick", "parameter": "name", "values": ["base"] },
+    { "method": "App\\Ui\\Child::pick", "parameter": "name", "values": ["child"] },
+    { "method": "App\\Ui\\Own::pick", "parameter": "name", "values": ["own"] }
+  ]
+}"#;
+
+#[test]
+fn an_inherited_method_is_reached_through_its_declaring_class() {
+    let workspace = Workspace::new("inherited");
+    workspace.write(".novis/completion/picks.json", PICKS);
+    let files = workspace.load();
+    for (call, want) in [
+        ("Base::pick('<|>');", ["base"]),
+        ("Child::pick('<|>');", ["base"]),
+        ("Own::pick('<|>');", ["own"]),
     ] {
-        assert_eq!(edit(&items, label), (written.to_owned(), between(open, 4)));
-        let item = named(&items, label);
-        assert!(item.command.is_none(), "`{label}` runs nothing");
-        assert!(
-            item.additional_text_edits.is_none(),
-            "`{label}` writes nothing else"
-        );
-        assert!(item.insert_text.is_none() && item.insert_text_format.is_none());
+        let (items, _) = offered(&workspace, &files, &format!("{FAMILY}{call}"));
+        assert_eq!(labels(&items), want, "{call}");
     }
+}
 
-    // Every field the file gives is the item's.
+#[test]
+fn an_item_carries_every_field_the_file_gives() {
+    let (workspace, _, files) = icons("fields");
+    let (items, _) = offered(&workspace, &files, "Icon::render('<|>', 16, 'solid');");
     let arrow = named(&items, "Arrow left");
     assert_eq!(arrow.kind, Some(CompletionItemKind::CONSTANT));
     assert_eq!(arrow.detail.as_deref(), Some("Left arrow"));
@@ -176,6 +246,62 @@ fn a_string_argument_at_a_named_parameter_offers_the_files_values() {
     assert_eq!(arrow.tags, Some(vec![CompletionItemTag::DEPRECATED]));
     assert_eq!(arrow.sort_text.as_deref(), Some("0"));
     assert_eq!(arrow.filter_text.as_deref(), Some("arrow-left"));
+    assert!(matches!(
+        arrow.documentation,
+        Some(Documentation::MarkupContent(_))
+    ));
+    assert_eq!(named(&items, "home").kind, Some(CompletionItemKind::VALUE));
+}
+
+#[test]
+fn an_item_replaces_the_string_and_escapes_for_its_quote() {
+    let (workspace, _, files) = icons("escapes");
+    let open = render_open();
+
+    // Single-quoted: each item replaces the whole text between the quotes, and only that.
+    let (items, _) = offered(&workspace, &files, "Icon::render('ho<|>me', 16, 'solid');");
+    for (label, written) in [
+        ("home", "home"),
+        ("Arrow left", "arrow-left"),
+        ("it's", "it\\'s"),
+        ("cost$", "cost$"),
+    ] {
+        assert_eq!(edit(&items, label), (written.to_owned(), between(open, 4)));
+    }
+
+    // Double-quoted: the escapes are that quote's, and an empty literal is replaced too.
+    let (items, _) = offered(&workspace, &files, "Icon::render(\"<|>\", 16, 'solid');");
+    assert_eq!(edit(&items, "it's"), ("it's".to_owned(), between(open, 0)));
+    assert_eq!(
+        edit(&items, "cost$"),
+        ("cost\\$".to_owned(), between(open, 0))
+    );
+}
+
+#[test]
+fn an_item_carries_no_command_and_no_other_edit() {
+    let (workspace, _, files) = icons("no-command");
+    let (items, _) = offered(&workspace, &files, "Icon::render('<|>', 16, 'solid');");
+    assert!(!items.is_empty());
+    for item in &items {
+        let label = &item.label;
+        assert!(item.command.is_none(), "`{label}` runs nothing");
+        assert!(
+            item.additional_text_edits.is_none(),
+            "`{label}` writes nothing else"
+        );
+        assert!(
+            item.insert_text.is_none() && item.insert_text_format.is_none(),
+            "`{label}` is no snippet"
+        );
+    }
+}
+
+#[test]
+fn a_relative_link_in_documentation_resolves_against_the_completion_file() {
+    let (workspace, file, files) = icons("links");
+    let (items, _) = offered(&workspace, &files, "Icon::render('<|>', 16, 'solid');");
+    let arrow = named(&items, "Arrow left");
     let Some(Documentation::MarkupContent(markup)) = &arrow.documentation else {
         panic!("the documentation is Markdown: {:?}", arrow.documentation);
     };
@@ -188,36 +314,139 @@ fn a_string_argument_at_a_named_parameter_offers_the_files_values() {
             image.as_str()
         )
     );
-    assert_eq!(named(&items, "home").kind, Some(CompletionItemKind::VALUE));
+}
 
-    // Double-quoted: the escapes are that quote's, and an empty literal is replaced too.
-    let (items, triggered) = offered(&workspace, &files, "Icon::render(\"<|>\", 16, 'solid');");
-    assert!(triggered, "a quote at a named parameter opens the list");
-    assert_eq!(edit(&items, "it's"), ("it's".to_owned(), between(open, 0)));
-    assert_eq!(
-        edit(&items, "cost$"),
-        ("cost\\$".to_owned(), between(open, 0))
-    );
+#[test]
+fn a_quote_opens_the_list_at_a_named_parameter() {
+    let (workspace, _, files) = icons("quote");
+    for quoted in [
+        "Icon::render('<|>', 16, 'solid');",
+        "Icon::render(\"<|>\", 16, 'solid');",
+    ] {
+        let (_, triggered) = offered(&workspace, &files, quoted);
+        assert!(
+            triggered,
+            "a quote at a named parameter opens the list: {quoted}"
+        );
+    }
 
-    // A parameter no file names is ordinary text: no value is offered and a quote opens nothing.
-    let (items, triggered) = offered(&workspace, &files, "Icon::render('home', 16, '<|>');");
-    assert!(
-        !items.iter().any(|item| item.label == "home"),
-        "no value at `$style`"
-    );
+    // A parameter no file names is ordinary text, and a quote opens nothing there.
+    let (_, triggered) = offered(&workspace, &files, "Icon::render('home', 16, '<|>');");
     assert!(!triggered);
 
-    // Without the file, the same argument offers no value either.
-    let (items, triggered) = offered(
+    // Without the file, the quote opens nothing at `$name` either.
+    let (_, triggered) = offered(
         &workspace,
         &CompletionFiles::default(),
         "Icon::render('<|>', 16, 'solid');",
     );
-    assert!(
-        !items.iter().any(|item| item.label == "home"),
-        "no value without the file"
-    );
     assert!(!triggered);
+}
+
+/// A method whose parameter is a path.
+const LOADER: &str = "class Loader {\n    \
+     public static function load(#[Core\\Path] string $file): string {\n        return $file;\n    }\n}\n\n";
+
+#[test]
+fn a_path_parameter_with_a_completion_file_offers_both_lists() {
+    let workspace = Workspace::new("path");
+    workspace.write(
+        ".novis/completion/loader.json",
+        r#"{ "parameters": [ { "method": "App\\Ui\\Loader::load", "parameter": "file", "values": ["@theme/page.html"] } ] }"#,
+    );
+    let files = workspace.load();
+    let (items, triggered) = offered(&workspace, &files, &format!("{LOADER}Loader::load('<|>');"));
+    assert!(triggered, "a quote at a path parameter opens the list");
+    assert_eq!(labels(&items), ["@theme/page.html", "page.nvs"]);
+    assert_eq!(
+        named(&items, "@theme/page.html").kind,
+        Some(CompletionItemKind::VALUE)
+    );
+    assert_eq!(
+        named(&items, "page.nvs").kind,
+        Some(CompletionItemKind::FILE)
+    );
+}
+
+#[test]
+fn hover_on_a_literal_equal_to_a_value_shows_its_title_and_documentation() {
+    let (workspace, file, files) = icons("hover");
+    let image = uri_of(&file.parent().expect("a folder").join("completion.rs"))
+        .expect("a scratch path is UTF-8");
+    let open = render_open();
+    let literal = "'arrow-left'";
+    let call = "Icon::render('arrow-<|>left', 16, 'solid');";
+    let line = between(open, 0).start.line;
+    assert_eq!(
+        hovered(&workspace, &files, call),
+        Some((
+            format!(
+                "Left arrow\n\nPoints back. ![preview]({}) [Guide](https://example.com/icons)",
+                image.as_str()
+            ),
+            Range::new(
+                Position::new(line, open),
+                Position::new(line, open + u32::try_from(literal.len()).expect("short")),
+            ),
+        ))
+    );
+
+    // A literal that is no value, and the same literal with no file loaded, show neither field.
+    for (files, call) in [
+        (&files, "Icon::render('arrow-<|>right', 16, 'solid');"),
+        (&CompletionFiles::default(), call),
+    ] {
+        let shown = hovered(&workspace, files, call).map(|(markdown, _)| markdown);
+        assert!(
+            !shown
+                .as_deref()
+                .is_some_and(|markdown| markdown.contains("Left arrow")),
+            "{call}: {shown:?}"
+        );
+    }
+}
+
+/// Two values for `$name`: one names the line that defines it, and one names nothing.
+const LOCATED: &str = r#"{
+  "parameters": [
+    {
+      "method": "App\\Ui\\Icon::render",
+      "parameter": "name",
+      "values": [{ "value": "home", "location": { "file": "icons/home.svg", "line": 3 } }, "star"]
+    }
+  ]
+}"#;
+
+/// Where go-to-definition at the [`CURSOR`] in `call` goes, with [`LOCATED`] loaded.
+fn defined(name: &str, call: &str) -> (PathBuf, Option<nvs_lsp::definition::Declared>) {
+    let workspace = Workspace::new(name);
+    let file = workspace.write(".novis/completion/located.json", LOCATED);
+    let svg = workspace.write(
+        ".novis/completion/icons/home.svg",
+        "<svg>\n\n<path/>\n</svg>\n",
+    );
+    assert_eq!(svg, file.parent().expect("a folder").join("icons/home.svg"));
+    let files = workspace.load();
+    let (_, analysis, at) = opened(&workspace, call);
+    let declared = nvs_lsp::definition::at(&analysis, &files, at, PositionEncoding::Utf8);
+    (svg, declared)
+}
+
+#[test]
+fn definition_on_a_literal_equal_to_a_value_goes_to_its_location() {
+    let (svg, declared) = defined("definition", "Icon::render('ho<|>me', 16, 'solid');");
+    let declared = declared.expect("`home` names its location");
+    assert_eq!(declared.path, svg);
+    assert_eq!(
+        declared.range,
+        Range::new(Position::new(2, 0), Position::new(2, 0))
+    );
+}
+
+#[test]
+fn a_value_without_a_location_has_no_definition() {
+    let (_, declared) = defined("no-location", "Icon::render('st<|>ar', 16, 'solid');");
+    assert_eq!(declared, None);
 }
 
 /// Values for `$name`, two of them only for some values of `$style`.

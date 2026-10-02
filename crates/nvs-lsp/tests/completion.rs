@@ -693,8 +693,9 @@ fn sources() -> Vec<Source> {
 ///
 /// The completion-file arm reads the values `CompletionFiles::values_at`
 /// hands it, the table the completion files were loaded into, and reads no
-/// file itself.
-const SOURCED: [(&str, &str); 34] = [
+/// file itself. At a path or class-name parameter it adds those values to the
+/// arm the mark chose, through the same function.
+const SOURCED: [(&str, &str); 35] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
@@ -710,6 +711,7 @@ const SOURCED: [(&str, &str); 34] = [
     ("class_names", "hierarchy::implements_interface("),
     ("file_values", "completion_files::Value"),
     ("value_item", "completion_files::Value"),
+    ("values_beside", "file_values(cursor"),
     ("position", "words("),
     ("statement_words", "STATEMENT_WORDS"),
     ("followed", "Classes::of(cursor.symbols)"),
