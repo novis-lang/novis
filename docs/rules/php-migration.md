@@ -84,7 +84,10 @@ warning", so the guarded read yields `$d` rather than throwing — refusing ther
 spelling PHP offers for exactly this, and the throw is what makes it worth writing. The guard covers
 every level of the chain under it, so `$a["k"]["j"] ?? $d` yields `$d` for an absent key at either
 depth, and a `null` base needs no `!= null` test in that one position. `isset` and `empty` are the
-same guarded read and answer rather than throw.
+same guarded read and answer rather than throw, and so is the read `$a["k"]["j"] ??= $d` makes of its
+own target: an absent key at either depth takes `$d`, and the write that follows is the plain
+`$a["k"]["j"] = $d`, which builds the row. Only the read is guarded, so a nullable row under a `??=`
+target is refused where it is written, as it is under `=`.
 
 <sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../decisions/0007.md), [0254](../decisions/0254.md).</sub>
 

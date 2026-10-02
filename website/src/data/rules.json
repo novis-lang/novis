@@ -9938,7 +9938,7 @@
               "title": "Absent storage never reads as a zero value: an unassigned variable and `[]` in a read position are refused, and an absent key throws",
               "status": "shipped",
               "href": "/docs/rules/php-migration/divergences/#absent-storage-is-never-a-zero-value",
-              "diverges": "reading an undefined variable or an absent array key does not warn and yield `null`, and `$a[] .= \"x\"` does not append; `??`, `isset` and `empty` keep PHP's answer"
+              "diverges": "reading an undefined variable or an absent array key does not warn and yield `null`, and `$a[] .= \"x\"` does not append; `??`, `??=`, `isset` and `empty` keep PHP's answer"
             },
             {
               "id": "php-migration/an-element-write-needs-storage-to-write-back-into",

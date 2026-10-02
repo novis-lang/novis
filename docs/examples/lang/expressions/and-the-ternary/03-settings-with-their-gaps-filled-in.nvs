@@ -1,7 +1,6 @@
 <?nvs
 // Shows a program reading the settings somebody wrote, filling in the ones
 // they left out, and printing the address it will connect to.
-// proof: gap nvs-ir/throws-on-an-array-key-that
 
 class Proxy
 {

@@ -1618,6 +1618,17 @@ pub(crate) struct Lowering<'a> {
     /// entry. Empty outside a statement's own target, and never more than a
     /// target's depth long.
     staged_targets: Vec<(Span, ValueId, Ty)>,
+    /// Whether [`Self::lower_read_modify_write`] is lowering the read a `??=`
+    /// makes of its own target (`rule:expressions/defaulting-assignment`).
+    ///
+    /// While it is, a level the checker marked with
+    /// `nvs_types::expr_table::ExprTypeTable::is_guarded_target_read` is read
+    /// the way a `??`'s left operand is: an absent key or a `null` base gives
+    /// `null`. The same spans are lowered again as the write right after, and
+    /// the write must not see the mark, so the mark alone is not enough and
+    /// this flag says which of the two is being lowered. `false` everywhere
+    /// else.
+    reading_guarded_target: bool,
     /// The representation of every local this frame has **declared without an
     /// initializer** — `int $x;`, whose type `rule:types/var-inference` fixes at the
     /// declaration while its first value arrives on some later line.
@@ -1989,6 +2000,7 @@ impl<'a> Lowering<'a> {
             try_stack: Vec::new(),
             owned_temporaries: Vec::new(),
             staged_targets: Vec::new(),
+            reading_guarded_target: false,
             declared_tys: FxHashMap::default(),
             lsb: None,
             this: None,

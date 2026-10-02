@@ -1283,6 +1283,16 @@ pub(crate) fn is_a_place(kind: &ExprKind) -> bool {
 /// assignment, never a silent re-typing of `$i` — `rule:types/var-inference` fixes a local's
 /// type at its declaration. `.=` demands a `Stringable` operand exactly the
 /// way the plain `.` does.
+///
+/// **`??=` is the one operator whose read differs from its write, and the one
+/// whose value differs from its target** (`rule:expressions/defaulting-assignment`).
+/// Its read is the guarded one `??` makes of its left operand, so every level
+/// of the target is marked for `nvs-ir` by
+/// [`presence::mark_guarded_target_reads`]; the target is still *checked* as
+/// the write it also is, so a nullable row under it stays `E0482`. Its value is
+/// the one written: the target's type without `null` when the value's type has
+/// no `null` in it, and the target's type when it does. Nothing is narrowed on
+/// the next line — that is `note_write`'s, as for every write.
 #[expect(
     clippy::too_many_arguments,
     reason = "the five-parameter checking context every expression walker in \n              this module carries, plus the operator, the assignment's span and \n              its two operand expressions"
@@ -1299,6 +1309,9 @@ pub(crate) fn check_compound_assign(
 ) -> TypeId {
     note_write(target, scope, env);
     mark_write_target_levels(target, false, env);
+    if op == BinaryOp::Coalesce {
+        presence::mark_guarded_target_reads(target, env);
+    }
     let target_ty = check_expr(target, None, live, scope, ctx, env);
     check_write_target(target, ctx, env);
     // [`infer`] rather than [`check_expr`]: the target's type is a *hint* for
@@ -1326,6 +1339,11 @@ pub(crate) fn check_compound_assign(
     // `secret` operand produces a `secret` one (`rule:security/secret-propagation`),
     // so this spelling of the write owes the same refusal the plain one does.
     reject_secret_element_write(target, target_ty, value, result, env);
+    let value_may_be_null =
+        env.interner.is_nullable(value_ty) || matches!(env.interner.get(value_ty), Ty::Mixed);
+    if op == BinaryOp::Coalesce && !value_may_be_null {
+        return env.interner.without_null(target_ty);
+    }
     target_ty
 }
 

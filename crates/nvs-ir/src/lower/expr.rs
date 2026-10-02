@@ -4633,7 +4633,7 @@ impl<'a> Lowering<'a> {
             guarded,
         }) = self.exprs.lookup(expr.span)
         {
-            let absent = if *guarded {
+            let absent = if self.read_is_guarded(*guarded, expr.span) {
                 AbsentKey::Null
             } else {
                 AbsentKey::Throws
@@ -5465,7 +5465,8 @@ impl<'a> Lowering<'a> {
                 expr.span
             );
         };
-        let absent = if *guarded {
+        let guarded = self.read_is_guarded(*guarded, expr.span);
+        let absent = if guarded {
             AbsentKey::Null
         } else {
             AbsentKey::Throws
@@ -5513,7 +5514,7 @@ impl<'a> Lowering<'a> {
         // `ExprInfo::Index` either way — it is the base's own representation
         // that picks here, exactly as it does for a class test's subject.
         let kind = if base_ty == Ty::Tagged {
-            let helper = if *guarded {
+            let helper = if guarded {
                 Helper::ValueIndexOptionalGet
             } else {
                 Helper::ValueIndexGet
@@ -5549,6 +5550,15 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
         }
         result
+    }
+
+    /// Whether the subscript or property read at `span` answers `null` for an
+    /// absent key or field: `recorded` is the `guarded` bit its own entry
+    /// carries for a read under a `??`, an `isset` or an `empty`, and a level
+    /// of a `??=` target is guarded too while that operator reads it — see
+    /// [`Self::reading_guarded_target`].
+    fn read_is_guarded(&self, recorded: bool, span: Span) -> bool {
+        recorded || (self.reading_guarded_target && self.exprs.is_guarded_target_read(span))
     }
 
     /// `rule:types/type-test`'s `$x is T` — `bool` for every subject, and

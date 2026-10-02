@@ -1,0 +1,64 @@
+--TEST--
+`??=` writes its right side where the key is absent at any level of the target or the stored value is `null`, leaves a present value alone without running the right side, and its value is the one written, typed without `null` when the right side has none — `rule:expressions/defaulting-assignment`, `rule:php-migration/absent-storage-is-never-a-zero-value`
+--FILE--
+<?nvs
+class Post {
+    public ?string $title = null;
+    public array<int> $views = [];
+    public function title(): string {
+        return $this->title ??= "Untitled";
+    }
+    public function views(string $page): int {
+        return $this->views[$page] ??= 0;
+    }
+}
+
+class Label {
+    public static function fallback(string $label): string {
+        echo "fallback ", $label, "\n";
+        return $label;
+    }
+}
+
+// An absent key takes the right side, and a present one keeps its value
+// without running the right side.
+array<string> $options = ["size" => "big"];
+$options["theme"] ??= Label::fallback("light");
+$options["size"] ??= Label::fallback("small");
+echo $options["theme"], " ", $options["size"], "\n";
+
+// An absent row is built, as `$g["k"]["j"] = 5` builds it.
+array<array<int>> $g = [];
+$g["k"]["j"] ??= 5;
+$g["k"]["j"] ??= 6;
+$g["k"]["i"] ??= 7;
+echo $g["k"]["j"], " ", $g["k"]["i"], " ", Core\Arr::count($g), "\n";
+
+// A stored `null` and an absent key both take the right side.
+array<?int> $n = ["a" => null, "b" => 2];
+$n["a"] ??= 10;
+$n["b"] ??= 20;
+$n["c"] ??= 30;
+echo $n["a"], " ", $n["b"], " ", $n["c"], "\n";
+
+// The value is the one written, and has no `null` in its type.
+int $written = $n["d"] ??= 40;
+?int $local = null;
+int $first = $local ??= 1;
+int $second = $local ??= 2;
+echo $written, " ", $first, " ", $second, "\n";
+
+// A method with a non-null return type returns the value directly.
+var $post = new Post();
+echo $post->title(), " ", $post->views("home"), "\n";
+$post->title = "Hello";
+$post->views["home"] = 3;
+echo $post->title(), " ", $post->views("home"), "\n";
+--EXPECT--
+fallback light
+light big
+5 7 1
+10 2 30
+40 1 1
+Untitled 0
+Hello 3

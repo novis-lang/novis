@@ -33,7 +33,7 @@
 //! a session editing one rule does not carry the rest in context.
 //!
 
-use nvs_diagnostics::{Diagnostic, code};
+use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{Expr, ExprKind};
 use rustc_hash::FxHashSet;
 
@@ -98,16 +98,36 @@ pub(crate) fn check_empty_operand(
 /// before any type is known, and the arms that read the mark are the ones that
 /// know which levels the mark means anything for.
 pub(super) fn mark_guarded_places(operand: &Expr, env: &mut Env<'_>) {
+    for_each_place_level(operand, |span| {
+        env.coalesce_guarded.insert(span);
+    });
+}
+
+/// Marks every level of a `??=` target that [`mark_guarded_places`] would mark
+/// under a `??`, as a read `nvs-ir` lowers guarded and a write it does not
+/// (`rule:expressions/defaulting-assignment`).
+///
+/// The marks go into the typed-expression table, never into
+/// [`Env::coalesce_guarded`]: the read and the write share one entry per span,
+/// and the entry has to stay the write's.
+/// [`crate::expr_table::ExprTypeTable::is_guarded_target_read`] says why.
+pub(crate) fn mark_guarded_target_reads(target: &Expr, env: &mut Env<'_>) {
+    for_each_place_level(target, |span| env.exprs.record_guarded_target_read(span));
+}
+
+/// Calls `each` with the span of every subscript and property level of
+/// `operand`, outermost first, looking through parentheses.
+fn for_each_place_level(operand: &Expr, mut each: impl FnMut(Span)) {
     let mut level = operand;
     loop {
         match &level.kind {
             ExprKind::Paren(inner) => level = inner,
             ExprKind::Index { base, .. } => {
-                env.coalesce_guarded.insert(level.span);
+                each(level.span);
                 level = base;
             }
             ExprKind::PropertyAccess { object, .. } => {
-                env.coalesce_guarded.insert(level.span);
+                each(level.span);
                 level = object;
             }
             _ => break,

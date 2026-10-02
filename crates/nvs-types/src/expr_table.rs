@@ -1284,6 +1284,7 @@ pub struct ExprTypeTable {
     methods: FxHashMap<Span, String>,
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
+    guarded_target_reads: FxHashSet<Span>,
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     db_codecs: FxHashMap<String, crate::derive::DerivedCodec>,
@@ -2199,6 +2200,30 @@ impl ExprTypeTable {
     #[must_use]
     pub fn widens_to_float(&self, span: Span) -> bool {
         self.float_widened.contains(&span)
+    }
+
+    /// Records that the level at `span` of a `??=` target is read guarded.
+    /// See [`Self::is_guarded_target_read`].
+    pub(crate) fn record_guarded_target_read(&mut self, span: Span) {
+        self.guarded_target_reads.insert(span);
+    }
+
+    /// Whether the level at `span` — a subscript or a property of a `??=`
+    /// target, at any depth — is read guarded when the operator reads its
+    /// target (`rule:expressions/defaulting-assignment`): an absent key or a
+    /// `null` base gives `null` there, as under a `??`.
+    ///
+    /// **Only the read asks this, and the write never does.** The read and the
+    /// write of one target share the [`ExprInfo::Index`] entry at each span, and
+    /// that entry stays the write's: its `guarded` bit is `false` and its
+    /// element type keeps the `null` of a nullable row, so
+    /// `array<?array<int>> $g; $g["0"]["1"] ??= 5;` is still `E0482`. Marking
+    /// `crate::Env::coalesce_guarded` instead would type the shared entry as
+    /// the read, and the write would then lose the `null` it is refused for.
+    /// One span per level of each `??=` target, held for the compile.
+    #[must_use]
+    pub fn is_guarded_target_read(&self, span: Span) -> bool {
+        self.guarded_target_reads.contains(&span)
     }
 }
 

@@ -186,6 +186,24 @@ impl DeclaredTypes {
         self.exprs
             .lookup(nvs_diagnostics::Span::new(self.file, start, end))
     }
+
+    /// Whether the expression written as `text`, at its first occurrence in the
+    /// fixture, is a level of a `??=` target that the operator reads guarded
+    /// (`ExprTypeTable::is_guarded_target_read`).
+    ///
+    /// # Panics
+    /// Panics if `text` appears nowhere in the fixture, for [`Self::folded_at`]'s
+    /// reason.
+    pub(crate) fn guarded_target_read_at(&self, text: &str) -> bool {
+        let start = self
+            .src
+            .find(text)
+            .unwrap_or_else(|| panic!("the fixture does not contain `{text}`"));
+        let start = u32::try_from(start).expect("fixtures are small");
+        let end = start + u32::try_from(text.len()).expect("fixtures are small");
+        self.exprs
+            .is_guarded_target_read(nvs_diagnostics::Span::new(self.file, start, end))
+    }
 }
 
 /// The capture names a fixture's one closure recorded, in order.

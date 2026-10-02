@@ -663,7 +663,13 @@ impl<'a> Lowering<'a> {
             target.kind
         );
         let reads = self.staged_mark();
+        // `??=` reads its target the way `??` reads its left operand, so an
+        // absent key at any level gives `null` and the right side is written
+        // there. Only the read is guarded: the write below lowers the same
+        // levels as the plain `=` does, which builds a row that is not there.
+        let outer = std::mem::replace(&mut self.reading_guarded_target, op == BinaryOp::Coalesce);
         let (old, old_ty) = self.lower_expr(target, None, env, cur);
+        self.reading_guarded_target = outer;
         self.stage(target.span, old, old_ty);
         // An increment's `1` has no source span to build an `ExprKind::Int`
         // from, so it is emitted here — at the representation the read just
@@ -1543,9 +1549,11 @@ impl<'a> Lowering<'a> {
     /// type *is* the `elem_ty` recorded here, with one exception that cannot
     /// arise: a `??`-guarded read is typed with its `null` dropped, and
     /// `nvs_types::Env::coalesce_guarded` is filled only from a `??`'s own left
-    /// operand, which is a read. `??=` marks nothing, so its target's levels
-    /// are the ordinary ones — `array<?array<int>> $g; $g["0"]["1"] ??= 5;` is
-    /// `E0482` like the plain `=` it is spelled out of.
+    /// operand, which is a read. `??=` guards its target's read through a mark
+    /// in the typed-expression table that only the read consults
+    /// ([`Self::reading_guarded_target`]), so its levels' entries are the
+    /// ordinary ones — `array<?array<int>> $g; $g["0"]["1"] ??= 5;` is `E0482`
+    /// like the plain `=` it is spelled out of.
     ///
     /// # Panics
     ///

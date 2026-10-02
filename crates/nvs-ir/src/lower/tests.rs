@@ -4016,6 +4016,71 @@ fn a_subscript_through_a_tagged_base_lowers() {
     );
 }
 
+/// `??=` reads its target the way `??` reads its left operand, at every
+/// level, and writes it the way the plain `=` does
+/// (`rule:expressions/defaulting-assignment`). The inner level takes the
+/// `null`-answering `array.get.ornull`; the outer level's base may then be
+/// `null`, so it asks the tag. The write builds the row with
+/// `array_row_for_write`, so `$g["k"]["j"] ??= 5` with no `"k"` creates it.
+/// `+=` on the same target keeps the reads that throw.
+#[test]
+fn coalesce_assign_lowers_a_guarded_read_of_its_target() {
+    let (f, map, file) = lower_first_method(concat!(
+        "<?nvs\nclass T {\n",
+        "  function fill(): void {\n",
+        "    array<array<int>> $g = [];\n",
+        "    $g[\"k\"][\"j\"] ??= 5;\n",
+        "  }\n}\n",
+    ));
+    let text = print_function(&f, map.file(file));
+    assert_eq!(text.matches("array.get.ornull").count(), 1, "{text}");
+    assert_eq!(
+        text.matches("value_index_optional_get").count(),
+        1,
+        "{text}"
+    );
+    assert!(!text.contains("array.get v"), "a throwing read: {text}");
+    assert_eq!(text.matches("array_row_for_write").count(), 1, "{text}");
+
+    let (f, map, file) = lower_first_method(concat!(
+        "<?nvs\nclass T {\n",
+        "  function fill(): void {\n",
+        "    array<array<int>> $g = [];\n",
+        "    $g[\"k\"][\"j\"] += 5;\n",
+        "  }\n}\n",
+    ));
+    let text = print_function(&f, map.file(file));
+    assert!(!text.contains("ornull"), "{text}");
+    assert!(!text.contains("value_index_optional_get"), "{text}");
+    assert_eq!(text.matches("array.get v").count(), 2, "{text}");
+}
+
+/// `??=` on a hooked property calls the `get` hook once, for the read, and
+/// the `set` hook once, for the write. The value of the expression is the
+/// value written, never a second read of the property.
+#[test]
+fn coalesce_assign_on_a_hooked_property_reads_once_and_writes_once() {
+    let (program, map, file) = lower_whole_file_with_src(concat!(
+        "<?nvs\n",
+        "class Post {\n",
+        "  public ?string $title {\n",
+        "    get => $this->title;\n",
+        "    set(?string $v) { $this->title = $v; }\n",
+        "  }\n",
+        "  function constructor() { $this->title = null; }\n",
+        "  public function title(): string { return $this->title ??= \"Untitled\"; }\n",
+        "}\n",
+    ));
+    let title = program
+        .functions
+        .iter()
+        .find(|f| f.name == "Post::title")
+        .expect("`title` should have been lowered");
+    let text = print_function(title, map.file(file));
+    assert_eq!(text.matches("Post::$title::get").count(), 1, "{text}");
+    assert_eq!(text.matches("Post::$title::set").count(), 1, "{text}");
+}
+
 /// A resolved `Core\Router::url` releases the `$params` array it was handed —
 /// [`Lowering::lower_route_link`]'s own accounting, and the one thing about
 /// that arm which no snapshot of a *passing* program shows.
