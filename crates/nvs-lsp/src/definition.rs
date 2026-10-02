@@ -1646,4 +1646,21 @@ mod tests {
         assert_eq!(jump(WRITTEN, "fn(Sha"), "1:10");
         assert_eq!(jump(WRITTEN, "$p): Sha"), "1:10");
     }
+
+    /// `Core\Program::constructors<T, C>()` writes a class in both of its type
+    /// arguments: `T` itself, and the parameter and return of the
+    /// `callable(...)` that `C` is. Each opens its own declaration.
+    #[test]
+    fn a_constructors_type_argument_jumps_to_its_class() {
+        const MAKERS: &str = "<?nvs\ninterface Shape { public function area(): int; }\n\
+                              class Config { public int $side = 1; }\n\
+                              class Square implements Shape {\n  public function \
+                              constructor(public Config $config) {}\n  public function area(): \
+                              int { return 1; }\n}\n\
+                              var $rows = Core\\Program::constructors<Shape, callable(Config): \
+                              Shape>();\n";
+        assert_eq!(jump(MAKERS, "constructors<Sha"), "1:10");
+        assert_eq!(jump(MAKERS, "callable(Con"), "2:6");
+        assert_eq!(jump(MAKERS, "callable(Config): Sha"), "1:10");
+    }
 }
