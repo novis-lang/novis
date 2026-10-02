@@ -12,13 +12,13 @@ use std::path::{Path, PathBuf};
 
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemTag, CompletionTextEdit, DiagnosticSeverity,
-    Documentation, HoverContents, NumberOrString, Position, Range,
+    DiagnosticTag, Documentation, HoverContents, NumberOrString, Position, Range,
 };
 use nvs_diagnostics::{PositionEncoding, code};
 use nvs_lsp::completion_files::CompletionFiles;
 use nvs_lsp::{
-    Analysed, CheckScope, Client, Documents, Phases, PhpNames, SymbolIndex, analyse, completion,
-    hover, uri_of,
+    Analysed, CheckScope, Client, Documents, Phases, PhpNames, SymbolIndex, actions, analyse,
+    completion, hover, uri_of,
 };
 
 /// A scratch workspace that deletes itself.
@@ -552,6 +552,126 @@ fn a_parameter_without_strict_reports_nothing() {
     for call in ["Icon::render('moon', 16);", "Icon::render('home', 16);"] {
         assert_eq!(warned("not-strict", ICONS, call), Vec::new(), "{call}");
     }
+}
+
+/// `arrow-left` deprecated for `arrow-back`, `star` deprecated with no replacement, `old`
+/// deprecated for a replacement with a quote and a `$` in it, and `moon` deprecated only where
+/// `$style` is `line`.
+const DEPRECATED: &str = r#"{
+  "parameters": [
+    {
+      "method": "App\\Ui\\Icon::render",
+      "parameter": "name",
+      "values": [
+        "home",
+        { "value": "arrow-left", "deprecated": true, "replacement": "arrow-back" },
+        { "value": "star", "deprecated": true },
+        { "value": "old", "deprecated": true, "replacement": "it's $new" }
+      ]
+    },
+    {
+      "method": "App\\Ui\\Icon::render",
+      "parameter": "name",
+      "values": [{ "value": "moon", "deprecated": true }],
+      "when": { "parameter": "style", "equals": "line" }
+    }
+  ]
+}"#;
+
+#[test]
+fn a_literal_equal_to_a_deprecated_value_gets_a_deprecated_hint() {
+    let workspace = Workspace::new("deprecated");
+    workspace.write(".novis/completion/deprecated.json", DEPRECATED);
+    let files = workspace.load();
+    for (call, want) in [
+        (
+            "Icon::render('arrow-left', 16);",
+            vec![first_argument("'arrow-left'")],
+        ),
+        (
+            "Icon::render(\"star\", 16);",
+            vec![first_argument("\"star\"")],
+        ),
+        ("Icon::render('home', 16);", Vec::new()),
+        ("Icon::render('moon', 16, 'solid');", Vec::new()),
+        (
+            "Icon::render('moon', 16, 'line');",
+            vec![first_argument("'moon'")],
+        ),
+        ("Label::text('arrow-left');", Vec::new()),
+    ] {
+        let (_, analysis, _) = opened(&workspace, &format!("{CURSOR}{call}"));
+        let hinted: Vec<Range> =
+            nvs_lsp::for_document(&analysis, &files, Phases::Gated, PositionEncoding::Utf8)
+                .into_iter()
+                .filter(|diagnostic| {
+                    diagnostic.code
+                        == Some(NumberOrString::String(
+                            code::W_COMPLETION_VALUE_DEPRECATED.as_str().to_owned(),
+                        ))
+                })
+                .inspect(|diagnostic| {
+                    assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::HINT));
+                    assert_eq!(diagnostic.tags, Some(vec![DiagnosticTag::DEPRECATED]));
+                })
+                .map(|diagnostic| diagnostic.range)
+                .collect();
+        assert_eq!(hinted, want, "{call}");
+    }
+}
+
+#[test]
+fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote() {
+    let workspace = Workspace::new("replacement");
+    workspace.write(".novis/completion/deprecated.json", DEPRECATED);
+    let files = workspace.load();
+    let open = render_open();
+    for (call, want) in [
+        (
+            "Icon::render('arrow-<|>left', 16);",
+            vec![("replace with `arrow-back`", "arrow-back", between(open, 10))],
+        ),
+        (
+            "Icon::render('o<|>ld', 16);",
+            vec![("replace with `it's $new`", "it\\'s $new", between(open, 3))],
+        ),
+        (
+            "Icon::render(\"o<|>ld\", 16);",
+            vec![("replace with `it's $new`", "it's \\$new", between(open, 3))],
+        ),
+        ("Icon::render('st<|>ar', 16);", Vec::new()),
+        ("Icon::render('ho<|>me', 16);", Vec::new()),
+    ] {
+        let (_, analysis, at) = opened(&workspace, call);
+        let offered: Vec<(String, String, Range)> = actions::at(
+            &analysis,
+            &files,
+            at,
+            at,
+            actions::Kind::QuickFix,
+            PositionEncoding::Utf8,
+        )
+        .into_iter()
+        .map(|action| (action.title, action.replacement, action.range))
+        .collect();
+        let want: Vec<(String, String, Range)> = want
+            .into_iter()
+            .map(|(title, text, range)| (title.to_owned(), text.to_owned(), range))
+            .collect();
+        assert_eq!(offered, want, "{call}");
+    }
+
+    // Without the file, nothing is offered.
+    let (_, analysis, at) = opened(&workspace, "Icon::render('arrow-<|>left', 16);");
+    let offered = actions::at(
+        &analysis,
+        &CompletionFiles::default(),
+        at,
+        at,
+        actions::Kind::QuickFix,
+        PositionEncoding::Utf8,
+    );
+    assert!(offered.is_empty(), "{offered:?}");
 }
 
 /// Values for `$name`, two of them only for some values of `$style`.

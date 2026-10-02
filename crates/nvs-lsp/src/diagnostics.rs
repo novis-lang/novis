@@ -39,23 +39,26 @@
 //! the server and the suite both call: the gate, narrowed to the entry file,
 //! crossed to the wire.
 //!
-//! **A completion file's `strict` is checked here and nowhere else.**
-//! [`unknown_values`] compares each string literal argument at a strict
-//! parameter with the values a completion file lists for it, so the warning is
-//! the language server's alone and `nvs check` never reads a completion file
-//! (`rule:ide/completion-files-offer-values-at-named-parameters`). Its cost is
-//! one table lookup per string literal argument per analysis.
+//! **A completion file's `strict` and `deprecated` are read here and nowhere
+//! else.** [`from_completion_files`] compares each string literal argument with
+//! the values a completion file lists for its parameter: a strict parameter
+//! warns on a literal that is none of them, and a literal equal to a
+//! deprecated value gets a hint with the `Deprecated` tag. Both are the
+//! language server's alone, and `nvs check` never reads a completion file
+//! (`rule:ide/completion-files-offer-values-at-named-parameters`). Their cost
+//! is one table lookup per string literal argument per analysis.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use lsp_types::{DiagnosticSeverity, DiagnosticTag, NumberOrString, Range};
 use nvs_diagnostics::{
-    Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId, code,
+    Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId, Span, code,
 };
 use nvs_syntax::string_lit::cook_string_literal;
 
 use crate::arguments;
-use crate::completion_files::CompletionFiles;
+use crate::completion_files::{CompletionFiles, Value};
 use crate::document::Analysed;
 use crate::index::{CheckScope, Declaration};
 use crate::position::position_at;
@@ -133,8 +136,9 @@ pub enum Phases {
 ///
 /// Three things happen here: the phase gate is applied unless `phases` defeats
 /// it, what survives is narrowed to the entry file, and that crosses to the
-/// wire. The second is the one that is easy to miss. The warnings of
-/// [`unknown_values`], which read `files` and no compiler phase, join them.
+/// wire. The second is the one that is easy to miss. The diagnostics of
+/// [`from_completion_files`], which read `files` and no compiler phase, join
+/// them.
 ///
 /// **The entry file only.** One analysis reads a whole `require` graph and
 /// reports over all of it, but a `publishDiagnostics` notification is about one
@@ -159,71 +163,127 @@ pub fn for_document(
         Phases::All => analysed.diags.iter().collect(),
     };
     let entry = analysed.map.file(analysed.entry);
-    let strict = unknown_values(analysed, files);
+    let listed = from_completion_files(analysed, files);
     surviving
         .into_iter()
         .filter(|diagnostic| file_of(diagnostic).is_none_or(|file| file == analysed.entry))
-        .chain(&strict)
+        .chain(&listed)
         .map(|diagnostic| to_wire(diagnostic, entry, encoding))
         .collect()
 }
 
-/// A warning on each string literal argument in the entry document whose
-/// parameter a completion file marks `strict` and whose text is none of the
-/// values that apply at its call
-/// (`rule:ide/completion-files-offer-values-at-named-parameters` § *What else
-/// reads it*).
+/// What the completion files say about the string literal arguments in the
+/// entry document (`rule:ide/completion-files-offer-values-at-named-parameters`
+/// § *What else reads it*): the warning of [`unknown_value`] and the hint of
+/// [`deprecated_value`], in the order the literals are written.
 ///
-/// Only a `.nvs` file is checked. A literal is skipped where an attachment's
-/// `when` names an argument the call leaves out or writes as something other
-/// than one string literal, because which values apply there is not known. A
-/// value built at run time is not a string literal, so it is never checked.
-fn unknown_values(analysed: &Analysed, files: &CompletionFiles) -> Vec<Diagnostic> {
+/// [`for_document`] publishes these and [`crate::actions::at`] offers their
+/// fixes, so both read this one walk and a quick fix is offered exactly where
+/// its hint is shown.
+#[must_use]
+pub(crate) fn from_completion_files(
+    analysed: &Analysed,
+    files: &CompletionFiles,
+) -> Vec<Diagnostic> {
     let entry = analysed.map.file(analysed.entry);
-    if entry
+    let checked = entry
         .path()
-        .is_none_or(|path| path.extension().is_none_or(|extension| extension != "nvs"))
-    {
-        return Vec::new();
-    }
+        .is_some_and(|path| path.extension().is_some_and(|extension| extension == "nvs"));
     arguments::named_in_document(analysed)
         .into_iter()
-        .filter_map(|named| {
-            let attachments = files.attachments(&named.class, &named.method, &named.parameter);
-            if !attachments.iter().any(|attachment| attachment.strict) {
-                return None;
-            }
-            let undecided = attachments
-                .iter()
-                .filter_map(|attachment| attachment.when.as_ref())
-                .any(|when| {
-                    !named
-                        .others
-                        .iter()
-                        .any(|(name, text)| *name == when.parameter && text.is_some())
-                });
-            if undecided {
-                return None;
-            }
+        .flat_map(|named| {
             let text = cook_string_literal(entry, named.span);
             let values =
                 files.values_at(&named.class, &named.method, &named.parameter, &named.others);
-            if values.iter().any(|value| value.value == text) {
-                return None;
-            }
-            Some(
-                Diagnostic::warning(
-                    code::W_COMPLETION_VALUE_UNKNOWN,
-                    format!(
-                        "`{text}` is not one of the values the completion files list for `${}` \
-                         of `{}::{}`",
-                        named.parameter, named.class, named.method
-                    ),
-                )
-                .with_primary(named.span, "not a listed value"),
-            )
+            let unknown = checked
+                .then(|| unknown_value(files, &named, &text, &values))
+                .flatten();
+            unknown
+                .into_iter()
+                .chain(deprecated_value(entry, &named, &text, &values))
         })
         .collect()
+}
+
+/// A warning on `named` when a completion file marks its parameter `strict`
+/// and `text` is none of the `values` that apply at its call.
+///
+/// Only a `.nvs` file is checked, which [`from_completion_files`] decides. A
+/// literal is skipped where an attachment's `when` names an argument the call
+/// leaves out or writes as something other than one string literal, because
+/// which values apply there is not known. A value built at run time is not a
+/// string literal, so it is never checked.
+fn unknown_value(
+    files: &CompletionFiles,
+    named: &arguments::Named,
+    text: &str,
+    values: &[Arc<Value>],
+) -> Option<Diagnostic> {
+    let attachments = files.attachments(&named.class, &named.method, &named.parameter);
+    if !attachments.iter().any(|attachment| attachment.strict) {
+        return None;
+    }
+    let undecided = attachments
+        .iter()
+        .filter_map(|attachment| attachment.when.as_ref())
+        .any(|when| {
+            !named
+                .others
+                .iter()
+                .any(|(name, text)| *name == when.parameter && text.is_some())
+        });
+    if undecided || values.iter().any(|value| value.value == text) {
+        return None;
+    }
+    Some(
+        Diagnostic::warning(
+            code::W_COMPLETION_VALUE_UNKNOWN,
+            format!(
+                "`{text}` is not one of the values the completion files list for `${}` of `{}::{}`",
+                named.parameter, named.class, named.method
+            ),
+        )
+        .with_primary(named.span, "not a listed value"),
+    )
+}
+
+/// A hint on `named` when `text` equals a deprecated one of the `values` that
+/// apply at its call. [`to_wire`] gives it the `Deprecated` tag.
+///
+/// When the value names a `replacement`, the hint carries it as a suggestion
+/// whose span is the text between the quotes, so the fix changes only the
+/// string. The replacement is escaped for the literal's quote the way a
+/// completion item's text is ([`crate::completion::escaped`]). It is not
+/// `safe`: the program then passes a different value.
+fn deprecated_value(
+    entry: &SourceFile,
+    named: &arguments::Named,
+    text: &str,
+    values: &[Arc<Value>],
+) -> Option<Diagnostic> {
+    let value = values
+        .iter()
+        .find(|value| value.value == text && value.deprecated)?;
+    let message = match &value.replacement {
+        Some(replacement) => format!("`{text}` is deprecated, use `{replacement}`"),
+        None => format!("`{text}` is deprecated"),
+    };
+    let hint = Diagnostic::new(Severity::Help, message)
+        .with_code(code::W_COMPLETION_VALUE_DEPRECATED)
+        .with_primary(named.span, "deprecated");
+    let Some(replacement) = &value.replacement else {
+        return Some(hint);
+    };
+    let quote = entry.text()[named.span.start as usize..]
+        .chars()
+        .next()
+        .unwrap_or('\'');
+    let inside = Span::new(named.span.file, named.span.start + 1, named.span.end - 1);
+    Some(hint.with_unsafe_fix(
+        inside,
+        crate::completion::escaped(replacement, quote),
+        format!("replace with `{replacement}`"),
+    ))
 }
 
 /// The dimming an editor is sent for one document: one `Unnecessary` tag per
@@ -318,9 +378,10 @@ const fn severity(severity: Severity) -> DiagnosticSeverity {
 /// has somewhere to put it: a secondary label wants `relatedInformation`, which
 /// needs the `Uri` of a file that is not necessarily this one, and a
 /// [`nvs_diagnostics::Suggestion`] is a code action, which is
-/// `textDocument/codeAction`'s. The `Unnecessary` tag is not one of them and is
-/// not set here either — no compiler diagnostic carries it, and [`dimming`] is
-/// where the index produces one instead.
+/// `textDocument/codeAction`'s. The one tag set here is `Deprecated`, on
+/// `W1021`, the hint [`from_completion_files`] gives a deprecated value. The
+/// `Unnecessary` tag is not set here: no compiler diagnostic carries it, and
+/// [`dimming`] is where the index produces one instead.
 #[must_use]
 pub fn to_wire(
     diagnostic: &Diagnostic,
@@ -348,7 +409,8 @@ pub fn to_wire(
         source: Some(SOURCE.to_owned()),
         message: diagnostic.message.clone(),
         related_information: None,
-        tags: None,
+        tags: (diagnostic.code == Some(code::W_COMPLETION_VALUE_DEPRECATED))
+            .then(|| vec![DiagnosticTag::DEPRECATED]),
         data: None,
     }
 }

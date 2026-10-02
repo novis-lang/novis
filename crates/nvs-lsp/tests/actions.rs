@@ -15,6 +15,7 @@
 //! nothing at all.
 
 use nvs_diagnostics::PositionEncoding;
+use nvs_lsp::completion_files::CompletionFiles;
 use nvs_lsp::{Analysed, Documents, Response, actions, analyse, uri_of};
 
 /// `source` analysed as its own entry point, out of an open buffer alone —
@@ -46,6 +47,7 @@ fn offered(source: &str, needle: &str) -> String {
     let analysed = analysed(source);
     Response::CodeAction(actions::at(
         &analysed,
+        &CompletionFiles::default(),
         at,
         at,
         actions::Kind::QuickFix,
@@ -83,6 +85,7 @@ fn a_code_action_comes_from_a_suggestion_the_diagnostic_already_carried() {
     let at = cursor(source, "user_account");
     let offered: Vec<(String, String)> = actions::at(
         &analysed(source),
+        &CompletionFiles::default(),
         at,
         at,
         actions::Kind::QuickFix,
@@ -139,7 +142,7 @@ fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
     assert!(
         !nvs_lsp::for_document(
             &analysed(mistyped),
-            &nvs_lsp::completion_files::CompletionFiles::default(),
+            &CompletionFiles::default(),
             nvs_lsp::Phases::Gated,
             PositionEncoding::Utf8
         )

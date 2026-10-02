@@ -514,7 +514,10 @@ fn answer(
             Err(error) => unreadable(id, &method, &error),
         },
         CodeActionRequest::METHOD => match serde_json::from_value::<CodeActionParams>(params) {
-            Ok(params) => Response::new_ok(id, code_actions(documents, encoding, &params)),
+            Ok(params) => Response::new_ok(
+                id,
+                code_actions(documents, completion_files, encoding, &params),
+            ),
             Err(error) => unreadable(id, &method, &error),
         },
         References::METHOD => match serde_json::from_value::<ReferenceParams>(params) {
@@ -1432,6 +1435,7 @@ fn document_link(
 /// [`document_symbol`]'s terms.
 fn code_actions(
     documents: &Documents,
+    completion_files: &CompletionFiles,
     encoding: PositionEncoding,
     params: &CodeActionParams,
 ) -> Vec<CodeActionOrCommand> {
@@ -1442,7 +1446,7 @@ fn code_actions(
     let start = offset_at(file, params.range.start, encoding);
     let end = offset_at(file, params.range.end, encoding);
     let kind = actions::Kind::asked_for(params.context.only.as_deref());
-    actions::at(&analysed, start, end, kind, encoding)
+    actions::at(&analysed, completion_files, start, end, kind, encoding)
         .into_iter()
         .map(|action| {
             CodeActionOrCommand::CodeAction(CodeAction {

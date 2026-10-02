@@ -5552,6 +5552,15 @@ pub mod code {
         "A completion file lists the values this parameter takes, and this string is not one of \
          them. Choose a value from the list, or add this one to the completion file.",
     );
+    /// A string literal equal to a value a completion file marks `deprecated`,
+    /// among the values that apply at the call. Published by the language
+    /// server only, as a hint with the `Deprecated` tag, and never by `nvs
+    /// check`. When the value names a `replacement`, the hint carries the fix
+    /// that writes it.
+    pub const W_COMPLETION_VALUE_DEPRECATED: Code = Code::new("W1021").card(
+        "A completion file says this value is deprecated. If the file names a replacement, the \
+         quick fix changes the string to it.",
+    );
 }
 }
 

@@ -596,6 +596,7 @@ fn document_link(analysed: &Analysed, files: &Materialised) -> Response {
 fn code_action(analysed: &Analysed, offset: BytePos) -> Response {
     Response::CodeAction(actions::at(
         analysed,
+        &crate::completion_files::CompletionFiles::default(),
         offset,
         offset,
         actions::Kind::QuickFix,

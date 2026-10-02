@@ -4,9 +4,10 @@
 //! this server offers is one [`nvs_diagnostics::Suggestion`] a diagnostic is
 //! already carrying — the casing rename (`rule:core-api/identifier-casing`) and
 //! the legacy cast's `expr as T` (`rule:types/no-legacy-cast`) are the two that
-//! exist today — so this module reads the analysis that was run for
-//! `publishDiagnostics` anyway and rewrites what it finds into
-//! [`crate::render::Action`]. That is
+//! exist in the compiler, and a deprecated completion-file value's
+//! `replacement` is the one the server adds — so this module reads the
+//! diagnostics `publishDiagnostics` sends anyway and rewrites what it finds
+//! into [`crate::render::Action`]. That is
 //! `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` in
 //! full: a fix the checker would have to compute has no `Suggestion` behind it,
 //! so there is nothing here for it to be translated *from*, and it is offered
@@ -51,7 +52,8 @@
 use lsp_types::CodeActionKind;
 use nvs_diagnostics::{BytePos, Diagnostic, PositionEncoding, SourceId};
 
-use crate::diagnostics::phase_gated;
+use crate::completion_files::CompletionFiles;
+use crate::diagnostics::{from_completion_files, phase_gated};
 use crate::document::Analysed;
 use crate::position::range_at;
 use crate::render::Action;
@@ -106,6 +108,10 @@ impl Kind {
 /// Every fix offered over `[start, end)` of the entry document of `analysed`,
 /// under `kind`, positioned in `encoding`.
 ///
+/// The diagnostics read are the compiler's, phase-gated, and the ones `files`
+/// gives the entry document, which is where a deprecated value's replacement
+/// comes from.
+///
 /// Sorted by where the edit lands and then by title, so the order an editor
 /// lists them in is the order a `.lspt` case freezes and neither depends on
 /// which walk reported the diagnostic first.
@@ -117,14 +123,17 @@ impl Kind {
 #[must_use]
 pub fn at(
     analysed: &Analysed,
+    files: &CompletionFiles,
     start: BytePos,
     end: BytePos,
     kind: Kind,
     encoding: PositionEncoding,
 ) -> Vec<Action> {
     let file = analysed.map.file(analysed.entry);
+    let listed = from_completion_files(analysed, files);
     let mut offered: Vec<Action> = phase_gated(&analysed.diags)
         .into_iter()
+        .chain(&listed)
         .filter(|diagnostic| touches(diagnostic, analysed.entry, start, end))
         .flat_map(|diagnostic| diagnostic.suggestions.iter())
         .filter(|suggestion| suggestion.span.file == analysed.entry)

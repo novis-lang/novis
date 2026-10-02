@@ -827,7 +827,7 @@ fn value_item(
 /// `text` written inside a literal opened with `quote`: a backslash and the
 /// quote are escaped, and in a double-quoted literal a `$` too, so it is not
 /// read as a variable.
-fn escaped(text: &str, quote: char) -> String {
+pub(crate) fn escaped(text: &str, quote: char) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
         if ch == '\\' || ch == quote || (quote == '"' && ch == '$') {

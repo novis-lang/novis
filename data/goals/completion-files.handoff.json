@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `completion-files`, Stage 3 is green and Stage 4 has seven of its nine tests passing.** Hover and go-to-definition on a literal equal to a value are done (module docs of `hover.rs` and `definition.rs`).\n\nThe strict check is done. `diagnostics::for_document` now takes `&CompletionFiles`. The server passes the loaded set through `publish`, and the `.lspt` suite and `tests/actions.rs` pass an empty one. `unknown_values` in `crates/nvs-lsp/src/diagnostics.rs` warns with `W1020` (`W_COMPLETION_VALUE_UNKNOWN`) on a literal at a strict parameter whose text is none of the values that apply at the call. It skips a call where any attachment's `when` names an argument that is left out or is not one literal, and it checks only a `.nvs` entry file. The walk is `arguments::named_in_document`, which shares one literal walk with `in_document`. Its four tests are in `crates/nvs-lsp/tests/completion_file_values.rs`.\n\nNot written yet: the Deprecated hint and its quick fix (the last two Stage 4 tests), the literal union (Stage 5) and the VS Code schema (Stage 6).",
+  "state": "**Goal `completion-files`, Stages 3 and 4 are green.** Hover, go-to-definition, the strict check and the Deprecated hint with its quick fix are done (module docs of `hover.rs`, `definition.rs`, `diagnostics.rs` and `actions.rs`).\n\n`diagnostics::from_completion_files` in `crates/nvs-lsp/src/diagnostics.rs` is the one walk over the string literal arguments of the entry document. It gives the strict warning `W1020` (in a `.nvs` file only) and the hint `W1021` (`W_COMPLETION_VALUE_DEPRECATED`, severity `Help`, so `HINT` on the wire). `to_wire` adds the `Deprecated` tag to `W1021` by its code. Where the value names a `replacement`, the hint carries an unsafe suggestion over the text between the quotes, escaped with `completion::escaped`. `actions::at` now takes `&CompletionFiles` and reads the same walk after the phase-gated compiler diagnostics, so the fix is offered where the hint is. The server passes the loaded set; the `.lspt` suite and `tests/actions.rs` pass an empty one.\n\nNot written yet: the literal union (Stage 5) and the VS Code schema (Stage 6), both red on the driver's sweep.",
   "next": {
-    "stage": 4,
-    "title": "hover, go-to-definition, the strict check and the replacement",
+    "stage": 5,
+    "title": "a parameter typed as a union of string literals completes its members",
     "files": [
-      "crates/nvs-lsp/src/diagnostics.rs",
-      "crates/nvs-lsp/src/actions.rs",
+      "crates/nvs-lsp/src/completion.rs",
+      "crates/nvs-lsp/src/arguments.rs",
+      "crates/nvs-types/src/expr_table.rs",
       "crates/nvs-lsp/tests/completion_file_values.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The Deprecated hint and its quick fix** (`rule:ide/completion-files-offer-values-at-named-parameters` § *What else reads it*). Use the same walk as `unknown_values`, at `crates/nvs-lsp/src/diagnostics.rs:181`. Put a hint with the `Deprecated` tag on a literal equal to a deprecated value that applies at the call. `to_wire` sets no tags today (`crates/nvs-lsp/src/diagnostics.rs:270`), so the hint needs a way to carry one. Where the value names a `replacement`, attach a `Suggestion` that rewrites only the string, escaped for the literal's quote style. The item edit in `crates/nvs-lsp/src/completion.rs` already escapes, so reuse it. `actions::at` (`crates/nvs-lsp/src/actions.rs:118`) reads only the compiler's `analysed.diags`, so it also needs `&CompletionFiles`, or the hint builder must be shared, for the fix to reach it. The hint probably needs a new W code (`W1021`) beside `W1020` in `crates/nvs-diagnostics/src/lib.rs`. Tests: `a_literal_equal_to_a_deprecated_value_gets_a_deprecated_hint` and `the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote`."
+        "text": "**A string argument at a literal-union parameter offers its members** (`rule:ide/completion-offers-only-what-the-compiler-derived`, `rule:types/literal-types`). The checker records each parameter's declared type on the call it resolved, `ResolvedCall::param_tys` at `crates/nvs-types/src/expr_table.rs:110`. `arguments::name` at `crates/nvs-lsp/src/arguments.rs:137` reads that call already for `param_names`. Where the parameter's type is a union of string literal types, offer each literal as an item of kind `value`, merged with a completion file's values for the same parameter (standing decision). `named_values` at `crates/nvs-lsp/src/completion.rs:687` is where a file's values are offered today, and its item edit escapes for the quote. A quote must open the list there too (`completion::continues_a_trigger`). Test: `a_string_argument_at_a_literal_union_parameter_offers_its_members`."
       },
       {
         "done": false,
-        "text": "**Stage 5: a literal union completes its members**: `rule:ide/completion-offers-only-what-the-compiler-derived`. Read the parameter types the checker records on the resolved call (`param_tys`, used in `crates/nvs-lsp/src/arguments.rs:265`). Add items of kind `value`, merged with a completion file's values, in `crates/nvs-lsp/src/completion.rs`. Test: `a_string_argument_at_a_literal_union_parameter_offers_its_members`."
+        "text": "**Stage 6: the VS Code client's schema** — `editors/vscode/schemas/completion-file.json` does not exist. The fields it describes are the closed set `Value` reads at `crates/nvs-lsp/src/completion_files.rs:191` (`rule:ide/completion-files-offer-values-at-named-parameters` § *What a file says*). `bun nv loop --list --stage 6` prints what its check runs."
       }
     ]
   },
   "backlog": [
-    "When a completion file is reloaded, the strict warnings in open documents stay stale until the next edit. `refresh_completion_files` (`crates/nvs-lsp/src/server.rs:1628`) publishes only the files' own findings. Owner: `diagnostics.rs` module doc, once this is decided.",
-    "Stage 6: `editors/vscode/schemas/completion-file.json` and the client's watcher and schema registration, the last of the goal's red checks."
+    "Stage 6 also owes the client's file watcher registration check, if its stage lists one; see `bun nv loop --list --stage 6`."
   ]
 }
