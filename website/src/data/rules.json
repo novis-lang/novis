@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1029,
-    "shipped": 786,
-    "designed": 243,
+    "shipped": 787,
+    "designed": 242,
     "diverging": 595
   },
   "topics": [
@@ -13,8 +13,8 @@
       "single": false,
       "counts": {
         "total": 22,
-        "shipped": 15,
-        "designed": 7,
+        "shipped": 16,
+        "designed": 6,
         "diverging": 10
       },
       "sections": [
@@ -79,8 +79,8 @@
           "url": "/docs/rules/programs/names-and-files/",
           "counts": {
             "total": 11,
-            "shipped": 9,
-            "designed": 2,
+            "shipped": 10,
+            "designed": 1,
             "diverging": 8
           },
           "rules": [
@@ -104,7 +104,7 @@
               "id": "programs/constructors",
               "slug": "constructors",
               "title": "`Core\\Program::constructors<T, C>()` lists the enumeration's classes with one closure each, typed by `C`, and it expands while compiling",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/programs/names-and-files/#constructors",
               "diverges": "a plugin factory list is a compile-time array literal of closures, not `new $className(...$args)` over discovered names"
             },

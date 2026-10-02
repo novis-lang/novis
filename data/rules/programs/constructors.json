@@ -1,6 +1,6 @@
 {
   "title": "`Core\\Program::constructors<T, C>()` lists the enumeration's classes with one closure each, typed by `C`, and it expands while compiling",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0253"
   ],
@@ -10,5 +10,10 @@
     "programs/implementing-with",
     "types/callable-signature"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/program-constructors-builds-each-class-with-the-arguments-you-pass.nvst",
+    "tests/conformance/core/program-constructors-make-is-an-ordinary-closure.nvst",
+    "tests/conformance/reject/program-constructors-names-the-class-whose-constructor-does-not-fit.nvst",
+    "crates/nvs-types/src/program.rs"
+  ]
 }

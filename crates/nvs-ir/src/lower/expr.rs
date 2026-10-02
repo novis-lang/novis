@@ -325,6 +325,19 @@ impl<'a> Lowering<'a> {
                     let (ctors, payloads) = (ctors.clone(), payloads.clone());
                     return self.lower_program_instances_with(&classes, &ctors, &payloads, env, cur);
                 }
+                // `rule:programs/constructors`' rows, each with a closure that
+                // builds its class when it is called.
+                if let Some(ExprInfo::ProgramConstructors {
+                    classes,
+                    ctors,
+                    params,
+                }) = self.exprs.lookup(expr.span)
+                {
+                    let classes: Vec<String> = classes.iter().map(ToString::to_string).collect();
+                    let (ctors, params) = (ctors.clone(), params.clone());
+                    return self
+                        .lower_program_constructors(&classes, &ctors, &params, expr.span, env, cur);
+                }
                 // `rule:programs/implementing`'s enumeration, answered in `nvs check` and
                 // recorded as the list of classes rather than as a constant,
                 // because what it expands to allocates. `nvs_stdlib::program`
@@ -2977,40 +2990,7 @@ impl<'a> Lowering<'a> {
             .iter()
             .map(|&id| erase_checked_ty(id, self.checked_types))
             .collect();
-        let (obj, _) = self.emit_fallible(
-            *cur,
-            Ty::Object,
-            InstKind::New {
-                class: class.clone(),
-                ctor: None,
-                args: Vec::new(),
-            },
-            env,
-        );
-        let arity = i64::try_from(params.len()).expect("a parameter list fits an i64");
-        let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
-        self.emit_field_set(*cur, obj, class.clone(), FN_ARITY.to_owned(), arity_v);
-        // The declared parameter types are readable here and nowhere below
-        // this crate, exactly as they are at a `fn` literal — the target's,
-        // this time, rather than the literal's own. See `FN_PARAM_TAGS`.
-        let tags = pack_param_tags(params.iter().copied());
-        let (tags_v, _) = self.emit(
-            *cur,
-            Ty::Int,
-            InstKind::ConstInt(i64::from_ne_bytes(tags.to_ne_bytes())),
-        );
-        self.emit_field_set(*cur, obj, class.clone(), FN_PARAM_TAGS.to_owned(), tags_v);
-        // The target's parameter *names*, which only a resolved call knows and
-        // only this crate is still holding — ADR 0006 § *Decision* binds an
-        // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run(...))`
-        // is such an entry with no constant beside it to carry them. See
-        // `FN_PARAM_NAMES` for why the sibling `fn` literal gets no such field.
-        let (names_v, _) = self.emit(
-            *cur,
-            Ty::Str,
-            InstKind::ConstStr(call.param_names.join(",")),
-        );
-        self.emit_field_set(*cur, obj, class.clone(), FN_PARAM_NAMES.to_owned(), names_v);
+        let obj = self.emit_thunk_object(&class, &params, call.param_names.join(","), env, cur);
         let takes_receiver = !call.is_static;
         if takes_receiver {
             // `rule:types/implicit-capture`'s "by value at the point the closure literal is
@@ -3044,12 +3024,70 @@ impl<'a> Lowering<'a> {
         }
         self.callables.push(PendingCallable {
             class,
-            call: call.clone(),
-            takes_receiver,
+            target: ThunkTarget::Forward {
+                call: call.clone(),
+                takes_receiver,
+            },
             params,
             span: expr.span,
         });
         (obj, Ty::Object)
+    }
+
+    /// The object every [`PendingCallable`] is: a new instance of `class` with
+    /// [`FN_ARITY`], [`FN_PARAM_TAGS`] and [`FN_PARAM_NAMES`] written, which is
+    /// what a native caller reads off any closure.
+    fn emit_thunk_object(
+        &mut self,
+        class: &str,
+        params: &[Ty],
+        names: String,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let (obj, _) = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::New {
+                class: class.to_owned(),
+                ctor: None,
+                args: Vec::new(),
+            },
+            env,
+        );
+        let arity = i64::try_from(params.len()).expect("a parameter list fits an i64");
+        let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
+        self.emit_field_set(*cur, obj, class.to_owned(), FN_ARITY.to_owned(), arity_v);
+        // The declared parameter types are readable here and nowhere below
+        // this crate, exactly as they are at a `fn` literal — the target's,
+        // this time, rather than the literal's own. See `FN_PARAM_TAGS`.
+        let tags = pack_param_tags(params.iter().copied());
+        let (tags_v, _) = self.emit(
+            *cur,
+            Ty::Int,
+            InstKind::ConstInt(i64::from_ne_bytes(tags.to_ne_bytes())),
+        );
+        self.emit_field_set(
+            *cur,
+            obj,
+            class.to_owned(),
+            FN_PARAM_TAGS.to_owned(),
+            tags_v,
+        );
+        // The target's parameter *names*, which only a resolved call knows and
+        // only this crate is still holding — ADR 0006 § *Decision* binds an
+        // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run(...))`
+        // is such an entry with no constant beside it to carry them. See
+        // `FN_PARAM_NAMES` for why the sibling `fn` literal gets no such field.
+        let (names_v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(names));
+        self.emit_field_set(
+            *cur,
+            obj,
+            class.to_owned(),
+            FN_PARAM_NAMES.to_owned(),
+            names_v,
+        );
+        obj
     }
 
     fn lower_new(
@@ -3418,6 +3456,79 @@ impl<'a> Lowering<'a> {
         }
         self.forget_transferred_since(mark);
         self.record_shape_class(label, fields, vec![Ty::Tagged, Ty::Object]);
+        self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
+    }
+
+    /// `Core\Program::constructors<T, C>()` — `rule:programs/constructors`'
+    /// expansion: one `{class, make}` shape row per class, in the
+    /// enumeration's order, gathered into one array.
+    ///
+    /// Each `make` is the object [`Self::lower_callable_ref`] builds for a
+    /// `(...)`, over a [`ThunkTarget::Build`] thunk whose `invoke` writes the
+    /// `new`, so nothing is constructed here. The row is the synthesized class
+    /// a written `{class: …, make: …}` literal gets. Every fresh value is
+    /// staged until the row or the array takes it, as in
+    /// [`Self::lower_program_instances_with`], so a later allocation that
+    /// fails releases what was built before it.
+    ///
+    /// It spends one closure object per listed class per call, charged to the
+    /// request and freed with the array.
+    fn lower_program_constructors(
+        &mut self,
+        classes: &[String],
+        ctors: &[Option<ResolvedCall>],
+        param_tys: &[TypeId],
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let fields = vec!["class".to_owned(), "make".to_owned()];
+        let label = super::shape_class_label(&fields);
+        let params: Vec<Ty> = param_tys
+            .iter()
+            .map(|&id| erase_checked_ty(id, self.checked_types))
+            .collect();
+        let mark = self.temporaries_mark();
+        let mut entries = Vec::with_capacity(classes.len());
+        for (index, class) in classes.iter().enumerate() {
+            let ctor = ctors.get(index).cloned().flatten();
+            let names = ctor.as_ref().map_or_else(String::new, |call| {
+                call.param_names[..params.len()].join(",")
+            });
+            let thunk = format!("{}$fcc{}", self.fn_label, self.callables.len());
+            let row_mark = self.temporaries_mark();
+            let make = self.emit_thunk_object(&thunk, &params, names, env, cur);
+            self.callables.push(PendingCallable {
+                class: thunk,
+                target: ThunkTarget::Build {
+                    class: class.clone(),
+                    ctor,
+                    param_tys: param_tys.to_vec(),
+                },
+                params: params.clone(),
+                span,
+            });
+            self.own_transferred_temporary(make);
+            let (name, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(class.clone()));
+            self.own_transferred_temporary(name);
+            let (row, _) = self.emit_fallible(
+                *cur,
+                Ty::Object,
+                InstKind::New {
+                    class: label.clone(),
+                    ctor: None,
+                    args: Vec::new(),
+                },
+                env,
+            );
+            self.forget_transferred_since(row_mark);
+            self.emit_field_set(*cur, row, label.clone(), "class".to_owned(), name);
+            self.emit_field_set(*cur, row, label.clone(), "make".to_owned(), make);
+            self.own_transferred_temporary(row);
+            entries.push((index.to_string(), row));
+        }
+        self.forget_transferred_since(mark);
+        self.record_shape_class(label, fields, vec![Ty::Str, Ty::Object]);
         self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
     }
 

@@ -254,7 +254,7 @@ impl<'a> Lowering<'a> {
         reason = "the same context `lower_call_args` itself threads; splitting it into a struct \
                   would buy one call site nothing"
     )]
-    fn lower_default_arg(
+    pub(crate) fn lower_default_arg(
         &mut self,
         index: usize,
         sig: &ArgSig,
@@ -352,7 +352,7 @@ impl<'a> Lowering<'a> {
         reason = "the same context `lower_call_args` itself threads; splitting it into a struct \
                   would buy one call site nothing"
     )]
-    fn lower_variadic_tail(
+    pub(crate) fn lower_variadic_tail(
         &mut self,
         rest: &[&nvs_syntax::ast::Arg],
         fixed: usize,

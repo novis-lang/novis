@@ -5293,6 +5293,35 @@ pub mod code {
          For a path the program builds, write `Core\\Path::join(Core\\Path::thisDir(), $part)`.",
     );
 
+    /// A `Core\Program::constructors<T, C>()` whose `C` is not a `callable`
+    /// type naming its parameters, or names a return type other than `T`.
+    ///
+    /// `rule:programs/constructors`: each row's `make` is a closure taking
+    /// `C`'s parameters and returning a new `T`, so `C` is what decides both
+    /// what every constructor is checked against and what the caller may pass.
+    /// Bare `callable` names no parameters to check, and a return type `T`
+    /// does not satisfy is a closure the row could not hold.
+    pub const E_PROGRAM_CONSTRUCTORS_TYPE_ARG_NOT_A_MAKER: Code = Code::new("E0838").card(
+        "The second type argument of `Core\\Program::constructors` must be a function type with \
+         its parameters and a return type that accepts the first type argument, for example \
+         `constructors<Module, callable(Config): Module>()`.",
+    );
+
+    /// A class `Core\Program::constructors<T, C>()` lists has a constructor
+    /// that `C`'s parameters cannot call.
+    ///
+    /// `rule:programs/constructors`: the row's `make` is
+    /// `fn(<C's parameters>): T => new Class(<the same arguments>)`, so it is
+    /// checked as that `new` would be where the call is written — too few
+    /// parameters, too many, a type the constructor does not accept and a
+    /// constructor that is not visible there. The class is named, because the
+    /// fix is in that class or in `C`, and the ordinary error is a note.
+    pub const E_PROGRAM_CONSTRUCTOR_DOES_NOT_FIT: Code = Code::new("E0839").card(
+        "`Core\\Program::constructors` creates each class it finds with the parameters of its \
+         function type, and this class's constructor does not accept them. Change the \
+         constructor, or change the function type's parameters.",
+    );
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901").card(

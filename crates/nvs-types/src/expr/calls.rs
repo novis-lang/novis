@@ -520,6 +520,11 @@ pub(crate) fn infer_static_call(
         if crate::program::is_joined(name) {
             return crate::program::expand_with(expr, &written, args, live, scope, ctx, env);
         }
+        // `constructors`' type is built from its written arguments too, for
+        // the same reason.
+        if crate::program::is_constructors(name) {
+            return crate::program::expand_constructors(expr, &written, ctx, env);
+        }
         crate::program::expand(expr, &written, live, scope, ctx, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }

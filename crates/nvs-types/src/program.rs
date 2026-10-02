@@ -27,6 +27,12 @@
 //! or a class (`E0743`), and every class the enumeration would instantiate
 //! needs a no-argument constructor (`E0744`). Their own `Code` doc comments
 //! own why each is refused rather than worked around.
+//!
+//! `rule:programs/constructors`' `constructors<T, C>()` is the third member,
+//! and the one that lifts the second refusal: it builds nothing, so it lists
+//! the same classes with one closure each, and a constructor is refused only
+//! where `C`'s parameters cannot call it (`E0839`), or where `C` is not a
+//! callable returning `T` (`E0838`).
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::{QName, SymbolKind};
@@ -36,8 +42,9 @@ use rustc_hash::FxHashSet;
 use crate::defaults::ConstArg;
 use crate::expr::args::check_args_typed;
 use crate::expr::calls::resolved_call;
-use crate::expr::members::class_qname_of;
-use crate::expr_table::{ExprInfo, ResolvedCall};
+use crate::expr::is_assignable;
+use crate::expr::members::{check_method_visibility, class_qname_of};
+use crate::expr_table::{ArgSlot, ExprInfo, ResolvedCall};
 use crate::locals::LocalScope;
 use crate::retrieval::{fold_payload, matching, sites_for};
 use crate::signatures::{resolve_method, resolve_property};
@@ -50,13 +57,22 @@ const OWNER: &str = r"Core\Program";
 /// The joined enumeration, `rule:programs/implementing-with`'s member.
 const WITH: &str = "implementingWith";
 
+/// The typed constructors, `rule:programs/constructors`' member.
+const CONSTRUCTORS: &str = "constructors";
+
 /// Whether `owner::member` is an enumeration — the same nominal test
 /// [`crate::retrieval::is_retrieval`] makes, against a resolved [`QName`]
-/// rather than against what the call site spelled. Two members answer:
-/// `implementing`, expanded by [`expand`], and `implementingWith`, expanded by
-/// [`expand_with`].
+/// rather than against what the call site spelled. Three members answer:
+/// `implementing`, expanded by [`expand`], `implementingWith`, expanded by
+/// [`expand_with`], and `constructors`, expanded by [`expand_constructors`].
 pub(crate) fn is_enumeration(owner: &QName, member: &str) -> bool {
-    owner.to_string() == OWNER && (member == "implementing" || member == WITH)
+    owner.to_string() == OWNER && matches!(member, "implementing" | WITH | CONSTRUCTORS)
+}
+
+/// Whether `member` is the typed-constructor form, which
+/// [`expand_constructors`] answers with a type of its own.
+pub(crate) fn is_constructors(member: &str) -> bool {
+    member == CONSTRUCTORS
 }
 
 /// Whether `member` is the joined form, which [`expand_with`] answers with a
@@ -251,6 +267,213 @@ pub(crate) fn expand_with(
     env.interner.array(row)
 }
 
+/// `rule:programs/constructors`: [`expand`]'s list, each class beside the
+/// constructor its `make` closure calls, recorded as
+/// [`ExprInfo::ProgramConstructors`].
+///
+/// `C` must be a `callable(...)` type naming its parameters, with a return
+/// type a `T` is assignable to — anything else is `E0838`. Each listed class
+/// is then checked as `fn(<C's parameters>): T => new Class(<the same
+/// arguments>)` would be at the call: the constructor visible here, every
+/// parameter of `C` assignable to the constructor's parameter at its place,
+/// and every constructor parameter past them defaulted. A class that fails is
+/// `E0839` naming it, with the reason as a note, and every such class is
+/// reported before the call is refused.
+///
+/// Returns `array<{class: string, make: C}>`, refused or not, so a refusal is
+/// reported once rather than again by whatever reads the answer. The
+/// closures' own signature, `callable(<C's parameters>): T`, is recorded
+/// against the call's span so a `$f is callable(...)` test sees the classes
+/// `nvs-ir` builds for them.
+pub(crate) fn expand_constructors(
+    call: &Expr,
+    written: &[TypeId],
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let (Some(want), Some(maker)) = (written.first().copied(), written.get(1).copied()) else {
+        // The type-argument count is `check_written_type_args`' refusal.
+        return env.interner.mixed();
+    };
+    let text = env.interner.string();
+    let row = env.interner.shape(vec![
+        ShapeField {
+            name: "class".to_owned(),
+            ty: text,
+            required: true,
+        },
+        ShapeField {
+            name: "make".to_owned(),
+            ty: maker,
+            required: true,
+        },
+    ]);
+    let answer = env.interner.array(row);
+    let Some(selector) = selector_of(call, CONSTRUCTORS, want, env) else {
+        return answer;
+    };
+    let shape = match env.interner.get(maker) {
+        Ty::CallableSig { params, ret } => Some((params.clone(), *ret)),
+        _ => None,
+    };
+    let params = match shape {
+        Some((params, ret))
+            if is_assignable(want, ret, env.interner, env.graph, env.signatures) =>
+        {
+            params
+        }
+        _ => {
+            let found = env.interner.describe(maker);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_PROGRAM_CONSTRUCTORS_TYPE_ARG_NOT_A_MAKER,
+                    format!(
+                        "`Core\\Program::{CONSTRUCTORS}` needs a `callable(...)` type returning \
+                         `{selector}`, and `{found}` is not one"
+                    ),
+                )
+                .with_primary(call.span, format!("`{found}` written here"))
+                .with_help(format!(
+                    "`rule:programs/constructors`: each row's `make` takes the parameters this \
+                     type names and returns a new `{selector}` — write it as \
+                     `callable(<the constructor's parameters>): {selector}`"
+                )),
+            );
+            return answer;
+        }
+    };
+
+    let classes = nvs_hir::implementors(&selector, env.graph);
+    let mut ctors = Vec::with_capacity(classes.len());
+    let mut refused = false;
+    for class in &classes {
+        match constructor_fitting(class, &params, maker, call, ctx, env) {
+            Ok(ctor) => ctors.push(ctor),
+            Err(reason) => {
+                let shown = env.interner.describe(maker);
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_PROGRAM_CONSTRUCTOR_DOES_NOT_FIT,
+                        format!(
+                            "`{class}`'s constructor cannot be called with `{shown}`'s parameters"
+                        ),
+                    )
+                    .with_primary(
+                        call.span,
+                        format!("this lists `{class}`, which is a `{selector}`"),
+                    )
+                    .with_note(reason)
+                    .with_help(format!(
+                        "`rule:programs/constructors`: each row's `make` is \
+                         `fn(<{shown}'s parameters>): {selector} => new {class}(<the same \
+                         arguments>)`, checked as that closure would be here — change \
+                         `{class}`'s constructor, or the parameters `{shown}` names",
+                    )),
+                );
+                refused = true;
+            }
+        }
+    }
+    if refused {
+        return answer;
+    }
+    env.exprs.record(
+        call.span,
+        ExprInfo::ProgramConstructors {
+            classes,
+            ctors,
+            params: params.clone(),
+        },
+    );
+    let made = env.interner.callable_sig(params, want);
+    env.exprs.record_callable_value(call.span, made);
+    answer
+}
+
+/// The constructor `make` calls for one listed class, already resolved as
+/// `new class(<one argument per parameter of C>)` would resolve it, or the
+/// reason it cannot be called that way.
+///
+/// `None` inside the `Ok` is a class declaring no constructor, which fits
+/// exactly when `C` takes no parameters. A variadic constructor takes nothing
+/// into its tail here: `C`'s parameters fill the fixed ones, so one more
+/// parameter than those is refused like any other.
+fn constructor_fitting(
+    class: &QName,
+    params: &[TypeId],
+    maker: TypeId,
+    call: &Expr,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Result<Option<ResolvedCall>, String> {
+    let shown = env.interner.describe(maker);
+    let Some((owner, sig)) = resolve_method(class, "constructor", env.signatures, env.graph) else {
+        if params.is_empty() {
+            return Ok(None);
+        }
+        return Err(format!(
+            "`{class}` declares no constructor, so `new {class}()` takes no arguments, and \
+             `{shown}` passes {}",
+            params.len()
+        ));
+    };
+    // The visibility `new` faces at this call, reported by the same check a
+    // written `new` runs and then moved into the note: one diagnostic per
+    // class, with the class named first.
+    let before = env.diags.len();
+    check_method_visibility(&owner, "constructor", &sig, call.span, ctx, env);
+    if env.diags.len() > before {
+        let reason = env
+            .diags
+            .iter()
+            .nth(before)
+            .map(|d| d.message.clone())
+            .unwrap_or_default();
+        env.diags.truncate(before);
+        return Err(reason);
+    }
+    let fixed = sig.params.len() - usize::from(sig.variadic);
+    if params.len() > fixed {
+        return Err(format!(
+            "`{owner}::constructor` takes {fixed} argument(s), and `{shown}` passes {}",
+            params.len()
+        ));
+    }
+    if sig.required() > params.len() {
+        return Err(format!(
+            "`{owner}::constructor` needs {} argument(s), and `{shown}` passes {}",
+            sig.required(),
+            params.len()
+        ));
+    }
+    for (index, &given) in params.iter().enumerate() {
+        let name = &sig.param_names[index];
+        if sig.inout.get(index).copied().unwrap_or(false) {
+            return Err(format!(
+                "`{owner}::constructor`'s `${name}` is `inout`, and a closure has no variable \
+                 to pass there"
+            ));
+        }
+        let wanted = sig.params[index];
+        if !is_assignable(given, wanted, env.interner, env.graph, env.signatures) {
+            let (given, wanted) = (env.interner.describe(given), env.interner.describe(wanted));
+            return Err(format!(
+                "parameter {} of `{shown}` is `{given}`, and `{owner}::constructor`'s `${name}` \
+                 is `{wanted}`",
+                index + 1
+            ));
+        }
+    }
+    let slots = (0..params.len()).map(ArgSlot::Param).collect();
+    Ok(Some(resolved_call(
+        owner,
+        "constructor".to_owned(),
+        &sig,
+        slots,
+        env.signatures,
+    )))
+}
+
 /// The interface or class a written type argument names, or `None` after
 /// reporting `E0743` — the selector's one refusal, shared by both
 /// enumerations.
@@ -330,7 +553,9 @@ fn constructors_of(
                     "`rule:programs/implementing`: every class the enumeration instantiates needs a \
                      no-argument constructor, and dependencies arrive through \
                      `{selector}`'s own methods instead — give `{class}` a \
-                     zero-argument `constructor`",
+                     zero-argument `constructor`, or list the classes with \
+                     `Core\\Program::constructors<{selector}, callable(...): {selector}>()`, \
+                     which passes the arguments you give it (`rule:programs/constructors`)",
                 )),
             );
             return None;
@@ -668,5 +893,233 @@ mod tests {
             matches!(page, crate::defaults::ConstArg::Null),
             "`Page` carries no attribute: {page:?}"
         );
+    }
+
+    /// The codes of every error `diags` holds, in report order.
+    fn codes(diags: &Diagnostics) -> Vec<&'static str> {
+        diags
+            .iter()
+            .filter_map(|d| d.code.map(|code| code.as_str()))
+            .collect()
+    }
+
+    /// `rule:programs/constructors`: the call records the list rather than a
+    /// call, one resolved constructor per class, and `C`'s parameter list —
+    /// which is every closure's own, so `nvs-ir` builds one closure per class
+    /// from it.
+    // covers: Core\Program::constructors
+    #[test]
+    fn program_constructors_expands_to_one_typed_closure_per_class() {
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             interface Module { public function tag(): string; }\n\
+             class Beta implements Module {\n\
+                 public function constructor(public int $port) {}\n\
+                 public function tag(): string { return \"b\"; }\n\
+             }\n\
+             class Alpha implements Module {\n\
+                 public function constructor(public int $port) {}\n\
+                 public function tag(): string { return \"a\"; }\n\
+             }\n\
+             Core\\Program::constructors<Module, callable(int): Module>();\n",
+        );
+        assert!(!diags.has_errors(), "the call was refused: {diags:?}");
+        let Some(ExprInfo::ProgramConstructors {
+            classes,
+            ctors,
+            params,
+        }) = exprs.lookup(span)
+        else {
+            panic!("the call recorded no expansion: {:?}", exprs.lookup(span));
+        };
+        assert_eq!(params.len(), 1, "one parameter, `C`'s `int`");
+        assert_eq!(
+            classes.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ["Alpha", "Beta"]
+        );
+        let labels: Vec<String> = ctors
+            .iter()
+            .map(|ctor| {
+                let ctor = ctor.as_ref().expect("both classes declare a constructor");
+                format!("{}::{}", ctor.class, ctor.method)
+            })
+            .collect();
+        assert_eq!(labels, ["Alpha::constructor", "Beta::constructor"]);
+    }
+
+    /// `rule:programs/constructors`: "one row per class `implementing<T>()`
+    /// would list, in the same order". The two lists are asked of one program
+    /// and compared whole, so a member that sorted or filtered on its own
+    /// fails here while still looking right alone.
+    #[test]
+    fn program_constructors_lists_the_classes_implementing_lists_in_its_order() {
+        let declarations = "interface Module { public function tag(): string; }\n\
+             class Zulu implements Module { public function tag(): string { return \"z\"; } }\n\
+             class Mike implements Module { public function tag(): string { return \"m\"; } }\n\
+             abstract class Base implements Module {}\n\
+             class Alpha extends Base { public function tag(): string { return \"a\"; } }\n";
+        let (exprs, span, diags) = check(&format!(
+            "<?nvs\n{declarations}Core\\Program::implementing<Module>();\n"
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        let Some(ExprInfo::ProgramInstances { classes, .. }) = exprs.lookup(span) else {
+            panic!(
+                "`implementing` recorded no expansion: {:?}",
+                exprs.lookup(span)
+            );
+        };
+        let listed: Vec<String> = classes.iter().map(ToString::to_string).collect();
+
+        let (exprs, span, diags) = check(&format!(
+            "<?nvs\n{declarations}Core\\Program::constructors<Module, callable(): Module>();\n"
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+        let Some(ExprInfo::ProgramConstructors { classes, .. }) = exprs.lookup(span) else {
+            panic!(
+                "`constructors` recorded no expansion: {:?}",
+                exprs.lookup(span)
+            );
+        };
+        let made: Vec<String> = classes.iter().map(ToString::to_string).collect();
+        assert_eq!(listed, ["Alpha", "Mike", "Zulu"]);
+        assert_eq!(made, listed, "the two lists can be zipped");
+    }
+
+    /// The limit `implementing` has and this member lifts: a constructor with
+    /// a required parameter is enumerated, and its resolved call fills one
+    /// slot per parameter of `C`, leaving the defaulted one after it to the
+    /// constructor's own default.
+    #[test]
+    fn program_constructors_accepts_a_constructor_that_takes_arguments() {
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             interface Module { public function tag(): string; }\n\
+             class Needy implements Module {\n\
+                 public function constructor(public int $port, public string $host = \"local\") {}\n\
+                 public function tag(): string { return \"n\"; }\n\
+             }\n\
+             Core\\Program::constructors<Module, callable(int): Module>();\n",
+        );
+        assert!(
+            !diags.has_errors(),
+            "a required argument `C` passes is accepted: {diags:?}"
+        );
+        let Some(ExprInfo::ProgramConstructors { ctors, .. }) = exprs.lookup(span) else {
+            panic!("the call recorded no expansion: {:?}", exprs.lookup(span));
+        };
+        let [Some(ctor)] = ctors.as_slice() else {
+            panic!("one resolved constructor: {ctors:?}");
+        };
+        assert_eq!(
+            ctor.arg_slots,
+            [crate::expr_table::ArgSlot::Param(0)],
+            "one slot per parameter of `C`"
+        );
+        assert_eq!(ctor.param_tys.len(), 2, "the default fills the second");
+    }
+
+    /// `C`'s refusal, `E0838`, for each way it can be wrong: bare `callable`
+    /// names no parameters, a return type a `T` is not assignable to, and a
+    /// type that is not callable at all. Nothing is recorded for `nvs-ir`.
+    #[test]
+    fn program_constructors_needs_a_callable_returning_t() {
+        for maker in ["callable", "callable(int): string", "int"] {
+            let (exprs, span, diags) = check(&format!(
+                "<?nvs\n\
+                 interface Module {{ public function tag(): string; }}\n\
+                 Core\\Program::constructors<Module, {maker}>();\n",
+            ));
+            assert_eq!(codes(&diags), ["E0838"], "for `{maker}`: {diags:?}");
+            assert!(
+                !matches!(
+                    exprs.lookup(span),
+                    Some(ExprInfo::ProgramConstructors { .. })
+                ),
+                "a refused call of `{maker}` must record nothing for `nvs-ir` to lower"
+            );
+        }
+    }
+
+    /// `E0839`, one per class that does not fit, each naming its class: one
+    /// argument too few, one too many and one of the wrong type. The class
+    /// that fits between them is not named, so a check that refused the whole
+    /// list for one class fails here.
+    #[test]
+    fn program_constructors_names_the_class_whose_constructor_does_not_fit() {
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             interface Job { public function run(): void; }\n\
+             class Mailer implements Job {\n\
+                 public function constructor(public string $host, public int $port) {}\n\
+                 public function run(): void {}\n\
+             }\n\
+             class Sweeper implements Job { public function run(): void {} }\n\
+             class Timer implements Job {\n\
+                 public function constructor(public int $seconds) {}\n\
+                 public function run(): void {}\n\
+             }\n\
+             class Fits implements Job {\n\
+                 public function constructor(public string $name) {}\n\
+                 public function run(): void {}\n\
+             }\n\
+             Core\\Program::constructors<Job, callable(string): Job>();\n",
+        );
+        assert_eq!(codes(&diags), ["E0839", "E0839", "E0839"], "{diags:?}");
+        let named: Vec<&str> = diags
+            .iter()
+            .map(|d| {
+                ["Mailer", "Sweeper", "Timer", "Fits"]
+                    .into_iter()
+                    .find(|class| d.message.starts_with(&format!("`{class}`")))
+                    .unwrap_or("")
+            })
+            .collect();
+        assert_eq!(named, ["Mailer", "Sweeper", "Timer"]);
+        assert!(
+            diags
+                .iter()
+                .all(|d| d.notes.iter().any(|note| !note.starts_with("help:"))),
+            "each carries its reason as a note: {diags:?}"
+        );
+        assert!(
+            !matches!(
+                exprs.lookup(span),
+                Some(ExprInfo::ProgramConstructors { .. })
+            ),
+            "a refused call must record nothing for `nvs-ir` to lower"
+        );
+    }
+
+    /// "the visibility `new` faces there": a private constructor is refused
+    /// from outside the class, with the ordinary visibility error as the
+    /// note, and accepted from the class's own body, where `new` reaches it.
+    #[test]
+    fn program_constructors_respects_a_private_constructor() {
+        let vault = "interface Job { public function run(): void; }\n\
+             class Vault implements Job {\n\
+                 private function constructor(public string $key) {}\n\
+                 public function run(): void {}\n\
+                 public static function makers(): array<{class: string, make: callable(string): Job}> {\n\
+                     return Core\\Program::constructors<Job, callable(string): Job>();\n\
+                 }\n\
+             }\n";
+        let (_, _, diags) = check(&format!(
+            "<?nvs\n{vault}Core\\Program::constructors<Job, callable(string): Job>();\n"
+        ));
+        assert_eq!(
+            codes(&diags),
+            ["E0839"],
+            "refused outside `Vault`: {diags:?}"
+        );
+        let refused = diags.iter().next().expect("one diagnostic");
+        assert!(refused.message.contains("Vault"), "{}", refused.message);
+        assert!(
+            refused.notes.iter().any(|note| note.contains("private")),
+            "the note is the visibility error: {:?}",
+            refused.notes
+        );
+
+        let (_, _, diags) = check(&format!("<?nvs\n{vault}Vault::makers();\n"));
+        assert!(!diags.has_errors(), "accepted inside `Vault`: {diags:?}");
     }
 }

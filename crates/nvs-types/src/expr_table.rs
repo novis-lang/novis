@@ -1117,6 +1117,28 @@ pub enum ExprInfo {
         /// folded payload, or `null`.
         payloads: Vec<ConstArg>,
     },
+    /// `Core\Program::constructors<T, C>()` — `rule:programs/constructors`'
+    /// typed constructors, already answered.
+    ///
+    /// The enumeration's list, each class beside the constructor its `make`
+    /// closure calls. `nvs-ir` emits one `{class, make}` shape row per entry
+    /// into one array, and each `make` is a closure object of a class
+    /// synthesized for it, whose `invoke` takes `params` and writes the `new`.
+    /// Nothing is built until a `make` is called.
+    ProgramConstructors {
+        /// [`Self::ProgramInstances`]' `classes`.
+        classes: Vec<QName>,
+        /// Each entry's `constructor`, resolved as `new C(<one argument per
+        /// entry of params>)` resolves it — so `arg_slots` names one
+        /// parameter per entry of `params`, and `nvs-ir` fills the rest from
+        /// `defaults` as for any call that stops short. `None` where the
+        /// class declares no constructor, which the checker allows only for
+        /// an empty `params`.
+        ctors: Vec<Option<ResolvedCall>>,
+        /// `C`'s parameter types, left to right — every `make` closure's own
+        /// parameter list.
+        params: Vec<TypeId>,
+    },
     /// `Core\Router::url`/`urlAbsolute`/`urlSigned` over a **literal** name
     /// that resolved to a declared route —
     /// `rule:routing/link-name-and-params-are-checked`'s link,

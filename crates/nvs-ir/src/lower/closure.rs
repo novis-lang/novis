@@ -522,12 +522,8 @@ pub(crate) struct PendingCallable {
     /// naming the same member still get two labels and no `Function` in
     /// [`crate::ir::Program`] is written twice.
     pub(crate) class: String,
-    /// The member the `(...)` named.
-    pub(crate) call: ResolvedCall,
-    /// Whether the target takes a receiver — `!ResolvedCall::is_static`,
-    /// decided at the site and recorded so the thunk and the object's field
-    /// list cannot disagree about whether [`FCC_RECV`] exists.
-    pub(crate) takes_receiver: bool,
+    /// What the thunk's body does with its arguments.
+    pub(crate) target: ThunkTarget,
     /// Each parameter's representation, positional and already lowered —
     /// the thunk's own parameter list past its receiver, and the word
     /// [`FN_PARAM_TAGS`] packs at the site.
@@ -536,6 +532,33 @@ pub(crate) struct PendingCallable {
     /// check of a class-declared parameter. A thunk has no statement of its
     /// own, exactly as a closure literal's body has none.
     pub(crate) span: Span,
+}
+
+/// What a [`PendingCallable`]'s `invoke` does: forward to the member a
+/// `(...)` named, or build one class, which is what each row's `make` of
+/// `rule:programs/constructors` does.
+pub(crate) enum ThunkTarget {
+    /// `rule:types/callable-is-a-closure`'s forwarding call.
+    Forward {
+        /// The member the `(...)` named.
+        call: ResolvedCall,
+        /// Whether the target takes a receiver — `!ResolvedCall::is_static`,
+        /// decided at the site and recorded so the thunk and the object's
+        /// field list cannot disagree about whether [`FCC_RECV`] exists.
+        takes_receiver: bool,
+    },
+    /// `new class(<the thunk's arguments>)`, with the constructor's own
+    /// defaults filling every parameter past them.
+    Build {
+        /// The class to allocate.
+        class: String,
+        /// Its constructor, resolved for exactly as many arguments as the
+        /// thunk takes, or `None` for a class that declares none.
+        ctor: Option<ResolvedCall>,
+        /// The thunk's parameter types as the checker holds them — `C`'s,
+        /// which is what a class-declared parameter is checked against.
+        param_tys: Vec<TypeId>,
+    },
 }
 
 /// Lowers one first-class callable to the `invoke` method of a class
@@ -582,6 +605,13 @@ pub(crate) struct PendingCallable {
 /// it is passed. The closure object itself is bound under [`FN_SELF`], which
 /// is what makes [`Lowering::release_all_locals`] release it at every exit.
 ///
+/// # A thunk that builds
+///
+/// [`ThunkTarget::Build`] is the same object and the same frame, with a `new`
+/// where the forwarding call is: each argument is widened into the
+/// constructor's slot and transferred to it, the constructor's defaults fill
+/// the parameters past the thunk's own, and the frame answers the object.
+///
 /// # What a `void` target hands back
 ///
 /// Nothing, by the same seal every other `void` frame uses — a
@@ -609,12 +639,20 @@ pub(crate) fn lower_callable(
 ) -> (Function, crate::ir::Class) {
     let PendingCallable {
         class,
-        call,
-        takes_receiver,
+        target,
         params,
         span,
     } = pending;
-    let ret = erase_checked_ty(call.return_ty, checked_types);
+    let (ret, takes_receiver) = match target {
+        ThunkTarget::Forward {
+            call,
+            takes_receiver,
+        } => (
+            erase_checked_ty(call.return_ty, checked_types),
+            *takes_receiver,
+        ),
+        ThunkTarget::Build { .. } => (Ty::Object, false),
+    };
     let label = format!("{class}::{FN_INVOKE}");
     let mut low = Lowering::new(&label, Some(&label), src, ret, exprs, checked_types, enums);
     let entry = low.new_block();
@@ -657,7 +695,11 @@ pub(crate) fn lower_callable(
     for (i, ty) in params.iter().enumerate() {
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let (v, _) = low.emit(entry, *ty, InstKind::Param(index));
-        if let Some(class) = checked_class(call.param_tys[i], checked_types) {
+        let declared = match target {
+            ThunkTarget::Forward { call, .. } => call.param_tys[i],
+            ThunkTarget::Build { param_tys, .. } => param_tys[i],
+        };
+        if let Some(class) = checked_class(declared, checked_types) {
             class_checks.push((i, v, class));
         }
         if ty.is_refcounted() {
@@ -674,6 +716,38 @@ pub(crate) fn lower_callable(
         cur = check_param_class(&mut low, cur, i, value, &class, *span, &mut env);
     }
 
+    let call = match target {
+        ThunkTarget::Forward { call, .. } => call,
+        ThunkTarget::Build {
+            class: built, ctor, ..
+        } => {
+            let value = build_thunk_body(
+                &mut low,
+                built,
+                ctor.as_ref(),
+                args,
+                params,
+                mark,
+                &mut env,
+                &mut cur,
+            );
+            low.release_all_locals(cur, &env, None);
+            low.seal(cur, Terminator::Return(Some(value)));
+            let (blocks, stmt_spans, edge_spans) = low.finish();
+            return (
+                Function {
+                    name: label,
+                    params: param_tys,
+                    ret,
+                    blocks,
+                    entry,
+                    stmt_spans,
+                    edge_spans,
+                },
+                thunk_class(class, false, *span, exprs),
+            );
+        }
+    };
     let value = if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
         // A Tier 0 `Core` member borrows every argument, receiver included,
         // so what this frame staged it also releases — see `InstKind::CoreCall`.
@@ -805,55 +879,140 @@ pub(crate) fn lower_callable(
             stmt_spans,
             edge_spans,
         },
-        crate::ir::Class {
-            label: class.clone(),
-            // `FN_ARITY` first and `FN_PARAM_TAGS` second, as for every
-            // closure — a native caller reads both by index — then
-            // `FN_PARAM_NAMES`, which only this kind of closure has, and
-            // `FCC_RECV` last. Nothing reads the receiver by index, so where
-            // it lands is a comment's problem and not a reader's; see those
-            // constants.
-            fields: [
-                FN_ARITY.to_owned(),
-                FN_PARAM_TAGS.to_owned(),
-                FN_PARAM_NAMES.to_owned(),
-            ]
-            .into_iter()
-            .chain(takes_receiver.then(|| FCC_RECV.to_owned()))
-            .collect(),
-            field_reprs: Vec::new(),
-            secret_fields: Vec::new(),
-            public_fields: Vec::new(),
-            protected_fields: Vec::new(),
-            constants: Vec::new(),
-            attributes: Vec::new(),
-            field_types: Vec::new(),
-            // A first-class callable is a closure, so it carries the same
-            // edges an `fn` literal's class does — the one every closure has
-            // and one per written signature it satisfies, read back at the
-            // span the `(...)` was written at.
-            conforms: std::iter::once(super::CLOSURE_MARKER.to_owned())
-                .chain(exprs.callable_markers_at(*span).iter().cloned())
-                .collect(),
-            methods: vec![(
-                FN_INVOKE.to_owned(),
-                class.clone(),
-                true,
-                false,
-                Vec::new(),
-                Vec::new(),
-            )],
-            // Nor a property to hook: every slot is a capture.
-            hooks: Vec::new(),
-            codec: Vec::new(),
-            db_codec: Vec::new(),
-            ctor_arity: 0,
-            defaults: Vec::new(),
-            // A first-class callable is a closure over its target, so it
-            // carries the bit a written literal's class carries.
-            is_closure: true,
-        },
+        thunk_class(class, takes_receiver, *span, exprs),
     )
+}
+
+/// [`ThunkTarget::Build`]'s body: `new built(<args>)`, with `ctor`'s defaults
+/// past them, answering the object.
+///
+/// Each argument is the thunk's own parameter, staged as an owned temporary
+/// since `mark`, and is widened into the constructor's slot the way
+/// [`Lowering::lower_call_args`] widens a written one. The constructor takes
+/// every one of them over, so they leave the stack unreleased before the
+/// `new` is emitted — [`lower_callable`]'s compiled-target rule.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the thunk's frame state, threaded the way `lower_call_args` threads it"
+)]
+fn build_thunk_body(
+    low: &mut Lowering<'_>,
+    built: &str,
+    ctor: Option<&ResolvedCall>,
+    args: Vec<ValueId>,
+    params: &[Ty],
+    mark: usize,
+    env: &mut Env,
+    cur: &mut BlockId,
+) -> ValueId {
+    let mut values = Vec::with_capacity(args.len());
+    if let Some(call) = ctor {
+        let sig = ArgSig::of(call);
+        let checked_types = low.checked_types;
+        for (i, v) in args.into_iter().enumerate() {
+            let value = match sig.expectation(i, checked_types) {
+                Some(expected) => low.coerce(*cur, v, params[i], expected, env),
+                None => v,
+            };
+            values.push(value);
+        }
+        let fixed = sig.param_tys.len() - usize::from(sig.variadic);
+        let mut rest = LoweredArgs::default();
+        for index in values.len()..fixed {
+            low.lower_default_arg(
+                index,
+                &sig,
+                checked_types,
+                ArgOwnership::Transferred,
+                env,
+                cur,
+                &mut rest,
+            );
+        }
+        if sig.variadic {
+            low.lower_variadic_tail(
+                &[],
+                fixed,
+                &sig,
+                ArgOwnership::Transferred,
+                env,
+                cur,
+                &mut rest,
+            );
+        }
+        values.extend(rest.values);
+    }
+    low.forget_temporaries_since(mark);
+    let (v, _) = low.emit_fallible(
+        *cur,
+        Ty::Object,
+        InstKind::New {
+            class: built.to_owned(),
+            ctor: ctor.map(|call| format!("{}::{}", call.class, call.method)),
+            args: values,
+        },
+        env,
+    );
+    v
+}
+
+/// The class a [`PendingCallable`] synthesizes: [`FN_ARITY`],
+/// [`FN_PARAM_TAGS`] and [`FN_PARAM_NAMES`], [`FCC_RECV`] where the target
+/// takes a receiver, and the one `invoke`.
+fn thunk_class(
+    class: &str,
+    takes_receiver: bool,
+    span: Span,
+    exprs: &ExprTypeTable,
+) -> crate::ir::Class {
+    crate::ir::Class {
+        label: class.to_owned(),
+        // `FN_ARITY` first and `FN_PARAM_TAGS` second, as for every
+        // closure — a native caller reads both by index — then
+        // `FN_PARAM_NAMES`, which only this kind of closure has, and
+        // `FCC_RECV` last. Nothing reads the receiver by index, so where
+        // it lands is a comment's problem and not a reader's; see those
+        // constants.
+        fields: [
+            FN_ARITY.to_owned(),
+            FN_PARAM_TAGS.to_owned(),
+            FN_PARAM_NAMES.to_owned(),
+        ]
+        .into_iter()
+        .chain(takes_receiver.then(|| FCC_RECV.to_owned()))
+        .collect(),
+        field_reprs: Vec::new(),
+        secret_fields: Vec::new(),
+        public_fields: Vec::new(),
+        protected_fields: Vec::new(),
+        constants: Vec::new(),
+        attributes: Vec::new(),
+        field_types: Vec::new(),
+        // A first-class callable is a closure, so it carries the same
+        // edges an `fn` literal's class does — the one every closure has
+        // and one per written signature it satisfies, read back at the
+        // span the `(...)` was written at.
+        conforms: std::iter::once(super::CLOSURE_MARKER.to_owned())
+            .chain(exprs.callable_markers_at(span).iter().cloned())
+            .collect(),
+        methods: vec![(
+            FN_INVOKE.to_owned(),
+            class.to_owned(),
+            true,
+            false,
+            Vec::new(),
+            Vec::new(),
+        )],
+        // Nor a property to hook: every slot is a capture.
+        hooks: Vec::new(),
+        codec: Vec::new(),
+        db_codec: Vec::new(),
+        ctor_arity: 0,
+        defaults: Vec::new(),
+        // A first-class callable is a closure over its target, so it
+        // carries the bit a written literal's class carries.
+        is_closure: true,
+    }
 }
 
 /// One closure parameter's lowered type, the class it must be checked against

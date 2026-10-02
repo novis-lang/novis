@@ -1,0 +1,75 @@
+--TEST--
+`Core\Program::constructors<T, C>()` refuses a `C` that is not a `callable(...)` type returning `T`, and names each listed class whose constructor `C`'s parameters cannot call, for too few, too many, a wrong type and a private constructor, at the call (`rule:programs/constructors`)
+--FILE--
+<?nvs
+// `rule:programs/constructors`: each row's `make` is
+// `fn(<C's parameters>): T => new Class(<the same arguments>)`, checked where
+// the call is written. The accepted call is first, so a member that stopped
+// answering a well-formed one fails here rather than as a missing refusal.
+interface Plugin {
+    public function name(): string;
+}
+
+class Clock implements Plugin {
+    public function constructor(public int $hour, public string $zone = "UTC") {}
+    public function name(): string { return "clock"; }
+}
+
+echo Core\Arr::count(Core\Program::constructors<Plugin, callable(int): Plugin>()), "\n";
+
+// Bare `callable` names no parameters to check the constructors against.
+echo Core\Arr::count(Core\Program::constructors<Plugin, callable>()), "\n";
+
+// A `make` returns a new `Plugin`, and `string` does not accept one.
+echo Core\Arr::count(Core\Program::constructors<Plugin, callable(int): string>()), "\n";
+
+// Not a function type at all.
+echo Core\Arr::count(Core\Program::constructors<Plugin, int>()), "\n";
+
+interface Job {
+    public function run(): void;
+}
+
+// Needs two arguments, and the function type passes one.
+class Mailer implements Job {
+    public function constructor(public string $host, public int $port) {}
+    public function run(): void {}
+}
+
+// Takes no arguments, and the function type passes one.
+class Sweeper implements Job {
+    public function run(): void {}
+}
+
+// Takes an `int`, and the function type passes a `string`.
+class Timer implements Job {
+    public function constructor(public int $seconds) {}
+    public function run(): void {}
+}
+
+// The constructor is private, so `new Vault(...)` is not allowed here.
+class Vault implements Job {
+    private function constructor(public string $key) {}
+    public function run(): void {}
+}
+
+echo Core\Arr::count(Core\Program::constructors<Job, callable(string): Job>()), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0838]: `Core\Program::constructors` needs a `callable(...)` type returning `Plugin`, and `callable` is not one
+%A
+error[E0838]: `Core\Program::constructors` needs a `callable(...)` type returning `Plugin`, and `callable(int): string` is not one
+%A
+error[E0838]: `Core\Program::constructors` needs a `callable(...)` type returning `Plugin`, and `int` is not one
+%A
+error[E0839]: `Mailer`'s constructor cannot be called with `callable(string): Job`'s parameters
+%A
+error[E0839]: `Sweeper`'s constructor cannot be called with `callable(string): Job`'s parameters
+%A
+error[E0839]: `Timer`'s constructor cannot be called with `callable(string): Job`'s parameters
+%A
+error[E0839]: `Vault`'s constructor cannot be called with `callable(string): Job`'s parameters
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

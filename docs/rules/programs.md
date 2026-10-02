@@ -3,7 +3,7 @@
 
 # Programs
 
-*7 of 22 rules below are **designed** rather than shipped, and are marked where they appear.*
+*6 of 22 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="programs-audience"></a>
 
@@ -221,7 +221,7 @@ hold unchanged.
 
 <a id="programs-constructors"></a>
 
-## `Core\Program::constructors<T, C>()` lists the enumeration's classes with one closure each, typed by `C`, and it expands while compiling  *(designed — not yet in the compiler)*
+## `Core\Program::constructors<T, C>()` lists the enumeration's classes with one closure each, typed by `C`, and it expands while compiling
 
 `rule:programs/constructors`
 
