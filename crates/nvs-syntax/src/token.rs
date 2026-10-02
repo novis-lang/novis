@@ -355,7 +355,8 @@ macro_rules! keywords {
         /// (`rule:classes/reserved-spellings-are-lower-case`) — unlike PHP, which matches its own keywords case-insensitively.
         /// `IF` and `If` are therefore ordinary [`TokenKind::Ident`]s, not this
         /// token; nothing diagnoses them, because `rule:core-api/identifier-casing` makes both legal class
-        /// names. Every variant's [`name()`](Keyword::name) gives that one spelling.
+        /// names. [`Keyword::from_lowercase`] maps that one spelling to its variant,
+        /// and nothing maps a variant back to its spelling.
         #[derive(Clone, Copy, PartialEq, Eq, Debug)]
         #[non_exhaustive]
         #[expect(
