@@ -217,9 +217,11 @@ final class MathTest {
 }
 ```
 ```output
+MathTest
 ✓ addsTwoNumbers
 - dividesByZero
-0 failed, 1 passed, 1 skipped
+skipped: not written yet
+0 failed, 1 passed, 1 skipped, 0 flaky
 ```
 
 - `--filter <text>` runs only the tests whose name contains the text: a `.nvst` case's path, or a

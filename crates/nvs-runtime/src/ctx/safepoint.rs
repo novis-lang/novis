@@ -543,10 +543,11 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         // thread has published against [`Ctx::cpu_limit`] once per interval and
         // raises this flag through a [`SafepointView`] ([`Ctx::cpu_limit`]'s
         // field doc owns why the sampling is the host's). A `nvs run` publishes
-        // the one request it is, so a program that reaches no member at all is
-        // stopped here; a served core publishes nothing yet, and on that path
-        // the flag still arrives only from a caller that had already decided
-        // the request was over.
+        // the one request it is, and a served core publishes each request it
+        // runs, so a program that reaches no member at all is stopped here. A
+        // core the boot could not name a CPU for publishes nothing, and there
+        // the flag arrives only from a caller that had already decided the
+        // request was over.
         //
         // One thing that sampler is not told, and it is not an edit here: the
         // handler below widens this context's ceiling and leaves the one its

@@ -13,6 +13,8 @@
 // at. The base is shared by every kind of atom, and a run runs only some of them, so each atom the
 // change selected and this run did not run is marked `owed` first: it stays selected until a run of it
 // is green, and moving the base can lose nothing. An atom that ran red stays `red`, selected again.
+// `owed` is written over whatever verdict the store holds, so an atom another process ran green after
+// this run read its selection is owed too and runs once more: a concurrent run costs a run, never a miss.
 
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";

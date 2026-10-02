@@ -562,10 +562,9 @@ pub struct Ctx {
     /// than per-process, and reading another thread's is a platform call
     /// `nvs-runtime` has no dependency to make. So the split is the one
     /// [`Self::deadline`] already uses: this crate holds the ceiling and the
-    /// flag, and whatever timer watches the request raises
-    /// [`SafepointFlags::CPU_LIMIT`] when the clock passes it. Until that timer
-    /// exists the flag is raised by tests alone, which is the gap
-    /// [`nvs_safepoint`]'s CPU branch describes.
+    /// flag, and `nvs_host::watchdog` samples every request a thread has
+    /// published and raises [`SafepointFlags::CPU_LIMIT`] when the clock passes
+    /// it. [`nvs_safepoint`]'s CPU branch says which requests are published.
     ///
     /// **What it spends:** one word per request.
     cpu_limit: u64,

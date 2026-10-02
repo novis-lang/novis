@@ -63,11 +63,7 @@ accepts — anything else is `E0601`:
 | `[[extension]]`, `[[schedule]]` | extension paths; scheduled scripts |
 
 Every accepted key is stored, reported by `nvs config dump`, and readable from a program with
-`Core\Config::get`. **What `nvs run` acts on in this build** is a shorter list: `[limits] memory`
-is enforced; `[capabilities]`, `[[app]]` and `[[include]]` do what this chapter says; everything
-else — the other limits, `[mode]`, `[log]`, `[http]`, `[server]`, `[db]`, `[cache]` — is accepted
-and read back, and changes nothing about how a program runs, because the server, database client
-and logger that would read them are not in this binary.
+`Core\Config::get`.
 
 # Values and units
 
@@ -177,9 +173,8 @@ ceiling = "development"    # the most permissive mode any code may select; unset
 Both keys are stored and readable: `Core\Config::get("mode.default")` answers what the file set,
 and `Core\Config::set("mode.default", "development")` is accepted for the request when `ceiling`
 allows `development`, and returns `false` otherwise. `set("mode.ceiling", …)` always returns
-`false`: only the file sets it. Nothing under
-`nvs run` behaves differently between the two values in this build — the mode selects defaults for
-the logger and the HTTP error pages, and neither is in this binary. `Core\Config::get("mode")`
+`false`: only the file sets it. `Core\Env::mode()` returns `Development` when the file sets
+`development`, and `Production` otherwise. `Core\Config::get("mode")`
 (without `.default`) answers `null`, and `set("mode", …)` returns `false`.
 
 <!-- primer -->
