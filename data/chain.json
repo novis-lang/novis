@@ -1,5 +1,5 @@
 {
-  "live": "completion-files",
+  "live": "ci-green",
   "goals": [
     "core-depth",
     "concurrency",
