@@ -1,13 +1,16 @@
-A list, or a lookup table, whose values are all the same kind of thing.
+A list, or a lookup table, whose values all have the same type.
 
-You say what an array holds where you create it — whole numbers, names, orders — and every value put
-into it afterwards has to be one of those. Keys are always text: `$row[3]` and `$row["3"]` reach the
-same place, and a loop over the keys is handed text. Entries stay in the order they were added until
-something sorts them. An array whose values are themselves arrays is how a table or a grouped report
-is built, and it nests as deep as the work needs.
+`var $ids = [1, 2];` creates an `array<int>`. The keys are not part of the type. Every value you add
+later must have that type. Write the type yourself, as in `array<float> $weights = [2, 1];`, when the
+array starts empty, when its values mix types, or when you will add values of a wider type later.
 
-An array is a value rather than a shared box. Copy one into another name, or hand it to a function,
-and the other side gets its own; nothing it writes there can turn up in yours.
+Keys are always strings: `$row[3]` and `$row["3"]` are the same entry. Entries keep the order you
+added them in. An array of arrays is how you build a table or a grouped report.
 
-**Good to know:** reading a key that was never stored stops with an error instead of quietly handing
-back nothing, so ask whether a key is there when it is optional.
+An array is a value. When you pass it to a function, the function gets its own copy.
+
+**Good to know:** reading a key that does not exist throws an error. Check first when a key may be
+missing.
+
+**The examples below** show a list made with `var` and one with a written type, then a lookup table,
+then a grouped report that starts from an empty array.

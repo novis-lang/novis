@@ -1,28 +1,27 @@
 <?nvs
-// What this looks like at work: filling orders out of one stock figure. The
-// method both answers how much it shipped and updates the figure the caller
-// is holding, so the two can never drift apart. Both ends say `inout`, so a
-// reader of the call knows the variable is about to change.
+// Fills orders from one stock count. `take` returns how much it shipped, and it also
+// changes the caller's variable `$available`. The method and the call both write `inout`,
+// so a reader of the call can see that the variable will change.
 
 class Stock
 {
     public static function take(inout int $available, int $wanted): int
     {
-        int $given = $wanted < $available ? $wanted : $available;
+        var $given = $wanted < $available ? $wanted : $available;
         $available = $available - $given;
 
         return $given;
     }
 }
 
-int $available = 15;
-array<int> $orders = [4, 4, 5];
+var $available = 15;
+var $orders = [4, 4, 5];
 
-foreach ($orders as int $order) {
-    int $shipped = Stock::take(inout $available, $order);
+foreach ($orders as var $order) {
+    var $shipped = Stock::take(inout $available, $order);
     echo "order for ", $order, ": shipped ", $shipped, ", left ", $available, "\n";
 }
 
-// The parameter may be named at the call like any other.
+// You can also write the parameter's name at the call, as with any other parameter.
 echo "one more: ", Stock::take(inout available: $available, wanted: 2), "\n";
 echo "left: ", $available, "\n";

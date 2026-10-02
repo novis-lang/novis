@@ -1,16 +1,20 @@
 <?nvs
-// Every name says what kind of value it holds, and it says it once. A name
-// can be written down first and filled in later. Where the value on the
-// right already says it, `var` takes the kind from there.
+// Shows the two ways to declare a variable: with `var`, or with a written type.
 
-int $count = 3;
-
-string $label;
-$label = "boxes";
-
-var $weight = 1.25;
-
+// `var` gives the variable the type of its first value.
+// `$count` is an `int` and `$label` is a `string`. The types never change.
+var $count = 3;
+var $label = "boxes";
 $count = $count + 1;
-$weight = $weight * 2;
 
-echo $count, " ", $label, ", ", $weight, " kg each\n";
+// A written type is needed when the variable gets its value later.
+string $unit;
+$unit = "kg";
+
+// A written type can also be wider than the first value.
+// With `var $weight = 1;` the type is `int`, so the next line would not compile.
+float $weight = 1;
+$weight = $weight * 2.5;
+
+// This prints `4 boxes, 2.5 kg each`.
+echo $count, " ", $label, ", ", $weight, " ", $unit, " each\n";

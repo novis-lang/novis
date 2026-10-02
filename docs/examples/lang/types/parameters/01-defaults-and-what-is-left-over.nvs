@@ -1,15 +1,17 @@
 <?nvs
-// A parameter can carry a default, so a caller who is happy with it leaves it
-// out. The last parameter can collect everything left over, and inside the
-// method it is a plain list.
+// A parameter can have a default value, so a caller can leave it out.
+// The last parameter can collect all the remaining arguments into a list.
 
 class Basket
 {
-    public static function total(int $items, int $each = 5, int ...$surcharges): int
-    {
-        int $sum = $items * $each;
+    public const int USUAL_PRICE = 5;
 
-        foreach ($surcharges as int $surcharge) {
+    // A default can be a value or a class constant. `$each` uses the constant `USUAL_PRICE`.
+    public static function total(int $items, int $each = Basket::USUAL_PRICE, int ...$surcharges): int
+    {
+        var $sum = $items * $each;
+
+        foreach ($surcharges as var $surcharge) {
             $sum = $sum + $surcharge;
         }
 
@@ -21,6 +23,6 @@ echo "three at the usual price: ", Basket::total(3), "\n";
 echo "three at four each: ", Basket::total(3, 4), "\n";
 echo "three at four each, plus two surcharges: ", Basket::total(3, 4, 2, 7), "\n";
 
-// A list you already have can be poured into the same place with `...`.
-array<int> $surcharges = [2, 7];
+// `...` passes the values of an array you already have as separate arguments.
+var $surcharges = [2, 7];
 echo "the same two, out of a list: ", Basket::total(3, 4, ...$surcharges), "\n";

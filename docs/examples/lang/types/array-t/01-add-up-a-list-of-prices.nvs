@@ -1,15 +1,23 @@
 <?nvs
 // A basket of prices, shown one line at a time and then added up.
-// `array<int>` is a list of whole numbers, so every value you add to it is an `int`.
-// The `foreach` loop gives each value the type `int` too.
 
-array<int> $prices = [1299, 450];
+// Every value in this list is an `int`, so `var` gives `$prices` the type `array<int>`.
+// Every value you add later must be an `int` too.
+var $prices = [1299, 450];
 $prices[] = 780;
 
-int $total = 0;
-foreach ($prices as int $price) {
+var $total = 0;
+foreach ($prices as var $price) {
     echo $price, "\n";
     $total = $total + $price;
 }
 
 echo "total ", $total, " over ", Core\Arr::count($prices), " items\n";
+
+// A weight can have a fraction, so this list has the written type `array<float>`.
+// With `var`, the list would be `array<int>`, and adding `0.5` would not compile.
+array<float> $weights = [2, 1];
+$weights[] = 0.5;
+
+// This prints `weight 3.5 kg`.
+echo "weight ", Core\Arr::sum($weights), " kg\n";

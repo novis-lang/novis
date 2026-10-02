@@ -3,18 +3,21 @@
 // You can then leave out any parameter that has a default value.
 // The call is also easier to read, because each value has its name beside it.
 
+enum Length { Short = 30, Long = 60 }
+
 class Slot
 {
-    public static function book(string $who, string $day = "Monday", string $time = "09:00", int $minutes = 30): string
+    // A default can be a case of an enum. `$length` is `Length::Short`, 30 minutes, by default.
+    public static function book(string $who, string $day = "Monday", string $time = "09:00", Length $length = Length::Short): string
     {
-        return $who . " on " . $day . " at " . $time . " for " . ($minutes as string) . " minutes";
+        return $who . " on " . $day . " at " . $time . " for " . (($length as int) as string) . " minutes";
     }
 }
 
 echo Slot::book("Ada"), "\n";
 
-// Only `minutes` is given. The other parameters use their default values.
-echo Slot::book("Ada", minutes: 60), "\n";
+// Only `length` is given. The other parameters use their default values.
+echo Slot::book("Ada", length: Length::Long), "\n";
 
 // You can write named arguments in any order. Here `time` comes before `day`,
 // but the method declares `day` first.

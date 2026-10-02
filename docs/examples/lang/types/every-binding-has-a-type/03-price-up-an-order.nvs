@@ -1,7 +1,6 @@
 <?nvs
 // Prices an order the way a small shop does. Every value has a type: the constant,
-// the field, the method's parameter and return value, and the `foreach` variables.
-// `var $net` gets its type, `decimal`, from the value that `net` returns.
+// the property, the method's parameter and return value, and each variable.
 
 class Order {
     public const int TAX_PERCENT = 20;
@@ -14,7 +13,9 @@ class Order {
 
     public function net(array<decimal> $lines): decimal {
         decimal $sum = 0;
-        foreach ($lines as string $item => decimal $amount) {
+        // In a `foreach`, `var $amount` gets the type of the array's values, `decimal`.
+        // `var $item` gets the key's type, `string`.
+        foreach ($lines as var $item => var $amount) {
             echo $item, ": ", $amount, "\n";
             $sum = $sum + $amount;
         }
@@ -22,9 +23,13 @@ class Order {
     }
 }
 
-Order $order = new Order("Hedda Voss");
+var $order = new Order("Blog Press");
+
+// The type is written here because `var` would make these prices `float`.
+// A `decimal` keeps exact cents, so `120.00` prints with both zeros.
 array<decimal> $lines = ["print run" => 120.00, "delivery" => 15.50];
 
+// `var $net` gets the type `decimal` from the value that `net` returns.
 var $net = $order->net($lines);
 decimal $gross = $net + $net * Order::TAX_PERCENT / 100;
 

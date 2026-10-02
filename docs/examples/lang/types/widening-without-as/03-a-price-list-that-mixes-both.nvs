@@ -1,12 +1,13 @@
 <?nvs
-// A price list for a small shop. Some prices are round numbers and some are
-// not, and a list declared to hold fractions takes both. Nothing is written
-// at the place where the round ones move across.
+// A price list for a small shop. Some prices are whole numbers and some are not.
+// A list with the type `array<float>` accepts both, and you do not write `as`.
 
+// `var $prices = [4, 2.5, 3];` does not compile, because the values are `int` and `float`.
+// So the type is written here.
 array<float> $prices = [4, 2.5, 3];
-float $total = 0.0;
+var $total = 0.0;
 
-foreach ($prices as float $price) {
+foreach ($prices as var $price) {
     echo $price, "\n";
     $total = $total + $price;
 }

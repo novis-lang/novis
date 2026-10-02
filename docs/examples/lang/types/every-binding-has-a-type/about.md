@@ -1,15 +1,17 @@
-Every name in a program says what kind of value it holds, and says it once.
+Every variable in a program has a type, and the type never changes.
 
-A local, a parameter, a result, a property, a constant, a loop counter and the name a `foreach`
-hands out each round all write their kind down where they are introduced. From then on the kind is
-settled: a name that started out holding a whole number holds one for the rest of its life, and
-handing it text instead is refused before the program runs rather than at three in the morning.
-Where the value on the right already makes the kind plain, `var` takes it from there and fixes it
-just the same.
+The short way to declare a local variable is `var`. `var $count = 3;` gives `$count` the type of its
+first value, `int`. In a `foreach` loop, `var` gives the value the type of the array's values, and
+the key is a `string`.
 
-A name can be introduced without a value and filled in later. Reading one on a path where nothing
-has given it a value is refused too, so there is no quiet empty value waiting to be tripped over.
+You can also write the type yourself, as in `float $weight = 1;`. Write it when the value comes
+later, when the variable needs a wider type, or when the type helps the reader. Parameters, return
+values, properties and the variable in `catch` always have a written type.
 
-**Good to know:** a name belongs to the whole function rather than to the block it stands in, so a
-loop's counter can still be read after the loop. Introducing the same name twice is an error, not a
-second name hiding the first.
+A value of another type does not compile, and neither does reading a variable before it has a value.
+
+**Good to know:** a variable belongs to the whole function, not only to its block. So you can read a
+loop counter after the loop.
+
+**The examples below** show `var` and then a written type, a loop counter read after its loop, and an
+order where every value has a type.

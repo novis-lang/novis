@@ -1,16 +1,19 @@
 <?nvs
 // Stock counts kept under the name of the thing being counted.
-// Keys are text, so the loop takes its key as text whatever it looks like.
-// Asking for a name that was never stored would stop the program, so a name
-// that may be missing is checked for first.
 
-array<int> $stock = ["apples" => 3, "pears" => 0];
+// The keys are not part of the type. The values are all `int`,
+// so `var` gives `$stock` the type `array<int>`.
+var $stock = ["apples" => 3, "pears" => 0];
 $stock["figs"] = 7;
 
-foreach ($stock as string $name => int $count) {
+// `var $name` is a `string`, because every key is a string.
+// `var $count` gets the type of the values, `int`.
+foreach ($stock as var $name => var $count) {
     echo $name, ": ", $count, "\n";
 }
 
+// Reading a name that is not in the array throws an error.
+// So check first with `Core\Arr::hasKey`. You can also write the types in a loop.
 array<string> $asked = ["pears", "plums"];
 foreach ($asked as string $wanted) {
     echo $wanted, Core\Arr::hasKey($stock, $wanted) ? " is stocked\n" : " is not stocked\n";

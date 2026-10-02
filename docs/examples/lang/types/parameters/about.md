@@ -1,14 +1,15 @@
-A method says what it needs by listing its parameters, and the call says which value fills which.
+A method lists the values it needs as parameters, and the call says which value goes to which.
 
-Each parameter is a type and a name. It may carry a default, so a caller who is happy with it leaves
-it out; the last one may be variadic, collecting everything left over into a list. At the call, an
-argument may be written with its parameter's name in front of it — `book(minutes: 60)` — which lets
-you skip over the defaults you do not care about and makes a call with several bare numbers in it
-readable. Plain arguments all come before the first named one, and the arguments run in the order
-you wrote them.
+Each parameter has a type and a name. A parameter with a default can be left out by the caller. The
+default can be a value, a class constant, or an enum case. The last parameter can be
+variadic: it collects the remaining arguments into a list. At the call, you can write an argument
+with its parameter's name in front of it, as in `book(day: "Friday")`. Then you can skip the
+defaults you do not need. Arguments without a name come first.
 
-A parameter written `inout` is the one that changes the caller's own variable: the method writes
-back into it when it returns. The call has to write `inout` in front of that argument as well, so a
-method reaching into your variable is never something you have to look up.
+A parameter written `inout` changes the caller's own variable when the method returns. The call
+writes `inout` in front of that argument too, so you can see the change at the call.
 
 **Good to know:** parameter names are part of what a method promises, so a caller may rely on them.
+
+**The examples below** show defaults and a variadic parameter, then named arguments with an enum
+case as a default, then an `inout` stock count.

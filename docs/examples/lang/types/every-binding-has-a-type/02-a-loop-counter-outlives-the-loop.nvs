@@ -1,17 +1,19 @@
 <?nvs
 // A variable belongs to the whole function, not only to the block where it is declared.
 // So you can read the loop counter `$i` after the loop ends.
-// Every variable needs a type. That includes the loop counter and the variable in `catch`.
 
-array<string> $entries = ["12", "nine", "30"];
+var $entries = ["12", "nine", "30"];
+var $total = 0;
 
-int $total = 0;
-for (uint $i = 0; $i < Core\Arr::count($entries); $i = $i + 1) {
+// `var $i = 0` makes the counter an `int`.
+for (var $i = 0; $i < Core\Arr::count($entries); $i = $i + 1) {
     try {
         $total = $total + ($entries[$i] as int);
     } catch (Throwable $e) {
+        // The variable in `catch` always has a written type.
         echo "skipped ", $entries[$i], ": ", $e->message, "\n";
     }
 }
 
+// This prints `read 3 entries, total 42`.
 echo "read ", $i, " entries, total ", $total, "\n";

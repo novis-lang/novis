@@ -1,29 +1,32 @@
 <?nvs
 // Totals a day's orders per department and prints the totals as JSON.
-// `array<array<int>>` is an array of arrays, which suits a grouped report.
 // `withServiceFee` gets a copy of `$totals` and changes only that copy.
 // So the first line of output shows the original totals.
 
 class Report {
     public static function withServiceFee(array<int> $totals): array<int> {
-        foreach ($totals as string $department => int $cents) {
+        foreach ($totals as var $department => var $cents) {
             $totals[$department] = $cents + 250;
         }
         return $totals;
     }
 }
 
-array<array<int>> $lines = [
+// An array of arrays suits a grouped report.
+// `var` gives `$lines` the type `array<array<int>>`.
+var $lines = [
     "produce" => [1299, 450],
     "bakery" => [780],
 ];
 
+// An empty array needs a written type. `var $totals = [];` does not compile,
+// because the array has no value to take the type from.
 array<int> $totals = [];
-foreach ($lines as string $department => array<int> $amounts) {
+foreach ($lines as var $department => var $amounts) {
     $totals[$department] = Core\Arr::sum($amounts) as int;
 }
 
-array<int> $billed = Report::withServiceFee($totals);
+var $billed = Report::withServiceFee($totals);
 
 echo Core\Json::encode($totals), "\n";
 echo Core\Json::encode($billed), "\n";
