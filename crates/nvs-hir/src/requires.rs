@@ -6,13 +6,14 @@
 //! at all, so a required file's declarations must be visible to name
 //! resolution exactly as if it had been pasted in at the `require` site.
 //! [`resolve_program`] is the entry point that makes that happen for a
-//! `require` whose path is written as a plain string literal — `rule:statements/require-is-the-only-inclusion-construct`'s
-//! own M2 verification line calls this "statically resolved where the path
-//! is a literal; a dynamic path falls back to a runtime resolve," so a path
-//! that is not statically known (a variable, an interpolated string, and the
-//! other shapes the paragraph *A statically known path* lists below) is left alone
-//! entirely here: no diagnostic, nothing collected, exactly the dynamic
-//! fallback the ADR describes.
+//! `require` whose path is statically known. A path that is not (a variable,
+//! an interpolated string, and the other shapes the paragraph *A statically
+//! known path* lists below) is left alone entirely here: no diagnostic and
+//! nothing collected. That is the dynamic fallback. The file graph closes
+//! while compiling (`rule:programs/no-runtime-autoload`), so no file is ever
+//! loaded for such a path, and `nvs_ir`'s lowering makes the site throw a
+//! `RuntimeError` when it is reached, which is
+//! `rule:statements/require-is-the-only-inclusion-construct`'s missing target.
 //!
 //! The mechanism is the multi-file shape [`crate::resolve::Resolver`],
 //! [`crate::hierarchy::HierarchyResolver`], [`crate::members::MemberResolver`]

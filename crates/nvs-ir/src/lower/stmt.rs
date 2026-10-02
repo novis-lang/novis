@@ -394,10 +394,10 @@ impl<'a> Lowering<'a> {
             // own answer for `require` as opposed to `require_once` — the
             // walk loads each file once, but that is a *compile*-time fact.
             //
-            // A path this crate has no target for is a path that is not a
-            // literal, names nothing loadable, or closes a cycle: each is
-            // already a diagnostic or `rule:statements/require-is-the-only-inclusion-construct`'s dynamic fallback, so there
-            // is nothing to call and nothing to say here. The value form —
+            // A path with no target is one no file was compiled for, and the
+            // site throws there (`Self::lower_unloaded_require`). A literal
+            // naming nothing loadable, or closing a cycle, is a diagnostic and
+            // never reaches lowering. The value form —
             // `$c = require 'config.nvs';` — is this same call with its result
             // kept, one file over in `Self::lower_expr`.
             ExprKind::Require { path } => {
@@ -420,6 +420,8 @@ impl<'a> Lowering<'a> {
                     if ty.is_refcounted() {
                         self.emit_release(*cur, v);
                     }
+                } else {
+                    self.lower_unloaded_require(path, env, cur);
                 }
             }
             // `rule:types/object-literal`'s parenthesized reading, and every other one.

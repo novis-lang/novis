@@ -57,6 +57,55 @@ impl<'a> Lowering<'a> {
             },
         );
     }
+    /// A `require` whose path names no compiled file — a path computed at run
+    /// time, or a literal written in a source with no folder to resolve it
+    /// from (`nvs_hir::requires`' module doc lists both). The file graph closes
+    /// while compiling (`rule:programs/no-runtime-autoload`), so no such path
+    /// can load anything, and `rule:statements/require-is-the-only-inclusion-construct`
+    /// says a `require` whose target is missing throws. The path is evaluated
+    /// first, for whatever its own expression does, and the site then throws a
+    /// `RuntimeError`. Both forms of `require` share it, and `cur` is left on a
+    /// fresh block nothing reaches, as an expression-position `throw` leaves it.
+    pub(crate) fn lower_unloaded_require(&mut self, path: &Expr, env: &mut Env, cur: &mut BlockId) {
+        let (v, ty) = self.lower_expr(path, None, env, cur);
+        if ty.is_refcounted() && !self.aliasing_read(path) {
+            self.emit_release(*cur, v);
+        }
+        let (message, _) = self.emit(
+            *cur,
+            Ty::Str,
+            InstKind::ConstStr(
+                "`require` has no compiled file for this path: only a path written as literal \
+                 text, class constants and `.` is loaded, and it is loaded while compiling"
+                    .to_owned(),
+            ),
+        );
+        // Argument 2 is the `{previous}` bag flattened to its own `null`
+        // default, the list `Self::lower_match`'s own throw builds by hand.
+        let (absent, _) = self.emit(*cur, Ty::Null, InstKind::ConstNull);
+        let absent = self.coerce(*cur, absent, Ty::Null, Ty::Tagged, env);
+        let (exception, _) = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::New {
+                class: "RuntimeError".to_owned(),
+                ctor: Some(THROWABLE_CTOR.to_owned()),
+                args: vec![message, absent],
+            },
+            env,
+        );
+        let source = self.throw_source(*cur);
+        let landing = self.landing_block(env);
+        self.seal(
+            *cur,
+            Terminator::Throw {
+                value: exception,
+                source,
+                landing,
+            },
+        );
+        *cur = self.new_block();
+    }
     /// The two answers a [`Ty::Tagged`] `throw` operand's type did not settle,
     /// asked in front of the raise: whether the tag is an object at all —
     /// [`Self::split_on_object_tag`], shared with `clone`'s own guard — and

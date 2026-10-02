@@ -1,0 +1,30 @@
+--TEST--
+A `require` whose path is computed at run time throws a `RuntimeError` where it is reached, in both the statement and the value form, and the file it names does not run — `rule:statements/require-is-the-only-inclusion-construct`
+--FILE--
+<?nvs
+string $dir = 'lib/';
+string $path = $dir . 'setup.nvs';
+
+try {
+    require $path;
+    echo "statement form ran on\n";
+} catch (RuntimeError $e) {
+    echo "statement form threw\n";
+}
+
+try {
+    mixed $v = require $dir . 'setup.nvs';
+    echo "value form ran on\n";
+} catch (RuntimeError $e) {
+    echo "value form threw\n";
+}
+
+// A literal path is loaded while compiling, so this one runs.
+require 'lib/setup.nvs';
+--FILE lib/setup.nvs--
+<?nvs
+echo "setup ran\n";
+--EXPECT--
+statement form threw
+value form threw
+setup ran

@@ -646,10 +646,10 @@ impl<'a> Lowering<'a> {
             // returned — so the consumer owns it and `Self::aliasing_read`
             // answers `false` for this shape, as it does for a call.
             //
-            // A path with no recorded target is one that is not a literal:
-            // the statement form runs nothing there, so the value form has
-            // nothing that ran to answer with, and it takes the same tagged
-            // `1` § 3 gives a file that did not `return`.
+            // A path with no recorded target is one no file was compiled for:
+            // the site throws (`Self::lower_unloaded_require`), and the tagged
+            // `1` after it sits on a block nothing reaches, as an
+            // expression-position `throw`'s dead value does.
             ExprKind::Require { path } => {
                 if let Some(target) = self.exprs.require_target(path.span) {
                     self.emit_fallible(
@@ -663,6 +663,7 @@ impl<'a> Lowering<'a> {
                         env,
                     )
                 } else {
+                    self.lower_unloaded_require(path, env, cur);
                     let (one, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(1));
                     (self.coerce(*cur, one, Ty::Int, Ty::Tagged, env), Ty::Tagged)
                 }
