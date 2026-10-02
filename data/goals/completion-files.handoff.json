@@ -1,38 +1,27 @@
 {
-  "state": "**Goal `completion-files` — the JSON files in a `.novis/completion/` folder offer their values at the string parameters they name — has just started; nothing of it has landed yet.** Goal `coalesce-assign`'s whole list is this goal's Stage 1 floor.\n\nThe design is the user's and is recorded in ADR 0242 and ADR 0243, with the rule `ide/completion-files-offer-values-at-named-parameters` (designed) and the literal-union line of `ide/completion-offers-only-what-the-compiler-derived`. ADR 0243 adds a value's `location` for hover and go-to-definition, `when` on an attachment, lists completed by segment, the opt-in `strict` check, a deprecated value's `replacement` with a quick fix, and completion of a string literal union. The goal file's § *Standing decisions* names which calls are the user's and which are the writers', and no session re-decides one.\n\nFour facts about the tree as the goal was written. `crates/nvs-lsp/src/index.rs:603` skips `vendor/` and every dot-folder, so the completion files need a walk of their own. `crates/nvs-lsp/tests/completion.rs:@no_completion_source_reads_a_directory_layout_or_the_network` refuses `read_dir` and `std::fs` in a completion source, so the loader lives outside `completion.rs`. No `didChangeWatchedFiles` appears under `crates/nvs-lsp/src/`. Nothing under `crates/nvs-lsp/src/` reads a literal type, although `crates/nvs-types/src/expr_table.rs:@ResolvedCall` records `param_tys`.",
+  "state": "**Goal `completion-files`, Stage 2: the walk and the table are on disk; nothing is wired into the server yet.** `crates/nvs-lsp/src/completion_files.rs` holds `CompletionFiles`: `load(roots)` walks and reads, `refresh(path)` is the watcher's half (`Reload::{Ignored, Unchanged, Read, Dropped}`), `attachments(class, method, parameter)` is the table, `set(name)` the merged sets, and `findings()` every finding outside `vendor/`. Its module doc records the questions ADR 0242 and ADR 0243 leave open (a separator is copied onto each value, `method` without `::` drops the file, a missing `location` is dropped, no symlinked folder is followed).\n\nThe format carries every field of both records with `deny_unknown_fields`; each attachment and value is parsed from its own `RawValue` slice, so a finding's `span` is that piece's byte range in the file. `FindingKind` has the four kinds that need no workspace index: `Invalid`, `MissingSet`, `MissingLocation`, `ReplacementNotDeprecated`. No `W1xxx` code is declared yet, and nothing publishes a finding.\n\n`crates/nvs-lsp/tests/completion_files.rs` holds 13 of the 18 tests the three Stage 2 checks name, over scratch workspaces under `.agent-tmp/`. Still to write: `the_server_registers_a_watcher_for_completion_files_when_the_client_can`, `an_attachment_to_a_missing_method_or_parameter_is_reported_and_the_rest_of_the_file_is_kept`, `an_attachment_to_a_class_the_index_does_not_declare_is_a_hint`, `an_attachment_to_a_parameter_that_is_not_a_string_is_reported`, `a_when_naming_a_missing_parameter_is_reported_and_its_attachment_contributes_nothing`.\n\nThe pack lacked `crates/nvs-lsp/src/server.rs`. That file, not `lib.rs`, owns the loop, `initialize` and the notification dispatch. It is now in `[context] modules`, and so is the new module.",
   "next": {
     "stage": 2,
     "title": "the files are found, read, reloaded and checked",
-    "files": [
-      "crates/nvs-lsp/src/completion_files.rs",
-      "crates/nvs-lsp/src/lib.rs",
-      "crates/nvs-diagnostics/src/lib.rs"
-    ],
+    "files": [],
+    "note": ". One file set: `crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/completion_files.rs`, `crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-lsp/tests/completion_files.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The walk and the table** — a new module `crates/nvs-lsp/src/completion_files.rs`: the walk of ADR 0242 § 2, the format of § 3 with ADR 0243's fields (`location`, `replacement`, `when`, `strict`, and a list as `{ \"separator\", \"values\" }`) parsed with `deny_unknown_fields`, and one table keyed by the triple `crates/nvs-types/src/expr_table.rs:@ResolvedCall` carries (class, method, parameter name)."
+        "text": "**The watcher and the load**. `rule:ide/completion-files-offer-values-at-named-parameters` § *How it stays current*. Build `CompletionFiles::load` beside the index at `crates/nvs-lsp/src/server.rs:187`. After `initialize_finish` at `crates/nvs-lsp/src/server.rs:150`, send `client/registerCapability` for `completion_files::WATCHED` when `params.capabilities.workspace.did_change_watched_files.dynamic_registration` is true. Handle `workspace/didChangeWatchedFiles` before `apply` at `crates/nvs-lsp/src/server.rs:257` by calling `refresh` for each event's path. The registration's response arrives at `crates/nvs-lsp/src/server.rs:295` and is ignored. Test `the_server_registers_a_watcher_for_completion_files_when_the_client_can` over `Connection::memory()`, as `crates/nvs-lsp/tests/handshake.rs:35` drives the handshake."
       },
       {
         "done": false,
-        "text": "**The watcher** — `crates/nvs-lsp/src/lib.rs`: register `**/.novis/completion/**/*.json` through `client/registerCapability` when the client allows it, and handle `workspace/didChangeWatchedFiles` by comparing modification time and size."
+        "text": "**The codes and the publish**. ADR 0242 § *Diagnostics* and ADR 0243 § *Diagnostics*. Declare one `W1xxx` per `FindingKind` after `crates/nvs-diagnostics/src/lib.rs:5473` (W1012 is the highest; re-check first), each with its card. Publish `findings()` on each completion file's URI after load and after every `refresh`, and publish an empty list for a dropped file. Convert `span` with `nvs_diagnostics` position helpers (`rule:ide/positions-have-one-home`)."
       },
       {
         "done": false,
-        "text": "**The diagnostics** — one `W1xxx` code per kind in ADR 0242 § *Diagnostics* and the completion-file kinds of ADR 0243 § *Diagnostics*, the next free numbers checked right before they are declared in `crates/nvs-diagnostics/src/lib.rs`; published on the completion file's URI, never under `vendor/`. First check whether VS Code shows a diagnostic for a URI outside the client's `documentSelector`."
-      },
-      {
-        "done": false,
-        "text": "**The named tests** of the goal file's three Stage 2 checks, each over a temporary workspace the test writes and deletes."
+        "text": "**The index-dependent findings**. Missing method or parameter, a `when` parameter that is missing, a parameter that is not a string, and an undeclared class as a hint. The kinds join `FindingKind` at `crates/nvs-lsp/src/completion_files.rs:@FindingKind`. `SymbolIndex` records methods but no parameters (`crates/nvs-lsp/src/index.rs:666`), so read parameter names and types from the analysis the index already holds. A dropped attachment must leave the rest of the file in the table. Write the four remaining named tests."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: completion offers the values** — `crates/nvs-lsp/src/completion.rs` (`continues_a_trigger` at line 415), `crates/nvs-lsp/src/arguments.rs`, `crates/nvs-lsp/src/capabilities.rs:218` (`.` joins the triggers), and the guard's `SOURCED` row in `crates/nvs-lsp/tests/completion.rs`; dependent values and segments. Then the Stage 0 edit to `ide/completion-is-asked-where-a-spelling-ends`.",
-    "**Stage 4: hover, go-to-definition, the strict check and the replacement** — `crates/nvs-lsp/src/hover.rs`, `definition.rs`, `diagnostics.rs`, `actions.rs`, and the two `.nvs`-side codes. Then the Stage 0 edits to `ide/the-request-set-is-closed` and `ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`.",
-    "**Stage 5: literal-union completion** — `crates/nvs-lsp/src/completion.rs` and `arguments.rs`, reading `ResolvedCall::param_tys`; `crates/nvs-types/src/expr_table.rs` is not changed.",
-    "**Stage 6: the VS Code client** — `editors/vscode/package.json`'s `jsonValidation` and `editors/vscode/schemas/completion-file.json` with ADR 0243's fields, and the by-hand image check.",
-    "**Stage 7: the feature proofs** — ask `bun nv proofs` what an editor feature owes first.",
-    "When this goal's last check goes green the driver takes goal `ci-green`."
+    "Windows drive-letter case: `CompletionFiles::place` compares a watcher path with a root by `Path::starts_with`, so `d:` and `D:` differ. Check what `path_of` returns before the watcher lands. Owner: `crates/nvs-lsp/src/completion_files.rs`.",
+    "Whether VS Code shows a diagnostic on a `.json` URI outside the client's `documentSelector`. The goal file's Stage 2 says to check it first."
   ]
 }

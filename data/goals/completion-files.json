@@ -9,7 +9,9 @@
       "crates/nvs-lsp/src/completion.rs",
       "crates/nvs-lsp/src/arguments.rs",
       "crates/nvs-lsp/tests/completion.rs",
-      "crates/nvs-types/src/expr_table.rs"
+      "crates/nvs-types/src/expr_table.rs",
+      "crates/nvs-lsp/src/server.rs",
+      "crates/nvs-lsp/src/completion_files.rs"
     ],
     "rules": [
       "ide/completion-offers-only-what-the-compiler-derived",
