@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*18 of 89 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 89 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1735,7 +1735,7 @@ host: a weakening nobody is reminded of outlives the incident it was added for.
 
 <a id="security-protocol-roster"></a>
 
-## A closed roster of application-layer security protocols lives in `Core`, and nothing joins it without meeting the test  *(designed — not yet in the compiler)*
+## A closed roster of application-layer security protocols lives in `Core`, and nothing joins it without meeting the test
 
 `rule:security/protocol-roster`
 

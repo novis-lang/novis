@@ -454,7 +454,9 @@ const MESSAGE_TEXT: usize = 1;
 const MESSAGE_BYTES: usize = 2;
 const MESSAGE_VALUE: usize = 3;
 
-/// `rule:concurrency/a-connection-is-a-loop`'s message: the one shape both of `receive`'s sources answer in.
+/// `rule:concurrency/a-connection-is-a-loop`'s message: the one shape every `receive` answers in,
+/// whether a served connection's peer frame or delivery, or an outbound `Core\Http\Socket`'s
+/// peer frame (`crate::http::socket`).
 ///
 /// # One class, not two, and `topic` is what tells them apart
 ///

@@ -187,7 +187,9 @@ hyper = { version = "1", default-features = false, features = [
 # `derive_accept_key` lives behind, and everything the set pulls — `http`,
 # `httparse`, `data-encoding`, `sha1`, `rand` — is already in this lock file for
 # `hyper`, `Core\Hash` and `Core\Random`. No `native-tls` and no `rustls`,
-# because a `wss://` listener is a TLS listener and ADR 0097 § 1 has none.
+# because a `wss://` listener is a TLS listener and ADR 0097 § 1 has none, and a
+# `wss://` client is `Core\Http\Socket`, whose transport hands `tungstenite` a
+# stream `nvs_host::tls` already decrypted.
 tungstenite = "0.30"
 
 # --- the configuration's trust boundary (ADR 0103 § 6) ---

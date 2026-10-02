@@ -1,6 +1,6 @@
 //! `Core\Cache` — `rule:concurrency/cross-request-state-is-explicit`'s
 //! sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request state,
-//! as a member per tier that hands back a store and the two operations on one.
+//! as a member per tier that hands back a store, and the operations on that store.
 //!
 //! § 1's tiers are a member each rather than one API with a flag, so the choice
 //! a program made is visible in review rather than in an argument list. Not one
@@ -201,7 +201,7 @@ const SECRET_ENTRY_CARD: ClassDoc = ClassDoc {
             The `fill` function of `getSecret` returns one.",
 };
 
-/// § 1's two tiers, as the two members that hand one back.
+/// § 1's tiers, as a member per tier that hands one back.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
