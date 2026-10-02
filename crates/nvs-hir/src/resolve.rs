@@ -350,6 +350,21 @@ mod tests {
         (module, diags)
     }
 
+    /// The declarations and imports of several files, one namespace each.
+    fn resolve_files(srcs: &[&str]) -> (Module, Diagnostics) {
+        let mut map = SourceMap::new();
+        let mut diags = Diagnostics::new();
+        let mut resolver = Resolver::new();
+        for (i, src) in srcs.iter().enumerate() {
+            let file = map.add(format!("t{i}.nvs"), *src);
+            let stmts = parse_file(map.file(file), &mut diags);
+            assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+            resolver.collect_declarations(&stmts, map.file(file), &mut diags);
+        }
+        resolver.resolve_imports(&mut diags);
+        (resolver.into_module(), diags)
+    }
+
     #[test]
     fn a_top_level_class_is_declared_in_the_global_namespace() {
         let (module, diags) = resolve("<?nvs\nclass Foo {}\n");
@@ -438,16 +453,20 @@ mod tests {
 
     #[test]
     fn the_same_short_name_in_different_namespaces_is_not_a_duplicate() {
-        let (module, diags) =
-            resolve("<?nvs\nnamespace A;\nclass Foo {}\nnamespace B;\nclass Foo {}\n");
+        let (module, diags) = resolve_files(&[
+            "<?nvs\nnamespace A;\nclass Foo {}\n",
+            "<?nvs\nnamespace B;\nclass Foo {}\n",
+        ]);
         assert!(!diags.has_errors());
         assert_eq!(module.symbols.len(), 2);
     }
 
     #[test]
-    fn a_use_import_resolves_against_a_declaration_from_earlier_in_the_file() {
-        let (module, diags) =
-            resolve("<?nvs\nnamespace App;\nclass User {}\nnamespace App\\Http;\nuse App\\User;\n");
+    fn a_use_import_resolves_against_a_declaration_from_another_file() {
+        let (module, diags) = resolve_files(&[
+            "<?nvs\nnamespace App;\nclass User {}\n",
+            "<?nvs\nnamespace App\\Http;\nuse App\\User;\n",
+        ]);
         assert!(!diags.has_errors());
         let import = &module.imports[0];
         assert!(import.resolved);
@@ -483,12 +502,14 @@ mod tests {
     }
 
     #[test]
-    fn a_new_namespace_statement_resets_the_import_scope() {
-        let (_module, diags) =
-            resolve("<?nvs\nnamespace A;\nuse Core\\Foo;\nnamespace B;\nuse Core\\Foo;\n");
+    fn each_file_has_its_own_import_scope() {
+        let (_module, diags) = resolve_files(&[
+            "<?nvs\nnamespace A;\nuse Core\\Foo;\n",
+            "<?nvs\nnamespace B;\nuse Core\\Foo;\n",
+        ]);
         assert!(
             !diags.has_errors(),
-            "each namespace statement gets a fresh use scope: {diags:?}"
+            "each file gets a fresh use scope: {diags:?}"
         );
     }
 

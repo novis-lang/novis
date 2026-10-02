@@ -76,7 +76,7 @@ echo $till->charge(150) . "\n";
 "#;
 
 /// A class with a parent class, an interface and a static method. `Shop\Item`
-/// and `Shop\Printable` are named through `use` imports, so the page has to
+/// and `Shop\Printable` are named by their short names, so the page has to
 /// name them fully qualified to link to their pages. `Post::render` has no
 /// `///` of its own and implements the documented `Printable::render`.
 const LINEAGE: &str = r#"<?nvs
@@ -95,11 +95,6 @@ abstract class Item {
         return 100;
     }
 }
-
-namespace Blog;
-
-use Shop\Item;
-use Shop\Printable;
 
 /// A post, sold like any other item.
 ///
@@ -246,7 +241,7 @@ fn nvs_doc_writes_static_in_front_of_a_static_methods_signature() {
         "`nvs doc` failed: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let page = page(&dir, "Blog.Post.md");
+    let page = page(&dir, "Shop.Post.md");
     assert!(
         page.contains("```nvs\nstatic blank(): Post\n```"),
         "the static method's signature has no `static`: {page}"
@@ -270,7 +265,7 @@ fn nvs_doc_names_the_parent_class_and_the_interfaces() {
         "`nvs doc` failed: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let page = page(&dir, "Blog.Post.md");
+    let page = page(&dir, "Shop.Post.md");
     assert!(
         page.contains(r"Extends: [Shop\Item](Shop.Item.md)"),
         "the parent class is not named: {page}"
@@ -298,7 +293,7 @@ fn nvs_doc_shows_an_undocumented_override_the_doc_it_inherits() {
         "`nvs doc` failed: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let page = page(&dir, "Blog.Post.md");
+    let page = page(&dir, "Shop.Post.md");
     assert!(
         page.contains(
             "### render\n\n```nvs\nrender(): string\n```\n\n\

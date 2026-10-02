@@ -829,16 +829,36 @@ mod tests {
     /// [`resolve`] with the roster named at the call, which
     /// [`resolve_file`] cannot do: that door trusts `Core` by construction.
     fn links(core: CoreRoster<'_>, src: &str) -> (ClassGraph, Diagnostics) {
+        links_files(core, &[src])
+    }
+
+    /// [`links`] over several files, one namespace each, with `Core` trusted.
+    fn resolve_files(srcs: &[&str]) -> (ClassGraph, Diagnostics) {
+        links_files(CoreRoster::Trusted, srcs)
+    }
+
+    fn links_files(core: CoreRoster<'_>, srcs: &[&str]) -> (ClassGraph, Diagnostics) {
         let mut map = SourceMap::new();
-        let file = map.add("t.nvs", src);
+        let files: Vec<_> = srcs
+            .iter()
+            .enumerate()
+            .map(|(i, src)| map.add(format!("t{i}.nvs"), *src))
+            .collect();
         let mut diags = Diagnostics::new();
-        let stmts = parse_file(map.file(file), &mut diags);
+        let parsed: Vec<_> = files
+            .iter()
+            .map(|&file| parse_file(map.file(file), &mut diags))
+            .collect();
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
         let mut resolver = Resolver::new();
-        resolver.collect_declarations(&stmts, map.file(file), &mut diags);
+        for (stmts, &file) in parsed.iter().zip(&files) {
+            resolver.collect_declarations(stmts, map.file(file), &mut diags);
+        }
         resolver.resolve_imports(&mut diags);
         let mut hierarchy = HierarchyResolver::new(core);
-        hierarchy.collect_links(&stmts, map.file(file));
+        for (stmts, &file) in parsed.iter().zip(&files) {
+            hierarchy.collect_links(stmts, map.file(file));
+        }
         let module = resolver.into_module();
         let graph = hierarchy.resolve(&module.symbols, &mut diags);
         (graph, diags)
@@ -972,13 +992,10 @@ mod tests {
     /// the new code cannot become a synonym for "unresolved".
     #[test]
     fn a_relative_qualified_name_is_told_its_absolute_spelling() {
-        let (_, diags) = resolve(concat!(
-            "<?nvs\n",
-            "namespace App\\Models;\n",
-            "interface Module {}\n",
-            "namespace App;\n",
-            "class Thing implements Models\\Module {}\n",
-        ));
+        let (_, diags) = resolve_files(&[
+            "<?nvs\nnamespace App\\Models;\ninterface Module {}\n",
+            "<?nvs\nnamespace App;\nclass Thing implements Models\\Module {}\n",
+        ]);
         let relative: Vec<_> = diags
             .iter()
             .filter(|d| d.code == Some(code::E_RELATIVE_QUALIFIED_NAME))
@@ -1069,15 +1086,15 @@ mod tests {
     /// pass.
     #[test]
     fn implementors_sort_by_fully_qualified_name_across_namespaces() {
-        let (graph, diags) = resolve(concat!(
-            "<?nvs\n",
-            "namespace Vendor;\n",
-            "interface Module {}\n",
-            "class Widget implements Module {}\n",
-            "namespace Acme;\n",
-            "class Thing implements Vendor\\Module {}\n",
-            "class Gadget implements Vendor\\Module {}\n",
-        ));
+        let (graph, diags) = resolve_files(&[
+            "<?nvs\nnamespace Vendor;\ninterface Module {}\nclass Widget implements Module {}\n",
+            concat!(
+                "<?nvs\n",
+                "namespace Acme;\n",
+                "class Thing implements Vendor\\Module {}\n",
+                "class Gadget implements Vendor\\Module {}\n",
+            ),
+        ]);
         assert!(!diags.has_errors(), "{diags:?}");
         assert_eq!(
             implementors(&QName::parse(r"Vendor\Module"), &graph),
@@ -1102,15 +1119,16 @@ mod tests {
     /// path orders by segment.
     #[test]
     fn an_interface_enumeration_is_sorted_by_qualified_name() {
-        let (graph, diags) = resolve(concat!(
-            "<?nvs\n",
-            "namespace App;\n",
-            "interface Module {}\n",
-            "class SubA implements Module {}\n",
-            "class Beta implements Module {}\n",
-            "namespace App\\Sub;\n",
-            "class A implements App\\Module {}\n",
-        ));
+        let (graph, diags) = resolve_files(&[
+            concat!(
+                "<?nvs\n",
+                "namespace App;\n",
+                "interface Module {}\n",
+                "class SubA implements Module {}\n",
+                "class Beta implements Module {}\n",
+            ),
+            "<?nvs\nnamespace App\\Sub;\nclass A implements App\\Module {}\n",
+        ]);
         assert!(!diags.has_errors(), "{diags:?}");
         assert_eq!(
             implementors(&QName::parse(r"App\Module"), &graph),
@@ -1268,9 +1286,10 @@ mod tests {
 
     #[test]
     fn a_use_import_resolves_an_unqualified_extends() {
-        let (graph, diags) = resolve(
-            "<?nvs\nnamespace App;\nclass Base {}\nnamespace App\\Http;\nuse App\\Base;\nclass Sub extends Base {}\n",
-        );
+        let (graph, diags) = resolve_files(&[
+            "<?nvs\nnamespace App;\nclass Base {}\n",
+            "<?nvs\nnamespace App\\Http;\nuse App\\Base;\nclass Sub extends Base {}\n",
+        ]);
         assert!(!diags.has_errors(), "{diags:?}");
         let links = graph.get(&QName::parse("App\\Http\\Sub")).unwrap();
         assert_eq!(links.extends, vec![QName::parse("App\\Base")]);

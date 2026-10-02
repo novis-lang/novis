@@ -816,8 +816,9 @@ pub mod code {
         "A `try` block needs a `catch` or a `finally` clause. Add `catch (Throwable $e) { ... }` \
          to handle an error, or `finally { ... }` for code that always runs.",
     );
-    /// The braced `namespace X { … }` form, and with it a file holding two
-    /// namespaces. `rule:security/authority-is-the-enclosing-namespace`
+    /// The braced `namespace X { … }` form, a second `namespace X;` in one
+    /// file, and a `namespace X;` after a declaration it would not cover.
+    /// `rule:security/authority-is-the-enclosing-namespace`
     /// keys authority on the enclosing namespace, so a file that is two
     /// namespaces is a file whose authority is a function of the line number.
     /// The rewrite is one file per namespace, declared `namespace X;`.

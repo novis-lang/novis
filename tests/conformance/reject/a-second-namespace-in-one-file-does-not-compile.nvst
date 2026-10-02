@@ -1,0 +1,23 @@
+--TEST--
+a second `namespace X;` in one file is `E0243`
+--FILE--
+<?nvs
+// A file has one namespace. A second namespace goes in a second file.
+
+namespace Shop;
+
+class Order {}
+
+namespace Blog;
+
+class Post {}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0243]: a file has only one namespace
+  --> case.nvs:4:1
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -461,7 +461,7 @@ fn a_user_declarations_shape_carries_prose_see_and_example() {
 /// A class names its parent under `extends` and its interfaces under
 /// `implements`, and an interface names the interfaces it extends under an
 /// `extends` list. Every name is fully qualified: the fixture writes `Item` and
-/// `Named` through `use` imports from another namespace, and the document says
+/// `Named` by their short names inside `namespace Shop;`, and the document says
 /// `Shop\Item` and `Shop\Named`. A declaration with no lineage carries neither
 /// key, by the registry's omission rule.
 #[test]
@@ -472,7 +472,7 @@ fn a_user_class_names_its_parent_and_interfaces_fully_qualified() {
         .to_string();
     let program = program(&["--json", &lineage]);
 
-    let post = declared(&program, "classes", r"Blog\Post");
+    let post = declared(&program, "classes", r"Shop\Post");
     assert_eq!(post["extends"], r"Shop\Item");
     assert_eq!(post["implements"], serde_json::json!([r"Shop\Named"]));
 

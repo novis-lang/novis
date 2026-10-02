@@ -491,7 +491,6 @@ const LOWERS_AT_FILE_SCOPE: &[&str] = &[
     "echo \"top\";",
     "?>tail",
     "use Core\\Time\\Zone;",
-    "namespace App;",
     "autoload 'App' from './';",
 ];
 
@@ -501,6 +500,9 @@ const REFUSED_AT_FILE_SCOPE: &[&str] = &[
     // no file-scope spelling of either.
     "function f(): int { return 1; }",
     "const int X = 1;",
+    // A file has one namespace, declared before every declaration, and this
+    // slot comes after the preamble's classes.
+    "namespace App;",
 ];
 
 /// The five tables, each with the slot its rows go in and what it claims.

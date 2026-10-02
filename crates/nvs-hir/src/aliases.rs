@@ -710,6 +710,21 @@ mod tests {
         (table, diags)
     }
 
+    /// [`resolve`] over several files, one namespace each.
+    fn resolve_files(srcs: &[&str]) -> (AliasTable, Diagnostics) {
+        let mut map = SourceMap::new();
+        let mut diags = Diagnostics::new();
+        let mut resolver = AliasResolver::new();
+        for (i, src) in srcs.iter().enumerate() {
+            let file = map.add(format!("t{i}.nvs"), *src);
+            let stmts = parse_file(map.file(file), &mut diags);
+            assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+            resolver.collect_aliases(&stmts, map.file(file));
+        }
+        let table = resolver.resolve(&mut diags);
+        (table, diags)
+    }
+
     fn is_atom(ty: &Type, expected: &TypeAtom) -> bool {
         matches!(&ty.kind, TypeKind::Atom(atom) if atom == expected)
     }
@@ -912,9 +927,10 @@ mod tests {
 
     #[test]
     fn a_use_import_resolves_an_unqualified_alias_reference() {
-        let (table, diags) = resolve(
-            "<?nvs\nnamespace App;\ntype Id = uint;\nnamespace App\\Http;\nuse App\\Id;\ntype Row = array<Id>;\n",
-        );
+        let (table, diags) = resolve_files(&[
+            "<?nvs\nnamespace App;\ntype Id = uint;\n",
+            "<?nvs\nnamespace App\\Http;\nuse App\\Id;\ntype Row = array<Id>;\n",
+        ]);
         assert!(!diags.has_errors(), "{diags:?}");
         let row = table.get(&QName::parse("App\\Http\\Row")).unwrap();
         let TypeKind::Atom(TypeAtom::Array(Some(inner))) = &row.kind else {

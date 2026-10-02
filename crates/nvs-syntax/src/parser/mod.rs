@@ -492,6 +492,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
         }
         self.report_unattached_docs();
+        self.check_one_namespace(&stmts);
         stmts
     }
 

@@ -548,6 +548,36 @@ fn a_grouped_use_parses_or_names_the_rule_that_refuses_it() {
     );
 }
 
+/// One file is one namespace: a `namespace X;` after another one, or after a
+/// declaration it would not cover, is `E0243`, and a single one at the top is not.
+#[test]
+fn a_second_or_late_namespace_statement_is_e0243() {
+    for (src, message) in [
+        (
+            "<?nvs\nnamespace Shop;\nclass Order {}\nnamespace Blog;\n",
+            "a file has only one namespace",
+        ),
+        (
+            "<?nvs\nclass Receipt {}\nnamespace Shop;\n",
+            "a `namespace` statement comes after a declaration",
+        ),
+        (
+            "<?nvs\ntype Id = int;\nnamespace Shop;\n",
+            "a `namespace` statement comes after a declaration",
+        ),
+    ] {
+        let mut map = SourceMap::new();
+        let id = map.add("t.nvs", src.to_string());
+        let mut diags = Diagnostics::new();
+        let _ = parse_file(map.file(id), &mut diags);
+        let all: Vec<_> = diags.iter().collect();
+        assert_eq!(all.len(), 1, "for {src:?}: {all:?}");
+        assert_eq!(all[0].code, Some(code::E_BRACED_NAMESPACE_UNSUPPORTED));
+        assert_eq!(all[0].message, message, "for {src:?}");
+    }
+    parse_file_ok("<?nvs\nuse Core\\Str;\nnamespace Shop;\nuse Core\\Arr;\nclass Order {}\n");
+}
+
 /// `namespace X;` is the only namespace statement, and the braced form is
 /// still parsed after it is refused so the declarations inside it report
 /// their own problems in the same run. docs/adr/README.md § *Decisions taken

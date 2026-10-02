@@ -442,6 +442,55 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
+    /// One file is one namespace, so a `namespace X;` statement after another
+    /// namespace, or after a declaration it would not cover, is `E0243`. The
+    /// braced form is reported where [`Self::parse_namespace_decl`] parses it.
+    pub(super) fn check_one_namespace(&mut self, stmts: &[Stmt]) {
+        let mut first: Option<(Span, bool)> = None;
+        for stmt in stmts {
+            match &stmt.kind {
+                StmtKind::NamespaceDecl(ns) if ns.body.is_none() => {
+                    if let Some((at, is_namespace)) = first {
+                        let (message, label) = if is_namespace {
+                            (
+                                "a file has only one namespace",
+                                "the first namespace is here",
+                            )
+                        } else {
+                            (
+                                "a `namespace` statement comes after a declaration",
+                                "this declaration comes first",
+                            )
+                        };
+                        self.diags.report(
+                            Diagnostic::error(code::E_BRACED_NAMESPACE_UNSUPPORTED, message)
+                                .with_primary(stmt.span, "this namespace is not allowed here")
+                                .with_secondary(at, label)
+                                .with_help(
+                                    "write `namespace X;` once, before any declaration, and put \
+                                     a second namespace in a second file",
+                                ),
+                        );
+                    } else {
+                        first = Some((stmt.span, true));
+                    }
+                }
+                StmtKind::NamespaceDecl(_) => {
+                    first.get_or_insert((stmt.span, true));
+                }
+                StmtKind::ClassDecl(_)
+                | StmtKind::InterfaceDecl(_)
+                | StmtKind::EnumDecl(_)
+                | StmtKind::TypeAliasDecl(_)
+                | StmtKind::TopLevelFunction(_)
+                | StmtKind::TopLevelConst(_) => {
+                    first.get_or_insert((stmt.span, false));
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// `use App\Models\User;` — one import, one statement.
     ///
     /// Two PHP spellings of the same statement are refused rather than
