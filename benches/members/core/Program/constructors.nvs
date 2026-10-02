@@ -1,0 +1,46 @@
+<?nvs
+// Measures getting the list of functions and creating one object with one of them.
+// A framework does this when it creates the one handler that a request needs.
+// bench: iterations 100000
+// bench: calls 2
+
+class Settings {
+    public function constructor(public uint $limit) {}
+}
+
+interface Command {
+    public function limit(): uint;
+}
+
+class Backup implements Command {
+    public function constructor(private Settings $settings) {}
+    public function limit(): uint { return $this->settings->limit; }
+}
+
+class Migrate implements Command {
+    public function constructor(private Settings $settings) {}
+    public function limit(): uint { return $this->settings->limit + 1; }
+}
+
+class Report implements Command {
+    public function constructor(private Settings $settings) {}
+    public function limit(): uint { return $this->settings->limit + 2; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Settings $settings = new Settings(1);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $rows = Core\Program::constructors<Command, callable(Settings): Command>();
+            // Chained: the total of the round before chooses which class is created.
+            callable(Settings): Command $make = $rows[$total % 3]->make;
+            $total = $total + $make($settings)->limit();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

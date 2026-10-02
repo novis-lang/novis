@@ -1,0 +1,37 @@
+<?nvs
+// Shows how to choose a handler by its class name and create it with the settings it needs.
+
+class Settings {
+    public function constructor(public string $siteName) {}
+}
+
+interface Handler {
+    public function handle(string $user): string;
+}
+
+class Welcome implements Handler {
+    public function constructor(private Settings $settings) {}
+
+    public function handle(string $user): string {
+        return "Welcome to " . $this->settings->siteName . ", " . $user . ".";
+    }
+}
+
+class Goodbye implements Handler {
+    public function constructor(private Settings $settings) {}
+
+    public function handle(string $user): string {
+        return "Goodbye, " . $user . ". Come back to " . $this->settings->siteName . " soon.";
+    }
+}
+
+// The key of this array is the class name, and the value is the function that creates it.
+array<callable(Settings): Handler> $makers = [];
+foreach (Core\Program::constructors<Handler, callable(Settings): Handler>() as {class: string, make: callable(Settings): Handler} $row) {
+    $makers[$row->class] = $row->make;
+}
+
+// Only the handler you choose is created. This prints `Welcome to Shop, Ada.`
+callable(Settings): Handler $make = $makers["Welcome"];
+Handler $handler = $make(new Settings("Shop"));
+echo $handler->handle("Ada"), "\n";

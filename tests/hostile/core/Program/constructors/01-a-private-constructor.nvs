@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a request tries to create an object of a class whose constructor is
+// private. A private constructor is not allowed outside its class, so the program
+// should not compile.
+// hostile: expect-refusal
+
+interface Account
+{
+    public function owner(): string;
+}
+
+class Customer implements Account
+{
+    public function constructor(private string $name)
+    {}
+
+    public function owner(): string
+    {
+        return $this->name;
+    }
+}
+
+// 1. Only `Admin::create` may create an `Admin`, because its constructor is private.
+class Admin implements Account
+{
+    private function constructor(private string $name)
+    {}
+
+    public static function create(): Admin
+    {
+        return new Admin('root');
+    }
+
+    public function owner(): string
+    {
+        return $this->name;
+    }
+}
+
+// 2. The request asks for a function that creates every `Account` from a name
+//    that it chooses. `Admin` is in the list, so this does not compile.
+foreach (Core\Program::constructors<Account, callable(string): Account>() as {class: string, make: callable(string): Account} $row) {
+    echo ($row->make)('mallory')->owner(), "\n";
+}

@@ -1,0 +1,52 @@
+<?nvs
+// Shows how to create only the plugins that are switched on. A plugin that is
+// switched off is never created.
+
+interface Plugin {
+    public function describe(): string;
+}
+
+class Audit implements Plugin {
+    public function constructor(private uint $size) {
+        echo "Creating Audit.\n";
+    }
+
+    public function describe(): string {
+        return "Audit keeps " . $this->size . " log lines.";
+    }
+}
+
+class Cache implements Plugin {
+    public function constructor(private uint $size) {
+        echo "Creating Cache.\n";
+    }
+
+    public function describe(): string {
+        return "Cache keeps " . $this->size . " entries.";
+    }
+}
+
+class Search implements Plugin {
+    public function constructor(private uint $size) {
+        echo "Creating Search.\n";
+    }
+
+    public function describe(): string {
+        return "Search shows " . $this->size . " results.";
+    }
+}
+
+// The switched-on plugins and their sizes. `Audit` is not in this array.
+array<uint> $enabled = ["Cache" => 500, "Search" => 20];
+
+array<Plugin> $plugins = [];
+foreach (Core\Program::constructors<Plugin, callable(uint): Plugin>() as {class: string, make: callable(uint): Plugin} $row) {
+    if (Core\Arr::hasKey($enabled, $row->class)) {
+        $plugins[] = ($row->make)($enabled[$row->class]);
+    }
+}
+
+// This prints two lines. `Audit` was never created.
+foreach ($plugins as Plugin $plugin) {
+    echo $plugin->describe(), "\n";
+}

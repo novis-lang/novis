@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a request asks for functions that return a class the list does not
+// contain. Each function must return the interface that selects the classes, so
+// the program should not compile.
+// hostile: expect-refusal
+
+interface Report
+{
+    public function title(): string;
+}
+
+class Sales implements Report
+{
+    public function title(): string
+    {
+        return 'Sales';
+    }
+}
+
+// 1. `Vault` is not a `Report`, so no function in the list may return one.
+class Vault
+{
+    public function secret(): string
+    {
+        return 'the vault key';
+    }
+}
+
+// 2. The request writes `Vault` as the return type of each function. This does
+//    not compile, so `secret` is never called on a `Sales` object.
+foreach (Core\Program::constructors<Report, callable(): Vault>() as {class: string, make: callable(): Vault} $row) {
+    echo ($row->make)()->secret(), "\n";
+}
