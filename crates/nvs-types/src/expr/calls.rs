@@ -33,6 +33,10 @@
 //! a session editing one rule does not carry the rest in context. Every item
 //! moved here unchanged; an item is `pub(crate)` where it reaches across these
 //! modules, which is the reach it had when `expr` was a single file.
+//!
+//! ## Known gap
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-types/src/expr/calls.rs` lists them.
 
 use super::*;
 
