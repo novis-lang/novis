@@ -1,30 +1,29 @@
 {
-  "state": "**Goal `var-array-literal` — Stage 2 has landed whole.** `var $ids = [1, 2, 3];` is `array<int>`, and a\nliteral whose elements have two or more types, an empty one at any depth, or a `foreach ([…] as var $x)`\nsubject of two types is `E0414` with a help line naming the declaration to write. Decision record 0252\nholds the reasoning; `rule:types/var-inference`, `rule:types/arrays` and\n`rule:ide/no-compile-path-calls-the-synthesis` (now `shipped`) were rewritten with it.\n\nThe synthesis is `synthesize_array_literal` in `crates/nvs-types/src/expr/literals.rs`; its one caller is\n`var_array_literal` in `crates/nvs-types/src/locals.rs`, which the `var` arm and the `foreach` subject\ncall. Each element is checked once with no expectation and, on success, recorded at `T` as a written\ntarget records it. The guard `only_var_and_the_foreach_subject_call_the_synthesis` counts the callers.\n\nStage 0's sentences are rewritten in the rules, both reference chapters, the PHP-differences table, the\n`E0414` card, two playbook bullets and three older reject cases, and `website/` is re-rendered.",
+  "state": "**Goal `var-array-literal` — Stages 2 and 3 are on disk, and Stage 4 is next.** `var $ids = [1, 2, 3];`\nis `array<int>`; every other literal is `E0414` with the declaration to write (decision record 0252,\n`rule:types/var-inference`). The synthesis is `synthesize_array_literal` in\n`crates/nvs-types/src/expr/literals.rs`, called only through `var_array_literal` in\n`crates/nvs-types/src/locals.rs`.\n\nStage 3: a write that misses a `var` local's type is the ordinary `E0401` plus a label on the `var` line\nand a help naming the widened declaration (`name_the_var_line` in `crates/nvs-types/src/expr/assign.rs`,\nreading `LocalScope::var_initializer`). The scalar `var $n = 1; $n = 2.5;` gets the same help. The inlay\nhint already showed `: array<int>`, and a test pins it. The IR-equality test pins that a `var` literal\nlowers as the written type does. The Stage 2 check's drafted test names are now the names in\n`crates/nvs-types/tests/locals.rs`. The two missing claims are written as new tests: one element type per\n`var` element, and the nullable help.\n\nThe perf records for `lang:types` and `lang:expressions` were measured again after the reference\nchapters changed. Stage 4 changes `docs/reference/lang/20-types.md` again, so run\n`bun nv proofs --record-perf --group lang:types` after it.",
   "next": {
-    "stage": 3,
-    "title": "the later write, the editor and the lowering",
+    "stage": 4,
+    "title": "the feature proofs and the reference",
     "files": [
-      "crates/nvs-types/src/expr/assign.rs",
-      "crates/nvs-lsp/src/hints.rs",
-      "crates/nvs-ir/src/lower/tests.rs"
+      "docs/examples/lang/types/array-t/",
+      "tests/hostile/lang/types/every-binding-has-a-type/",
+      "docs/reference/lang/20-types.md"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The IR-equality test** — beside `crates/nvs-ir/src/lower/tests.rs:2509` (`assert_var_binding_lowers_as_written`): `var $x = [1, 2];` and `array<int> $x = [1, 2];` lower to the same IR, and so do a nested literal and a spread (goal file § *Stage 3*)."
+        "text": "**The new example** — a fourth program beside `docs/examples/lang/types/array-t/01-add-up-a-list-of-prices.nvs:1` that declares three arrays with `var` and prints them, plus its `.out`. Rewrite one existing program in each of the two features to `var` over a literal, and keep one written `array<T>`. A changed `.out` is a finding (goal file § *Stage 4*)."
       },
       {
         "done": false,
-        "text": "**The inlay hint** — `crates/nvs-lsp/src/hints.rs:12` reads the binding's checked type; a test pins `: array<int>` on an inferred literal (goal file § *Stage 3*)."
+        "text": "**The attack step** — a new numbered step in `tests/hostile/lang/types/every-binding-has-a-type/01-every-way-a-name-can-be-written-down-at-once.nvs:1`: `var` over a `tainted` and a plain string does not compile (`rule:types/var-inference`)."
       },
       {
         "done": false,
-        "text": "**The later write** — `var $prices = [10, 20]; $prices[] = 12.5;` names the `var` line and `array<int|float> $prices = [10, 20];` in its help; start from `crates/nvs-types/src/expr/assign.rs:493` (`report_mismatch`) and `bun nv peek --locate` the append's own report (goal file § *Stage 3*)."
+        "text": "**The reference and the about pages** — a running fenced program in the `var` section of `docs/reference/lang/20-types.md:1`; `docs/examples/lang/types/array-t/about.md:1` and `docs/examples/lang/types/every-binding-has-a-type/about.md:1` inside their word bands; the `covers:` markers on `tests/conformance/lang/var-infers-an-array-literal-whose-elements-have-one-type.nvst:1` name both features; then `bun nv reference`, `bun nv proofs --comments` over the new programs, and `--record-perf --group lang:types`."
       }
     ]
   },
   "backlog": [
-    "The help line for a qualifier mix prints `array<tainted string|string>`; whether that union compiles as written is *not checked* — Stage 3's later-write work is the place to try it (goal file § *Standing decisions*).",
-    "Stage 4: one example under `docs/examples/lang/types/array-t/`, the attack step, both `about.md`s, and a fenced program that runs in `docs/reference/lang/20-types.md`'s `var` bullet (goal file § *Stage 4*)."
+    "`npm --prefix website run sync:render` rewrites about 150 `website/` core pages whose descriptions changed in the tree and were never rendered again. This session put them back and rendered only the `types` rules page. A by-hand render pass owns it (`website/scripts`)."
   ]
 }

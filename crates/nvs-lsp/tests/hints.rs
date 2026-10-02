@@ -88,6 +88,20 @@ fn a_var_foreach_binding_is_hinted_with_its_inferred_type() {
     );
 }
 
+/// A `var` local over a one-type array literal hides an `array<T>` the way
+/// `var $n = 1;` hides an `int`, so it gets the same hint — nested literals
+/// included, since the hint is the binding's checked type.
+#[test]
+fn a_var_array_literal_is_hinted_with_its_inferred_type() {
+    assert_eq!(
+        hints("<?nvs\nvar $ids = [1, 2];\nvar $grid = [[1], [2, 3]];\n"),
+        vec![
+            (1, 8, ": array<int>".to_owned(), InlayHintKind::TYPE),
+            (2, 9, ": array<array<int>>".to_owned(), InlayHintKind::TYPE),
+        ]
+    );
+}
+
 /// A literal argument is the one a reader cannot tell the meaning of, so it is
 /// the one that gets the parameter's name — joined through
 /// `nvs_types::ResolvedCall::arg_slots`, which is the checker's own answer to

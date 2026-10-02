@@ -493,12 +493,9 @@ impl Hinting<'_> {
 
 /// Whether `expr` is a literal written out at the call site.
 ///
-/// The bound the module doc's third decision names. An interpolated string is
-/// not one: it holds expressions, and what a reader cannot see there is what
-/// those are rather than which parameter they fill. An array literal is not
-/// one either — it is where `rule:types/var-inference` already refuses to
-/// infer, so a hint beside it would be the editor claiming more than the
-/// checker.
+/// The bound the module doc's third decision names. An interpolated string and
+/// an array literal are not one: each holds expressions, and what a reader
+/// cannot see there is what those are rather than which parameter they fill.
 fn is_literal(expr: &Expr) -> bool {
     matches!(
         expr.kind,
