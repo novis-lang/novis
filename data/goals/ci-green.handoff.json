@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `ci-green` — CI is green on `main` — is met, and so is its proofs floor.** Commit\n`a5e98c23a` rewrote `docs/reference/lang/30-expressions.md`, which staled the perf figure of\nevery `lang:expressions` feature whose anchor is that chapter, and grew two `about.md` files past\n200 words. This session measured the fourteen again into `docs/perf/members.ndjson` on the release\nbinary and cut `precedence-and-associativity/about.md` and `nvs-lsp/about.md` back under the bound,\nso `bun nv proofs --gate` owes nothing over the whole roster.",
+  "state": "**Goal `ci-green` — CI is green on `main` — is met.** `bun nv ci-green` exits 0: the latest\n`ci.yml` run on `main` succeeded, and it ran `2270a76ce`, the code `HEAD` holds. `origin/main` is\nat that commit. `bun nv verify --doc` resolves every link, and `bun nv owners --closes ci-green`\nand `bun nv playbook --closes ci-green` name nothing, so no end-of-goal gate is red. The proofs\nfloor is clear: `bun nv proofs --gate` owes nothing over the whole roster.",
   "next": {
     "stage": 2,
     "title": "the run exists, and it is this commit's",
@@ -10,11 +10,12 @@
     "items": [
       {
         "done": true,
-        "text": "**`bun nv ci-green` reads the latest `ci.yml` run on `main`** — `tools/nv/cmd/ci-green.ts:1`"
+        "text": "**The latest `ci.yml` run on `main` is green for `HEAD`** — `tools/nv/cmd/ci-green.ts:1`, checked by `bun nv ci-green`."
       }
-    ]
+    ],
+    "after": "The goal is reached; the driver moves the chain to the next goal."
   },
   "backlog": [
-    "A commit that edits a reference chapter stales every feature anchored on it; `bun nv proofs --record-perf --only <group>` re-measures them (`tools/nv/proofs/perf.ts`)."
+    "Nothing this goal owes. A later push that turns CI red is that push's session to fix, from the log (`docs/agent/goals/ci-green.md` § *Standing decisions*)."
   ]
 }
