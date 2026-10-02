@@ -23,14 +23,14 @@
 /// Who may set a directive — `rule:config/three-changeability-classes`'s changeability class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Class {
-    /// `nvs.toml` is the only place it can be set; `Core\Config::set` fails with `E0602` and
-    /// returns `false`. The rule for the class is that changing it from inside a request would
-    /// affect something other than that request.
+    /// `nvs.toml` is the only place it can be set; `Core\Config::set` returns `false`. The rule
+    /// for the class is that changing it from inside a request would affect something other than
+    /// that request.
     System,
     /// `nvs.toml` gives the **default** a request starts with, and the request may then set any
     /// value for itself, wider or narrower, up to the `[limits.hard]` ceiling.
     Runtime,
-    /// As [`Runtime`](Class::Runtime), but narrowing only: a widening set fails with `E0602`. It is
+    /// As [`Runtime`](Class::Runtime), but narrowing only: a widening set returns `false`. It is
     /// argued per directive and never as a policy — capability grants, and the directives where PHP
     /// itself behaves this way.
     RuntimeTighten,

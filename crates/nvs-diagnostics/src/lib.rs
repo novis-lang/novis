@@ -200,11 +200,8 @@ pub mod code {
         "An expression is needed here, such as a value, a variable or a function call. Add \
          one, or check the line for a missing or extra operator.",
     );
-    /// A statement was required here.
-    pub const E_EXPECTED_STMT: Code = Code::new("E0103").card(
-        "A statement is needed here. Add one, or check the lines before it for a missing `;` \
-         or `}`.",
-    );
+    // `E0103` is retired and is never reused: the parser reads a statement
+    // position as an expression statement, so `E0101` and `E0102` report it.
     /// A bracket, brace or paren was opened and never closed.
     pub const E_UNCLOSED_DELIMITER: Code = Code::new("E0104").card(
         "A bracket, brace or parenthesis is opened and never closed. Add the closing `]`, `}` \
@@ -515,16 +512,10 @@ pub mod code {
         "`extract()` is not available in Novis. It creates variables whose names are only known \
          when the program runs. Destructure the array, or read each value by its key.",
     );
-    /// A PHP C extension that has no Novis equivalent.
-    pub const E_UNSUPPORTED_EXTENSION: Code = Code::new("E0206").card(
-        "The program uses a PHP extension that Novis does not provide. Look for a `Core` class \
-         that does the same work, or write the code without the extension.",
-    );
-    /// A `preg` pattern using a construct the pure-Rust engine cannot express.
-    pub const E_UNSUPPORTED_REGEX: Code = Code::new("E0207").card(
-        "This regular expression uses a feature that the Novis regular expression engine does \
-         not support. Write the pattern again without that feature.",
-    );
+    // `E0206` is retired and is never reused: Novis has no free functions, so
+    // a call into a PHP extension is `E0320` like any other.
+    // `E0207` is retired and is never reused: `Core\Regex` runs lookbehind,
+    // backreferences, recursion and `\K`, and no check names a construct it lacks.
     /// `settype($x, ...)`: no assignment, operator or call can change what a
     /// binding's type is.
     pub const E_SETTYPE_UNSUPPORTED: Code = Code::new("E0208").card(
@@ -974,11 +965,8 @@ pub mod code {
         "A variable is used before it is declared, or before a value is assigned to it. Declare \
          it with its type first, as in `int $count = 0;`.",
     );
-    /// A call to a function that does not exist.
-    pub const E_UNDEFINED_FUNCTION: Code = Code::new("E0302").card(
-        "The code calls a function that does not exist. Every function in Novis is a method of \
-         a class, so check the class name and the method name for a typo.",
-    );
+    // `E0302` is retired and is never reused: Novis has no free functions, so
+    // a call to one that does not exist is `E0320`.
     /// A reference to a class, interface or enum that does not exist.
     pub const E_UNDEFINED_CLASS: Code = Code::new("E0303").card(
         "This class, interface or enum is not declared anywhere the program can see. Check the \
@@ -2191,16 +2179,10 @@ pub mod code {
     );
 
     // --- E05xx IR and codegen ----------------------------------------------
-    /// The IR verifier rejected a function. Always an Novis bug.
-    pub const E_IR_INVALID: Code = Code::new("E0501").card(
-        "The compiler produced invalid code for this function. This is a bug in Novis, not in \
-         your program. Please report it with the code that causes it.",
-    );
-    /// Cranelift could not compile a function.
-    pub const E_CODEGEN_FAILED: Code = Code::new("E0502").card(
-        "The compiler could not turn this function into machine code. This is a bug in Novis, \
-         not in your program. Please report it with the code that causes it.",
-    );
+    // `E0501` is retired and is never reused: the IR has no verifier of its
+    // own, and Cranelift's verifier rejection is a `CodegenError` like any other.
+    // `E0502` is retired and is never reused: a `CodegenError` is an internal
+    // error, and `E0901` is the one code for an internal error.
 
     // --- E06xx configuration and capabilities ------------------------------
     /// An `nvs.toml` directive that does not exist, or an invalid value.
@@ -2208,18 +2190,10 @@ pub mod code {
         "This setting in the configuration file does not exist, or its value has the wrong form. \
          Check the name of the setting, and write the value in the form the message shows.",
     );
-    /// A `Core\Config::set` the directive's changeability class refuses: a `System`
-    /// directive, widening a `RuntimeTighten` one, or exceeding a hard ceiling.
-    pub const E_CAPABILITY_DENIED: Code = Code::new("E0602").card(
-        "`Core\\Config::set` cannot make this change. Some settings can only be set in the \
-         configuration file, some can only be made stricter, and no value can go above the \
-         server's hard limit.",
-    );
-    /// A per-request limit was exceeded.
-    pub const E_LIMIT_EXCEEDED: Code = Code::new("E0603").card(
-        "The request used more than one of its limits allow, such as memory or time. Make the \
-         work smaller, or raise the limit in `nvs.toml`.",
-    );
+    // `E0602` is retired and is never reused: `Core\Config::set` answers every
+    // refusal with `false` and never throws (`nvs_config::request`).
+    // `E0603` is retired and is never reused: a request past a limit ends in a
+    // `FATAL` that `Core\Fatal::onLimit` sees (`rule:errors/on-limit`), not a diagnostic.
     /// The same directive set twice in one configuration file. `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` refuses
     /// it so that no assignment in a root-owned file is ever silently shadowed;
     /// across an `[[include]]` the same key is an override instead (`rule:config/later-wins-and-every-override-is-recorded`).
@@ -5356,11 +5330,8 @@ pub mod code {
     // --- W1xxx warnings ----------------------------------------------------
     /// Code that can never execute.
     pub const W_UNREACHABLE: Code = Code::new("W1001").card("This code can never run, so you can delete it.");
-    /// A variable assigned and never read.
-    pub const W_UNUSED_VARIABLE: Code = Code::new("W1002").card(
-        "This variable gets a value that is never read. Delete the assignment, or use the \
-         variable.",
-    );
+    // `W1002` is retired and is never reused: no rule asks for an
+    // unused-variable warning, and no check raised it.
     /// A deprecated construct that still works.
     pub const W_DEPRECATED: Code = Code::new("W1003").card(
         "This feature still works, but a future version may remove it. The message says what \

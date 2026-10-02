@@ -620,7 +620,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     let mut exprs = ExprTypeTable::new();
     {
         // The type phase, continued into exactly the way `nvs-cli`'s
-        // `front_end_granted` continues into it: `E0301`, `E0302` and every
+        // `front_end_granted` continues into it: `E0301` and every
         // `E04xx` are reported here and nowhere earlier, so a walk that
         // stopped above this block published parse and declaration
         // diagnostics alone.
