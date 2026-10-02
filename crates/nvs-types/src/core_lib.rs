@@ -526,7 +526,9 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // Both variable kinds intern as the same `Ty::TypeVar`: they differ
         // only in where the binding comes from, and `MethodSig::type_params`
         // is where that difference is recorded.
-        CoreTy::Var(name) | CoreTy::Written(name) => interner.type_var(*name),
+        CoreTy::Var(name) | CoreTy::Written(name) | CoreTy::WrittenReturning(name, _) => {
+            interner.type_var(*name)
+        }
         CoreTy::Callable => interner.callable(),
         // A `Core`-owned enum is interned exactly as a declared one is —
         // `crate::enums` has already seeded the same name into its own table,

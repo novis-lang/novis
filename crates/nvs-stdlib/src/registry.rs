@@ -584,6 +584,16 @@ pub enum CoreTy {
     /// (`E_TYPE_ARGS_NOT_GENERIC`), which is what keeps an *inferred* variable
     /// from gaining a second, unchecked spelling.
     Written(&'static str),
+    /// [`Self::Written`] for a type argument that names a `callable(...)` type
+    /// returning the second field — `Core\Program::constructors<T, C>`'s `C`,
+    /// whose every row's `make` is a closure returning a `T`.
+    ///
+    /// Spelled and interned exactly as [`Self::Written`] is, by its name. The
+    /// return type is here for [`CoreMethod::written`]'s order alone: it is
+    /// walked *before* the name, so a `T` that appears nowhere else in the row
+    /// still binds first. The checker that answers the member enforces the
+    /// constraint itself, because the registry has no way to state one.
+    WrittenReturning(&'static str, &'static CoreTy),
     /// `A|B|...` — `rule:types/grammar`'s union, at least two members.
     ///
     /// Legal in **either** direction. A helper's argument slot is a whole
@@ -1304,7 +1314,9 @@ impl CoreTy {
                 let params: Vec<String> = params.iter().map(Self::spelled).collect();
                 format!("callable({}): {}", params.join(", "), ret.spelled())
             }
-            Self::Var(name) | Self::Written(name) => (*name).into(),
+            Self::Var(name) | Self::Written(name) | Self::WrittenReturning(name, _) => {
+                (*name).into()
+            }
             Self::Union(members) => members
                 .iter()
                 .map(Self::spelled)
@@ -1484,6 +1496,12 @@ impl CoreMethod {
 fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
     match ty {
         CoreTy::Written(name) => {
+            if !found.contains(name) {
+                found.push(name);
+            }
+        }
+        CoreTy::WrittenReturning(name, returns) => {
+            collect_written(returns, found);
             if !found.contains(name) {
                 found.push(name);
             }
@@ -4325,12 +4343,13 @@ mod tests {
         }
         for class in CLASSES {
             for method in class.members() {
-                // The one row a helper never answers: `nvs_types::program`
-                // expands `implementingWith` and builds each `{instance,
-                // attribute}` row itself, and the row spells the shape so the
-                // card prints what the call answers. See `crate::program::ROW`.
-                let expanded =
-                    class.name == crate::program::NAME && method.name == "implementingWith";
+                // The two rows a helper never answers: `nvs_types::program`
+                // expands `implementingWith` and `constructors` and builds
+                // each row of their answer itself, and the row spells the
+                // shape so the card prints what the call answers. See
+                // `crate::program::ROW`.
+                let expanded = class.name == crate::program::NAME
+                    && matches!(method.name, "implementingWith" | "constructors");
                 assert!(
                     expanded || !nests_one(&method.return_ty),
                     "{}::{} returns a shape, which has no runtime representation to answer with",

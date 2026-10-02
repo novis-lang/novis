@@ -1298,6 +1298,7 @@ mod tests {
             | CoreTy::Enum(name)
             | CoreTy::EnumCase(name, _)
             | CoreTy::Var(name) => *name == class,
+            CoreTy::WrittenReturning(name, returns) => *name == class || mentions(returns, class),
             CoreTy::Array(inner)
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)

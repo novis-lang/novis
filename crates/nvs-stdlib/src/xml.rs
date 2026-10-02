@@ -3840,6 +3840,7 @@ mod tests {
             | CoreTy::Enum(name)
             | CoreTy::EnumCase(name, _)
             | CoreTy::Var(name) => *name == class,
+            CoreTy::WrittenReturning(name, returns) => *name == class || mentions(returns, class),
             CoreTy::Array(inner)
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)
@@ -3923,6 +3924,7 @@ mod tests {
             CoreTy::Instance(_)
             | CoreTy::ShapeOfCallables(_)
             | CoreTy::Written(_)
+            | CoreTy::WrittenReturning(_, _)
             | CoreTy::Enum(_)
             | CoreTy::EnumCase(_, _)
             | CoreTy::Var(_)

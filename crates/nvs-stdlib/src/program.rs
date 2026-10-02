@@ -89,6 +89,29 @@ const ROW: CoreTy = CoreTy::Shape(&[&[
     },
 ]]);
 
+/// `C` — `constructors`' written `callable(...): T` type, the type every
+/// row's `make` closure has. [`CoreTy::WrittenReturning`] is what makes `T`
+/// the first type argument, though the row mentions it nowhere else.
+const C: CoreTy = CoreTy::WrittenReturning("C", &T);
+
+/// One row of `constructors<T, C>`'s answer: the class's fully-qualified name
+/// and the closure that builds it.
+///
+/// [`ROW`]'s exemption, for [`ROW`]'s reason: `nvs_types::program` builds
+/// every row itself, and the shape is spelled here for the card.
+const MAKER: CoreTy = CoreTy::Shape(&[&[
+    CoreField {
+        name: "class",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: None,
+    },
+    CoreField {
+        name: "make",
+        ty: C,
+        default: None,
+    },
+]]);
+
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -113,6 +136,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&IMPLEMENTING_WITH_DOC),
         },
         CoreMethod {
+            name: "constructors",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&MAKER),
+            symbol: "nvs_core_program_constructors",
+            doc: Some(&CONSTRUCTORS_DOC),
+        },
+        CoreMethod {
             name: "id",
             names: &[],
             params: &[],
@@ -131,9 +163,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 const PROGRAM_CARD: ClassDoc = ClassDoc {
     short: "Information about the whole program. `implementing` returns a new object of every \
             class that implements an interface or extends a class. `implementingWith` returns the \
-            same objects, each with one attribute of its class. Novis finds these classes when \
-            it compiles the program, so nothing is searched while it runs. `id` returns a text that identifies \
-            this version of the program.",
+            same objects, each with one attribute of its class. `constructors` returns a function \
+            for each of these classes, which creates an object with the arguments you pass. Novis \
+            finds these classes when it compiles the program, so nothing is searched while it \
+            runs. `id` returns a text that identifies this version of the program.",
 };
 
 /// `Core\Program::implementing`'s reference card — `rule:core-api/reference-card`.
@@ -169,6 +202,20 @@ const IMPLEMENTING_WITH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Program::constructors`' reference card — `rule:core-api/reference-card`.
+const CONSTRUCTORS_DOC: MethodDoc = MethodDoc {
+    short: "Returns a function for every class that `implementing<T>()` lists, in the same order. \
+            You write the interface or class `T` and a function type `C` between `<` and `>`: \
+            `Core\\Program::constructors<Module, callable(Config): Module>()`. Each function \
+            creates a new object of its class with the arguments you pass. A class whose \
+            constructor does not accept these arguments does not compile.",
+    params: &[],
+    ret: "An array with one row per class, sorted by class name. Each row is \
+          `{class: string, make: C}`. `class` is the full class name. No object is created until \
+          you call `make`.",
+    errors: &[],
+};
+
 /// `Core\Program::id`'s reference card — `rule:core-api/reference-card`.
 const ID_DOC: MethodDoc = MethodDoc {
     short: "Returns a text that identifies this version of the program. It is a `BLAKE3` hash of \
@@ -188,9 +235,9 @@ const ID_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "nvs_core_program_implementing" | "nvs_core_program_implementing_with" => {
-            (expanded_at_compile_time as *const ()).cast()
-        }
+        "nvs_core_program_implementing"
+        | "nvs_core_program_implementing_with"
+        | "nvs_core_program_constructors" => (expanded_at_compile_time as *const ()).cast(),
         "nvs_core_program_id" => (nvs_core_program_id as *const ()).cast(),
         _ => return None,
     })
@@ -238,7 +285,8 @@ extern "C" fn expanded_at_compile_time() {
     use std::io::Write as _;
     let _ = std::io::stderr().write_all(
         b"nvs: a `Core\\Program` enumeration reached a runtime helper - `rule:programs/implementing` \
-          expands `implementing` and `implementingWith` in `nvs check`, so this is a bug in \
+          expands `implementing`, `implementingWith` and `constructors` in `nvs check`, so this \
+          is a bug in \
           `nvs-ir`'s lowering rather than in the program\n",
     );
     std::process::abort();
