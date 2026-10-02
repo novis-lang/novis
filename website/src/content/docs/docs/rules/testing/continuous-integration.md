@@ -18,7 +18,7 @@ next:
 
 <div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">6</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">6</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#ci-lanes">One workflow holds every job, and three lanes decide which of them a run needs</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#lane-table">One Python table decides what a diff runs, and the platform matrix is never one of the gates</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#unknown-base-runs-everything">A run with no base commit to diff against runs every lane</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-deep-lane">Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-deferred-job-is-skipped-never-absent">A job a lane defers is skipped by its own <code>if:</code>, never filtered out of the workflow</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#every-push-gets-a-verdict">A run on <code>main</code> is never cancelled by the next commit</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#ci-lanes">One workflow holds every job, and three lanes decide which of them a run needs</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#lane-table">One table decides what a diff runs, and the platform matrix is never one of the gates</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#unknown-base-runs-everything">A run with no base commit to diff against runs every lane</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-deep-lane">Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-deferred-job-is-skipped-never-absent">A job a lane defers is skipped by its own <code>if:</code>, never filtered out of the workflow</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#every-push-gets-a-verdict">A run on <code>main</code> is never cancelled by the next commit</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="ci-lanes">
 
@@ -44,13 +44,13 @@ release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/continuous-integration/#lane-table" title="One Python table decides what a diff runs, and the platform matrix is never one of the gates"><code>testing/lane-table</code></a> <a href="/docs/rules/testing/continuous-integration/#the-deep-lane" title="Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists"><code>testing/the-deep-lane</code></a> <a href="/docs/rules/testing/continuous-integration/#a-deferred-job-is-skipped-never-absent" title="A job a lane defers is skipped by its own if:, never filtered out of the workflow"><code>testing/a-deferred-job-is-skipped-never-absent</code></a> <a href="/docs/rules/testing/continuous-integration/#unknown-base-runs-everything" title="A run with no base commit to diff against runs every lane"><code>testing/unknown-base-runs-everything</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/.github/workflows/ci.yml"><code>.github/workflows/ci.yml</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/continuous-integration/#lane-table" title="One table decides what a diff runs, and the platform matrix is never one of the gates"><code>testing/lane-table</code></a> <a href="/docs/rules/testing/continuous-integration/#the-deep-lane" title="Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists"><code>testing/the-deep-lane</code></a> <a href="/docs/rules/testing/continuous-integration/#a-deferred-job-is-skipped-never-absent" title="A job a lane defers is skipped by its own if:, never filtered out of the workflow"><code>testing/a-deferred-job-is-skipped-never-absent</code></a> <a href="/docs/rules/testing/continuous-integration/#unknown-base-runs-everything" title="A run with no base commit to diff against runs every lane"><code>testing/unknown-base-runs-everything</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/.github/workflows/ci.yml"><code>.github/workflows/ci.yml</code></a></dd></div></dl>
 
 </div>
 
 <div class="nv-rule" id="lane-table">
 
-## One Python table decides what a diff runs, and the platform matrix is never one of the gates
+## One table decides what a diff runs, and the platform matrix is never one of the gates
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -61,9 +61,10 @@ The first job compares the push's or the pull request's base against `HEAD` and 
 per lane; every other job's `if:` is a single comparison against one of them. Build, test,
 conformance and lint run when any build input changed; the sanitizer and the release-profile cost
 guards when a native crate changed; the dependency checks when the dependency set changed; the
-reference check when the binary or its chapters changed.
+reference check when the binary or its chapters changed; the feature proofs when the binary or any
+feature's proofs changed.
 
-The table deciding those booleans is a dictionary in **one Python file** — not a set of path filters
+The table deciding those booleans is a dictionary in **one file**, `tools/nv/cmd/ci-changes.ts` — not a set of path filters
 spread over the workflow, and not a third-party action on the critical path of every run.
 `bun nv ci-changes --base HEAD~1` answers "what would CI have run for this commit" without
 pushing anything.
@@ -93,7 +94,7 @@ base commit it can diff against. Every such case resolves to **every lane true**
 The failure mode of guessing wrong in the other direction is a merged commit nothing checked, and
 there is no version of this that is worth one of those.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/continuous-integration/#lane-table" title="One Python table decides what a diff runs, and the platform matrix is never one of the gates"><code>testing/lane-table</code></a> <a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/ci-changes.ts"><code>tools/nv/cmd/ci-changes.ts</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/continuous-integration/#lane-table" title="One table decides what a diff runs, and the platform matrix is never one of the gates"><code>testing/lane-table</code></a> <a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tools/nv/cmd/ci-changes.ts"><code>tools/nv/cmd/ci-changes.ts</code></a></dd></div></dl>
 
 </div>
 
@@ -136,7 +137,7 @@ a required status check; a workflow filtered out by a path rule never reports at
 check on it waits forever. The second is a branch that cannot be merged, discovered by whoever turns
 branch protection on months from now.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a> <a href="/docs/rules/testing/continuous-integration/#lane-table" title="One Python table decides what a diff runs, and the platform matrix is never one of the gates"><code>testing/lane-table</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/.github/workflows/ci.yml"><code>.github/workflows/ci.yml</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a> <a href="/docs/rules/testing/continuous-integration/#lane-table" title="One table decides what a diff runs, and the platform matrix is never one of the gates"><code>testing/lane-table</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/.github/workflows/ci.yml"><code>.github/workflows/ci.yml</code></a></dd></div></dl>
 
 </div>
 
@@ -156,6 +157,6 @@ reads, and what a loop committing one slice at a time needs.
 The concurrency group is keyed by event as well, so a long nightly never sits in front of a short
 push.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a> <a href="/docs/rules/testing/continuous-integration/#lane-table" title="One Python table decides what a diff runs, and the platform matrix is never one of the gates"><code>testing/lane-table</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/.github/workflows/ci.yml"><code>.github/workflows/ci.yml</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a> <a href="/docs/rules/testing/continuous-integration/#lane-table" title="One table decides what a diff runs, and the platform matrix is never one of the gates"><code>testing/lane-table</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/.github/workflows/ci.yml"><code>.github/workflows/ci.yml</code></a></dd></div></dl>
 
 </div>

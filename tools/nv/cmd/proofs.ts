@@ -38,6 +38,12 @@
 // reaches, record each in a second run on the covws debug build, and report the rest green
 // (`tools/nv/proofs/select.ts`); `--no-cache` runs every program in scope, and a binary named with
 // `--nvs` runs every program and records nothing.
+//
+// CI's `proofs` job is the one suite that runs every proof program: `--verify --nvs` on a fresh proof
+// binary, over the whole roster, on each platform, whenever its lane in `ci-changes.ts` says so. `nv
+// verify` runs none, because the proof binary is an optimized build of its own that every change to
+// Rust would rebuild: it marks each program the change reaches as owed, and `--run` runs them locally.
+//
 // `rule:testing/feature-proofs` is what a feature owes, `tools/nv/proofs/roster.ts` is where the features
 // come from, `tools/nv/proofs/collect.ts` is how each proof is found on disk, `tools/nv/proofs/run.ts` is
 // how a proof program is run and judged, and `tools/nv/proofs/perf.ts` is how a figure is taken.

@@ -1,5 +1,5 @@
 {
-  "title": "One Python table decides what a diff runs, and the platform matrix is never one of the gates",
+  "title": "One table decides what a diff runs, and the platform matrix is never one of the gates",
   "status": "shipped",
   "because": [
     "0143",

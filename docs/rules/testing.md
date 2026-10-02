@@ -1288,7 +1288,7 @@ Nothing has left the suite. What a push skips is work whose answer its own diff 
 
 <a id="testing-lane-table"></a>
 
-## One Python table decides what a diff runs, and the platform matrix is never one of the gates
+## One table decides what a diff runs, and the platform matrix is never one of the gates
 
 `rule:testing/lane-table`
 
@@ -1296,9 +1296,10 @@ The first job compares the push's or the pull request's base against `HEAD` and 
 per lane; every other job's `if:` is a single comparison against one of them. Build, test,
 conformance and lint run when any build input changed; the sanitizer and the release-profile cost
 guards when a native crate changed; the dependency checks when the dependency set changed; the
-reference check when the binary or its chapters changed.
+reference check when the binary or its chapters changed; the feature proofs when the binary or any
+feature's proofs changed.
 
-The table deciding those booleans is a dictionary in **one Python file** — not a set of path filters
+The table deciding those booleans is a dictionary in **one file**, `tools/nv/cmd/ci-changes.ts` — not a set of path filters
 spread over the workflow, and not a third-party action on the critical path of every run.
 `bun nv ci-changes --base HEAD~1` answers "what would CI have run for this commit" without
 pushing anything.

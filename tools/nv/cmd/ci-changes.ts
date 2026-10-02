@@ -70,6 +70,14 @@ const LANES: Record<string, string[]> = {
   // docs/novis.md is generated from the binary's registry and the chapters, so either side moving can
   // make the committed file stale.
   refdoc: ["crates/", "docs/reference/", "docs/novis.md", "tools/nv/cmd/reference.ts", ".github/workflows/"],
+  // What `bun nv proofs --verify` reads: the binary's inputs, every feature's examples, attacks, benches
+  // and chapters, the perf ledger, the proof policy and the gap records a `proof: gap` marker names.
+  // Gates `proofs`.
+  proofs: [
+    "crates/", "benches/", "tests/", "tools/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
+    "docs/examples/", "docs/reference/", "docs/perf/", "data/proofs/", "data/gaps/",
+    ".github/workflows/",
+  ],
   // The five-driver matrix against real servers: the harness that points each driver at a container,
   // the compose file those containers come from, and -- added by `dbLane` below -- every package
   // `bun nv db-matrix` runs the tests of and every package those are compiled against. Gates

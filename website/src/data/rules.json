@@ -4227,7 +4227,7 @@
             {
               "id": "testing/lane-table",
               "slug": "lane-table",
-              "title": "One Python table decides what a diff runs, and the platform matrix is never one of the gates",
+              "title": "One table decides what a diff runs, and the platform matrix is never one of the gates",
               "status": "shipped",
               "href": "/docs/rules/testing/continuous-integration/#lane-table",
               "diverges": null
