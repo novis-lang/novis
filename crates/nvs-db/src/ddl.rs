@@ -23,6 +23,14 @@
 //! `the_emitters_follow_dialect_rather_than_driver` asserts that as an
 //! *agreement* over all five drivers rather than as five expected texts.
 //!
+//! # The SQL is the dialect's, and the grade is the server's
+//!
+//! § 6 keys a grade on driver **and** server version, so [`step_on`] takes a
+//! [`Server`] beside the dialect: the family and the version a connection's
+//! handshake already reported. Only the grade reads it, and only where a version
+//! changes the cost — adding a column with a default. A plan built with no
+//! server, or over a version string [`Server::read`] cannot parse, grades up.
+//!
 //! # Why this is not an injection sink
 //!
 //! DDL binds nothing: there is no parameter marker in a `CREATE TABLE`, so the
@@ -104,6 +112,7 @@
 //!   server completes, and its doc says what that costs and why it is still one
 //!   statement.
 
+use crate::conn::{Connection, Driver};
 use crate::plan::{Change, Grade, KeyKind, Step};
 use crate::schema::{
     Column, ColumnDefault, FloatWidth, Ident, IntWidth, Key, ScalarType, Schema, Table,
@@ -679,9 +688,88 @@ fn quoted(text: &str, dialect: Dialect) -> String {
 /// and summarised".
 #[must_use]
 pub fn step(change: Change, dialect: Dialect) -> Step {
+    step_on(change, dialect, None)
+}
+
+/// [`step`], graded for `server` where it is known.
+///
+/// The SQL is the same with or without one. A server only lowers a grade that
+/// its version makes cheaper, and `None` keeps every grade where [`step`] puts
+/// it.
+#[must_use]
+pub fn step_on(change: Change, dialect: Dialect, server: Option<Server>) -> Step {
     let sql = sql_for(&change, dialect);
-    let (grade, reason) = grade_of(&change, dialect);
+    let (grade, reason) = grade_of(&change, dialect, server);
     Step::new(change, grade, reason, sql)
+}
+
+/// The server a plan is graded for: which family it is, and the version it
+/// reported.
+///
+/// The family is not always the loaded driver. A MariaDB server reached
+/// through the MySQL driver says so in its banner, and [`Server::read`] counts
+/// it as MariaDB, because MariaDB 10.0 is numbered above MySQL 8.0.12 and still
+/// rewrites the table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Server {
+    family: Driver,
+    version: (u32, u32, u32),
+}
+
+impl Server {
+    /// The server a connection reached, from what its handshake reported.
+    #[must_use]
+    pub fn of(conn: &Connection) -> Option<Server> {
+        Server::read(conn.driver(), conn.server_version())
+    }
+
+    /// The server `driver` reached, from the version text it reported:
+    /// `16.2`, `11.22 (Debian 11.22-1)`, `8.0.36-0ubuntu0.22.04.1` or
+    /// `5.5.5-10.11.6-MariaDB`.
+    ///
+    /// `None` when the text does not start with a number, so the grade goes up.
+    /// MariaDB puts `5.5.5-` in front of its own version for old MySQL clients,
+    /// and that prefix is dropped.
+    #[must_use]
+    pub fn read(driver: Driver, reported: &str) -> Option<Server> {
+        let mariadb = driver == Driver::MariaDb || reported.contains("MariaDB");
+        let text = if mariadb {
+            reported.strip_prefix("5.5.5-").unwrap_or(reported)
+        } else {
+            reported
+        };
+        let end = text
+            .bytes()
+            .take_while(|byte| byte.is_ascii_digit() || *byte == b'.')
+            .count();
+        let mut parts = text[..end].split('.').map(|part| part.parse::<u32>().ok());
+        let major = parts.next().flatten()?;
+        let minor = parts.next().flatten().unwrap_or(0);
+        let patch = parts.next().flatten().unwrap_or(0);
+        Some(Server {
+            family: if mariadb { Driver::MariaDb } else { driver },
+            version: (major, minor, patch),
+        })
+    }
+
+    /// Whether this server adds a column with `default` as a catalog write,
+    /// without rewriting the table.
+    ///
+    /// PostgreSQL 11 stores any non-volatile default once, in the catalog, and
+    /// `CURRENT_TIMESTAMP` is not volatile there. MySQL 8.0.12 and MariaDB
+    /// 10.3.2 add a column instantly, but a literal default is the only kind
+    /// this grader is sure of, so `CURRENT_TIMESTAMP` grades up on both.
+    fn adds_a_default_in_place(self, default: &ColumnDefault) -> bool {
+        let literal = !matches!(default, ColumnDefault::Now | ColumnDefault::Opaque(_));
+        match self.family {
+            Driver::Postgres => {
+                self.version >= (11, 0, 0) && !matches!(default, ColumnDefault::Opaque(_))
+            }
+            Driver::MySql => literal && self.version >= (8, 0, 12),
+            Driver::MariaDb => literal && self.version >= (10, 3, 2),
+            Driver::SqlServer | Driver::Sqlite => false,
+        }
+    }
 }
 
 /// The statements that make `change` in `dialect`, each terminated.
@@ -979,8 +1067,8 @@ fn sqlite_rebuilds(change: &Change, dialect: Dialect) -> bool {
 
 /// § 6's grade for `change` in `dialect`, and the sentence an operator reads
 /// instead of taking our word for it.
-fn grade_of(change: &Change, dialect: Dialect) -> (Grade, String) {
-    let (grade, reason) = base_grade(change);
+fn grade_of(change: &Change, dialect: Dialect, server: Option<Server>) -> (Grade, String) {
+    let (grade, reason) = base_grade(change, server);
     if sqlite_rebuilds(change, dialect) {
         return (
             grade.up_to(Grade::Destructive),
@@ -996,12 +1084,13 @@ fn grade_of(change: &Change, dialect: Dialect) -> (Grade, String) {
 
 /// The grade every dialect agrees on, before SQLite's rebuild is considered.
 ///
-/// The version-keyed half of § 6 is where the grade-up rule does its work:
-/// adding a column with a default is instant on PostgreSQL 11+ and MySQL
-/// 8.0.12+ and a full table rewrite on anything older, and nothing in a
-/// sans-io emitter knows which server it is talking to. It grades up, and the
-/// reason says so, so an operator who does know can overrule it by reading.
-fn base_grade(change: &Change) -> (Grade, &'static str) {
+/// The version-keyed half of § 6 is the one place `server` is read: adding a
+/// column with a default is instant on PostgreSQL 11+, MySQL 8.0.12+ and
+/// MariaDB 10.3.2+ and a full table rewrite on anything older. With no server,
+/// or one [`Server::adds_a_default_in_place`] does not vouch for, it grades up,
+/// and the reason says so, so an operator who does know can overrule it by
+/// reading.
+fn base_grade(change: &Change, server: Option<Server>) -> (Grade, &'static str) {
     match change {
         Change::CreateTable(_) => (
             Grade::Safe,
@@ -1013,13 +1102,23 @@ fn base_grade(change: &Change) -> (Grade, &'static str) {
              its author knows about, and this database holds a table it does not name.",
         ),
         Change::AddColumn { column, .. } => {
-            if column.default_value().is_some() {
-                (
-                    Grade::Locking,
-                    "A column with a default is a catalog write on PostgreSQL 11+ and MySQL \
-                     8.0.12+ and a full table rewrite on anything older. The server's version is \
-                     not known here, so this grades up.",
-                )
+            if let Some(default) = column.default_value() {
+                if server.is_some_and(|server| server.adds_a_default_in_place(default)) {
+                    (
+                        Grade::Safe,
+                        "This server version stores the default once, in the catalog, and does \
+                         not rewrite the table: PostgreSQL 11+, MySQL 8.0.12+ and MariaDB \
+                         10.3.2+ all do this for a literal default.",
+                    )
+                } else {
+                    (
+                        Grade::Locking,
+                        "A column with a default is a catalog write on PostgreSQL 11+, MySQL \
+                         8.0.12+ and MariaDB 10.3.2+, and a full table rewrite on anything \
+                         older. The server's version is not known here, or it is not one of \
+                         those, so this grades up.",
+                    )
+                }
             } else if column.is_nullable() {
                 (
                     Grade::Safe,
@@ -2430,12 +2529,12 @@ mod tests {
     /// § 6's version-keyed half, as the claim that a grade is the *server's*
     /// and not the loaded driver's.
     ///
-    /// Adding a column with a default is a catalog write on PostgreSQL 11+ and
-    /// MySQL 8.0.12+ and a full table rewrite on anything older. A sans-io
-    /// emitter knows the dialect and not the version, so all four grade up to
-    /// `Locking` and the reason names the versions rather than asking to be
-    /// believed. The answer PostgreSQL alone would have earned is `Safe`, and
-    /// taking it on the driver's word is the optimism § 6 refuses.
+    /// Adding a column with a default is a catalog write on PostgreSQL 11+,
+    /// MySQL 8.0.12+ and MariaDB 10.3.2+ and a full table rewrite on anything
+    /// older. With no server, all four dialects grade up to `Locking` and the
+    /// reason names the versions. With a server, each side of each threshold is
+    /// graded for itself, and a MariaDB reached through the MySQL driver is
+    /// held to MariaDB's threshold.
     #[test]
     fn an_added_default_grades_on_the_servers_version_and_not_the_driver_alone() {
         let owner = Column::new("owner", ScalarType::Int(IntWidth::Big))
@@ -2443,14 +2542,23 @@ mod tests {
             .null()
             .default(ColumnDefault::Int(0))
             .unwrap();
-        for dialect in DIALECTS {
-            let added = step(
+        let stamped = Column::new("seen", ScalarType::DateTime)
+            .unwrap()
+            .null()
+            .default(ColumnDefault::Now)
+            .unwrap();
+        let add = |column: &Column, dialect: Dialect, server: Option<Server>| {
+            step_on(
                 Change::AddColumn {
-                    table: wide_after(Some(owner.clone()), None),
-                    column: owner.clone(),
+                    table: wide_after(Some(column.clone()), None),
+                    column: column.clone(),
                 },
                 dialect,
-            );
+                server,
+            )
+        };
+        for dialect in DIALECTS {
+            let added = add(&owner, dialect, None);
             assert_eq!(added.grade(), Grade::Locking, "{dialect:?}");
             assert!(
                 added.reason().contains("11+") && added.reason().contains("8.0.12+"),
@@ -2458,6 +2566,69 @@ mod tests {
                 added.reason()
             );
         }
+        let cases = [
+            (Driver::Postgres, "16.2", &owner, Grade::Safe),
+            (Driver::Postgres, "11.0", &stamped, Grade::Safe),
+            (
+                Driver::Postgres,
+                "10.23 (Debian 10.23-1)",
+                &owner,
+                Grade::Locking,
+            ),
+            (Driver::MySql, "8.0.12", &owner, Grade::Safe),
+            (Driver::MySql, "8.0.11-log", &owner, Grade::Locking),
+            (Driver::MySql, "8.0.36", &stamped, Grade::Locking),
+            (Driver::MariaDb, "5.5.5-10.3.2-MariaDB", &owner, Grade::Safe),
+            (
+                Driver::MySql,
+                "5.5.5-10.2.44-MariaDB",
+                &owner,
+                Grade::Locking,
+            ),
+            (Driver::SqlServer, "16.0.4135", &owner, Grade::Locking),
+        ];
+        for (driver, reported, column, grade) in cases {
+            let server = Server::read(driver, reported).expect("a version that parses");
+            let added = add(column, Dialect::of(driver), Some(server));
+            assert_eq!(
+                added.grade(),
+                grade,
+                "{driver:?} {reported}: {}",
+                added.reason()
+            );
+        }
+    }
+
+    /// [`Server::read`] takes the leading version out of what each driver
+    /// reports, and gives `None` for text that does not start with one.
+    #[test]
+    fn a_server_version_is_read_from_the_text_its_handshake_reported() {
+        let read = |driver, reported| Server::read(driver, reported).map(|s| (s.family, s.version));
+        assert_eq!(
+            read(Driver::Postgres, "11.22 (Debian 11.22-1.pgdg120+1)"),
+            Some((Driver::Postgres, (11, 22, 0)))
+        );
+        assert_eq!(
+            read(Driver::Postgres, "17beta1"),
+            Some((Driver::Postgres, (17, 0, 0)))
+        );
+        assert_eq!(
+            read(Driver::MySql, "8.0.36-0ubuntu0.22.04.1"),
+            Some((Driver::MySql, (8, 0, 36)))
+        );
+        assert_eq!(
+            read(
+                Driver::MariaDb,
+                "5.5.5-10.11.6-MariaDB-1:10.11.6+maria~ubu2204"
+            ),
+            Some((Driver::MariaDb, (10, 11, 6)))
+        );
+        assert_eq!(
+            read(Driver::MariaDb, "11.4.2-MariaDB"),
+            Some((Driver::MariaDb, (11, 4, 2)))
+        );
+        assert_eq!(read(Driver::Postgres, ""), None);
+        assert_eq!(read(Driver::MySql, "unknown"), None);
     }
 
     /// § 6's grade-up rule, at both places it is spent.

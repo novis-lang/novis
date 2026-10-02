@@ -194,7 +194,7 @@ pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgT
 // crate root would read as the third of those rather than as a line of a
 // `CREATE TABLE`. It is `schema::Column`, where its neighbours say which
 // question it answers.
-pub use plan::{Change, Grade, KeyKind, Plan, Step, diff};
+pub use plan::{Change, Grade, KeyKind, Plan, Step, diff, diff_on};
 pub use schema::{
     ColumnDefault, FloatWidth, Ident, IntWidth, Key, MAX_IDENTIFIER, Node, ScalarType, Schema,
     SchemaError, Table, is_bare_identifier,

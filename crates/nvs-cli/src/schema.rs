@@ -217,8 +217,9 @@ fn both(
 /// many steps there are, how many would run, and how many of those are `Safe`.
 fn planned(conn: &mut Connection, want: &Schema, named: &str) -> Result<Plan, ExitCode> {
     let driver = conn.driver();
+    let server = nvs_db::ddl::Server::of(conn);
     let have = introspected(conn, named)?;
-    let plan = nvs_db::diff(want, &have, nvs_db::Dialect::of(driver));
+    let plan = nvs_db::diff_on(want, &have, nvs_db::Dialect::of(driver), server);
     let runnable = plan.runnable().count();
     let safe = plan
         .runnable()

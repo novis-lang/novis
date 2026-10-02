@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches` and `nvs-test` gap directories are closed. A `--SKIPIF--` that exits non-zero now fails its case with its stderr (`skipif_verdict` in `crates/nvs-test/src/run.rs`). `--INI--` is now an unknown section, as goal `php-oracle-retired` § 1 had decided, so the `NOT_YET` roster, `Case::unsupported`, the editor grammar's `INI` header and the expired playbook bullet are deleted.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names the gaps left under the other `data/gaps/<module>/` directories. Take them one directory at a time, smallest first: `nvs-db` and `website` hold two each, `nvs-server` three, `nvs-ir` five. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test` and `nvs-db` gap directories are closed for this goal. A plan built over a connection is now graded for that server's version (`ddl::Server`, `plan::diff_on` in `crates/nvs-db/src/`). The other `nvs-db` gap, `span-renders-on-a-flag-no`, is owned by milestone M10 and not by this goal, so it is left with its owner. It needs `[debug] mode` and `Core\\Debug`, which are not built.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names 75 gaps across many crates, not only the four directories an earlier handoff counted. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-db/src/"
+      "crates/nvs-ir/src/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A span renders on a flag no grant turns on** — `data/gaps/nvs-db/span-renders-on-a-flag-no.json`, at `crates/nvs-db/src/span.rs:1`. Read the gap, then either wire the flag to the grant its rule names or delete the flag, add a test, and delete the gap record."
+        "text": "**The conversion roster still lists a `Core` class among targets with no class to test against** — `data/gaps/nvs-ir/the-conversion-roster-still-says-a-core-class-names-no-class.json`, at `crates/nvs-ir/src/lib.rs:559`. Check which `Core` targets still lower without a descriptor (`crates/nvs-runtime/src/graph.rs:75`), rewrite the sentence to name exactly those, and delete the gap record."
       },
       {
         "done": false,
-        "text": "**A schema step's grade never reads the server version** — `data/gaps/nvs-db/a-schema-grade-never-reads-the-server-version.json`, at `crates/nvs-db/src/ddl.rs:1`. Key the grade on the version the connection already has, test it, and delete the gap record."
+        "text": "**A `require` with a computed path runs nothing** — `data/gaps/nvs-ir/a-require-with-a-computed-path-runs-nothing.json`, at `crates/nvs-ir/src/lower/stmt.rs:403`. `rule:statements/require-is-the-only-inclusion-construct`. Either build the run-time resolve or make a non-literal path a compile error; if neither fits without a new design record, that is Stage 4's \"too large\" and a `BLOCKED`."
       }
     ]
   },
   "backlog": [
-    "`website`'s two gaps — `data/gaps/website/`.",
-    "`nvs-server`'s three gaps — `data/gaps/nvs-server/`.",
-    "`nvs-ir`'s five gaps — `data/gaps/nvs-ir/`.",
-    "Stage 5's decision record and Stage 6's deletion of the walked goals — `docs/agent/goals/goal-closeout.md`."
+    "`website/` gaps: `the-website-grammar-is-hand-written-beside-the-editors`, `rendered-core-pages-lag-the-tree` (`data/gaps/website/`).",
+    "`nvs-server` gaps: `drain-period-does-not-end-a-running-request`, `the-state-bleed-suite-has-no-connection-arm` (`data/gaps/nvs-server/`).",
+    "The rest of `bun nv owners --closes goal-closeout`, one crate at a time.",
+    "`nvs-db`'s `span-renders-on-a-flag-no` stays with milestone M10 (`data/gaps/nvs-db/`)."
   ]
 }

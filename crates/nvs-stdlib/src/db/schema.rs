@@ -518,9 +518,11 @@ fn introspected(
 fn planned(ctx: &mut nvs_runtime::Ctx, args: &[Value], named: &str) -> Result<nvs_db::Plan, Fault> {
     let want = schema_of(args[0], named)?;
     let (key, block) = handle_of(args[1], named)?;
-    let dialect = nvs_db::Dialect::of(filed_connection(ctx, key, named)?.driver());
+    let conn = filed_connection(ctx, key, named)?;
+    let dialect = nvs_db::Dialect::of(conn.driver());
+    let server = nvs_db::ddl::Server::of(conn);
     let have = introspected(ctx, key, block, named)?;
-    Ok(nvs_db::diff(&want, &have, dialect))
+    Ok(nvs_db::diff_on(&want, &have, dialect, server))
 }
 
 /// The `[db.<name>]` block a `db.schema` grant is asked about.

@@ -428,6 +428,21 @@ impl fmt::Display for Plan {
 ///    [`crate::ddl::column_type`] altogether.
 #[must_use]
 pub fn diff(want: &Schema, have: &Schema, dialect: Dialect) -> Plan {
+    diff_on(want, have, dialect, None)
+}
+
+/// [`diff`], with each step graded for `server` by [`ddl::step_on`].
+///
+/// A caller that holds the connection `have` was read from passes
+/// [`ddl::Server::of`] that connection, so a change whose cost depends on the
+/// server's version is graded for the version this database runs.
+#[must_use]
+pub fn diff_on(
+    want: &Schema,
+    have: &Schema,
+    dialect: Dialect,
+    server: Option<ddl::Server>,
+) -> Plan {
     let mut changes: Vec<Change> = Vec::new();
     for table in want.tables() {
         match have.table(table.name()) {
@@ -443,7 +458,7 @@ pub fn diff(want: &Schema, have: &Schema, dialect: Dialect) -> Plan {
     Plan::new(
         changes
             .into_iter()
-            .map(|change| ddl::step(change, dialect))
+            .map(|change| ddl::step_on(change, dialect, server))
             .collect(),
     )
 }
