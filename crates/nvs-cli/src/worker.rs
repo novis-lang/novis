@@ -267,27 +267,47 @@ impl Workers {
     /// stop, or a job the turn may have asked too early to see, so the wait is not entered at all.
     /// Otherwise the task parks until the bell rings, the drain this switch reads begins, or
     /// [`Workers::idle`] has passed. Whichever of them ends it, the caller reads
-    /// [`Workers::stopping`] and asks the database again: a wake is a hint and says nothing about
-    /// what the next turn will find.
+    /// [`Workers::stopping`] and asks the database again: a ring says nothing about what the next
+    /// turn will find.
     ///
-    /// Both registrations are taken for this one wait and let go when it ends, which costs the
-    /// core no wake (`rule:concurrency/a-handle-given-up-by-its-task-wakes-nothing`).
+    /// **A resume is not one of the three.** A wake is a hint
+    /// (`rule:concurrency/the-parking-contract` rule 2), and a task can be resumed by a wake that
+    /// was meant for an earlier wait — a blocking-pool answer the task read before it parked, whose
+    /// wake the pool delivered afterwards. So the three are read again after every resume and the
+    /// task parks again when none of them holds, against the deadline it started with. Ending the
+    /// wait on a stray wake would cost the queue a statement
+    /// `rule:concurrency/a-push-wakes-an-idle-worker` does not allow, and a stop that came a moment
+    /// later would find the worker mid-turn.
+    ///
+    /// Both registrations are taken for this one wait, held across its re-parks, and let go when
+    /// it ends, which costs the core no wake
+    /// (`rule:concurrency/a-handle-given-up-by-its-task-wakes-nothing`).
     fn wait_for_work(&self, heard: u64) -> Woken {
         let Some(wake) = nvs_host::wake_this_task() else {
             // No task beneath the call, so nothing could deliver a wake and the clock is the only
             // thing this wait can end on.
             return pause(self.idle);
         };
+        let deadline = Instant::now() + self.idle;
         let Some(_rung) = self.bell.wake_at_ring(heard, move || drop(wake.wake())) else {
             return Woken::Elapsed;
         };
-        // A drain that has already begun fires its wake here, and that ends the wait below at
-        // once.
+        // A drain that has already begun fires its wake here, and that ends the first park below
+        // at once.
         let _drained = self
             .draining
             .as_ref()
             .and_then(|draining| nvs_host::wake_at_drain(draining.bit()));
-        nvs_host::timer::wait_until(Instant::now() + self.idle)
+        loop {
+            let woken = nvs_host::timer::wait_until(deadline);
+            if woken == Woken::Cancelled
+                || self.bell.rings() != heard
+                || self.stopping()
+                || Instant::now() >= deadline
+            {
+                return woken;
+            }
+        }
     }
 }
 
