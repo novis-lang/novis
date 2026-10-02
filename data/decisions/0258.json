@@ -1,0 +1,15 @@
+{
+  "title": "Two operator mixes whose grouping a reader misreads warn, and a fix-all applies only the parentheses that keep the meaning",
+  "status": "accepted",
+  "scope": "a compiler warning for a closed list of operator mixes, the help and fix two existing errors carry for\nthe same misreading, and which suggestions an editor's fix-all may apply. Novis's precedence table is\nunchanged, and so is every program's behaviour.",
+  "dependsOn": [
+    "0040",
+    "0039"
+  ],
+  "validatedBy": "`crates/nvs-types/tests/misread_grouping.rs`,\n`tests/lsp/actions/a-misread-coalesce-offers-both-groupings.lspt`, and\n`a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternative` in\n`crates/nvs-lsp/tests/actions.rs`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The compiler warns where operator order is easy to misread",
+    "body": "`$n ?? 0 + 10` is `$n ?? (0 + 10)`, and `\"n=\" . $ok ? \"x\" : \"y\"` tests the whole\n`\"n=\" . $ok`. Both are valid code, so the compiler warns with `W1022` and does not stop. The\nwarning offers two fixes: parentheses that keep what the line does now, which a save may apply,\nand the order the line most likely meant, which only you can choose. Nothing changes when the\nprogram runs."
+  }
+}

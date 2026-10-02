@@ -124,6 +124,7 @@ fn suggestion_json(suggestion: &Suggestion, map: &SourceMap) -> Value {
     );
     out.insert("message".into(), Value::from(suggestion.message.clone()));
     out.insert("safe".into(), Value::from(suggestion.safe));
+    out.insert("alternative".into(), Value::from(suggestion.alternative));
     Value::Object(out)
 }
 

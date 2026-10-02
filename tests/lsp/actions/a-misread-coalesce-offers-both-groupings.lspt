@@ -1,0 +1,12 @@
+--TEST--
+a `??` whose default is a bare `$m + 10` offers two groupings, the parentheses that keep what the line does and the `??` applied first, `rule:expressions/misread-grouping-warns`, `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+--FILE--
+<?nvs
+?int $n = 5;
+int $m = 0;
+echo $n ?? $<|>m + 10;
+--REQUEST--
+codeAction
+--EXPECT--
+4:6-4:19 quickfix apply `??` first: `($n ?? $m) + 10` -> "($n ?? $m) + 10"
+4:12-4:19 quickfix keep the current meaning: `$n ?? ($m + 10)` -> "($m + 10)"

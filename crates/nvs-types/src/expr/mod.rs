@@ -436,7 +436,10 @@ pub(crate) fn infer(
                 reject_carrier_as_text(lhs_ty, lhs.span, env);
                 reject_carrier_as_text(rhs_ty, rhs.span, env);
             }
-            binary_result(*op, lhs_ty, rhs_ty, expr.span, env)
+            let before = env.diags.len();
+            let ty = binary_result(*op, lhs_ty, rhs_ty, expr.span, env);
+            regroup_bitwise_over_comparison(*op, lhs, rhs, expr.span, before, env);
+            ty
         }
         ExprKind::Assign {
             op,
@@ -1033,6 +1036,80 @@ pub(crate) fn infer(
         }
         _ => env.interner.mixed(),
     }
+}
+
+/// Gives `E0706` its help and its fix when the `bool` operand of `&`, `|` or
+/// `^` is a comparison written without parentheses: `$flags & 4 == 4` is
+/// `$flags & (4 == 4)`, because a comparison binds tighter than a bitwise
+/// operator, and the fix writes `($flags & 4) == 4`.
+///
+/// `before` is how many diagnostics were held before [`binary_result`] ran, so
+/// only an `E0706` it has just reported for this node is amended. The amended
+/// copy replaces it, which keeps one diagnostic for one mistake, and its help
+/// replaces the general one about converting the operand. The fix is the
+/// only reading of the line that compiles, so it is not an alternative. A
+/// node whose two operands are both comparisons has no single reading, and
+/// keeps the plain error.
+fn regroup_bitwise_over_comparison(
+    op: BinaryOp,
+    lhs: &Expr,
+    rhs: &Expr,
+    span: Span,
+    before: usize,
+    env: &mut Env<'_>,
+) {
+    if !matches!(op, BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor) {
+        return;
+    }
+    let comparison = |e: &Expr| match &e.kind {
+        ExprKind::Binary {
+            op:
+                BinaryOp::Eq
+                | BinaryOp::NotEq
+                | BinaryOp::Lt
+                | BinaryOp::LtEq
+                | BinaryOp::Gt
+                | BinaryOp::GtEq,
+            lhs,
+            rhs,
+        } => Some((lhs.span, rhs.span)),
+        _ => None,
+    };
+    // Where the opening and the closing parenthesis go.
+    let (open, close) = match (comparison(lhs), comparison(rhs)) {
+        (None, Some((compared, _))) => (span.start, compared.end),
+        (Some((_, compared)), None) => (compared.start, span.end),
+        _ => return,
+    };
+    if env.diags.len() != before + 1
+        || env.diags.iter().last().and_then(|d| d.code) != Some(code::E_BITWISE_NOT_INTEGER)
+    {
+        return;
+    }
+    let text = |start, end| span_text(env.src, Span::new(span.file, start, end));
+    let regrouped = format!(
+        "{}({}){}",
+        text(span.start, open),
+        text(open, close),
+        text(close, span.end)
+    );
+    if text(span.start, span.end).is_empty() {
+        return;
+    }
+    let Some(mut reported) = env.diags.iter().last().cloned() else {
+        return;
+    };
+    // The general help names a conversion, which is not this line's mistake.
+    reported.notes.clear();
+    env.diags.truncate(before);
+    env.diags.report(
+        reported
+            .with_help(
+                "a comparison is applied before `&`, `|` and `^`, so this operand is a `bool`. \
+                 Add parentheses around the bitwise part",
+            )
+            .with_unsafe_fix(span, regrouped.clone(), format!("write `{regrouped}`")),
+    );
 }
 
 /// `rule:expressions/bare-throwable-arm-warns`'s warning: an arm naming `Throwable` itself, binding nothing,

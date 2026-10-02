@@ -8,7 +8,7 @@
 //! (`rule:ide/the-rendering-has-one-home`), so a `.lspt` case under
 //! `tests/lsp/actions/` and a test here freeze the same text.
 //!
-//! The boundary these four pin is
+//! The boundary these tests pin is
 //! `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`: two
 //! fixes ship because their replacement text is already sitting on a
 //! diagnostic, and a fix the checker would have to compute is offered by
@@ -121,6 +121,39 @@ fn the_legacy_cast_diagnostic_carries_its_replacement() {
     assert_eq!(
         offered("<?nvs\nint $n = 3;\nint $m = (int)$n;\n", "(int)"),
         "3:10-3:17 quickfix rewrite as `$n as int` -> \"$n as int\"\n"
+    );
+}
+
+/// `W1022` carries two groupings (`rule:expressions/misread-grouping-warns`).
+/// A light bulb offers both, and a fix-all applies only the one that keeps
+/// what the line does, because the other is an alternative a person chooses.
+#[test]
+fn a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternative() {
+    let source = "<?nvs\n?int $n = 5;\necho $n ?? 0 + 10;\n";
+    let at = cursor(source, "0 + 10");
+    let titles = |kind| -> Vec<String> {
+        actions::at(
+            &analysed(source),
+            &CompletionFiles::default(),
+            at,
+            at,
+            kind,
+            PositionEncoding::Utf8,
+        )
+        .into_iter()
+        .map(|action| action.title)
+        .collect()
+    };
+    assert_eq!(
+        titles(actions::Kind::QuickFix),
+        [
+            "apply `??` first: `($n ?? 0) + 10`",
+            "keep the current meaning: `$n ?? (0 + 10)`"
+        ]
+    );
+    assert_eq!(
+        titles(actions::Kind::FixAll),
+        ["keep the current meaning: `$n ?? (0 + 10)`"]
     );
 }
 

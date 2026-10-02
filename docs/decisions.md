@@ -1596,6 +1596,13 @@ at a time. The editor can warn about a string not in the list. A deprecated valu
 replacement, and the editor offers to change it. A parameter typed as fixed strings, such as
 `'paid'|'shipped'`, completes them without a file.
 
+**The compiler warns where operator order is easy to misread**
+
+`$n ?? 0 + 10` is `$n ?? (0 + 10)`, and `"n=" . $ok ? "x" : "y"` tests the whole `"n=" . $ok`. Both
+are valid code, so the compiler warns with `W1022` and does not stop. The warning offers two fixes:
+parentheses that keep what the line does now, which a save may apply, and the order the line most
+likely meant, which only you can choose. Nothing changes when the program runs.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

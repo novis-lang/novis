@@ -1114,6 +1114,12 @@
           "headline": "Completion values can show their source, depend on an argument and be checked",
           "body": "A value in a completion file can name the file and line that define it. Hover shows its description, and ctrl+click opens that line. A list can depend on another argument, so a translation method offers only the keys of the domain you passed. Long keys such as `shop.cart.title` complete one part at a time. The editor can warn about a string not in the list. A deprecated value can name its replacement, and the editor offers to change it. A parameter typed as fixed strings, such as `'paid'|'shipped'`, completes them without a file.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0243.md"
+        },
+        {
+          "adr": "0258",
+          "headline": "The compiler warns where operator order is easy to misread",
+          "body": "`$n ?? 0 + 10` is `$n ?? (0 + 10)`, and `\"n=\" . $ok ? \"x\" : \"y\"` tests the whole `\"n=\" . $ok`. Both are valid code, so the compiler warns with `W1022` and does not stop. The warning offers two fixes: parentheses that keep what the line does now, which a save may apply, and the order the line most likely meant, which only you can choose. Nothing changes when the program runs.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0258.md"
         }
       ]
     },

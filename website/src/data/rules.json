@@ -1,7 +1,7 @@
 {
   "totals": {
-    "total": 1030,
-    "shipped": 789,
+    "total": 1031,
+    "shipped": 790,
     "designed": 241,
     "diverging": 596
   },
@@ -726,8 +726,8 @@
       "url": "/docs/rules/expressions/",
       "single": false,
       "counts": {
-        "total": 29,
-        "shipped": 25,
+        "total": 30,
+        "shipped": 26,
         "designed": 4,
         "diverging": 18
       },
@@ -738,8 +738,8 @@
           "blurb": "Six positions test truthiness and every other bool stays checked; one equality operator, with one row per type.",
           "url": "/docs/rules/expressions/truthiness-and-equality/",
           "counts": {
-            "total": 10,
-            "shipped": 9,
+            "total": 11,
+            "shipped": 10,
             "designed": 1,
             "diverging": 9
           },
@@ -774,6 +774,14 @@
               "title": "A `?T` used directly as a condition is warned about, not refused",
               "status": "designed",
               "href": "/docs/rules/expressions/truthiness-and-equality/#nullable-condition-lint",
+              "diverges": null
+            },
+            {
+              "id": "expressions/misread-grouping-warns",
+              "slug": "misread-grouping-warns",
+              "title": "Two operator mixes whose grouping a reader misreads warn with `W1022`, offering the parentheses that keep the meaning and the grouping most likely meant",
+              "status": "shipped",
+              "href": "/docs/rules/expressions/truthiness-and-equality/#misread-grouping-warns",
               "diverges": null
             },
             {

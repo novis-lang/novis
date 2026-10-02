@@ -1,0 +1,17 @@
+{
+  "title": "Two operator mixes whose grouping a reader misreads warn with `W1022`, offering the parentheses that keep the meaning and the grouping most likely meant",
+  "status": "shipped",
+  "because": [
+    "0258"
+  ],
+  "seeAlso": [
+    "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "expressions/nullable-condition-lint",
+    "expressions/truthy-positions",
+    "expressions/catch-expression-precedence"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/misread_grouping.rs",
+    "tests/lsp/actions/a-misread-coalesce-offers-both-groupings.lspt"
+  ]
+}

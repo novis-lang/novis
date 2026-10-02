@@ -6,6 +6,7 @@
     "expressions/truthy-table",
     "expressions/no-keyword-logical-operators",
     "expressions/nullable-condition-lint",
+    "expressions/misread-grouping-warns",
     "expressions/one-equality-operator",
     "expressions/equality-semantics",
     "expressions/mixed-equality",

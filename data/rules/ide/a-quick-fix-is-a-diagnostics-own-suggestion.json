@@ -4,7 +4,8 @@
   "because": [
     "0040",
     "0039",
-    "0099"
+    "0099",
+    "0258"
   ],
   "divergesFromPhp": "there is no inspection profile to tune; a fix exists only where a diagnostic already carries its replacement text, and running fixes on save is `editor.codeActionsOnSave`, never part of the formatter",
   "seeAlso": [
@@ -18,7 +19,8 @@
     "security/tainted-qualifier",
     "tooling/fmt-is-never-a-diagnostic",
     "ide/the-request-set-is-closed",
-    "ide/a-code-action-writes-only-what-is-already-determined"
+    "ide/a-code-action-writes-only-what-is-already-determined",
+    "expressions/misread-grouping-warns"
   ],
   "guardedBy": []
 }

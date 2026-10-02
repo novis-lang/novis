@@ -42,6 +42,14 @@
 //! offer would leave the one spelling Novis refuses with no way to reach the
 //! one it wants.
 //!
+//! # Decision: an alternative is a light bulb, never a fix-all
+//!
+//! [`nvs_diagnostics::Suggestion::alternative`] marks one of several edits a
+//! person chooses between, such as the two groupings `W1022` offers
+//! (`rule:expressions/misread-grouping-warns`). [`Kind::FixAll`] leaves it out
+//! and [`Kind::QuickFix`] keeps it, because a save that applied both would
+//! write one over the other, and the choice between them is the reader's.
+//!
 //! # What it spends
 //!
 //! One pass over the diagnostics the analysis already holds, and one
@@ -137,6 +145,7 @@ pub fn at(
         .filter(|diagnostic| touches(diagnostic, analysed.entry, start, end))
         .flat_map(|diagnostic| diagnostic.suggestions.iter())
         .filter(|suggestion| suggestion.span.file == analysed.entry)
+        .filter(|suggestion| kind == Kind::QuickFix || !suggestion.alternative)
         .map(|suggestion| Action {
             title: suggestion.message.clone(),
             kind: kind.name().to_owned(),

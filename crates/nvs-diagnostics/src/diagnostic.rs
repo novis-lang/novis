@@ -124,6 +124,13 @@ pub struct Suggestion {
     /// `false` means a human must review it — `nvs convert` uses this to decide
     /// between rewriting silently and leaving a `TODO`.
     pub safe: bool,
+    /// Whether this is one of several edits a person chooses between.
+    ///
+    /// A batch that applies every fix without showing each one — an editor's
+    /// `source.fixAll.nvs` on save — skips it, because applying two
+    /// alternatives over the same text writes one over the other, and choosing
+    /// between them is the decision the diagnostic leaves to its reader.
+    pub alternative: bool,
 }
 
 /// One thing the compiler has to say.
@@ -232,6 +239,7 @@ impl Diagnostic {
             replacement: replacement.into(),
             message: message.into(),
             safe: true,
+            alternative: false,
         });
         self
     }
@@ -249,6 +257,27 @@ impl Diagnostic {
             replacement: replacement.into(),
             message: message.into(),
             safe: false,
+            alternative: false,
+        });
+        self
+    }
+
+    /// Adds an edit that changes what the code does, offered beside other
+    /// edits a person chooses between ([`Suggestion::alternative`]), so no
+    /// batch applies it.
+    #[must_use]
+    pub fn with_alternative_fix(
+        mut self,
+        span: Span,
+        replacement: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        self.suggestions.push(Suggestion {
+            span,
+            replacement: replacement.into(),
+            message: message.into(),
+            safe: false,
+            alternative: true,
         });
         self
     }

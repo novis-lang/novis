@@ -1800,6 +1800,7 @@ Highest first. A row binds tighter than every row below it.
 - `|>` binds tighter than every binary operator and looser than unary: `-$a |> Core\Math::abs($_)` is `Core\Math::abs(-$a)`, `"x=" . $a |> Core\Str::upper($_)` is `"x=" . Core\Str::upper($a)`, and `$x = $a |> Core\Str::trim($_)` assigns the whole pipeline. Its own section below has the form.
 - `new C()->m()` needs no parentheses; `clone $a->b` clones `$a->b`.
 - A nested ternary without parentheses groups to the right: `$a ? 1 : $b ? 2 : 3` is `$a ? 1 : ($b ? 2 : 3)`.
+- `??` and `? :` bind looser than the arithmetic operators and `.`: `$n ?? 0 + 10` is `$n ?? (0 + 10)`, and `"n=" . $ok ? "x" : "y"` tests `"n=" . $ok`. The compiler gives warning `W1022` for a `??` whose right side is an arithmetic or `.` expression without parentheses, and for a `? :` or `?:` whose condition is one of those or a `??`. The warning offers two fixes: parentheses that keep what the line does now, and the grouping the line most likely meant.
 - An expression `catch` sits between the ternary and assignment, so `$x = $a / $b catch (ArithmeticError) => 0` guards the whole division and assigns the whole guard, and a following `catch` is the next **arm of the same guard** rather than a guard over the arm before it. The statements chapter has the form.
 
 ```nvs

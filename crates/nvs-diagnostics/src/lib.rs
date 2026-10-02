@@ -5561,6 +5561,22 @@ pub mod code {
         "A completion file says this value is deprecated. If the file names a replacement, the \
          quick fix changes the string to it.",
     );
+    /// An operator mix whose grouping a reader misreads
+    /// (`rule:expressions/misread-grouping-warns`): a `??` whose right side is
+    /// an unparenthesized arithmetic or `.` expression, and a `?:` whose
+    /// condition is one, or a `??`. The list is closed, because every case on
+    /// it is valid code and a warning on valid code is only worth its noise
+    /// where the misreading is common. A warning rather than a refusal because
+    /// the grammar is unchanged and the parse may be what was meant; it carries
+    /// two edits, parentheses around what the code does now, which a fix-all
+    /// may apply, and the reading the author most likely meant, which only a
+    /// person may choose. `nvs_syntax::parser::grouping` raises it.
+    pub const W_MISREAD_GROUPING: Code = Code::new("W1022").card(
+        "The operators here are applied in an order that is easy to misread. \
+         `$n ?? 0 + 10` is `$n ?? (0 + 10)`, so the result is `5` when `$n` is `5`. \
+         `\"n=\" . $ok ? \"x\" : \"y\"` tests `\"n=\" . $ok`, so the result is always `\"x\"`. \
+         Add parentheses to show the order you mean.",
+    );
 }
 }
 

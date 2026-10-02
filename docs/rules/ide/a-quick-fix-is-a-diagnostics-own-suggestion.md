@@ -17,3 +17,8 @@ They are off by default and composable with format-on-save. The extension regist
 `editor.formatOnSave`, so a developer who opts in gets layout and fixes on one keystroke while `nvs fmt`
 itself stays layout-only and `nvs fmt --check` fails for exactly one reason. PhpStorm's Reformat Code
 dialog, with its per-action checkboxes, is the same composition through a different client.
+
+A suggestion marked as an **alternative**, one of several edits a person chooses between, is offered
+as a quick fix and never under `source.fixAll.nvs`, since a save that applied every alternative would
+write one over another. `W1022`'s likely grouping is one (`rule:expressions/misread-grouping-warns`),
+and the parentheses that keep the current meaning beside it are not.

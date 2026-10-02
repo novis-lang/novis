@@ -260,12 +260,21 @@ impl<'src, 'd> Parser<'src, 'd> {
             _ => return target,
         };
         self.bump();
-        self.require_write_target(&target);
+        // `$ok && $row = $next` is reported once its value is parsed, because
+        // the parentheses its fix writes close after the value
+        // (`super::grouping`).
+        let misread = Self::misread_assignment_target(&target);
+        if !misread {
+            self.require_write_target(&target);
+        }
         // `target = &value` binds by reference; PHP has no `&`-form of a
         // compound operator (`+=&` is not a thing), so this only applies to
         // plain `=`.
         let by_ref = op == AssignOp::Assign && self.eat(TokenKind::Amp).is_some();
         let value = self.parse_assignment();
+        if misread {
+            return self.regroup_misread_assignment(target, op, value, by_ref);
+        }
         let span = target.span.to(value.span);
         Expr {
             span,
@@ -387,6 +396,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         if self.eat(TokenKind::Colon).is_some() {
             let else_ = self.parse_ternary_else();
+            self.warn_misread_ternary(&cond, else_.span, true);
             let span = cond.span.to(else_.span);
             return Expr {
                 span,
@@ -400,6 +410,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let then = self.parse_assignment();
         self.expect(TokenKind::Colon, "`:`");
         let else_ = self.parse_ternary_else();
+        self.warn_misread_ternary(&cond, else_.span, false);
         let span = cond.span.to(else_.span);
         Expr {
             span,
@@ -422,6 +433,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let lhs = self.parse_logic_or();
         if self.eat(TokenKind::QuestionQuestion).is_some() {
             let rhs = self.parse_coalesce();
+            self.warn_misread_coalesce(&lhs, &rhs);
             let span = lhs.span.to(rhs.span);
             return Expr {
                 span,

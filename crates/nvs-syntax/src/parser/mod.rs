@@ -74,6 +74,7 @@ use crate::token::{Keyword, Token, TokenKind, Trivia, TriviaKind};
 // nothing, so there is nothing to import from them.
 mod decl;
 mod expr;
+mod grouping;
 mod stmt;
 mod ty;
 

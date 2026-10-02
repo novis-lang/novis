@@ -197,6 +197,7 @@ fn check_json_carries_the_code_span_severity_help_and_suggestions() {
     assert_eq!(suggestion["replacement"], "MyClass");
     assert_eq!(suggestion["message"], "rename to `MyClass`");
     assert_eq!(suggestion["safe"], true);
+    assert_eq!(suggestion["alternative"], false);
     assert_eq!(span(suggestion), "my_class", "the edit replaces the name");
 
     // `help` is its own array, and carries the text without the prefix the
