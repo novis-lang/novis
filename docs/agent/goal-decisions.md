@@ -63,4 +63,7 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
 `core-request-1-2`, `core-request-2-2`, `core-request-mount-and-1-more`, `core-response-and-1-more`,
 `core-router-and-4-more`, `core-serialize-and-1-more`, `core-session`, `core-signal-and-4-more`,
 `core-sse-and-2-more`, `core-str-1-3`, `core-str-2-3`, `core-str-3-3`, `core-taint-and-1-more`,
-`core-test-1-2`.
+`core-test-1-2`, `core-test-2-2`, `core-test-response-and-1-more`, `core-time-and-1-more`,
+`core-time-datetime`, `core-time-duration-1-2`, `core-time-duration-2-2`, `core-time-instant-and-1-more`,
+`core-time-zone-and-2-more`, `core-uri-1-2`, `core-uri-2-2`, `core-uuid`, `core-validate-and-1-more`,
+`core-xml-node-and-1-more`, `core-xml-writer`, `core-zip`.

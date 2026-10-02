@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/zip.rs",
+  "title": "`Core\\Zip::extract` resolves a folder and then creates the file inside it by path, so a link swapped in between the two is followed.",
+  "text": "The module doc's *Extraction resolves before it creates, one level at a time* checks each folder after it is created, and the file is created exclusively. Between the last resolution and the file's creation the folder can still be replaced by a link, and the creation goes through the path again. A walk that creates each level relative to the handle of the level above (`openat` and `mkdirat`, a directory handle on Windows) closes that window and also makes the walk linear in a folder's depth. The capability layer checks paths only, so this needs a design for checking a handle-relative walk before it is built.",
+  "goal": "goal-closeout"
+}

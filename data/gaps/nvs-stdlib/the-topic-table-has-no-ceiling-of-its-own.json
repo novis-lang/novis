@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/topic.rs",
+  "title": "One connection can subscribe to any number of topics, and the topic table's bytes have no ceiling of their own.",
+  "text": "The module doc's § *the table's own bytes are the process's* moves every name and row onto the process's detached balance, as `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` says, so no connection is charged for the topics it subscribes to. That rule bounds what a request is charged and says nothing about a ceiling for the store itself, and `crates/nvs-stdlib/src/topic.rs` sets none, so `tests/hostile/core/Topic/subscribe/` grows the process by many megabytes from one connection. Closing this gives the table a ceiling, per connection or for the process, with an error a script can catch, or records in `rule:core-classes/topic` why the table's growth is bounded by something else.",
+  "goal": "goal-closeout"
+}
