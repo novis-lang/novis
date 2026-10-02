@@ -12,7 +12,7 @@
       },
       {
         "done": false,
-        "text": "**`when` and segments** — an attachment with `when` applies only when the other argument is a literal equal to one of its strings, and a value with a `separator` completes one segment at a time, `.` opening the next list inside such a string (`rule:ide/completion-is-asked-where-a-spelling-ends` gains this). The `When` shape is at `crates/nvs-lsp/src/completion_files.rs:198`, and the arm is the one at `crates/nvs-lsp/src/completion.rs:586`. Check `an_attachment_with_when_applies_only_when_the_other_argument_equals_one_of_its_strings`."
+        "text": "**`when` and segments** — an attachment with `when` applies only when the other argument is a literal equal to one of its strings, and a value with a `separator` completes one segment at a time, `.` opening the next list inside such a string (`rule:ide/completion-is-asked-where-a-spelling-ends` gains this). The `When` shape is at `crates/nvs-lsp/src/completion_files.rs:224`, and the arm is the one at `crates/nvs-lsp/src/completion.rs:586`. Check `an_attachment_with_when_applies_only_when_the_other_argument_equals_one_of_its_strings`."
       }
     ]
   },
