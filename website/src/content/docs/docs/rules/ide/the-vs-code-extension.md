@@ -186,10 +186,11 @@ Discovery must not run anything, which is why it is a flag on the runner rather 
 test skipped: `--list` answers from the table the compile already built, so a workspace whose tests
 fail, hang or `exit` populates a tree exactly as a passing one does.
 
-Coverage is not wired, because `nvs test --coverage` does not produce anything yet. When it does,
-the counts reach VS Code's own `FileCoverage` model and the extension still draws no gutter of its
-own ([`ide/the-extension-builds-no-ui-the-editor-already-has`](/docs/rules/ide/the-vs-code-extension/#the-extension-builds-no-ui-the-editor-already-has "Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — FileCoverage, LanguageStatusItem, DAP's UI, speedscope — and the extension builds none of them")). An explorer without coverage is
-the whole feature minus one column, not a stub.
+Coverage is not wired into the explorer. `nvs test --coverage-lcov` and `--coverage-clover` write a
+run's line coverage ([`testing/coverage-report`](/docs/rules/testing/doubles-and-the-runner/#coverage-report "nvs test writes line coverage as lcov and Clover, from one hit table every context of the run counts into")), and nothing in the extension reads either file
+yet. When it does, the counts reach VS Code's own `FileCoverage` model and the extension still draws
+no gutter of its own ([`ide/the-extension-builds-no-ui-the-editor-already-has`](/docs/rules/ide/the-vs-code-extension/#the-extension-builds-no-ui-the-editor-already-has "Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — FileCoverage, LanguageStatusItem, DAP's UI, speedscope — and the extension builds none of them")). An explorer
+without coverage is the whole feature minus one column, not a stub.
 
 This is the shape [`ide/the-ast-panel-shells-out-to-the-cli`](/docs/rules/ide/the-vs-code-extension/#the-ast-panel-shells-out-to-the-cli "The AST panel renders nvs ast --json for the active file, on the resilient tree by default, and never runs Core\Ast") already gives a view over compiler
 tables: the binary answers, and the client renders. A client that scanned the workspace for test

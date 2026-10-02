@@ -740,7 +740,7 @@ hooks and their captures stay live until the end of the script — per request, 
 Each hook receives one readonly `Script\ExitReport`, or may declare no parameter at all:
 
 ```php
-enum Script\ExitReason { Normal, ExitCall, UncaughtThrow }
+enum Script\ExitReason { Normal, ExitCall, UncaughtThrow, Finish }
 
 Script\ExitReport::reason(): Script\ExitReason
 Script\ExitReport::status(): int
@@ -771,17 +771,25 @@ PHP's `register_shutdown_function` for every ending that is not a fatal.
 
 <a id="observability-three-endings-fire-the-exit-queue"></a>
 
-## The exit queue drains once — at a normal end, at `exit` and at an uncaught throw — and the report says which ending it was
+## The exit queue drains once — at a normal end, at `exit`, at an uncaught throw and at `Core\Script::finish()` — and the report says which ending it was
 
 `rule:observability/three-endings-fire-the-exit-queue`
 
-Three endings fire the exit queue, and the report each hook receives says which:
+Four endings fire the exit queue, and the report each hook receives says which:
 
 | ending | `reason` | `status` | `error` |
 |---|---|---|---|
 | the last top-level statement ran | `Normal` | `0` | `null` |
 | `exit;`, `exit($n);`, `exit("msg");` | `ExitCall` | `0`, `$n`, `0` | `null` |
 | an uncaught `THROWN` reached the root | `UncaughtThrow` | `1` | the `Throwable` |
+| `Core\Script::finish()` was called | `Finish` | `0` | `null` |
+
+`Core\Script::finish()` ends the script, or the response, from any frame as an **ordinary** end. It
+travels the throw path, because that is where every `finally` lives, so every `finally` between the
+caller and the root runs on the way out. No `catch` sees it: the class it raises,
+`Core\Script\Finished`, is a root of its own and not a `Throwable`, and a `catch` naming it is
+`E0814`. At the root it is not a failure, so the on-uncaught-throw handler does not run, and on the
+request path `afterResponse` work drains as it does after a normal end.
 
 The queue runs once, at most once per script, and drains until empty. An `exit($n)` puts the very
 `$n` on the report rather than a normalised value, and that status arrives with `error` still `null`.
@@ -794,7 +802,7 @@ taxes every entry file for the coverage it does give.
 `ExitReason` is a closed public enum. A future termination kind that should fire the queue is a new
 case on this queue, decided on its own; a second queue is the wrong answer.
 
-<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`observability/exit-hooks-run-after-the-ladder-before-teardown`](observability.md#observability-exit-hooks-run-after-the-ladder-before-teardown). Decided in [0127](../decisions/0127.md).</sub>
+<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`observability/exit-hooks-run-after-the-ladder-before-teardown`](observability.md#observability-exit-hooks-run-after-the-ladder-before-teardown). Decided in [0127](../decisions/0127.md), [0178](../decisions/0178.md).</sub>
 
 <a id="observability-exit-hooks-run-after-the-ladder-before-teardown"></a>
 
@@ -805,8 +813,9 @@ case on this queue, decided on its own; a second queue is the wrong answer.
 On the throw path the order is fixed: the unwind's `finally` blocks, innermost first; then
 [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw)'s handler; then this queue; then native teardown. The failure hooks
 run first so a misbehaving queue cannot starve the failure report, and a faulting handler changes
-nothing — the queue runs either way. On the other two endings there is no ladder step: the last
-statement (or the `exit`), the queue, teardown.
+nothing — the queue runs either way. A `Core\Script::finish()` takes the throw path without being a
+failure: every `finally`, innermost first, then the queue, then teardown, and no failure hook. On the
+other two endings there is no ladder step: the last statement (or the `exit`), the queue, teardown.
 
 Under every hook the heap is fully alive and output goes wherever the script's output was already
 going. The temporary-directory sweep ([`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep)) runs after the queue,

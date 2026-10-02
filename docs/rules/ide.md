@@ -1892,10 +1892,11 @@ Discovery must not run anything, which is why it is a flag on the runner rather 
 test skipped: `--list` answers from the table the compile already built, so a workspace whose tests
 fail, hang or `exit` populates a tree exactly as a passing one does.
 
-Coverage is not wired, because `nvs test --coverage` does not produce anything yet. When it does,
-the counts reach VS Code's own `FileCoverage` model and the extension still draws no gutter of its
-own ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). An explorer without coverage is
-the whole feature minus one column, not a stub.
+Coverage is not wired into the explorer. `nvs test --coverage-lcov` and `--coverage-clover` write a
+run's line coverage ([`testing/coverage-report`](testing.md#testing-coverage-report)), and nothing in the extension reads either file
+yet. When it does, the counts reach VS Code's own `FileCoverage` model and the extension still draws
+no gutter of its own ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). An explorer
+without coverage is the whole feature minus one column, not a stub.
 
 This is the shape [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli) already gives a view over compiler
 tables: the binary answers, and the client renders. A client that scanned the workspace for test

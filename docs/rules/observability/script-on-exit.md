@@ -7,7 +7,7 @@ hooks and their captures stay live until the end of the script — per request, 
 Each hook receives one readonly `Script\ExitReport`, or may declare no parameter at all:
 
 ```php
-enum Script\ExitReason { Normal, ExitCall, UncaughtThrow }
+enum Script\ExitReason { Normal, ExitCall, UncaughtThrow, Finish }
 
 Script\ExitReport::reason(): Script\ExitReason
 Script\ExitReport::status(): int

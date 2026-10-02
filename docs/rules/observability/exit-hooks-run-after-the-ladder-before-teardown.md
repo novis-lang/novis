@@ -1,8 +1,9 @@
 On the throw path the order is fixed: the unwind's `finally` blocks, innermost first; then
 `rule:errors/on-uncaught-throw`'s handler; then this queue; then native teardown. The failure hooks
 run first so a misbehaving queue cannot starve the failure report, and a faulting handler changes
-nothing — the queue runs either way. On the other two endings there is no ladder step: the last
-statement (or the `exit`), the queue, teardown.
+nothing — the queue runs either way. A `Core\Script::finish()` takes the throw path without being a
+failure: every `finally`, innermost first, then the queue, then teardown, and no failure hook. On the
+other two endings there is no ladder step: the last statement (or the `exit`), the queue, teardown.
 
 Under every hook the heap is fully alive and output goes wherever the script's output was already
 going. The temporary-directory sweep (`rule:core-classes/temporary-dir-sweep`) runs after the queue,

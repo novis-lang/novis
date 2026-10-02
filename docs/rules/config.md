@@ -187,7 +187,12 @@ Four steps, first hit wins:
    step entirely, so an operator naming files never gets a surprise merge with whatever is in the
    working directory, even if every named file turns out to be missing.
 3. Otherwise the shipped defaults
-   ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
+   ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)). A **project command** — `run`,
+   `serve`, `test`, `build` and `check` — first writes the shipped default file as `./nvs.toml`, the
+   file step 2 looks for, and then reads it. Every key in it is commented out, so it resolves to
+   exactly the shipped defaults. `--no-init`, or `NOVIS_NO_INIT` set to any value, turns the write
+   off, and every other command leaves the directory as it found it. A write the directory refuses
+   is no error: the run continues on the shipped defaults.
 
 There is no platform path, no build-time path and no lookup beside the binary: two implicit lookups
 are worse than one, and the deployments that want a fixed path run under a service manager, which
@@ -210,7 +215,8 @@ defended: an operator who wants it closed passes `--config`.
 When no `--config` is given and no `./nvs.toml` exists, the host runs on the **shipped defaults**, and
 those are a complete and valid configuration rather than a failure to find one: capabilities
 deny-all, `[mode] default = "production"`, and every limit at its documented default. The boot log says
-so in one line.
+so in one line. They stay the configuration whenever a project command could not write `./nvs.toml`
+([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)).
 
 Every reader has to answer on such a host. `Core\Config::get` is `null`, `all` is empty, `set` is
 `false` and `restore` does nothing — none of them throws, because "no configuration file anywhere" is
