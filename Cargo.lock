@@ -2358,6 +2358,7 @@ dependencies = [
  "nvs-test",
  "nvs-types",
  "rustc-hash",
+ "serde",
  "serde_json",
 ]
 
