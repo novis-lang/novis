@@ -1,33 +1,29 @@
 {
-  "state": "**Goal `completion-files`, Stage 3 is on disk: completion offers a completion file's values, from the attachments whose `when` the call meets, one segment at a time where a list has a separator.** Both Stage 3 checks' tests pass in `crates/nvs-lsp/tests/completion_file_values.rs`.\n\n`completion::file_values` splits a value with a separator at the text typed so far, and its edit replaces only the segment being typed; a segment that only leads further is its label and edit alone (module doc of `completion.rs`, § *What a completion file offers*). `continues_a_trigger` answers `.`, `/` and `:` inside such a string only where an applying value splits on that character, and `.` is a declared trigger. `rule:ide/completion-is-asked-where-a-spelling-ends` now says so, with `because` gaining 0242 and 0243.\n\nHover, definition, the strict check and the replacement (Stage 4) and the literal union (Stage 5) read nothing yet. The VS Code schema (Stage 6) is not written.\n\nThe perf figures for `lang:attributes`, `Core\\Router` and `Core\\Router\\Match`, staled by the `accessAs` commit, are measured again, and `bun nv proofs --gate` owes nothing.",
+  "state": "**Goal `completion-files`, Stage 3 is green and Stage 4 is two thirds done.** Every test both Stage 3 checks name is in `crates/nvs-lsp/tests/completion_file_values.rs` and passes. The earlier single test is split into the names the check gives, and two of them are new: an inherited method reached through its declaring class, and a path parameter offered both lists.\n\nA path or class-name parameter now gets a completion file's values beside its own entries (`values_beside` in `crates/nvs-lsp/src/completion.rs`, module doc § *What a completion file offers*). `continues_a_trigger` opens a value's separator there too.\n\nStage 4: `hover::at` and `definition::at` take `&CompletionFiles` (server passes the loaded set, the `.lspt` suite an empty one). A literal equal to a value hovers as its `title` and documentation, and goes to its `location`'s line. A matched value with no `location` has no definition, and does not fall through to the method. Both are in the module docs of `hover.rs` and `definition.rs`, and three of the Stage 4 check's nine tests pass.\n\nThe strict check, the Deprecated hint and its quick fix (the other six Stage 4 tests), the literal union (Stage 5) and the VS Code schema (Stage 6) are not written.",
   "next": {
     "stage": 4,
     "title": "hover, go-to-definition, the strict check and the replacement",
     "files": [
-      "crates/nvs-lsp/src/hover.rs",
-      "crates/nvs-lsp/src/definition.rs",
-      "crates/nvs-lsp/src/server.rs",
-      "crates/nvs-lsp/tests/navigation.rs"
+      "crates/nvs-lsp/src/diagnostics.rs",
+      "crates/nvs-lsp/src/actions.rs",
+      "crates/nvs-diagnostics/src/lib.rs",
+      "crates/nvs-lsp/tests/completion_file_values.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Hover on a literal equal to a value** (`rule:ide/completion-files-offer-values-at-named-parameters` § *What else reads it*). An arm in the chain at `crates/nvs-lsp/src/hover.rs:120`, beside `class_literal` and `path_argument`: `crate::arguments::named_at` plus `CompletionFiles::values_at` (`crates/nvs-lsp/src/completion_files.rs:420`), the value whose `value` equals the literal's cooked text, shown as its `title` and `Value::markdown`. Hover takes no `&CompletionFiles` yet, so `server.rs` passes it as it does for completion. Test `hover_on_a_literal_equal_to_a_value_shows_its_title_and_documentation`."
+        "text": "**The strict check** (`rule:ide/completion-files-offer-values-at-named-parameters` § *What else reads it*). Built where a document's diagnostics are, `crates/nvs-lsp/src/diagnostics.rs:140`. Walk the entry's string literal arguments with `crate::arguments::named_at`'s naming, and warn where any attachment is `strict`, no `when` is undecided, and the cooked text is no value of `CompletionFiles::values_at` (`crates/nvs-lsp/src/completion_files.rs:420`). This needs a new W code in `crates/nvs-diagnostics/src/lib.rs` beside W1013–W1019. `for_document` takes no `&CompletionFiles` yet. Tests `a_strict_parameter_warns_on_a_literal_that_is_not_one_of_its_values`, `a_strict_parameter_does_not_check_a_value_built_at_run_time`, `a_strict_check_is_skipped_where_a_when_cannot_be_decided` and `a_parameter_without_strict_reports_nothing`."
       },
       {
         "done": false,
-        "text": "**Go-to-definition answers the value's `location`** — `crates/nvs-lsp/src/definition.rs:131`, the start of its 1-based line as a `file:` URI, and no answer for a value without one. Run `bun nv loop --list --stage 4` and read the check's `tests` list in the goal record for the remaining names."
-      },
-      {
-        "done": false,
-        "text": "**Then the strict check and the deprecated hint** — built where a document's diagnostics are, `crates/nvs-lsp/src/diagnostics.rs:140`, with `crates/nvs-lsp/src/actions.rs` and two new codes in `crates/nvs-diagnostics/src/lib.rs` (goal § *Stage 4*). A second file set, so it is likely a session of its own."
+        "text": "**The Deprecated hint and its quick fix** — the same walk in `crates/nvs-lsp/src/diagnostics.rs:140`, a hint with the `Deprecated` tag on a literal equal to a deprecated value, carrying the `replacement`, escaped for the literal's quote, as its `Suggestion` so `crates/nvs-lsp/src/actions.rs:118` offers it unchanged (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`). Tests `a_literal_equal_to_a_deprecated_value_gets_a_deprecated_hint` and `the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote`."
       }
     ]
   },
   "backlog": [
-    "Stage 5: a parameter typed as a union of string literals completes its members (goal § *Stage 5*).",
-    "Stage 6: `editors/vscode/schemas/completion-file.json` and the client watcher (goal § *Stage 6*).",
-    "Stage 7: the feature proofs for completion files (`bun nv proofs --id` once the feature is in the roster).",
-    "A typed text with an escape sequence is compared raw against a value's segments, so a value containing a quote or a backslash does not segment after one. Decide in `completion.rs`'s module doc if a fixture ever needs it."
+    "Stage 5: a parameter typed as a union of string literals completes its members, merged by value with a completion file's (goal § Stage 5).",
+    "Stage 6: `editors/vscode/schemas/completion-file.json` and its client registration (goal § Stage 6).",
+    "Stage 7: the feature proofs for completion files (`bun nv proofs --id`).",
+    "A value with no `title` and no documentation hovers as whatever the walk over the nodes answers (`hover.rs` module doc); the Stage 4 check names no test for it."
   ]
 }
