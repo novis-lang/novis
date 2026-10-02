@@ -33,3 +33,11 @@ int $views = 41;
 Page::countView(inout $views);
 // This prints 42.
 echo $views, "\n";
+
+// PHP has no `??+=`. It adds to a value, and a key that is not there starts
+// at 0. This prints 2 for "/home" and 1 for "/about".
+array<int> $viewsByPage = [];
+$viewsByPage["/home"] ??+= 1;
+$viewsByPage["/home"] ??+= 1;
+$viewsByPage["/about"] ??+= 1;
+echo $viewsByPage["/home"], " ", $viewsByPage["/about"], "\n";

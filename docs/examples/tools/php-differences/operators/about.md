@@ -9,4 +9,6 @@ Novis has no references. A parameter that the function changes is declared with 
 call writes `inout` too. `@` and the backtick operator do not exist. A failure throws an error, and
 you catch it.
 
-**Good to know:** `<=>`, `**`, `??`, `??=`, `?:`, `?->` and `.=` work as in PHP.
+**Good to know:** `<=>`, `**`, `??`, `??=`, `?:`, `?->` and `.=` work as in PHP. Novis also has
+`??+=`, `??-=` and `??.=`, which PHP does not. `$counts[$page] ??+= 1` adds 1, and a key that is not
+there starts at 0.
