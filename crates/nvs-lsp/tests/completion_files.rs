@@ -10,11 +10,13 @@ use std::time::{Duration, SystemTime};
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::{
-    ClientCapabilities, DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
-    DidChangeWatchedFilesRegistrationOptions, FileChangeType, FileEvent, GlobPattern,
-    InitializeParams, RegistrationParams, WorkspaceClientCapabilities,
+    ClientCapabilities, DiagnosticSeverity, DidChangeWatchedFilesClientCapabilities,
+    DidChangeWatchedFilesParams, DidChangeWatchedFilesRegistrationOptions, FileChangeType,
+    FileEvent, GlobPattern, InitializeParams, NumberOrString, PublishDiagnosticsParams,
+    RegistrationParams, WorkspaceClientCapabilities, WorkspaceFolder,
 };
 use nvs_lsp::completion_files::{CompletionFiles, FindingKind, Reload};
+use nvs_lsp::{CheckScope, Documents, SymbolIndex};
 
 /// A scratch workspace that deletes itself.
 struct Workspace {
@@ -441,6 +443,223 @@ fn a_replacement_on_a_value_that_is_not_deprecated_is_reported() {
         kinds(&workspace, &files, ".novis/completion/icons.json"),
         [FindingKind::ReplacementNotDeprecated]
     );
+}
+
+/// The class the index-dependent findings are checked against.
+const ICON_CLASS: &str = "<?nvs\nnamespace App\\Ui;\n\nclass Icon {\n    \
+     public function render(string $name, int $size, string $style): string {\n        \
+     return $name . $style . $size;\n    }\n}\n";
+
+/// The index over `ICON_CLASS`, open at `src/Icon.nvs` in the workspace.
+fn icon_index(workspace: &Workspace) -> SymbolIndex {
+    let path = workspace.write("src/Icon.nvs", ICON_CLASS);
+    let mut documents = Documents::default();
+    documents.open(
+        nvs_lsp::uri_of(&path).expect("a scratch path is UTF-8"),
+        1,
+        ICON_CLASS.to_owned(),
+    );
+    let index = SymbolIndex::build(&documents, CheckScope::Open, None);
+    assert!(
+        index.declaration("App\\Ui\\Icon::render").is_some(),
+        "the index declares the method"
+    );
+    index
+}
+
+#[test]
+fn an_attachment_to_a_missing_method_or_parameter_is_reported_and_the_rest_of_the_file_is_kept() {
+    let workspace = Workspace::new("missing-member");
+    let index = icon_index(&workspace);
+    workspace.write(
+        ".novis/completion/icons.json",
+        r#"{
+  "sets": { "icons": ["home", "arrow-left"] },
+  "parameters": [
+    { "method": "App\\Ui\\Icon::render", "parameter": "name", "set": "icons" },
+    { "method": "App\\Ui\\Icon::show", "parameter": "name", "values": ["x"] },
+    { "method": "App\\Ui\\Icon::render", "parameter": "colour", "values": ["red"] }
+  ]
+}"#,
+    );
+
+    let mut files = workspace.load();
+    assert!(files.check(&index), "the first check finds something");
+    assert_eq!(
+        kinds(&workspace, &files, ".novis/completion/icons.json"),
+        [FindingKind::MissingMember, FindingKind::MissingMember]
+    );
+    assert_eq!(icon_values(&files), ["home", "arrow-left"]);
+    assert!(
+        files
+            .attachments("App\\Ui\\Icon", "show", "name")
+            .is_empty()
+    );
+    assert!(
+        files
+            .attachments("App\\Ui\\Icon", "render", "colour")
+            .is_empty()
+    );
+    assert!(!files.check(&index), "the same index finds the same");
+}
+
+#[test]
+fn an_attachment_to_a_class_the_index_does_not_declare_is_a_hint() {
+    let workspace = Workspace::new("undeclared-class");
+    let index = icon_index(&workspace);
+    workspace.write(
+        ".novis/completion/text.json",
+        r#"{ "parameters": [{ "method": "App\\I18n\\Text::translate", "parameter": "key", "values": ["title"] }] }"#,
+    );
+
+    let mut files = workspace.load();
+    files.check(&index);
+    assert_eq!(
+        kinds(&workspace, &files, ".novis/completion/text.json"),
+        [FindingKind::UndeclaredClass]
+    );
+    assert!(FindingKind::UndeclaredClass.is_hint());
+    assert!(!FindingKind::MissingMember.is_hint());
+    // The class may come from `vendor/`, so its values are still offered.
+    assert_eq!(
+        files
+            .attachments("App\\I18n\\Text", "translate", "key")
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn an_attachment_to_a_parameter_that_is_not_a_string_is_reported() {
+    let workspace = Workspace::new("not-a-string");
+    let index = icon_index(&workspace);
+    workspace.write(
+        ".novis/completion/icons.json",
+        r#"{
+  "parameters": [
+    { "method": "App\\Ui\\Icon::render", "parameter": "size", "values": ["10"] },
+    { "method": "App\\Ui\\Icon::render", "parameter": "style", "values": ["solid"] }
+  ]
+}"#,
+    );
+
+    let mut files = workspace.load();
+    files.check(&index);
+    assert_eq!(
+        kinds(&workspace, &files, ".novis/completion/icons.json"),
+        [FindingKind::NotAString]
+    );
+    assert!(
+        files
+            .attachments("App\\Ui\\Icon", "render", "size")
+            .is_empty()
+    );
+    assert_eq!(
+        files.attachments("App\\Ui\\Icon", "render", "style").len(),
+        1
+    );
+}
+
+#[test]
+fn a_when_naming_a_missing_parameter_is_reported_and_its_attachment_contributes_nothing() {
+    let workspace = Workspace::new("when-missing");
+    let index = icon_index(&workspace);
+    workspace.write(
+        ".novis/completion/icons.json",
+        r#"{
+  "parameters": [
+    { "method": "App\\Ui\\Icon::render", "parameter": "name", "values": ["home"] },
+    { "method": "App\\Ui\\Icon::render", "parameter": "name", "values": ["moon"],
+      "when": { "parameter": "theme", "equals": "dark" } },
+    { "method": "App\\Ui\\Icon::render", "parameter": "name", "values": ["sun"],
+      "when": { "parameter": "style", "equals": ["light", "solid"] } }
+  ]
+}"#,
+    );
+
+    let mut files = workspace.load();
+    files.check(&index);
+    assert_eq!(
+        kinds(&workspace, &files, ".novis/completion/icons.json"),
+        [FindingKind::MissingMember]
+    );
+    assert_eq!(icon_values(&files), ["home", "sun"]);
+}
+
+#[test]
+fn the_server_publishes_a_completion_files_findings_on_its_own_uri() {
+    let workspace = Workspace::new("publish");
+    let bad = workspace.write(".novis/completion/bad.json", r#"{ "colours": [] }"#);
+    let good = workspace.write(
+        ".novis/completion/good.json",
+        r#"{ "sets": { "icons": ["home"] } }"#,
+    );
+
+    let (server, client) = Connection::memory();
+    let serving = std::thread::spawn(move || nvs_lsp::serve(&server));
+    let send = |message: Message| client.sender.send(message).expect("the server is reading");
+    let params = InitializeParams {
+        workspace_folders: Some(vec![WorkspaceFolder {
+            uri: nvs_lsp::uri_of(&workspace.root).expect("a scratch path is UTF-8"),
+            name: "shop".to_owned(),
+        }]),
+        ..InitializeParams::default()
+    };
+    send(Message::Request(Request::new(
+        RequestId::from(1),
+        "initialize".to_owned(),
+        params,
+    )));
+    send(Message::Notification(Notification::new(
+        "initialized".to_owned(),
+        serde_json::json!({}),
+    )));
+    send(Message::Request(Request::new(
+        RequestId::from(2),
+        "shutdown".to_owned(),
+        serde_json::json!(null),
+    )));
+
+    let mut published = Vec::new();
+    loop {
+        match client.receiver.recv().expect("the server is still writing") {
+            Message::Notification(notification)
+                if notification.method == "textDocument/publishDiagnostics" =>
+            {
+                let params: PublishDiagnosticsParams =
+                    serde_json::from_value(notification.params).expect("publish params");
+                published.push(params);
+            }
+            Message::Response(response) if response.id == RequestId::from(2) => break,
+            _ => {}
+        }
+    }
+    send(Message::Notification(Notification::new(
+        "exit".to_owned(),
+        serde_json::json!(null),
+    )));
+    serving
+        .join()
+        .expect("the server thread did not panic")
+        .expect("the server served the session without a protocol error");
+
+    let on = |path: &Path| {
+        let uri = nvs_lsp::uri_of(path).expect("a scratch path is UTF-8");
+        published
+            .iter()
+            .find(|params| params.uri == uri)
+            .unwrap_or_else(|| panic!("nothing was published for {path:?}: {published:?}"))
+    };
+    let [diagnostic] = on(&bad).diagnostics.as_slice() else {
+        panic!("expected one diagnostic, got {:?}", on(&bad).diagnostics);
+    };
+    assert_eq!(
+        diagnostic.code,
+        Some(NumberOrString::String("W1013".to_owned()))
+    );
+    assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::WARNING));
+    assert_eq!(on(&bad).version, None);
+    assert!(on(&good).diagnostics.is_empty());
 }
 
 /// Runs a server for a client with `capabilities`, sends it one watcher event for `changed`, shuts

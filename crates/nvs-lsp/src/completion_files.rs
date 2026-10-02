@@ -54,8 +54,26 @@
 //!   The value keeps every other field.
 //! - **A symbolic link to a folder is not followed**, so a link cannot make the walk loop.
 //!
+//! # The checks against the index
+//!
+//! [`CompletionFiles::check`] compares each attachment with what `crate::index::SymbolIndex`
+//! declares, and the server runs it after the load, after a refresh and after every change to the
+//! index. A class the index does not declare is a hint and nothing more is checked for it. A method
+//! is looked up on the class the attachment names, so an inherited method is a finding, as the rule
+//! says. Two more questions are decided here:
+//!
+//! - **An attachment with a warning is taken out of the table** by the check, and comes back at
+//!   the next check that finds nothing wrong with it, since each check merges the files again
+//!   first. That is what makes one whose `when` names a missing parameter contribute nothing,
+//!   whatever a call's other arguments are. An attachment to an undeclared class stays, because
+//!   its class may come from `vendor/`.
+//! - **A parameter takes a string unless its declared type says otherwise.** The type is read from
+//!   its text: one whose members are all of a kind that is not a string, such as `int`, `bool` or
+//!   an array, is a finding. A named type is not, because it may be an alias of a string type, and
+//!   nor is a parameter with no type.
+//!
 //! Memory: every loaded value is held for the life of the session, with its folder shared by every
-//! value of one file.
+//! value of one file, and every file's text, for the server to place its findings.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -65,10 +83,13 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use lsp_types::CompletionItemKind;
-use rustc_hash::FxHashMap;
+use nvs_diagnostics::{Code, code};
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 use serde_json::value::RawValue;
+
+use crate::index::{DeclKind, Declaration, SymbolIndex};
 
 /// The folder a project keeps its tool data in.
 const NOVIS: &str = ".novis";
@@ -92,6 +113,9 @@ pub struct CompletionFiles {
     table: FxHashMap<String, FxHashMap<String, FxHashMap<String, Vec<Attachment>>>>,
     /// What the merge found wrong with an attachment, by the file that wrote it.
     merged_findings: BTreeMap<PathBuf, Vec<Finding>>,
+    /// What the last [`CompletionFiles::check`] found wrong with an attachment, by the file that
+    /// wrote it.
+    checked_findings: BTreeMap<PathBuf, Vec<Finding>>,
 }
 
 /// One loaded file.
@@ -101,6 +125,8 @@ struct File {
     stamp: Stamp,
     /// Whether a folder above it is named `vendor`, which keeps its findings off the screen.
     vendored: bool,
+    /// Its text, which a finding's span is a range of.
+    text: String,
     /// What it says, or nothing when it has a finding of the wrong-form kind.
     read: Read,
 }
@@ -228,6 +254,36 @@ pub enum FindingKind {
     MissingLocation,
     /// A value that is not deprecated names a `replacement`.
     ReplacementNotDeprecated,
+    /// An attachment names a method the class does not declare, or a parameter the method does not
+    /// have, in `parameter` or in `when`.
+    MissingMember,
+    /// An attachment names a parameter that takes no string.
+    NotAString,
+    /// An attachment names a class the workspace index does not declare. A hint, because the class
+    /// may come from `vendor/`.
+    UndeclaredClass,
+}
+
+impl FindingKind {
+    /// The diagnostic code the server publishes this kind with.
+    #[must_use]
+    pub const fn code(self) -> Code {
+        match self {
+            Self::Invalid => code::W_COMPLETION_FILE_INVALID,
+            Self::MissingSet => code::W_COMPLETION_SET_MISSING,
+            Self::MissingLocation => code::W_COMPLETION_LOCATION_MISSING,
+            Self::ReplacementNotDeprecated => code::W_COMPLETION_REPLACEMENT_NOT_DEPRECATED,
+            Self::MissingMember => code::W_COMPLETION_MEMBER_MISSING,
+            Self::NotAString => code::W_COMPLETION_PARAMETER_NOT_A_STRING,
+            Self::UndeclaredClass => code::W_COMPLETION_CLASS_UNDECLARED,
+        }
+    }
+
+    /// Whether the server publishes this kind as a hint. Every other kind is a warning.
+    #[must_use]
+    pub const fn is_hint(self) -> bool {
+        matches!(self, Self::UndeclaredClass)
+    }
 }
 
 /// One thing wrong with a completion file.
@@ -256,12 +312,13 @@ impl CompletionFiles {
             if let Some(vendored) = loaded.place(&path)
                 && let Some(stamp) = stamp_of(&path)
             {
-                let read = read(&path);
+                let (text, read) = read(&path);
                 loaded.files.insert(
                     path,
                     File {
                         stamp,
                         vendored,
+                        text,
                         read,
                     },
                 );
@@ -287,12 +344,13 @@ impl CompletionFiles {
                 Reload::Dropped
             }
             (Some(stamp), _) => {
-                let read = read(path);
+                let (text, read) = read(path);
                 self.files.insert(
                     path.to_owned(),
                     File {
                         stamp,
                         vendored,
+                        text,
                         read,
                     },
                 );
@@ -323,19 +381,89 @@ impl CompletionFiles {
         self.sets.get(name).map(Vec::as_slice)
     }
 
-    /// Every finding to show, by file, in path order. A file under `vendor/` is a library's to fix,
-    /// so its findings are not among them.
+    /// The text of the loaded file at `path`, which its findings' spans are ranges of.
+    pub fn text(&self, path: &Path) -> Option<&str> {
+        self.files.get(path).map(|file| file.text.as_str())
+    }
+
+    /// Every finding to show, by file, in path order, a file with none included. A file under
+    /// `vendor/` is a library's to fix, so it is not among them.
     pub fn findings(&self) -> impl Iterator<Item = (&Path, Vec<&Finding>)> {
         self.files
             .iter()
             .filter(|(_, file)| !file.vendored)
             .map(|(path, file)| {
                 let merged = self.merged_findings.get(path).into_iter().flatten();
+                let checked = self.checked_findings.get(path).into_iter().flatten();
                 (
                     path.as_path(),
-                    file.read.findings.iter().chain(merged).collect(),
+                    file.read
+                        .findings
+                        .iter()
+                        .chain(merged)
+                        .chain(checked)
+                        .collect(),
                 )
             })
+    }
+
+    /// Checks every attachment outside `vendor/` against the classes, methods and parameters
+    /// `index` declares, and returns whether what it found differs from the last check.
+    ///
+    /// The findings need the index, so they are made here and not when a file is read, and the
+    /// server calls this again whenever the index changes. With no attachment to check it reads
+    /// nothing; otherwise it reads each of the index's declarations once.
+    pub fn check(&mut self, index: &SymbolIndex) -> bool {
+        let written = || {
+            self.files
+                .iter()
+                .filter(|(_, file)| !file.vendored)
+                .flat_map(|(path, file)| file.read.attachments.iter().map(move |at| (path, at)))
+        };
+        let mut wanted: FxHashSet<String> = FxHashSet::default();
+        for (_, at) in written() {
+            wanted.insert(at.class.clone());
+            wanted.insert(format!("{}::{}", at.class, at.method));
+        }
+        let mut declared: FxHashMap<&str, &Declaration> = FxHashMap::default();
+        if !wanted.is_empty() {
+            for path in index.files() {
+                for declaration in index.declarations_in(path) {
+                    if wanted.contains(&declaration.symbol) {
+                        declared.entry(&declaration.symbol).or_insert(declaration);
+                    }
+                }
+            }
+        }
+        let mut checked: BTreeMap<PathBuf, Vec<Finding>> = BTreeMap::new();
+        for (path, at) in written() {
+            for (kind, message) in check_attachment(at, &declared) {
+                checked.entry(path.clone()).or_default().push(Finding {
+                    kind,
+                    span: at.span,
+                    message,
+                });
+            }
+        }
+        // Rebuilt first, so an attachment a previous check took out comes back once nothing is
+        // wrong with it.
+        self.merge();
+        let dead: FxHashSet<(&Path, Span)> = checked
+            .iter()
+            .flat_map(|(path, findings)| findings.iter().map(move |finding| (path, finding)))
+            .filter(|(_, finding)| finding.kind != FindingKind::UndeclaredClass)
+            .map(|(path, finding)| (path.as_path(), finding.span))
+            .collect();
+        if !dead.is_empty() {
+            for attachments in self.table.values_mut().flat_map(FxHashMap::values_mut) {
+                for list in attachments.values_mut() {
+                    list.retain(|at| !dead.contains(&(at.file.as_path(), at.span)));
+                }
+            }
+        }
+        let changed = checked != self.checked_findings;
+        self.checked_findings = checked;
+        changed
     }
 
     /// Whether `path` is a completion file the walk would find, and if so whether it is under
@@ -415,6 +543,67 @@ impl CompletionFiles {
     }
 }
 
+/// What is wrong with the attachment `at`, given the declarations of its class and its method that
+/// the index holds.
+fn check_attachment(
+    at: &Written,
+    declared: &FxHashMap<&str, &Declaration>,
+) -> Vec<(FindingKind, String)> {
+    let Written { class, method, .. } = at;
+    if !declared.contains_key(class.as_str()) {
+        return vec![(
+            FindingKind::UndeclaredClass,
+            format!(
+                "The workspace does not declare the class `{class}`. If it comes from `vendor/`, \
+                 this is expected."
+            ),
+        )];
+    }
+    let Some(declaration) = declared
+        .get(format!("{class}::{method}").as_str())
+        .filter(|declaration| declaration.kind == DeclKind::Method)
+    else {
+        return vec![(
+            FindingKind::MissingMember,
+            format!("`{class}` does not declare the method `{method}`."),
+        )];
+    };
+    let parameter = |name: &str| {
+        declaration
+            .parameters
+            .iter()
+            .find(|parameter| parameter.name == name)
+    };
+    let mut found = Vec::new();
+    match parameter(&at.parameter) {
+        None => found.push((
+            FindingKind::MissingMember,
+            format!("`{class}::{method}` has no parameter `${}`.", at.parameter),
+        )),
+        Some(parameter) if !parameter.takes_a_string => found.push((
+            FindingKind::NotAString,
+            format!(
+                "The parameter `${}` of `{class}::{method}` does not take a string, so these \
+                 values are never offered.",
+                at.parameter
+            ),
+        )),
+        Some(_) => {}
+    }
+    if let Some(when) = &at.when
+        && parameter(&when.parameter).is_none()
+    {
+        found.push((
+            FindingKind::MissingMember,
+            format!(
+                "`{class}::{method}` has no parameter `${}`, so this attachment never applies.",
+                when.parameter
+            ),
+        ));
+    }
+    found
+}
+
 /// Appends each of `more` whose `value` `into` does not have yet.
 fn extend_once(into: &mut Vec<Arc<Value>>, more: &[Arc<Value>]) {
     for value in more {
@@ -481,23 +670,29 @@ fn stamp_of(path: &Path) -> Option<Stamp> {
 }
 
 /// What the completion file at `path` says.
-fn read(path: &Path) -> Read {
+fn read(path: &Path) -> (String, Read) {
     let folder: Arc<Path> = Arc::from(path.parent().unwrap_or(path));
     match fs::read_to_string(path) {
-        Ok(text) => Reader {
-            text: &text,
-            folder,
-            findings: Vec::new(),
+        Ok(text) => {
+            let read = Reader {
+                text: &text,
+                folder,
+                findings: Vec::new(),
+            }
+            .file();
+            (text, read)
         }
-        .file(),
-        Err(error) => Read {
-            findings: vec![Finding {
-                kind: FindingKind::Invalid,
-                span: (0, 0),
-                message: format!("This file could not be read as UTF-8 text: {error}."),
-            }],
-            ..Read::default()
-        },
+        Err(error) => (
+            String::new(),
+            Read {
+                findings: vec![Finding {
+                    kind: FindingKind::Invalid,
+                    span: (0, 0),
+                    message: format!("This file could not be read as UTF-8 text: {error}."),
+                }],
+                ..Read::default()
+            },
+        ),
     }
 }
 

@@ -75,7 +75,9 @@ use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{BytePos, SourceFile, Span, canonical_key};
 use nvs_hir::{Loaded, QName, SymbolKind};
-use nvs_syntax::ast::{ClassMember, ClassMemberKind, Modifier, Stmt, StmtKind};
+use nvs_syntax::ast::{
+    ClassMember, ClassMemberKind, Modifier, Stmt, StmtKind, Type, TypeAtom, TypeKind,
+};
 use nvs_syntax::walk;
 use nvs_types::ExprInfo;
 
@@ -221,6 +223,25 @@ pub struct Declaration {
     /// program may construct, and puts the cursor between the parentheses
     /// only where there is an argument to write.
     pub construction: Option<Construction>,
+    /// The parameters a method declares, in order, and empty for everything
+    /// that is not a method.
+    ///
+    /// The completion files are the only reader
+    /// (`rule:ide/completion-files-offer-values-at-named-parameters`): an
+    /// attachment to a parameter the method does not have, or to one that
+    /// takes no string, is reported on the file that wrote it.
+    pub parameters: Vec<Parameter>,
+}
+
+/// One parameter of a method, as a completion file names it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Parameter {
+    /// Its name, without the `$`.
+    pub name: String,
+    /// Whether a string argument can reach it. False only where the declared
+    /// type says so from its own text: a named type may be an alias of a
+    /// string, and the type is not resolved here, so it counts as one.
+    pub takes_a_string: bool,
 }
 
 /// The two things a class declaration says about `new` on it.
@@ -652,6 +673,7 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
             visibility: Visibility::Public,
             supertypes: supertypes_of(analysed, &symbol.qname),
             construction: declared.and_then(|(stmt, file)| construction_of(stmt, file)),
+            parameters: Vec::new(),
         });
         if let Some((stmt, file)) = declared {
             members(stmt, file, &class, path, &mut found);
@@ -678,7 +700,72 @@ fn members(stmt: &Stmt, file: &SourceFile, class: &str, path: &Path, found: &mut
             // off the two ends of that.
             supertypes: Vec::new(),
             construction: None,
+            parameters: if kind == DeclKind::Method {
+                parameters_of(stmt, file, name)
+            } else {
+                Vec::new()
+            },
         });
+    }
+}
+
+/// The parameters of the method `stmt` declares at `name`.
+fn parameters_of(stmt: &Stmt, file: &SourceFile, name: Span) -> Vec<Parameter> {
+    let declared: &[ClassMember] = match &stmt.kind {
+        StmtKind::ClassDecl(decl) => &decl.members,
+        StmtKind::InterfaceDecl(decl) => &decl.members,
+        StmtKind::EnumDecl(decl) => &decl.members,
+        _ => return Vec::new(),
+    };
+    declared
+        .iter()
+        .find_map(|member| match &member.kind {
+            ClassMemberKind::Method(method) if method.name == name => Some(&method.params),
+            _ => None,
+        })
+        .map_or_else(Vec::new, |params| {
+            params
+                .iter()
+                .map(|param| Parameter {
+                    name: text_of(file, param.name).trim_start_matches('$').to_owned(),
+                    takes_a_string: param.ty.as_ref().is_none_or(takes_a_string),
+                })
+                .collect()
+        })
+}
+
+/// Whether a value of type `ty` may be a string, read from the type's own
+/// text. A union may be one when any member may, and a named type always may,
+/// because it can be an alias of a string type.
+fn takes_a_string(ty: &Type) -> bool {
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => takes_a_string(inner),
+        TypeKind::Union(members) | TypeKind::Intersection(members) => {
+            members.iter().any(takes_a_string)
+        }
+        TypeKind::Atom(atom) => !matches!(
+            atom,
+            TypeAtom::Null
+                | TypeAtom::Bool
+                | TypeAtom::Int
+                | TypeAtom::Uint
+                | TypeAtom::Float
+                | TypeAtom::Decimal
+                | TypeAtom::Bytes
+                | TypeAtom::TaintedBytes
+                | TypeAtom::SecretBytes
+                | TypeAtom::SecretTaintedBytes
+                | TypeAtom::Array(_)
+                | TypeAtom::ClassRef(_)
+                | TypeAtom::Object
+                | TypeAtom::Shape(_)
+                | TypeAtom::Void
+                | TypeAtom::Never
+                | TypeAtom::True
+                | TypeAtom::False
+                | TypeAtom::IntLiteral(_)
+        ),
+        _ => true,
     }
 }
 

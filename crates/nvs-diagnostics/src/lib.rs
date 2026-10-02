@@ -5490,6 +5490,53 @@ pub mod code {
         "In markup, a `{` followed by a class name is printed as text. Write \
          `<?= Page::TITLE ?>` to print a value, or `\\{` for a brace you want to keep.",
     );
+    /// A completion file that is not JSON, or has a field that is unknown or
+    /// of the wrong form (`rule:ide/completion-files-offer-values-at-named-parameters`).
+    /// The language server publishes it on the completion file, and the file
+    /// contributes nothing until it is fixed, so no value is offered from a
+    /// file that is half understood.
+    pub const W_COMPLETION_FILE_INVALID: Code = Code::new("W1013").card(
+        "This completion file is not valid, so none of its values are offered. The message \
+         names the field that is wrong and the fields that are allowed there.",
+    );
+    /// A completion file's attachment names a set that no completion file in
+    /// the workspace defines. The attachment still offers its own `values`.
+    pub const W_COMPLETION_SET_MISSING: Code = Code::new("W1014").card(
+        "No completion file defines this set. Define it under `sets` in a completion file, or \
+         correct the name.",
+    );
+    /// A value's `location` names a file that does not exist. The value is
+    /// still offered, and go-to-definition on it has no answer.
+    pub const W_COMPLETION_LOCATION_MISSING: Code = Code::new("W1015").card(
+        "The file this `location` names does not exist. The path is relative to the folder of \
+         the completion file.",
+    );
+    /// A value that is not `deprecated` names a `replacement`, which is then
+    /// ignored.
+    pub const W_COMPLETION_REPLACEMENT_NOT_DEPRECATED: Code = Code::new("W1016").card(
+        "A `replacement` is used only for a deprecated value. Add `\"deprecated\": true`, or \
+         delete the `replacement`.",
+    );
+    /// An attachment names a method the class does not declare, or a parameter
+    /// the method does not have, in `parameter` or in `when`, for a class the
+    /// workspace index declares. No call can reach that attachment.
+    pub const W_COMPLETION_MEMBER_MISSING: Code = Code::new("W1017").card(
+        "The class does not declare this method, or the method has no parameter with this \
+         name, so these values are never offered. Write the name as the class declares it.",
+    );
+    /// An attachment's parameter is declared with a type that is not a
+    /// string, so no string argument can reach it.
+    pub const W_COMPLETION_PARAMETER_NOT_A_STRING: Code = Code::new("W1018").card(
+        "This parameter does not take a string, so its values are never offered. Attach them to \
+         a parameter of type `string`.",
+    );
+    /// An attachment names a class the workspace index does not declare.
+    /// Published as a hint, because the class may come from `vendor/`, which
+    /// the index does not read.
+    pub const W_COMPLETION_CLASS_UNDECLARED: Code = Code::new("W1019").card(
+        "The workspace does not declare this class. If it comes from `vendor/`, this is \
+         expected. Otherwise, check the class's whole name.",
+    );
 }
 }
 

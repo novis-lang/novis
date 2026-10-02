@@ -48,6 +48,14 @@
 //! notification. The registration's response carries nothing, so it is read
 //! and ignored. A client that cannot register a watcher sees the files as they
 //! were when the server started.
+//!
+//! **What is wrong with a completion file is published on that file's own
+//! URI**, with no version, because the file is not an open document. Every
+//! completion file outside `vendor/` is published after the load and after
+//! each watcher event, a file with nothing wrong as an empty list, and a file
+//! that is gone gets one last empty list. Some findings compare a file with
+//! the index ([`CompletionFiles::check`]), so they are published again when an
+//! edit changes the index and changes what the check finds.
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -87,9 +95,9 @@ use crate::actions;
 use crate::capabilities::initialize_result;
 use crate::card;
 use crate::completion;
-use crate::completion_files::{self, CompletionFiles};
+use crate::completion_files::{self, CompletionFiles, Finding, Reload};
 use crate::definition;
-use crate::diagnostics::{Phases, dimming, for_document};
+use crate::diagnostics::{Phases, SOURCE, dimming, for_document};
 use crate::document::{Analysed, Documents, analyse, directory_uri_of, path_of, uri_of};
 use crate::folding;
 use crate::hints;
@@ -206,6 +214,8 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     if can_watch(&params) {
         connection.sender.send(watch_completion_files().into())?;
     }
+    completion_files.check(&index);
+    publish_completion_files(connection, &completion_files, encoding)?;
 
     // The edit whose analysis `nvs.lsp.debounce` is holding back, and the
     // moment it runs if nothing gets there first. `None` is a server at rest,
@@ -229,6 +239,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                             connection,
                             &mut documents,
                             &mut index,
+                            &mut completion_files,
                             settings.scope,
                             encoding,
                             &pending,
@@ -266,6 +277,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         connection,
                         &mut documents,
                         &mut index,
+                        &mut completion_files,
                         settings.scope,
                         encoding,
                         &pending,
@@ -276,7 +288,13 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
             }
             Message::Notification(notification) => {
                 if notification.method == DidChangeWatchedFiles::METHOD {
-                    refresh_completion_files(&mut completion_files, notification.params);
+                    refresh_completion_files(
+                        connection,
+                        &mut completion_files,
+                        &index,
+                        encoding,
+                        notification.params,
+                    )?;
                     continue;
                 }
                 let Some(changed) = apply(&mut documents, notification) else {
@@ -293,6 +311,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         connection,
                         &mut documents,
                         &mut index,
+                        &mut completion_files,
                         settings.scope,
                         encoding,
                         &pending,
@@ -309,6 +328,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         connection,
                         &mut documents,
                         &mut index,
+                        &mut completion_files,
                         settings.scope,
                         encoding,
                         &changed,
@@ -331,7 +351,9 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
 /// list has to be right about, which is where the index stops being the document
 /// server `rule:ide/an-open-document-is-its-own-entry-point` describes. Before
 /// the publish because that one takes the store mutably, and on this thread
-/// nothing reads the index in between.
+/// nothing reads the index in between. The completion files are checked
+/// against the refreshed index, and published only when that check found
+/// something different.
 ///
 /// # Errors
 ///
@@ -340,6 +362,7 @@ fn reanalyse(
     connection: &Connection,
     documents: &mut Documents,
     index: &mut SymbolIndex,
+    completion_files: &mut CompletionFiles,
     scope: CheckScope,
     encoding: PositionEncoding,
     changed: &Changed,
@@ -348,6 +371,9 @@ fn reanalyse(
         // First, because both analyses below borrow what it finds.
         documents.resurvey(path);
         index.refresh(documents, path);
+        if completion_files.check(index) {
+            publish_completion_files(connection, completion_files, encoding)?;
+        }
     }
     publish(connection, documents, index, scope, encoding, changed)
 }
@@ -1557,17 +1583,93 @@ fn watch_completion_files() -> Request {
     )
 }
 
-/// Reads again each completion file a watcher event names. The event's kind is
-/// not read, because [`CompletionFiles::refresh`] looks at the file itself. A
-/// payload that will not deserialize is dropped, as [`apply`] drops one.
-fn refresh_completion_files(files: &mut CompletionFiles, params: serde_json::Value) {
+/// Reads again each completion file a watcher event names, and publishes what
+/// is wrong with them. The event's kind is not read, because
+/// [`CompletionFiles::refresh`] looks at the file itself. A payload that will
+/// not deserialize is dropped, as [`apply`] drops one.
+///
+/// # Errors
+///
+/// As [`publish`].
+fn refresh_completion_files(
+    connection: &Connection,
+    files: &mut CompletionFiles,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: serde_json::Value,
+) -> Result<(), ServerError> {
     let Ok(params) = serde_json::from_value::<DidChangeWatchedFilesParams>(params) else {
-        return;
+        return Ok(());
     };
+    let mut reloaded = false;
     for change in params.changes {
-        if let Some(path) = path_of(&change.uri) {
-            files.refresh(&path);
+        let Some(path) = path_of(&change.uri) else {
+            continue;
+        };
+        match files.refresh(&path) {
+            Reload::Ignored | Reload::Unchanged => {}
+            Reload::Read => reloaded = true,
+            Reload::Dropped => {
+                reloaded = true;
+                send(connection, &change.uri, None, Vec::new())?;
+            }
         }
+    }
+    if reloaded {
+        files.check(index);
+        publish_completion_files(connection, files, encoding)?;
+    }
+    Ok(())
+}
+
+/// Publishes what is wrong with every completion file outside `vendor/`, each
+/// on its own URI, and an empty list for a file with nothing wrong.
+///
+/// # Errors
+///
+/// As [`publish`].
+fn publish_completion_files(
+    connection: &Connection,
+    files: &CompletionFiles,
+    encoding: PositionEncoding,
+) -> Result<(), ServerError> {
+    for (path, findings) in files.findings() {
+        let (Some(uri), Some(text)) = (uri_of(path), files.text(path)) else {
+            continue;
+        };
+        let mut map = SourceMap::new();
+        let id = map.add(path.display().to_string(), text);
+        let file = map.file(id);
+        let diagnostics = findings
+            .into_iter()
+            .map(|finding| completion_file_diagnostic(finding, file, encoding))
+            .collect();
+        send(connection, &uri, None, diagnostics)?;
+    }
+    Ok(())
+}
+
+/// One completion-file finding as the wire carries it, positioned in `file`.
+fn completion_file_diagnostic(
+    finding: &Finding,
+    file: &nvs_diagnostics::SourceFile,
+    encoding: PositionEncoding,
+) -> lsp_types::Diagnostic {
+    let byte = |offset: usize| BytePos::try_from(offset).unwrap_or(BytePos::MAX);
+    let (start, end) = finding.span;
+    lsp_types::Diagnostic {
+        range: range_of(file, byte(start), byte(end), encoding),
+        severity: Some(if finding.kind.is_hint() {
+            lsp_types::DiagnosticSeverity::HINT
+        } else {
+            lsp_types::DiagnosticSeverity::WARNING
+        }),
+        code: Some(lsp_types::NumberOrString::String(
+            finding.kind.code().as_str().to_owned(),
+        )),
+        source: Some(SOURCE.to_owned()),
+        message: finding.message.clone(),
+        ..lsp_types::Diagnostic::default()
     }
 }
 
