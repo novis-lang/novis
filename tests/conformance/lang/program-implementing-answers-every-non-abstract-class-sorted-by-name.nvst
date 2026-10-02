@@ -2,7 +2,7 @@
 `Core\Program::implementing<I>()` expands while compiling into one `new C()` per non-abstract class implementing `I`, sorted by fully qualified name, skipping a class that implements nothing, answering `[]` for an interface nothing implements, and building a fresh set on every evaluation (`rule:programs/implementing`)
 --FILE--
 <?nvs
-// covers: lang:attributes/core-program-implementing-i-every-class-implementing-an-interface
+// covers: lang:attributes/core-program-implementing-i-every-class-that-is-an-i
 // `rule:programs/implementing`: the call expands while compiling into an array literal of
 // `new C()` for every non-abstract class in the program implementing `I`,
 // sorted by fully qualified name. The roster is printed whole rather than one

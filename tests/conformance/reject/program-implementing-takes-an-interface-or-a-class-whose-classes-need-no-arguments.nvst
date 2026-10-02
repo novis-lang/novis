@@ -2,7 +2,7 @@
 `Core\Program::implementing` takes an interface or a class and refuses every other type argument, an enum and a shape among them, and refuses a listed class whose constructor the enumeration could not call, under an interface and under a class alike, each at the call that would have written the `new` (`rule:programs/implementing`)
 --FILE--
 <?nvs
-// covers: lang:attributes/core-program-implementing-i-every-class-implementing-an-interface
+// covers: lang:attributes/core-program-implementing-i-every-class-that-is-an-i
 // `rule:programs/implementing`: the type argument is what gives the enumerated
 // instances a static type, and the enumeration writes `new C()` for each of
 // them. So a type argument that is neither an interface nor a class, and a

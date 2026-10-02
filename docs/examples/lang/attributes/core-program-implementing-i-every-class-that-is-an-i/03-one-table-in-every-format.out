@@ -1,0 +1,3 @@
+csv: cup,plate,bowl
+json: ["cup","plate","bowl"]
+text: - cup - plate - bowl
