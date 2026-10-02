@@ -1,0 +1,23 @@
+{
+  "title": "A string or a `.` chain of strings and values converts to the html literal that prints the same text, as a code action the server computes and an editor only applies",
+  "status": "shipped",
+  "because": [
+    "0259"
+  ],
+  "divergesFromPhp": "PHP has no markup literal, so there is nothing to convert to; an editor's string-to-template intention there is text logic in the editor",
+  "seeAlso": [
+    "core-classes/html-literal",
+    "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
+    "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "ide/the-index-answers-the-cursor"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/src/html_literal.rs",
+    "crates/nvs-lsp/tests/actions.rs",
+    "tests/lsp/actions/a-double-quoted-string-converts-to-an-html-literal.lspt",
+    "tests/lsp/actions/a-single-quoted-string-keeps-its-dollar-and-backtick-as-text.lspt",
+    "tests/lsp/actions/a-concatenation-chain-converts-as-one-html-literal.lspt",
+    "tests/lsp/actions/an-html-literal-is-offered-no-conversion.lspt",
+    "editors/vscode/test/contributions/contributions.test.ts"
+  ]
+}

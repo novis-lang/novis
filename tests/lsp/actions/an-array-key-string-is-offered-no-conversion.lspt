@@ -1,0 +1,9 @@
+--TEST--
+a string used as an array key is a position a markup value has no meaning in, so it is offered no html-literal conversion, while the value beside it is, `rule:ide/a-string-converts-to-an-html-literal`
+--FILE--
+<?nvs
+var $labels = ["tit<|>le" => "<b>Title</b>"];
+--REQUEST--
+codeAction
+--EXPECT--
+none

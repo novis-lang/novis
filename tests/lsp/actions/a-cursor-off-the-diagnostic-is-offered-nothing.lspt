@@ -4,7 +4,7 @@ the same document offers nothing two lines below its casing violation: an action
 <?nvs
 class user_account {}
 var $u = new UserAccount();
-echo <|>"done";
+ec<|>ho "done";
 --REQUEST--
 codeAction
 --EXPECT--

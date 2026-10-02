@@ -1,0 +1,11 @@
+--TEST--
+a cursor on any operand of a `.` chain converts the whole chain: a variable becomes a `{$…}` hole, any other value a `<?= … ?>` hole, and each string its own text, `rule:ide/a-string-converts-to-an-html-literal`
+--FILE--
+<?nvs
+var $name = "world";
+int $n = 41;
+echo "<b>" . $na<|>me . "</b> is " . ($n + 1) . ' years';
+--REQUEST--
+codeAction
+--EXPECT--
+4:6-4:54 refactor.rewrite.htmlLiteral Convert to html literal -> "html`<b>{$name}</b> is <?= ($n + 1) ?> years`"

@@ -1,0 +1,10 @@
+--TEST--
+a double-quoted string offers the html literal that prints the same text, keeping its `$name` hole and writing `\"` as `"`, under its own refactor kind, `rule:ide/a-string-converts-to-an-html-literal`
+--FILE--
+<?nvs
+var $name = "world";
+echo "<p class=\"greeting\">Hello, <|>$name</p>";
+--REQUEST--
+codeAction
+--EXPECT--
+3:6-3:46 refactor.rewrite.htmlLiteral Convert to html literal -> "html`<p class="greeting">Hello, $name</p>`"

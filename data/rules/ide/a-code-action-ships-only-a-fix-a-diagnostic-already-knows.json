@@ -1,10 +1,11 @@
 {
-  "title": "A code action ships only where its replacement text is already in a diagnostic's suggestions — two at M4B, and no other",
+  "title": "A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-literal rewrite",
   "status": "designed",
   "because": [
     "0099",
     "0040",
-    "0201"
+    "0201",
+    "0259"
   ],
   "seeAlso": [
     "core-api/identifier-casing",
@@ -12,7 +13,8 @@
     "ide/the-request-set-is-closed",
     "tooling/fmt-is-never-a-diagnostic",
     "ide/narrow-an-annotation-to-its-literal",
-    "ide/every-feature-is-staged-behind-its-dependency"
+    "ide/every-feature-is-staged-behind-its-dependency",
+    "ide/a-string-converts-to-an-html-literal"
   ],
   "guardedBy": []
 }

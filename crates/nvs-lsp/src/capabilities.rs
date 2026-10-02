@@ -73,15 +73,18 @@ pub const TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
 
 /// The code action kinds this server produces.
 ///
-/// Two actions, both translations of a `Suggestion` a `Diagnostic` already
-/// carries (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`),
-/// so they are `quickfix`. `source.fixAll.nvs` is what lets
-/// `editor.codeActionsOnSave` run them beside format-on-save, per
+/// Every fix is a translation of a `Suggestion` a `Diagnostic` already carries
+/// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`), so
+/// it is `quickfix`. `source.fixAll.nvs` is what lets
+/// `editor.codeActionsOnSave` run the fixes beside format-on-save, per
 /// `rule:tooling/fmt-is-never-a-diagnostic` — `nvs fmt` stays layout-only, so
 /// a fix that changes meaning has to arrive through this channel instead.
+/// The third kind is the html-literal refactor's ([`crate::html_literal::KIND`]),
+/// narrow enough that a client asking for it by kind gets that action alone.
 pub const CODE_ACTION_KINDS: &[CodeActionKind] = &[
     CodeActionKind::QUICKFIX,
     CodeActionKind::new("source.fixAll.nvs"),
+    CodeActionKind::new(crate::html_literal::KIND),
 ];
 
 /// The version this server reports in `serverInfo`.

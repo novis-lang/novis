@@ -5,7 +5,8 @@
     "0040",
     "0039",
     "0099",
-    "0258"
+    "0258",
+    "0259"
   ],
   "divergesFromPhp": "there is no inspection profile to tune; a fix exists only where a diagnostic already carries its replacement text, and running fixes on save is `editor.codeActionsOnSave`, never part of the formatter",
   "seeAlso": [
@@ -20,7 +21,8 @@
     "tooling/fmt-is-never-a-diagnostic",
     "ide/the-request-set-is-closed",
     "ide/a-code-action-writes-only-what-is-already-determined",
-    "expressions/misread-grouping-warns"
+    "expressions/misread-grouping-warns",
+    "ide/a-string-converts-to-an-html-literal"
   ],
   "guardedBy": []
 }

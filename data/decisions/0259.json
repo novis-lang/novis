@@ -1,0 +1,15 @@
+{
+  "title": "A string or a `.` chain converts to an html literal through one refactor the language server computes, and no fix-all applies it",
+  "status": "accepted",
+  "scope": "one editor code action, its kind, the VS Code command that applies it, and the boundary that every\nother code action is a diagnostic's suggestion. The html literal's grammar and every program's behaviour are\nunchanged.",
+  "dependsOn": [
+    "0099",
+    "0040"
+  ],
+  "validatedBy": "the unit tests in `crates/nvs-lsp/src/html_literal.rs`,\n`the_html_literal_refactor_has_its_own_kind_and_is_never_in_a_fix_all` in `crates/nvs-lsp/tests/actions.rs`,\nand the `.lspt` cases under `tests/lsp/actions/` that name `rule:ide/a-string-converts-to-an-html-literal`.",
+  "summary": {
+    "group": "tooling",
+    "headline": "The editor converts a string to an html literal",
+    "body": "Put the cursor on a string, or on a `.` chain such as `\"<b>\" . $name . \"</b>\"`, and choose\n**Convert to html literal**. The editor writes `` html`<b>{$name}</b>` ``, which prints the same text.\nThe text of an html literal is printed as markup, so read the preview before you apply it. The\naction never runs on save."
+  }
+}

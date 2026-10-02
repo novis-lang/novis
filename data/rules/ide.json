@@ -23,6 +23,7 @@
     "ide/check-scope-defaults-to-the-workspace",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
     "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "ide/a-string-converts-to-an-html-literal",
     "ide/an-undeclared-name-offers-its-import",
     "ide/a-pasted-type-carries-its-use-line",
     "ide/a-code-action-writes-only-what-is-already-determined",

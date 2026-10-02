@@ -1,0 +1,10 @@
+--TEST--
+an html literal is converted already, so a cursor in it or in its hole is offered nothing, `rule:ide/a-string-converts-to-an-html-literal`
+--FILE--
+<?nvs
+var $name = "world";
+echo html`<b>Hello, <|>$name</b>`;
+--REQUEST--
+codeAction
+--EXPECT--
+none

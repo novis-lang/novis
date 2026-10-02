@@ -654,6 +654,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
             PositionEncoding::Utf8,
         )
         .into_iter()
+        .filter(|action| action.kind != nvs_lsp::html_literal::KIND)
         .map(|action| (action.title, action.replacement, action.range))
         .collect();
         let want: Vec<(String, String, Range)> = want
@@ -663,16 +664,20 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
         assert_eq!(offered, want, "{call}");
     }
 
-    // Without the file, nothing is offered.
+    // Without the file, no fix is offered. The string is still offered the
+    // html-literal conversion, which is no fix and is not counted here.
     let (_, analysis, at) = opened(&workspace, "Icon::render('arrow-<|>left', 16);");
-    let offered = actions::at(
+    let offered: Vec<_> = actions::at(
         &analysis,
         &CompletionFiles::default(),
         at,
         at,
         actions::Kind::QuickFix,
         PositionEncoding::Utf8,
-    );
+    )
+    .into_iter()
+    .filter(|action| action.kind != nvs_lsp::html_literal::KIND)
+    .collect();
     assert!(offered.is_empty(), "{offered:?}");
 }
 

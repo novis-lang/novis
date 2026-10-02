@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 1031,
-    "shipped": 790,
+    "total": 1032,
+    "shipped": 791,
     "designed": 241,
-    "diverging": 596
+    "diverging": 597
   },
   "topics": [
     {
@@ -2932,10 +2932,10 @@
       "url": "/docs/rules/ide/",
       "single": false,
       "counts": {
-        "total": 80,
-        "shipped": 20,
+        "total": 81,
+        "shipped": 21,
         "designed": 60,
-        "diverging": 25
+        "diverging": 26
       },
       "sections": [
         {
@@ -3124,16 +3124,16 @@
           "blurb": "An action may only write text the compiler already determined — never a choice, never an alias, never a guess.",
           "url": "/docs/rules/ide/code-actions/",
           "counts": {
-            "total": 11,
-            "shipped": 3,
+            "total": 12,
+            "shipped": 4,
             "designed": 8,
-            "diverging": 5
+            "diverging": 6
           },
           "rules": [
             {
               "id": "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
               "slug": "a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
-              "title": "A code action ships only where its replacement text is already in a diagnostic's suggestions — two at M4B, and no other",
+              "title": "A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-literal rewrite",
               "status": "designed",
               "href": "/docs/rules/ide/code-actions/#a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
               "diverges": null
@@ -3145,6 +3145,14 @@
               "status": "designed",
               "href": "/docs/rules/ide/code-actions/#a-quick-fix-is-a-diagnostics-own-suggestion",
               "diverges": "there is no inspection profile to tune; a fix exists only where a diagnostic already carries its replacement text, and running fixes on save is `editor.codeActionsOnSave`, never part of the formatter"
+            },
+            {
+              "id": "ide/a-string-converts-to-an-html-literal",
+              "slug": "a-string-converts-to-an-html-literal",
+              "title": "A string or a `.` chain of strings and values converts to the html literal that prints the same text, as a code action the server computes and an editor only applies",
+              "status": "shipped",
+              "href": "/docs/rules/ide/code-actions/#a-string-converts-to-an-html-literal",
+              "diverges": "PHP has no markup literal, so there is nothing to convert to; an editor's string-to-template intention there is text logic in the editor"
             },
             {
               "id": "ide/an-undeclared-name-offers-its-import",

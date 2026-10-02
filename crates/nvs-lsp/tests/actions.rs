@@ -157,6 +157,37 @@ fn a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternati
     );
 }
 
+/// The one action with no diagnostic behind it
+/// (`rule:ide/a-string-converts-to-an-html-literal`): it changes what the line
+/// prints, so it is offered beside the quick fixes under its own kind and never
+/// in a fix-all, which a save would run.
+#[test]
+fn the_html_literal_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
+    let source = "<?nvs\nvar $name = \"world\";\necho \"<b>\" . $name . \"</b>\";\n";
+    let at = cursor(source, "$name . ");
+    let offered = |kind| -> Vec<(String, String)> {
+        actions::at(
+            &analysed(source),
+            &CompletionFiles::default(),
+            at,
+            at,
+            kind,
+            PositionEncoding::Utf8,
+        )
+        .into_iter()
+        .map(|action| (action.kind, action.replacement))
+        .collect()
+    };
+    assert_eq!(
+        offered(actions::Kind::QuickFix),
+        [(
+            nvs_lsp::html_literal::KIND.to_owned(),
+            "html`<b>{$name}</b>`".to_owned()
+        )]
+    );
+    assert_eq!(offered(actions::Kind::FixAll), []);
+}
+
 /// The far side of the boundary, in both of its shapes.
 ///
 /// `array<mixed>` narrowing (`rule:ide/narrow-an-annotation-to-its-literal`) is
@@ -164,7 +195,9 @@ fn a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternati
 /// already, and there is still nothing to offer here — no diagnostic carries
 /// it, so this module has nothing to translate. A type error is the other
 /// shape: it is published, the cursor is on it, and it names no replacement
-/// because choosing one would be the checker computing a fix.
+/// because choosing one would be the checker computing a fix. The string under
+/// the cursor is still offered the html-literal refactor, which is no fix and
+/// is left out of what this test counts.
 #[test]
 fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
     let narrowable = "<?nvs\narray<mixed> $rows = [1, 2, 3];\n";
@@ -182,5 +215,18 @@ fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
         .is_empty(),
         "the document has a published diagnostic for the cursor to be on"
     );
-    assert_eq!(offered(mistyped, "\"text\""), "none\n");
+    let at = cursor(mistyped, "\"text\"");
+    let fixes: Vec<String> = actions::at(
+        &analysed(mistyped),
+        &CompletionFiles::default(),
+        at,
+        at,
+        actions::Kind::QuickFix,
+        PositionEncoding::Utf8,
+    )
+    .into_iter()
+    .filter(|action| action.kind != nvs_lsp::html_literal::KIND)
+    .map(|action| action.title)
+    .collect();
+    assert_eq!(fixes, Vec::<String>::new());
 }

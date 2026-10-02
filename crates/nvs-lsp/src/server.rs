@@ -1420,14 +1420,17 @@ fn document_link(
 
 /// `textDocument/codeAction` — the fixes offered over the range asked about.
 ///
-/// Every one is a `Suggestion` a diagnostic already carried, translated by
-/// [`actions::at`], which the `.lspt` suite calls too — so a light bulb and a
-/// frozen case offer the same fix
-/// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).
+/// Every fix is a `Suggestion` a diagnostic already carried, and the one
+/// refactor is the html-literal rewrite, both answered by [`actions::at`],
+/// which the `.lspt` suite calls too — so a light bulb and a frozen case offer
+/// the same edit
+/// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`). Each
+/// action carries its own kind, since the refactor's is never the one asked
+/// for.
 ///
 /// The edit crosses as a [`WorkspaceEdit`] naming this document alone: one
-/// `Suggestion` is one span in one file, and the file is the one the client
-/// asked about. `diagnostics` is left unset — the client is holding the
+/// action is one span in one file, and the file is the one the client asked
+/// about. `diagnostics` is left unset — the client is holding the
 /// published diagnostic already, and re-deriving the wire value here would be a
 /// second place the same range is computed.
 ///
@@ -1451,7 +1454,7 @@ fn code_actions(
         .map(|action| {
             CodeActionOrCommand::CodeAction(CodeAction {
                 title: action.title,
-                kind: Some(CodeActionKind::new(kind.name())),
+                kind: Some(CodeActionKind::from(action.kind)),
                 edit: Some(WorkspaceEdit {
                     changes: Some(
                         [(

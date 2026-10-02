@@ -22,3 +22,8 @@ A suggestion marked as an **alternative**, one of several edits a person chooses
 as a quick fix and never under `source.fixAll.nvs`, since a save that applied every alternative would
 write one over another. `W1022`'s likely grouping is one (`rule:expressions/misread-grouping-warns`),
 and the parentheses that keep the current meaning beside it are not.
+
+A rewrite with no diagnostic behind it is not an inspection. The one there is, a string converted to
+an html literal (`rule:ide/a-string-converts-to-an-html-literal`), is offered beside the quick fixes
+under its own `refactor.rewrite.htmlLiteral` kind and never under `source.fixAll.nvs`, since it
+changes what the line prints.

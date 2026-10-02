@@ -1,6 +1,6 @@
 //! What may be fixed at the cursor, and which diagnostic each fix came from.
 //!
-//! `textDocument/codeAction` is a translation and not an analysis. Every action
+//! `textDocument/codeAction` is a translation and not an analysis. Every fix
 //! this server offers is one [`nvs_diagnostics::Suggestion`] a diagnostic is
 //! already carrying — the casing rename (`rule:core-api/identifier-casing`) and
 //! the legacy cast's `expr as T` (`rule:types/no-legacy-cast`) are the two that
@@ -12,6 +12,11 @@
 //! full: a fix the checker would have to compute has no `Suggestion` behind it,
 //! so there is nothing here for it to be translated *from*, and it is offered
 //! by nothing rather than refused by a list.
+//!
+//! The one action that is not a fix is [`crate::html_literal`]'s refactor, a
+//! string rewritten as an html literal. It is appended to the quick fixes under
+//! its own kind and never to a fix-all, since applying it changes what the
+//! line prints.
 //!
 //! # Decision: the gate an editor sees is the gate an action is offered behind
 //!
@@ -114,7 +119,8 @@ impl Kind {
 }
 
 /// Every fix offered over `[start, end)` of the entry document of `analysed`,
-/// under `kind`, positioned in `encoding`.
+/// under `kind`, positioned in `encoding` — and, beside the quick fixes, the
+/// html-literal refactor when the range is on a string ([`crate::html_literal`]).
 ///
 /// The diagnostics read are the compiler's, phase-gated, and the ones `files`
 /// gives the entry document, which is where a deprecated value's replacement
@@ -153,6 +159,9 @@ pub fn at(
             replacement: suggestion.replacement.clone(),
         })
         .collect();
+    if kind == Kind::QuickFix {
+        offered.extend(crate::html_literal::at(analysed, start, end, encoding));
+    }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));
     offered
 }

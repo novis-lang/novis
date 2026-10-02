@@ -109,6 +109,7 @@ mod document;
 pub mod folding;
 pub mod hints;
 pub mod hover;
+pub mod html_literal;
 pub mod imports;
 pub mod index;
 pub mod links;

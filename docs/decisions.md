@@ -1603,6 +1603,13 @@ are valid code, so the compiler warns with `W1022` and does not stop. The warnin
 parentheses that keep what the line does now, which a save may apply, and the order the line most
 likely meant, which only you can choose. Nothing changes when the program runs.
 
+**The editor converts a string to an html literal**
+
+Put the cursor on a string, or on a `.` chain such as `"<b>" . $name . "</b>"`, and choose **Convert
+to html literal**. The editor writes `` html`<b>{$name}</b>` ``, which prints the same text. The
+text of an html literal is printed as markup, so read the preview before you apply it. The action
+never runs on save.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

@@ -117,17 +117,17 @@ pub struct Region {
 
 /// One fix an editor may offer, with the edit it would apply.
 ///
-/// **One edit and not a list.** Every action this server offers is a
-/// translation of one [`nvs_diagnostics::Suggestion`]
+/// **One edit and not a list.** Every fix this server offers is a translation
+/// of one [`nvs_diagnostics::Suggestion`]
 /// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`), and
 /// a suggestion is one span and the text to put there. A fix wanting two edits
 /// is one the checker would have to compute, which is the far side of the
-/// boundary that rule draws.
+/// boundary that rule draws. The html-literal refactor replaces one span too.
 ///
 /// The kind is a string for [`Redaction`]'s reason turned around: LSP's own
-/// kinds are an open hierarchy, and the two this server answers under
-/// ([`crate::CODE_ACTION_KINDS`]) are decided by what the client asked for
-/// rather than by the fix.
+/// kinds are an open hierarchy ([`crate::CODE_ACTION_KINDS`]). A fix's kind is
+/// decided by what the client asked for rather than by the fix, and the
+/// refactor's is always its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Action {
     /// What the client shows for it — the suggestion's own message, so what a

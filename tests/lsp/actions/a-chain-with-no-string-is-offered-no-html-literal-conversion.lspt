@@ -1,0 +1,11 @@
+--TEST--
+a `.` chain with no string in it is offered no html-literal conversion, since there is no markup text to keep, `rule:ide/a-string-converts-to-an-html-literal`
+--FILE--
+<?nvs
+int $a = 1;
+int $b = 2;
+echo $a . 42 . $<|>b;
+--REQUEST--
+codeAction
+--EXPECT--
+none
