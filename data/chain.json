@@ -1,5 +1,5 @@
 {
-  "live": "coalesce-assign",
+  "live": "completion-files",
   "goals": [
     "core-depth",
     "concurrency",
