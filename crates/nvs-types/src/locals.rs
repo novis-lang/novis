@@ -162,6 +162,9 @@ pub(crate) struct LocalScope {
     /// binding, so there is no statement boundary afterwards at which the name
     /// could be taken back out. [`ArmBinding`] is that boundary.
     arm_bound: std::cell::RefCell<FxHashMap<String, LocalInfo>>,
+    /// The initializer of every local whose type `var` took from it — read by
+    /// [`Self::var_initializer`] when a later write does not fit that type.
+    var_initializers: FxHashMap<String, Span>,
 }
 
 /// The outer bindings a closure body may read, and the ones it actually did.
@@ -203,6 +206,15 @@ impl LocalScope {
     /// definitely assigned, so the caller adds `name` to `live` itself.
     pub(crate) fn declare_param(&mut self, name: String, ty: TypeId, declared_span: Span) {
         self.by_name.insert(name, LocalInfo { ty, declared_span });
+    }
+
+    /// For a local of this body declared with `var`, its type, the span of its
+    /// name and the span of the initializer the type was taken from; `None`
+    /// for every other binding, a captured one included.
+    pub(crate) fn var_initializer(&self, name: &str) -> Option<(TypeId, Span, Span)> {
+        let info = self.by_name.get(name)?;
+        let init = *self.var_initializers.get(name)?;
+        Some((info.ty, info.declared_span, init))
     }
 
     /// The declared type `name` is readable and writable at in this body —
@@ -1433,6 +1445,13 @@ pub(crate) fn check_stmt(
                     let inferred_ty =
                         reject_void_or_never_binding(synthesized, value.span, true, env);
                     declare_binding(scope, &name_str, inferred_ty, *name, true, env);
+                    if scope
+                        .by_name
+                        .get(&name_str)
+                        .is_some_and(|info| info.declared_span == *name)
+                    {
+                        scope.var_initializers.insert(name_str.clone(), value.span);
+                    }
                     live.insert(name_str);
                 }
             }
@@ -1544,7 +1563,7 @@ fn var_array_literal(
 /// The elements' types as a person writes them in a declaration, in the order
 /// the elements are written: `int|string`, and `?int` for an `int` and a
 /// `null`.
-fn written_element_type(distinct: &[TypeId], env: &Env<'_>) -> String {
+pub(crate) fn written_element_type(distinct: &[TypeId], env: &Env<'_>) -> String {
     if let [a, b] = distinct {
         match (env.interner.get(*a), env.interner.get(*b)) {
             (Ty::Null, _) => return format!("?{}", env.interner.describe(*b)),

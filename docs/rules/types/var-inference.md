@@ -29,4 +29,8 @@ iterated. The rule is on the expression's own top level only — in `var $x = f(
 
 Every other rule that applies to a typed binding — declare-once, definite assignment, redeclaration
 diagnostics, the cursor's missing key — applies unchanged, because by the time those checks run `var`
-has already resolved to a concrete type.
+has already resolved to a concrete type. A later write that does not fit that type is the mismatch a
+written type gets, with one addition, because the type it misses is not on the line: a label on the
+`var` line, and a help naming the declaration that would accept the value — `var $prices = [10, 20];`
+then `$prices[] = 12.5;` names `array<int|float> $prices = [10, 20];`, the element type widened at
+the depth the write went through.

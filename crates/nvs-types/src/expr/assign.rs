@@ -744,9 +744,11 @@ pub(crate) fn check_assign(
         // binding was *declared* as, and drops whatever a `!== null` test
         // narrowed it to — see `crate::locals`' narrowing docs.
         let declared = scope.overwrite(&name);
+        let before = env.diags.len();
         let value_ty = check_expr(value, declared, live, scope, ctx, env);
         match declared {
             Some(ty) => {
+                name_the_var_line(before, target, value, ty, value_ty, scope, env);
                 live.insert(name);
                 ty
             }
@@ -774,9 +776,88 @@ pub(crate) fn check_assign(
         // already failed against the element type is one mistake.
         if env.diags.len() == before {
             reject_secret_element_write(target, target_ty, value, value_ty, env);
+        } else {
+            name_the_var_line(before, target, value, target_ty, value_ty, scope, env);
         }
         target_ty
     }
+}
+
+/// `rule:types/var-inference`: a write that does not fit a local whose type
+/// `var` took from its initializer is reported again with that line beside it,
+/// and with the declaration that would accept the value.
+///
+/// The mismatch is the one [`mismatch`] builds, so the message is the same as
+/// for a written type; only the label on the `var` line and the help are
+/// added. `before` is the diagnostic count before `value` was checked, and the
+/// one diagnostic after it must be that mismatch, at `value` itself — a value
+/// whose own parts failed is left as it was reported. Through a subscript the
+/// help widens the element type at the depth that was written, so
+/// `$grid[0][] = 1.5` on an `array<array<int>>` names `array<array<int|float>>`.
+fn name_the_var_line(
+    before: usize,
+    target: &Expr,
+    value: &Expr,
+    expected: TypeId,
+    actual: TypeId,
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) {
+    let reported = env.diags.iter().skip(before).collect::<Vec<_>>();
+    let [only] = reported.as_slice() else {
+        return;
+    };
+    if only.code != Some(code::E_TYPE_MISMATCH) || only.primary_span() != Some(value.span) {
+        return;
+    }
+    let mut root = target.unparenthesized();
+    let mut depth = 0;
+    while let ExprKind::Index { base, .. } = &root.kind {
+        root = base.unparenthesized();
+        depth += 1;
+    }
+    let ExprKind::Variable(span) = root.kind else {
+        return;
+    };
+    let name = strip_sigil(span_text(env.src, span)).to_owned();
+    let Some((declared, at, init)) = scope.var_initializer(&name) else {
+        return;
+    };
+    let mut element = declared;
+    for _ in 0..depth {
+        let Ty::Array(inner) = env.interner.get(element) else {
+            return;
+        };
+        element = *inner;
+    }
+    let mut distinct = env.interner.union_members(element);
+    for member in env.interner.union_members(actual) {
+        if !distinct.contains(&member) {
+            distinct.push(member);
+        }
+    }
+    let widened = format!(
+        "{}{}{}",
+        "array<".repeat(depth),
+        crate::locals::written_element_type(&distinct, env),
+        ">".repeat(depth)
+    );
+    let text = span_text(env.src, init);
+    let shown = if text.len() <= 40 && !text.contains('\n') {
+        text
+    } else {
+        "..."
+    };
+    let help = format!("to accept this value, write the type: `{widened} ${name} = {shown};`");
+    let declared = env.interner.describe(declared);
+    env.diags.truncate(before);
+    let diag = mismatch(value.span, expected, actual, env)
+        .with_secondary(
+            at,
+            format!("`var` gave `${name}` the type `{declared}` here"),
+        )
+        .with_help(help);
+    env.diags.report(diag);
 }
 
 /// Records every `$a[]` level of a plain `=`'s target as a legal append, so
