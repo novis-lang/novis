@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/cache.rs",
+  "title": "The warm-start cost guards run only in the loop driver's release slot, and no CI step runs them.",
+  "text": "`a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names` at `crates/nvs-cli/src/cache.rs:3015` is ignored under `debug_assertions`, and CI's only release test steps are `cargo test --release -p nvs-abi-probe` in `.github/workflows/ci.yml`. The `bun nv bench --warm-start --max-work-ms 6` budget is a check in walked goals' records only, so it runs as the driver's floor. Stage 6 of `goal-closeout` deletes the floor, so both bounds would then run nowhere. Closing this adds a release step to `ci.yml` that runs the cache guard and the warm-start budget, before the floor is deleted.",
+  "goal": "goal-closeout"
+}

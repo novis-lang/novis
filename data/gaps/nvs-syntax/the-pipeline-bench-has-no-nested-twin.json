@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-syntax/src/parser/expr.rs",
+  "title": "The pipeline operator's bench times only the `|>` syntax, and has no nested-call twin to compare it with.",
+  "text": "The design's claim is that `|>` parses to the same AST as the nested calls, so it costs the same. `crates/nvs-syntax/src/parser/tests/expr.rs` tests the identical AST, but `benches/members/lang/expressions/the-pipeline-operator.nvs` measures only the pipeline. Closing this adds a bench member beside it that runs the same three calls written nested, so the two figures sit side by side.",
+  "goal": "goal-closeout"
+}

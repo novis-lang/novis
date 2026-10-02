@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/main.rs",
+  "title": "Under `nvs serve` and in a spawned script, `Core\\Program::id()` throws, because no host writes an id there.",
+  "text": "`rule:programs/program-id` computes the id at program resolution and at the hot-reload pointer swap. The only call to `Ctx::set_program_id` is the `nvs run` path at `crates/nvs-cli/src/main.rs:2868`. A request context under `nvs serve` is never handed one, and neither is the child context `program_over` builds at `crates/nvs-cli/src/script.rs:1756`, so `Core\\Program::id()` throws its `LogicError` in both. The hot-reload swap at `crates/nvs-cli/src/control.rs:494` re-keys the compiler and never recomputes the id. Closing this computes the id where the server resolves its program and again at that swap, writes it onto every request context and every spawned child, and adds a test that `Core\\Program::id()` returns under `nvs serve`.",
+  "goal": "goal-closeout"
+}

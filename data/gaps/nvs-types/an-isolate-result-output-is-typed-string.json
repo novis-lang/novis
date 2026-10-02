@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/isolate.rs",
+  "title": "A spawned isolate's `output` field is typed `string`, and not the carrier of the parent's sink.",
+  "text": "`rule:security/isolate-output-is-captured` and `rule:security/capture-answers-the-carrier` give captured output the parent sink's carrier type: `Core\\Html\\Markup` under a request and `Cli\\Text` everywhere else. The result shape at `crates/nvs-types/src/expr/isolate.rs:593` types `output` as `string`, and the module doc at `crates/nvs-types/src/expr/isolate.rs:81` still calls the field unsettled. Re-emitting that string escapes the captured bytes a second time. Closing this types the field from the sink in force, checks that a captured page echoes unchanged, and rewrites the module doc's paragraph.",
+  "goal": "goal-closeout"
+}
