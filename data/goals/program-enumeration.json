@@ -11,7 +11,9 @@
       "crates/nvs-diagnostics/src/lib.rs",
       "crates/nvs-stdlib/src/program.rs",
       "crates/nvs-stdlib/src/registry.rs",
-      "crates/nvs-lsp/src/definition.rs"
+      "crates/nvs-lsp/src/definition.rs",
+      "crates/nvs-ir/src/lower/expr.rs",
+      "crates/nvs-types/src/expr_table.rs"
     ],
     "rules": [
       "programs/implementing",

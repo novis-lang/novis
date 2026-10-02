@@ -1,36 +1,37 @@
 {
-  "state": "**Goal `program-enumeration` — `Core\\Program` enumerates by base class, and hands back typed constructors — has just started; nothing of it has landed yet.** Goal `var-array-literal`'s whole list is this goal's Stage 1 floor.\n\nThe design is settled and the three calls in it are the user's: `implementing<T>` and `implementingWith<T, S>` take a class as well as an interface, a concrete `T` is in its own list, and `constructors<T, C>()` returns `{class, make}` rows whose `make` is a closure typed by `C`. The goal file's § *Standing decisions* answers every call a session meets, and no session re-decides one.\n\nTwo facts about the tree as the goal was written. `nvs_hir::implementors` already walks `extends` and counts a class as matching itself, so the class selector is `E0743` in `crates/nvs-types/src/program.rs:@interface_of` and little else. `crates/nvs-hir/src/requires.rs:@is_program_scan` opts in on the member `implementing` alone, and no existing `implementingWith` case uses autoloaded classes — so a program calling only `implementingWith` is expected to miss them. That was read, not run; Stage 2's test settles it.",
+  "state": "**Goal `program-enumeration` — Stage 2, the class selector, is on disk whole.** ADR 0253 records both halves of the goal, and `rule:programs/constructors` is its new rule, `status: designed` until Stage 3 lands it. `rule:programs/implementing`, `rule:programs/implementing-with` and `rule:programs/framework-refusals` are rewritten under it.\n\n`implementing<T>` and `implementingWith<T, S>` take a class: `crates/nvs-types/src/program.rs:@selector_of` (renamed from `interface_of`) accepts `SymbolKind::Class | Interface` and reports `E0743`, whose constant is now `E_PROGRAM_TYPE_ARG_NOT_A_CLASS_OR_INTERFACE`. `nvs_hir::implementors` needed no change. `E0744`'s message now reads \"`C` is a `T`\". `constructors` is in `PROGRAM_SCAN_MEMBERS` and `constructors_alone_opts_the_program_into_the_scan` pins it. `implementingWith` alone already opted in before this goal (commit 49fad0d4e), so the handoff's earlier doubt there was wrong.\n\nThe reject case is renamed to `program-implementing-takes-an-interface-or-a-class-whose-classes-need-no-arguments.nvst`, and it now covers an enum, a shape and a class whose subclass needs arguments. The `Core\\Program` cards, `docs/reference/lang/90-attributes.md` and `docs/novis.md` say \"interface or class\". The two `about.md` files are incomplete rather than false, and Stage 4 rewrites them whole.",
   "next": {
-    "stage": 2,
-    "title": "the class selector",
+    "stage": 3,
+    "title": "`constructors<T, C>()`",
     "files": [
+      "crates/nvs-stdlib/src/program.rs",
+      "crates/nvs-stdlib/src/registry.rs",
       "crates/nvs-types/src/program.rs",
-      "crates/nvs-hir/src/hierarchy.rs",
-      "crates/nvs-hir/src/requires.rs",
+      "crates/nvs-types/src/expr_table.rs",
+      "crates/nvs-ir/src/lower/expr.rs",
       "crates/nvs-diagnostics/src/lib.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The decision record** — one new record, the next free number checked right before it is written, from the goal's § *Standing decisions*; it `modifies` `programs/implementing` and `programs/implementing-with`, `adds` `programs/constructors`, and the fragments are rewritten whole with it."
+        "text": "**The registry row and its cards** (`rule:programs/constructors`) — a row beside `implementingWith`'s at `crates/nvs-stdlib/src/program.rs:107`, no parameters, two written type arguments, and a return type spelling `array<{class: string, make: C}>`. Exempt it from the shape guard at `crates/nvs-stdlib/src/registry.rs:4313` the way `implementingWith` is. If `CoreTy` cannot spell a written callable variable, add the smallest variant that can, and say so here."
       },
       {
         "done": false,
-        "text": "**`interface_of` accepts a class** — `crates/nvs-types/src/program.rs:@interface_of` returns the name for an interface or a class and reports `E0743` for everything else; `E0743`'s entry in `crates/nvs-diagnostics/src/lib.rs` is rewritten whole."
+        "text": "**The expansion** — beside `expand_with` at `crates/nvs-types/src/program.rs:115`. `is_enumeration` at `crates/nvs-types/src/program.rs:58` gains the member. Each row's `make` is an ordinary closure literal checked at the call site. That needs a recorded `ExprInfo` beside `ProgramInstancesWith` at `crates/nvs-types/src/expr_table.rs:1111`, lowered beside `crates/nvs-ir/src/lower/expr.rs:318`. Set `data/rules/programs/constructors.json` to `shipped` with its `guardedBy` in the same commit."
       },
       {
         "done": false,
-        "text": "**Every enumeration member opts into the scan** — `crates/nvs-hir/src/requires.rs:@is_program_scan` compares against a slice of `implementing`, `implementingWith` and `constructors`, pinned by the two `*_alone_opts_the_program_into_the_scan` tests."
+        "text": "**Two refusals** — new codes `E0838` (`C` is not a callable type naming its parameters, or does not return `T`) and `E0839` (a class whose constructor the closure does not fit, naming the class, with the ordinary error as a note), next to `E0744` at `crates/nvs-diagnostics/src/lib.rs:3846`. `E0744` is never reported by this member. Pinned by `tests/conformance/reject/program-constructors-names-the-class-whose-constructor-does-not-fit.nvst` and the accept case the goal file names."
       },
       {
         "done": false,
-        "text": "**The conformance cases and named tests** of the goal file's Stage 2 checks, and the reject case `program-implementing-takes-an-interface-whose-classes-need-no-arguments.nvst` renamed to a true name after a `grep` finds no other citer."
+        "text": "**`nvs-lsp` go-to-definition on both type arguments** — `crates/nvs-lsp/src/definition.rs:1070`, the type-position jump `implementing<User>()` already takes."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: `constructors<T, C>()`** — the registry row and cards in `crates/nvs-stdlib/src/program.rs`, the expansion beside `implementingWith`'s, the new refusal codes, and the LSP jump. Shares `crates/nvs-types/src/program.rs` with Stage 2, so it may follow in the same session if the budget holds.",
-    "**Stage 4: the feature proofs** — `constructors`' full proofs, one class-selector example each for `implementing` and `implementingWith`, both `about.md` files, the Stage 0 documents, and the regenerated `docs/novis.md`.",
-    "When this goal's last check goes green the driver takes goal `ci-green`."
+    "Stage 4: the feature proofs for `constructors`, one new example per existing member selecting by an abstract base, and both `about.md` files rewritten whole — the goal file § *Stage 4*.",
+    "The two context gaps this session closed: `crates/nvs-ir/src/lower/expr.rs` and `crates/nvs-types/src/expr_table.rs` were missing from `[context] modules`, and are now added."
   ]
 }
